@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 9
-contains 108 paired programs, 180 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 10
+contains 136 paired programs, 200 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -57,6 +57,12 @@ Corpus 9 adds [72 lowering-gap references](lowering-gaps.md). Each runs independ
 in Node against a specified result, then requires the current compiler's specific
 rejection and absence of an artifact. Reports distinguish successful reference
 execution from unexecuted lowering; these cases do not count as compiler support.
+
+Corpus 10 promotes compound assignment, prefix/postfix increments and parenthesized
+write statements into numeric support. Twenty-eight paired regressions cover all
+four compound arithmetic operators, increments/decrements, result snapshots, RHS
+ordering, lexical mutation and terminal loop-condition effects. The remaining
+frontier contains 68 reference-validated gaps.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -130,10 +136,14 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
   Both ternary arms must be admitted and lower to structured Wasm
   `if (result f64)`. Optional TS annotations must be exactly `number`.
-  Simple `=` expressions write to an initialized parameter or `let` binding and
-  return the assigned number. The RHS runs once; a typed IR value and separate
+  `=`, `+=`, `-=`, `*=` and `/=` expressions write to an initialized parameter or
+  `let` binding and return the assigned number. Compound operations snapshot the
+  target before evaluating the RHS. Prefix/postfix `++` and `--` store the updated
+  number and return the new/old snapshot respectively. The RHS runs once; a typed
+  IR value and separate
   Wasm temporary preserve its snapshot across the store. Assignment statements
-  leave that value unused. Writes to `const`, globals,
+  and update statements leave their results unused; parentheses around these
+  writes are admitted. Writes to `const`, globals,
   self/forward locals, property/destructuring and TS-wrapped targets are rejected.
   Scope exit removes bindings from visibility without recycling their physical
   Wasm slots. Both branches are admitted independently before encoding. Explicit
@@ -181,15 +191,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 270864 numeric comparisons; 180 rejected inputs; overwrite preserved
+PASS 341088 numeric comparisons; 200 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-One hundred and eight programs, each written as JS and TS, produce 216 modules.
+One hundred and thirty-six programs, each written as JS and TS, produce 272 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 270,864 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 341,088 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
@@ -232,7 +242,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-One hundred and eighty malformed or unsupported programs fail explicitly, each with a unique
+Two hundred malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

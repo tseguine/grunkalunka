@@ -1,12 +1,12 @@
 //! Source admission and AST-to-region lowering. Source limits count source nodes,
 //! never the generated regions, values or Wasm temporary locals.
 use oxc_ast::ast::{
-    AssignmentTarget, BindingPattern, Expression, IdentifierReference, Statement,
-    VariableDeclarationKind,
+    AssignmentTarget, BindingPattern, Expression, IdentifierReference, SimpleAssignmentTarget,
+    Statement, VariableDeclarationKind,
 };
 use oxc_semantic::{Semantic, SymbolId};
 use oxc_span::GetSpan;
-use oxc_syntax::operator::{AssignmentOperator, BinaryOperator, UnaryOperator};
+use oxc_syntax::operator::{AssignmentOperator, BinaryOperator, UnaryOperator, UpdateOperator};
 
 use crate::ir::{
     self, Binary, Compare, Exit, Op, Operation, Region, RegionId, Slot, SlotId, Type, Unary,
@@ -102,12 +102,19 @@ impl Lowering<'_, '_> {
                 Op::Load { result, slot }
             }
             Expression::AssignmentExpression(assignment) => {
-                if assignment.operator != AssignmentOperator::Assign {
-                    return Err(unsupported(
-                        expression,
-                        "only simple '=' assignment is admitted",
-                    ));
-                }
+                let operator = match assignment.operator {
+                    AssignmentOperator::Assign => None,
+                    AssignmentOperator::Addition => Some(Binary::Add),
+                    AssignmentOperator::Subtraction => Some(Binary::Subtract),
+                    AssignmentOperator::Multiplication => Some(Binary::Multiply),
+                    AssignmentOperator::Division => Some(Binary::Divide),
+                    _ => {
+                        return Err(unsupported(
+                            expression,
+                            "only =, +=, -=, *= and /= assignments are admitted",
+                        ));
+                    }
+                };
                 let AssignmentTarget::AssignmentTargetIdentifier(identifier) = &assignment.left
                 else {
                     return Err(unsupported(
@@ -123,10 +130,87 @@ impl Lowering<'_, '_> {
                     ));
                 }
                 let slot = binding.slot;
+                // Compound assignment reads the target before RHS side effects.
+                let previous = if operator.is_some() {
+                    let result = self.value(Type::Number);
+                    Self::push(region, expression, Op::Load { result, slot });
+                    Some(result)
+                } else {
+                    None
+                };
                 let value = self.expression(&assignment.right, region, depth + 1)?;
+                let value = if let (Some(left), Some(operator)) = (previous, operator) {
+                    let result = self.value(Type::Number);
+                    Self::push(
+                        region,
+                        expression,
+                        Op::Binary {
+                            result,
+                            operator,
+                            left,
+                            right: value,
+                        },
+                    );
+                    result
+                } else {
+                    value
+                };
                 Self::push(region, expression, Op::Store { slot, value });
-                // An assignment yields the RHS snapshot, never a delayed cell read.
+                // An assignment yields the stored value snapshot, never a delayed cell read.
                 return Ok(value);
+            }
+            Expression::UpdateExpression(update) => {
+                let SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) =
+                    &update.argument
+                else {
+                    return Err(unsupported(
+                        expression,
+                        "update target must be an initialized identifier",
+                    ));
+                };
+                let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
+                if !binding.mutable {
+                    return Err(unsupported(
+                        expression,
+                        "update to a const binding is not admitted",
+                    ));
+                }
+                let slot = binding.slot;
+                let previous = self.value(Type::Number);
+                Self::push(
+                    region,
+                    expression,
+                    Op::Load {
+                        result: previous,
+                        slot,
+                    },
+                );
+                let one = self.value(Type::Number);
+                Self::push(
+                    region,
+                    expression,
+                    Op::Constant {
+                        result: one,
+                        value: 1.0,
+                    },
+                );
+                let next = self.value(Type::Number);
+                let operator = match update.operator {
+                    UpdateOperator::Increment => Binary::Add,
+                    UpdateOperator::Decrement => Binary::Subtract,
+                };
+                Self::push(
+                    region,
+                    expression,
+                    Op::Binary {
+                        result: next,
+                        operator,
+                        left: previous,
+                        right: one,
+                    },
+                );
+                Self::push(region, expression, Op::Store { slot, value: next });
+                return Ok(if update.prefix { next } else { previous });
             }
             Expression::ParenthesizedExpression(parenthesized) => {
                 return self.expression(&parenthesized.expression, region, depth + 1);
@@ -348,10 +432,25 @@ impl Lowering<'_, '_> {
                 Ok(true)
             }
             Statement::ExpressionStatement(statement) => {
-                if !matches!(statement.expression, Expression::AssignmentExpression(_)) {
+                let mut expression = &statement.expression;
+                let mut parentheses = 0;
+                while let Expression::ParenthesizedExpression(inner) = expression {
+                    if parentheses >= 128 {
+                        return Err(unsupported(
+                            expression,
+                            "expression nesting exceeds this experiment's limit",
+                        ));
+                    }
+                    parentheses += 1;
+                    expression = &inner.expression;
+                }
+                if !matches!(
+                    expression,
+                    Expression::AssignmentExpression(_) | Expression::UpdateExpression(_)
+                ) {
                     return Err(unsupported(
                         statement.as_ref(),
-                        "only assignments are admitted as expression statements",
+                        "only assignments and updates are admitted as expression statements",
                     ));
                 }
                 self.expression(&statement.expression, region, 0)?;

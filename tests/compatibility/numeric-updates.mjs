@@ -1,0 +1,33 @@
+// Numeric read-modify-write operations, including their returned value.
+const cases = [
+  ['compound-add', 'return a += b;'],
+  ['compound-add-before-rhs', 'return a += (a = b);'],
+  ['compound-subtract', 'return a -= b;'],
+  ['compound-multiply', 'return a *= b;'],
+  ['compound-divide', 'return a /= b;'],
+  ['compound-subtract-before-rhs', 'return a -= (a = b);'],
+  ['compound-multiply-before-rhs', 'return a *= (a = b);'],
+  ['compound-divide-before-rhs', 'return a /= (a = b);'],
+  ['compound-result-snapshot', 'return (a += b) - (a = b);'],
+  ['compound-local-state', 'let x=a; const y=(x+=b); return x-y;'],
+  ['compound-shadow', 'let x=a; { let x=b; x*=2; b=x; } return x+b;'],
+  ['compound-rhs-once', 'let x=0; const y=(a+=(x=x+1)); return x;'],
+  ['post-increment', 'return a++;'],
+  ['pre-increment', 'return ++a;'],
+  ['post-decrement', 'return a--;'],
+  ['pre-decrement', 'return --a;'],
+  ['post-increment-state', 'return a++ + a;'],
+  ['pre-increment-state', 'return ++a + a;'],
+  ['post-decrement-state', 'return a-- - a;'],
+  ['pre-decrement-state', 'return --a - a;'],
+  ['post-update-snapshot', 'return a++ - (a=b);'],
+  ['update-loop', 'let i=0; let x=a; while (i<3) { x+=b; i++; } return x;'],
+  ['update-initializer', 'let x=a; const y=x++; return y+x;'],
+  ['parenthesized-assignment', '((a=b)); return a;'],
+  ['parenthesized-update', '((a++)); return a;'],
+  ['parenthesized-compound', '((a-=b)); return a;'],
+  ['parenthesized-write-depth', `${'('.repeat(127)}a=b${')'.repeat(127)}; return a;`],
+  ['terminal-post-condition', 'let i=3; while(i--) { a+=b; } return i;'],
+];
+
+export const numericUpdates = cases.map(([id, body]) => [id, body, body]);

@@ -4,8 +4,9 @@ import { test262Programs, test262Source } from './test262.mjs';
 import { benchmarkPrograms, benchmarkSource } from './benchmarks-game.mjs';
 import { loweringRegressions } from './lowering-regressions.mjs';
 import { loweringGaps } from './lowering-gaps.mjs';
+import { numericUpdates } from './numeric-updates.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 9;
+export const corpusVersion = 10;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -35,6 +36,7 @@ programs.push(...typescriptPrograms);
 programs.push(...test262Programs);
 programs.push(...benchmarkPrograms);
 programs.push(...loweringRegressions);
+programs.push(...numericUpdates);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -163,12 +165,10 @@ export const rejected = [
   ['logical', 'export function run(a,b) { return a || b; }'],
   ['comparison', 'export function run(a,b) { return a < b; }'],
   ['sequence', 'export function run(a,b) { return (a,b); }'],
-  ['update', 'export function run(a,b) { return a++; }'],
   ['object', 'export function run(a,b) { return {}; }'],
   ['array', 'export function run(a,b) { return []; }'],
   ['this', 'export function run(a,b) { return this; }'],
   ['unary-not', 'export function run(a,b) { return !a; }'],
-  ['extra-body', 'export function run(a,b) { a++; return a; }'],
   ['empty-return', 'export function run(a,b) { return; }'],
   ['body-directive', 'export function run(a,b) { "use strict"; return a; }'],
   ['module-directive', '"use strict"; export function run(a,b) { return a; }'],
@@ -192,7 +192,25 @@ export const rejected = [
   ['self-write-initializer', 'export function run(a,b) { let x=(x=a); return x; }'],
   ['forward-write-initializer', 'export function run(a,b) { const x=(y=a); let y=b; return x+y; }'],
   ['global-write', 'export function run(a,b) { return clock=a; }'],
-  ['compound-write', 'export function run(a,b) { return a+=b; }'],
+  ...['%=', '**=', '<<=', '>>=', '>>>=', '&=', '|=', '^=', '&&=', '||=', '??='].map((operator, index) =>
+    [`unsupported-compound-${index}`, `export function run(a,b) { return a ${operator} b; }`, 'js',
+      'only =, +=, -=, *= and /= assignments are admitted']),
+  ['compound-const', 'export function run(a,b) { const x=a; return x+=b; }'],
+  ['compound-property', 'export function run(a,b) { return a.x+=b; }'],
+  ['compound-forward', 'export function run(a,b) { const x=(y+=a); let y=b; return x+y; }'],
+  ['compound-self', 'export function run(a,b) { let x=(x+=a); return x; }'],
+  ['compound-global', 'export function run(a,b) { return clock+=a; }'],
+  ['compound-unselected-const', 'export function run(a,b) { const x=a; return a?a:(x+=b); }'],
+  ['compound-unsupported-unselected', 'export function run(a,b) { return a?a:(b%=a); }'],
+  ['update-const', 'export function run(a,b) { const x=a; return x++; }'],
+  ['update-property', 'export function run(a,b) { return a.x++; }'],
+  ['update-forward', 'export function run(a,b) { const x=y++; let y=b; return x+y; }'],
+  ['update-self', 'export function run(a,b) { let x=x++; return x; }'],
+  ['update-global', 'export function run(a,b) { return clock++; }'],
+  ['update-unselected-const', 'export function run(a,b) { const x=a; return a?a:x++; }'],
+  ['update-wrapped-target', 'export function run(a:number,b:number):number { return (a as number)++; }', 'ts'],
+  ['parenthesized-non-write', 'export function run(a,b) { ((a+(a=b))); return a; }'],
+  ['parenthesized-write-depth', `export function run(a,b) { ${'('.repeat(129)}a=b${')'.repeat(129)}; return a; }`],
   ['property-write', 'export function run(a,b) { return a.x=b; }'],
   ['destructuring-write', 'export function run(a,b) { return [a]=b; }'],
   ['ts-wrapped-write', 'export function run(a:number,b:number):number { return (a as number)=b; }', 'ts'],

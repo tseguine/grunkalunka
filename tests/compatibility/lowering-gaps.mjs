@@ -43,9 +43,6 @@ for (const [id, body, expected, diagnostic] of [
   ['property-in', 'return "x" in {x:a} ? 1 : 0;', 1, binary],
   ['instanceof', 'return [] instanceof Array ? 1 : 0;', 1, binary],
   ['comma', 'return (a = b, a + 1);', 3, expression],
-  ['compound-assignment', 'return a += b;', 6, "only simple '=' assignment is admitted"],
-  ['post-increment', 'return a++ + a;', 9, expression],
-  ['pre-increment', 'return ++a + a;', 10, expression],
 ]) add(id, 'operators', body, expected, diagnostic);
 
 for (const [id, body, expected, diagnostic] of [
@@ -122,6 +119,5 @@ add('module-directive', 'input-shapes', '', 6, topLevel,
 add('function-directive', 'input-shapes', '"use strict"; return a+b;', 6, 'function directives are not admitted', { milestone: 'L3' });
 add('hashbang', 'input-shapes', '', 6, topLevel,
   { source: '#!/usr/bin/env node\nexport function run(a,b) { return a+b; }', milestone: 'L3' });
-add('parenthesized-assignment', 'input-shapes', '(a=b); return a;', 2, 'only assignments are admitted as expression statements', { milestone: 'L2' });
 add('while-guaranteed-return', 'structural-analysis', 'while(1) { return a; }', 4, 'every structural path must return a numeric value', { milestone: 'L2' });
 add('unreachable-after-return', 'structural-analysis', 'return a; a=b;', 4, 'statements after a guaranteed return are not admitted', { milestone: 'L2' });
