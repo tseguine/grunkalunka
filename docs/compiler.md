@@ -30,8 +30,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 3
-contains 57 paired programs, 93 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 4
+contains 72 paired programs, 100 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -94,7 +94,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Inputs are **already primitive JS numbers**, represented as Wasm `f64` values.
   This ABI contract is independent of whether TS annotations are present.
 - The body admits initialized numeric `const`/`let` declarations and simple
-  assignment statements in source order, lexical blocks and statement `if`/`else`.
+  assignment statements in source order, lexical blocks and statement `if`/`else`, and `while` loops.
   Early numeric returns are supported. Every structural path must return a number:
   a sequence must reach a guaranteed return; a block inherits that result; an `if`
   guarantees return only when both present arms do. Missing-return paths and
@@ -102,8 +102,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Each declaration has one identifier and initializer; the binding becomes available
   only after that initializer. References resolve through semantic symbol identities.
   Numeric expressions admit literals, initialized bindings, parentheses, binary
-  `+ - * /`, unary `+ -`, and comparison-controlled ternaries. Conditions use numeric
-  `< <= > >= === !==`; both arms must be admitted and lower to structured Wasm
+  `+ - * /`, unary `+ -`, and ternaries. Conditions admit numeric
+  `< <= > >= === !==` comparisons or primitive-number truthiness. Truthiness
+  evaluates its expression once; ±0 and NaN are false, all other numbers are true.
+  Both ternary arms must be admitted and lower to structured Wasm
   `if (result f64)`. Optional TS annotations must be exactly `number`.
   Simple `=` expressions write to an initialized parameter or `let` binding and
   return the assigned number. The RHS runs once; Wasm `local.tee` preserves its
@@ -112,13 +114,15 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Scope exit removes bindings from visibility without recycling their physical
   Wasm slots. Both branches are admitted independently before encoding. Explicit
   Wasm returns preserve completion; a final `unreachable` is a validator aid only
-  after the structural return check succeeds.
+  after the structural return check succeeds. Each `while` is treated as possibly
+  falling through, even when its body returns. A following numeric return is required
+  on that path. Loop-body locals are initialized on each entry and disappear from
+  visibility on exit; physical slots are not reused for sibling declarations.
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
   casts/assertions, uninitialized locals, compound assignments, increment/decrement,
-  loops, logical operators and numeric
-  truthiness. Boolean arithmetic/returns and self/forward local references are
+  `for`/`do`, `break`/`continue`, labels and logical operators. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
 - Admission covers the entire AST, including directives/modifiers stored outside
@@ -129,7 +133,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
 - Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
   across all lexical scopes and 256 recursively counted statements, including
-  block/`if` nodes, both arms and returns; statement nesting limit 64;
+  block/`if`/`while` nodes, both arms, loop bodies and returns; statement nesting limit 64;
   host input batches at most 4096
   pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the vector
   replay has a three-minute bound. These are experiment bounds, not platform policy.
@@ -152,15 +156,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 140676 numeric comparisons; 93 rejected inputs; overwrite preserved
+PASS 177696 numeric comparisons; 100 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-Fifty-seven programs, each written as JS and TS, produce 114 modules. Each module is
+Seventy-two programs, each written as JS and TS, produce 144 modules. Each module is
 validated and run in Wasmtime and Node-Wasm over 617 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`. This yields 140,676 engine-to-JS comparisons. The explicit demo calls in
+`4752554e`. This yields 177,696 engine-to-JS comparisons. The explicit demo calls in
 both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
@@ -187,10 +191,17 @@ shadowing, initialization boundaries, dangling `else`, both-arm return and one-a
 early return followed by a fallback. Negative fixtures cover scope leaks, branch
 fallthrough, unreachable extra statements and recursive limits. Replacing a nested
 early return with `drop` still validates as Wasm but returns the fallback value;
-the behavioral comparison detects it. The affine artifact grew from 61 to 63 bytes
+the behavioral comparison detects it. Loop fixtures are finite independently of
+input values and test zero iterations, nested loops, body initialization, final
+condition effects and early return. Omitting the loop backedge emits valid Wasm
+but fails the differential result check. A separate Rust runtime test deliberately
+exhausts fuel, checks `Trap::OutOfFuel`, then successfully reuses the same instance.
+It never executes the infinite fixture in JavaScript or Node-Wasm. Fuel bounds
+apply to Wasmtime execution; this is not a static termination proof or a universal
+execution bound across engines. The affine artifact grew from 61 to 63 bytes
 when explicit return/completion handling was added.
 
-Ninety-three malformed or unsupported programs fail explicitly, each with a unique
+One hundred malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

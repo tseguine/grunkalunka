@@ -208,29 +208,27 @@ fn lower_predicate(
             depth + 1,
         );
     }
-    let Expression::BinaryExpression(binary) = expression else {
-        return Err(unsupported(
-            expression,
-            "condition must be a numeric comparison; truthiness is not admitted yet",
-        ));
-    };
-    let instruction = match binary.operator {
-        BinaryOperator::LessThan => "f64.lt",
-        BinaryOperator::LessEqualThan => "f64.le",
-        BinaryOperator::GreaterThan => "f64.gt",
-        BinaryOperator::GreaterEqualThan => "f64.ge",
-        BinaryOperator::StrictEquality => "f64.eq",
-        BinaryOperator::StrictInequality => "f64.ne",
-        _ => {
-            return Err(unsupported(
-                expression,
-                "condition must use <, <=, >, >=, === or !==",
-            ));
+    if let Expression::BinaryExpression(binary) = expression {
+        let instruction = match binary.operator {
+            BinaryOperator::LessThan => Some("f64.lt"),
+            BinaryOperator::LessEqualThan => Some("f64.le"),
+            BinaryOperator::GreaterThan => Some("f64.gt"),
+            BinaryOperator::GreaterEqualThan => Some("f64.ge"),
+            BinaryOperator::StrictEquality => Some("f64.eq"),
+            BinaryOperator::StrictInequality => Some("f64.ne"),
+            _ => None,
+        };
+        if let Some(instruction) = instruction {
+            lower_expression(&binary.left, semantic, bindings, output, depth + 1)?;
+            lower_expression(&binary.right, semantic, bindings, output, depth + 1)?;
+            writeln!(output, "{instruction}").unwrap();
+            return Ok(());
         }
-    };
-    lower_expression(&binary.left, semantic, bindings, output, depth + 1)?;
-    lower_expression(&binary.right, semantic, bindings, output, depth + 1)?;
-    writeln!(output, "{instruction}").unwrap();
+    }
+    // For primitive numbers, abs(x) > 0 is false exactly for +/-0 and NaN.
+    // Evaluate once: conditions may assign to bindings read later.
+    lower_expression(expression, semantic, bindings, output, depth)?;
+    output.push_str("f64.abs\nf64.const 0\nf64.gt\n");
     Ok(())
 }
 
@@ -270,6 +268,26 @@ impl StatementLowering<'_, '_> {
         }
         self.statement_count += 1;
         match statement {
+            Statement::WhileStatement(statement) => {
+                // Each statement has a unique counter value; nested loops cannot
+                // alias labels even when their source bindings use the same names.
+                let label = self.statement_count;
+                writeln!(self.output, "block $exit{label}\nloop $loop{label}").unwrap();
+                lower_predicate(
+                    &statement.test,
+                    self.semantic,
+                    &self.bindings,
+                    &mut self.output,
+                    0,
+                )?;
+                writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
+                let visible = self.bindings.len();
+                self.statement(&statement.body, depth + 1)?;
+                self.bindings.truncate(visible);
+                writeln!(self.output, "br $loop{label}\nend\nend").unwrap();
+                // Even a loop whose body always returns might execute zero times.
+                Ok(false)
+            }
             Statement::IfStatement(statement) => {
                 lower_predicate(
                     &statement.test,

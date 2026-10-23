@@ -1,5 +1,5 @@
 // Selected numeric ABI evidence; not a full-language compatibility inventory.
-export const corpusVersion = 3;
+export const corpusVersion = 4;
 
 const expressions = [
   ['affine', '(a * 2 + b) / 3'], ['add', 'a + b'], ['subtract', 'a - b'],
@@ -16,9 +16,30 @@ const expressions = [
   ['nan-comparison', 'a === a ? b : -0'], ['signed-zero-branch', 'a < 0 ? -0 : 0'],
   ['nested-conditional', 'a < b ? (a === 0 ? -0 : a) : (a === a ? b : -0)'],
   ['conditional-operands', '(a < b ? a : b) >= 0 ? a + b : a - b'],
+  ['conditional', 'a ? a : b'],
+  ['truthy-arithmetic', '(a + b) ? a : -b'],
+  ['truthy-once', '(a = a + b) ? a : b'],
+  ['truthy-negative', '-a ? a : b'],
+  ['truthy-nan', '(1e999 - 1e999) ? a : b'],
+  ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
 programs.push(
+  ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
+    'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
+  ['while-truthy', 'let i = 3; while (i) i = i - 1; return a + i;',
+    'let i: number = 3; while (i) i = i - 1; return a + i;'],
+  ['while-zero', 'while (0) { a = b; } return a;', 'while (0) { a = b; } return a;'],
+  ['while-final-condition', 'let i = 0; let x = a; while ((i = i + 1) < 4) { x = x + b; } return x + i;',
+    'let i: number = 0; let x: number = a; while ((i = i + 1) < 4) { x = x + b; } return x + i;'],
+  ['while-nested', 'let i = 0; let x = a; while (i < 3) { let j = 0; while (j < 2) { x = x + b; j = j + 1; } i = i + 1; } return x;',
+    'let i: number = 0; let x: number = a; while (i < 3) { let j: number = 0; while (j < 2) { x = x + b; j = j + 1; } i = i + 1; } return x;'],
+  ['while-shadow', 'let x = a; let i = 0; while (i < 3) { const x = b; a = a + x; i = i + 1; } return x + a;',
+    'let x: number = a; let i: number = 0; while (i < 3) { const x: number = b; a = a + x; i = i + 1; } return x + a;'],
+  ['while-early-return', 'let i = 0; while (i < 3) { if (a < b) return a; i = i + 1; } return b;',
+    'let i: number = 0; while (i < 3) { if (a < b) return a; i = i + 1; } return b;'],
+  ['while-nan-return', 'while (a !== a) { return b; } return a;', 'while (a !== a) { return b; } return a;'],
+  ['if-raw-number', 'if (a) return a; return b;', 'if (a) return a; return b;'],
   ['block-return', '{ const x = a + b; return x; }', '{ const x: number = a + b; return x; }'],
   ['block-shadow', 'let x = a; { const x = b; a = x; } return a + x;',
     'let x: number = a; { const x: number = b; a = x; } return a + x;'],
@@ -78,6 +99,15 @@ programs.push(
 
 
 export const rejected = [
+  ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
+  ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
+  ['while-leak', 'export function run(a,b) { while (0) { const x=a; } return x; }'],
+  ['while-const-write', 'export function run(a,b) { const x=a; while (0) { x=b; } return x; }'],
+  ['while-break', 'export function run(a,b) { while (a) { break; } return b; }'],
+  ['while-continue', 'export function run(a,b) { while (a) { continue; } return b; }'],
+  ['for-loop', 'export function run(a,b) { for (let i=0;i<3;i=i+1) { a=a+b; } return a; }'],
+  ['do-loop', 'export function run(a,b) { do { a=a+b; } while (0); return a; }'],
+  ['label', 'export function run(a,b) { here: while (0) { a=b; } return a; }'],
   ['block-shadow-initializer', 'export function run(a,b) { const x=a; { const x=x+b; return x; } }'],
   ['block-leak', 'export function run(a,b) { { const x=a; } return x; }'],
   ['block-sibling-leak', 'export function run(a,b) { { const x=a; } { return x; } }'],
@@ -90,7 +120,6 @@ export const rejected = [
   ['if-const-write', 'export function run(a,b) { const x=a; if (a===a) { return a; } else { x=b; return x; } }'],
   ['if-sibling-binding', 'export function run(a,b) { if (a<b) { const x=a; return x; } else { return x; } }'],
   ['if-forward-local', 'export function run(a,b) { if(a<b) { return x; } const x=a; return x; }'],
-  ['if-raw-number', 'export function run(a,b) { if(a) return a; return b; }'],
   ['if-unselected-call', 'export function run(a,b) { if(a===a) return a; else return Math.random(); }'],
   ['if-following-total-return', 'export function run(a,b) { if(a<b) return a; else return b; return 0; }'],
   ['if-depth', `export function run(a,b) { ${'if(a<b) '.repeat(66)}a=b; return a; }`],
@@ -120,7 +149,6 @@ export const rejected = [
   ['bitwise', 'export function run(a,b) { return a | b; }'],
   ['logical', 'export function run(a,b) { return a || b; }'],
   ['comparison', 'export function run(a,b) { return a < b; }'],
-  ['conditional', 'export function run(a,b) { return a ? a : b; }'],
   ['sequence', 'export function run(a,b) { return (a,b); }'],
   ['update', 'export function run(a,b) { return a++; }'],
   ['object', 'export function run(a,b) { return {}; }'],
@@ -175,7 +203,7 @@ export const rejected = [
 
 // These are recorded gaps, not skipped executable tests or passing fixtures.
 export const unimplemented = [
-  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Numeric truthiness and loops still need lowering and execution-bound observations.' },
+  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Additional control forms (for, do, break, continue and labels) are not lowered.' },
   { id: 'functions-modules', milestone: 'L3', reason: 'Calls, module graphs and initialization order are not lowered.' },
   { id: 'js-values-coercion', milestone: 'L4', reason: 'Only primitive numbers cross the experimental ABI.' },
   { id: 'closures-exceptions-async', milestone: 'L5', reason: 'Lifetime, unwinding and job semantics are not implemented.' },
