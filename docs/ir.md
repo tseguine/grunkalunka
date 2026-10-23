@@ -31,6 +31,11 @@ operations in source order, and the final operand supplies the result value. In 
 predicate position the final operand supplies a predicate instead; earlier operands
 remain numeric under the current admission.
 
+Numeric `&&` and `||` reuse a numeric-result `If`. The parent captures the left
+operand once and derives its truthiness. One child yields that original snapshot;
+the other evaluates and yields the RHS. The operator selects their branch order.
+The RHS is always checked during lowering, while its effects run only when selected.
+
 For example, the essential sequence for `a + (a = b)` is:
 
 ```text

@@ -28,7 +28,7 @@ adapted runtime results and successful rejection checks are separate counts.
 Unmodified upstream suite execution remains `not-executed`, including for TypeScript.
 This is a selected-case inventory, not a denominator for the full upstream suites.
 
-The separate [lowering-gap inventory](lowering-gaps.md) specifies 63 reference
+The separate [lowering-gap inventory](lowering-gaps.md) specifies 61 reference
 programs beyond current admission. Node checks their expected results; the compiler
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.

@@ -6,7 +6,9 @@ use oxc_ast::ast::{
 };
 use oxc_semantic::{Semantic, SymbolId};
 use oxc_span::GetSpan;
-use oxc_syntax::operator::{AssignmentOperator, BinaryOperator, UnaryOperator, UpdateOperator};
+use oxc_syntax::operator::{
+    AssignmentOperator, BinaryOperator, LogicalOperator, UnaryOperator, UpdateOperator,
+};
 
 use crate::ir::{
     self, Binary, Compare, Exit, Op, Operation, Region, RegionId, Slot, SlotId, Type, Unary,
@@ -226,6 +228,46 @@ impl Lowering<'_, '_> {
                 );
                 Self::push(region, expression, Op::Store { slot, value: next });
                 return Ok(if update.prefix { next } else { previous });
+            }
+            Expression::LogicalExpression(logical) => {
+                if logical.operator == LogicalOperator::Coalesce {
+                    return Err(unsupported(
+                        expression,
+                        "expression is outside the numeric experiment",
+                    ));
+                }
+                let left = self.expression(&logical.left, region, depth + 1)?;
+                let condition = self.value(Type::Predicate);
+                Self::push(
+                    region,
+                    expression,
+                    Op::Truthy {
+                        result: condition,
+                        input: left,
+                    },
+                );
+                let mut selected = self.region(&logical.right);
+                let right = self.expression(&logical.right, &mut selected, depth + 1)?;
+                selected.exit = Exit::Yield(right);
+                let mut skipped = self.region(&logical.left);
+                skipped.exit = Exit::Yield(left);
+                let (consequent, alternate) = if logical.operator == LogicalOperator::And {
+                    (selected, skipped)
+                } else {
+                    (skipped, selected)
+                };
+                let result = self.value(Type::Number);
+                Self::push(
+                    region,
+                    expression,
+                    Op::If {
+                        result: Some(result),
+                        condition,
+                        consequent,
+                        alternate,
+                    },
+                );
+                return Ok(result);
             }
             Expression::SequenceExpression(sequence) => {
                 let (last, preceding) = sequence.expressions.split_last().ok_or_else(|| {

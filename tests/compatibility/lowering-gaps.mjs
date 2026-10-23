@@ -32,8 +32,6 @@ for (const [id, body, expected, diagnostic] of [
   ['shift-unsigned', 'return a >>> b;', 1, binary],
   ['loose-equality-coercion', 'return a == "4" ? 1 : 0;', 1, binary],
   ['loose-inequality', 'return a != b ? 1 : 0;', 1, binary],
-  ['logical-and', 'return a && b;', 2, expression],
-  ['logical-or', 'return a || b;', 4, expression],
   ['nullish', 'return (a === 4 ? null : a) ?? b;', 2, expression],
   ['unary-not', 'return !a ? 1 : 0;', 0, unary],
   ['bit-not', 'return ~a;', -5, unary],

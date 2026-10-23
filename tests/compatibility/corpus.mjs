@@ -7,8 +7,9 @@ import { loweringGaps } from './lowering-gaps.mjs';
 import { numericUpdates } from './numeric-updates.mjs';
 import { typescriptErasurePrograms, typescriptErasureRejected } from './typescript-erasure.mjs';
 import { commaSequences } from './comma-sequences.mjs';
+import { numericLogical } from './numeric-logical.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 12;
+export const corpusVersion = 13;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -41,6 +42,7 @@ programs.push(...loweringRegressions);
 programs.push(...numericUpdates);
 programs.push(...typescriptErasurePrograms);
 programs.push(...commaSequences);
+programs.push(...numericLogical);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -167,7 +169,11 @@ export const rejected = [
   ['remainder', 'export function run(a,b) { return a % b; }'],
   ['power', 'export function run(a,b) { return a ** b; }'],
   ['bitwise', 'export function run(a,b) { return a | b; }'],
-  ['logical', 'export function run(a,b) { return a || b; }'],
+  ...['0 && Math.random()', '1 || Math.random()', 'a && "4"', 'a || {x:a}',
+    'a && (b<1)', '(a<1) || b', 'a || true', 'false && a', 'a ?? b', '1 || (clock=b)'].map((body,index) =>
+    [`logical-unsupported-${index}`, `export function run(a,b) { return ${body}; }`]),
+  ['logical-unselected-const', 'export function run(a,b) { const x=a; return 1 || (x=b); }'],
+  ['comma-nonfinal-predicate', 'export function run(a,b) { if((a<b,a)) return a; return b; }'],
   ['comparison', 'export function run(a,b) { return a < b; }'],
   ...['Math.random(),a', 'a,Math.random(),b', 'a,Math.random()', '"4",a', 'a,"4"',
     '{x:a},a', 'a,{x:a}', 'a<b,a', 'a,a<b'].map((body, index) =>

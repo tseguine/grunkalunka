@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-453,948 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 244 rejected
+501,600 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 253 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while loops (L1/L2). TypeScript expression and predicate wrappers erase while
