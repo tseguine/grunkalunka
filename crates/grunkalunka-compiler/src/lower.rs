@@ -227,6 +227,15 @@ impl Lowering<'_, '_> {
                 Self::push(region, expression, Op::Store { slot, value: next });
                 return Ok(if update.prefix { next } else { previous });
             }
+            Expression::SequenceExpression(sequence) => {
+                let (last, preceding) = sequence.expressions.split_last().ok_or_else(|| {
+                    unsupported(sequence.as_ref(), "comma expression must have an operand")
+                })?;
+                for operand in preceding {
+                    self.expression(operand, region, depth + 1)?;
+                }
+                return self.expression(last, region, depth + 1);
+            }
             Expression::ParenthesizedExpression(parenthesized) => {
                 return self.expression(&parenthesized.expression, region, depth + 1);
             }
@@ -323,6 +332,15 @@ impl Lowering<'_, '_> {
         }
         if let Expression::ParenthesizedExpression(parenthesized) = expression {
             return self.predicate(&parenthesized.expression, region, depth + 1);
+        }
+        if let Expression::SequenceExpression(sequence) = expression {
+            let (last, preceding) = sequence.expressions.split_last().ok_or_else(|| {
+                unsupported(sequence.as_ref(), "comma expression must have an operand")
+            })?;
+            for operand in preceding {
+                self.expression(operand, region, depth + 1)?;
+            }
+            return self.predicate(last, region, depth + 1);
         }
         if let Expression::BinaryExpression(binary) = expression {
             let operator = match binary.operator {

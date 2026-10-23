@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 11
-contains 164 paired programs, 230 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 12
+contains 181 paired programs, 244 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -69,7 +69,13 @@ JS/TS pairs, including nested wrappers, side effects, predicates, depth bounds,
 and four combinations with compound assignment and prefix/postfix updates.
 The obsolete type-assertion rejection is retired; 35 focused boundary rejections
 check unsupported operands, targets, statements, initialization and nesting.
-There are 64 remaining lowering-gap references.
+That run left 64 lowering-gap references.
+
+Corpus 12 adds 15 numeric comma-sequence regressions plus two TS-wrapper
+compositions. Every operand runs left to right and the final operand supplies the
+value. In a predicate position, the final operand may be a comparison; preceding
+operands remain numeric. Comma statements remain rejected. The current frontier
+contains 63 reference-validated gaps.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -141,6 +147,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   `+ - * /`, unary `+ -`, and ternaries. Conditions admit numeric
   `< <= > >= === !==` comparisons or primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
+  Numeric comma operands execute left to right and yield the final value snapshot;
+  in predicate positions the final operand may instead be a comparison. Non-final
+  comparisons and comma expression statements remain outside admission.
   Both ternary arms must be admitted and lower to structured Wasm
   `if (result f64)`. Optional TS annotations must be exactly `number`.
   TypeScript `as`, angle-bracket assertions, postfix non-null `!`, and `satisfies`
@@ -205,15 +214,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 411312 numeric comparisons; 230 rejected inputs; overwrite preserved
+PASS 453948 numeric comparisons; 244 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-One hundred and sixty-four programs, each written as JS and TS, produce 328 modules.
+181 programs, each written as JS and TS, produce 362 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 411,312 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 453,948 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -267,7 +276,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-Two hundred and thirty malformed or unsupported programs fail explicitly, each with a unique
+244 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

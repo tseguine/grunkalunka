@@ -6,8 +6,9 @@ import { loweringRegressions } from './lowering-regressions.mjs';
 import { loweringGaps } from './lowering-gaps.mjs';
 import { numericUpdates } from './numeric-updates.mjs';
 import { typescriptErasurePrograms, typescriptErasureRejected } from './typescript-erasure.mjs';
+import { commaSequences } from './comma-sequences.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 11;
+export const corpusVersion = 12;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -39,6 +40,7 @@ programs.push(...benchmarkPrograms);
 programs.push(...loweringRegressions);
 programs.push(...numericUpdates);
 programs.push(...typescriptErasurePrograms);
+programs.push(...commaSequences);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -167,7 +169,16 @@ export const rejected = [
   ['bitwise', 'export function run(a,b) { return a | b; }'],
   ['logical', 'export function run(a,b) { return a || b; }'],
   ['comparison', 'export function run(a,b) { return a < b; }'],
-  ['sequence', 'export function run(a,b) { return (a,b); }'],
+  ...['Math.random(),a', 'a,Math.random(),b', 'a,Math.random()', '"4",a', 'a,"4"',
+    '{x:a},a', 'a,{x:a}', 'a<b,a', 'a,a<b'].map((body, index) =>
+    [`comma-unsupported-${index}`, `export function run(a,b) { return (${body}); }`]),
+  ['comma-const-write', 'export function run(a,b) { const x=a; return (x=b,x); }'],
+  ['comma-forward', 'export function run(a,b) { const x=(y=a,b); let y=b; return x; }'],
+  ['comma-self', 'export function run(a,b) { let x=(x=a,b); return x; }'],
+  ['comma-unselected-call', 'export function run(a,b) { return a?a:(Math.random(),b); }'],
+  ['comma-statement', 'export function run(a,b) { (a=b,b=a+1); return a+b; }'],
+  ['comma-depth-limit', `export function run(a,b) { return ${'('.repeat(128)}a,b${')'.repeat(128)}; }`],
+  ['comma-predicate-depth-limit', `export function run(a,b) { return ${'('.repeat(126)}a,a<b${')'.repeat(126)} ? a : b; }`],
   ['object', 'export function run(a,b) { return {}; }'],
   ['array', 'export function run(a,b) { return []; }'],
   ['this', 'export function run(a,b) { return this; }'],

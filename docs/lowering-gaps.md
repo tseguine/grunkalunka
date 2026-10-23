@@ -5,14 +5,14 @@ assignments, branches, while loops, TypeScript expression wrappers and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 64 curated reference cases in
+The executable frontier contains 63 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
 
 | Area | Exact fixture IDs |
 | --- | --- |
-| Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-bit-and`, `gap-bit-or`, `gap-bit-xor`, `gap-shift-left`, `gap-shift-right`, `gap-shift-unsigned`, `gap-loose-equality-coercion`, `gap-loose-inequality`, `gap-logical-and`, `gap-logical-or`, `gap-nullish`, `gap-unary-not`, `gap-bit-not`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof`, `gap-comma` |
+| Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-bit-and`, `gap-bit-or`, `gap-bit-xor`, `gap-shift-left`, `gap-shift-right`, `gap-shift-unsigned`, `gap-loose-equality-coercion`, `gap-loose-inequality`, `gap-logical-and`, `gap-logical-or`, `gap-nullish`, `gap-unary-not`, `gap-bit-not`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
 | General JavaScript values | `gap-boolean-value`, `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
 | Additional control flow | `gap-for`, `gap-do`, `gap-break`, `gap-continue`, `gap-switch`, `gap-label` |
 | Functions, calls and recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
@@ -74,7 +74,7 @@ the current single-top-level-function rule. Such a rejection identifies the firs
 blocking frontier; it does not independently exercise every deeper missing stage.
 
 Compound arithmetic assignments, prefix/postfix increments/decrements and
-parenthesized write statements have graduated into the admitted differential
+parenthesized write statements and numeric comma expressions have graduated into the admitted differential
 corpus, including ordered mutation and returned-value regressions.
 
 ## Next steps
@@ -82,7 +82,7 @@ corpus, including ordered mutation and returned-value regressions.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 64 examples are a
+or change the reference result to match a lowering bug. The 63 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 

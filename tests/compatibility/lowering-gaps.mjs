@@ -42,7 +42,6 @@ for (const [id, body, expected, diagnostic] of [
   ['delete', 'return delete a.x ? 1 : 0;', 1, unary],
   ['property-in', 'return "x" in {x:a} ? 1 : 0;', 1, binary],
   ['instanceof', 'return [] instanceof Array ? 1 : 0;', 1, binary],
-  ['comma', 'return (a = b, a + 1);', 3, expression],
 ]) add(id, 'operators', body, expected, diagnostic);
 
 for (const [id, body, expected, diagnostic] of [

@@ -21,7 +21,15 @@ A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
 `Constant`, `Load`, `Unary`, `Binary`, `Compare` and `Truthy` produce values.
 `Initialize` and `Store` consume numeric values and change source cells.
 Operations execute in their recorded order. A load captures the cell's value at
-that point; an assignment yields its right-hand value snapshot after storing it.
+that point; an assignment yields its stored value snapshot. Compound assignments
+load the previous target before evaluating the RHS, then store and yield their
+computed result. Prefix updates yield the new snapshot; postfix updates yield the
+old snapshot after storing the new value.
+
+Numeric comma expressions need no additional IR operation. Their operands append
+operations in source order, and the final operand supplies the result value. In a
+predicate position the final operand supplies a predicate instead; earlier operands
+remain numeric under the current admission.
 
 For example, the essential sequence for `a + (a = b)` is:
 
