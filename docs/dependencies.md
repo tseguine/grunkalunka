@@ -48,7 +48,10 @@ Apache-2.0 **OR** GPL-2.0; its bundled `LICENSE-APACHE` and `LICENSE-GPLv2` conf
 the alternatives. We choose Apache-2.0, not GPL. Legacy slash forms in bytecount,
 fnv, rustc-demangle and version_check have bundled MIT and Apache license files;
 the MIT alternative is selected. Dragonbox includes its Apache/LLVM and Boost
-license files. No third-party source was copied into this repository by the PoC.
+license files. The separately attributed TypeScript test excerpts now live under
+`tests/compatibility/typescript/` with their Apache-2.0 license and adaptation notice.
+These source fixtures are not Cargo packages and are not counted by the metadata
+screen; their pinned provenance and selected-file notices are reviewed separately.
 
 This is dependency-metadata screening for the current development build, not a complete legal
 or redistribution audit. The downloaded crates retain their license/notice files.

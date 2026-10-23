@@ -1,0 +1,185 @@
+{
+  "repository": "https://github.com/microsoft/TypeScript",
+  "tag": "v5.9.3",
+  "revision": "c63de15a992d37f0d6cec03ac7631872838602cb",
+  "sourcePath": "tests/cases/conformance/expressions/binaryOperators/arithmeticOperator/arithmeticOperatorWithAnyAndNumber.ts",
+  "sourceSha256": "067c74160a5bf7de1e9fed079b31501a13a447f7bfd25ae7f41d339e111f3734",
+  "baselinePath": "tests/baselines/reference/arithmeticOperatorWithAnyAndNumber.js",
+  "baselineSha256": "4bd5db202278ae1a4844e0207c4735c8dcfce05e9d4a75c1cf766b71c1421e1d",
+  "excerptSha256": "19f0e424d8fe4a6b43d4b11cbad0ea7eb3a30e2a52b52fdeba9d9f002ddea7f1",
+  "license": "Apache-2.0",
+  "excluded": {
+    "count": 48,
+    "operators": [
+      "<<",
+      ">>",
+      ">>>",
+      "&",
+      "^",
+      "|"
+    ],
+    "reason": "Unselected bitwise/shift families; not executed as upstream tests."
+  },
+  "cases": [
+    {
+      "id": "ts-ra1",
+      "line": 5,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-ra2",
+      "line": 6,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-ra3",
+      "line": 7,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-ra4",
+      "line": 8,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-ra5",
+      "line": 9,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-ra6",
+      "line": 10,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-ra7",
+      "line": 11,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-ra8",
+      "line": 12,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb1",
+      "line": 15,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb2",
+      "line": 16,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb3",
+      "line": 17,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb4",
+      "line": 18,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb5",
+      "line": 19,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb6",
+      "line": 20,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb7",
+      "line": 21,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rb8",
+      "line": 22,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rc1",
+      "line": 25,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rc2",
+      "line": 26,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rc3",
+      "line": 27,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rc4",
+      "line": 28,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rc5",
+      "line": 29,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rc6",
+      "line": 30,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rc7",
+      "line": 31,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rc8",
+      "line": 32,
+      "expectation": "rejected"
+    },
+    {
+      "id": "ts-rd1",
+      "line": 35,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rd2",
+      "line": 36,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rd3",
+      "line": 37,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rd4",
+      "line": 38,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rd5",
+      "line": 39,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rd6",
+      "line": 40,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rd7",
+      "line": 41,
+      "expectation": "admitted"
+    },
+    {
+      "id": "ts-rd8",
+      "line": 42,
+      "expectation": "admitted"
+    }
+  ]
+}

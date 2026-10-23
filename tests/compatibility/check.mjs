@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { corpusVersion, programs, rejected, unimplemented } from './corpus.mjs';
+import { corpusVersion, programs, rejected, unimplemented, externalSources } from './corpus.mjs';
 import { mkdir, mkdtemp, readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -149,12 +149,13 @@ for (const [name, bodyJS, bodyTS] of programs) {
 }
 
 // Every negative gets its own nonexistent artifact path. Never execute these in Node.
-for (const [name, source, extension = 'js'] of rejected) {
+for (const [name, source, extension = 'js', diagnostic] of rejected) {
   activeFixture = `rejected:${name}`;
   const sourcePath = join(output, `reject-${name}.${extension}`);
   const wasmPath = join(output, `reject-${name}.wasm`);
   await writeFile(sourcePath, source, { flag: 'wx' });
   const result = invoke(['compile', sourcePath, wasmPath], '', false);
+  if (diagnostic) assert.ok(result.stderr.includes(diagnostic), `wrong rejection for ${name}: ${result.stderr}`);
   await assert.rejects(access(wasmPath), { code: 'ENOENT' });
   fixtures.push({
     id: `rejected:${name}`, expectation: 'rejected', executed: true, outcome: 'passed',
@@ -190,7 +191,7 @@ assert.ok(fixtures.filter(fixture => fixture.expectation === 'admitted').every(f
 assert.equal(observations.length, programs.length * 2);
 assert.equal(comparisons, programs.length * 2 * vectors.length * 2);
 const report = {
-  schemaVersion: 1, corpusVersion, runtime,
+  schemaVersion: 1, corpusVersion, runtime, externalSources,
   compiler: { binarySha256: sha256(await readFile(binary)), lockfileSha256: sha256(lockfile), lockedWasmtimeVersion: lockedWasmtime[1] },
   fixtures,
   counts: { admitted: programs.length, rejected: rejected.length, unimplemented: unimplemented.length },

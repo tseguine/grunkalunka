@@ -30,10 +30,15 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 4
-contains 72 paired programs, 100 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 5
+contains 96 paired programs, 108 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
+
+Corpus 5 includes 24 executed pairs and eight specific admission rejections adapted
+from a pinned [TypeScript arithmetic fixture](../tests/compatibility/typescript/README.md).
+The report records their upstream source, revision, hashes and ID/line mappings in
+`externalSources`. These numeric adaptations do not claim upstream type conformance.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -156,15 +161,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 177696 numeric comparisons; 100 rejected inputs; overwrite preserved
+PASS 236928 numeric comparisons; 108 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-Seventy-two programs, each written as JS and TS, produce 144 modules. Each module is
+Ninety-six programs, each written as JS and TS, produce 192 modules. Each module is
 validated and run in Wasmtime and Node-Wasm over 617 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`. This yields 177,696 engine-to-JS comparisons. The explicit demo calls in
+`4752554e`. This yields 236,928 engine-to-JS comparisons. The explicit demo calls in
 both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
@@ -201,7 +206,7 @@ apply to Wasmtime execution; this is not a static termination proof or a univers
 execution bound across engines. The affine artifact grew from 61 to 63 bytes
 when explicit return/completion handling was added.
 
-One hundred malformed or unsupported programs fail explicitly, each with a unique
+One hundred and eight malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

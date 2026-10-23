@@ -1,5 +1,7 @@
 // Selected numeric ABI evidence; not a full-language compatibility inventory.
-export const corpusVersion = 4;
+import { typescriptPrograms, typescriptRejected, typescriptSource } from './typescript.mjs';
+export const corpusVersion = 5;
+export const externalSources = [typescriptSource];
 
 const expressions = [
   ['affine', '(a * 2 + b) / 3'], ['add', 'a + b'], ['subtract', 'a - b'],
@@ -24,6 +26,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
+programs.push(...typescriptPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -99,6 +102,7 @@ programs.push(
 
 
 export const rejected = [
+  ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
   ['while-leak', 'export function run(a,b) { while (0) { const x=a; } return x; }'],
