@@ -50,25 +50,34 @@ fn numeric_binding<'b>(
 }
 
 // The numeric module supplies a pristine intrinsic, never an external realm object.
-fn is_math_abs(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> bool {
+fn math_unary(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Unary, &'static str)> {
     let Expression::StaticMemberExpression(member) = &call.callee else {
-        return false;
+        return None;
     };
     let Expression::Identifier(object) = &member.object else {
-        return false;
+        return None;
     };
-    !call.optional
-        && call.type_arguments.is_none()
-        && !member.optional
-        && member.property.name == "abs"
-        && object.name == "Math"
-        && object.reference_id.get().is_some_and(|reference| {
-            semantic
-                .scoping()
-                .get_reference(reference)
-                .symbol_id()
-                .is_none()
-        })
+    let reference = object.reference_id.get()?;
+    if call.optional
+        || call.type_arguments.is_some()
+        || member.optional
+        || object.name != "Math"
+        || semantic
+            .scoping()
+            .get_reference(reference)
+            .symbol_id()
+            .is_some()
+    {
+        return None;
+    }
+    match member.property.name.as_str() {
+        "abs" => Some((Unary::Abs, "abs")),
+        "sqrt" => Some((Unary::Sqrt, "sqrt")),
+        "floor" => Some((Unary::Floor, "floor")),
+        "ceil" => Some((Unary::Ceil, "ceil")),
+        "trunc" => Some((Unary::Trunc, "trunc")),
+        _ => None,
+    }
 }
 
 // One wrapper at a time keeps each erased source node in the nesting budget.
@@ -168,72 +177,73 @@ impl Lowering<'_, '_> {
             return self.expression(inner, region, depth + 1);
         }
         let kind = match expression {
-            Expression::CallExpression(call) if is_math_abs(call, self.semantic) => {
-                if call.arguments.len() != 1 {
-                    return Err(unsupported(
-                        expression,
-                        "Math.abs requires exactly one numeric argument",
-                    ));
-                }
-                let Some(argument) = call.arguments[0].as_expression() else {
-                    return Err(unsupported(
-                        expression,
-                        "spread call arguments are not admitted",
-                    ));
-                };
-                let input = self.expression(argument, region, depth + 1)?;
-                let result = self.value(Type::Number);
-                Op::Unary {
-                    result,
-                    operator: Unary::Abs,
-                    input,
-                }
-            }
             Expression::CallExpression(call) => {
-                let Expression::Identifier(identifier) = &call.callee else {
-                    return Err(unsupported(
-                        expression,
-                        "expression is outside the numeric experiment",
-                    ));
-                };
-                let symbol = identifier.reference_id.get().and_then(|reference| {
-                    self.semantic.scoping().get_reference(reference).symbol_id()
-                });
-                let function = self
-                    .functions
-                    .iter()
-                    .find(|function| Some(function.symbol) == symbol)
-                    .ok_or_else(|| {
-                        unsupported(expression, "expression is outside the numeric experiment")
-                    })?;
-                if call.optional || call.type_arguments.is_some() {
-                    return Err(unsupported(
-                        expression,
-                        "optional and generic calls are not admitted",
-                    ));
-                }
-                if call.arguments.len() != function.parameter_count {
-                    return Err(unsupported(
-                        expression,
-                        "call requires exactly the declared number of arguments",
-                    ));
-                }
-                let function = function.id;
-                let mut arguments = Vec::new();
-                for argument in &call.arguments {
-                    let Some(argument) = argument.as_expression() else {
+                if let Some((operator, method)) = math_unary(call, self.semantic) {
+                    if call.arguments.len() != 1 {
+                        return Err(unsupported(
+                            expression,
+                            &format!("Math.{method} requires exactly one numeric argument"),
+                        ));
+                    }
+                    let Some(argument) = call.arguments[0].as_expression() else {
                         return Err(unsupported(
                             expression,
                             "spread call arguments are not admitted",
                         ));
                     };
-                    arguments.push(self.expression(argument, region, depth + 1)?);
-                }
-                let result = self.value(Type::Number);
-                Op::Call {
-                    result,
-                    function,
-                    arguments,
+                    let input = self.expression(argument, region, depth + 1)?;
+                    let result = self.value(Type::Number);
+                    Op::Unary {
+                        result,
+                        operator,
+                        input,
+                    }
+                } else {
+                    let Expression::Identifier(identifier) = &call.callee else {
+                        return Err(unsupported(
+                            expression,
+                            "expression is outside the numeric experiment",
+                        ));
+                    };
+                    let symbol = identifier.reference_id.get().and_then(|reference| {
+                        self.semantic.scoping().get_reference(reference).symbol_id()
+                    });
+                    let function = self
+                        .functions
+                        .iter()
+                        .find(|function| Some(function.symbol) == symbol)
+                        .ok_or_else(|| {
+                            unsupported(expression, "expression is outside the numeric experiment")
+                        })?;
+                    if call.optional || call.type_arguments.is_some() {
+                        return Err(unsupported(
+                            expression,
+                            "optional and generic calls are not admitted",
+                        ));
+                    }
+                    if call.arguments.len() != function.parameter_count {
+                        return Err(unsupported(
+                            expression,
+                            "call requires exactly the declared number of arguments",
+                        ));
+                    }
+                    let function = function.id;
+                    let mut arguments = Vec::new();
+                    for argument in &call.arguments {
+                        let Some(argument) = argument.as_expression() else {
+                            return Err(unsupported(
+                                expression,
+                                "spread call arguments are not admitted",
+                            ));
+                        };
+                        arguments.push(self.expression(argument, region, depth + 1)?);
+                    }
+                    let result = self.value(Type::Number);
+                    Op::Call {
+                        result,
+                        function,
+                        arguments,
+                    }
                 }
             }
             Expression::NumericLiteral(literal) => {

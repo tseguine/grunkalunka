@@ -34,8 +34,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 685 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 87 resource restrictions and 572 open requirements.
+also covers all 754 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 88 resource restrictions and 640 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -135,3 +135,13 @@ Compiler tests preserve const/TDZ/global/function-write and nonidentifier reject
 including unselected and unused helper bodies. Finite mutations skip wrapper depth,
 bypass semantic resolution, or delay target loading; each fails before exact source
 restoration and a fresh rebuild. None of these negative sources is run in Node.
+
+The unary Math family uses one original-JS kernel per method. Each compares 51
+named boundaries and 4,096 seeded binary64 inputs with Node-Wasm and Wasmtime.
+Named cases cover signed zeros, fractions, infinities, NaNs, subnormals, 2^52
+neighbours, maximum finite inputs and adjacent square values. Non-NaNs require
+exact bits, while NaNs require their class. Four wrong-opcode probes, a negative-zero
+loss probe and semantic-shadow bypass are detected; restoration refreshes mtime and
+rebuilds. Selected effects, snapshots, helpers, wrappers, numeric Math mutation and
+rejected patches stay within the pristine execution profile. This finite matrix is
+regression evidence, not exhaustive binary64 conformance or a performance claim.

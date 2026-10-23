@@ -34,8 +34,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 39 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 87 resource restrictions and 572 open requirements
-across all 685 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 88 resource restrictions and 640 open requirements
+across all 754 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -236,3 +236,8 @@ sources and hand-paired erased JS oracles in
 No curated reference is promoted. The remaining 685 negatives retain exact source,
 mode and diagnostics; 39 explicit gap oracles remain. The wrapped-target group is
 removed without weakening inventory or report validation.
+
+The pristine sqrt/floor/ceil/trunc family promotes only the original ordinary
+`math-abs-other-method` floor program, preserving its ID/source/mode. No curated
+reference is removed: all 39 remain. Function-call and mutable-intrinsic groups
+still describe unsupported callees, coercion, mutation and realm ownership.

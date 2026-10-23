@@ -150,6 +150,22 @@ impl Emitter<'_> {
                             self.get(*input);
                             self.output.push_str("f64.abs\n");
                         }
+                        Unary::Sqrt => {
+                            self.get(*input);
+                            self.output.push_str("f64.sqrt\n");
+                        }
+                        Unary::Floor => {
+                            self.get(*input);
+                            self.output.push_str("f64.floor\n");
+                        }
+                        Unary::Ceil => {
+                            self.get(*input);
+                            self.output.push_str("f64.ceil\n");
+                        }
+                        Unary::Trunc => {
+                            self.get(*input);
+                            self.output.push_str("f64.trunc\n");
+                        }
                         Unary::Plus => self.get(*input),
                         Unary::Negate => {
                             self.get(*input);

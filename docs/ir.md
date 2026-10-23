@@ -57,9 +57,12 @@ produces a numeric source value. Source slots and function returns remain `Numbe
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
 first pass through `Truthy`; negation evaluates its operand once.
 `Unary::Abs` consumes a captured Number and defines a Number through `f64.abs`.
-It represents only the numeric profile's pristine Math.abs intrinsic: the lowerer
-checks exact syntax, arity and unresolved value identity before emitting it. It
-adds no host import, helper function, source cell or value type. Existing generic
+`Sqrt`, `Floor`, `Ceil` and `Trunc` use the same numeric operand/result contract
+and emit their corresponding f64 opcode directly. They preserve input signed zero;
+negative nonzero sqrt inputs yield NaN. No integer conversion or helper is added.
+These operations represent only the numeric profile's pristine Math intrinsics: the lowerer
+checks exact syntax, arity and unresolved value identity before emitting them. They
+add no host import, helper function, source cell or value type. Existing generic
 Unary verification enforces numeric operand/result visibility and definition order.
 
 `Unary::BitNot` consumes and produces a `Number`. Emission truncates its captured

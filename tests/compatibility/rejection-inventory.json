@@ -1076,7 +1076,7 @@
     {
       "id": "mutable-intrinsics",
       "kind": "open-requirement",
-      "assessment": "Math/global builtin mutation and reification require mutable realm objects and value semantics; the numeric execution profile supplies only a pristine Math.abs intrinsic.",
+      "assessment": "Math/global builtin mutation and reification require mutable realm objects and value semantics; the numeric execution profile supplies only pristine Math.abs/sqrt/floor/ceil/trunc intrinsics.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/global-object.html#sec-other-properties-of-the-global-object-math",
@@ -5729,13 +5729,6 @@
       "group": "function-context"
     },
     {
-      "id": "math-abs-other-method",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "8c222da2c20194c90557dcc33d3d01a386ce90401f7ca4b0c1aa709ec6ad1a19",
-      "group": "function-calls"
-    },
-    {
       "id": "math-abs-boolean",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5895,6 +5888,496 @@
       "sourceMode": "module-strict",
       "sourceSha256": "eb7d8358ef8aed5ce9ea2335da3249b2f6d034e2799abbc3c5181f57d2c41c2c",
       "group": "property-targets"
+    },
+    {
+      "id": "math-unary-sqrt-local-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "847bc017a3cacb170752d21956a3449c2a2dfc777ad5f77caffdf12a02379944",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-parameter-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "94c558fa4b650e75a76dbff03416279405b5b62efde8585fb8d7e629308e0bb2",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "45499e6296cc8081b53b9d0df3d28171c1afece96e572b7ed8d17f69ff809cd1",
+      "group": "binding-errors"
+    },
+    {
+      "id": "math-unary-sqrt-unselected-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "91c5a428a87b1b115bd7a14a4e6e30b78ebc2fa5d67c0752ae498f2e1702f51e",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-missing",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "507dbcac1069b5c9f96db815f64fa11c681203a5ace9124273092de72a36be91",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-extra",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8387140f9ceadb91217f64f7f6668821ec9c482f10d36a06846d21b268719f82",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-spread",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7c33e619d425be0a69cb29e4f7d7e28fd50ff985a8c5ddca327b9de5062d6048",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-generic",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1a5670133f818e0738e0b00d4b8a8a1bdb9645e0941acfcc0834531411846d37",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-computed",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "507c6b8da191dfaec1807c096cd859147ecf7cf803f33de2891193187a90510d",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-optional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c12d8c816c7db880e92e939a21f86d52118f56c53bb06e191861e7a8aafa59d0",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-wrapped-callee",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e9747d66693eef6532e49c1cffed859824530e2028aef3ae39af2db58aa29f38",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-sqrt-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4cfa630afff62cef400a534e24ccad4f34c7311609798858e6c4f6c877691f8b",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-sqrt-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8a8e7522fd26499712dc60e470bedd86dc7ade50b8370c357922d12c09982b6d",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-sqrt-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "95e06a92558683372574350beb18769543accaef667db8e194e01c7987530950",
+      "group": "string-values"
+    },
+    {
+      "id": "math-unary-sqrt-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea60710ac4f5cc416427375f8503bd6cf72a29cfb238385e4fa573a371a8b093",
+      "group": "const-errors"
+    },
+    {
+      "id": "math-unary-sqrt-dead-patch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b57b41a4701ff7fd5d310a0755d666d4dc5fc75292e9a7bc587b56fbd3425eaf",
+      "group": "property-targets"
+    },
+    {
+      "id": "math-unary-floor-local-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d386a5d8264e5b4e8b6aef0decad2b317dd3f2edbe8cf8ab96bf9ea4f011cdeb",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-parameter-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e8c6760676ea4dddefece44210b3c617dfeda38e718ddd97d23fb17a95559e16",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "414b868a12ec99dc19cd18eacc9955d604042a4abc225a5c5fce5540d34afa53",
+      "group": "binding-errors"
+    },
+    {
+      "id": "math-unary-floor-unselected-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c73f7bc169b263c56c839776e3405f8af6516ce3c2fa90d06b8769b7999978e3",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-missing",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1299d581903789cd61bc96801f46ca358bc1f8c9e4a6eaa1778bdbd5f371047c",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-extra",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0bbe82c0665e7515d002b3961a125f03fba1c20506953e0c9ab90ef1158022f1",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-spread",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6f65ef151abbb19617fda307872b8e0022a96e38c7a6b1f087d497b0dac1758c",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-generic",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "151585822751248ff754ee4c3b09e2c710888db37d5000d6ebb4b3e95865abd4",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-computed",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d418ba249f2d0f9d2c966bcc80ae7b6a59b74336e251fbbcb57dd580e0685428",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-optional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9545d4ab6f4da4ce5b96b406569ef47f4258dfc822f116b3629858acee3ff488",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-wrapped-callee",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9399050e01155f1a728f479c709e283969fe91c35be1d068c4d089173dd296e5",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-floor-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eb3fac2e7674a64f702154d281486ca45e84b9149475c236b19d87da266caa92",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-floor-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "32a21160df9dde53c687117037da24d26097a733e7321c888b7d7ac4a3d20156",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-floor-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bec9c5da2f9fd0f6ffbc613764a76d13cc9ca6d054b71fa1b27ab5b846f3afc8",
+      "group": "string-values"
+    },
+    {
+      "id": "math-unary-floor-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c772d36dac3532336ca3a3c61a5a767412c14cd093c862ab45866bf064c8d945",
+      "group": "const-errors"
+    },
+    {
+      "id": "math-unary-floor-dead-patch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d825cea3d95813d1eca3c934ad1daa39c6361a41b8b0d9918bd9ac0c0b183913",
+      "group": "property-targets"
+    },
+    {
+      "id": "math-unary-ceil-local-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "93bd8b2dad27cbc258c8ec690a5a5ce55300122de72c18a0f35360677356eb9c",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-parameter-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9052100a3967f8704fb0b4423d6b10833629f0d664690021ba974b5875f67f7c",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c482b64ab524525075491b0349a366c65c79c541280f4bbfef0d29ea74264cdd",
+      "group": "binding-errors"
+    },
+    {
+      "id": "math-unary-ceil-unselected-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "641897fb1dd34b6903f98ac2e320db03ceb121a3dc95ae16782a3e329faa9f64",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-missing",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5ac8797a02b610d2c19114aa71831f6d472ecfa5bc4f14d974dcb2170b3bf2b4",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-extra",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1b90c68e6b93972f115805af5a67847d5b0776e0a4a3e84f54c6c866812e2a0a",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-spread",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "621e12e6a6fc7e7b2d29d316cdc1ba66401d6a68153208fe1ec0b46ba4cc7343",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-generic",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cdadbfc58bf3fac84dd41f16574884a56568274b646d907b7f028d6b7d780bca",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-computed",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8b2e184f4a21bafa492cd41ed392522741d88c241f9aa6d2bf34d15049acb749",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-optional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d60b9d893acbf2c926c891cd9efdcabc825e42e37ee9e5fbd1d6ec077188fbd8",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-wrapped-callee",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "52649ca12f6231b559917498edf00f3edd10ccfa4cfdfda2b7ca3a6ae7595df2",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-ceil-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "843ff6dd6ab1ea6b3b64b6882d4e1e2726061f654cd68e5cfb96634a7b048f89",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-ceil-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea20ec576cbe0a869a2448eb6d05a8f6772042b252ad56e9906bc47a33f9e1fc",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-ceil-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d8ff10397b2dd950820c48f44132334efff7a605086f9410fab4c9d2e920767f",
+      "group": "string-values"
+    },
+    {
+      "id": "math-unary-ceil-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fe657b5d8cc3e5548547ab66da210c74b04a28329deb8b6fd576d8e16ded51e3",
+      "group": "const-errors"
+    },
+    {
+      "id": "math-unary-ceil-dead-patch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3a66aa79928a20d0eb9294b7f230b2fce692314406b51e4ef3f04e9f122afb84",
+      "group": "property-targets"
+    },
+    {
+      "id": "math-unary-trunc-local-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "974555d8eced3dd9241c5859873980d837bddc3b2fe1a8ff8687c6863e6e29cb",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-parameter-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5d94055b7b74b7944224b83e9ef8ca90977f3f8b190706a086477262a8deab4a",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "afa7f08fbb9db88a01f100b5a4cdc63bccb7e0c84f1b050fe54d4c39643eb4cd",
+      "group": "binding-errors"
+    },
+    {
+      "id": "math-unary-trunc-unselected-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "085dfc2158219931822c317015da047ae178aa9cac91054313f454a435d76a71",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-missing",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c647c8d098bc588c564e3499f4caeab05ba2fc20188fd896c3dd2da4f6c3e241",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-extra",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eb8e75271322d360dd7d902529cccba246aeec17cc2a8b7bf20cc653a50fd452",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-spread",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b8fb519cb0a710bca186d73b2cb3a58ef0e69c41a5144fbd37a3b8defb16ad0c",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-generic",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2cc41c159e4be0bc12161d7b2fb6f1e9a34ac9634fad22bb5d5113d04c41ada8",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-computed",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4e655484fcc3d1e4f1512fe63d983ea3b6b739d91dadf4c1820c4d0cbb35fd05",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-optional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e4271d7b129336aec783faea98251aca7a76b508cc030525c5ea30c05793242d",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-wrapped-callee",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "307362cef80a39a9c780cd6ca0246e867830677ec6c123aeb813b973bc4a84c6",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-unary-trunc-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fdb362e5a776e416fa685f26158b3756255b8d7b73d6dcbd0935d5f5d0e625d3",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-trunc-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f2b8548a63b80134f0feb54ea4825892262a1c9f0a58445aeedd6fc55304b88d",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-unary-trunc-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6f870a11a9581c0c74a616defaa1911b0c583a8ffb9302e1f3d66dc2b4dcbadb",
+      "group": "string-values"
+    },
+    {
+      "id": "math-unary-trunc-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c2700095f0b442125e9788d4a6ec13272a56b57b2296c1aa7eab57a1a45fe957",
+      "group": "const-errors"
+    },
+    {
+      "id": "math-unary-trunc-dead-patch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fd218db54a914f7f829bd4a5d40dabeda6a86bee9685643a4d34b8fbcd80aacb",
+      "group": "property-targets"
+    },
+    {
+      "id": "math-unary-undefined",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "65d5622e3d523544b17daac6df3daf081ff1f29692bb11c76fd5c6e12675d46d",
+      "group": "nullish-values"
+    },
+    {
+      "id": "math-unary-negative-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cf8792ad070ff2804272b185b660d42e1ffb142a4c5383233a4a83fe8b7aa7d1",
+      "group": "object-values"
+    },
+    {
+      "id": "math-unary-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eebf23c2887e05c3463a5da836a0f87e3e5e848907515b8ee8690e842cdd1c98",
+      "group": "bigint-values"
+    },
+    {
+      "id": "math-unary-global-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c17d39440d225139e4b65ed5f9237fe5d9b5006775b3a58fec0d4eceba3164c3",
+      "group": "mutable-intrinsics"
+    },
+    {
+      "id": "math-unary-unused-helper-patch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "40b55b102b64831b5d4aa31de702b5ed569cd0525c60ab93e4352691167a3425",
+      "group": "property-targets"
+    },
+    {
+      "id": "math-unary-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "45a0edd351fc047b852f91121ff15ed46008427f0b1095fe01645b7ff43e899c",
+      "group": "expression-depth"
     }
   ]
 }

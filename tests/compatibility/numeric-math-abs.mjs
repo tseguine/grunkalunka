@@ -44,7 +44,7 @@ for(const [id,body] of [
  ['computed','return Math["abs"](a);'], ['optional-member','return Math?.abs(a);'],
  ['optional-call','return Math.abs?.(a);'], ['wrapped-callee','return (Math.abs)(a);'],
  ['constructor','return new Math.abs(a);'], ['first-class','return Math.abs;'],
- ['alias','const f=Math.abs; return f(a);'], ['other-method','return Math.floor(a);'],
+ ['alias','const f=Math.abs; return f(a);'],
  ['boolean','return Math.abs(true);'], ['string','return Math.abs("3");'],
  ['object','return Math.abs({});'], ['bigint','return Math.abs(1n);'],
  ['null','return Math.abs(null);'], ['dead-unsupported','return 1?a:Math.abs(Math.random());'],

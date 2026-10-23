@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-2,081,640 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 685 rejected
+2,204,532 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 754 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Top-level numeric
@@ -349,7 +349,8 @@ Keep a small supported-surface matrix with fixture IDs and observed gaps as each
 slice is implemented. No compatibility percentage or blanket claim follows from
 the first frontend probe; it does not execute a Node-compatible environment yet.
 
-The numeric execution profile now supplies pristine Number-only Math.abs through
-Wasm f64.abs. It is isolated from external mutable JS realms; lexical shadows and
-source patch attempts remain rejected. This bounded intrinsic does not settle
+The numeric execution profile supplies pristine Number-only Math.abs, sqrt, floor,
+ceil and trunc through direct Wasm f64 operations. It is isolated from external
+mutable JS realms; shadowed intrinsic calls and source patch attempts remain
+rejected. This bounded family does not settle
 mutable builtin objects, reification, coercion or realm ownership.

@@ -31,14 +31,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 38
-contains 830 paired programs, 685 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 39
+contains 879 paired programs, 754 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 685 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 87 explicit resource restrictions and 572 open requirements.
+classifies all 754 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 88 explicit resource restrictions and 640 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -305,6 +305,17 @@ The original AST and semantics stay intact. No type checker, coercion, new IR or
 additional write target kind is introduced. The empty wrapped-target group is removed;
 all 685 other rejection observations and 39 curated references remain unchanged.
 
+Corpus 39 adds the fixed-opcode sqrt/floor/ceil/trunc family with 49 paired
+programs and 70 new boundary rejections. Only the original
+`math-abs-other-method` floor source is promoted; the 39 curated references remain.
+Each production-compiled kernel compares 4,147 inputs (51 named boundary/square
+neighbours plus 4,096 seeded raw patterns) with original JS in both Wasm engines:
+33,176 comparisons across the family. Wrong-opcode probes for all four, a signed-zero
+loss probe and a semantic-shadow bypass probe fail; restored code passes. All 1,660
+prior source/Wasm variants and 830 oracles remain unchanged; 684 other rejection
+sources/modes/diagnostics are retained exactly, including every Math.abs diagnostic.
+No import, helper, ABI, fuel or source-budget change follows from these intrinsics.
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -386,21 +397,29 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Self/mutual calls share the existing Wasmtime store's fuel budget; they do not
   renew it. The existing engine stack guard also remains in place. Neither is a
   static termination proof or a guarantee for arbitrary host-thread stacks.
-- The self-contained numeric execution profile provides a pristine specified
-  `Math.abs` intrinsic, rather than a reference to an external JavaScript realm's
-  mutable Math object. A nonoptional static `Math.abs(x)` call must have exactly
-  one Number argument and an actual unresolved semantic value reference for Math.
-  Resolved parameter/local/TDZ/module-helper shadows never fall back by name;
-  ordinary numeric bindings named Math may still mutate. Type-only Math names do
-  not create value bindings. The argument executes eagerly once, produces a
-  snapshot and lowers to `f64.abs`: non-NaN bits are exact, `-0` becomes `+0`,
-  infinities become positive infinity, and NaNs are compared by class rather than
-  payload/sign. This Number-only subset performs no ToNumber coercion. Computed,
-  optional, generic, wrapped-callee, spread, aliased and first-class forms remain
-  rejected. Math/global writes, property patches, reification and external realm
-  integration remain open work; Math and its methods are not immutable language
-  globals. See [Math.abs](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.abs)
-  and [Wasm fabs](https://webassembly.github.io/spec/core/exec/numerics.html#op-fabs).
+- The self-contained numeric execution profile provides pristine specified
+  Math.abs, Math.sqrt, Math.floor, Math.ceil and Math.trunc intrinsics, rather than
+  references to an external JavaScript realm's mutable Math object. Each requires
+  a nonoptional static call, exactly one Number argument and an actual unresolved
+  semantic value reference for Math. Resolved parameter/local/TDZ/module-helper
+  shadows never fall back by spelling. Ordinary numeric bindings named Math may
+  still mutate; type-only Math names do not create value bindings. Arguments run
+  eagerly once and produce captured Number snapshots. Abs emits `f64.abs`;
+  sqrt/floor/ceil/trunc emit their corresponding `f64` opcode directly. There is
+  no ToNumber coercion, integer conversion or generated arithmetic helper.
+  Non-NaNs compare exact binary64 bits; NaNs compare by class, not payload/sign.
+  Abs maps negative zero to positive zero; the other four preserve input negative
+  zero. Ceil/trunc may also return negative zero for negative fractions. Negative
+  nonzero sqrt inputs, including negative infinity, return NaN. Computed, optional,
+  generic, wrapped-callee, spread, aliased and first-class forms remain rejected.
+  Global Math writes, property patches, reification and external realm integration
+  remain open work; Math and its methods are not immutable language globals.
+  See [Math.abs](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.abs),
+  [Math.sqrt](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.sqrt),
+  [Math.floor](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.floor),
+  [Math.ceil](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.ceil),
+  [Math.trunc](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.trunc)
+  and [Wasm floating numerics](https://webassembly.github.io/spec/core/exec/numerics.html#op-fsqrt).
 - The body admits initialized numeric `const`/`let` declarations and
   discarded numeric expression statements in source order, lexical blocks and
   statement `if`/`else`, and `while`/`for`/`do...while` loops. Empty statements
@@ -546,7 +565,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
 - Everything else is rejected: extra statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
-  `this` parameters, modifiers, indirect/property/optional calls except the specified Math.abs intrinsic, strings/objects/BigInts,
+  `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`&&=`/`||=`/`??=` assignments,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
@@ -590,15 +609,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 2081640 numeric comparisons; 685 rejected inputs; overwrite preserved
+PASS 2204532 numeric comparisons; 754 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-830 programs, each written as JS and TS, produce 1660 modules.
+879 programs, each written as JS and TS, produce 1758 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,081,640 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,204,532 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -788,7 +807,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-685 malformed or unsupported programs fail explicitly, each with a unique
+754 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

@@ -20,6 +20,10 @@ pub(crate) enum Type {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Unary {
     Abs,
+    Sqrt,
+    Floor,
+    Ceil,
+    Trunc,
     Plus,
     Negate,
     BitNot,
