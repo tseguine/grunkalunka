@@ -155,8 +155,9 @@ components yet.
   checks outside timed loops. A debug frontend probe or empty component cannot
   establish production speed, memory use, startup cost or platform footprint.
 
-No production IR, object/GC strategy, scheduler, package
-distribution scheme, or permanent capability API is settled by this roadmap.
+The numeric PoC uses an internal [verified region IR](ir.md). A full-language
+production IR, object/GC strategy, scheduler, package distribution scheme, and
+permanent capability API remain unsettled by this roadmap.
 
 Dependency policy: keep our source MIT and avoid GPL/LGPL terms, checking
 transitives as well as direct dependencies. Where an explicit permissive alternative

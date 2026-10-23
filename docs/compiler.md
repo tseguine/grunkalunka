@@ -1,7 +1,8 @@
 # Numeric compiler and runtime
 
 **Maintained implementation at development version 0.0.1:** Oxc parses JS/TS, a custom lowering
-pass produces WAT, `wat` encodes it into real Wasm bytes, and Wasmtime executes them.
+pass builds and verifies [typed numeric regions](ir.md), then emits WAT. `wat`
+encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
 ## Replay
@@ -83,7 +84,7 @@ export function run(a: number, b: number): number {
 }
 ```
 
-It emits **63 bytes of portable core Wasm**, identical to the JS fixture's output.
+It emits **93 bytes of portable core Wasm**, identical to the JS fixture's output.
 Calling `run(4, 1)` returns `3` under both Wasmtime and Node-Wasm. This is artifact
 size only; it excludes the compiler and runtime and is not a platform footprint claim.
 
@@ -130,8 +131,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Both ternary arms must be admitted and lower to structured Wasm
   `if (result f64)`. Optional TS annotations must be exactly `number`.
   Simple `=` expressions write to an initialized parameter or `let` binding and
-  return the assigned number. The RHS runs once; Wasm `local.tee` preserves its
-  value. Assignment statements discard that value. Writes to `const`, globals,
+  return the assigned number. The RHS runs once; a typed IR value and separate
+  Wasm temporary preserve its snapshot across the store. Assignment statements
+  leave that value unused. Writes to `const`, globals,
   self/forward locals, property/destructuring and TS-wrapped targets are rejected.
   Scope exit removes bindings from visibility without recycling their physical
   Wasm slots. Both branches are admitted independently before encoding. Explicit
@@ -156,6 +158,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
   across all lexical scopes and 256 recursively counted statements, including
   block/`if`/`while` nodes, both arms, loop bodies and returns; statement nesting limit 64;
+  generated IR values, regions and Wasm temporaries do not consume source budgets;
   host input batches at most 4096
   pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the vector
   replay has a three-minute bound. These are experiment bounds, not platform policy.
@@ -223,6 +226,12 @@ apply to Wasmtime execution; this is not a static termination proof or a univers
 execution bound across engines. The affine artifact grew from 61 to 63 bytes
 when explicit return/completion handling was added.
 
+The numeric region emitter materializes ordered computations and source reads in
+separate typed Wasm locals. The affine artifact consequently grows from 63 to 93
+bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
+(+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
+These measurements describe artifact growth, with no execution-speed claim.
+
 One hundred and eighty malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
@@ -236,13 +245,15 @@ See [license screening](dependencies.md) for scope, alternatives and limitations
 
 ## What this tells us
 
-**Observed:** an AST-to-Wasm path preserves results for this admitted numeric ABI
-and corpus under two Wasm engines. Unsupported code fails instead of silently
+**Observed:** lowering parsed syntax through verified numeric regions to Wasm
+preserves results for this admitted numeric ABI and corpus under two Wasm engines.
+Unsupported code fails instead of silently
 changing behavior. This is stronger evidence than a hand-written Wasm demo because
 the emitted instructions originate from the parsed JS/TS expressions.
 
-**Inference:** continuing with a custom lowering experiment is practical. No stable
-IR or full-language frontend architecture follows from this one result.
+**Inference:** continuing with a custom lowering experiment is practical. The
+internal numeric region IR now exists and has a verifier; its limited source
+contract does not settle a stable full-language IR or frontend architecture.
 
 The numeric ABI exercises local mutation and its observable evaluation order. It
 does not establish behavior for external effects, coercion of objects/strings,
