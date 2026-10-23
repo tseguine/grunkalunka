@@ -533,7 +533,7 @@ impl Lowering<'_, '_> {
         Ok(completion)
     }
 
-    fn charge_statement(&mut self, statement: &impl GetSpan) -> Result<(), String> {
+    pub(super) fn charge_statement(&mut self, statement: &impl GetSpan) -> Result<(), String> {
         if self.statement_count >= 256 {
             return Err(unsupported(
                 statement,

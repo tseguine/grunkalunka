@@ -6,7 +6,7 @@ TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled lo
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 52 curated reference cases in
+The executable frontier contains 50 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -25,11 +25,11 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Generators and async | `gap-generator`, `gap-async-await` |
 | TypeScript type-only declarations | `gap-type-alias` |
 | Globals and standard library | `gap-math-call` |
-| PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export`, `gap-module-directive`, `gap-function-directive`, `gap-hashbang` |
+| PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export`, `gap-hashbang` |
 | Conservative return analysis | `gap-while-guaranteed-return`, `gap-unreachable-after-return` |
 
 This separates missing operators/value semantics from functions/modules and later
-closure, exception and async work. Export naming/arity, directives/hashbangs and
+closure, exception and async work. Export naming/arity, hashbangs and
 structural return rules are deliberate PoC admission restrictions, rather than
 invalid JavaScript. Source-size, depth, statement/local counts, input-batch and execution-fuel
 limits remain separate [resource bounds](compiler.md#experimental-contract).
@@ -118,7 +118,7 @@ negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 52 examples are a
+or change the reference result to match a lowering bug. The 50 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -138,3 +138,8 @@ The former `gap-continue`, `for-continue`, `do-continue` and
 reaches the nearest loop's while test, for update then test, or do test. The old
 potentially infinite `while-continue` rejection is retired without executing its
 source; finite terminal-test and nested-target cases replace its coverage.
+
+The former module/function directive references are now paired full-source cases
+in [`directives.mjs`](../tests/compatibility/directives.mjs). Only Oxc-recognized
+prologues erase, and each source directive still counts toward the statement limit.
+Non-prologue strings and hashbangs remain rejected; no general string ABI is added.

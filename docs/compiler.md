@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 26
-contains 451 paired programs, 446 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 27
+contains 470 paired programs, 464 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -160,6 +160,24 @@ Twenty-six boundary rejections preserve numeric headers, whole-source admission,
 return coverage and the remaining control exclusions. Four finite continue
 rejections are promoted; the old potentially infinite while-continue rejection is
 retired without executing its source. The reference frontier now has 52 gaps.
+
+Corpus 27 admits Oxc-recognized module/function directive prologues. Nineteen
+paired full-source programs retain their exact JS/TS module text, covering strict,
+unknown, escaped, repeated, ASI and comment-separated directives plus shared source
+budgets. Twenty-two boundary rejections preserve strict syntax diagnostics,
+non-prologue string rejection, the entry contract and hashbang refusal. The two
+reference gaps and two ordinary directive rejections are promoted, leaving 50
+reference gaps. Skipping directive charges wrongly admits 257 statements and is
+detected; ignoring full-source overrides fails the source-construction tests.
+
+The ordinary admitted tuple contains JS/TS function bodies and optionally an
+independent JS oracle body. An optional sixth metadata field instead supplies
+complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
+An explicit full `oracleSource` cannot be combined with a legacy oracle body.
+Metadata is validated for the whole inventory before executing fixtures. No full
+source is wrapped, trimmed or normalized. The affine files and Mandelbrot's
+independent body oracle retain their existing provenance. Retained inputs and
+oracles are read back and checked against their recorded source hashes.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -311,7 +329,18 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   once as a statement, while generated exit/body-end blocks do not consume source
   budgets. The emitter's additional loop blocks may change
   artifact bytes and fuel cost; the 10,000-fuel allowance is unchanged.
-- Everything else is rejected: extra statements/exports/imports, directives,
+- Oxc-recognized directive prologues at module/function entry are admitted.
+  These initial string-literal expression statements are evaluated normally in
+  ECMAScript; their completion values are unobserved by this explicit-number-return
+  ABI, so no runtime values or IR are emitted. Module code and its contained
+  function are already strict. Unknown directives have ordinary ECMAScript literal
+  semantics; no framework or implementation-specific directive meaning is defined.
+  Each module/function directive counts once in the shared statement budget,
+  including before the numeric body, without consuming locals or nesting depth.
+  Parser and semantic diagnostics remain authoritative. Parenthesized, wrapped,
+  nested-block and later string statements remain outside numeric admission.
+  The admission follows [Directive Prologues and strict module code](https://tc39.es/ecma262/multipage/ecmascript-language-source-code.html#sec-directive-prologues-and-the-use-strict-directive).
+- Everything else is rejected: extra statements/exports/imports,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
   type-only declarations, uninitialized locals and compound operators beyond the four above,
@@ -320,14 +349,14 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   the experiment, not the validity of arbitrary JavaScript.
   TypeScript-wrapped assignment/update targets are still rejected.
 - Admission covers the entire AST, including directives/modifiers stored outside
-  ordinary statements. Oxc parser and semantic syntax diagnostics are checked.
+  ordinary statements; directive erasure still charges their source statements. Oxc parser and semantic syntax diagnostics are checked.
   The compiler does not run a TypeScript type checker or infer arbitrary JS types.
 - AST grouping is preserved; there is no optimizer, reassociation, constant folding
   or fused multiply-add lowering. Literal values use Oxc's binary64 parse followed
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
 - Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
   across all lexical scopes and 256 recursively counted statements, including
-  block/`if`/`while`/`for`/`do` nodes, both arms, loop bodies and returns; a `for` header
+  module/function directives, block/`if`/`while`/`for`/`do` nodes, both arms, loop bodies and returns; a `for` header
   declaration counts once as a statement, with one local per declarator. Header
   expressions use the ordinary expression nesting budget. Statement nesting limit 64;
   generated IR values, regions and Wasm temporaries do not consume source budgets;
@@ -353,15 +382,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1131108 numeric comparisons; 446 rejected inputs; overwrite preserved
+PASS 1178760 numeric comparisons; 464 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-451 programs, each written as JS and TS, produce 902 modules.
+470 programs, each written as JS and TS, produce 940 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,131,108 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,178,760 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -479,7 +508,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-446 malformed or unsupported programs fail explicitly, each with a unique
+464 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

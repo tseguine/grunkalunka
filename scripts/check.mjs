@@ -13,7 +13,7 @@ function run(command, args) {
 
 run(process.execPath, ['--test', 'tests/compatibility/suites.test.mjs', 'tests/compatibility/test262.test.mjs',
   'tests/compatibility/benchmarks-game.test.mjs']);
-run(process.execPath, ['--test', 'tests/compatibility/gap-oracle.test.mjs']);
+run(process.execPath, ['--test', 'tests/compatibility/gap-oracle.test.mjs', 'tests/compatibility/program-sources.test.mjs']);
 for (const spike of ['001-frontend-semantics']) {
   const manifest = `spikes/${spike}/Cargo.toml`;
   run('cargo', ['fmt', '--manifest-path', manifest, '--check']);

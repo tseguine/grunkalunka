@@ -28,7 +28,7 @@ adapted runtime results and successful rejection checks are separate counts.
 Unmodified upstream suite execution remains `not-executed`, including for TypeScript.
 This is a selected-case inventory, not a denominator for the full upstream suites.
 
-The separate [lowering-gap inventory](lowering-gaps.md) specifies 52 reference
+The separate [lowering-gap inventory](lowering-gaps.md) specifies 50 reference
 programs beyond current admission. Node checks their expected results; the compiler
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.
@@ -50,3 +50,10 @@ and lowering time, Wasm compilation, instantiation, steady execution, memory and
 artifact size separately, with host versions, inputs, warmup, repetitions and
 variance. An extracted kernel cannot claim an upstream benchmark score. Retain
 upstream scoring and timing rules when a complete benchmark becomes executable.
+
+Admitted numeric fixtures may provide complete JS/TS modules through explicit
+sixth-field source metadata. The source-construction tests ensure exact text and
+oracle selection, reject incomplete metadata, and preserve legacy body fixtures.
+Full-source directive fixtures therefore exercise module prologues in their
+original positions. The replay reads retained input/oracle bytes back to verify
+source hashes rather than silently replacing full source with generated wrappers.

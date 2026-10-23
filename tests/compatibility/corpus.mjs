@@ -21,8 +21,9 @@ import { multipleDeclarators, multipleDeclaratorsRejected } from './multiple-dec
 import { intrinsicNumberPrograms, intrinsicNumberRejected } from './intrinsic-numbers.mjs';
 import { numericBreak, numericBreakRejected } from './numeric-break.mjs';
 import { numericContinue, numericContinueRejected } from './numeric-continue.mjs';
+import { directivePrograms, directiveRejected } from './directives.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 26;
+export const corpusVersion = 27;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -69,6 +70,7 @@ programs.push(...multipleDeclarators);
 programs.push(...intrinsicNumberPrograms);
 programs.push(...numericBreak);
 programs.push(...numericContinue);
+programs.push(...directivePrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -155,6 +157,7 @@ export const rejected = [
   ...intrinsicNumberRejected,
   ...numericBreakRejected,
   ...numericContinueRejected,
+  ...directiveRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -252,8 +255,6 @@ export const rejected = [
   ['this', 'export function run(a,b) { return this; }'],
   ['unary-not', 'export function run(a,b) { return !a; }'],
   ['empty-return', 'export function run(a,b) { return; }'],
-  ['body-directive', 'export function run(a,b) { "use strict"; return a; }'],
-  ['module-directive', '"use strict"; export function run(a,b) { return a; }'],
   ['hashbang', '#!/usr/bin/env node\nexport function run(a,b) { return a; }'],
   ['type-param', 'export function run<T>(a:number,b:number):number { return a; }', 'ts'],
   ['this-param', 'export function run(this:void,a:number,b:number):number { return a; }', 'ts'],

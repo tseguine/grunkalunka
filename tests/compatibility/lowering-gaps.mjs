@@ -5,7 +5,7 @@ const binary = 'only binary +, -, * and / are admitted';
 const unary = 'only unary + and - are admitted';
 const statement = 'statement is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
-const topLevel = 'exactly one exported function and no directives/hashbang are admitted';
+const topLevel = 'exactly one exported function and no hashbang are admitted';
 const declaration = 'initialized const or let identifiers are required';
 const ordinaryParameters = 'exactly two ordinary numeric parameters are admitted';
 const plainFunction = 'expected a plain, synchronous, non-generic function named run';
@@ -97,9 +97,6 @@ add('one-parameter', 'input-shapes', '', 4, ordinaryParameters,
   { source: 'export function run(a) { return a; }', milestone: 'L3' });
 add('extra-export', 'input-shapes', '', 6, topLevel,
   { source: 'export const n=2; export function run(a,b) { return a+n; }', milestone: 'L3' });
-add('module-directive', 'input-shapes', '', 6, topLevel,
-  { source: '"use strict"; export function run(a,b) { return a+b; }', milestone: 'L3' });
-add('function-directive', 'input-shapes', '"use strict"; return a+b;', 6, 'function directives are not admitted', { milestone: 'L3' });
 add('hashbang', 'input-shapes', '', 6, topLevel,
   { source: '#!/usr/bin/env node\nexport function run(a,b) { return a+b; }', milestone: 'L3' });
 add('while-guaranteed-return', 'structural-analysis', 'while(1) { return a; }', 4, 'every structural path must return a numeric value', { milestone: 'L2' });

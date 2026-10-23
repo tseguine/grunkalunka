@@ -163,3 +163,9 @@ body-end block, then reaches the while condition, the for step followed by its
 condition, or the do condition. These blocks allocate no source cells and consume
 no source budgets. They can increase artifact size and instruction cost; fuel
 remains 10,000 per call. Labels remain outside admission.
+
+Oxc-recognized module/function directive prologues consume one source statement
+each in the same cumulative budget as the numeric body. They emit no IR, values,
+source cells or nesting levels: the explicit numeric-return ABI cannot observe
+these literal completion values, and ESM source remains strict. General string
+expressions and hashbang admission are not added by this erasure.

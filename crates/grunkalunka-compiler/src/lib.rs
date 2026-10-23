@@ -59,10 +59,10 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         return Err(format!("semantic diagnostics: {:?}", built.diagnostics));
     }
     let program = &parsed.program;
-    if program.hashbang.is_some() || !program.directives.is_empty() || program.body.len() != 1 {
+    if program.hashbang.is_some() || program.body.len() != 1 {
         return Err(unsupported(
             program,
-            "exactly one exported function and no directives/hashbang are admitted",
+            "exactly one exported function and no hashbang are admitted",
         ));
     }
     let Statement::ExportDeclaration(export) = &program.body[0] else {
@@ -138,12 +138,6 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         });
     }
     let body = function.body.as_ref().ok_or("function must have a body")?;
-    if !body.directives.is_empty() {
-        return Err(unsupported(
-            body.as_ref(),
-            "function directives are not admitted",
-        ));
-    }
     let mut lowering = Lowering {
         semantic: &built.semantic,
         bindings,
@@ -154,6 +148,11 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         values: Vec::new(),
         next_region: 0,
     };
+    // Oxc already recognized these literal expression statements. ESM is strict,
+    // and their completion values are unobserved by the numeric return ABI.
+    for directive in program.directives.iter().chain(&body.directives) {
+        lowering.charge_statement(directive)?;
+    }
     let mut region = lowering.region(body.as_ref());
     if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
         return Err(unsupported(
@@ -165,4 +164,41 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
     let wat = emit::emit(&function)?;
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compile;
+
+    #[test]
+    fn directives_preserve_the_numeric_artifact() {
+        let plain = compile("export function run(a,b) { return a+b; }", false).unwrap();
+        let decorated = compile("\"module hint\"; export function run(a,b) { \"use strict\"; \"body hint\"; return a+b; }", false).unwrap();
+        assert_eq!(plain.wasm, decorated.wasm);
+    }
+
+    #[test]
+    fn directive_statement_budget_is_shared_with_the_body() {
+        for (module_count, body_count) in [(255, 0), (0, 255), (127, 128)] {
+            let source = format!(
+                "{}export function run(a,b) {{ {}return a; }}",
+                "\"hint\";".repeat(module_count),
+                "\"hint\";".repeat(body_count)
+            );
+            compile(&source, false).unwrap();
+            let error = compile(&format!("\"one more\";{source}"), false)
+                .err()
+                .expect("257 source statements must reject");
+            assert!(error.contains("at most 256 statements"), "{error}");
+        }
+    }
+
+    #[test]
+    fn directive_text_still_consumes_the_original_source_byte_budget() {
+        let source = "\"λ\"; export function run(a,b) { return a; }";
+        let mut source = format!("{source}{}", " ".repeat(16_384 - source.len()));
+        compile(&source, false).unwrap();
+        source.push(' ');
+        assert!(compile(&source, false).err().unwrap().contains("16 KiB"));
+    }
 }

@@ -7,6 +7,7 @@ import { mkdir, mkdtemp, readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { suiteInventory } from './suites.mjs';
+import { programSources } from './program-sources.mjs';
 
 const directory = fileURLToPath(new URL('./', import.meta.url));
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -67,6 +68,7 @@ const input = vectors.map(([a, b]) => `${bits(a)} ${bits(b)}`).join('\n') + '\n'
 
 // Validate the whole selected inventory before executing any fixtures.
 const ids = new Set();
+const preparedSources = new Map();
 function register(id, expectation) {
   assert.match(id, /^[a-z][a-z0-9-]*$/);
   const key = `${expectation}:${id}`;
@@ -74,10 +76,17 @@ function register(id, expectation) {
   ids.add(key);
   return key;
 }
-for (const [id, js, ts] of programs) {
+for (const program of programs) {
+  const [id] = program;
   register(id, 'admitted');
-  assert.equal(typeof js, 'string');
-  assert.equal(typeof ts, 'string');
+  const sources = programSources(program);
+  if (id === 'affine') {
+    assert.equal(program[5], undefined, 'affine retains file-backed provenance');
+    sources.sourceJS = await readFile(new URL('fixtures/affine.js', import.meta.url), 'utf8');
+    sources.sourceTS = await readFile(new URL('fixtures/affine.ts', import.meta.url), 'utf8');
+    if (program[4] === undefined) sources.oracleSource = sources.sourceJS;
+  }
+  preparedSources.set(id, sources);
 }
 for (const [id, source, extension = 'js', diagnostic, gap] of rejected) {
   register(id, 'rejected');
@@ -113,17 +122,17 @@ const runtime = {
 const observations = [];
 const fixtures = [];
 let comparisons = 0;
-for (const [name, bodyJS, bodyTS, expectedResult, oracleBody] of programs) {
+for (const [name, , , expectedResult, , metadata] of programs) {
   activeFixture = `admitted:${name}`;
-  const sourceJS = name === 'affine'
-    ? await readFile(new URL('fixtures/affine.js', import.meta.url), 'utf8')
-    : `export function run(a, b) { ${bodyJS} }\n`;
-  const sourceTS = name === 'affine'
-    ? await readFile(new URL('fixtures/affine.ts', import.meta.url), 'utf8')
-    : `export function run(a: number, b: number): number { ${bodyTS} }\n`;
-  const oracleSource = oracleBody === undefined ? sourceJS : `export function run(a, b) { ${oracleBody} }\n`;
+  const { sourceJS, sourceTS, oracleSource } = preparedSources.get(name);
+  if (metadata !== undefined) {
+    assert.equal(sourceJS, metadata.sourceJS, `${name}: full JS source ignored`);
+    assert.equal(sourceTS, metadata.sourceTS, `${name}: full TS source ignored`);
+  }
   const oraclePath = `${name}-oracle.js`;
   await writeFile(join(output, oraclePath), oracleSource, { flag: 'wx' });
+  const retainedOracle = await readFile(join(output, oraclePath));
+  assert.equal(sha256(retainedOracle), sha256(oracleSource), `${name}: retained oracle changed`);
   const reference = await import(`data:text/javascript;base64,${Buffer.from(oracleSource).toString('base64')}`);
   const modules = [];
   const variants = [];
@@ -131,6 +140,8 @@ for (const [name, bodyJS, bodyTS, expectedResult, oracleBody] of programs) {
     const sourcePath = join(output, `${name}.${extension}`);
     const wasmPath = join(output, `${name}-${extension}.wasm`);
     await writeFile(sourcePath, source, { flag: 'wx' });
+    const retainedSource = await readFile(sourcePath);
+    assert.equal(sha256(retainedSource), sha256(source), `${name}: retained source changed`);
     invoke(['compile', sourcePath, wasmPath]);
     await writeFile(join(output, `${name}-${extension}.wat`), invoke(['wat', sourcePath]).stdout, { flag: 'wx' });
     const wasm = await readFile(wasmPath);
@@ -151,7 +162,7 @@ for (const [name, bodyJS, bodyTS, expectedResult, oracleBody] of programs) {
       comparisons += 2;
     }
     variants.push({
-      extension, source: `${name}.${extension}`, sourceSha256: sha256(source),
+      extension, source: `${name}.${extension}`, sourceSha256: sha256(retainedSource),
       wasm: `${name}-${extension}.wasm`, wasmSha256: sha256(wasm),
       wat: `${name}-${extension}.wat`, wasmBytes: wasm.length, vectors: vectors.length,
       engines: ['wasmtime', `${runtime.name}-wasm`], comparisons: vectors.length * 2,
@@ -162,7 +173,7 @@ for (const [name, bodyJS, bodyTS, expectedResult, oracleBody] of programs) {
   }
   assert.deepEqual(modules[0], modules[1], `${name}: annotation-only variants emitted different bytes`);
   fixtures.push({ id: `admitted:${name}`, expectation: 'admitted', executed: true, outcome: 'passed', expectedResult,
-    oracle: { source: oraclePath, sourceSha256: sha256(oracleSource) }, variants });
+    oracle: { source: oraclePath, sourceSha256: sha256(retainedOracle) }, variants });
   console.log(`PASS ${name}: JS + TS, ${vectors.length} vectors, Wasmtime + ${runtime.name}-Wasm`);
 }
 
