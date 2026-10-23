@@ -106,3 +106,8 @@ the same client behaves predictably under different capability profiles.
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after
 each demonstrated unit; do not replace evidence with a checked milestone box.
+
+The [external testing plan](testing.md) registers Test262, TypeScript tests, the
+Computer Language Benchmarks Game, JetStream, Node.js tests and Speedometer.
+Pinned targets, concrete prerequisites and selected execution results are included
+in compatibility reports. Registration does not complete C2, P1, A1 or B1.

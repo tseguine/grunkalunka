@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "suites": [
+    {
+      "id": "test262",
+      "name": "Test262",
+      "kind": "language-conformance",
+      "repository": "https://github.com/tc39/test262",
+      "revision": "d53ebc8b1931d9f1541e43d59650776e4b766248",
+      "capturedRef": "main",
+      "entryPath": "INTERPRETING.md",
+      "entrySha256": "cc213fd1e590ebdccacc7c846340517cbee2a241ea8a915392b0d071f3fd800e",
+      "licensePath": "LICENSE",
+      "license": "BSD-3-Clause",
+      "licenseSha256": "4dd9244dfe8197c75348c4b24ab53d29d3b1cfad143ac76b5a3d8942aa354ce0",
+      "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
+      "selection": [],
+      "blockers": [
+        "Assertion harness, globals, built-ins, exceptions and script/module execution for unmodified tests."
+      ],
+      "milestone": "C2",
+      "next": "Run a pinned selection with original harness metadata, strict/sloppy modes and expected-error phases."
+    },
+    {
+      "id": "typescript",
+      "name": "TypeScript tests",
+      "kind": "compiler-reference",
+      "repository": "https://github.com/microsoft/TypeScript",
+      "revision": "c63de15a992d37f0d6cec03ac7631872838602cb",
+      "capturedRef": "v5.9.3",
+      "entryPath": "tests/cases/conformance/expressions/binaryOperators/arithmeticOperator/arithmeticOperatorWithAnyAndNumber.ts",
+      "entrySha256": "067c74160a5bf7de1e9fed079b31501a13a447f7bfd25ae7f41d339e111f3734",
+      "licensePath": "LICENSE.txt",
+      "license": "Apache-2.0",
+      "licenseSha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+      "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
+      "selection": [
+        {
+          "id": "admitted:ts-ra1",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-ra2",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-ra3",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-ra4",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-ra5",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-ra6",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-ra7",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-ra8",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb1",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb2",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb3",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb4",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb5",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb6",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb7",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rb8",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "rejected:ts-rc1",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "rejected:ts-rc2",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "rejected:ts-rc3",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "rejected:ts-rc4",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "rejected:ts-rc5",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "rejected:ts-rc6",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "rejected:ts-rc7",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "rejected:ts-rc8",
+          "kind": "admission-rejection"
+        },
+        {
+          "id": "admitted:ts-rd1",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rd2",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rd3",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rd4",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rd5",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rd6",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rd7",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:ts-rd8",
+          "kind": "adapted-runtime"
+        }
+      ],
+      "blockers": [
+        "Full compiler fixtures require a broader language and type-checking support."
+      ],
+      "milestone": "C2",
+      "next": "Expand selected runtime cases; separately validate type queries and emitted-code fixtures."
+    },
+    {
+      "id": "benchmarks-game",
+      "name": "Computer Language Benchmarks Game",
+      "kind": "algorithm-workloads",
+      "repository": "https://salsa.debian.org/benchmarksgame-team/benchmarksgame",
+      "revision": "40296663ed350d5fe4a6ab5e367bab61cb77c219",
+      "capturedRef": "master",
+      "entryPath": "public/program/mandelbrot-node-1.html",
+      "entrySha256": "e46ca66cf428ebeea118f564270840c2612622364ab5931dd510d63f93a0fcc0",
+      "licensePath": "LICENSE.md",
+      "license": "BSD-3-Clause",
+      "licenseSha256": "e5dd0024dd43d92434808c8e1df3c09870a2832744283232aa1dc16c737237b1",
+      "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
+      "selection": [],
+      "blockers": [
+        "Full Mandelbrot output requires for loops, typed arrays, bitwise operators and process/stdout APIs."
+      ],
+      "milestone": "P1",
+      "next": "Match a full selected program output before measuring its performance."
+    },
+    {
+      "id": "jetstream",
+      "name": "JetStream",
+      "kind": "engine-performance",
+      "repository": "https://github.com/WebKit/JetStream",
+      "revision": "c603c04db8505477867974a69789309ded2cc948",
+      "capturedRef": "main",
+      "entryPath": "README.md",
+      "entrySha256": "ae8aa067e215b3ff1a6b915768a8142ffdebd4afe712095ce37a4f5510beaca7",
+      "licensePath": "LICENSE",
+      "license": "BSD-2-Clause",
+      "licenseSha256": "ad07794655eb9c73f377d610d9fb30d6173b5e15209bd04944edcff5fec512e8",
+      "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
+      "selection": [],
+      "blockers": [
+        "Function calls, objects, arrays, built-ins, harness APIs; selected workloads also require modules, async or Wasm host APIs."
+      ],
+      "milestone": "P1",
+      "next": "Run a complete selected workload in the shell harness with its own correctness checks and measurement protocol."
+    },
+    {
+      "id": "node",
+      "name": "Node.js tests",
+      "kind": "host-compatibility",
+      "repository": "https://github.com/nodejs/node",
+      "revision": "5d2feb257bcee090e57900eb51720171a6aa92f3",
+      "capturedRef": "v22.14.0",
+      "entryPath": "doc/contributing/writing-tests.md",
+      "entrySha256": "02210ee6083175fe0d8e1309a96209d977e95ada22ef9417c6b2016f2a0a8a25",
+      "licensePath": "LICENSE",
+      "license": "MIT (core); bundled material has separate terms",
+      "licenseSha256": "1474fea5eff88dc92763acca3ca1f54b51fa153be1529eae74ace35957aea9ce",
+      "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
+      "selection": [],
+      "blockers": [
+        "CommonJS/ES modules, node:assert, runtime globals and per-test Node APIs behind capabilities."
+      ],
+      "milestone": "A1",
+      "next": "Run selected unmodified upstream API tests; pair grants and denials with documented compatibility profiles."
+    },
+    {
+      "id": "speedometer",
+      "name": "Speedometer",
+      "kind": "browser-application-performance",
+      "repository": "https://github.com/WebKit/Speedometer",
+      "revision": "b0bc16efc667dc8ded72397a29c903468dc279e0",
+      "capturedRef": "main",
+      "entryPath": "README.md",
+      "entrySha256": "22e978a7dafb6424a32c277f4e52683218f365630a7cf45d6f59541137d2a75d",
+      "licensePath": "LICENSE",
+      "license": "BSD-2-Clause",
+      "licenseSha256": "1f9ee170a26f339b7fbc2e4a638f1d22defacad5b8846dc4a3862e7799a51588",
+      "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
+      "selection": [],
+      "blockers": [
+        "DOM, events, HTML/CSS layout and rendering, timers, promises, modules and application dependencies."
+      ],
+      "milestone": "B1",
+      "next": "Complete a selected application interaction with correct DOM/output, then run the upstream browser measurement harness."
+    }
+  ]
+}

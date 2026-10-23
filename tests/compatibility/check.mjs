@@ -6,6 +6,7 @@ import { corpusVersion, programs, rejected, unimplemented, externalSources } fro
 import { mkdir, mkdtemp, readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { suiteInventory } from './suites.mjs';
 
 const directory = fileURLToPath(new URL('./', import.meta.url));
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -191,7 +192,7 @@ assert.ok(fixtures.filter(fixture => fixture.expectation === 'admitted').every(f
 assert.equal(observations.length, programs.length * 2);
 assert.equal(comparisons, programs.length * 2 * vectors.length * 2);
 const report = {
-  schemaVersion: 1, corpusVersion, runtime, externalSources,
+  schemaVersion: 1, corpusVersion, runtime, externalSources, externalSuites: suiteInventory(fixtures),
   compiler: { binarySha256: sha256(await readFile(binary)), lockfileSha256: sha256(lockfile), lockedWasmtimeVersion: lockedWasmtime[1] },
   fixtures,
   counts: { admitted: programs.length, rejected: rejected.length, unimplemented: unimplemented.length },

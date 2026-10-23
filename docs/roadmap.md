@@ -4,6 +4,9 @@ The project's direction is clear; implementation choices should earn their place
 through small experiments. This is a sequence of questions and exit criteria, not
 a promise that any prototype will become the architecture.
 
+The [external testing plan](testing.md) tracks all six adopted conformance,
+reference and performance suites, their pinned sources and execution prerequisites.
+
 ## Direction
 
 Product framing: a web application framework that makes building, running,
