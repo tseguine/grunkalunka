@@ -203,6 +203,7 @@ Use complementary sources:
 | --- | --- |
 | [Test262](https://github.com/tc39/test262) | ECMAScript language/runtime conformance. |
 | [Web Platform Tests](https://web-platform-tests.org/) | Browser API, integration and rendering behavior, mapped to the standards being implemented. |
+| [Electron specs](https://github.com/electron/electron/tree/main/spec) | Candidate desktop/embedding behavior tests and implementation references for the environment layer: application lifecycle, windows, navigation and IPC. Select relevant cases; this is not a commitment to clone every Electron API. |
 | [Acid1/2/3](https://www.acidtests.org/) | Historical integration/visual regression checkpoints; pin test versions and record intentional differences. |
 | [Can I Use](https://caniuse.com/ciu/about) | Feature inventory and roadmap input; connect chosen features to standards, tests, capability requirements and representative applications. |
 
@@ -218,6 +219,20 @@ redistributing them. Can I Use's [data repository](https://github.com/Fyrd/caniu
 states CC BY 4.0 and requests attribution to caniuse.com. A reference link alone
 does not require importing the corpus. No browser test corpus or support dataset
 has been vendored or executed at this stage.
+
+Electron's [MIT license](https://github.com/electron/electron/blob/main/LICENSE)
+permits reuse with its copyright and permission notices retained. Before adapting
+tests or code, pin a revision and inspect the selected files, helpers, fixtures,
+assets and dependencies for applicable terms. Keep provenance and modifications
+beside incorporated material. The [testing guide](https://www.electronjs.org/docs/latest/development/testing)
+describes an Electron application test suite; inspected
+[app](https://github.com/electron/electron/blob/main/spec/api-app.spec.ts) and
+[window](https://github.com/electron/electron/blob/main/spec/api-browser-window.spec.ts)
+specs depend on Electron APIs, Node helpers, fixture apps and platform conditions.
+Adapt bounded behavior tests as the corresponding environment APIs emerge,
+recording platform assumptions and capability grants/denials. Review code reuse
+for dependencies and architectural fit separately. No Electron material has been
+vendored or executed here.
 
 ## Node-compatible environment: conformance by observation
 
