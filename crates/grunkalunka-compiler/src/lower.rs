@@ -410,8 +410,10 @@ impl Lowering<'_, '_> {
                 BinaryOperator::LessEqualThan => Some(Compare::LessEqual),
                 BinaryOperator::GreaterThan => Some(Compare::Greater),
                 BinaryOperator::GreaterEqualThan => Some(Compare::GreaterEqual),
-                BinaryOperator::StrictEquality => Some(Compare::Equal),
-                BinaryOperator::StrictInequality => Some(Compare::NotEqual),
+                BinaryOperator::Equality | BinaryOperator::StrictEquality => Some(Compare::Equal),
+                BinaryOperator::Inequality | BinaryOperator::StrictInequality => {
+                    Some(Compare::NotEqual)
+                }
                 _ => None,
             };
             if let Some(operator) = operator {
@@ -728,6 +730,31 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    fn same_numeric_equality(loose: &str, strict: &str) {
+        let compile = |expression| {
+            crate::compile(
+                &format!("export function run(a,b) {{ return {expression}?-0:0; }}"),
+                false,
+            )
+            .unwrap()
+            .wasm
+        };
+        assert_eq!(compile(loose), compile(strict));
+    }
+
+    #[test]
+    fn numeric_loose_equality_uses_number_equality() {
+        same_numeric_equality("a==b", "a===b");
+    }
+    #[test]
+    fn numeric_loose_inequality_uses_number_inequality() {
+        same_numeric_equality("a!=b", "a!==b");
+    }
+    #[test]
+    fn numeric_loose_equality_preserves_operand_snapshots() {
+        same_numeric_equality("a==(a=b)", "a===(a=b)");
+    }
+
     fn admits_do(body: &str) {
         crate::compile(&format!("export function run(a,b) {{ {body} }}"), false).unwrap();
     }

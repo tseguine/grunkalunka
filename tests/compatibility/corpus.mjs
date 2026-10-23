@@ -12,8 +12,9 @@ import { numericForPrograms, numericForRejected } from './numeric-for.mjs';
 import { booleanLiterals } from './boolean-literals.mjs';
 import { numericDoPrograms, numericDoRejected } from './numeric-do.mjs';
 import { predicateNot } from './predicate-not.mjs';
+import { numericEqualityPrograms, numericEqualityRejected } from './numeric-equality.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 17;
+export const corpusVersion = 18;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -51,6 +52,7 @@ programs.push(...numericForPrograms);
 programs.push(...booleanLiterals);
 programs.push(...numericDoPrograms);
 programs.push(...predicateNot);
+programs.push(...numericEqualityPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -130,6 +132,7 @@ export const rejected = [
   ...typescriptErasureRejected,
   ...numericForRejected,
   ...numericDoRejected,
+  ...numericEqualityRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -265,7 +268,6 @@ export const rejected = [
   ['statement-limit', `export function run(a,b) { ${'a=b;'.repeat(256)} return a; }`],
   ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }'],
   ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
-  ['loose-equality', 'export function run(a,b) { return a==b?a:b; }'],
   ['logical-predicate', 'export function run(a,b) { return (a<b && a>0)?a:b; }'],
   ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
   ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],
