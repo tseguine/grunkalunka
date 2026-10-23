@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 10
-contains 136 paired programs, 200 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 11
+contains 164 paired programs, 230 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -61,8 +61,15 @@ execution from unexecuted lowering; these cases do not count as compiler support
 Corpus 10 promotes compound assignment, prefix/postfix increments and parenthesized
 write statements into numeric support. Twenty-eight paired regressions cover all
 four compound arithmetic operators, increments/decrements, result snapshots, RHS
-ordering, lexical mutation and terminal loop-condition effects. The remaining
-frontier contains 68 reference-validated gaps.
+ordering, lexical mutation and terminal loop-condition effects. That run left
+68 reference-validated gaps.
+
+Corpus 11 promotes the four TypeScript expression-wrapper gaps into 28 admitted
+JS/TS pairs, including nested wrappers, side effects, predicates, depth bounds,
+and four combinations with compound assignment and prefix/postfix updates.
+The obsolete type-assertion rejection is retired; 35 focused boundary rejections
+check unsupported operands, targets, statements, initialization and nesting.
+There are 64 remaining lowering-gap references.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -122,8 +129,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Exactly one module-level `export function run` with two ordinary parameters.
   Inputs are **already primitive JS numbers**, represented as Wasm `f64` values.
   This ABI contract is independent of whether TS annotations are present.
-- The body admits initialized numeric `const`/`let` declarations and simple
-  assignment statements in source order, lexical blocks and statement `if`/`else`, and `while` loops.
+- The body admits initialized numeric `const`/`let` declarations, assignment and
+  update statements in source order, lexical blocks and statement `if`/`else`, and `while` loops.
   Early numeric returns are supported. Every structural path must return a number:
   a sequence must reach a guaranteed return; a block inherits that result; an `if`
   guarantees return only when both present arms do. Missing-return paths and
@@ -136,6 +143,11 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
   Both ternary arms must be admitted and lower to structured Wasm
   `if (result f64)`. Optional TS annotations must be exactly `number`.
+  TypeScript `as`, angle-bracket assertions, postfix non-null `!`, and `satisfies`
+  are erased in expression and predicate positions. Each wrapper counts toward
+  nesting, and its runtime operand must independently satisfy admission. Wrapped
+  comparisons stay predicates. No type checking or runtime conversion follows
+  from a wrapper's asserted type; declaration annotations retain their restrictions.
   `=`, `+=`, `-=`, `*=` and `/=` expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the
   target before evaluating the RHS. Prefix/postfix `++` and `--` store the updated
@@ -155,10 +167,12 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
-  casts/assertions, uninitialized locals, compound assignments, increment/decrement,
+  type-only declarations, uninitialized locals and compound operators beyond the four above,
   `for`/`do`, `break`/`continue`, labels and logical operators. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
+  TypeScript-wrapped assignment/update targets and wrappers around an entire
+  expression statement are still rejected.
 - Admission covers the entire AST, including directives/modifiers stored outside
   ordinary statements. Oxc parser and semantic syntax diagnostics are checked.
   The compiler does not run a TypeScript type checker or infer arbitrary JS types.
@@ -191,16 +205,27 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 341088 numeric comparisons; 200 rejected inputs; overwrite preserved
+PASS 411312 numeric comparisons; 230 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-One hundred and thirty-six programs, each written as JS and TS, produce 272 modules.
+One hundred and sixty-four programs, each written as JS and TS, produce 328 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 341,088 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 411,312 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
+
+The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
+use hand-paired JavaScript references. They check all four wrappers around numbers
+and comparisons, nested forms, ordered writes, snapshots, loop-condition effects,
+NaN/±0 behavior and the 128-node nesting boundary. Calls, strings and objects remain
+rejected inside wrappers, including unselected arms. Const writes, uninitialized
+bindings, wrapped targets and statements, and depth 129 also remain rejected.
+This follows TypeScript's runtime treatment of
+[assertions and non-null expressions](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-assertions)
+and the type-only role of [`satisfies`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator),
+without claiming upstream type checking or general TypeScript compatibility.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
 smallest-subnormal literals, overflow literals, integer literals rounded beyond
@@ -242,7 +267,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-Two hundred malformed or unsupported programs fail explicitly, each with a unique
+Two hundred and thirty malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

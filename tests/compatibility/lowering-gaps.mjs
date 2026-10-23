@@ -95,11 +95,6 @@ add('generator', 'generators-async', 'function* values() { yield a; return b; } 
 add('async-await', 'generators-async', '', 6, plainFunction, { milestone: 'L5',
   source: 'export async function run(a,b) { return a + await Promise.resolve(b); }', prerequisites: ['Promise built-in', 'calls'] });
 
-for (const [id, body] of [['as', 'return a as number;'], ['angle-assertion', 'return <number>a;'],
-  ['non-null', 'return a!;'], ['satisfies', 'return a satisfies number;']]) {
-  add(id, 'typescript-erasure', body, 4, expression, { extension: 'ts', milestone: 'L3',
-    oracleSource: 'export function run(a,b) { return a; }' });
-}
 add('type-alias', 'typescript-erasure', '', 4, topLevel, { extension: 'ts', milestone: 'L3',
   source: 'type Scalar = number; export function run(a:Scalar,b:Scalar):Scalar { return a; }',
   oracleSource: 'export function run(a,b) { return a; }', prerequisites: ['type-only top-level declaration erasure'] });

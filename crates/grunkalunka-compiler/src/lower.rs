@@ -41,6 +41,18 @@ fn numeric_binding<'b>(
         })
 }
 
+// One wrapper at a time keeps each erased source node in the nesting budget.
+// These type-only forms do not convert or validate their runtime operand.
+fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression<'a>> {
+    match expression {
+        Expression::TSAsExpression(wrapper) => Some(&wrapper.expression),
+        Expression::TSTypeAssertion(wrapper) => Some(&wrapper.expression),
+        Expression::TSNonNullExpression(wrapper) => Some(&wrapper.expression),
+        Expression::TSSatisfiesExpression(wrapper) => Some(&wrapper.expression),
+        _ => None,
+    }
+}
+
 pub(super) struct Lowering<'s, 'a> {
     pub semantic: &'s Semantic<'a>,
     pub bindings: Vec<NumericBinding>,
@@ -87,6 +99,9 @@ impl Lowering<'_, '_> {
                 expression,
                 "expression nesting exceeds this experiment's limit",
             ));
+        }
+        if let Some(inner) = erased_inner(expression) {
+            return self.expression(inner, region, depth + 1);
         }
         let kind = match expression {
             Expression::NumericLiteral(literal) => {
@@ -302,6 +317,9 @@ impl Lowering<'_, '_> {
                 expression,
                 "predicate nesting exceeds this experiment's limit",
             ));
+        }
+        if let Some(inner) = erased_inner(expression) {
+            return self.predicate(inner, region, depth + 1);
         }
         if let Expression::ParenthesizedExpression(parenthesized) = expression {
             return self.predicate(&parenthesized.expression, region, depth + 1);
@@ -520,5 +538,65 @@ impl Lowering<'_, '_> {
             values: self.values,
             body,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    fn same_runtime_expression(expression: &str) {
+        let js = crate::compile("export function run(a,b) { return a; }", false).unwrap();
+        let ts = crate::compile(
+            &format!("export function run(a:number,b:number):number {{ return {expression}; }}"),
+            true,
+        )
+        .unwrap();
+        assert_eq!(js.wasm, ts.wasm);
+    }
+
+    #[test]
+    fn erases_as_expression() {
+        same_runtime_expression("a as number");
+    }
+    #[test]
+    fn erases_angle_assertion() {
+        same_runtime_expression("<number>a");
+    }
+    #[test]
+    fn erases_non_null_expression() {
+        same_runtime_expression("a!");
+    }
+    #[test]
+    fn erases_satisfies_expression() {
+        same_runtime_expression("a satisfies number");
+    }
+
+    fn same_runtime_predicate(predicate: &str) {
+        let js =
+            crate::compile("export function run(a,b) { return a < b ? -0 : b; }", false).unwrap();
+        let ts = crate::compile(
+            &format!(
+                "export function run(a:number,b:number):number {{ return {predicate} ? -0 : b; }}"
+            ),
+            true,
+        )
+        .unwrap();
+        assert_eq!(js.wasm, ts.wasm);
+    }
+
+    #[test]
+    fn erases_as_predicate() {
+        same_runtime_predicate("(a < b) as boolean");
+    }
+    #[test]
+    fn erases_angle_predicate() {
+        same_runtime_predicate("<boolean>(a < b)");
+    }
+    #[test]
+    fn erases_non_null_predicate() {
+        same_runtime_predicate("(a < b)!");
+    }
+    #[test]
+    fn erases_satisfies_predicate() {
+        same_runtime_predicate("(a < b) satisfies boolean");
     }
 }

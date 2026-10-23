@@ -5,8 +5,9 @@ import { benchmarkPrograms, benchmarkSource } from './benchmarks-game.mjs';
 import { loweringRegressions } from './lowering-regressions.mjs';
 import { loweringGaps } from './lowering-gaps.mjs';
 import { numericUpdates } from './numeric-updates.mjs';
+import { typescriptErasurePrograms, typescriptErasureRejected } from './typescript-erasure.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 10;
+export const corpusVersion = 11;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -37,6 +38,7 @@ programs.push(...test262Programs);
 programs.push(...benchmarkPrograms);
 programs.push(...loweringRegressions);
 programs.push(...numericUpdates);
+programs.push(...typescriptErasurePrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -113,6 +115,7 @@ programs.push(
 
 export const rejected = [
   ...loweringGaps,
+  ...typescriptErasureRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -178,7 +181,6 @@ export const rejected = [
   ['optional-param', 'export function run(a?:number,b?:number):number { return a; }', 'ts'],
   ['string-annotation', 'export function run(a:string,b:number):number { return a; }', 'ts'],
   ['return-annotation', 'export function run(a:number,b:number):string { return a; }', 'ts'],
-  ['type-assertion', 'export function run(a:number,b:number):number { return a as number; }', 'ts'],
   ['declare', 'export declare function run(a:number,b:number):number;', 'ts'],
   ['over-limit', 'export function run(a,b) { return a; }' + ' '.repeat(16384)],
   ['depth-limit', `export function run(a,b) { return ${'('.repeat(140)}a${')'.repeat(140)}; }`],

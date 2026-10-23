@@ -1,11 +1,11 @@
 # Known lowering gaps
 
 The current compiler admits one exported two-number function with numeric locals,
-assignments, branches, while loops and returns. Source inspection has not established
-an admitted wrong-result bug. The gaps below are currently rejected language
+assignments, branches, while loops, TypeScript expression wrappers and returns.
+Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 68 curated reference cases in
+The executable frontier contains 64 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -22,7 +22,7 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Exceptions and completion | `gap-catch`, `gap-finally-return` |
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
-| TypeScript expression/type erasure | `gap-as`, `gap-angle-assertion`, `gap-non-null`, `gap-satisfies`, `gap-type-alias` |
+| TypeScript type-only declarations | `gap-type-alias` |
 | Globals and standard library | `gap-infinity-global`, `gap-nan-global`, `gap-math-call` |
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export`, `gap-module-directive`, `gap-function-directive`, `gap-hashbang` |
 | Conservative return analysis | `gap-while-guaranteed-return`, `gap-unreachable-after-return` |
@@ -32,6 +32,14 @@ closure, exception and async work. Export naming/arity, directives/hashbangs and
 structural return rules are deliberate PoC admission restrictions, rather than
 invalid JavaScript. Source-size, depth, statement/local counts, input-batch and execution-fuel
 limits remain separate [resource bounds](compiler.md#experimental-contract).
+
+The former `gap-as`, `gap-angle-assertion`, `gap-non-null` and `gap-satisfies`
+references are now admitted as `ts-erasure-as`, `ts-erasure-angle`,
+`ts-erasure-non-null` and `ts-erasure-satisfies`, with additional nested, effect,
+predicate and boundary cases in
+[`typescript-erasure.mjs`](../tests/compatibility/typescript-erasure.mjs).
+These expression wrappers erase without adding type checking; type aliases and
+TypeScript-wrapped assignment/update targets remain outside admission.
 
 ## What the tests establish
 
@@ -74,7 +82,7 @@ corpus, including ordered mutation and returned-value regressions.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 68 examples are a
+or change the reference result to match a lowering bug. The 64 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
