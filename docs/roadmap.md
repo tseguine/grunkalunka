@@ -6,15 +6,32 @@ a promise that any prototype will become the architecture.
 
 ## Direction
 
+Product framing: a web application framework that makes building, running,
+debugging, packaging and shipping applications straightforward. The user's shorthand
+is "a web application framework that doesn't suck." The platform and compiler
+serve that developer experience; they are not the product pitch by themselves.
+
 - Wasm-first, Rust-based, capability-oriented components and applications.
 - Wasmtime initially; WIT/Component Model interfaces at component boundaries.
 - TypeScript-first authoring with vanilla JavaScript compatibility as a goal.
 - Browser, Node-compatible, and desktop environments are applications on top.
 - Familiar Node/Bun build workflows for application authors.
+- Portability across hosts and environments wherever reasonably practical.
 
 Type annotations cannot by themselves justify changing observable JavaScript
 behavior. A narrow lowering experiment may reject features it cannot implement;
 that experimental restriction is not a decision to make the platform a TS subset.
+
+Use portable Wasm artifacts and WIT interfaces as the application boundary. Keep
+OS-specific paths, process behavior, UI integration and services behind explicit
+host capabilities, with platform differences and unsupported grants documented.
+Capability profiles should describe authority without unnecessarily tying an
+application to one host. Native implementations may vary behind those interfaces.
+Do not make a runtime-specific precompiled cache the sole distributable artifact;
+retain portable Wasm and treat host caches as derived outputs. Avoid a single-host
+assumption unless evidence shows a worthwhile tradeoff. Verify other OS/architecture
+combinations before claiming them; the current PoC has two-engine coverage on
+Windows, not demonstrated cross-platform tooling support.
 
 ## Build support
 
@@ -30,6 +47,7 @@ The repository already has a dependency-free check entry point:
 ```sh
 # Once, to acquire the locked Rust dependencies:
 cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
+cargo fetch --locked --manifest-path spikes/002-numeric-wasm/Cargo.toml
 # Verified from the repository root:
 node scripts/check.mjs
 # Package-script wiring (local npm launch currently fails):
@@ -44,7 +62,7 @@ The shared runner uses Node-compatible standard APIs and propagates child failur
 Direct `node scripts/check.mjs` is verified here. The local npm launch cannot find
 Node in its child shell (root cause unconfirmed), so `npm run check` failed before
 entering the runner; the [playback](../spikes/001-frontend-semantics/README.md) records
-the failure. `npm run build:spike` is wired to build the current experiment, not a
+the failure. `npm run build:spike` is wired to build the first frontend experiment, not a
 Grunkalunka compiler; that npm entry has not been verified either.
 No JS package installation, bundler, workspaces framework, or JS lockfile is needed
 for these scripts. The Cargo lockfile is committed with the experiment.
@@ -73,6 +91,14 @@ Sources: [Node subprocess API](https://nodejs.org/api/child_process.html) and
 Do not batch all experiments into an infrastructure project. Each should end with
 replayable evidence, discarded alternatives, limits, and a next recommendation.
 
+The [numeric PoC](../spikes/002-numeric-wasm/README.md) now exercises the pure
+numeric part of question 3 before question 2: its explicit two-number ABI makes it
+independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
+39,488 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 48 rejected
+inputs. It preserves AST grouping; side-effect ordering remains untested because
+side effects are outside its admission. This is an executed fragment, not adoption
+of a restricted platform language or a completed compiler architecture.
+
 ## Frontend findings as of 2026-10-23
 
 Oxc 0.155.0 provides a parser and lexical semantic information. The first spike
@@ -97,7 +123,8 @@ Source snapshots inspected (moving upstreams are deliberately pinned here):
 - [Wasmtime security model](https://docs.wasmtime.dev/security.html): external
   effects pass through linked interfaces; the host's imports determine authority.
 
-No tsrs or Wasmtime integration has been executed yet. WIT interfaces and the
+Wasmtime core-module execution is exercised by the numeric PoC; tsrs and WIT
+component integration have not been executed. WIT interfaces and the
 Component Model are direction, not a claim that arbitrary JS objects, exceptions,
 promises or module graphs already map to component types.
 
@@ -119,6 +146,38 @@ promises or module graphs already map to component types.
 
 No production IR, object/GC strategy, scheduler, package
 distribution scheme, or permanent capability API is settled by this roadmap.
+
+Dependency policy: keep our source MIT and avoid GPL/LGPL terms, checking
+transitives as well as direct dependencies. Where an explicit permissive alternative
+exists, record that choice. [Current metadata screening](../spikes/002-numeric-wasm/LICENSES.md)
+is reproducible but does not replace notices and bundled-material review before
+binary distribution. Aligned dependency use covers downloading it and its required
+packages, per the user's explicit clarification.
+
+## Browser environment scope
+
+The browser environment should serve both an embeddable web application runtime
+in the Ultralight/Electron category and a real, desirable standalone browser.
+**The primary difference between embedded and standalone use is the capability
+profile**, per the user's clarification, rather than separate environment engines
+or hard-coded product modes. An embedded slice is a practical early demonstration,
+not a separate architecture that must later be replaced to make a browser.
+
+Keep embedding and browser-shell concerns separable from the platform core. Future
+experiments should expose navigation/lifecycle, origins and isolation, permissions,
+network policy, persistent storage, input and accessibility as deliberate boundaries.
+Use capability profiles to express permitted navigation, creation of browsing
+contexts/windows, network/storage authority and host integration. A profile is
+selected by the trusted embedding host or user-controlled browser configuration;
+guest content cannot promote itself to broader authority. UI/shell choices can
+vary around that same environment. Single-application embedding assumptions should
+not quietly prevent independent contexts, untrusted sites or browser user controls.
+
+The renderer, rendering architecture, compatibility target, UI toolkit and full
+browser feature set remain unselected. Profile composition, individual grants and
+defaults still need concrete experiments. Start with a useful embedded application
+slice once the platform seams can support it, and demonstrate that changing the
+profile changes authority without replacing the environment implementation.
 
 ## Node-compatible environment: conformance by observation
 

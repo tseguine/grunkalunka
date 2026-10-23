@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const manifest = 'spikes/001-frontend-semantics/Cargo.toml';
 function run(command, args) {
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: false });
   if (result.error) throw result.error;
@@ -12,8 +11,12 @@ function run(command, args) {
   }
 }
 
-run('cargo', ['fmt', '--manifest-path', manifest, '--check']);
-run('cargo', ['clippy', '--locked', '--offline', '--manifest-path', manifest, '--', '-D', 'warnings']);
-run('cargo', ['run', '--locked', '--offline', '--manifest-path', manifest]);
+for (const spike of ['001-frontend-semantics', '002-numeric-wasm']) {
+  const manifest = `spikes/${spike}/Cargo.toml`;
+  run('cargo', ['fmt', '--manifest-path', manifest, '--check']);
+  run('cargo', ['clippy', '--locked', '--offline', '--manifest-path', manifest, '-j', '4', '--', '-D', 'warnings']);
+}
+run('cargo', ['run', '--locked', '--offline', '--manifest-path', 'spikes/001-frontend-semantics/Cargo.toml']);
 run(process.execPath, ['spikes/001-frontend-semantics/oracle.mjs']);
+run(process.execPath, ['scripts/poc.mjs']);
 console.log(`PASS all checks (${process.versions.bun ? `Bun ${process.versions.bun}` : `Node ${process.version}`})`);

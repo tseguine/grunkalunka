@@ -23,12 +23,14 @@ From the repository root:
 
 ```sh
 cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
-node scripts/check.mjs
+cargo run --manifest-path spikes/001-frontend-semantics/Cargo.toml --locked --offline
+node spikes/001-frontend-semantics/oracle.mjs
 ```
 
-The check runner executes formatting, Clippy with warnings denied, the Rust probe,
-and the JS behavior baseline. Cargo verification runs locked and offline after
-the explicit initial fetch. Nonzero exits or signals fail the runner.
+The repository-wide `node scripts/check.mjs` additionally executes formatting,
+Clippy with warnings denied, and the later numeric PoC. Its setup requires fetching
+both spikes' locked dependencies, as documented in the root README. Cargo
+verification runs locked and offline after that setup; child failures fail the runner.
 
 The provided package entry is `npm run check`. On this workstation it currently
 fails through the local npm launch path before entering the script: `'node' is not
