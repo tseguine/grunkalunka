@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-1,592,580 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 594 rejected
+1,682,868 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 631 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Number-only `==`/`!=` predicates share strict
@@ -114,8 +114,10 @@ and local annotation syntax is admitted as unvalidated metadata and remains on
 the original Oxc AST through compilation. It does not justify numeric admission
 or code specialization; no early stripping pass or persistent metadata API is
 added. Validated boundary/flow facts can inform future Wasm quality work, while
-`number` alone does not establish i32 range, integrality or finiteness. Type checking and
-type-only declarations remain separate work. Unresolved `Infinity` and `NaN` reads
+`number` alone does not establish i32 range, integrality or finiteness. Explicit
+aliases/interfaces and their direct named/default-interface exports retain their
+ASTs and emit no runtime code while charging one source statement each. Other
+module forms and type checking remain separate work. Unresolved `Infinity` and `NaN` reads
 emit numeric constants; lexical shadows and TDZ retain ordinary binding rules,
 without adding host access or support for other globals. It preserves AST grouping and observes
 local mutation, statement/operand evaluation order and selected-branch effects. External effects

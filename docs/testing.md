@@ -28,7 +28,7 @@ adapted runtime results and successful rejection checks are separate counts.
 Unmodified upstream suite execution remains `not-executed`, including for TypeScript.
 This is a selected-case inventory, not a denominator for the full upstream suites.
 
-The separate [lowering-gap inventory](lowering-gaps.md) specifies 42 reference
+The separate [lowering-gap inventory](lowering-gaps.md) specifies 41 reference
 programs beyond current admission. Node checks their expected results; the compiler
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.
@@ -44,6 +44,12 @@ runtime proofs. Numeric values, binding rules and source budgets are checked
 independently. Structural review confirms the original annotated Oxc AST remains
 available through compilation; these tests do not claim a type checker, a
 persistent metadata artifact or a type-guided optimization bridge.
+
+The explicit type-declaration fixtures cover aliases/interfaces in module,
+function and block statement positions, including their direct/default-interface
+exports and source charges. Types after return/break/continue preserve completion;
+runtime tails still reject. Type/value namespace, depth/byte and combined
+directive/type/body statement boundaries are checked independently of type checking.
 
 The Node test-source pin is independent of the installed Node oracle version;
 the actual oracle is recorded in each compatibility report. Node tests will need

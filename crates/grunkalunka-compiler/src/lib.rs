@@ -7,7 +7,10 @@ mod lower;
 use lower::{Lowering, NumericBinding};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{BindingPattern, Declaration, FormalParameterKind, FunctionType, Statement};
+use oxc_ast::ast::{
+    BindingPattern, Declaration, ExportDefaultDeclarationKind, FormalParameterKind, FunctionType,
+    Statement,
+};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::{GetSpan, SourceType};
@@ -23,6 +26,21 @@ fn unsupported(node: &impl GetSpan, reason: &str) -> String {
         "unsupported at bytes {}..{}: {reason}",
         span.start, span.end
     )
+}
+
+fn is_type_declaration(statement: &Statement<'_>) -> bool {
+    match statement {
+        Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => true,
+        Statement::ExportDeclaration(export) => matches!(
+            export.declaration,
+            Declaration::TSTypeAliasDeclaration(_) | Declaration::TSInterfaceDeclaration(_)
+        ),
+        Statement::ExportDefaultDeclaration(export) => matches!(
+            export.declaration,
+            ExportDefaultDeclarationKind::TSInterfaceDeclaration(_)
+        ),
+        _ => false,
+    }
 }
 
 pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
@@ -46,13 +64,17 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
     let program = &parsed.program;
     // The original annotated AST stays available through lowering. Type syntax
     // is unvalidated metadata; the ABI and runtime operands determine admission.
-    if program.body.len() != 1 {
+    let mut runtime = program
+        .body
+        .iter()
+        .filter(|statement| !is_type_declaration(statement));
+    let (Some(entry), None) = (runtime.next(), runtime.next()) else {
         return Err(unsupported(
             program,
             "exactly one exported function is admitted",
         ));
-    }
-    let Statement::ExportDeclaration(export) = &program.body[0] else {
+    };
+    let Statement::ExportDeclaration(export) = entry else {
         return Err(unsupported(program, "expected 'export function run(a, b)'"));
     };
     let Declaration::FunctionDeclaration(function) = &export.declaration else {
@@ -138,6 +160,13 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
     for directive in program.directives.iter().chain(&body.directives) {
         lowering.charge_statement(directive)?;
     }
+    for declaration in program
+        .body
+        .iter()
+        .filter(|statement| is_type_declaration(statement))
+    {
+        lowering.charge_statement(declaration)?;
+    }
     let mut region = lowering.region(body.as_ref());
     if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
         return Err(unsupported(
@@ -154,6 +183,67 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
 #[cfg(test)]
 mod tests {
     use super::compile;
+
+    #[test]
+    fn type_aliases_preserve_the_numeric_artifact() {
+        let plain = compile("export function run(a,b) { return a; }", false).unwrap();
+        let typed = compile(
+            "type Scalar = number; export function run(a:Scalar,b:Scalar):Scalar { return a; }",
+            true,
+        )
+        .unwrap();
+        assert_eq!(plain.wasm, typed.wasm);
+        assert_eq!(plain.wat, typed.wat);
+    }
+
+    #[test]
+    fn type_declarations_preserve_abrupt_completions() {
+        let plain = compile("export function run(a,b) { return a; }", false).unwrap();
+        for body in ["type T=number; return a;", "return a; interface T {}"] {
+            let typed = compile(&format!("export function run(a,b) {{ {body} }}"), true).unwrap();
+            assert_eq!(plain.wasm, typed.wasm);
+        }
+    }
+
+    #[test]
+    fn type_declarations_share_the_statement_budget() {
+        for (module_count, body_count, exported, directive) in [
+            (255, 0, false, false),
+            (0, 255, false, false),
+            (127, 127, false, true),
+            (255, 0, true, false),
+        ] {
+            let module = (0..module_count)
+                .map(|i| format!("{}type M{i}=number;", if exported { "export " } else { "" }))
+                .collect::<String>();
+            let body = (0..body_count)
+                .map(|i| format!("interface B{i} {{}}"))
+                .collect::<String>();
+            let source = format!(
+                "{}{module}export function run(a,b) {{ return a; {body} }}",
+                if directive { "\"hint\";" } else { "" }
+            );
+            compile(&source, true).unwrap();
+            let over = source.replacen("return a;", "return a; type Extra=number;", 1);
+            let error = compile(&over, true).err().unwrap();
+            assert!(error.contains("at most 256 statements"), "{error}");
+        }
+    }
+
+    #[test]
+    fn type_declarations_do_not_allow_runtime_abrupt_tails() {
+        for body in [
+            "return a; type T=number; a=b;",
+            "do { break; interface T {} a=b; } while(0); return a;",
+            "for(let i=0;i<1;i++) { continue; type T=number; a=b; } return a;",
+            "do { if(a) return a; else break; type T=number; a=b; } while(0); return b;",
+        ] {
+            let error = compile(&format!("export function run(a,b) {{ {body} }}"), true)
+                .err()
+                .unwrap();
+            assert!(error.contains("statements after a guaranteed"), "{error}");
+        }
+    }
 
     #[test]
     fn annotations_are_metadata_not_numeric_proofs() {

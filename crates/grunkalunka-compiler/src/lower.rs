@@ -14,7 +14,7 @@ use crate::ir::{
     self, Binary, Compare, Completion, Exit, Op, Operation, Region, RegionId, Slot, SlotId, Type,
     Unary, ValueId,
 };
-use crate::unsupported;
+use crate::{is_type_declaration, unsupported};
 
 pub(super) struct NumericBinding {
     pub symbol: SymbolId,
@@ -536,7 +536,7 @@ impl Lowering<'_, '_> {
     ) -> Result<Completion, String> {
         let mut completion = Completion::NORMAL;
         for statement in statements {
-            if !completion.normal {
+            if !completion.normal && !is_type_declaration(statement) {
                 return Err(unsupported(
                     statement,
                     if completion == Completion::RETURN {
@@ -641,6 +641,9 @@ impl Lowering<'_, '_> {
             return Err(unsupported(statement, "statement nesting exceeds 64"));
         }
         self.charge_statement(statement)?;
+        if is_type_declaration(statement) {
+            return Ok(Completion::NORMAL);
+        }
         match statement {
             Statement::ContinueStatement(statement) => {
                 if statement.label.is_some() || !self.in_loop_body {

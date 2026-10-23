@@ -28,8 +28,9 @@ import { numericBitwiseBinary, numericBitwiseBinaryRejected } from './numeric-bi
 import { numericShifts, numericShiftsRejected } from './numeric-shifts.mjs';
 import { numericBitwiseCompounds, numericBitwiseCompoundsRejected } from './numeric-bitwise-compounds.mjs';
 import { annotationPrograms, annotationRejected } from './type-annotations.mjs';
+import { typeDeclarationPrograms, typeDeclarationRejected } from './type-declarations.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 33;
+export const corpusVersion = 34;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -83,6 +84,7 @@ programs.push(...numericBitwiseBinary);
 programs.push(...numericShifts);
 programs.push(...numericBitwiseCompounds);
 programs.push(...annotationPrograms);
+programs.push(...typeDeclarationPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -176,6 +178,7 @@ export const rejected = [
   ...numericShiftsRejected,
   ...numericBitwiseCompoundsRejected,
   ...annotationRejected,
+  ...typeDeclarationRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],

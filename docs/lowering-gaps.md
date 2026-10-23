@@ -6,7 +6,7 @@ TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled lo
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 42 curated reference cases in
+The executable frontier contains 41 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -23,7 +23,6 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Exceptions and completion | `gap-catch`, `gap-finally-return` |
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
-| TypeScript type-only declarations | `gap-type-alias` |
 | Globals and standard library | `gap-math-call` |
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export` |
 | Conservative return analysis | `gap-while-guaranteed-return`, `gap-unreachable-after-return` |
@@ -39,7 +38,7 @@ references are now admitted as `ts-erasure-as`, `ts-erasure-angle`,
 `ts-erasure-non-null` and `ts-erasure-satisfies`, with additional nested, effect,
 predicate and boundary cases in
 [`typescript-erasure.mjs`](../tests/compatibility/typescript-erasure.mjs).
-These expression wrappers erase without adding type checking; type aliases and
+These expression wrappers erase without adding type checking;
 TypeScript-wrapped assignment/update targets remain outside admission.
 
 The former `gap-for` reference is now `for-promoted-reference` in
@@ -118,7 +117,7 @@ negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 42 examples are a
+or change the reference result to match a lowering bug. The 41 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -181,5 +180,12 @@ The former `string-annotation`, `return-annotation`, `local-type` and
 `declarators-later-annotation` rejections are paired full-source programs in
 [`type-annotations.mjs`](../tests/compatibility/type-annotations.mjs). Annotations
 remain on the original AST as unvalidated metadata; they cannot admit unsupported
-runtime values. No reference gap is retired: `gap-type-alias`, interfaces and
-other top-level type declarations remain outside the current entry contract.
+runtime values. That annotation-only unit retired no reference gap.
+
+The former `gap-type-alias`, `annotation-alias-remains` and
+`annotation-interface-remains` cases are paired full-source programs in
+[`type-declarations.mjs`](../tests/compatibility/type-declarations.mjs). Explicit
+aliases/interfaces and their direct named exports, plus default interface exports,
+retain the original AST and emit no runtime code. Each charges one statement;
+type members create no runtime cells or expression work. Imports, export lists,
+ambient values, enums, namespaces and augmentations remain separate gaps.

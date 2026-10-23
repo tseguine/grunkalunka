@@ -173,7 +173,15 @@ Lowering and verification independently compute possible `Normal`, `Return`,
 prior abrupt alternatives and applies the suffix only to normal paths. Branches
 union their outcomes. A fallthrough exit preserves that accumulated set: it does
 not invent a normal path after all-abrupt branches. Functions must end with exactly
-`Return`; statements after guaranteed abrupt completion are rejected.
+`Return`; runtime statements after guaranteed abrupt completion are rejected.
+
+Explicit type aliases/interfaces, including direct named exports and default
+interface exports recognized by source admission, emit no IR. They charge one
+source statement each and retain ordinary depth checks, even after abrupt
+completion. Sequencing their `Normal` summary through `completion.then(NORMAL)`
+preserves the accumulated return/break/continue alternatives without introducing
+normal completion. Type members add no values or source cells. The original Oxc
+AST and semantic identities remain available; type names are not numeric bindings.
 
 A loop consumes only its nearest body's breaks and continues. Pretest loops remain possibly
 normal; do loops convert body breaks/continues into possible normal loop completion while preserving
