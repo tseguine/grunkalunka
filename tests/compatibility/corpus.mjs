@@ -26,8 +26,9 @@ import { numericBitNot, numericBitNotRejected } from './numeric-bit-not.mjs';
 import { hashbangPrograms, hashbangRejected } from './hashbangs.mjs';
 import { numericBitwiseBinary, numericBitwiseBinaryRejected } from './numeric-bitwise-binary.mjs';
 import { numericShifts, numericShiftsRejected } from './numeric-shifts.mjs';
+import { annotationPrograms, annotationRejected } from './type-annotations.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 31;
+export const corpusVersion = 32;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -79,6 +80,7 @@ programs.push(...numericBitNot);
 programs.push(...hashbangPrograms);
 programs.push(...numericBitwiseBinary);
 programs.push(...numericShifts);
+programs.push(...annotationPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -170,6 +172,7 @@ export const rejected = [
   ...hashbangRejected,
   ...numericBitwiseBinaryRejected,
   ...numericShiftsRejected,
+  ...annotationRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -269,8 +272,6 @@ export const rejected = [
   ['type-param', 'export function run<T>(a:number,b:number):number { return a; }', 'ts'],
   ['this-param', 'export function run(this:void,a:number,b:number):number { return a; }', 'ts'],
   ['optional-param', 'export function run(a?:number,b?:number):number { return a; }', 'ts'],
-  ['string-annotation', 'export function run(a:string,b:number):number { return a; }', 'ts'],
-  ['return-annotation', 'export function run(a:number,b:number):string { return a; }', 'ts'],
   ['declare', 'export declare function run(a:number,b:number):number;', 'ts'],
   ['over-limit', 'export function run(a,b) { return a; }' + ' '.repeat(16384)],
   ['depth-limit', `export function run(a,b) { return ${'('.repeat(140)}a${')'.repeat(140)}; }`],
@@ -314,7 +315,6 @@ export const rejected = [
   ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
   ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
   ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],
-  ['local-type', 'export function run(a:number,b:number):number { const x:string=a; return x; }', 'ts'],
   ['local-limit', `export function run(a,b) { ${Array.from({length:129},(_,i)=>`const x${i}=a;`).join(' ')} return a; }`],
 ];
 

@@ -37,7 +37,6 @@ const negatives = [
   ['declarators-later-string', 'let x=a,y="x"; return x;', expression],
   ['declarators-later-boolean', 'let x=a,y=true; return x;', expression],
   ['declarators-later-call', 'let x=a,y=Math.random(); return x;', expression],
-  ['declarators-later-annotation', 'let x:number=a,y:string=b; return x;', "only an optional 'number' annotation is admitted", 'ts'],
   ['declarators-later-definite', 'let x:number=a,y!:number; return x;', 'definite-assignment assertions are not admitted', 'ts'],
   ['declarators-for-forward', 'for(let i=j,j=0;0;) {} return a;', reference],
   ['declarators-for-leak', 'for(let i=0,j=1;0;) {} return j;', reference],

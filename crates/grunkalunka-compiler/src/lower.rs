@@ -14,7 +14,7 @@ use crate::ir::{
     self, Binary, Compare, Completion, Exit, Op, Operation, Region, RegionId, Slot, SlotId, Type,
     Unary, ValueId,
 };
-use crate::{check_annotation, unsupported};
+use crate::unsupported;
 
 pub(super) struct NumericBinding {
     pub symbol: SymbolId,
@@ -585,7 +585,6 @@ impl Lowering<'_, '_> {
                     "definite-assignment assertions are not admitted",
                 ));
             }
-            check_annotation(local.type_annotation.as_deref())?;
             let BindingPattern::BindingIdentifier(identifier) = &local.id else {
                 return Err(unsupported(local, "local destructuring is not admitted"));
             };

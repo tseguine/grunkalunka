@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 31
-contains 573 paired programs, 555 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 32
+contains 596 paired programs, 575 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -203,6 +203,18 @@ after truncation and wrapping. `<<` and `>>` return signed numeric results; `>>>
 zero-fills and returns an unsigned Number. Bitwise and shift compound assignments and mixed-type
 coercion remain outside admission.
 
+Corpus 32 admits TypeScript parameter, return and local annotations as unvalidated
+metadata. Twenty-three paired programs cover unknown and contradictory types,
+compound types, unresolved names, type queries, source effects and budgets.
+Four ordinary annotation rejections are promoted; the 42 reference gaps are
+unchanged. Twenty-four new rejections preserve runtime numeric admission,
+binding/parameter restrictions, parser/semantic diagnostics and source limits.
+Restoring a number-only local annotation guard is detected by the artifact test.
+The original annotated AST remains available through compilation; no early
+stripping, checker, persistent metadata API or optimization is introduced. A full-source
+composition case combines unknown/compound annotations with an unsigned shift
+whose RHS writes its left binding, retaining the captured left value.
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -321,12 +333,19 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Both ternary arms must be admitted. In Number-value positions they yield numbers
   through `if (result f64)`; in predicate positions they yield predicates through
   `if (result i32)`, converting only the selected arm to truthiness at runtime.
-  Optional TS annotations must be exactly `number`.
+  TS parameter, return and local type annotations are unvalidated metadata.
+  Unknown names, type queries, compound types and declarations contradicting the
+  numeric body are accepted without assignability checking. They do not convert
+  runtime values or prove numeric admission. The original Oxc AST and arena retain
+  this syntax through compilation; the resulting artifact contains only WAT/Wasm,
+  without persistent declared-type metadata. The numeric IR types come from the
+  ABI and validated runtime operations, independently of annotation spelling.
   TypeScript `as`, angle-bracket assertions, postfix non-null `!`, and `satisfies`
   are erased in expression and predicate positions. Each wrapper counts toward
   nesting, and its runtime operand must independently satisfy admission. Wrapped
   comparisons stay predicates. No type checking or runtime conversion follows
-  from a wrapper's asserted type; declaration annotations retain their restrictions.
+  from a wrapper's asserted type. Type-only aliases/interfaces and generic
+  functions remain separate, unsupported forms.
   `=`, `+=`, `-=`, `*=` and `/=` expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the
   target before evaluating the RHS. Prefix/postfix `++` and `--` store the updated
@@ -393,7 +412,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
 - Everything else is rejected: extra statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
-  `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
+  `this` parameters, modifiers, calls, strings/objects/BigInts,
   type-only declarations, uninitialized locals and compound operators beyond the four above,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
@@ -433,15 +452,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1437084 numeric comparisons; 555 rejected inputs; overwrite preserved
+PASS 1494768 numeric comparisons; 575 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-573 programs, each written as JS and TS, produce 1146 modules.
+596 programs, each written as JS and TS, produce 1192 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,437,084 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,494,768 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -607,7 +626,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-555 malformed or unsupported programs fail explicitly, each with a unique
+575 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

@@ -38,6 +38,13 @@ negative-error phases, module and async semantics before claiming upstream passe
 The TypeScript tests also include intentionally invalid programs and compiler-only
 expectations. Adapted runtime tests do not establish type-checker conformance.
 
+The annotation fixtures pair exact annotated TS source with unannotated numeric
+JS. They include unknown and contradictory annotations without treating them as
+runtime proofs. Numeric values, binding rules and source budgets are checked
+independently. Structural review confirms the original annotated Oxc AST remains
+available through compilation; these tests do not claim a type checker, a
+persistent metadata artifact or a type-guided optimization bridge.
+
 The Node test-source pin is independent of the installed Node oracle version;
 the actual oracle is recorded in each compatibility report. Node tests will need
 module loading and host APIs; executing them in ordinary Node alone would not test

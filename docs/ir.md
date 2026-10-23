@@ -5,6 +5,13 @@ region representation, verifies that representation, then emits WAT and encodes
 Wasm. The public `compile(source, typescript)` API still returns `Artifact { wat,
 wasm }`. The [source admission contract](compiler.md) remains authoritative.
 
+The original Oxc AST, including parameter/return/local annotations and expression
+wrapper types, remains available through compilation. Annotation syntax is
+unvalidated metadata; it emits no runtime operations and is not copied into the
+numeric IR. `Number`/`Predicate` are established by the ABI and runtime lowering,
+not annotation claims. No type checker, early source stripping or persistent
+metadata interface is introduced. Type-guided optimization remains separate work.
+
 `src/lower.rs` owns source admission and lexical symbol resolution.
 `src/ir.rs` defines the representation and verifier. `src/emit.rs` emits structured
 Wasm. These files live in `crates/grunkalunka-compiler/`.

@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-1,437,084 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 555 rejected
+1,494,768 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 575 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Number-only `==`/`!=` predicates share strict
@@ -107,7 +107,12 @@ results, while `>>>` zero-fills and returns an unsigned Number. Both operands ru
 eagerly in source order. Bitwise/shift compound assignments remain outside admission. Numeric expression
 statements preserve effects while discarding their Number result. Empty statements
 fall through without IR allocation while consuming the ordinary source budget. TypeScript expression and predicate wrappers erase while
-their runtime operands remain subject to the numeric admission. Type checking and
+their runtime operands remain subject to the numeric admission. Parameter, return
+and local annotation syntax is admitted as unvalidated metadata and remains on
+the original Oxc AST through compilation. It does not justify numeric admission
+or code specialization; no early stripping pass or persistent metadata API is
+added. Validated boundary/flow facts can inform future Wasm quality work, while
+`number` alone does not establish i32 range, integrality or finiteness. Type checking and
 type-only declarations remain separate work. Unresolved `Infinity` and `NaN` reads
 emit numeric constants; lexical shadows and TDZ retain ordinary binding rules,
 without adding host access or support for other globals. It preserves AST grouping and observes

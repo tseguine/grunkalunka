@@ -167,3 +167,10 @@ are now paired full-source cases in [`hashbangs.mjs`](../tests/compatibility/has
 Only Oxc-recognized initial hashbang comments are admitted, with no source statement
 charge or IR. Original UTF-8 source bytes still count toward the size limit.
 BOM-prefixed, misplaced and repeated hashbangs retain original parser errors.
+
+The former `string-annotation`, `return-annotation`, `local-type` and
+`declarators-later-annotation` rejections are paired full-source programs in
+[`type-annotations.mjs`](../tests/compatibility/type-annotations.mjs). Annotations
+remain on the original AST as unvalidated metadata; they cannot admit unsupported
+runtime values. No reference gap is retired: `gap-type-alias`, interfaces and
+other top-level type declarations remain outside the current entry contract.

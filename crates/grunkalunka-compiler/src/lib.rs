@@ -7,10 +7,7 @@ mod lower;
 use lower::{Lowering, NumericBinding};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{
-    BindingPattern, Declaration, FormalParameterKind, FunctionType, Statement, TSType,
-    TSTypeAnnotation,
-};
+use oxc_ast::ast::{BindingPattern, Declaration, FormalParameterKind, FunctionType, Statement};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::{GetSpan, SourceType};
@@ -26,18 +23,6 @@ fn unsupported(node: &impl GetSpan, reason: &str) -> String {
         "unsupported at bytes {}..{}: {reason}",
         span.start, span.end
     )
-}
-
-fn check_annotation(annotation: Option<&TSTypeAnnotation<'_>>) -> Result<(), String> {
-    if let Some(annotation) = annotation
-        && !matches!(annotation.type_annotation, TSType::TSNumberKeyword(_))
-    {
-        return Err(unsupported(
-            annotation,
-            "only an optional 'number' annotation is admitted",
-        ));
-    }
-    Ok(())
 }
 
 pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
@@ -59,6 +44,8 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         return Err(format!("semantic diagnostics: {:?}", built.diagnostics));
     }
     let program = &parsed.program;
+    // The original annotated AST stays available through lowering. Type syntax
+    // is unvalidated metadata; the ABI and runtime operands determine admission.
     if program.body.len() != 1 {
         return Err(unsupported(
             program,
@@ -90,7 +77,6 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
             "expected a plain, synchronous, non-generic function named run",
         ));
     }
-    check_annotation(function.return_type.as_deref())?;
     if function.params.kind != FormalParameterKind::FormalParameter
         || function.params.items.len() != 2
         || function.params.rest.is_some()
@@ -115,7 +101,6 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
                 "parameter modifiers, defaults and decorators are not admitted",
             ));
         }
-        check_annotation(parameter.type_annotation.as_deref())?;
         let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
             return Err(unsupported(
                 parameter,
@@ -169,6 +154,29 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
 #[cfg(test)]
 mod tests {
     use super::compile;
+
+    #[test]
+    fn annotations_are_metadata_not_numeric_proofs() {
+        let plain = compile("export function run(a,b) { const x=a+b; return x; }", false).unwrap();
+        let annotated = compile(
+            "export function run(a:unknown,b:MissingType):string { const x: { label: string }=a+b; return x; }",
+            true,
+        )
+        .unwrap();
+        assert_eq!(plain.wasm, annotated.wasm);
+        assert_eq!(plain.wat, annotated.wat);
+    }
+
+    #[test]
+    fn annotations_do_not_admit_nonnumeric_runtime_values() {
+        for initializer in ["\"4\"", "{}", "true", "null", "Math.random()"] {
+            let source = format!(
+                "export function run(a:any,b:any):number {{ const x:number={initializer}; return x; }}"
+            );
+            let error = compile(&source, true).err().unwrap();
+            assert!(error.contains("expression is outside"), "{error}");
+        }
+    }
 
     #[test]
     fn hashbang_preserves_the_numeric_artifact() {
