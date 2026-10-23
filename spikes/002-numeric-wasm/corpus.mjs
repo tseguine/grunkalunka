@@ -1,5 +1,5 @@
 // Selected numeric ABI evidence; not a full-language compatibility inventory.
-export const corpusVersion = 1;
+export const corpusVersion = 2;
 
 const expressions = [
   ['affine', '(a * 2 + b) / 3'], ['add', 'a + b'], ['subtract', 'a - b'],
@@ -19,6 +19,26 @@ const expressions = [
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
 programs.push(
+  ['let-local', 'let x = a; return x;', 'let x: number = a; return x;'],
+  ['assignment', 'return a = b;', 'return a = b;'],
+  ['assignment-result-state', 'return (a = b) + a;', 'return (a = b) + a;'],
+  ['assignment-prior-operand', 'return a + (a = b);', 'return a + (a = b);'],
+  ['assignment-local', 'let x = a; return (x = b) - x;',
+    'let x: number = a; return (x = b) - x;'],
+  ['assignment-chain', 'let x = a; let y = b; return (x = y = a + b) + x + y;',
+    'let x: number = a; let y: number = b; return (x = y = a + b) + x + y;'],
+  ['assignment-statements', 'let x = a; x = b; const y = x + a; x = y / 2; return x;',
+    'let x: number = a; x = b; const y: number = x + a; x = y / 2; return x;'],
+  ['assignment-initializer', 'let x = a; const y = (x = b); return x + y;',
+    'let x: number = a; const y: number = (x = b); return x + y;'],
+  ['assignment-comparison', 'let x = a; const y = (x = b) < (x = a) ? 1 : -1; return x + y;',
+    'let x: number = a; const y: number = (x = b) < (x = a) ? 1 : -1; return x + y;'],
+  ['assignment-selected-arm', 'let x = 0; const y = a < b ? (x = a) : (x = b); return y + x;',
+    'let x: number = 0; const y: number = a < b ? (x = a) : (x = b); return y + x;'],
+  ['assignment-signed-zero', 'let x = a; x = -0; return 1 / x;',
+    'let x: number = a; x = -0; return 1 / x;'],
+  ['statement-boundary', `${Array.from({length:128},(_,i)=>`let x${i}=a;`).join(' ')} ${'x0=b;'.repeat(127)} return x0;`,
+    `${Array.from({length:128},(_,i)=>`let x${i}:number=a;`).join(' ')} ${'x0=b;'.repeat(127)} return x0;`],
   ['chained-locals', 'const x = a * 2; const y = x + b; return y / 3;',
     'const x: number = a * 2; const y: number = x + b; return y / 3;'],
   ['local-decision', 'const delta = a - b; const magnitude = delta >= 0 ? delta : -delta; return magnitude;',
@@ -61,7 +81,6 @@ export const rejected = [
   ['comparison', 'export function run(a,b) { return a < b; }'],
   ['conditional', 'export function run(a,b) { return a ? a : b; }'],
   ['sequence', 'export function run(a,b) { return (a,b); }'],
-  ['assignment', 'export function run(a,b) { return a=b; }'],
   ['update', 'export function run(a,b) { return a++; }'],
   ['object', 'export function run(a,b) { return {}; }'],
   ['array', 'export function run(a,b) { return []; }'],
@@ -84,10 +103,24 @@ export const rejected = [
   ['self-reference', 'export function run(a,b) { const x=x; return x; }'],
   ['forward-reference', 'export function run(a,b) { const x=y; const y=a; return x; }'],
   ['dead-branch-forward', 'export function run(a,b) { const x=a===a?a:y; const y=b; return x; }'],
-  ['let-local', 'export function run(a,b) { let x=a; return x; }'],
   ['multiple-declarators', 'export function run(a,b) { const x=a,y=b; return x+y; }'],
   ['local-destructure', 'export function run(a,b) { const {x}=a; return x; }'],
   ['local-reassignment', 'export function run(a,b) { const x=a; x=b; return x; }'],
+  ['const-assignment-expression', 'export function run(a,b) { const x=a; return x=b; }'],
+  ['self-write-initializer', 'export function run(a,b) { let x=(x=a); return x; }'],
+  ['forward-write-initializer', 'export function run(a,b) { const x=(y=a); let y=b; return x+y; }'],
+  ['global-write', 'export function run(a,b) { return clock=a; }'],
+  ['compound-write', 'export function run(a,b) { return a+=b; }'],
+  ['property-write', 'export function run(a,b) { return a.x=b; }'],
+  ['destructuring-write', 'export function run(a,b) { return [a]=b; }'],
+  ['ts-wrapped-write', 'export function run(a:number,b:number):number { return (a as number)=b; }', 'ts'],
+  ['uninitialized-let', 'export function run(a,b) { let x; return x=a; }'],
+  ['dead-branch-const-write', 'export function run(a,b) { const x=a; return a===a?a:(x=b); }'],
+  ['dead-branch-forward-write', 'export function run(a,b) { const x=a===a?a:(y=b); let y=a; return x+y; }'],
+  ['assignment-forward-statement', 'export function run(a,b) { x=a; let x=b; return x; }'],
+  ['var-local', 'export function run(a,b) { var x=a; return x; }'],
+  ['non-assignment-statement', 'export function run(a,b) { a+(a=b); return a; }'],
+  ['statement-limit', `export function run(a,b) { ${'a=b;'.repeat(256)} return a; }`],
   ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }'],
   ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
   ['loose-equality', 'export function run(a,b) { return a==b?a:b; }'],
@@ -101,7 +134,7 @@ export const rejected = [
 
 // These are recorded gaps, not skipped executable tests or passing fixtures.
 export const unimplemented = [
-  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Mutation, statements and loops need scoped lowering and execution bounds.' },
+  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Statement blocks, branches and loops still need scoped lowering and execution bounds.' },
   { id: 'functions-modules', milestone: 'L3', reason: 'Calls, module graphs and initialization order are not lowered.' },
   { id: 'js-values-coercion', milestone: 'L4', reason: 'Only primitive numbers cross the experimental ABI.' },
   { id: 'closures-exceptions-async', milestone: 'L5', reason: 'Lifetime, unwinding and job semantics are not implemented.' },

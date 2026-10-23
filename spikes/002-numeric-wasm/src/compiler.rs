@@ -3,13 +3,13 @@ use std::fmt::Write;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    BindingPattern, Declaration, Expression, FormalParameterKind, FunctionType, Statement, TSType,
-    TSTypeAnnotation, VariableDeclarationKind,
+    AssignmentTarget, BindingPattern, Declaration, Expression, FormalParameterKind, FunctionType,
+    IdentifierReference, Statement, TSType, TSTypeAnnotation, VariableDeclarationKind,
 };
 use oxc_parser::Parser;
 use oxc_semantic::{Semantic, SemanticBuilder, SymbolId};
 use oxc_span::{GetSpan, SourceType};
-use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
+use oxc_syntax::operator::{AssignmentOperator, BinaryOperator, UnaryOperator};
 
 pub struct Artifact {
     pub wat: String,
@@ -36,10 +36,37 @@ fn check_annotation(annotation: Option<&TSTypeAnnotation<'_>>) -> Result<(), Str
     Ok(())
 }
 
+// Vector position is the Wasm slot, with the two parameters first.
+struct NumericBinding {
+    symbol: SymbolId,
+    mutable: bool,
+}
+
+fn binding_index(
+    identifier: &IdentifierReference<'_>,
+    semantic: &Semantic<'_>,
+    bindings: &[NumericBinding],
+) -> Result<usize, String> {
+    let reference = identifier
+        .reference_id
+        .get()
+        .ok_or("missing semantic reference")?;
+    let symbol = semantic.scoping().get_reference(reference).symbol_id();
+    bindings
+        .iter()
+        .position(|binding| Some(binding.symbol) == symbol)
+        .ok_or_else(|| {
+            unsupported(
+                identifier,
+                "reference is not an initialized numeric parameter or local",
+            )
+        })
+}
+
 fn lower_expression(
     expression: &Expression<'_>,
     semantic: &Semantic<'_>,
-    parameters: &[SymbolId],
+    bindings: &[NumericBinding],
     output: &mut String,
     depth: usize,
 ) -> Result<(), String> {
@@ -61,38 +88,48 @@ fn lower_expression(
             writeln!(output, "f64.const {value}").unwrap();
         }
         Expression::Identifier(identifier) => {
-            let reference = identifier
-                .reference_id
-                .get()
-                .ok_or("missing semantic reference")?;
-            let symbol = semantic.scoping().get_reference(reference).symbol_id();
-            let index = parameters
-                .iter()
-                .position(|parameter| Some(*parameter) == symbol)
-                .ok_or_else(|| {
-                    unsupported(
-                        expression,
-                        "reference is not an initialized numeric parameter or local",
-                    )
-                })?;
+            let index = binding_index(identifier, semantic, bindings)?;
             writeln!(output, "local.get {index}").unwrap();
+        }
+        Expression::AssignmentExpression(assignment) => {
+            if assignment.operator != AssignmentOperator::Assign {
+                return Err(unsupported(
+                    expression,
+                    "only simple '=' assignment is admitted",
+                ));
+            }
+            let AssignmentTarget::AssignmentTargetIdentifier(identifier) = &assignment.left else {
+                return Err(unsupported(
+                    expression,
+                    "assignment target must be an initialized identifier",
+                ));
+            };
+            let index = binding_index(identifier, semantic, bindings)?;
+            if !bindings[index].mutable {
+                return Err(unsupported(
+                    expression,
+                    "assignment to a const binding is not admitted",
+                ));
+            }
+            lower_expression(&assignment.right, semantic, bindings, output, depth + 1)?;
+            writeln!(output, "local.tee {index}").unwrap();
         }
         Expression::ParenthesizedExpression(parenthesized) => {
             lower_expression(
                 &parenthesized.expression,
                 semantic,
-                parameters,
+                bindings,
                 output,
                 depth + 1,
             )?;
         }
         Expression::ConditionalExpression(conditional) => {
-            lower_predicate(&conditional.test, semantic, parameters, output, depth + 1)?;
+            lower_predicate(&conditional.test, semantic, bindings, output, depth + 1)?;
             output.push_str("if (result f64)\n");
             lower_expression(
                 &conditional.consequent,
                 semantic,
-                parameters,
+                bindings,
                 output,
                 depth + 1,
             )?;
@@ -100,7 +137,7 @@ fn lower_expression(
             lower_expression(
                 &conditional.alternate,
                 semantic,
-                parameters,
+                bindings,
                 output,
                 depth + 1,
             )?;
@@ -113,7 +150,7 @@ fn lower_expression(
             ) {
                 return Err(unsupported(expression, "only unary + and - are admitted"));
             }
-            lower_expression(&unary.argument, semantic, parameters, output, depth + 1)?;
+            lower_expression(&unary.argument, semantic, bindings, output, depth + 1)?;
             if unary.operator == UnaryOperator::UnaryNegation {
                 output.push_str("f64.neg\n");
             }
@@ -133,8 +170,8 @@ fn lower_expression(
             };
             // Preserve AST grouping and left/right order. No constant folding,
             // reassociation or fused multiply-add transformation occurs here.
-            lower_expression(&binary.left, semantic, parameters, output, depth + 1)?;
-            lower_expression(&binary.right, semantic, parameters, output, depth + 1)?;
+            lower_expression(&binary.left, semantic, bindings, output, depth + 1)?;
+            lower_expression(&binary.right, semantic, bindings, output, depth + 1)?;
             writeln!(output, "{instruction}").unwrap();
         }
         _ => {
@@ -150,7 +187,7 @@ fn lower_expression(
 fn lower_predicate(
     expression: &Expression<'_>,
     semantic: &Semantic<'_>,
-    bindings: &[SymbolId],
+    bindings: &[NumericBinding],
     output: &mut String,
     depth: usize,
 ) -> Result<(), String> {
@@ -255,7 +292,7 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
             "exactly two ordinary numeric parameters are admitted",
         ));
     }
-    let mut parameters = Vec::new();
+    let mut bindings = Vec::new();
     for parameter in &function.params.items {
         if parameter.optional
             || parameter.initializer.is_some()
@@ -276,36 +313,62 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
                 "destructured parameters are not admitted",
             ));
         };
-        parameters.push(
-            identifier
+        bindings.push(NumericBinding {
+            symbol: identifier
                 .symbol_id
                 .get()
                 .ok_or("missing parameter binding")?,
-        );
+            mutable: true,
+        });
     }
     let body = function.body.as_ref().ok_or("function must have a body")?;
-    if !body.directives.is_empty() || body.statements.is_empty() || body.statements.len() > 129 {
+    if !body.directives.is_empty() || body.statements.is_empty() || body.statements.len() > 256 {
         return Err(unsupported(
             body.as_ref(),
-            "body must contain at most 128 const locals followed by one return, and no directives",
+            "body must contain at most 256 statements including the final return, and no directives",
         ));
     }
     let mut instructions = String::new();
-    let parameter_count = parameters.len();
+    let parameter_count = bindings.len();
     for statement in &body.statements[..body.statements.len() - 1] {
+        if let Statement::ExpressionStatement(statement) = statement {
+            if !matches!(statement.expression, Expression::AssignmentExpression(_)) {
+                return Err(unsupported(
+                    statement.as_ref(),
+                    "only assignments are admitted as expression statements",
+                ));
+            }
+            lower_expression(
+                &statement.expression,
+                &built.semantic,
+                &bindings,
+                &mut instructions,
+                0,
+            )?;
+            instructions.push_str("drop\n");
+            continue;
+        }
         let Statement::VariableDeclaration(declaration) = statement else {
             return Err(unsupported(
                 statement,
-                "only numeric const declarations may precede the final return",
+                "only initialized numeric const/let declarations and assignments may precede the final return",
             ));
         };
-        if declaration.kind != VariableDeclarationKind::Const
-            || declaration.declare
+        if bindings.len() - parameter_count >= 128 {
+            return Err(unsupported(
+                statement,
+                "at most 128 numeric locals are admitted",
+            ));
+        }
+        if !matches!(
+            declaration.kind,
+            VariableDeclarationKind::Const | VariableDeclarationKind::Let
+        ) || declaration.declare
             || declaration.declarations.len() != 1
         {
             return Err(unsupported(
                 declaration.as_ref(),
-                "one initialized const identifier per declaration is admitted",
+                "one initialized const or let identifier per declaration is admitted",
             ));
         }
         let local = &declaration.declarations[0];
@@ -322,18 +385,21 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         let initializer = local
             .init
             .as_ref()
-            .ok_or("const local must have an initializer")?;
+            .ok_or("numeric local must have an initializer")?;
         // Publish a binding only after its initializer has been admitted/lowered.
         // Even dead-branch self/forward references are outside this narrow contract.
         lower_expression(
             initializer,
             &built.semantic,
-            &parameters,
+            &bindings,
             &mut instructions,
             0,
         )?;
-        writeln!(instructions, "local.set {}", parameters.len()).unwrap();
-        parameters.push(identifier.symbol_id.get().ok_or("missing local binding")?);
+        writeln!(instructions, "local.set {}", bindings.len()).unwrap();
+        bindings.push(NumericBinding {
+            symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
+            mutable: declaration.kind == VariableDeclarationKind::Let,
+        });
     }
     let Statement::ReturnStatement(return_statement) = body.statements.last().unwrap() else {
         return Err(unsupported(
@@ -345,19 +411,13 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         .argument
         .as_ref()
         .ok_or("return must have a numeric expression")?;
-    lower_expression(
-        expression,
-        &built.semantic,
-        &parameters,
-        &mut instructions,
-        0,
-    )?;
+    lower_expression(expression, &built.semantic, &bindings, &mut instructions, 0)?;
     let mut wat = "(module (func (export \"run\") (param f64 f64) (result f64)\n".to_string();
-    if parameters.len() > parameter_count {
+    if bindings.len() > parameter_count {
         writeln!(
             wat,
             "(local {})",
-            vec!["f64"; parameters.len() - parameter_count].join(" ")
+            vec!["f64"; bindings.len() - parameter_count].join(" ")
         )
         .unwrap();
     }

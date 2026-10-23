@@ -30,8 +30,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 1
-contains 31 paired programs, 64 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 2
+contains 43 paired programs, 77 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -87,17 +87,23 @@ not a hardened arbitrary-module execution service.
 - Exactly one module-level `export function run` with two ordinary parameters.
   Inputs are **already primitive JS numbers**, represented as Wasm `f64` values.
   This ABI contract is independent of whether TS annotations are present.
-- The body admits numeric `const` declarations followed by one numeric return.
+- The body admits initialized numeric `const`/`let` declarations and simple
+  assignment statements in source order, followed by one numeric return.
   Each declaration has one identifier and initializer; the binding becomes available
   only after that initializer. References resolve through semantic symbol identities.
   Numeric expressions admit literals, initialized bindings, parentheses, binary
   `+ - * /`, unary `+ -`, and comparison-controlled ternaries. Conditions use numeric
   `< <= > >= === !==`; both arms must be admitted and lower to structured Wasm
   `if (result f64)`. Optional TS annotations must be exactly `number`.
+  Simple `=` expressions write to an initialized parameter or `let` binding and
+  return the assigned number. The RHS runs once; Wasm `local.tee` preserves its
+  value. Assignment statements discard that value. Writes to `const`, globals,
+  self/forward locals, property/destructuring and TS-wrapped targets are rejected.
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
-  casts/assertions, mutation, statement `if`, loops, logical operators and numeric
+  casts/assertions, uninitialized locals, compound assignments, increment/decrement,
+  statement blocks/`if`, loops, logical operators and numeric
   truthiness. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
@@ -107,7 +113,8 @@ not a hardened arbitrary-module execution service.
 - AST grouping is preserved; there is no optimizer, reassociation, constant folding
   or fused multiply-add lowering. Literal values use Oxc's binary64 parse followed
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
-- Source limit 16 KiB; expression nesting limit 128; at most 128 const locals;
+- Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
+  and 256 body statements including the final return;
   host input batches at most 4096
   pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the vector
   replay has a three-minute bound. These are experiment bounds, not platform policy.
@@ -130,15 +137,15 @@ this spike; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 76508 numeric comparisons; 64 rejected inputs; overwrite preserved
+PASS 106124 numeric comparisons; 77 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-Thirty-one programs, each written as JS and TS, produce 62 modules. Each module is
+Forty-three programs, each written as JS and TS, produce 86 modules. Each module is
 validated and run in Wasmtime and Node-Wasm over 617 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`. This yields 76,508 engine-to-JS comparisons. The explicit demo calls in
+`4752554e`. This yields 106,124 engine-to-JS comparisons. The explicit demo calls in
 both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
@@ -151,7 +158,16 @@ The added programs cover every comparison, NaN predicates, signed-zero branches,
 nested conditions, chained locals, Unicode identifiers and local/function-name
 shadowing. The original L0 run had 39,488 comparisons and 48 rejections.
 
-Sixty-four malformed or unsupported programs fail explicitly, each with a unique
+Mutation fixtures observe assignment values and later reads, chained assignments,
+statement/operand evaluation order, effects during initialization and comparisons,
+selected-branch effects and signed zero. A boundary fixture uses 128 locals and
+256 statements. Removing the emitted assignment state update leaves valid Wasm
+but causes the corpus to fail on an observed result mismatch. This demonstrates
+sensitivity to lost writes; it is not exhaustive mutation testing.
+Simple identifier targets have no observable target-evaluation effects here;
+general property-target assignment behavior remains untested.
+
+Seventy-seven malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved
@@ -172,10 +188,9 @@ the emitted instructions originate from the parsed JS/TS expressions.
 **Inference:** continuing with a custom lowering experiment is practical. No stable
 IR or full-language frontend architecture follows from this one result.
 
-SHORTCUT: pure numeric expressions — cannot establish behavior for side effects,
-coercion of objects/strings, functions, closures, exceptions, promises or modules.
-Left/right operand ordering is preserved structurally, but observable side-effect
-ordering is not tested because side effects are rejected.
+The numeric ABI exercises local mutation and its observable evaluation order. It
+does not establish behavior for external effects, coercion of objects/strings,
+functions, closures, exceptions, promises or modules.
 
 SHORTCUT: core Wasm and a tiny typed host — sufficient for arithmetic code generation;
 does not test WIT/Component Model interfaces or capability resource semantics.
