@@ -13,8 +13,8 @@ by unfiltered Cargo metadata (including other-target/build packages), rather tha
 only crates compiled on the current Windows host. Missing/unreviewed expressions
 fail the check. The selected expression must contain no GPL/LGPL license.
 
-Observed 2026-10-23: 177 workspace packages and 83 frontend-research packages;
-178 distinct package versions across both graphs, including the three maintained
+Observed 2026-10-23: 180 workspace packages and 83 frontend-research packages;
+181 distinct package versions across both graphs, including the four maintained
 workspace crates at 0.0.1 and the historical frontend package. The migration retained
 all 174 external numeric-implementation package versions, sources, checksums and
 resolved feature sets.

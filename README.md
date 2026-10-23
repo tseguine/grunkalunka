@@ -54,10 +54,13 @@ imports; it is not a hardened arbitrary-module service.
 - `crates/grunkalunka-compiler`: source text to portable numeric Wasm; independent of Wasmtime.
 - `crates/grunkalunka-runtime`: numeric module instantiation and execution.
 - `crates/grunkalunka-cli`: file and standard-input handling, compile/inspect/evaluate commands.
+- `crates/grunkalunka-markdown`: standalone CommonMark headings, links and images with original source spans.
 - `tests/compatibility`: maintained JS/TS differential fixtures and evidence reports.
 
 [Compiler contract](docs/compiler.md) | [Milestones](docs/milestones.md) ·
 [Research roadmap](docs/roadmap.md) | [Dependencies](docs/dependencies.md)
+
+See [Markdown inspection](docs/markdown.md) for the parsing API and its limits.
 
 Package scripts provide `build`, `poc` and `check` entry points. Direct Node execution
 is verified on this workstation; its npm launcher currently fails before entering

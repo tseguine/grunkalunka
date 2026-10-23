@@ -195,6 +195,34 @@ Prove useful reuse with a small second consumer (for example, a parser tool or
 headless layout probe) as each piece emerges, without building speculative plugin
 frameworks or stabilizing public APIs before there is evidence for their shape.
 
+### Reusable file formats and implementation references
+
+Format support should be usable as standalone libraries with explicit source
+inputs and outputs. Resource references remain data until an authorized consumer
+resolves them. Parsing, document semantics, rendering and source-preserving editing
+are separate responsibilities. [Markdown inspection](markdown.md) is the first
+maintained adapter: headings, links and images for application indexing, with no
+renderer or resource resolver.
+
+Evaluate existing parsers before implementing new ones: html5ever for HTML,
+Lightning CSS/cssparser for CSS, quick-xml for XML-family syntax, and kdl for KDL.
+Inspect each selected version, features, licenses and resolved dependencies before
+adoption. Test native and Wasm portability rather than inferring it from a Rust API.
+XML parsing alone does not provide SVG rendering or XAML object/binding semantics.
+KDL/SDLang alternatives still require the explicit document mapping and round-trip
+fidelity contract described in the milestones. Avoid a general format framework
+until multiple concrete consumers demonstrate a shared boundary.
+
+Selected WebKit implementations are also candidates for reuse or Rust ports.
+WebKit's [licensing page](https://webkit.org/licensing-webkit/) identifies both LGPL
+and BSD portions; inspect the exact files and helpers rather than assigning one
+license to the whole project. For example, the inspected
+[HTML tokenizer](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/html/parser/HTMLTokenizer.cpp)
+has a BSD-style notice. Pin source revisions and preserve applicable notices for
+incorporated or translated code. A language port does not remove those terms.
+Keep the GPL/LGPL exclusion and compare coupling/cost against existing Rust
+libraries before choosing a port. No WebKit source has been incorporated.
+
 ### Browser conformance evidence and feature roadmap
 
 Use complementary sources:

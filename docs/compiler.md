@@ -197,7 +197,7 @@ Formatting, Clippy with warnings denied, both earlier frontend checks, and resol
 dependency-license screening pass. The first Clippy run reported a collapsible
 conditional; it was simplified and all affected checks rerun without suppression.
 
-Dependency metadata: 177 packages in the workspace graph, 178 distinct versions
+Dependency metadata: 180 packages in the workspace graph, 181 distinct versions
 including the retained frontend research graph, with permissible selected alternatives and no selected GPL/LGPL license.
 See [license screening](dependencies.md) for scope, alternatives and limitations.
 
