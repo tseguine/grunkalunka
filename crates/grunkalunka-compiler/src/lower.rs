@@ -375,6 +375,18 @@ impl Lowering<'_, '_> {
         if let Expression::ParenthesizedExpression(parenthesized) = expression {
             return self.predicate(&parenthesized.expression, region, depth + 1);
         }
+        if let Expression::BooleanLiteral(literal) = expression {
+            let result = self.value(Type::Predicate);
+            Self::push(
+                region,
+                expression,
+                Op::Boolean {
+                    result,
+                    value: literal.value,
+                },
+            );
+            return Ok(result);
+        }
         if let Expression::SequenceExpression(sequence) = expression {
             let (last, preceding) = sequence.expressions.split_last().ok_or_else(|| {
                 unsupported(sequence.as_ref(), "comma expression must have an operand")

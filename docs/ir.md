@@ -18,7 +18,9 @@ A loop body may enter its region repeatedly and initialize those cells on each
 entry. Stores require an initialized, mutable cell.
 
 A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
-`Constant`, `Load`, `Unary`, `Binary`, `Compare` and `Truthy` produce values.
+`Constant`, `Load`, `Unary`, `Binary`, `Compare`, `Truthy` and `Boolean` produce values.
+`Boolean` defines a `Predicate` and emits canonical `i32` zero/one; it never
+produces a numeric source value. Source slots and function returns remain `Number`.
 `Initialize` and `Store` consume numeric values and change source cells.
 Operations execute in their recorded order. A load captures the cell's value at
 that point; an assignment yields its stored value snapshot. Compound assignments

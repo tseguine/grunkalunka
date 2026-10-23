@@ -63,7 +63,6 @@ const negatives = [
   ['for-break', 'for(;;) { break; } return a;', statement],
   ['for-continue', 'for(let i=0;i<1;i++) { continue; } return a;', statement],
   ['for-label', 'outer: for(;;) { return a; } return b;', statement],
-  ['for-boolean-test', 'for(;true;) { return a; } return b;', expression],
   ['for-header-statement-limit', `for(let i=0;0;i++) { ${'a=b;'.repeat(253)} } return a;`, 'at most 256 statements'],
   ['for-header-local-limit', `${Array.from({length:128},(_,i)=>`const x${i}=a;`).join(' ')} for(let i=0;0;i++) {} return a;`, 'at most 128 numeric locals'],
   ['for-source-depth-limit', `${Array.from({length:65},(_,i)=>`for(let i${i}=0;0;i${i}++)`).join('')} {} return a;`, 'statement nesting exceeds 64'],

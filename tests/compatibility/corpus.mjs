@@ -9,8 +9,9 @@ import { typescriptErasurePrograms, typescriptErasureRejected } from './typescri
 import { commaSequences } from './comma-sequences.mjs';
 import { numericLogical } from './numeric-logical.mjs';
 import { numericForPrograms, numericForRejected } from './numeric-for.mjs';
+import { booleanLiterals } from './boolean-literals.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 14;
+export const corpusVersion = 15;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -45,6 +46,7 @@ programs.push(...typescriptErasurePrograms);
 programs.push(...commaSequences);
 programs.push(...numericLogical);
 programs.push(...numericForPrograms);
+programs.push(...booleanLiterals);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -166,7 +168,16 @@ export const rejected = [
   ['call', 'export function run(a,b) { return Math.abs(a); }'],
   ['string', 'export function run(a,b) { return a + "1"; }'],
   ['bigint', 'export function run(a,b) { return 1n; }'],
-  ['boolean', 'export function run(a,b) { return true; }'],
+  ['boolean', 'export function run(a,b) { return true; }', 'js', 'expression is outside the numeric experiment'],
+  ['boolean-literal-local', 'export function run(a,b) { const x=true; return x?a:b; }', 'js', 'expression is outside the numeric experiment'],
+  ['boolean-literal-arithmetic', 'export function run(a,b) { return true+b; }'],
+  ['boolean-literal-unselected-call', 'export function run(a,b) { if(false) return Math.random(); return a; }'],
+  ['boolean-literal-while-unselected-call', 'export function run(a,b) { while(false) return Math.random(); return a; }'],
+  ['boolean-conditional-value', 'export function run(a,b) { if(a?true:false) return a; return b; }'],
+  ['boolean-equality-operands', 'export function run(a,b) { if(true===false) return a; return b; }'],
+  ['boolean-comma-nonfinal', 'export function run(a,b) { if((true,a)) return a; return b; }'],
+  ['boolean-logical-operands', 'export function run(a,b) { if(true && a) return a; return b; }'],
+  ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],
   ['null', 'export function run(a,b) { return null; }'],
   ['remainder', 'export function run(a,b) { return a % b; }'],
   ['power', 'export function run(a,b) { return a ** b; }'],
@@ -246,7 +257,6 @@ export const rejected = [
   ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
   ['loose-equality', 'export function run(a,b) { return a==b?a:b; }'],
   ['logical-predicate', 'export function run(a,b) { return (a<b && a>0)?a:b; }'],
-  ['boolean-predicate', 'export function run(a,b) { return true?a:b; }'],
   ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
   ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],
   ['local-type', 'export function run(a:number,b:number):number { const x:string=a; return x; }', 'ts'],

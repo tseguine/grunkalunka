@@ -68,6 +68,10 @@ pub(crate) struct Operation {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    Boolean {
+        result: ValueId,
+        value: bool,
+    },
     Constant {
         result: ValueId,
         value: f64,
@@ -218,6 +222,9 @@ impl Verifier<'_> {
                 return Err(invalid(span, "operation after guaranteed return"));
             }
             match &operation.kind {
+                Op::Boolean { result, .. } => {
+                    self.define(*result, Type::Predicate, &mut visible, span)?
+                }
                 Op::Constant { result, .. } => {
                     self.define(*result, Type::Number, &mut visible, span)?
                 }
@@ -618,6 +625,37 @@ mod tests {
             span: Span::new(1, 2),
         });
         assert!(verify(&f).unwrap_err().contains("not initialized"));
+    }
+
+    #[test]
+    fn rejects_boolean_literals_as_numeric_definitions_returns_or_stores() {
+        let mut f = function(
+            vec![Op::Boolean {
+                result: ValueId(0),
+                value: true,
+            }],
+            Exit::Return(ValueId(0)),
+        );
+        assert!(verify(&f).unwrap_err().contains("type"));
+        f.values[0] = Type::Predicate;
+        assert!(verify(&f).unwrap_err().contains("type"));
+        f.values.push(Type::Number);
+        f.body.operations.push(Operation {
+            span: Span::new(12, 15),
+            kind: Op::Constant {
+                result: ValueId(1),
+                value: 1.0,
+            },
+        });
+        f.body.operations.push(Operation {
+            span: Span::new(12, 15),
+            kind: Op::Store {
+                slot: SlotId(0),
+                value: ValueId(0),
+            },
+        });
+        f.body.exit = Exit::Return(ValueId(1));
+        assert!(verify(&f).unwrap_err().contains("type"));
     }
 
     #[test]

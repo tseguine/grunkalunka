@@ -30,6 +30,10 @@ impl Emitter<'_> {
     fn region(&mut self, region: &Region) {
         for operation in &region.operations {
             match &operation.kind {
+                Op::Boolean { result, value } => {
+                    writeln!(self.output, "i32.const {}", i32::from(*value)).unwrap();
+                    self.set(*result);
+                }
                 Op::Constant { result, value } => {
                     let literal = if value.is_nan() {
                         "nan".to_string()

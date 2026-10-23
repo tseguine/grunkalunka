@@ -86,6 +86,9 @@ Numeric `&&` and `||` now short-circuit and preserve their selected operand.
 Boolean operands, including comparison results used as operands, and nullish
 coalescing remain outside admission.
 
+Boolean literals are admitted in predicate positions. Boolean locals/returns,
+Boolean-valued ternary arms and Boolean equality operands remain outside admission.
+
 ## Next steps
 
 Promote an implemented case deliberately into the admitted differential corpus,

@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 14
-contains 224 paired programs, 281 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 15
+contains 240 paired programs, 288 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -84,7 +84,13 @@ and Boolean operands remain rejected. That run left 61 reference-validated gaps.
 
 Corpus 14 promotes numeric `for` loops with 24 paired programs and 30 boundary
 rejections. The original `gap-for` reference and obsolete blanket `for-loop`
-rejection are retired. There are 60 remaining lowering-gap references.
+rejection are retired. That run left 60 lowering-gap references.
+
+Corpus 15 adds 16 paired Boolean-literal condition cases, including finite
+`for` conditions. `true` and `false` produce typed predicates in conditions and
+final predicate-position comma operands; source locals and returns stay numeric.
+Boolean-valued ternary arms, Boolean equality operands and Boolean logical
+operands remain rejected. The frontier still contains 60 reference-validated gaps.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -153,8 +159,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Each declaration has one identifier and initializer; the binding becomes available
   only after that initializer. References resolve through semantic symbol identities.
   Numeric expressions admit literals, initialized bindings, parentheses, binary
-  `+ - * /`, unary `+ -`, and ternaries. Conditions admit numeric
-  `< <= > >= === !==` comparisons or primitive-number truthiness. Truthiness
+  `+ - * /`, unary `+ -`, and ternaries. Conditions admit Boolean literals, numeric
+  `< <= > >= === !==` comparisons and primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
   Numeric comma operands execute left to right and yield the final value snapshot;
   in predicate positions the final operand may instead be a comparison. Non-final
@@ -186,7 +192,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   on that path. Loop-body locals are initialized on each entry and disappear from
   visibility on exit; physical slots are not reused for sibling declarations.
   Numeric `for` initializers may be omitted, one initialized `let`/`const`, or an
-  admitted numeric expression. Tests are numeric predicates, or omitted for an
+  admitted numeric expression. Tests use the admitted predicate forms, or may be omitted for an
   unconditional test; updates are numeric expressions or omitted. Initialization
   runs once, then each iteration tests, executes the body, and executes the update.
   A return skips the update, but the compiler still admits the whole source body
@@ -238,15 +244,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 561792 numeric comparisons; 281 rejected inputs; overwrite preserved
+PASS 601920 numeric comparisons; 288 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-224 programs, each written as JS and TS, produce 448 modules.
+240 programs, each written as JS and TS, produce 480 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 561,792 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 601,920 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -310,7 +316,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-281 malformed or unsupported programs fail explicitly, each with a unique
+288 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved
