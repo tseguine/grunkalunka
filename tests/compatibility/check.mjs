@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { corpusVersion, programs, rejected, unimplemented, externalSources } from './corpus.mjs';
+import { corpusVersion, programs, rejected, unimplemented, externalSources, additionalVectors } from './corpus.mjs';
 import { mkdir, mkdtemp, readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,6 +62,7 @@ function randomBits() {
   return number(state.toString(16).padStart(16, '0'));
 }
 for (let i = 0; i < 256; i++) vectors.push([randomBits(), randomBits()]);
+vectors.push(...additionalVectors.map(vector => [vector.a, vector.b]));
 const input = vectors.map(([a, b]) => `${bits(a)} ${bits(b)}`).join('\n') + '\n';
 
 // Validate the whole selected inventory before executing any fixtures.
@@ -101,7 +102,7 @@ const runtime = {
 const observations = [];
 const fixtures = [];
 let comparisons = 0;
-for (const [name, bodyJS, bodyTS, expectedResult] of programs) {
+for (const [name, bodyJS, bodyTS, expectedResult, oracleBody] of programs) {
   activeFixture = `admitted:${name}`;
   const sourceJS = name === 'affine'
     ? await readFile(new URL('fixtures/affine.js', import.meta.url), 'utf8')
@@ -109,7 +110,10 @@ for (const [name, bodyJS, bodyTS, expectedResult] of programs) {
   const sourceTS = name === 'affine'
     ? await readFile(new URL('fixtures/affine.ts', import.meta.url), 'utf8')
     : `export function run(a: number, b: number): number { ${bodyTS} }\n`;
-  const reference = await import(`data:text/javascript;base64,${Buffer.from(sourceJS).toString('base64')}`);
+  const oracleSource = oracleBody === undefined ? sourceJS : `export function run(a, b) { ${oracleBody} }\n`;
+  const oraclePath = `${name}-oracle.js`;
+  await writeFile(join(output, oraclePath), oracleSource, { flag: 'wx' });
+  const reference = await import(`data:text/javascript;base64,${Buffer.from(oracleSource).toString('base64')}`);
   const modules = [];
   const variants = [];
   for (const [extension, source] of [['js', sourceJS], ['ts', sourceTS]]) {
@@ -146,7 +150,8 @@ for (const [name, bodyJS, bodyTS, expectedResult] of programs) {
     modules.push(wasm);
   }
   assert.deepEqual(modules[0], modules[1], `${name}: annotation-only variants emitted different bytes`);
-  fixtures.push({ id: `admitted:${name}`, expectation: 'admitted', executed: true, outcome: 'passed', expectedResult, variants });
+  fixtures.push({ id: `admitted:${name}`, expectation: 'admitted', executed: true, outcome: 'passed', expectedResult,
+    oracle: { source: oraclePath, sourceSha256: sha256(oracleSource) }, variants });
   console.log(`PASS ${name}: JS + TS, ${vectors.length} vectors, Wasmtime + ${runtime.name}-Wasm`);
 }
 
@@ -198,6 +203,7 @@ const report = {
   fixtures,
   counts: { admitted: programs.length, rejected: rejected.length, unimplemented: unimplemented.length },
   seed: seed.toString(16), vectorsPerModule: vectors.length,
+  additionalVectors: additionalVectors.map(({ id, a, b }) => ({ id, a: bits(a), b: bits(b) })),
   modules: observations, comparisons, rejected: rejected.length, overwritePreserved: true,
   demo: { input: [4, 1], output: 3 },
 };

@@ -1,0 +1,75 @@
+{
+  "id": "benchmarks-game-mandelbrot",
+  "repository": "https://salsa.debian.org/benchmarksgame-team/benchmarksgame",
+  "revision": "40296663ed350d5fe4a6ab5e367bab61cb77c219",
+  "sourcePath": "public/program/mandelbrot-node-1.html",
+  "sourceHtmlSha256": "e46ca66cf428ebeea118f564270840c2612622364ab5931dd510d63f93a0fcc0",
+  "extractedSha256": "5e0fbb1731bc20e7db499abafb8a6fedf9ed96707c23563c2bbfd498583ebbc3",
+  "license": "BSD-3-Clause",
+  "licenseSha256": "e5dd0024dd43d92434808c8e1df3c09870a2832744283232aa1dc16c737237b1",
+  "referenceSha256": "08add7d47ade65f3bbbc9e262194aadb066ed177fad6b31197219a96b5347052",
+  "adaptedSha256": "c5b5bdc7eda21e95258cfe42c6c1b7f86aad6f811c828a7be0876b1351312283",
+  "adaptation": "Extracted scalar orbit uses cr=a, ci=b; preserves 50 iterations and ordered arithmetic. Positive count means original pixel predicate holds, negative count means it does not. Count is added instrumentation; no bitmap output or benchmark score is claimed. Original for-loop oracle is separate from the while-loop compilation inputs.",
+  "vectors": [
+    {
+      "id": "mandelbrot-origin",
+      "a": 0,
+      "b": 0,
+      "expected": 50
+    },
+    {
+      "id": "mandelbrot-bulb",
+      "a": -1,
+      "b": 0,
+      "expected": 50
+    },
+    {
+      "id": "mandelbrot-exterior",
+      "a": 1,
+      "b": 0,
+      "expected": -3
+    },
+    {
+      "id": "mandelbrot-far-exterior",
+      "a": 2,
+      "b": 2,
+      "expected": -1
+    },
+    {
+      "id": "mandelbrot-boundary",
+      "a": -2,
+      "b": 0,
+      "expected": 50
+    },
+    {
+      "id": "mandelbrot-near-exterior",
+      "a": -0.75,
+      "b": 0.1,
+      "expected": -33
+    },
+    {
+      "id": "mandelbrot-near-interior",
+      "a": -0.75,
+      "b": 0,
+      "expected": 50
+    },
+    {
+      "id": "mandelbrot-escape-on-fifty",
+      "a": 0.015625,
+      "b": -0.8203125,
+      "expected": -50
+    },
+    {
+      "id": "mandelbrot-nan-real",
+      "a": "NaN",
+      "b": 0,
+      "expected": -1
+    },
+    {
+      "id": "mandelbrot-nan-imaginary",
+      "a": 0,
+      "b": "NaN",
+      "expected": -1
+    }
+  ]
+}

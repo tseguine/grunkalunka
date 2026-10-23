@@ -11,7 +11,7 @@ Review selected-file and bundled third-party terms before adding more material.
 | --- | --- | --- | --- |
 | Test262 | ECMAScript language conformance | Four adapted numeric programs covering 18 assertions | An original-harness runner for supported semantics |
 | TypeScript tests | Compiler and syntax references | 24 adapted numeric cases; 8 explicit admission rejections | Broader language cases and separate type-query checks |
-| Computer Language Benchmarks Game | Complete algorithms and performance workloads | Pending | Mandelbrot scalar kernel, then full program output |
+| Computer Language Benchmarks Game | Complete algorithms and performance workloads | One instrumented Mandelbrot scalar kernel | Full program output, then performance measurements |
 | JetStream | JavaScript and Wasm engine performance | Pending | A full shell workload with its correctness checks |
 | Node.js tests | Host API compatibility and regressions | Pending | Selected original API tests with capability grant/denial cases |
 | Speedometer | Browser application responsiveness | Pending | Correct application interactions after DOM, events and rendering exist |

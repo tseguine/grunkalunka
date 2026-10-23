@@ -1,8 +1,10 @@
 // Selected numeric ABI evidence; not a full-language compatibility inventory.
 import { typescriptPrograms, typescriptRejected, typescriptSource } from './typescript.mjs';
 import { test262Programs, test262Source } from './test262.mjs';
-export const corpusVersion = 6;
-export const externalSources = [typescriptSource, test262Source];
+import { benchmarkPrograms, benchmarkSource } from './benchmarks-game.mjs';
+export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
+export const corpusVersion = 7;
+export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
   ['affine', '(a * 2 + b) / 3'], ['add', 'a + b'], ['subtract', 'a - b'],
@@ -29,6 +31,7 @@ const expressions = [
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
 programs.push(...typescriptPrograms);
 programs.push(...test262Programs);
+programs.push(...benchmarkPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],

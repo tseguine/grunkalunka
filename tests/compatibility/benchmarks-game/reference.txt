@@ -1,0 +1,11 @@
+const iter = 50; const limit = 2.0;
+const cr = a; const ci = b;
+let zr = 0; let zi = 0; let tr = 0; let ti = 0;
+let i = 0;
+for (; i < iter && (tr + ti <= limit * limit); ++i) {
+      zi = 2 * zr * zi + ci;
+      zr = tr - ti + cr;
+      tr = zr * zr;
+      ti = zi * zi;
+}
+return tr + ti <= limit * limit ? i : -i;

@@ -52,8 +52,10 @@ license files. The separately attributed TypeScript test excerpts now live under
 `tests/compatibility/typescript/` with their Apache-2.0 license and adaptation notice.
 Four original Test262 numeric test files and their BSD-3-Clause license are retained
 under `tests/compatibility/test262/`, with Sputnik author notices and mapped
-adaptations. All six external suite pins and root-license screening scopes are
-recorded in `tests/compatibility/suites.json`; registration does not clear every
+adaptations. The Benchmarks Game Mandelbrot source and derived scalar reference/
+adaptation snippets under `tests/compatibility/benchmarks-game/` retain their
+BSD-3-Clause license and original author attribution. All six external suite pins
+and root-license screening scopes are recorded in `tests/compatibility/suites.json`; registration does not clear every
 third-party workload for copying.
 These source fixtures are not Cargo packages and are not counted by the metadata
 screen; their pinned provenance and selected-file notices are reviewed separately.

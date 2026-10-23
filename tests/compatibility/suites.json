@@ -200,7 +200,12 @@
       "license": "BSD-3-Clause",
       "licenseSha256": "e5dd0024dd43d92434808c8e1df3c09870a2832744283232aa1dc16c737237b1",
       "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
-      "selection": [],
+      "selection": [
+        {
+          "id": "admitted:benchmarks-game-mandelbrot",
+          "kind": "adapted-runtime"
+        }
+      ],
       "blockers": [
         "Full Mandelbrot output requires for loops, typed arrays, bitwise operators and process/stdout APIs."
       ],
