@@ -143,10 +143,16 @@ impl Lowering<'_, '_> {
                     AssignmentOperator::Subtraction => Some(Binary::Subtract),
                     AssignmentOperator::Multiplication => Some(Binary::Multiply),
                     AssignmentOperator::Division => Some(Binary::Divide),
+                    AssignmentOperator::BitwiseAnd => Some(Binary::BitAnd),
+                    AssignmentOperator::BitwiseOR => Some(Binary::BitOr),
+                    AssignmentOperator::BitwiseXOR => Some(Binary::BitXor),
+                    AssignmentOperator::ShiftLeft => Some(Binary::ShiftLeft),
+                    AssignmentOperator::ShiftRight => Some(Binary::ShiftRight),
+                    AssignmentOperator::ShiftRightZeroFill => Some(Binary::ShiftRightUnsigned),
                     _ => {
                         return Err(unsupported(
                             expression,
-                            "only =, +=, -=, *= and /= assignments are admitted",
+                            "only =, +=, -=, *=, /=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted",
                         ));
                     }
                 };

@@ -63,6 +63,8 @@ that point; an assignment yields its stored value snapshot. Compound assignments
 load the previous target before evaluating the RHS, then store and yield their
 computed result. Prefix updates yield the new snapshot; postfix updates yield the
 old snapshot after storing the new value.
+Bitwise/shift compound operators reuse this same `Load`/`Binary`/`Store` path,
+including unsigned Number results from `>>>=`; they add no new IR operations.
 
 Numeric comma expressions need no additional IR operation. Their operands append
 operations in source order, and the final operand supplies the result value. In a

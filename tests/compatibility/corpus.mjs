@@ -26,9 +26,10 @@ import { numericBitNot, numericBitNotRejected } from './numeric-bit-not.mjs';
 import { hashbangPrograms, hashbangRejected } from './hashbangs.mjs';
 import { numericBitwiseBinary, numericBitwiseBinaryRejected } from './numeric-bitwise-binary.mjs';
 import { numericShifts, numericShiftsRejected } from './numeric-shifts.mjs';
+import { numericBitwiseCompounds, numericBitwiseCompoundsRejected } from './numeric-bitwise-compounds.mjs';
 import { annotationPrograms, annotationRejected } from './type-annotations.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 32;
+export const corpusVersion = 33;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -80,6 +81,7 @@ programs.push(...numericBitNot);
 programs.push(...hashbangPrograms);
 programs.push(...numericBitwiseBinary);
 programs.push(...numericShifts);
+programs.push(...numericBitwiseCompounds);
 programs.push(...annotationPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
@@ -172,6 +174,7 @@ export const rejected = [
   ...hashbangRejected,
   ...numericBitwiseBinaryRejected,
   ...numericShiftsRejected,
+  ...numericBitwiseCompoundsRejected,
   ...annotationRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
@@ -284,9 +287,11 @@ export const rejected = [
   ['self-write-initializer', 'export function run(a,b) { let x=(x=a); return x; }'],
   ['forward-write-initializer', 'export function run(a,b) { const x=(y=a); let y=b; return x+y; }'],
   ['global-write', 'export function run(a,b) { return clock=a; }'],
-  ...['%=', '**=', '<<=', '>>=', '>>>=', '&=', '|=', '^=', '&&=', '||=', '??='].map((operator, index) =>
-    [`unsupported-compound-${index}`, `export function run(a,b) { return a ${operator} b; }`, 'js',
-      'only =, +=, -=, *= and /= assignments are admitted']),
+  ...[['unsupported-compound-0','%='], ['unsupported-compound-1','**='],
+    ['unsupported-compound-8','&&='], ['unsupported-compound-9','||='],
+    ['unsupported-compound-10','??=']].map(([id,operator]) =>
+    [id, `export function run(a,b) { return a ${operator} b; }`, 'js',
+      'only =, +=, -=, *=, /=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted']),
   ['compound-const', 'export function run(a,b) { const x=a; return x+=b; }'],
   ['compound-property', 'export function run(a,b) { return a.x+=b; }'],
   ['compound-forward', 'export function run(a,b) { const x=(y+=a); let y=b; return x+y; }'],

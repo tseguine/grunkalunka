@@ -135,14 +135,23 @@ The former `gap-bit-and`, `gap-bit-or` and `gap-bit-xor` references and ordinary
 `bitwise` rejection are promoted in
 [`numeric-bitwise-binary.mjs`](../tests/compatibility/numeric-bitwise-binary.mjs).
 Both operands must be Numbers and execute eagerly in source order; each truncates
-and wraps before the operation returns a signed numeric result. Bitwise
-compound assignments and mixed-type coercion remain outside admission.
+and wraps before the operation returns a signed numeric result. Mixed-type
+coercion remains outside admission.
 
 The former `gap-shift-left`, `gap-shift-right` and `gap-shift-unsigned` references
 and `bitwise-shift-remains` rejection are promoted in
 [`numeric-shifts.mjs`](../tests/compatibility/numeric-shifts.mjs). Number operands
 use five masked count bits; `<<`/`>>` yield signed Numbers and `>>>` yields an
-unsigned Number. Shift compound assignments and nonnumeric operands remain rejected.
+unsigned Number. Nonnumeric operands remain rejected.
+
+The ordinary `unsupported-compound-2` through `unsupported-compound-7`,
+`bitwise-compound-remains` and `shift-compound-remains-0` through
+`shift-compound-remains-2` rejections are promoted in
+[`numeric-bitwise-compounds.mjs`](../tests/compatibility/numeric-bitwise-compounds.mjs).
+These six mappings reuse target capture, RHS evaluation, store and result snapshots.
+The curated gap count is unchanged. Remaining ordinary IDs 0, 1, 8, 9 and 10 retain
+their original `%=`/`**=`/`&&=`/`||=`/`??=` programs; unsupported write targets and
+nonnumeric RHS values remain outside admission.
 
 The former `gap-break` reference is now `break-promoted-reference` in
 [`numeric-break.mjs`](../tests/compatibility/numeric-break.mjs). Unlabelled break

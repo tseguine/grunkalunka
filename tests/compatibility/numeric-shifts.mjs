@@ -44,12 +44,10 @@ const expression = 'expression is outside the numeric experiment';
 const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
 const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
-const compound = 'only =, +=, -=, *= and /= assignments are admitted';
 const negatives = [
   ...['<<','>>','>>>'].flatMap((op,i)=>[
     [`shift-boolean-left-${i}`, `return true ${op} a;`, expression],
     [`shift-boolean-right-${i}`, `return a ${op} false;`, expression],
-    [`shift-compound-remains-${i}`, `return a ${op} (b${op}=1);`, compound],
   ]),
   ['shift-string-left', 'return "5" << a;', expression],
   ['shift-string-right', 'return a >> "3";', expression],

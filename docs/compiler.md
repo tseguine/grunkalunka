@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 32
-contains 596 paired programs, 575 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 33
+contains 635 paired programs, 594 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -200,8 +200,8 @@ Corpus 31 admits Number-only `<<`, `>>` and `>>>` with 34 paired programs and 31
 boundary rejections. Three reference gaps and the bitwise/shift composition
 rejection are promoted, leaving 42 reference gaps. Counts use their low five bits
 after truncation and wrapping. `<<` and `>>` return signed numeric results; `>>>`
-zero-fills and returns an unsigned Number. Bitwise and shift compound assignments and mixed-type
-coercion remain outside admission.
+zero-fills and returns an unsigned Number. That unit left bitwise/shift compound
+assignments and mixed-type coercion outside admission.
 
 Corpus 32 admits TypeScript parameter, return and local annotations as unvalidated
 metadata. Twenty-three paired programs cover unknown and contradictory types,
@@ -214,6 +214,13 @@ The original annotated AST remains available through compilation; no early
 stripping, checker, persistent metadata API or optimization is introduced. A full-source
 composition case combines unknown/compound annotations with an unsigned shift
 whose RHS writes its left binding, retaining the captured left value.
+
+Corpus 33 admits Number-only `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=` by mapping
+them to the existing Binary operations. Thirty-nine paired programs and 29 boundary
+rejections cover target snapshots, stored/yielded results, RHS effects, unsigned
+results, wrappers, finite loops and source budgets. Ten ordinary rejections are
+promoted; the curated frontier remains 42 gaps. Remainder, power, logical and
+nullish assignments and unsupported targets remain rejected.
 
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
@@ -346,9 +353,12 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   comparisons stay predicates. No type checking or runtime conversion follows
   from a wrapper's asserted type. Type-only aliases/interfaces and generic
   functions remain separate, unsupported forms.
-  `=`, `+=`, `-=`, `*=` and `/=` expressions write to an initialized parameter or
+  `=`, `+=`, `-=`, `*=`, `/=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
+  expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the
-  target before evaluating the RHS. Prefix/postfix `++` and `--` store the updated
+  target before evaluating the RHS once, apply the corresponding numeric Binary
+  operation, then store and yield the computed result. `>>>=` retains unsigned
+  Number results. Prefix/postfix `++` and `--` store the updated
   number and return the new/old snapshot respectively. The RHS runs once; a typed
   IR value and separate
   Wasm temporary preserve its snapshot across the store. Numeric expression
@@ -413,7 +423,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Everything else is rejected: extra statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, calls, strings/objects/BigInts,
-  type-only declarations, uninitialized locals and compound operators beyond the four above,
+  type-only declarations, uninitialized locals, `%=`/`**=`/`&&=`/`||=`/`??=` assignments,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
@@ -452,15 +462,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1494768 numeric comparisons; 575 rejected inputs; overwrite preserved
+PASS 1592580 numeric comparisons; 594 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-596 programs, each written as JS and TS, produce 1192 modules.
+635 programs, each written as JS and TS, produce 1270 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,494,768 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,592,580 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -559,6 +569,15 @@ Both engines check an additional 9,504 edge/raw input pairs and three specified
 fixed results. Finite mutations using zero-fill for `>>` or signed conversion for
 `>>>` are detected and restored before replay.
 
+The [bitwise/shift compound fixtures](../tests/compatibility/numeric-bitwise-compounds.mjs)
+exercise all six mappings through the existing assignment path, following
+[compound assignment evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation).
+They separately observe the stored value, yielded snapshot and RHS count,
+including writes to the target during RHS evaluation. A finite `&=`-to-OR mapping
+mutation changes a stored/yielded result from 11 to 77 and is detected; the original
+mapping is restored before the canonical replay. No conversion, IR or emitter
+change is needed.
+
 The expressions cover basic operators, nested unary operators, signed-zero and
 smallest-subnormal literals, overflow literals, integer literals rounded beyond
 `2^53`, nondecimal literals, grouping/cancellation and separate rounding. Input
@@ -618,6 +637,9 @@ Adding Number shifts leaves all 1,078 previous JS/TS artifacts byte-identical,
 including affine at 93 bytes and Mandelbrot at 504 bytes. No helper function,
 import or new IR type is added, and the fuel allowance remains 10,000.
 
+Adding bitwise/shift compound mappings leaves all 1,192 previous JS/TS artifacts
+byte-identical. Affine remains 93 bytes, Mandelbrot 504 bytes and fuel 10,000.
+
 The [binding-list fixtures](../tests/compatibility/multiple-declarators.mjs) compare
 left-to-right initializer effects, earlier-binding reads and lexical scope.
 A finite mutation that reversed declarator order changed an independent-effects
@@ -626,7 +648,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-575 malformed or unsupported programs fail explicitly, each with a unique
+594 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

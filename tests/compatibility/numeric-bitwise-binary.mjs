@@ -67,7 +67,6 @@ const negatives = [
   ['bitwise-const-update', 'const x=a; return x++ | b;', 'update to a const binding is not admitted'],
   ['bitwise-self-tdz', 'let x=x ^ a; return x;', reference],
   ['bitwise-forward-tdz', 'const x=y & a; let y=b; return x;', reference],
-  ['bitwise-compound-remains', 'return a & (b|=1);', 'only =, +=, -=, *= and /= assignments are admitted'],
   ['bitwise-remainder-remains', 'return (a%b) ^ 1;', binary],
   ['bitwise-depth-limit', `return a${' & 1'.repeat(129)};`, 'expression nesting exceeds'],
   ['bitwise-statement-limit', `${'a & b;'.repeat(256)} return a;`, 'at most 256 statements'],
