@@ -39,9 +39,9 @@ numericBitwiseCompounds.push(
 );
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
+const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
-const assignment = 'only =, +=, -=, *=, /=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted';
+const assignment = 'only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted';
 const target = 'assignment target must be an initialized identifier';
 const negatives = [
   ...['&=','|=','^=','<<=','>>=','>>>='].map((op,i)=>
@@ -65,7 +65,6 @@ const negatives = [
   ['compound-call-rhs', 'return a>>>=Math.random();', expression],
   ['compound-unselected-call', 'return 1?a:(a&=Math.random());', expression],
   ['compound-predicate-rhs', 'return a|=(a<b);', binary],
-  ['compound-remainder-remains', 'return a&=(b%=a);', assignment],
   ['compound-depth-limit', `return ${'a&='.repeat(129)}b;`, 'expression nesting exceeds'],
   ['compound-statement-limit', `${'a&=b;'.repeat(256)} return a;`, 'at most 256 statements'],
   ['compound-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=(a&=b)`).join(',')}; return x128;`, 'at most 128 numeric locals'],

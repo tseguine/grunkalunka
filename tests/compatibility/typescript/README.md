@@ -20,11 +20,13 @@ The adapter changes declarations into returned expressions inside the existing
 two-parameter `run(a,b)` ABI. Both parameters receive initialized primitive numbers;
 the upstream `a: any` domain is deliberately narrowed. The original type-checking
 purpose, uninitialized globals and entire-program behavior are not reproduced.
-The 24 selected multiplication/division/subtraction expressions run in JS, Node-Wasm
-and Wasmtime. Eight remainder expressions must produce Grunkalunka's specific
-unsupported-binary-operator diagnostic. These are valid adapted programs outside
-current admission, not expected TypeScript errors. The other 48 bitwise/shift
-expressions are unselected and unexecuted; they do not contribute passing tests.
+All 32 selected multiplication/division/remainder/subtraction expressions now run
+in JS, Node-Wasm and Wasmtime. The eight formerly rejected remainder expressions
+retain their original IDs, source lines and exact original TS module text, and
+now have paired unannotated JS numeric oracles. No selected adapter rejection
+remains. The other 48 bitwise/shift expressions are still unselected and
+unexecuted; they do not contribute passing tests. This deliberate promotion does
+not change the pinned source/excerpt/license or execute the full upstream suite.
 
 At capture time, the selected declarations were also checked against the emitted-JS
 section of the upstream baseline. That baseline describes compiler output, not

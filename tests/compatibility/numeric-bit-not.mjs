@@ -32,7 +32,7 @@ numericBitNot.push(['bit-not-directive-postfix', 'return ~a++ + a;', 'return ~a+
 
 const expression = 'expression is outside the numeric experiment';
 const unary = 'only unary +, - and ~ are admitted';
-const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
+const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
   ['bit-not-boolean', 'return ~true;', expression],
@@ -50,7 +50,6 @@ const negatives = [
   ['bit-not-const-update', 'const x=a; return ~x++;', 'update to a const binding is not admitted'],
   ['bit-not-self-tdz', 'let x=~x; return x;', reference],
   ['bit-not-forward-tdz', 'const x=~y; let y=a; return x;', reference],
-  ['bit-not-remainder-remains', 'return ~(a%b);', binary],
   ['bit-not-depth-limit', `return ${'~'.repeat(129)}a;`, 'expression nesting exceeds'],
   ['bit-not-statement-limit', `${'~a;'.repeat(256)} return a;`, 'at most 256 statements'],
   ['bit-not-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=~a`).join(',')}; return x128;`, 'at most 128 numeric locals'],

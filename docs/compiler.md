@@ -31,14 +31,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 35
-contains 710 paired programs, 682 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 36
+contains 750 paired programs, 666 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 682 rejections in 57 groups: 26 invalid sources in their selected
-strict Module dialect, 85 explicit resource restrictions and 571 open requirements.
+classifies all 666 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 85 explicit resource restrictions and 555 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -51,7 +51,7 @@ descriptive feature dependencies, harness needs and observable completion criter
 Each rejection result records its resolved `classification` and a separate
 `lowering: { executed: false, outcome: 'not-executed' }`; a passing rejection check
 is not compiled language support. Final report validation rejects missing or changed
-classification. Only the existing 41 explicit curated oracle opt-ins execute in Node.
+classification. Only the remaining 40 explicit curated oracle opt-ins execute in Node.
 Other rejection sources may throw or diverge and are never executed as JS.
 
 Corpus 5 includes 24 executed pairs and eight specific admission rejections adapted
@@ -259,6 +259,26 @@ rejections cover signatures, argument snapshots, separate invocation state, TS
 metadata, finite recursion and global source budgets. No prior rejection is
 promoted; all 41 reference gaps retain their original programs and diagnostics.
 
+Corpus 36 admits Number `%` and `%=`. Sixteen rejections retain their original
+IDs and source bytes as admitted pairs, including all eight selected TypeScript
+remainder expressions; 24 additional pairs check ordered operand/target snapshots,
+selected effects, finite loops, wrappers and direct/recursive helper composition.
+The now-empty inventory remainder group is removed. The 666 remaining negatives
+retain source/mode/outcome; the two admitted-operator diagnostic lists add exactly
+`%` and `%=` and their copied expectations change accordingly. Other diagnostic
+text, spans and frontend stages remain unchanged.
+
+Number remainder follows [Number::remainder](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-numeric-types-number-remainder):
+NaN/infinite dividends and zero divisors yield NaN; an infinite divisor returns the
+finite dividend. Zero results keep the dividend sign. The quotient is truncated in
+real arithmetic, so rounded `a - trunc(a/b)*b` is not an implementation of this rule.
+An original private WAT helper reduces integer significands exactly. It is emitted
+only when any emitted source function/region uses remainder, after all source
+functions; source call indices and private local namespaces remain independent.
+It introduces no imports, memory, source bindings or source-budget charges.
+Programs without remainder retain their Wasm bytes. No new coercion or BigInt
+admission follows. Repeated operations still share the existing 10,000-fuel budget.
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -361,7 +381,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   These reads generate constants without host access; other global references and
   property access such as `globalThis.Infinity` or `Number.NaN` remain rejected.
   Numeric expressions admit literals, these two intrinsic reads, initialized bindings, parentheses, binary
-  `+ - * / & | ^ << >> >>>`, unary `+ - ~`, and ternaries. Numeric `~`, `&`, `|` and `^` use signed 32-bit wrapping
+  `+ - * / % & | ^ << >> >>>`, unary `+ - ~`, and ternaries. Numeric `~`, `&`, `|` and `^` use signed 32-bit wrapping
   semantics and yield Numbers, without coercing other source value types.
   Binary bitwise operands both run eagerly, left to right; RHS writes cannot
   replace the captured left value. Results use signed conversion, including positive zero.
@@ -413,7 +433,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   exported entry and any plain unexported helpers;
   imports, export/re-export lists, ambient values, enums, namespaces and module/global
   augmentations remain unsupported. Type names do not create numeric bindings.
-  `=`, `+=`, `-=`, `*=`, `/=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
+  `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
   expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the
   target before evaluating the RHS once, apply the corresponding numeric Binary
@@ -483,7 +503,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Everything else is rejected: extra statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls, strings/objects/BigInts,
-  other declaration forms, uninitialized locals, `%=`/`**=`/`&&=`/`||=`/`??=` assignments,
+  other declaration forms, uninitialized locals, `**=`/`&&=`/`||=`/`??=` assignments,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
@@ -527,15 +547,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1780680 numeric comparisons; 682 rejected inputs; overwrite preserved
+PASS 1881000 numeric comparisons; 666 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-710 programs, each written as JS and TS, produce 1420 modules.
+750 programs, each written as JS and TS, produce 1500 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,780,680 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,881,000 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -724,7 +744,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-682 malformed or unsupported programs fail explicitly, each with a unique
+666 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

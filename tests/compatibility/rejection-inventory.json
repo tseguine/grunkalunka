@@ -232,24 +232,6 @@
       ]
     },
     {
-      "id": "remainder",
-      "kind": "open-requirement",
-      "assessment": "Numeric remainder or remainder assignment is valid but not lowered.",
-      "evidence": [
-        {
-          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-multiplicative-operators",
-          "rule": "Remainder has specified Number semantics; compound assignment stores its result."
-        }
-      ],
-      "dependencies": [],
-      "harnessNeeds": [
-        "numeric-oracle"
-      ],
-      "observableDone": [
-        "Admit Number remainder and its selected assignment forms with signed-zero, NaN, infinity and effect-order tests."
-      ]
-    },
-    {
       "id": "exponentiation",
       "kind": "open-requirement",
       "assessment": "Exponentiation or exponentiation assignment is valid but not lowered.",
@@ -1112,13 +1094,6 @@
     }
   ],
   "records": [
-    {
-      "id": "gap-remainder",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9be5ea5ab4bff85ebd091c0c73696e3f0987cad3b6503d06e757353cc2d203b1",
-      "group": "remainder"
-    },
     {
       "id": "gap-power",
       "extension": "js",
@@ -3157,13 +3132,6 @@
       "group": "binding-errors"
     },
     {
-      "id": "bit-not-remainder-remains",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "e707ddaf1f238428a2dcfa061e03108910fe1512d56202a4bdeaebfded0040a0",
-      "group": "remainder"
-    },
-    {
       "id": "bit-not-depth-limit",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -3514,13 +3482,6 @@
       "group": "binding-errors"
     },
     {
-      "id": "bitwise-remainder-remains",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "deef45e557d892533a45b22644fd93a8440faaa313eb077ae10f976526c6bbec",
-      "group": "remainder"
-    },
-    {
       "id": "bitwise-depth-limit",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -3708,13 +3669,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "fb24c1eb6ee48c568aecd09c89a1eccf0edf88ff304721dd81113ce6fee179ba",
       "group": "binding-errors"
-    },
-    {
-      "id": "shift-remainder-remains",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "fa281c9093f60d474a23d6d7574922308181fc66a340a33a8455a16bc8ffd15c",
-      "group": "remainder"
     },
     {
       "id": "shift-depth-limit",
@@ -3911,13 +3865,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "11d7797132e5f36c7bc0ffa821d727722227a7d7d1c2ae881c0b7ed0dca5b748",
       "group": "boolean-values"
-    },
-    {
-      "id": "compound-remainder-remains",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "5ba78e4227cdca9f91b2a16804d1f93a1c9cae4e840dc7cb9207abeb5b537059",
-      "group": "remainder"
     },
     {
       "id": "compound-depth-limit",
@@ -4373,62 +4320,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "844e005d93feff88035d54e0fa27fe157c81871743a6b65c8ccf7dab50f6fabb",
       "group": "function-calls"
-    },
-    {
-      "id": "ts-rc1",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a74eff4b0cfda04c77f7b2c3276b1bbc298bf69716cd421c4e5d486a11b4aa33",
-      "group": "remainder"
-    },
-    {
-      "id": "ts-rc2",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "8ee75166116daeefabebbc32269604e9a89da9418be9d85c7c0bf9354875677a",
-      "group": "remainder"
-    },
-    {
-      "id": "ts-rc3",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "db5c8b50217ee9132a685ecfe622329d3be9e47fbcef99597151f6a162bed011",
-      "group": "remainder"
-    },
-    {
-      "id": "ts-rc4",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "33381aa81b83d1b98e0632090bb24295ca922cc37074ec1705d335dc3d4f7c94",
-      "group": "remainder"
-    },
-    {
-      "id": "ts-rc5",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "e4a628e635b47a1c67ca82d31648971c5a3071ac5e444939ed20b25535c752b6",
-      "group": "remainder"
-    },
-    {
-      "id": "ts-rc6",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4aa121b3edd25e95bd5371a2cf2541289486e32cb9844241776862e3c0203166",
-      "group": "remainder"
-    },
-    {
-      "id": "ts-rc7",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "71a5d3a357011040efcb5fb1dac67f988f22d433cc449e2e6c8353fd69aaec1e",
-      "group": "remainder"
-    },
-    {
-      "id": "ts-rc8",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6b817f4b13ce3d571f6041bc5414a40ef11b8cce2a0393a018d8f2b9f512ffab",
-      "group": "remainder"
     },
     {
       "id": "while-only-return",
@@ -4942,13 +4833,6 @@
       "group": "nullish-values"
     },
     {
-      "id": "remainder",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9be5ea5ab4bff85ebd091c0c73696e3f0987cad3b6503d06e757353cc2d203b1",
-      "group": "remainder"
-    },
-    {
       "id": "power",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5292,13 +5176,6 @@
       "group": "binding-errors"
     },
     {
-      "id": "unsupported-compound-0",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "04cd3f1dba3f84dda32d36fc31c8deb0c58af7307b04bf1d71c1befa43588aa3",
-      "group": "remainder"
-    },
-    {
       "id": "unsupported-compound-1",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5367,13 +5244,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "db32a919cf8f75e606e827388211d08398fed8a84cb4ad8d6e127222be6dafd2",
       "group": "const-errors"
-    },
-    {
-      "id": "compound-unsupported-unselected",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b1b6fc72f477c0aa3c7bba3faba3c148423dc481067a2e0227b3812731e19d3e",
-      "group": "remainder"
     },
     {
       "id": "update-const",

@@ -197,6 +197,7 @@ impl Lowering<'_, '_> {
                     AssignmentOperator::Subtraction => Some(Binary::Subtract),
                     AssignmentOperator::Multiplication => Some(Binary::Multiply),
                     AssignmentOperator::Division => Some(Binary::Divide),
+                    AssignmentOperator::Remainder => Some(Binary::Remainder),
                     AssignmentOperator::BitwiseAnd => Some(Binary::BitAnd),
                     AssignmentOperator::BitwiseOR => Some(Binary::BitOr),
                     AssignmentOperator::BitwiseXOR => Some(Binary::BitXor),
@@ -206,7 +207,7 @@ impl Lowering<'_, '_> {
                     _ => {
                         return Err(unsupported(
                             expression,
-                            "only =, +=, -=, *=, /=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted",
+                            "only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted",
                         ));
                     }
                 };
@@ -406,6 +407,7 @@ impl Lowering<'_, '_> {
                     BinaryOperator::Subtraction => Binary::Subtract,
                     BinaryOperator::Multiplication => Binary::Multiply,
                     BinaryOperator::Division => Binary::Divide,
+                    BinaryOperator::Remainder => Binary::Remainder,
                     BinaryOperator::BitwiseAnd => Binary::BitAnd,
                     BinaryOperator::BitwiseOR => Binary::BitOr,
                     BinaryOperator::BitwiseXOR => Binary::BitXor,
@@ -415,7 +417,7 @@ impl Lowering<'_, '_> {
                     _ => {
                         return Err(unsupported(
                             expression,
-                            "only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted",
+                            "only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted",
                         ));
                     }
                 };

@@ -75,6 +75,25 @@ The count's low five bits agree for `ToInt32` and `ToUint32`; Wasm shifts mask
 them modulo 32. `i32.shl` and `i32.shr_s` return through signed `f64` conversion.
 Only `i32.shr_u` returns through unsigned conversion, preserving values up to
 `4294967295` instead of interpreting the high bit as a negative sign.
+`Binary::Remainder` consumes two captured `Number` operands and produces a
+`Number`; the ordinary verifier rejects predicate inputs/results. `%=` reuses the
+existing target `Load`, RHS, `Binary`, `Store` and yielded snapshot ordering.
+The emitter records helper demand while visiting every region of every source
+function, including unused helpers. One private arithmetic function is appended
+after all source functions; symbolic helper calls do not move source-call indices
+or share source-function local namespaces. Without remainder the prior output is
+unchanged. The helper is neither a source function nor a new IR value kind.
+
+The original helper classifies special values, then reduces unsigned integer
+significands. After the first remainder, `r < my < 2^53`; exponent difference is
+at most 2045. Each nonzero loop advances `min(d, clz64(r))` bits, at least
+`min(d, 11)`, bounding reduction by 186 iterations under these invariants. Shifts
+cannot overflow unsigned 64-bit width, and zero is guarded before `clz` and
+reconstruction. Reconstruction adds the aligned significand and exponent fields
+to preserve the implicit-bit carry, then restores the dividend sign. This is a
+conditional integer argument, not exhaustive binary64 execution or a measured
+fuel-headroom guarantee. See the standard [Number remainder rule](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-numeric-types-number-remainder).
+
 `Initialize` and `Store` consume numeric values and change source cells.
 Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
 operation. They allocate no source cell and perform no host lookup. Resolved

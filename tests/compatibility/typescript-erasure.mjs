@@ -33,7 +33,7 @@ export const typescriptErasurePrograms = [
 ];
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
+const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const source = body => `export function run(a:number,b:number):number { ${body} }`;
 const reject = (id, body, diagnostic) => [`ts-erasure-${id}`, source(body), 'ts', diagnostic];

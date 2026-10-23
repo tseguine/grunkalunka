@@ -104,42 +104,42 @@
     {
       "id": "ts-rc1",
       "line": 25,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rc2",
       "line": 26,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rc3",
       "line": 27,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rc4",
       "line": 28,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rc5",
       "line": 29,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rc6",
       "line": 30,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rc7",
       "line": 31,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rc8",
       "line": 32,
-      "expectation": "rejected"
+      "expectation": "admitted"
     },
     {
       "id": "ts-rd1",

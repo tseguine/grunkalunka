@@ -6,14 +6,14 @@ TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled lo
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 41 curated reference cases in
+The executable frontier contains 40 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
 
 | Area | Exact fixture IDs |
 | --- | --- |
-| Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
+| Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
 | General JavaScript values | `gap-boolean-value`, `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
 | Additional control flow | `gap-switch`, `gap-label` |
 | Function values, nested declarations and nested recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
@@ -34,9 +34,9 @@ invalid JavaScript. Source-size, depth, statement/local counts, input-batch and 
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
-covers every current negative, beyond these 41 numeric reference opt-ins. Its 57
-groups classify 26 invalid sources, 85 resource restrictions and 571 open requirements
-across all 682 records. Each pins the exact source, extension and strict Module mode;
+covers every current negative, beyond these 40 numeric reference opt-ins. Its 56
+groups classify 26 invalid sources, 85 resource restrictions and 555 open requirements
+across all 666 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -134,7 +134,7 @@ negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 41 examples are a
+or change the reference result to match a lowering bug. The 40 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -212,4 +212,15 @@ in [`numeric-calls.mjs`](../tests/compatibility/numeric-calls.mjs). They promote
 existing rejection. `gap-call` still needs an arrow function value/capture;
 `gap-nested-function` and `gap-recursion` still contain nested declarations.
 `Math.abs` and module imports remain outside direct bare-identifier admission.
-All 41 reference sources, oracles and recorded diagnostics are retained.
+That call-only unit retained all 41 reference sources, oracles and diagnostics.
+
+Number `%` and `%=` now promote the exact `gap-remainder`, ordinary `remainder`,
+three unary/bitwise/shift remainder compositions, eight `ts-rc` adapter cases and
+three compound-assignment cases in [`numeric-remainder.mjs`](../tests/compatibility/numeric-remainder.mjs)
+and the TypeScript adapter. All 16 original IDs/source bytes remain traceable; the
+curated remainder reference retains its original oracle, arguments and expected
+result. The empty remainder classification group and its 16 records are removed,
+leaving 40 curated references and 666 classified negatives. The two enumerated
+operator diagnostics truthfully add `%`/`%=`; other retained diagnostic text and
+source positions remain unchanged. Coercion, BigInt and unsupported write targets
+remain separate requirements.

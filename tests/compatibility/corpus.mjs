@@ -30,8 +30,9 @@ import { numericBitwiseCompounds, numericBitwiseCompoundsRejected } from './nume
 import { annotationPrograms, annotationRejected } from './type-annotations.mjs';
 import { typeDeclarationPrograms, typeDeclarationRejected } from './type-declarations.mjs';
 import { numericCalls, numericCallsRejected } from './numeric-calls.mjs';
+import { numericRemainderPrograms } from './numeric-remainder.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 35;
+export const corpusVersion = 36;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -87,6 +88,7 @@ programs.push(...numericBitwiseCompounds);
 programs.push(...annotationPrograms);
 programs.push(...typeDeclarationPrograms);
 programs.push(...numericCalls);
+programs.push(...numericRemainderPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -256,7 +258,6 @@ export const rejected = [
   ['predicate-logical-statement', 'export function run(a,b) { true && a++; return a; }'],
   ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],
   ['null', 'export function run(a,b) { return null; }'],
-  ['remainder', 'export function run(a,b) { return a % b; }'],
   ['power', 'export function run(a,b) { return a ** b; }'],
   ...['0 && Math.random()', '1 || Math.random()', 'a && "4"', 'a || {x:a}',
     'a && (b<1)', '(a<1) || b', 'a || true', 'false && a', 'a ?? b', '1 || (clock=b)'].map((body,index) =>
@@ -293,18 +294,17 @@ export const rejected = [
   ['self-write-initializer', 'export function run(a,b) { let x=(x=a); return x; }'],
   ['forward-write-initializer', 'export function run(a,b) { const x=(y=a); let y=b; return x+y; }'],
   ['global-write', 'export function run(a,b) { return clock=a; }'],
-  ...[['unsupported-compound-0','%='], ['unsupported-compound-1','**='],
+  ...[['unsupported-compound-1','**='],
     ['unsupported-compound-8','&&='], ['unsupported-compound-9','||='],
     ['unsupported-compound-10','??=']].map(([id,operator]) =>
     [id, `export function run(a,b) { return a ${operator} b; }`, 'js',
-      'only =, +=, -=, *=, /=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted']),
+      'only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted']),
   ['compound-const', 'export function run(a,b) { const x=a; return x+=b; }'],
   ['compound-property', 'export function run(a,b) { return a.x+=b; }'],
   ['compound-forward', 'export function run(a,b) { const x=(y+=a); let y=b; return x+y; }'],
   ['compound-self', 'export function run(a,b) { let x=(x+=a); return x; }'],
   ['compound-global', 'export function run(a,b) { return clock+=a; }'],
   ['compound-unselected-const', 'export function run(a,b) { const x=a; return a?a:(x+=b); }'],
-  ['compound-unsupported-unselected', 'export function run(a,b) { return a?a:(b%=a); }'],
   ['update-const', 'export function run(a,b) { const x=a; return x++; }'],
   ['update-property', 'export function run(a,b) { return a.x++; }'],
   ['update-forward', 'export function run(a,b) { const x=y++; let y=b; return x+y; }'],

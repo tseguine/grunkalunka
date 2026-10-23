@@ -36,8 +36,8 @@ be represented internally without changing the public two-number/result-number A
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 35](../tests/compatibility/corpus.mjs): 710 paired programs, 682 rejection fixtures, five explicit unexecuted feature groups. The [41 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
-| C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 24 adapted runtime cases and eight admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
+| C1 — executable compatibility matrix | Done | [Corpus version 36](../tests/compatibility/corpus.mjs): 750 paired programs, 666 rejection fixtures, five explicit unexecuted feature groups. The [40 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 32 adapted runtime cases and zero selected admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
 | A1 — first useful framework app | Planned | A small application with straightforward build/run/debug/package flow, using prior component/capability evidence. Show the same application under two capability profiles. |
@@ -205,6 +205,16 @@ the same client behaves predictably under different capability profiles.
   and instance reuse without claiming stack-overflow observation. The expanded
   source-bound inventory has 682 records in 57 groups: 26 invalid sources, 85
   resource restrictions and 571 open requirements.
+
+- Number remainder and remainder assignment use an original exact private helper,
+  preserving ordered snapshots and the numeric ABI. Sixteen exact rejections are
+  promoted and 24 pairs add effects/selection/loop/wrapper/call composition evidence.
+  A production kernel checks 23,136 raw binary64 pairs across Node, BigInt and both
+  Wasm engines. Three arithmetic/order mutants are detected; a finite Wasmtime-only
+  workload demonstrates fuel exhaustion and instance reuse. Remaining inventory:
+  666 records, 56 groups, 26 invalid sources, 85 resource restrictions, 555 open
+  cases and 40 curated references. The two operator-list diagnostic additions are
+  explicit; no whole-language, full-upstream or performance claim follows.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after

@@ -41,7 +41,7 @@ numericShifts.push(
 );
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
+const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
@@ -67,7 +67,6 @@ const negatives = [
   ['shift-const-update', 'const x=a; return x++ >> b;', 'update to a const binding is not admitted'],
   ['shift-self-tdz', 'let x=x >>> a; return x;', reference],
   ['shift-forward-tdz', 'const x=y << a; let y=b; return x;', reference],
-  ['shift-remainder-remains', 'return (a%b) >>> 1;', binary],
   ['shift-depth-limit', `return a${' >>> 0'.repeat(129)};`, 'expression nesting exceeds'],
   ['shift-statement-limit', `${'a >>> b;'.repeat(256)} return a;`, 'at most 256 statements'],
   ['shift-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=a << b`).join(',')}; return x128;`, 'at most 128 numeric locals'],

@@ -29,6 +29,7 @@ pub(crate) enum Binary {
     Subtract,
     Multiply,
     Divide,
+    Remainder,
     BitAnd,
     BitOr,
     BitXor,
@@ -778,8 +779,9 @@ mod tests {
     }
 
     #[test]
-    fn integer_binary_requires_numeric_operands_and_result() {
+    fn binary_operations_require_numeric_operands_and_result() {
         for operator in [
+            Binary::Remainder,
             Binary::BitAnd,
             Binary::BitOr,
             Binary::BitXor,

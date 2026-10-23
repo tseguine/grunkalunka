@@ -10,7 +10,7 @@ Review selected-file and bundled third-party terms before adding more material.
 | Suite | Purpose | Current execution | Next executable milestone |
 | --- | --- | --- | --- |
 | Test262 | ECMAScript language conformance | Four adapted numeric programs covering 18 assertions | An original-harness runner for supported semantics |
-| TypeScript tests | Compiler and syntax references | 24 adapted numeric cases; 8 explicit admission rejections | Broader language cases and separate type-query checks |
+| TypeScript tests | Compiler and syntax references | 32 adapted numeric cases; zero selected admission rejections | Broader language cases and separate type-query checks |
 | Computer Language Benchmarks Game | Complete algorithms and performance workloads | One instrumented Mandelbrot scalar kernel | Full program output, then performance measurements |
 | JetStream | JavaScript and Wasm engine performance | Pending | A full shell workload with its correctness checks |
 | Node.js tests | Host API compatibility and regressions | Pending | Selected original API tests with capability grant/denial cases |
@@ -28,14 +28,14 @@ adapted runtime results and successful rejection checks are separate counts.
 Unmodified upstream suite execution remains `not-executed`, including for TypeScript.
 This is a selected-case inventory, not a denominator for the full upstream suites.
 
-The separate [lowering-gap inventory](lowering-gaps.md) specifies 41 reference
+The separate [lowering-gap inventory](lowering-gaps.md) specifies 40 reference
 programs beyond current admission. Node checks their expected results; the compiler
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 682 negatives, including the curated references. Its 57 groups
-distinguish 26 invalid sources, 85 resource restrictions and 571 open requirements.
+also covers all 666 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 85 resource restrictions and 555 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -100,3 +100,19 @@ boundary, snapshots, invocation isolation and fixed-counter self/mutual recursio
 All 631 prior rejection sources/modes/diagnostics and 41 gap oracles are retained.
 A separate Wasmtime-only excessive finite-depth recursion test checks a typed
 fuel/stack trap and instance reuse; it never runs a recursive overflow in Node.
+
+The production-compiled remainder kernel checks 23,136 boundary/seeded raw binary64
+pairs against Node `%`, an independent BigInt aligned-integer oracle, Node-Wasm and
+Wasmtime. It routes through a source helper named `number_remainder`, checking the
+private arithmetic-helper namespace and call indices. Non-NaNs compare exact bits;
+NaNs compare by class. The full-range matrix concentrates work in one remainder
+per invocation rather than dense compositions. Three finite mutations lose negative
+zero, use a rounded quotient formula or delay `%=` target loading; each must fail.
+Restoration touches the changed source and rebuilds before rechecking.
+
+A separate Wasmtime-only finite repeated-remainder workload exhausts the unchanged
+10,000 fuel, then reuses the same instance successfully. It is not run as JS and
+is distinct from wrong-result checking. Finite differential evidence and the helper's
+conditional integer bound do not prove exhaustive binary64 conformance, arbitrary
+composition fuel capacity or performance. The TypeScript adapter now executes all
+32 selected numeric expressions while full upstream execution remains unexecuted.

@@ -19,8 +19,8 @@ test('all six registered suites remain unexecuted without result evidence', () =
 test('adapted executions and admission rejections are counted separately', () => {
   const fixtures = completedSelection();
   const ts = suiteInventory(fixtures).find(suite => suite.id === 'typescript');
-  assert.deepEqual(ts.adapted, { selected: 24, executed: 24, passed: 24 });
-  assert.deepEqual(ts.admission, { selected: 8, executed: 8, passed: 8 });
+  assert.deepEqual(ts.adapted, { selected: 32, executed: 32, passed: 32 });
+  assert.deepEqual(ts.admission, { selected: 0, executed: 0, passed: 0 });
   assert.deepEqual(ts.upstream, { executed: 0, outcome: 'not-executed' });
 });
 
@@ -43,8 +43,8 @@ test('failed observations are not counted as passing', () => {
   const fixtures = completedSelection();
   fixtures.find(item => item.id === 'admitted:ts-ra1').outcome = 'failed';
   const ts = suiteInventory(fixtures).find(suite => suite.id === 'typescript');
-  assert.equal(ts.adapted.executed, 24);
-  assert.equal(ts.adapted.passed, 23);
+  assert.equal(ts.adapted.executed, 32);
+  assert.equal(ts.adapted.passed, 31);
 });
 
 test('incomplete, duplicate and incorrectly classified evidence is rejected', () => {

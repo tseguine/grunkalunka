@@ -117,36 +117,36 @@
           "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc1",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc1",
+          "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc2",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc2",
+          "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc3",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc3",
+          "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc4",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc4",
+          "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc5",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc5",
+          "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc6",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc6",
+          "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc7",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc7",
+          "kind": "adapted-runtime"
         },
         {
-          "id": "rejected:ts-rc8",
-          "kind": "admission-rejection"
+          "id": "admitted:ts-rc8",
+          "kind": "adapted-runtime"
         },
         {
           "id": "admitted:ts-rd1",

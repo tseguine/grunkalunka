@@ -4,11 +4,56 @@ use std::fmt::Write;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
 
+// Original integer-significand implementation of ECMAScript Number::remainder.
+// After classification, r < my < 2^53. Each nonzero reduction advances at least
+// min(d, 11) exponent bits, bounding the loop by ceil(2045 / 11) = 186 reductions.
+// Zero is guarded before clz/reconstruction; ADD preserves the implicit-bit carry.
+// This private helper is appended after source functions, only when emitted IR uses it.
+const NUMBER_REMAINDER: &str = r#"(func $number_remainder (param $a f64) (param $b f64) (result f64)
+  (local $x i64) (local $y i64) (local $sign i64)
+  (local $ex i64) (local $ey i64) (local $mx i64) (local $my i64)
+  (local $r i64) (local $d i64) (local $k i64) (local $s i64)
+  (local.set $sign (i64.and (i64.reinterpret_f64 (local.get $a)) (i64.const 0x8000000000000000)))
+  (local.set $x (i64.and (i64.reinterpret_f64 (local.get $a)) (i64.const 0x7fffffffffffffff)))
+  (local.set $y (i64.and (i64.reinterpret_f64 (local.get $b)) (i64.const 0x7fffffffffffffff)))
+  (if (i32.or (i64.ge_u (local.get $x) (i64.const 0x7ff0000000000000))
+        (i32.or (i64.gt_u (local.get $y) (i64.const 0x7ff0000000000000)) (i64.eqz (local.get $y))))
+    (then (return (f64.const nan))))
+  (if (i64.lt_u (local.get $x) (local.get $y)) (then (return (local.get $a))))
+  (if (i64.eq (local.get $x) (local.get $y)) (then (return (f64.reinterpret_i64 (local.get $sign)))))
+  (local.set $ex (i64.shr_u (local.get $x) (i64.const 52)))
+  (local.set $ey (i64.shr_u (local.get $y) (i64.const 52)))
+  (local.set $mx (i64.and (local.get $x) (i64.const 0xfffffffffffff)))
+  (local.set $my (i64.and (local.get $y) (i64.const 0xfffffffffffff)))
+  (if (i64.eqz (local.get $ex)) (then) (else
+   (local.set $mx (i64.or (local.get $mx) (i64.const 0x10000000000000)))
+   (local.set $ex (i64.sub (local.get $ex) (i64.const 1)))))
+  (if (i64.eqz (local.get $ey)) (then) (else
+   (local.set $my (i64.or (local.get $my) (i64.const 0x10000000000000)))
+   (local.set $ey (i64.sub (local.get $ey) (i64.const 1)))))
+  (local.set $r (i64.rem_u (local.get $mx) (local.get $my)))
+  (local.set $d (i64.sub (local.get $ex) (local.get $ey)))
+  (block $done (loop $reduce
+   (br_if $done (i32.or (i64.eqz (local.get $r)) (i64.eqz (local.get $d))))
+   (local.set $k (i64.clz (local.get $r)))
+   (local.set $k (select (local.get $d) (local.get $k) (i64.lt_u (local.get $d) (local.get $k))))
+   (local.set $r (i64.rem_u (i64.shl (local.get $r) (local.get $k)) (local.get $my)))
+   (local.set $d (i64.sub (local.get $d) (local.get $k)))
+   (br $reduce)))
+  (if (i64.eqz (local.get $r)) (then (return (f64.reinterpret_i64 (local.get $sign)))))
+  (local.set $s (i64.sub (i64.clz (local.get $r)) (i64.const 11)))
+  (local.set $s (select (local.get $ey) (local.get $s) (i64.lt_u (local.get $ey) (local.get $s))))
+  (f64.reinterpret_i64 (i64.or (local.get $sign)
+   (i64.add (i64.shl (local.get $r) (local.get $s))
+    (i64.shl (i64.sub (local.get $ey) (local.get $s)) (i64.const 52))))))
+"#;
+
 struct Emitter<'a> {
     function: &'a Function,
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
     loop_label: Option<usize>,
+    needs_remainder: bool,
 }
 
 impl Emitter<'_> {
@@ -125,6 +170,10 @@ impl Emitter<'_> {
                         Binary::Subtract => ("f64.sub\n", false),
                         Binary::Multiply => ("f64.mul\n", false),
                         Binary::Divide => ("f64.div\n", false),
+                        Binary::Remainder => {
+                            self.needs_remainder = true;
+                            ("call $number_remainder\n", false)
+                        }
                         Binary::BitAnd => ("i32.and\n", true),
                         Binary::BitOr => ("i32.or\n", true),
                         Binary::BitXor => ("i32.xor\n", true),
@@ -249,6 +298,7 @@ impl Emitter<'_> {
 pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
     ir::verify_module(module)?;
     let mut output = String::from("(module ");
+    let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
         let mut header = if index == 0 {
             String::from("(func (export \"run\")")
@@ -266,6 +316,7 @@ pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
         let mut emitter = Emitter {
             function,
             loop_label: None,
+            needs_remainder: false,
             output: header,
         };
         // Source cells and typed value snapshots occupy disjoint physical locals.
@@ -279,10 +330,15 @@ pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
             });
         }
         emitter.region(&function.body);
+        needs_remainder |= emitter.needs_remainder;
         // The verifier proved return coverage. This only helps Wasm validation after
         // nested void branches whose arms return; it supplies no source semantics.
         emitter.output.push_str("unreachable\n)");
         output.push_str(&emitter.output);
+    }
+    if needs_remainder {
+        output.push('\n');
+        output.push_str(NUMBER_REMAINDER);
     }
     output.push_str(")\n");
     Ok(output)
