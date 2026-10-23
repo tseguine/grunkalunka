@@ -91,8 +91,6 @@ add('type-alias', 'typescript-erasure', '', 4, topLevel, { extension: 'ts', mile
   source: 'type Scalar = number; export function run(a:Scalar,b:Scalar):Scalar { return a; }',
   oracleSource: 'export function run(a,b) { return a; }', prerequisites: ['type-only top-level declaration erasure'] });
 
-add('infinity-global', 'globals-builtins', 'return Infinity;', Infinity, reference);
-add('nan-global', 'globals-builtins', 'return NaN;', NaN, reference);
 add('math-call', 'globals-builtins', 'return Math.abs(a);', 4, expression, { args: [-4,2], prerequisites: ['property access', 'calls'] });
 
 add('export-name', 'input-shapes', '', 6, plainFunction,

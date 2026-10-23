@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 23
-contains 385 paired programs, 381 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 24
+contains 404 paired programs, 411 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -137,6 +137,12 @@ may use earlier bindings. Twenty-one boundary rejections preserve TDZ, numeric
 admission and cumulative limits. The multiple-declarator gap is promoted, leaving
 56 reference cases.
 
+Corpus 24 admits unresolved `Infinity` and `NaN` reads as numeric constants.
+Nineteen paired programs cover values, effects, shadowing, scope restoration,
+TypeScript erasure and depth bounds; 32 boundary rejections preserve TDZ (including
+later declarators), write, exact-name and property-access restrictions. The two former global-value gap
+references are promoted, leaving 54 lowering-gap references.
+
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
 artifact was created; it does not count as supported execution. Unimplemented
@@ -208,7 +214,12 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Each declaration has one or more initialized identifiers, evaluated left to right;
   each binding becomes available only after its own initializer. References resolve
   through semantic symbol identities.
-  Numeric expressions admit literals, initialized bindings, parentheses, binary
+  Unresolved references named exactly `Infinity` and `NaN` read their standard
+  primitive numeric values. Resolved local and parameter symbols retain normal
+  binding, mutation and TDZ rules, including when they shadow those names.
+  These reads generate constants without host access; other global references and
+  property access such as `globalThis.Infinity` or `Number.NaN` remain rejected.
+  Numeric expressions admit literals, these two intrinsic reads, initialized bindings, parentheses, binary
   `+ - * /`, unary `+ -`, and ternaries. Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= == != === !==` comparisons and primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
@@ -311,15 +322,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 965580 numeric comparisons; 381 rejected inputs; overwrite preserved
+PASS 1013232 numeric comparisons; 411 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-385 programs, each written as JS and TS, produce 770 modules.
+404 programs, each written as JS and TS, produce 808 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 965,580 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,013,232 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -431,7 +442,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-381 malformed or unsupported programs fail explicitly, each with a unique
+411 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

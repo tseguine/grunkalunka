@@ -2,11 +2,11 @@
 
 The current compiler admits one exported two-number function with numeric locals,
 numeric expression statements, empty statements, assignments, branches, while/for/do loops,
-TypeScript expression wrappers and returns.
+TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 56 curated reference cases in
+The executable frontier contains 54 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -24,7 +24,7 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
 | TypeScript type-only declarations | `gap-type-alias` |
-| Globals and standard library | `gap-infinity-global`, `gap-nan-global`, `gap-math-call` |
+| Globals and standard library | `gap-math-call` |
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export`, `gap-module-directive`, `gap-function-directive`, `gap-hashbang` |
 | Conservative return analysis | `gap-while-guaranteed-return`, `gap-unreachable-after-return` |
 
@@ -57,6 +57,13 @@ The former numeric `gap-loose-inequality` reference is now
 equality operators admit numeric operands only. `gap-loose-equality-coercion`
 retains its source, independent result and oracle, and now records rejection of
 the string operand. Coercive and Boolean equality remain outside admission.
+
+The former `gap-infinity-global` and `gap-nan-global` references are now
+`intrinsic-infinity-promoted-reference` and `intrinsic-nan-promoted-reference` in
+[`intrinsic-numbers.mjs`](../tests/compatibility/intrinsic-numbers.mjs). Only
+unresolved reads of those exact names become numeric constants. Resolved shadows
+retain lexical binding and TDZ rules; global writes, other globals and property
+access remain outside admission.
 
 ## What the tests establish
 
@@ -111,7 +118,7 @@ negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 56 examples are a
+or change the reference result to match a lowering bug. The 54 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 

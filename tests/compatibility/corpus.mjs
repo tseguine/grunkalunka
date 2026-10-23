@@ -18,8 +18,9 @@ import { numericStatementPrograms, numericStatementRejected } from './numeric-st
 import { predicateConditional } from './predicate-conditional.mjs';
 import { emptyStatementPrograms, emptyStatementRejected } from './empty-statements.mjs';
 import { multipleDeclarators, multipleDeclaratorsRejected } from './multiple-declarators.mjs';
+import { intrinsicNumberPrograms, intrinsicNumberRejected } from './intrinsic-numbers.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 23;
+export const corpusVersion = 24;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -63,6 +64,7 @@ programs.push(...numericStatementPrograms);
 programs.push(...predicateConditional);
 programs.push(...emptyStatementPrograms);
 programs.push(...multipleDeclarators);
+programs.push(...intrinsicNumberPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -146,6 +148,7 @@ export const rejected = [
   ...numericStatementRejected,
   ...emptyStatementRejected,
   ...multipleDeclaratorsRejected,
+  ...intrinsicNumberRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],

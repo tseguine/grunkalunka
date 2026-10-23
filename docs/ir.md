@@ -29,6 +29,9 @@ produces a numeric source value. Source slots and function returns remain `Numbe
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
 first pass through `Truthy`; negation evaluates its operand once.
 `Initialize` and `Store` consume numeric values and change source cells.
+Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
+operation. They allocate no source cell and perform no host lookup. Resolved
+symbols with those names continue through ordinary binding and TDZ checks.
 Operations execute in their recorded order. A load captures the cell's value at
 that point; an assignment yields its stored value snapshot. Compound assignments
 load the previous target before evaluating the RHS, then store and yield their

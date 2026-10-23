@@ -114,9 +114,26 @@ impl Lowering<'_, '_> {
                 }
             }
             Expression::Identifier(identifier) => {
-                let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
+                let reference = identifier
+                    .reference_id
+                    .get()
+                    .ok_or("missing semantic reference")?;
+                // A resolved symbol, including a TDZ local, always uses source binding rules.
+                let constant = match (
+                    self.semantic.scoping().get_reference(reference).symbol_id(),
+                    identifier.name.as_str(),
+                ) {
+                    (None, "Infinity") => Some(f64::INFINITY),
+                    (None, "NaN") => Some(f64::NAN),
+                    _ => None,
+                };
                 let result = self.value(Type::Number);
-                Op::Load { result, slot }
+                if let Some(value) = constant {
+                    Op::Constant { result, value }
+                } else {
+                    let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
+                    Op::Load { result, slot }
+                }
             }
             Expression::AssignmentExpression(assignment) => {
                 let operator = match assignment.operator {
@@ -763,6 +780,58 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn reads_unresolved_infinity() {
+        let intrinsic =
+            crate::compile("export function run(a,b) { return Infinity; }", false).unwrap();
+        let literal = crate::compile("export function run(a,b) { return 1e999; }", false).unwrap();
+        assert_eq!(intrinsic.wasm, literal.wasm);
+    }
+
+    #[test]
+    fn reads_unresolved_nan() {
+        crate::compile("export function run(a,b) { return NaN; }", false).unwrap();
+    }
+
+    #[test]
+    fn intrinsic_names_remain_mutable_parameters() {
+        for typescript in [false, true] {
+            let shadowed = crate::compile(
+                "export function run(Infinity,NaN) { Infinity+=NaN; NaN++; return Infinity+NaN; }",
+                typescript,
+            )
+            .unwrap();
+            let renamed = crate::compile(
+                "export function run(a,b) { a+=b; b++; return a+b; }",
+                typescript,
+            )
+            .unwrap();
+            assert_eq!(shadowed.wasm, renamed.wasm);
+        }
+    }
+
+    #[test]
+    fn intrinsic_names_keep_self_and_forward_tdz() {
+        for name in ["Infinity", "NaN"] {
+            for body in [
+                format!("let {name}={name}; return {name};"),
+                format!("const x={name}; let {name}=a; return x;"),
+                format!("const x=0?{name}:a; let {name}=b; return x;"),
+                format!("let x={name},{name}=a; return x;"),
+                format!("let x=0?{name}:a,{name}=b; return x;"),
+                format!("for(let x={name},{name}=0;0;) {{}} return a;"),
+            ] {
+                let error =
+                    crate::compile(&format!("export function run(a,b) {{ {body} }}"), false)
+                        .err()
+                        .expect("a resolved TDZ reference must not become a global constant");
+                assert!(
+                    error.contains("reference is not an initialized numeric parameter or local")
+                );
+            }
+        }
+    }
+
     #[test]
     fn empty_statement_falls_through() {
         let empty = crate::compile("export function run(a,b) { ; return a; }", false).unwrap();
