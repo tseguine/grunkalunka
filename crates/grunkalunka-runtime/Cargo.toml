@@ -11,3 +11,4 @@ wasmtime.workspace = true
 
 [dev-dependencies]
 grunkalunka-compiler = { path = "../grunkalunka-compiler" }
+wat.workspace = true

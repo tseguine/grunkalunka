@@ -208,7 +208,7 @@ Formatting, Clippy with warnings denied, both earlier frontend checks, and resol
 dependency-license screening pass. The first Clippy run reported a collapsible
 conditional; it was simplified and all affected checks rerun without suppression.
 
-Dependency metadata: 180 packages in the workspace graph, 181 distinct versions
+Dependency metadata: 192 packages in the workspace graph, 193 distinct versions
 including the retained frontend research graph, with permissible selected alternatives and no selected GPL/LGPL license.
 See [license screening](dependencies.md) for scope, alternatives and limitations.
 
@@ -233,5 +233,6 @@ SHORTCUT: WAT as an inspectable encoding step — exposes the exact generated
 instructions without committing to a production emitter or optimizer.
 
 The next frontend question is the tsrs type-query/source-identity experiment. The
-next platform question is a separate WIT capability host. Neither is a hidden
+separate [WIT capability host experiment](capabilities.md) now exercises resource
+profiles and lifecycle checks. Neither is a hidden
 prerequisite for the numeric ABI test, and neither was implemented here.

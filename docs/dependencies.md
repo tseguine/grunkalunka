@@ -13,11 +13,17 @@ by unfiltered Cargo metadata (including other-target/build packages), rather tha
 only crates compiled on the current Windows host. Missing/unreviewed expressions
 fail the check. The selected expression must contain no GPL/LGPL license.
 
-Observed 2026-10-23: 180 workspace packages and 83 frontend-research packages;
-181 distinct package versions across both graphs, including the four maintained
-workspace crates at 0.0.1 and the historical frontend package. The migration retained
+Observed 2026-10-23: 192 workspace packages and 83 frontend-research packages;
+193 distinct package versions across both graphs, including the four maintained
+workspace crates at 0.0.1 and the historical frontend package. The workspace migration retained
 all 174 external numeric-implementation package versions, sources, checksums and
 resolved feature sets.
+
+R1a subsequently enables Wasmtime's `component-model` feature, adding its binding
+generator and component support dependencies while leaving defaults disabled.
+`encoding_rs 0.8.42` declares `(Apache-2.0 OR MIT) AND BSD-3-Clause`: select MIT
+for the code and retain the BSD-3-Clause terms for WHATWG encoding data. Its
+`COPYRIGHT`, `LICENSE-MIT` and `LICENSE-WHATWG` files confirm that combination.
 
 Direct packages: Oxc 0.155.0 crates declare MIT; Wasmtime 50.0.0 declares
 `Apache-2.0 WITH LLVM-exception`; wat 1.262.0 declares
@@ -31,6 +37,7 @@ The exact reviewed alternatives are recorded in `scripts/licenses.mjs`:
 | Apache-2.0 WITH LLVM-exception alone | Apache-2.0 WITH LLVM-exception |
 | Apache-2.0 WITH LLVM-exception OR BSL-1.0 | Apache-2.0 WITH LLVM-exception |
 | (MIT OR Apache-2.0) AND Unicode-3.0 | MIT AND Unicode-3.0 |
+| (Apache-2.0 OR MIT) AND BSD-3-Clause | MIT AND BSD-3-Clause |
 | BSD-2-Clause OR MIT OR Apache-2.0 | MIT |
 | Unlicense OR MIT | MIT |
 | Unicode-3.0 or Zlib alone | The declared license |

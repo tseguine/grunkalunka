@@ -38,7 +38,7 @@ be represented internally without changing the public two-number/result-number A
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
 | C1 — executable compatibility matrix | Done | [Corpus version 4](../tests/compatibility/corpus.mjs): 72 paired programs, 100 rejection fixtures, five explicit unexecuted feature groups. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | Planned | Pin and license-check an appropriate Test262 subset; connect tests to supported semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
-| R1 — WIT capability profiles | Next after scalar control flow | One component and an explicit host resource/interface. Same artifact under absent/denied/granted profiles; observe authority changes, isolation and revocation behavior. Add resource/fuel/deadline observations as independent checks. No ambient WASI links by default. |
+| R1 — WIT capability profiles | In progress: R1a demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. R1b remains: independent memory growth and epoch/deadline observations; fuel already has a separate runtime test. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
 | A1 — first useful framework app | Planned | A small application with straightforward build/run/debug/package flow, using prior component/capability evidence. Show the same application under two capability profiles. |
 | B1 — reusable browser pieces | Later | Compare libraries before custom implementation. Own HTML/CSS modules should work through explicit inputs outside the browser shell; prove a second consumer. Embedded and standalone browser use primarily differ through capability profiles. |
@@ -86,7 +86,10 @@ the same client behaves predictably under different capability profiles.
   L2c demonstrates numeric truthiness and while loops in the maintained code.
 - L2c: loop differential fixtures pass 177,696 comparisons. Wasmtime fuel exhaustion
   is typed and recoverable for the next call; other engines receive only finite
-  fixtures. Next: R1 component capability profiles.
+  fixtures.
+- R1a: generated WIT bindings and a component resource fixture pass six profile,
+  lifecycle and handle-misuse tests. A policy-bypass mutation fails observably.
+  Next: R1b memory and epoch/deadline controls, separate from authority checks.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after

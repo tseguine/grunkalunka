@@ -16,6 +16,7 @@ const choices = new Map([
   ['Apache-2.0 WITH LLVM-exception OR BSL-1.0', 'Apache-2.0 WITH LLVM-exception'],
   ['Apache-2.0 OR GPL-2.0-only', 'Apache-2.0'], // self_cell's explicit alternative
   ['(MIT OR Apache-2.0) AND Unicode-3.0', 'MIT AND Unicode-3.0'],
+  ['(Apache-2.0 OR MIT) AND BSD-3-Clause', 'MIT AND BSD-3-Clause'], // encoding_rs + WHATWG data
   ['BSD-2-Clause OR MIT OR Apache-2.0', 'MIT'],
   ['Unlicense OR MIT', 'MIT'], ['Unicode-3.0', 'Unicode-3.0'], ['Zlib', 'Zlib'],
 ]);

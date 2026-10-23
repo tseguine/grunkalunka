@@ -1,0 +1,18 @@
+package grunkalunka:r1;
+
+interface cells {
+    resource cell {
+        read: func() -> f64;
+    }
+}
+
+world runner {
+    import cells;
+    use cells.{cell};
+    export run: func(cell: borrow<cell>, a: f64, b: f64) -> f64;
+    // Deliberate misuse probes; not an application API.
+    export forge: func() -> f64;
+    export retain: func(cell: borrow<cell>) -> f64;
+    export stash: func(cell: borrow<cell>) -> f64;
+    export replay: func() -> f64;
+}
