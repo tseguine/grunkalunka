@@ -101,7 +101,7 @@ const runtime = {
 const observations = [];
 const fixtures = [];
 let comparisons = 0;
-for (const [name, bodyJS, bodyTS] of programs) {
+for (const [name, bodyJS, bodyTS, expectedResult] of programs) {
   activeFixture = `admitted:${name}`;
   const sourceJS = name === 'affine'
     ? await readFile(new URL('fixtures/affine.js', import.meta.url), 'utf8')
@@ -130,6 +130,7 @@ for (const [name, bodyJS, bodyTS] of programs) {
       const [a, b] = vectors[i];
       const expected = reference.run(a, b);
       const details = `${name}.${extension} seed=${seed.toString(16)} vector=${i} a=${bits(a)} b=${bits(b)}`;
+      if (expectedResult !== undefined) same(expectedResult, expected, `${details} independent assertion oracle`);
       same(expected, number(wasmtime[i]), `${details} Wasmtime`);
       same(expected, native(a, b), `${details} ${runtime.name}-Wasm`);
       comparisons += 2;
@@ -145,7 +146,7 @@ for (const [name, bodyJS, bodyTS] of programs) {
     modules.push(wasm);
   }
   assert.deepEqual(modules[0], modules[1], `${name}: annotation-only variants emitted different bytes`);
-  fixtures.push({ id: `admitted:${name}`, expectation: 'admitted', executed: true, outcome: 'passed', variants });
+  fixtures.push({ id: `admitted:${name}`, expectation: 'admitted', executed: true, outcome: 'passed', expectedResult, variants });
   console.log(`PASS ${name}: JS + TS, ${vectors.length} vectors, Wasmtime + ${runtime.name}-Wasm`);
 }
 

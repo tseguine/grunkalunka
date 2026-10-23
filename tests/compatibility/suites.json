@@ -14,7 +14,24 @@
       "license": "BSD-3-Clause",
       "licenseSha256": "4dd9244dfe8197c75348c4b24ab53d29d3b1cfad143ac76b5a3d8942aa354ce0",
       "licenseScope": "Root license inspected; review selected-file and third-party terms before copying additional workloads.",
-      "selection": [],
+      "selection": [
+        {
+          "id": "admitted:test262-negate-nan",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:test262-negate-zero",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:test262-multiply-nan",
+          "kind": "adapted-runtime"
+        },
+        {
+          "id": "admitted:test262-multiply-infinity",
+          "kind": "adapted-runtime"
+        }
+      ],
       "blockers": [
         "Assertion harness, globals, built-ins, exceptions and script/module execution for unmodified tests."
       ],

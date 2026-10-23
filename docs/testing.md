@@ -9,7 +9,7 @@ Review selected-file and bundled third-party terms before adding more material.
 
 | Suite | Purpose | Current execution | Next executable milestone |
 | --- | --- | --- | --- |
-| Test262 | ECMAScript language conformance | Pending | Selected numeric assertions, followed by an original-harness runner |
+| Test262 | ECMAScript language conformance | Four adapted numeric programs covering 18 assertions | An original-harness runner for supported semantics |
 | TypeScript tests | Compiler and syntax references | 24 adapted numeric cases; 8 explicit admission rejections | Broader language cases and separate type-query checks |
 | Computer Language Benchmarks Game | Complete algorithms and performance workloads | Pending | Mandelbrot scalar kernel, then full program output |
 | JetStream | JavaScript and Wasm engine performance | Pending | A full shell workload with its correctness checks |

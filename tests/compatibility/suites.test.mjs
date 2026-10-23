@@ -25,15 +25,15 @@ test('adapted executions and admission rejections are counted separately', () =>
 });
 
 function completedSelection() {
-  return ['a', 'b', 'c', 'd'].flatMap(operator => Array.from({ length: 8 }, (_, index) => {
-    const expectation = operator === 'c' ? 'rejected' : 'admitted';
-    return { id: `${expectation}:ts-r${operator}${index + 1}`, expectation, executed: true, outcome: 'passed' };
-  }));
+  return suiteInventory().flatMap(suite => suite.selection.map(item => ({
+    id: item.id, expectation: item.kind === 'adapted-runtime' ? 'admitted' : 'rejected',
+    executed: true, outcome: 'passed',
+  })));
 }
 
 test('failed observations are not counted as passing', () => {
   const fixtures = completedSelection();
-  fixtures[0].outcome = 'failed';
+  fixtures.find(item => item.id === 'admitted:ts-ra1').outcome = 'failed';
   const ts = suiteInventory(fixtures).find(suite => suite.id === 'typescript');
   assert.equal(ts.adapted.executed, 24);
   assert.equal(ts.adapted.passed, 23);

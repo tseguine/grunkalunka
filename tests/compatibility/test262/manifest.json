@@ -1,0 +1,167 @@
+{
+  "repository": "https://github.com/tc39/test262",
+  "revision": "d53ebc8b1931d9f1541e43d59650776e4b766248",
+  "license": "BSD-3-Clause",
+  "licenseSha256": "4dd9244dfe8197c75348c4b24ab53d29d3b1cfad143ac76b5a3d8942aa354ce0",
+  "adaptation": "Numeric assertions returned as zero on success or a one-based failing check index. Intrinsic numeric values spelled as f64 literals/arithmetic; isNaN replaced by numeric self-comparison. No global, throw, harness or type-coercion support implied.",
+  "cases": [
+    {
+      "id": "test262-negate-nan",
+      "sourcePath": "test/language/expressions/unary-minus/S11.4.7_A4.1.js",
+      "retainedPath": "originals/S11.4.7_A4.1.js",
+      "sourceSha256": "6985e8248dc993b1feacf6c91cb93948e277cc4d07754d6b75b8f006ef9092fe",
+      "checks": [
+        {
+          "failure": 1,
+          "sourceLine": 11,
+          "originalCondition": "isNaN(-NaN) !== true",
+          "setup": "let x = -(1e999 - 1e999);",
+          "condition": "x === x"
+        },
+        {
+          "failure": 2,
+          "sourceLine": 17,
+          "originalCondition": "isNaN(-x) != true",
+          "setup": "x = 1e999 - 1e999; x = -x;",
+          "condition": "x === x"
+        }
+      ]
+    },
+    {
+      "id": "test262-negate-zero",
+      "sourcePath": "test/language/expressions/unary-minus/S11.4.7_A4.2.js",
+      "retainedPath": "originals/S11.4.7_A4.2.js",
+      "sourceSha256": "59ae10986c3602ef0cb2c5ef199300b73cffe3a3f7ee04d6ee43b4bcf84463df",
+      "checks": [
+        {
+          "failure": 1,
+          "sourceLine": 13,
+          "originalCondition": "x !== -0",
+          "setup": "let x = 0; x = -x;",
+          "condition": "x !== -0"
+        },
+        {
+          "failure": 2,
+          "sourceLine": 16,
+          "originalCondition": "1/x !== Number.NEGATIVE_INFINITY",
+          "setup": "",
+          "condition": "1 / x !== -1e999"
+        },
+        {
+          "failure": 3,
+          "sourceLine": 24,
+          "originalCondition": "x !== 0",
+          "setup": "x = -0; x = -x;",
+          "condition": "x !== 0"
+        },
+        {
+          "failure": 4,
+          "sourceLine": 27,
+          "originalCondition": "1/x !== Number.POSITIVE_INFINITY",
+          "setup": "",
+          "condition": "1 / x !== 1e999"
+        }
+      ]
+    },
+    {
+      "id": "test262-multiply-nan",
+      "sourcePath": "test/language/expressions/multiplication/S11.5.1_A4_T1.1.js",
+      "retainedPath": "originals/S11.5.1_A4_T1.1.js",
+      "sourceSha256": "143f65cc5a4b8aa347e19c1884ec777df51e1dd137fb94089e8e0beef7a5a86c",
+      "checks": [
+        {
+          "failure": 1,
+          "sourceLine": 13,
+          "originalCondition": "isNaN(Number.NaN * Number.NaN) !== true",
+          "setup": "let x = (1e999 - 1e999) * (1e999 - 1e999);",
+          "condition": "x === x"
+        },
+        {
+          "failure": 2,
+          "sourceLine": 18,
+          "originalCondition": "isNaN(Number.NaN * +0) !== true",
+          "setup": "x = (1e999 - 1e999) * +0;",
+          "condition": "x === x"
+        },
+        {
+          "failure": 3,
+          "sourceLine": 23,
+          "originalCondition": "isNaN(Number.NaN * -0) !== true",
+          "setup": "x = (1e999 - 1e999) * -0;",
+          "condition": "x === x"
+        },
+        {
+          "failure": 4,
+          "sourceLine": 28,
+          "originalCondition": "isNaN(Number.NaN * Number.POSITIVE_INFINITY) !== true",
+          "setup": "x = (1e999 - 1e999) * 1e999;",
+          "condition": "x === x"
+        },
+        {
+          "failure": 5,
+          "sourceLine": 33,
+          "originalCondition": "isNaN(Number.NaN * Number.NEGATIVE_INFINITY) !== true",
+          "setup": "x = (1e999 - 1e999) * -1e999;",
+          "condition": "x === x"
+        },
+        {
+          "failure": 6,
+          "sourceLine": 38,
+          "originalCondition": "isNaN(Number.NaN * Number.MAX_VALUE) !== true",
+          "setup": "x = (1e999 - 1e999) * 1.7976931348623157e308;",
+          "condition": "x === x"
+        },
+        {
+          "failure": 7,
+          "sourceLine": 43,
+          "originalCondition": "isNaN(Number.NaN * Number.MIN_VALUE) !== true",
+          "setup": "x = (1e999 - 1e999) * 5e-324;",
+          "condition": "x === x"
+        },
+        {
+          "failure": 8,
+          "sourceLine": 48,
+          "originalCondition": "isNaN(Number.NaN * 1) !== true",
+          "setup": "x = (1e999 - 1e999) * 1;",
+          "condition": "x === x"
+        }
+      ]
+    },
+    {
+      "id": "test262-multiply-infinity",
+      "sourcePath": "test/language/expressions/multiplication/S11.5.1_A4_T4.js",
+      "retainedPath": "originals/S11.5.1_A4_T4.js",
+      "sourceSha256": "a16730b80f3e4de2e9a45bf970c2e57f40e787b72e3ae9a172b3bc91a1644029",
+      "checks": [
+        {
+          "failure": 1,
+          "sourceLine": 15,
+          "originalCondition": "Number.NEGATIVE_INFINITY * Number.NEGATIVE_INFINITY !== Number.POSITIVE_INFINITY",
+          "setup": "",
+          "condition": "-1e999 * -1e999 !== 1e999"
+        },
+        {
+          "failure": 2,
+          "sourceLine": 20,
+          "originalCondition": "Number.POSITIVE_INFINITY * Number.POSITIVE_INFINITY !== Number.POSITIVE_INFINITY",
+          "setup": "",
+          "condition": "1e999 * 1e999 !== 1e999"
+        },
+        {
+          "failure": 3,
+          "sourceLine": 25,
+          "originalCondition": "Number.NEGATIVE_INFINITY * Number.POSITIVE_INFINITY !== Number.NEGATIVE_INFINITY",
+          "setup": "",
+          "condition": "-1e999 * 1e999 !== -1e999"
+        },
+        {
+          "failure": 4,
+          "sourceLine": 30,
+          "originalCondition": "Number.POSITIVE_INFINITY * Number.NEGATIVE_INFINITY !== Number.NEGATIVE_INFINITY",
+          "setup": "",
+          "condition": "1e999 * -1e999 !== -1e999"
+        }
+      ]
+    }
+  ]
+}
