@@ -8,6 +8,7 @@ From the repository root:
 
 ```text
 cargo test -p grunkalunka-runtime --test capabilities --locked --offline
+cargo test -p grunkalunka-runtime --test budgets --locked --offline
 node scripts/check.mjs
 ```
 
@@ -82,11 +83,32 @@ cases, not general handle unforgeability or a hardened arbitrary-component servi
 
 ## Independent execution budgets
 
+R1b adds two finite core-module observations in
+[budgets.rs](../crates/grunkalunka-runtime/tests/budgets.rs), independent of the
+component's capability policy:
+
+| Control | Positive control | Restricted observation |
+| --- | --- | --- |
+| Per-memory growth | The same module grows from one 64 KiB page to two, returning previous size 1; its declared maximum is three pages | A 65,536-byte store limiter is installed before instantiation. Zero-page growth returns 1; two one-page growth attempts each return -1 and leave actual size at one page. |
+| Expired epoch deadline at a subsequent call | An isolated epoch-enabled engine with fuel disabled returns 42 before a tick | One engine tick reaches the store's deadline; the next finite call traps as `Trap::Interrupt`. Renewing the deadline lets the same instance return 42 again. |
+
+Both tests pass on the observed Windows x86-64 host. Omitting the memory limiter
+makes growth return 1 instead of -1; omitting the epoch tick makes the expected
+trapping call return 42. Each mutation fails its corresponding test, and restoring
+the controls returns both tests to green. The epoch test is compiled only on
+targets with 64-bit atomics, matching Wasmtime's epoch API availability.
+
+The memory cap applies to each linear memory, not aggregate memory, host data,
+compilation costs or process usage. The epoch test demonstrates expired-deadline
+handling at call entry; it does not interrupt an already-running guest or measure
+scheduling accuracy, wall-clock latency or a hard time limit. Epochs do not preempt
+blocked host calls. No timer, thread or infinite loop is needed for either test.
+
 The separate numeric runtime test observes typed fuel exhaustion and a subsequent
-successful call. It never sends its infinite fixture to a JS engine. Memory growth
-limits and epoch/deadline observations remain R1b work; the resource fixture does
-not establish any execution or host-call duration bound. Wall-clock interruption
-latency and portability require their own measurements.
+successful call. It never sends its infinite fixture to a JS engine. These three
+observations do not establish a comprehensive budget for the R1a component.
+Running-guest epoch interruption and a bounded host call remain R1 follow-ups.
+Wall-clock latency, aggregate budgets and portability remain P1 work.
 
 This unit enables Wasmtime's `component-model` feature while retaining disabled
 default features. It adds no WASI or async integration. See

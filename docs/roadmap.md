@@ -125,10 +125,14 @@ Source snapshots inspected (moving upstreams are deliberately pinned here):
 - [Wasmtime security model](https://docs.wasmtime.dev/security.html): external
   effects pass through linked interfaces; the host's imports determine authority.
 
-Wasmtime core-module execution is exercised by the numeric PoC; tsrs and WIT
-component integration have not been executed. WIT interfaces and the
-Component Model are direction, not a claim that arbitrary JS objects, exceptions,
-promises or module graphs already map to component types.
+Wasmtime core-module execution is exercised by the numeric PoC. The separate
+[WIT resource experiment](capabilities.md) now demonstrates component profiles,
+grant lifecycle and specific handle misuse, with independent fuel, linear-memory
+and expired-epoch observations. Running-guest epoch interruption and a bounded
+host call remain R1 work. The tsrs type-query experiment has not been executed.
+These results do not claim that arbitrary JS objects, exceptions, promises or
+module graphs already map to component types, or that the JS compiler emits
+components yet.
 
 ## Runtime and performance questions to preserve
 
