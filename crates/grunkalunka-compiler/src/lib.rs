@@ -59,10 +59,10 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         return Err(format!("semantic diagnostics: {:?}", built.diagnostics));
     }
     let program = &parsed.program;
-    if program.hashbang.is_some() || program.body.len() != 1 {
+    if program.body.len() != 1 {
         return Err(unsupported(
             program,
-            "exactly one exported function and no hashbang are admitted",
+            "exactly one exported function is admitted",
         ));
     }
     let Statement::ExportDeclaration(export) = &program.body[0] else {
@@ -169,6 +169,67 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
 #[cfg(test)]
 mod tests {
     use super::compile;
+
+    #[test]
+    fn hashbang_preserves_the_numeric_artifact() {
+        let source = "export function run(a,b) { return a+b; }";
+        let plain = compile(source, false).unwrap();
+        for prefix in [
+            "#!\n",
+            "#!/usr/bin/env node\r\n",
+            "#!node\r",
+            "#!node\u{2028}",
+            "#!node\u{2029}",
+            "#!λ 🚀 \u{feff}\n",
+        ] {
+            let commented = compile(&format!("{prefix}{source}"), false).unwrap();
+            assert_eq!(plain.wasm, commented.wasm);
+            assert_eq!(plain.wat, commented.wat);
+        }
+    }
+
+    #[test]
+    fn hashbang_is_not_a_source_statement() {
+        for (module_count, body_count) in [(255, 0), (0, 255), (127, 128)] {
+            let source = format!(
+                "#!node\n{}export function run(a,b) {{ {}return a; }}",
+                "\"hint\";".repeat(module_count),
+                ";".repeat(body_count)
+            );
+            compile(&source, false).unwrap();
+            let source = source.replacen("return a;", ";return a;", 1);
+            let error = compile(&source, false).err().unwrap();
+            assert!(error.contains("at most 256 statements"), "{error}");
+        }
+    }
+
+    #[test]
+    fn hashbang_uses_the_original_source_byte_budget() {
+        let prefix = "#!λ🚀";
+        let suffix = "\nexport function run(a,b) { return a; }";
+        let mut source = format!(
+            "{prefix}{}{suffix}",
+            " ".repeat(16_384 - prefix.len() - suffix.len())
+        );
+        assert_eq!(source.len(), 16_384);
+        compile(&source, false).unwrap();
+        source.push(' ');
+        assert_eq!(source.len(), 16_385);
+        assert!(compile(&source, false).err().unwrap().contains("16 KiB"));
+    }
+
+    #[test]
+    fn hashbang_location_is_checked_on_original_source() {
+        let source = "#!node\nexport function run(a,b) { return a; }";
+        for prefix in ["\u{feff}", "\u{feff}\u{feff}", " ", "\t", "\n", "/*x*/"] {
+            for typescript in [false, true] {
+                let error = compile(&format!("{prefix}{source}"), typescript)
+                    .err()
+                    .expect("misplaced hashbang must remain a syntax error");
+                assert!(error.contains("parse diagnostics"), "{error}");
+            }
+        }
+    }
 
     #[test]
     fn directives_preserve_the_numeric_artifact() {

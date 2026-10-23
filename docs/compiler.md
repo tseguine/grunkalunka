@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 28
-contains 491 paired programs, 483 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 29
+contains 509 paired programs, 502 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -177,6 +177,15 @@ signed zero convert to zero before complement, producing -1. The result remains
 a Number. Boolean, string and BigInt operands, binary bitwise operators and
 shifts remain outside admission. A full-source directive/postfix-update case checks
 that directives erase while the complement operand still runs once.
+
+Corpus 29 admits only hashbang comments recognized by Oxc at the start of the
+unchanged source. Eighteen paired full-source programs cover empty and Unicode
+comments, LF/CR/CRLF/LS/PS endings, directives, effects and source budgets. The
+former `gap-hashbang`, ordinary hashbang and directive/hashbang rejections are
+promoted, leaving 48 reference gaps. Twenty-two new boundary rejections preserve
+misplaced/BOM-prefixed hashbang syntax errors, the entry contract, unsupported
+bodies and original-source limits. Restoring the refusal, stripping a leading BOM
+or charging a hashbang as a statement is detected by finite mutation probes.
 
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
@@ -350,8 +359,17 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Parser and semantic diagnostics remain authoritative. Parenthesized, wrapped,
   nested-block and later string statements remain outside numeric admission.
   The admission follows [Directive Prologues and strict module code](https://tc39.es/ecma262/multipage/ecmascript-language-source-code.html#sec-directive-prologues-and-the-use-strict-directive).
+- An initial Oxc-recognized hashbang is an ordinary discarded comment. The
+  original source is parsed once: no BOM stripping, trimming or hashbang removal
+  occurs. A BOM, whitespace or another comment before `#!` remains a syntax error;
+  a BOM after the hashbang's line terminator is ordinary whitespace. LF, CR, LS
+  and PS terminate the comment, including CRLF. No terminator means the comment
+  extends to EOF, so an export on that same line is not an entry declaration.
+  Hashbangs emit no IR and consume no statements, locals or nesting depth, while
+  every original UTF-8 byte still counts toward the 16 KiB limit. The entry and
+  whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
 - Everything else is rejected: extra statements/exports/imports,
-  hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
+  defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
   type-only declarations, uninitialized locals and compound operators beyond the four above,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
@@ -392,15 +410,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1231428 numeric comparisons; 483 rejected inputs; overwrite preserved
+PASS 1276572 numeric comparisons; 502 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-491 programs, each written as JS and TS, produce 982 modules.
+509 programs, each written as JS and TS, produce 1018 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,231,428 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,276,572 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -535,7 +553,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-483 malformed or unsupported programs fail explicitly, each with a unique
+502 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

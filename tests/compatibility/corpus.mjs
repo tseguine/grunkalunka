@@ -23,8 +23,9 @@ import { numericBreak, numericBreakRejected } from './numeric-break.mjs';
 import { numericContinue, numericContinueRejected } from './numeric-continue.mjs';
 import { directivePrograms, directiveRejected } from './directives.mjs';
 import { numericBitNot, numericBitNotRejected } from './numeric-bit-not.mjs';
+import { hashbangPrograms, hashbangRejected } from './hashbangs.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 28;
+export const corpusVersion = 29;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -73,6 +74,7 @@ programs.push(...numericBreak);
 programs.push(...numericContinue);
 programs.push(...directivePrograms);
 programs.push(...numericBitNot);
+programs.push(...hashbangPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -161,6 +163,7 @@ export const rejected = [
   ...numericContinueRejected,
   ...directiveRejected,
   ...numericBitNotRejected,
+  ...hashbangRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -258,7 +261,6 @@ export const rejected = [
   ['this', 'export function run(a,b) { return this; }'],
   ['unary-not', 'export function run(a,b) { return !a; }'],
   ['empty-return', 'export function run(a,b) { return; }'],
-  ['hashbang', '#!/usr/bin/env node\nexport function run(a,b) { return a; }'],
   ['type-param', 'export function run<T>(a:number,b:number):number { return a; }', 'ts'],
   ['this-param', 'export function run(this:void,a:number,b:number):number { return a; }', 'ts'],
   ['optional-param', 'export function run(a?:number,b?:number):number { return a; }', 'ts'],

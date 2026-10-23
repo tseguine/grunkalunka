@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-1,231,428 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 483 rejected
+1,276,572 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 502 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Number-only `==`/`!=` predicates share strict
@@ -111,7 +111,8 @@ emit numeric constants; lexical shadows and TDZ retain ordinary binding rules,
 without adding host access or support for other globals. It preserves AST grouping and observes
 local mutation, statement/operand evaluation order and selected-branch effects. External effects
 and coercive values remain unsupported. Recognized module/function directive prologues erase with source statement charges;
-hashbangs and general strings remain outside admission. This is an executed fragment, not adoption
+initial Oxc-recognized hashbang comments erase without source statement charges,
+while all original bytes count toward the size limit. General strings remain outside admission. This is an executed fragment, not adoption
 of a restricted platform language or a completed compiler architecture.
 
 ## Frontend findings as of 2026-10-23

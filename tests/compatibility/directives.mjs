@@ -28,7 +28,7 @@ add('directive-statement-depth', '', '"hint";', `${'{'.repeat(64)}return a;${'}'
 
 const source = body => `export function run(a,b) { ${body} }`;
 const expression = 'expression is outside the numeric experiment';
-const top = 'exactly one exported function and no hashbang are admitted';
+const top = 'exactly one exported function is admitted';
 export const directiveRejected = [
   ['directive-module-budget-limit', '"hint";'.repeat(256) + source('return a;'), 'js', 'at most 256 statements'],
   ['directive-function-budget-limit', source('"hint";'.repeat(256) + 'return a;'), 'js', 'at most 256 statements'],
@@ -43,7 +43,6 @@ export const directiveRejected = [
   ['directive-asi-call', source('"hint"\n(a); return a;'), 'js', expression],
   ['directive-post-export', source('return a;') + '"hint";', 'js', top],
   ['directive-extra-export', '"hint";' + source('return a;') + 'export const x=1;', 'js', top],
-  ['directive-hashbang-remains', '#!/usr/bin/env node\n"hint";' + source('return a;'), 'js', top],
   ['directive-call-remains', source('"hint"; Math.random(); return a;'), 'js', expression],
   ['directive-missing-return', source('"hint";'), 'js', 'every structural path must return'],
   ['directive-duplicate-parameter', '"hint"; export function run(a,a) { "hint"; return a; }'],

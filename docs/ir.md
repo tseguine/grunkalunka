@@ -175,4 +175,9 @@ Oxc-recognized module/function directive prologues consume one source statement
 each in the same cumulative budget as the numeric body. They emit no IR, values,
 source cells or nesting levels: the explicit numeric-return ABI cannot observe
 these literal completion values, and ESM source remains strict. General string
-expressions and hashbang admission are not added by this erasure.
+expressions are not added by this erasure.
+
+An initial hashbang recognized by Oxc is discarded without any IR, values, source
+cells, statement charge or nesting level. Its original UTF-8 bytes remain in the
+source-size budget. Parsing uses unchanged source, so prefixed or misplaced
+hashbangs keep their syntax errors; the numeric entry contract is unchanged.
