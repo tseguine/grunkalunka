@@ -387,6 +387,14 @@ impl Lowering<'_, '_> {
             );
             return Ok(result);
         }
+        if let Expression::UnaryExpression(unary) = expression
+            && unary.operator == UnaryOperator::LogicalNot
+        {
+            let input = self.predicate(&unary.argument, region, depth + 1)?;
+            let result = self.value(Type::Predicate);
+            Self::push(region, expression, Op::Not { result, input });
+            return Ok(result);
+        }
         if let Expression::SequenceExpression(sequence) = expression {
             let (last, preceding) = sequence.expressions.split_last().ok_or_else(|| {
                 unsupported(sequence.as_ref(), "comma expression must have an operand")

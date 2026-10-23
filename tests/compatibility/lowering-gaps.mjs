@@ -33,7 +33,6 @@ for (const [id, body, expected, diagnostic] of [
   ['loose-equality-coercion', 'return a == "4" ? 1 : 0;', 1, binary],
   ['loose-inequality', 'return a != b ? 1 : 0;', 1, binary],
   ['nullish', 'return (a === 4 ? null : a) ?? b;', 2, expression],
-  ['unary-not', 'return !a ? 1 : 0;', 0, unary],
   ['bit-not', 'return ~a;', -5, unary],
   ['typeof', 'return typeof a === "number" ? 1 : 0;', 1, unary],
   ['void', 'return void a === undefined ? 1 : 0;', 1, unary],

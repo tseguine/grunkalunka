@@ -30,6 +30,11 @@ impl Emitter<'_> {
     fn region(&mut self, region: &Region) {
         for operation in &region.operations {
             match &operation.kind {
+                Op::Not { result, input } => {
+                    self.get(*input);
+                    self.output.push_str("i32.eqz\n");
+                    self.set(*result);
+                }
                 Op::Boolean { result, value } => {
                     writeln!(self.output, "i32.const {}", i32::from(*value)).unwrap();
                     self.set(*result);

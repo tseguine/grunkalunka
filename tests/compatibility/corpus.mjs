@@ -11,8 +11,9 @@ import { numericLogical } from './numeric-logical.mjs';
 import { numericForPrograms, numericForRejected } from './numeric-for.mjs';
 import { booleanLiterals } from './boolean-literals.mjs';
 import { numericDoPrograms, numericDoRejected } from './numeric-do.mjs';
+import { predicateNot } from './predicate-not.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 16;
+export const corpusVersion = 17;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -49,6 +50,7 @@ programs.push(...numericLogical);
 programs.push(...numericForPrograms);
 programs.push(...booleanLiterals);
 programs.push(...numericDoPrograms);
+programs.push(...predicateNot);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -179,6 +181,12 @@ export const rejected = [
   ['boolean-equality-operands', 'export function run(a,b) { if(true===false) return a; return b; }'],
   ['boolean-comma-nonfinal', 'export function run(a,b) { if((true,a)) return a; return b; }'],
   ['boolean-logical-operands', 'export function run(a,b) { if(true && a) return a; return b; }'],
+  ['not-local', 'export function run(a,b) { const x=!a; return x?a:b; }'],
+  ['not-arithmetic', 'export function run(a,b) { return (!a)+b; }'],
+  ['not-equality-operand', 'export function run(a,b) { if(!a===!b) return a; return b; }'],
+  ['not-logical-operand', 'export function run(a,b) { if(!a&&b) return a; return b; }'],
+  ['not-unselected-call', 'export function run(a,b) { if(true) return a; else if(!Math.random()) return b; return a; }'],
+  ['not-depth-limit', `export function run(a,b) { if(${'!'.repeat(129)}a) return a; return b; }`],
   ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],
   ['null', 'export function run(a,b) { return null; }'],
   ['remainder', 'export function run(a,b) { return a % b; }'],

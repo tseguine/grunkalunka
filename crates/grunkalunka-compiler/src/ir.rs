@@ -68,6 +68,10 @@ pub(crate) struct Operation {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    Not {
+        result: ValueId,
+        input: ValueId,
+    },
     Boolean {
         result: ValueId,
         value: bool,
@@ -226,6 +230,10 @@ impl Verifier<'_> {
                 return Err(invalid(span, "operation after guaranteed return"));
             }
             match &operation.kind {
+                Op::Not { result, input } => {
+                    self.value(*input, Type::Predicate, &visible, span)?;
+                    self.define(*result, Type::Predicate, &mut visible, span)?;
+                }
                 Op::Boolean { result, .. } => {
                     self.define(*result, Type::Predicate, &mut visible, span)?
                 }
@@ -825,6 +833,58 @@ mod tests {
         });
         f.body.exit = Exit::Return(ValueId(1));
         assert!(verify(&f).unwrap_err().contains("type"));
+    }
+
+    #[test]
+    fn logical_not_requires_a_visible_predicate_input_and_predicate_result() {
+        let mut f = function(
+            vec![
+                Op::Boolean {
+                    result: ValueId(0),
+                    value: true,
+                },
+                Op::Not {
+                    result: ValueId(1),
+                    input: ValueId(0),
+                },
+                Op::Constant {
+                    result: ValueId(2),
+                    value: 1.0,
+                },
+            ],
+            Exit::Return(ValueId(2)),
+        );
+        f.values = vec![Type::Predicate, Type::Predicate, Type::Number];
+        verify(&f).unwrap();
+        f.values[1] = Type::Number;
+        assert!(verify(&f).unwrap_err().contains("type"));
+        f.values[1] = Type::Predicate;
+        f.body.operations[0].kind = Op::Constant {
+            result: ValueId(0),
+            value: 1.0,
+        };
+        f.values[0] = Type::Number;
+        assert!(verify(&f).unwrap_err().contains("type"));
+        f.body.operations[1].kind = Op::Not {
+            result: ValueId(1),
+            input: ValueId(1),
+        };
+        assert!(verify(&f).unwrap_err().contains("not visible"));
+        f.body.operations[1].kind = Op::Not {
+            result: ValueId(1),
+            input: ValueId(99),
+        };
+        assert!(verify(&f).is_err());
+        f.body.operations[1].kind = Op::Not {
+            result: ValueId(99),
+            input: ValueId(0),
+        };
+        f.values[0] = Type::Predicate;
+        f.body.operations[0].kind = Op::Boolean {
+            result: ValueId(0),
+            value: false,
+        };
+        assert!(verify(&f).is_err());
     }
 
     #[test]

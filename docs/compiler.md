@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 16
-contains 261 paired programs, 304 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 17
+contains 276 paired programs, 309 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -95,6 +95,12 @@ operands remain rejected. That run still contained 60 reference-validated gaps.
 Corpus 16 promotes numeric `do...while` loops with 21 paired programs and 18
 boundary rejections. The original `gap-do` reference and blanket `do-loop`
 rejection are retired. There are 59 remaining lowering-gap references.
+
+Corpus 17 adds 15 paired logical-negation cases. `!` accepts an admitted predicate
+or numeric truthiness input and produces a predicate, with its operand evaluated
+once. Nested negation, negated comparisons and loop conditions are included.
+The `gap-unary-not` reference is promoted; 58 lowering-gap references remain.
+Numeric locals, arithmetic and returns still reject Boolean values.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -163,11 +169,11 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Each declaration has one identifier and initializer; the binding becomes available
   only after that initializer. References resolve through semantic symbol identities.
   Numeric expressions admit literals, initialized bindings, parentheses, binary
-  `+ - * /`, unary `+ -`, and ternaries. Conditions admit Boolean literals, numeric
+  `+ - * /`, unary `+ -`, and ternaries. Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= === !==` comparisons and primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
   Numeric comma operands execute left to right and yield the final value snapshot;
-  in predicate positions the final operand may instead be a comparison. Non-final
+  in predicate positions the final operand may instead be any admitted predicate. Non-final
   comparisons and comma expression statements remain outside admission.
   Numeric `&&` and `||` evaluate the left operand once and return its original
   snapshot or the selected RHS result. The RHS is fully admitted but executes only
@@ -253,15 +259,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 654588 numeric comparisons; 304 rejected inputs; overwrite preserved
+PASS 692208 numeric comparisons; 309 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-261 programs, each written as JS and TS, produce 522 modules.
+276 programs, each written as JS and TS, produce 552 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 654,588 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 692,208 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -334,7 +340,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-304 malformed or unsupported programs fail explicitly, each with a unique
+309 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved
