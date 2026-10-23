@@ -30,8 +30,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 8
-contains 108 paired programs, 108 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 9
+contains 108 paired programs, 180 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -51,6 +51,11 @@ Corpus 8 adds seven finite composition regressions for ordered operand writes,
 comparison RHS effects after NaN, ternary state, per-entry initializer effects,
 terminal loop-condition effects and restoration of written shadow bindings.
 These exercise the existing numeric admission; they do not add language support.
+
+Corpus 9 adds [72 lowering-gap references](lowering-gaps.md). Each runs independently
+in Node against a specified result, then requires the current compiler's specific
+rejection and absence of an artifact. Reports distinguish successful reference
+execution from unexecuted lowering; these cases do not count as compiler support.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -173,7 +178,7 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 270864 numeric comparisons; 108 rejected inputs; overwrite preserved
+PASS 270864 numeric comparisons; 180 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
@@ -218,7 +223,7 @@ apply to Wasmtime execution; this is not a static termination proof or a univers
 execution bound across engines. The affine artifact grew from 61 to 63 bytes
 when explicit return/completion handling was added.
 
-One hundred and eight malformed or unsupported programs fail explicitly, each with a unique
+One hundred and eighty malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

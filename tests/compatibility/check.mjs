@@ -79,10 +79,21 @@ for (const [id, js, ts] of programs) {
   assert.equal(typeof js, 'string');
   assert.equal(typeof ts, 'string');
 }
-for (const [id, source, extension = 'js'] of rejected) {
+for (const [id, source, extension = 'js', diagnostic, gap] of rejected) {
   register(id, 'rejected');
   assert.equal(typeof source, 'string');
   assert.ok(['js', 'ts'].includes(extension));
+  if (gap) {
+    assert.ok(typeof diagnostic === 'string' && diagnostic.length > 0);
+    assert.ok(typeof gap.oracleSource === 'string' && gap.oracleSource.length > 0);
+    assert.ok(Array.isArray(gap.args) && gap.args.every(arg =>
+      typeof arg === 'number' && Number.isFinite(arg) && !Object.is(arg, -0)), 'gap arguments must be finite numbers without negative zero');
+    assert.equal(typeof gap.expected, 'number');
+    assert.match(gap.category, /^[a-z][a-z-]+$/);
+    assert.match(gap.milestone, /^L[2-5]$/);
+    assert.match(gap.entry, /^[a-zA-Z_$][a-zA-Z0-9_$]*$/);
+    assert.ok(Array.isArray(gap.prerequisites) && gap.prerequisites.every(item => typeof item === 'string' && item.length > 0));
+  }
 }
 for (const { id, milestone, reason } of unimplemented) {
   register(id, 'unimplemented');
@@ -155,8 +166,9 @@ for (const [name, bodyJS, bodyTS, expectedResult, oracleBody] of programs) {
   console.log(`PASS ${name}: JS + TS, ${vectors.length} vectors, Wasmtime + ${runtime.name}-Wasm`);
 }
 
-// Every negative gets its own nonexistent artifact path. Never execute these in Node.
-for (const [name, source, extension = 'js', diagnostic] of rejected) {
+// Only explicit curated gap metadata opts into a separate, bounded Node reference.
+// Other negatives may be invalid, effectful or nonterminating; never execute them.
+for (const [name, source, extension = 'js', diagnostic, gap] of rejected) {
   activeFixture = `rejected:${name}`;
   const sourcePath = join(output, `reject-${name}.${extension}`);
   const wasmPath = join(output, `reject-${name}.wasm`);
@@ -164,10 +176,30 @@ for (const [name, source, extension = 'js', diagnostic] of rejected) {
   const result = invoke(['compile', sourcePath, wasmPath], '', false);
   if (diagnostic) assert.ok(result.stderr.includes(diagnostic), `wrong rejection for ${name}: ${result.stderr}`);
   await assert.rejects(access(wasmPath), { code: 'ENOENT' });
+  let loweringGap;
+  if (gap) {
+    const oraclePath = `reject-${name}-oracle.js`;
+    await writeFile(join(output, oraclePath), gap.oracleSource, { flag: 'wx' });
+    const observed = spawnSync(process.execPath, [fileURLToPath(new URL('./gap-oracle.mjs', import.meta.url)),
+      Buffer.from(gap.oracleSource).toString('base64'), JSON.stringify(gap.args), gap.entry], {
+      cwd: directory, encoding: 'utf8', shell: false, timeout: 5000, maxBuffer: 64 * 1024,
+    });
+    if (observed.error) throw observed.error;
+    assert.equal(observed.signal, null, `${name}: oracle signal`);
+    assert.equal(observed.status, 0, `${name}: oracle failed\n${observed.stderr}`);
+    const actual = number(observed.stdout);
+    same(gap.expected, actual, `${name}: independent gap reference`);
+    loweringGap = {
+      category: gap.category, milestone: gap.milestone, prerequisites: gap.prerequisites,
+      oracle: { executed: true, outcome: 'passed', source: oraclePath, sourceSha256: sha256(gap.oracleSource),
+        args: gap.args, entry: gap.entry, expectedBits: bits(gap.expected), actualBits: bits(actual) },
+      lowering: { executed: false, outcome: 'not-executed' },
+    };
+  }
   fixtures.push({
     id: `rejected:${name}`, expectation: 'rejected', executed: true, outcome: 'passed',
     extension, source: `reject-${name}.${extension}`, sourceSha256: sha256(source),
-    diagnostic: result.stderr.trim(), exitStatus: result.status, artifactAbsent: true,
+    diagnostic: result.stderr.trim(), exitStatus: result.status, artifactAbsent: true, loweringGap,
   });
 }
 
@@ -197,11 +229,14 @@ assert.ok(fixtures.filter(fixture => fixture.expectation === 'admitted').every(f
   fixture.variants.length === 2 && new Set(fixture.variants.map(variant => variant.extension)).size === 2));
 assert.equal(observations.length, programs.length * 2);
 assert.equal(comparisons, programs.length * 2 * vectors.length * 2);
+assert.equal(fixtures.filter(fixture => fixture.loweringGap).length,
+  rejected.filter(fixture => fixture[4]).length, 'missing lowering gap observations');
 const report = {
   schemaVersion: 1, corpusVersion, runtime, externalSources, externalSuites: suiteInventory(fixtures),
   compiler: { binarySha256: sha256(await readFile(binary)), lockfileSha256: sha256(lockfile), lockedWasmtimeVersion: lockedWasmtime[1] },
   fixtures,
-  counts: { admitted: programs.length, rejected: rejected.length, unimplemented: unimplemented.length },
+  counts: { admitted: programs.length, rejected: rejected.length, unimplemented: unimplemented.length,
+    loweringGaps: fixtures.filter(fixture => fixture.loweringGap).length },
   seed: seed.toString(16), vectorsPerModule: vectors.length,
   additionalVectors: additionalVectors.map(({ id, a, b }) => ({ id, a: bits(a), b: bits(b) })),
   modules: observations, comparisons, rejected: rejected.length, overwritePreserved: true,

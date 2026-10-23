@@ -3,8 +3,9 @@ import { typescriptPrograms, typescriptRejected, typescriptSource } from './type
 import { test262Programs, test262Source } from './test262.mjs';
 import { benchmarkPrograms, benchmarkSource } from './benchmarks-game.mjs';
 import { loweringRegressions } from './lowering-regressions.mjs';
+import { loweringGaps } from './lowering-gaps.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 8;
+export const corpusVersion = 9;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -109,6 +110,7 @@ programs.push(
 
 
 export const rejected = [
+  ...loweringGaps,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
