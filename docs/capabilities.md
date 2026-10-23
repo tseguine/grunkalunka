@@ -9,6 +9,7 @@ From the repository root:
 ```text
 cargo test -p grunkalunka-runtime --test capabilities --locked --offline
 cargo test -p grunkalunka-runtime --test budgets --locked --offline
+cargo test -p grunkalunka-runtime --test host_work --locked --offline
 node scripts/check.mjs
 ```
 
@@ -120,8 +121,41 @@ is needed for these budget tests.
 The separate numeric runtime test observes typed fuel exhaustion and a subsequent
 successful call. It never sends its infinite fixture to a JS engine. These independent
 observations do not establish a comprehensive budget for the R1a component.
-A bounded host call remains an R1 follow-up.
 Wall-clock latency, aggregate budgets and portability remain P1 work.
+
+## Cooperative host work
+
+R1d's [host-work fixture](../crates/grunkalunka-runtime/tests/host_work.rs) links a
+single core-module import, `host.sum(count) -> i64`. It sums a requested prefix of
+the fixed host slice `[2, 3, 5, 7]`. Counts outside `0..=4` are rejected before
+conversion or processing, and no allocation is sized from guest input. This is a
+separate host-algorithm experiment, not a new WIT interface or public runtime API.
+
+The host checks its remaining allowance before processing each item, consumes one
+unit, records that item and adds it to the sum. Zero items require no allowance.
+Each expected-trap case uses a fresh instance, except the deliberate two-call
+cumulative-allowance sequence, which ends at its expected trap.
+
+| Allowance / request | Observed outcome | Processed items / remaining allowance |
+| --- | --- | --- |
+| 0 / 0 | Sum 0 | 0 / 0 |
+| 4 / 2 | Sum 5 | 2 / 2 |
+| 4 / 4 | Sum 17 | 4 / 0 |
+| 0 / 4 | Typed `WorkError::Exhausted` | 0 / 0 |
+| 2 / 4 | Typed `WorkError::Exhausted` after partial processing | 2 / 0 |
+| 3 / 2, then 2 | First sum 5; second call returns `Exhausted` | Cumulative 3 / 0 |
+| 4 / -1, 5 or `i32::MAX` | Typed `WorkError::InvalidCount` | 0 / 4 |
+
+The five tests verify host-method attempt counts as well as work and remaining
+allowance. Consumed allowance persists across calls and is not rolled back when a
+later item cannot be funded. Removing the quota guard makes the denied request
+return 17 and fails the exhaustion tests; restoring the guard returns them to green.
+
+This demonstrates a host operation enforcing a declared number of item-processing
+units. It does not bound invocation overhead, allocations, elapsed time, arbitrary
+host code or blocked I/O. The algorithm is finite even without the guard, so the
+mutation cannot create an unbounded test. Fuel and epoch controls are not substitutes
+for such explicit host-operation contracts.
 
 This unit enables Wasmtime's `component-model` feature while retaining disabled
 default features. It adds no WASI or async integration. See

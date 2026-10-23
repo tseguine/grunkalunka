@@ -129,7 +129,8 @@ Wasmtime core-module execution is exercised by the numeric PoC. The separate
 [WIT resource experiment](capabilities.md) now demonstrates component profiles,
 grant lifecycle and specific handle misuse, with independent fuel, linear-memory
 and expired-epoch observations. A finite guest also traps after a host callback
-advances the epoch during its invocation. A bounded host call remains R1 work.
+advances the epoch during its invocation. A separate finite host algorithm enforces
+an item-processing quota and reports typed exhaustion before an unfunded item.
 The tsrs type-query experiment has not been executed.
 These results do not claim that arbitrary JS objects, exceptions, promises or
 module graphs already map to component types, or that the JS compiler emits
