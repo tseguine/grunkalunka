@@ -30,8 +30,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 7
-contains 101 paired programs, 108 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 8
+contains 108 paired programs, 108 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -46,6 +46,11 @@ covering 18 original assertions with independent zero-success checks.
 Corpus 7 adds an [instrumented Mandelbrot orbit](../tests/compatibility/benchmarks-game/README.md)
 with a separate original-loop JS oracle and ten named input pairs. Every fixture
 retains its oracle source and hash separately from JS/TS compilation inputs.
+
+Corpus 8 adds seven finite composition regressions for ordered operand writes,
+comparison RHS effects after NaN, ternary state, per-entry initializer effects,
+terminal loop-condition effects and restoration of written shadow bindings.
+These exercise the existing numeric admission; they do not add language support.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -168,15 +173,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 253308 numeric comparisons; 108 rejected inputs; overwrite preserved
+PASS 270864 numeric comparisons; 108 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-One hundred and one programs, each written as JS and TS, produce 202 modules.
+One hundred and eight programs, each written as JS and TS, produce 216 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 253,308 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 270,864 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
