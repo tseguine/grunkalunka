@@ -103,6 +103,14 @@ to preserve the implicit-bit carry, then restores the dividend sign. This is a
 conditional integer argument, not exhaustive binary64 execution or a measured
 fuel-headroom guarantee. See the standard [Number remainder rule](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-numeric-types-number-remainder).
 
+`NumberFromPredicate { input, result }` requires a visible `Predicate` input and
+uniquely defines a `Number` result. It emits `f64.convert_i32_u` on the existing
+canonical zero/one predicate, implementing Boolean-to-Number only for selected
+numeric `~` operands. `Unary::BitNot` still consumes and returns Number. There is
+no Boolean cell, parameter, return or general coercion. A pure bounded AST shape
+classifier selects this path; original operand lowering performs effects once and
+counts all retained source wrappers at the original unary argument depth.
+
 `Initialize` and `Store` consume numeric values and change source cells.
 Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
 operation. They allocate no source cell and perform no host lookup. Resolved

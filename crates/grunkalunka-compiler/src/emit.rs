@@ -99,6 +99,11 @@ impl Emitter<'_> {
                     writeln!(self.output, "call {}", function.0).unwrap();
                     self.set(*result);
                 }
+                Op::NumberFromPredicate { result, input } => {
+                    self.get(*input);
+                    self.output.push_str("f64.convert_i32_u\n");
+                    self.set(*result);
+                }
                 Op::Not { result, input } => {
                     self.get(*input);
                     self.output.push_str("i32.eqz\n");

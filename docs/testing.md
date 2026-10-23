@@ -34,8 +34,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 754 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 88 resource restrictions and 640 open requirements.
+also covers all 750 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 88 resource restrictions and 636 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -145,3 +145,12 @@ loss probe and semantic-shadow bypass are detected; restoration refreshes mtime 
 rebuilds. Selected effects, snapshots, helpers, wrappers, numeric Math mutation and
 rejected patches stay within the pristine execution profile. This finite matrix is
 regression evidence, not exhaustive binary64 conformance or a performance claim.
+
+Boolean complement adds four exact promotions and 36 paired cases covering literals,
+all numeric comparisons/equalities, negation, source effects, wrappers, misleading
+assertions, Number boundaries, depth and helper/loop composition. The verifier
+rejects wrong bridge types, undefined/invisible inputs and repeated result definitions.
+Finite mutations invert the conversion, classify arbitrary truthy Numbers as Boolean,
+duplicate operand evaluation or reset operand depth. Every mutant fails before
+exact source restoration, mtime refresh and rebuilding. No new negative is executed
+as JS; the remaining 750 rejection observations and 39 gap oracles are retained.

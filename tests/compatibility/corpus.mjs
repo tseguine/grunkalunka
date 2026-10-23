@@ -34,8 +34,9 @@ import { numericRemainderPrograms } from './numeric-remainder.mjs';
 import { numericMathAbs, numericMathAbsRejected } from './numeric-math-abs.mjs';
 import { numericTsWriteTargets } from './numeric-ts-write-targets.mjs';
 import { numericMathUnary, numericMathUnaryRejected } from './numeric-math-unary.mjs';
+import { numericBooleanComplement } from './numeric-boolean-complement.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 39;
+export const corpusVersion = 40;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -95,6 +96,7 @@ programs.push(...numericRemainderPrograms);
 programs.push(...numericMathAbs);
 programs.push(...numericTsWriteTargets);
 programs.push(...numericMathUnary);
+programs.push(...numericBooleanComplement);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],

@@ -36,7 +36,7 @@ be represented internally without changing the public two-number/result-number A
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 39](../tests/compatibility/corpus.mjs): 879 paired programs, 754 rejection fixtures, five explicit unexecuted feature groups. The [39 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| C1 — executable compatibility matrix | Done | [Corpus version 40](../tests/compatibility/corpus.mjs): 919 paired programs, 750 rejection fixtures, five explicit unexecuted feature groups. The [39 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 32 adapted runtime cases and zero selected admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -222,6 +222,14 @@ the same client behaves predictably under different capability profiles.
   Three finite depth/binding/order mutants are detected. No checker, coercion, IR
   or ABI expansion follows. Current inventory: 685 records in 56 groups, with 26
   invalid sources, 87 resource restrictions, 572 open requirements and 39 references.
+
+- Numeric Boolean complement admits four exact old sources and 36 extra pairs.
+  An explicit Predicate-to-Number bridge preserves the numeric unary contract;
+  original operands run once and retained wrapper depth counts normally. Four
+  finite conversion/classification/evaluation/depth mutants are detected. General
+  Boolean values remain outside admission: 750 classified rejections in 56 groups
+  include 26 invalid sources, 88 resource limits and 636 open requirements; the
+  Boolean-values group retains 82 records and all 39 curated references remain.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after

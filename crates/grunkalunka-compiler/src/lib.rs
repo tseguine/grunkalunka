@@ -270,6 +270,81 @@ mod tests {
     use super::compile;
 
     #[test]
+    fn boolean_bit_not_original_requirements_are_admitted() {
+        let outcomes: Vec<_> = [
+            ("export function run(a,b) { return ~true; }", false),
+            ("export function run(a,b) { return ~(a<b); }", false),
+            ("export function run(a,b) { return ~(!a); }", false),
+            (
+                "export function run(a,b) { return ~(true as number); }",
+                true,
+            ),
+        ]
+        .into_iter()
+        .map(|(source, ts)| compile(source, ts).map(|_| ()))
+        .collect();
+        assert!(outcomes.iter().all(Result::is_ok), "{outcomes:?}");
+    }
+
+    #[test]
+    fn boolean_bit_not_keeps_shape_depth_and_source_guards() {
+        for body in [
+            "return true;",
+            "const x=true; return ~x;",
+            "return true+1;",
+            "return ~(a?true:false);",
+            "return ~(true&&false);",
+            "return ~!(0&&Math.random());",
+            "return Math.abs(true);",
+            "return ~(true==a);",
+            "return ~((a<b) as number)+true;",
+        ] {
+            assert!(
+                compile(&format!("export function run(a,b) {{ {body} }}"), true).is_err(),
+                "{body}"
+            );
+        }
+        for count in [127, 128] {
+            let source = format!(
+                "export function run(a,b) {{ return ~true{}; }}",
+                "!".repeat(count)
+            );
+            let result = compile(&source, true);
+            if count == 127 {
+                result.unwrap();
+            } else {
+                assert!(result.err().unwrap().contains("nesting exceeds"));
+            }
+        }
+        for count in [126, 127] {
+            let source = format!(
+                "export function run(a,b) {{ return ~(true{}); }}",
+                "!".repeat(count)
+            );
+            assert_eq!(compile(&source, true).is_ok(), count == 126);
+        }
+        for count in [126, 127] {
+            let source = format!(
+                "export function run(a,b) {{ return ~!a{}; }}",
+                "!".repeat(count)
+            );
+            assert_eq!(compile(&source, true).is_ok(), count == 126);
+        }
+        let source = format!(
+            "export function run(a,b) {{ {} return ~true; }}",
+            ";".repeat(255)
+        );
+        compile(&source, false).unwrap();
+        assert!(compile(&source.replacen("return", ";return", 1), false).is_err());
+        let artifact = compile(
+            "export function run(a,b) { return ~(true as number); }",
+            true,
+        )
+        .unwrap();
+        assert!(artifact.wat.contains("f64.convert_i32_u"));
+    }
+
+    #[test]
     fn typescript_wrapped_write_targets_are_admitted() {
         for source in [
             "export function run(a:number,b:number):number { return (a as number)=b; }",

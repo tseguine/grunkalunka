@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-2,204,532 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 754 rejected
+2,304,852 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 750 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Top-level numeric
@@ -111,7 +111,8 @@ eagerly in source order. Bitwise/shift compound assignments capture the initiali
 target before RHS effects, then store and yield the result through existing
 numeric operations. Retained TypeScript wrappers around numeric write targets
 resolve through original binding identity and source depth checks. Number `%` and `%=` now use exact remainder semantics with
-a private arithmetic helper; power, logical and nullish assignments remain outside admission. Numeric expression
+a private arithmetic helper. Numeric `~` also bridges known Boolean-producing
+operand shapes to Number without general Boolean storage or coercion; power, logical and nullish assignments remain outside admission. Numeric expression
 statements preserve effects while discarding their Number result. Empty statements
 fall through without IR allocation while consuming the ordinary source budget. TypeScript expression and predicate wrappers erase while
 their runtime operands remain subject to the numeric admission. Parameter, return

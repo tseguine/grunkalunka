@@ -31,14 +31,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 39
-contains 879 paired programs, 754 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 40
+contains 919 paired programs, 750 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 754 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 88 explicit resource restrictions and 640 open requirements.
+classifies all 750 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 88 explicit resource restrictions and 636 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -316,6 +316,20 @@ prior source/Wasm variants and 830 oracles remain unchanged; 684 other rejection
 sources/modes/diagnostics are retained exactly, including every Math.abs diagnostic.
 No import, helper, ABI, fuel or source-budget change follows from these intrinsics.
 
+Corpus 40 promotes exactly four Boolean-complement rejections and adds 36 pairs.
+Numeric `~` accepts a Boolean literal, logical negation or an admitted numeric
+comparison/equality through retained parentheses and TypeScript wrappers. A pure
+bounded shape scan runs before emission; assertions never establish a Boolean type.
+The original operand lowers exactly once through the existing predicate path at its
+original argument depth. An explicit `NumberFromPredicate` bridge converts canonical
+false/true predicates to Number zero/one before the unchanged Number complement.
+Ordinary Number operands retain their existing path, including `(a as boolean)`.
+This follows [bitwise NOT evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-bitwise-not-operator)
+and [ToNumber](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-tonumber).
+It does not admit general Boolean values, storage, arithmetic, calls or root logical
+and conditional Boolean operands. Logical `!` retains its existing predicate domain.
+All 750 other rejections and 39 curated reference observations stay unchanged.
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -567,7 +581,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`&&=`/`||=`/`??=` assignments,
-  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
+  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Other Boolean arithmetic, Boolean returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
 - Admission covers the entire AST, including directives/modifiers stored outside
@@ -609,15 +623,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 2204532 numeric comparisons; 754 rejected inputs; overwrite preserved
+PASS 2304852 numeric comparisons; 750 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-879 programs, each written as JS and TS, produce 1758 modules.
+919 programs, each written as JS and TS, produce 1838 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,204,532 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,304,852 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -807,7 +821,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-754 malformed or unsupported programs fail explicitly, each with a unique
+750 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

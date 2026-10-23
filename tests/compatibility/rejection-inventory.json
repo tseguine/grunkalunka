@@ -2957,27 +2957,6 @@
       "group": "expression-depth"
     },
     {
-      "id": "bit-not-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c97309a679ff88ba746b5fae25f45a0883bd9a6a93398d31dd541862ed57842a",
-      "group": "boolean-values"
-    },
-    {
-      "id": "bit-not-comparison",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b41aa796db9a9d5db1fb98ba226cddaf2fd51e1671f8af278a8845f390365008",
-      "group": "boolean-values"
-    },
-    {
-      "id": "bit-not-negation",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f4cbf15d1b0584f76ee16b62d651941e10bb45b94986eaec1146a610dd7f279d",
-      "group": "boolean-values"
-    },
-    {
       "id": "bit-not-string",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -3081,13 +3060,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "464fe0edaf717edcb611497df58688808bb56a8934fb3e81ee55c6853e4063c2",
       "group": "local-count"
-    },
-    {
-      "id": "bit-not-asserted-boolean",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d7ea2c043e81793dbed5387e769d0bb2470359623f5813e2944bd77c7dbb72b6",
-      "group": "boolean-values"
     },
     {
       "id": "hashbang-prefix-bom",

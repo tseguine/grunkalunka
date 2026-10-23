@@ -136,6 +136,10 @@ pub(crate) enum Op {
         left: ValueId,
         right: ValueId,
     },
+    NumberFromPredicate {
+        result: ValueId,
+        input: ValueId,
+    },
     Truthy {
         result: ValueId,
         input: ValueId,
@@ -447,6 +451,10 @@ impl Verifier<'_> {
                         Type::Number
                     };
                     self.define(*result, ty, &mut visible, span)?;
+                }
+                Op::NumberFromPredicate { result, input } => {
+                    self.value(*input, Type::Predicate, &visible, span)?;
+                    self.define(*result, Type::Number, &mut visible, span)?;
                 }
                 Op::Truthy { result, input } => {
                     self.value(*input, Type::Number, &visible, span)?;
@@ -832,6 +840,98 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn number_from_predicate_enforces_types_visibility_and_single_definition() {
+        for (input_type, result_type) in [
+            (Type::Predicate, Type::Number),
+            (Type::Number, Type::Number),
+            (Type::Predicate, Type::Predicate),
+        ] {
+            let input = if input_type == Type::Predicate {
+                Op::Boolean {
+                    result: ValueId(0),
+                    value: true,
+                }
+            } else {
+                Op::Constant {
+                    result: ValueId(0),
+                    value: 1.0,
+                }
+            };
+            let mut f = function(
+                vec![
+                    input,
+                    Op::NumberFromPredicate {
+                        input: ValueId(0),
+                        result: ValueId(1),
+                    },
+                    // Return another Number so a wrong bridge result type cannot
+                    // fail only at the function's independent return contract.
+                    Op::Constant {
+                        result: ValueId(2),
+                        value: 7.0,
+                    },
+                ],
+                Exit::Return(ValueId(2)),
+            );
+            f.values = vec![input_type, result_type, Type::Number];
+            assert_eq!(
+                verify(&f).is_ok(),
+                input_type == Type::Predicate && result_type == Type::Number
+            );
+        }
+        for input in [ValueId(0), ValueId(9)] {
+            let mut f = function(
+                vec![Op::NumberFromPredicate {
+                    input,
+                    result: ValueId(1),
+                }],
+                Exit::Return(ValueId(1)),
+            );
+            f.values = vec![Type::Predicate, Type::Number];
+            assert!(verify(&f).is_err());
+        }
+        let mut f = function(
+            vec![
+                Op::Boolean {
+                    result: ValueId(0),
+                    value: true,
+                },
+                Op::NumberFromPredicate {
+                    input: ValueId(0),
+                    result: ValueId(1),
+                },
+                Op::NumberFromPredicate {
+                    input: ValueId(0),
+                    result: ValueId(1),
+                },
+            ],
+            Exit::Return(ValueId(1)),
+        );
+        f.values = vec![Type::Predicate, Type::Number];
+        assert!(verify(&f).unwrap_err().contains("defined twice"));
+        let mut child = region(
+            vec![Op::Boolean {
+                result: ValueId(0),
+                value: true,
+            }],
+            Exit::Fallthrough,
+        );
+        child.id = RegionId(1);
+        let mut f = function(
+            vec![
+                Op::Block(child),
+                Op::NumberFromPredicate {
+                    input: ValueId(0),
+                    result: ValueId(1),
+                },
+            ],
+            Exit::Return(ValueId(1)),
+        );
+        f.values = vec![Type::Predicate, Type::Number];
+        assert!(verify(&f).unwrap_err().contains("not visible"));
     }
 
     #[test]

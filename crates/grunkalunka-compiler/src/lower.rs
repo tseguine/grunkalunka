@@ -92,6 +92,38 @@ fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression
     }
 }
 
+// Only known Boolean-producing shapes select the bridge. This scan emits nothing
+// and is bounded by the source nesting limit. Type assertions never prove a type.
+fn boolean_shape(mut expression: &Expression<'_>, mut depth: usize) -> bool {
+    while depth <= 128 {
+        if let Some(inner) = erased_inner(expression) {
+            expression = inner;
+        } else if let Expression::ParenthesizedExpression(wrapper) = expression {
+            expression = &wrapper.expression;
+        } else {
+            return match expression {
+                Expression::BooleanLiteral(_) => true,
+                Expression::UnaryExpression(unary) => unary.operator == UnaryOperator::LogicalNot,
+                Expression::BinaryExpression(binary) => matches!(
+                    binary.operator,
+                    BinaryOperator::LessThan
+                        | BinaryOperator::LessEqualThan
+                        | BinaryOperator::GreaterThan
+                        | BinaryOperator::GreaterEqualThan
+                        | BinaryOperator::Equality
+                        | BinaryOperator::StrictEquality
+                        | BinaryOperator::Inequality
+                        | BinaryOperator::StrictInequality
+                ),
+                _ => false,
+            };
+        }
+        depth += 1;
+    }
+    // Original lowering still diagnoses over-depth input; no flattened retry.
+    false
+}
+
 // Resolve only the original reference; never evaluate a write target as a value.
 // Oxc discards outer target parentheses, but retained inner nodes each cost depth.
 fn target_identifier<'e, 'a>(
@@ -481,7 +513,23 @@ impl Lowering<'_, '_> {
                         ));
                     }
                 };
-                let input = self.expression(&unary.argument, region, depth + 1)?;
+                let input = if unary.operator == UnaryOperator::BitwiseNot
+                    && boolean_shape(&unary.argument, depth + 1)
+                {
+                    let predicate = self.predicate(&unary.argument, region, depth + 1)?;
+                    let number = self.value(Type::Number);
+                    Self::push(
+                        region,
+                        &unary.argument,
+                        Op::NumberFromPredicate {
+                            result: number,
+                            input: predicate,
+                        },
+                    );
+                    number
+                } else {
+                    self.expression(&unary.argument, region, depth + 1)?
+                };
                 let result = self.value(Type::Number);
                 Op::Unary {
                     result,

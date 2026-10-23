@@ -35,9 +35,6 @@ const unary = 'only unary +, - and ~ are admitted';
 const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ['bit-not-boolean', 'return ~true;', expression],
-  ['bit-not-comparison', 'return ~(a<b);', binary],
-  ['bit-not-negation', 'return ~(!a);', unary],
   ['bit-not-string', 'return ~"4";', expression],
   ['bit-not-object', 'return ~({});', expression],
   ['bit-not-bigint', 'return ~1n;', expression],
@@ -53,7 +50,6 @@ const negatives = [
   ['bit-not-depth-limit', `return ${'~'.repeat(129)}a;`, 'expression nesting exceeds'],
   ['bit-not-statement-limit', `${'~a;'.repeat(256)} return a;`, 'at most 256 statements'],
   ['bit-not-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=~a`).join(',')}; return x128;`, 'at most 128 numeric locals'],
-  ['bit-not-asserted-boolean', 'return ~(true as number);', expression, 'ts'],
 ];
 export const numericBitNotRejected = negatives.map(([id,body,diagnostic,extension='js']) =>
   [id,`export function run(a,b) { ${body} }`,extension,diagnostic]);

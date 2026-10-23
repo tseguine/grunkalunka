@@ -34,8 +34,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 39 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 88 resource restrictions and 640 open requirements
-across all 754 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 88 resource restrictions and 636 open requirements
+across all 750 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -241,3 +241,11 @@ The pristine sqrt/floor/ceil/trunc family promotes only the original ordinary
 `math-abs-other-method` floor program, preserving its ID/source/mode. No curated
 reference is removed: all 39 remain. Function-call and mutable-intrinsic groups
 still describe unsupported callees, coercion, mutation and realm ownership.
+
+Only numeric `~` now bridges known Boolean-producing operand shapes to Number:
+literals, logical negation and admitted numeric comparisons/equalities through
+runtime-transparent wrappers. The four original `bit-not-boolean`,
+`bit-not-comparison`, `bit-not-negation` and `bit-not-asserted-boolean` cases retain
+IDs/source bytes in the admitted corpus. The Boolean-values group remains open
+with 82 records; no curated reference is promoted. Other Boolean value positions,
+root Boolean logical/conditional operands and general coercion remain separate work.
