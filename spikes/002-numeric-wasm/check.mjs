@@ -64,17 +64,36 @@ const expressions = [
   ['separate-rounding', '(a * 1.0000000000000002) - a'],
   ['literal-bases', '0x10 + 0b10 + 0o7 + 1_000 + a - b'],
   ['nested-unary', '-(+(-(a / -(b + 1))))'],
+  ['less-than', 'a < b ? a : b'], ['less-equal', 'a <= b ? a : b'],
+  ['greater-than', 'a > b ? a : b'], ['greater-equal', 'a >= b ? a : b'],
+  ['strict-equal', 'a === b ? -0 : 0'], ['strict-not-equal', 'a !== b ? -0 : 0'],
+  ['nan-comparison', 'a === a ? b : -0'], ['signed-zero-branch', 'a < 0 ? -0 : 0'],
+  ['nested-conditional', 'a < b ? (a === 0 ? -0 : a) : (a === a ? b : -0)'],
+  ['conditional-operands', '(a < b ? a : b) >= 0 ? a + b : a - b'],
 ];
+const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
+programs.push(
+  ['chained-locals', 'const x = a * 2; const y = x + b; return y / 3;',
+    'const x: number = a * 2; const y: number = x + b; return y / 3;'],
+  ['local-decision', 'const delta = a - b; const magnitude = delta >= 0 ? delta : -delta; return magnitude;',
+    'const delta: number = a - b; const magnitude: number = delta >= 0 ? delta : -delta; return magnitude;'],
+  ['unicode-locals', 'const λ = a - b; const π = λ / 2; return π;',
+    'const λ: number = a - b; const π: number = λ / 2; return π;'],
+  ['local-shadows-function', 'const run = a + b; return run;',
+    'const run: number = a + b; return run;'],
+  ['local-signed-zero', 'const x = a === b ? -0 : 0; return -x;',
+    'const x: number = a === b ? -0 : 0; return -x;'],
+);
 
 const observations = [];
 let comparisons = 0;
-for (const [name, expression] of expressions) {
+for (const [name, bodyJS, bodyTS] of programs) {
   const sourceJS = name === 'affine'
     ? await readFile(new URL('fixtures/affine.js', import.meta.url), 'utf8')
-    : `export function run(a, b) { return ${expression}; }\n`;
+    : `export function run(a, b) { ${bodyJS} }\n`;
   const sourceTS = name === 'affine'
     ? await readFile(new URL('fixtures/affine.ts', import.meta.url), 'utf8')
-    : `export function run(a: number, b: number): number { return ${expression}; }\n`;
+    : `export function run(a: number, b: number): number { ${bodyTS} }\n`;
   const reference = await import(`data:text/javascript;base64,${Buffer.from(sourceJS).toString('base64')}`);
   const modules = [];
   for (const [extension, source] of [['js', sourceJS], ['ts', sourceTS]]) {
@@ -156,6 +175,22 @@ const rejected = [
   ['declare', 'export declare function run(a:number,b:number):number;', 'ts'],
   ['over-limit', 'export function run(a,b) { return a; }' + ' '.repeat(16384)],
   ['depth-limit', `export function run(a,b) { return ${'('.repeat(140)}a${')'.repeat(140)}; }`],
+  ['self-reference', 'export function run(a,b) { const x=x; return x; }'],
+  ['forward-reference', 'export function run(a,b) { const x=y; const y=a; return x; }'],
+  ['dead-branch-forward', 'export function run(a,b) { const x=a===a?a:y; const y=b; return x; }'],
+  ['let-local', 'export function run(a,b) { let x=a; return x; }'],
+  ['multiple-declarators', 'export function run(a,b) { const x=a,y=b; return x+y; }'],
+  ['local-destructure', 'export function run(a,b) { const {x}=a; return x; }'],
+  ['local-reassignment', 'export function run(a,b) { const x=a; x=b; return x; }'],
+  ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }'],
+  ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
+  ['loose-equality', 'export function run(a,b) { return a==b?a:b; }'],
+  ['logical-predicate', 'export function run(a,b) { return (a<b && a>0)?a:b; }'],
+  ['boolean-predicate', 'export function run(a,b) { return true?a:b; }'],
+  ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
+  ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],
+  ['local-type', 'export function run(a:number,b:number):number { const x:string=a; return x; }', 'ts'],
+  ['local-limit', `export function run(a,b) { ${Array.from({length:129},(_,i)=>`const x${i}=a;`).join(' ')} return a; }`],
 ];
 for (const [name, source, extension = 'js'] of rejected) {
   const sourcePath = join(output, `reject-${name}.${extension}`);

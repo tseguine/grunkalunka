@@ -63,20 +63,28 @@ not a hardened arbitrary-module execution service.
 - Exactly one module-level `export function run` with two ordinary parameters.
   Inputs are **already primitive JS numbers**, represented as Wasm `f64` values.
   This ABI contract is independent of whether TS annotations are present.
-- The sole body statement is a return of a numeric expression. Admitted forms:
-  numeric literals, references resolving to the two parameter symbols, parentheses,
-  binary `+ - * /`, unary `+ -`. Optional TS annotations must be exactly `number`.
+- The body admits numeric `const` declarations followed by one numeric return.
+  Each declaration has one identifier and initializer; the binding becomes available
+  only after that initializer. References resolve through semantic symbol identities.
+  Numeric expressions admit literals, initialized bindings, parentheses, binary
+  `+ - * /`, unary `+ -`, and comparison-controlled ternaries. Conditions use numeric
+  `< <= > >= === !==`; both arms must be admitted and lower to structured Wasm
+  `if (result f64)`. Optional TS annotations must be exactly `number`.
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
-  casts/assertions, mutation, comparisons and other operators.
+  casts/assertions, mutation, statement `if`, loops, logical operators and numeric
+  truthiness. Boolean arithmetic/returns and self/forward local references are
+  outside this admission, even in unselected branches. These rejections describe
+  the experiment, not the validity of arbitrary JavaScript.
 - Admission covers the entire AST, including directives/modifiers stored outside
   ordinary statements. Oxc parser and semantic syntax diagnostics are checked.
   The compiler does not run a TypeScript type checker or infer arbitrary JS types.
 - AST grouping is preserved; there is no optimizer, reassociation, constant folding
   or fused multiply-add lowering. Literal values use Oxc's binary64 parse followed
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
-- Source limit 16 KiB; expression nesting limit 128; host input batches at most 4096
+- Source limit 16 KiB; expression nesting limit 128; at most 128 const locals;
+  host input batches at most 4096
   pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the vector
   replay has a three-minute bound. These are experiment bounds, not platform policy.
 - Compile finishes parsing/admission/encoding in memory before opening a fresh
@@ -98,15 +106,15 @@ this spike; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 39488 numeric comparisons; 48 rejected inputs; overwrite preserved
+PASS 76508 numeric comparisons; 64 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-Sixteen expressions, each written as JS and TS, produce 32 modules. Each module is
+Thirty-one programs, each written as JS and TS, produce 62 modules. Each module is
 validated and run in Wasmtime and Node-Wasm over 617 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`. This yields 39,488 engine-to-JS comparisons. The explicit demo calls in
+`4752554e`. This yields 76,508 engine-to-JS comparisons. The explicit demo calls in
 both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
@@ -115,7 +123,11 @@ smallest-subnormal literals, overflow literals, integer literals rounded beyond
 vectors include ±0, subnormals, extremes, infinities and NaN. Non-NaN results compare
 exactly (including signed zero); NaNs compare by class, not payload or sign.
 
-Forty-eight malformed or unsupported programs fail explicitly, each with a unique
+The added programs cover every comparison, NaN predicates, signed-zero branches,
+nested conditions, chained locals, Unicode identifiers and local/function-name
+shadowing. The original L0 run had 39,488 comparisons and 48 rejections.
+
+Sixty-four malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

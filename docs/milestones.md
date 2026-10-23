@@ -24,7 +24,7 @@ pretending a whole browser/framework is a short implementation task.
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | L0 — numeric expressions | Done | JS/TS -> portable Wasm; Wasmtime + Node-Wasm differential tests including signed zero, NaN, infinities and rounding. [Spike 002](../spikes/002-numeric-wasm/README.md). |
-| L1 — local values and decisions | Next | Numeric `const` locals, comparisons and conditional expressions. Resolve bindings through semantic symbols; preserve initialization order; evaluate only the selected branch. Differential tests exercise every admitted operator and branch. |
+| L1 — local values and decisions | Done | Numeric `const` locals and comparison-controlled ternaries; 31 JS/TS pairs, 76,508 engine comparisons, 64 rejected inputs. Bindings become available after their initializer. Numeric truthiness, mutation and statement control flow remain outside admission. |
 | L2 — mutable control flow | Planned | Numeric `let`, assignment and structured `if`/loops, delivered in separate small units. Define numeric truthiness explicitly; test NaN/±0, lexical lifetime and early returns. Bound guest execution and observe fuel exhaustion. |
 | L3 — functions and modules | Planned | Multiple functions, calls and one small module graph with explicit imports/exports. Test evaluation order, argument handling and module initialization. Reject unsupported cycles/features explicitly. |
 | L4 — JS value semantics | Research gate | Compare small value-representation experiments for strings, undefined/null, booleans, numbers, objects/prototypes and coercion. Demonstrate equivalent observable behavior before selecting a production representation or GC strategy. |
@@ -62,8 +62,8 @@ the same client behaves predictably under different capability profiles.
 - Baseline: `63c993a` combines frontend observations, numeric lowering and the
   browser/framework direction. Its full checks passed before integration into
   `master`. L0 has 39,488 numeric comparisons and 48 expected rejections.
-- Next unit: L1's local numeric values and conditional expressions, with the
-  compatibility harness expanded alongside it. No new runtime dependency required.
+- L1: const locals and conditional expressions pass 76,508 comparisons; no new
+  runtime dependency required. Next: C1's explicit manifest, then L2 control flow.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after

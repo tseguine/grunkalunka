@@ -4,7 +4,7 @@ use std::fmt::Write;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     BindingPattern, Declaration, Expression, FormalParameterKind, FunctionType, Statement, TSType,
-    TSTypeAnnotation,
+    TSTypeAnnotation, VariableDeclarationKind,
 };
 use oxc_parser::Parser;
 use oxc_semantic::{Semantic, SemanticBuilder, SymbolId};
@@ -72,7 +72,7 @@ fn lower_expression(
                 .ok_or_else(|| {
                     unsupported(
                         expression,
-                        "only references to the two parameters are admitted",
+                        "reference is not an initialized numeric parameter or local",
                     )
                 })?;
             writeln!(output, "local.get {index}").unwrap();
@@ -85,6 +85,26 @@ fn lower_expression(
                 output,
                 depth + 1,
             )?;
+        }
+        Expression::ConditionalExpression(conditional) => {
+            lower_predicate(&conditional.test, semantic, parameters, output, depth + 1)?;
+            output.push_str("if (result f64)\n");
+            lower_expression(
+                &conditional.consequent,
+                semantic,
+                parameters,
+                output,
+                depth + 1,
+            )?;
+            output.push_str("else\n");
+            lower_expression(
+                &conditional.alternate,
+                semantic,
+                parameters,
+                output,
+                depth + 1,
+            )?;
+            output.push_str("end\n");
         }
         Expression::UnaryExpression(unary) => {
             if !matches!(
@@ -124,6 +144,54 @@ fn lower_expression(
             ));
         }
     }
+    Ok(())
+}
+
+fn lower_predicate(
+    expression: &Expression<'_>,
+    semantic: &Semantic<'_>,
+    bindings: &[SymbolId],
+    output: &mut String,
+    depth: usize,
+) -> Result<(), String> {
+    if depth > 128 {
+        return Err(unsupported(
+            expression,
+            "predicate nesting exceeds this experiment's limit",
+        ));
+    }
+    if let Expression::ParenthesizedExpression(parenthesized) = expression {
+        return lower_predicate(
+            &parenthesized.expression,
+            semantic,
+            bindings,
+            output,
+            depth + 1,
+        );
+    }
+    let Expression::BinaryExpression(binary) = expression else {
+        return Err(unsupported(
+            expression,
+            "condition must be a numeric comparison; truthiness is not admitted yet",
+        ));
+    };
+    let instruction = match binary.operator {
+        BinaryOperator::LessThan => "f64.lt",
+        BinaryOperator::LessEqualThan => "f64.le",
+        BinaryOperator::GreaterThan => "f64.gt",
+        BinaryOperator::GreaterEqualThan => "f64.ge",
+        BinaryOperator::StrictEquality => "f64.eq",
+        BinaryOperator::StrictInequality => "f64.ne",
+        _ => {
+            return Err(unsupported(
+                expression,
+                "condition must use <, <=, >, >=, === or !==",
+            ));
+        }
+    };
+    lower_expression(&binary.left, semantic, bindings, output, depth + 1)?;
+    lower_expression(&binary.right, semantic, bindings, output, depth + 1)?;
+    writeln!(output, "{instruction}").unwrap();
     Ok(())
 }
 
@@ -216,13 +284,58 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         );
     }
     let body = function.body.as_ref().ok_or("function must have a body")?;
-    if !body.directives.is_empty() || body.statements.len() != 1 {
+    if !body.directives.is_empty() || body.statements.is_empty() || body.statements.len() > 129 {
         return Err(unsupported(
             body.as_ref(),
-            "body must contain exactly one return expression and no directives",
+            "body must contain at most 128 const locals followed by one return, and no directives",
         ));
     }
-    let Statement::ReturnStatement(return_statement) = &body.statements[0] else {
+    let mut instructions = String::new();
+    let parameter_count = parameters.len();
+    for statement in &body.statements[..body.statements.len() - 1] {
+        let Statement::VariableDeclaration(declaration) = statement else {
+            return Err(unsupported(
+                statement,
+                "only numeric const declarations may precede the final return",
+            ));
+        };
+        if declaration.kind != VariableDeclarationKind::Const
+            || declaration.declare
+            || declaration.declarations.len() != 1
+        {
+            return Err(unsupported(
+                declaration.as_ref(),
+                "one initialized const identifier per declaration is admitted",
+            ));
+        }
+        let local = &declaration.declarations[0];
+        if local.definite {
+            return Err(unsupported(
+                local,
+                "definite-assignment assertions are not admitted",
+            ));
+        }
+        check_annotation(local.type_annotation.as_deref())?;
+        let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+            return Err(unsupported(local, "local destructuring is not admitted"));
+        };
+        let initializer = local
+            .init
+            .as_ref()
+            .ok_or("const local must have an initializer")?;
+        // Publish a binding only after its initializer has been admitted/lowered.
+        // Even dead-branch self/forward references are outside this narrow contract.
+        lower_expression(
+            initializer,
+            &built.semantic,
+            &parameters,
+            &mut instructions,
+            0,
+        )?;
+        writeln!(instructions, "local.set {}", parameters.len()).unwrap();
+        parameters.push(identifier.symbol_id.get().ok_or("missing local binding")?);
+    }
+    let Statement::ReturnStatement(return_statement) = body.statements.last().unwrap() else {
         return Err(unsupported(
             body.as_ref(),
             "body must contain a return expression",
@@ -232,8 +345,23 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         .argument
         .as_ref()
         .ok_or("return must have a numeric expression")?;
+    lower_expression(
+        expression,
+        &built.semantic,
+        &parameters,
+        &mut instructions,
+        0,
+    )?;
     let mut wat = "(module (func (export \"run\") (param f64 f64) (result f64)\n".to_string();
-    lower_expression(expression, &built.semantic, &parameters, &mut wat, 0)?;
+    if parameters.len() > parameter_count {
+        writeln!(
+            wat,
+            "(local {})",
+            vec!["f64"; parameters.len() - parameter_count].join(" ")
+        )
+        .unwrap();
+    }
+    wat.push_str(&instructions);
     wat.push_str("))\n");
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })
