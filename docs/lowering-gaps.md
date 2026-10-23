@@ -1,11 +1,11 @@
 # Known lowering gaps
 
 The current compiler admits one exported two-number function with numeric locals,
-assignments, branches, while loops, TypeScript expression wrappers and returns.
+assignments, branches, while/for loops, TypeScript expression wrappers and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 61 curated reference cases in
+The executable frontier contains 60 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -14,7 +14,7 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | --- | --- |
 | Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-bit-and`, `gap-bit-or`, `gap-bit-xor`, `gap-shift-left`, `gap-shift-right`, `gap-shift-unsigned`, `gap-loose-equality-coercion`, `gap-loose-inequality`, `gap-nullish`, `gap-unary-not`, `gap-bit-not`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
 | General JavaScript values | `gap-boolean-value`, `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
-| Additional control flow | `gap-for`, `gap-do`, `gap-break`, `gap-continue`, `gap-switch`, `gap-label` |
+| Additional control flow | `gap-do`, `gap-break`, `gap-continue`, `gap-switch`, `gap-label` |
 | Functions, calls and recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
 | Module loading | `gap-module-import` |
 | Bindings and parameter forms | `gap-var`, `gap-var-hoisting`, `gap-uninitialized-let`, `gap-multiple-declarators`, `gap-local-destructure`, `gap-destructuring-write`, `gap-defaults`, `gap-rest` |
@@ -40,6 +40,11 @@ predicate and boundary cases in
 [`typescript-erasure.mjs`](../tests/compatibility/typescript-erasure.mjs).
 These expression wrappers erase without adding type checking; type aliases and
 TypeScript-wrapped assignment/update targets remain outside admission.
+
+The former `gap-for` reference is now `for-promoted-reference` in
+[`numeric-for.mjs`](../tests/compatibility/numeric-for.mjs), with additional scope,
+ordering, omission and source-budget checks. `do`, `for-in`/`for-of`,
+`break`/`continue` and labels remain unsupported.
 
 ## What the tests establish
 
@@ -86,7 +91,7 @@ coalescing remain outside admission.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 61 examples are a
+or change the reference result to match a lowering bug. The 60 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 

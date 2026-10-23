@@ -53,7 +53,6 @@ for (const [id, body, expected, diagnostic] of [
 ]) add(id, 'values', body, expected, diagnostic);
 
 for (const [id, body, expected] of [
-  ['for', 'let x = a; for (let i=0;i<2;i=i+1) x=x+b; return x;', 8],
   ['do', 'let x=a; do { x=x+b; } while (0); return x;', 6],
   ['break', 'while (1) { a=a+b; break; } return a;', 6],
   ['continue', 'let i=0; while(i<2) { i=i+1; if(i===1) continue; a=a+b; } return a;', 6],

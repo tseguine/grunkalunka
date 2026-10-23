@@ -1,8 +1,8 @@
 //! Source admission and AST-to-region lowering. Source limits count source nodes,
 //! never the generated regions, values or Wasm temporary locals.
 use oxc_ast::ast::{
-    AssignmentTarget, BindingPattern, Expression, IdentifierReference, SimpleAssignmentTarget,
-    Statement, VariableDeclarationKind,
+    AssignmentTarget, BindingPattern, Expression, ForStatementInit, IdentifierReference,
+    SimpleAssignmentTarget, Statement, VariableDeclaration, VariableDeclarationKind,
 };
 use oxc_semantic::{Semantic, SymbolId};
 use oxc_span::GetSpan;
@@ -437,6 +437,73 @@ impl Lowering<'_, '_> {
         Ok(returns)
     }
 
+    fn charge_statement(&mut self, statement: &impl GetSpan) -> Result<(), String> {
+        if self.statement_count >= 256 {
+            return Err(unsupported(
+                statement,
+                "at most 256 statements including blocks and returns are admitted",
+            ));
+        }
+        self.statement_count += 1;
+        Ok(())
+    }
+
+    fn declaration(
+        &mut self,
+        declaration: &VariableDeclaration<'_>,
+        region: &mut Region,
+    ) -> Result<(), String> {
+        if self.local_count >= 128 {
+            return Err(unsupported(
+                declaration,
+                "at most 128 numeric locals are admitted",
+            ));
+        }
+        if !matches!(
+            declaration.kind,
+            VariableDeclarationKind::Const | VariableDeclarationKind::Let
+        ) || declaration.declare
+            || declaration.declarations.len() != 1
+        {
+            return Err(unsupported(
+                declaration,
+                "one initialized const or let identifier per declaration is admitted",
+            ));
+        }
+        let local = &declaration.declarations[0];
+        if local.definite {
+            return Err(unsupported(
+                local,
+                "definite-assignment assertions are not admitted",
+            ));
+        }
+        check_annotation(local.type_annotation.as_deref())?;
+        let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+            return Err(unsupported(local, "local destructuring is not admitted"));
+        };
+        let initializer = local
+            .init
+            .as_ref()
+            .ok_or("numeric local must have an initializer")?;
+        let value = self.expression(initializer, region, 0)?;
+        let slot = SlotId(self.slots.len());
+        let mutable = declaration.kind == VariableDeclarationKind::Let;
+        self.slots.push(Slot {
+            owner: region.id,
+            mutable,
+            parameter: false,
+            span: local.span(),
+        });
+        self.local_count += 1;
+        Self::push(region, local, Op::Initialize { slot, value });
+        self.bindings.push(NumericBinding {
+            symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
+            slot,
+            mutable,
+        });
+        Ok(())
+    }
+
     fn statement(
         &mut self,
         statement: &Statement<'_>,
@@ -446,14 +513,77 @@ impl Lowering<'_, '_> {
         if depth > 64 {
             return Err(unsupported(statement, "statement nesting exceeds 64"));
         }
-        if self.statement_count >= 256 {
-            return Err(unsupported(
-                statement,
-                "at most 256 statements including blocks and returns are admitted",
-            ));
-        }
-        self.statement_count += 1;
+        self.charge_statement(statement)?;
         match statement {
+            Statement::ForStatement(statement) => {
+                // This lexical block and the loop's regions are generated, so
+                // they consume neither source statements nor nesting depth.
+                let mut header = self.region(statement.as_ref());
+                let outer = self.bindings.len();
+                if let Some(init) = &statement.init {
+                    match init {
+                        ForStatementInit::VariableDeclaration(declaration) => {
+                            self.charge_statement(declaration.as_ref())?;
+                            self.declaration(declaration, &mut header)?;
+                        }
+                        _ => {
+                            self.expression(init.to_expression(), &mut header, 0)?;
+                        }
+                    }
+                }
+                let header_bindings = self.bindings.len();
+                let mut condition = self.region(statement.as_ref());
+                let predicate = if let Some(test) = &statement.test {
+                    condition.span = test.span();
+                    self.predicate(test, &mut condition, 0)?
+                } else {
+                    let one = self.value(Type::Number);
+                    Self::push(
+                        &mut condition,
+                        statement.as_ref(),
+                        Op::Constant {
+                            result: one,
+                            value: 1.0,
+                        },
+                    );
+                    let predicate = self.value(Type::Predicate);
+                    Self::push(
+                        &mut condition,
+                        statement.as_ref(),
+                        Op::Truthy {
+                            result: predicate,
+                            input: one,
+                        },
+                    );
+                    predicate
+                };
+                condition.exit = Exit::Yield(predicate);
+                let mut body = self.region(&statement.body);
+                self.statement(&statement.body, &mut body, depth + 1)?;
+                self.bindings.truncate(header_bindings);
+                // Always admit the update, including after a returning body.
+                let step = if let Some(update) = &statement.update {
+                    let mut step = self.region(update);
+                    self.expression(update, &mut step, 0)?;
+                    Some(step)
+                } else {
+                    None
+                };
+                Self::push(
+                    &mut header,
+                    statement.as_ref(),
+                    Op::While {
+                        condition,
+                        body,
+                        step,
+                    },
+                );
+                self.bindings.truncate(outer);
+                Self::push(region, statement.as_ref(), Op::Block(header));
+                // Preserve the existing conservative structural return policy,
+                // even when the source omits its test.
+                Ok(false)
+            }
             Statement::WhileStatement(statement) => {
                 let mut condition = self.region(&statement.test);
                 let value = self.predicate(&statement.test, &mut condition, 0)?;
@@ -462,7 +592,15 @@ impl Lowering<'_, '_> {
                 let visible = self.bindings.len();
                 self.statement(&statement.body, &mut body, depth + 1)?;
                 self.bindings.truncate(visible);
-                Self::push(region, statement.as_ref(), Op::While { condition, body });
+                Self::push(
+                    region,
+                    statement.as_ref(),
+                    Op::While {
+                        condition,
+                        body,
+                        step: None,
+                    },
+                );
                 Ok(false)
             }
             Statement::IfStatement(statement) => {
@@ -535,54 +673,7 @@ impl Lowering<'_, '_> {
                 Ok(false)
             }
             Statement::VariableDeclaration(declaration) => {
-                if self.local_count >= 128 {
-                    return Err(unsupported(
-                        statement,
-                        "at most 128 numeric locals are admitted",
-                    ));
-                }
-                if !matches!(
-                    declaration.kind,
-                    VariableDeclarationKind::Const | VariableDeclarationKind::Let
-                ) || declaration.declare
-                    || declaration.declarations.len() != 1
-                {
-                    return Err(unsupported(
-                        declaration.as_ref(),
-                        "one initialized const or let identifier per declaration is admitted",
-                    ));
-                }
-                let local = &declaration.declarations[0];
-                if local.definite {
-                    return Err(unsupported(
-                        local,
-                        "definite-assignment assertions are not admitted",
-                    ));
-                }
-                check_annotation(local.type_annotation.as_deref())?;
-                let BindingPattern::BindingIdentifier(identifier) = &local.id else {
-                    return Err(unsupported(local, "local destructuring is not admitted"));
-                };
-                let initializer = local
-                    .init
-                    .as_ref()
-                    .ok_or("numeric local must have an initializer")?;
-                let value = self.expression(initializer, region, 0)?;
-                let slot = SlotId(self.slots.len());
-                let mutable = declaration.kind == VariableDeclarationKind::Let;
-                self.slots.push(Slot {
-                    owner: region.id,
-                    mutable,
-                    parameter: false,
-                    span: local.span(),
-                });
-                self.local_count += 1;
-                Self::push(region, local, Op::Initialize { slot, value });
-                self.bindings.push(NumericBinding {
-                    symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
-                    slot,
-                    mutable,
-                });
+                self.declaration(declaration, region)?;
                 Ok(false)
             }
             _ => Err(unsupported(
@@ -603,6 +694,27 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    fn admits_for(body: &str) {
+        crate::compile(&format!("export function run(a,b) {{ {body} }}"), false).unwrap();
+    }
+
+    #[test]
+    fn for_zero_iterations() {
+        admits_for("for (;0;) { a=b; } return a;");
+    }
+    #[test]
+    fn for_three_iterations() {
+        admits_for("let x=a; for(let i=0;i<3;i++) { x+=b; } return x;");
+    }
+    #[test]
+    fn for_step_follows_body() {
+        admits_for("let x=0; for(let i=0;i<3;i++) { x=x*10+i; } return x;");
+    }
+    #[test]
+    fn for_return_skips_step() {
+        admits_for("for(;;a=b) { return a; } return b;");
+    }
+
     fn same_runtime_expression(expression: &str) {
         let js = crate::compile("export function run(a,b) { return a; }", false).unwrap();
         let ts = crate::compile(

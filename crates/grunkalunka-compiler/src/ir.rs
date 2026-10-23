@@ -115,6 +115,7 @@ pub(crate) enum Op {
     While {
         condition: Region,
         body: Region,
+        step: Option<Region>,
     },
 }
 
@@ -309,7 +310,11 @@ impl Verifier<'_> {
                     }
                     returns = left && right;
                 }
-                Op::While { condition, body } => {
+                Op::While {
+                    condition,
+                    body,
+                    step,
+                } => {
                     self.region(
                         condition,
                         Contract::Yield(Type::Predicate),
@@ -318,7 +323,12 @@ impl Verifier<'_> {
                         ancestors,
                     )?;
                     self.region(body, Contract::Statement, &visible, &initialized, ancestors)?;
-                    // A source while may execute zero times, even if its body returns.
+                    // Verify the sibling step even when every body path returns.
+                    if let Some(step) = step {
+                        self.region(step, Contract::Statement, &visible, &initialized, ancestors)?;
+                    }
+                    // Pretest loops do not prove return coverage. This remains
+                    // conservative for a source for loop with an omitted test.
                 }
             }
         }
@@ -430,6 +440,161 @@ mod tests {
             body: region(operations, exit),
         }
     }
+
+    fn loop_with_step() -> Function {
+        let mut condition = region(
+            vec![
+                Op::Load {
+                    result: ValueId(1),
+                    slot: SlotId(0),
+                },
+                Op::Truthy {
+                    result: ValueId(2),
+                    input: ValueId(1),
+                },
+            ],
+            Exit::Yield(ValueId(2)),
+        );
+        condition.id = RegionId(1);
+        let mut body = region(
+            vec![Op::Constant {
+                result: ValueId(3),
+                value: 3.0,
+            }],
+            Exit::Return(ValueId(3)),
+        );
+        body.id = RegionId(2);
+        let mut step = region(vec![], Exit::Fallthrough);
+        step.id = RegionId(3);
+        let mut f = function(
+            vec![
+                Op::Constant {
+                    result: ValueId(0),
+                    value: 0.0,
+                },
+                Op::While {
+                    condition,
+                    body,
+                    step: Some(step),
+                },
+            ],
+            Exit::Return(ValueId(0)),
+        );
+        f.values = vec![Type::Number, Type::Number, Type::Predicate, Type::Number];
+        f
+    }
+
+    #[test]
+    fn loop_step_is_verified_even_when_the_body_returns() {
+        let mut f = loop_with_step();
+        verify(&f).unwrap();
+        let Op::While {
+            step: Some(step), ..
+        } = &mut f.body.operations[1].kind
+        else {
+            panic!()
+        };
+        step.operations.push(Operation {
+            span: Span::new(4, 8),
+            kind: Op::Load {
+                result: ValueId(4),
+                slot: SlotId(99),
+            },
+        });
+        f.values.push(Type::Number);
+        assert!(verify(&f).unwrap_err().contains("slot"));
+    }
+
+    #[test]
+    fn loop_body_values_and_cells_cannot_escape_into_the_step() {
+        let mut f = loop_with_step();
+        let Op::While {
+            step: Some(step), ..
+        } = &mut f.body.operations[1].kind
+        else {
+            panic!()
+        };
+        step.operations.push(Operation {
+            span: Span::new(4, 8),
+            kind: Op::Unary {
+                result: ValueId(4),
+                operator: Unary::Plus,
+                input: ValueId(3),
+            },
+        });
+        f.values.push(Type::Number);
+        assert!(verify(&f).unwrap_err().contains("not visible"));
+        let mut f = loop_with_step();
+        let Op::While {
+            body,
+            step: Some(step),
+            ..
+        } = &mut f.body.operations[1].kind
+        else {
+            panic!()
+        };
+        body.operations.push(Operation {
+            span: Span::new(4, 8),
+            kind: Op::Initialize {
+                slot: SlotId(2),
+                value: ValueId(3),
+            },
+        });
+        f.slots.push(Slot {
+            owner: body.id,
+            mutable: true,
+            parameter: false,
+            span: Span::new(4, 8),
+        });
+        step.operations.push(Operation {
+            span: Span::new(4, 8),
+            kind: Op::Load {
+                result: ValueId(4),
+                slot: SlotId(2),
+            },
+        });
+        f.values.push(Type::Number);
+        assert!(verify(&f).unwrap_err().contains("owner"));
+    }
+
+    #[test]
+    fn loop_step_values_cannot_escape_into_the_condition_or_body() {
+        for into_condition in [false, true] {
+            let mut f = loop_with_step();
+            let Op::While {
+                condition,
+                body,
+                step: Some(step),
+                ..
+            } = &mut f.body.operations[1].kind
+            else {
+                panic!()
+            };
+            step.operations.push(Operation {
+                span: Span::new(4, 8),
+                kind: Op::Constant {
+                    result: ValueId(4),
+                    value: 1.0,
+                },
+            });
+            f.values.push(Type::Number);
+            let use_value = Operation {
+                span: Span::new(4, 8),
+                kind: Op::Unary {
+                    result: ValueId(5),
+                    operator: Unary::Plus,
+                    input: ValueId(4),
+                },
+            };
+            f.values.push(Type::Number);
+            if into_condition {
+                condition.operations.push(use_value);
+            } else {
+                body.operations.push(use_value);
+            }
+            assert!(verify(&f).unwrap_err().contains("not visible"));
+        }
+    }
     #[test]
     fn rejects_forward_value_use_and_function_fallthrough() {
         let forward = function(vec![], Exit::Return(ValueId(0)));
@@ -537,6 +702,7 @@ mod tests {
                 Op::While {
                     condition,
                     body: child,
+                    step: None,
                 }
             } else {
                 Op::Block(child)

@@ -123,14 +123,21 @@ impl Emitter<'_> {
                         self.set(*result);
                     }
                 }
-                Op::While { condition, body } => {
+                Op::While {
+                    condition,
+                    body,
+                    step,
+                } => {
                     let label = condition.id.0;
                     writeln!(self.output, "block $exit{label}\nloop $loop{label}").unwrap();
                     // The entire condition region executes on every visit, including
-                    // the final failed test. Its values never escape to the body.
+                    // the final failed test. Its values never escape to the body or step.
                     self.region(condition);
                     writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
                     self.region(body);
+                    if let Some(step) = step {
+                        self.region(step);
+                    }
                     writeln!(self.output, "br $loop{label}\nend\nend").unwrap();
                 }
             }

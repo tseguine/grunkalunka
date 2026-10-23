@@ -61,11 +61,21 @@ value cannot escape through an ordinary reference. A numeric conditional express
 uses an `If` result: both arms yield a number and the parent defines the joined
 value. Statement branches have no result and may fall through or return.
 
-`While` owns a condition region yielding a predicate and a statement body region.
+`While` owns a condition region yielding a predicate, a statement body region,
+and an optional statement step region. Existing source `while` loops have no step.
 The emitter executes the whole condition before each iteration and once more for
 the final failed test, preserving condition side effects. Condition temporaries are
-invisible to the body. A while never guarantees return because it may execute zero
-times. A statement if guarantees return only when both arms do; a block carries its
+invisible to the body and step. A step executes after a normally completing body,
+before the next test; a function return skips it. All three regions are siblings,
+so their new values and source cells cannot leak into one another. The verifier
+checks the step even when the body always returns.
+
+A source `for` initializer lives in a surrounding lexical `Block`, whose header
+bindings are visible to the condition, body and step but not after the loop.
+Initialization runs once; body locals initialize on each entry. Omitted tests use
+a generated true predicate. Pretest loops remain conservative for return coverage,
+including `for` with an omitted test. A statement if guarantees return only when
+both arms do; a block carries its
 child's return coverage. Every function must return a number on all structural paths.
 
 Wasm emission uses direct `if`, `block` and `loop` instructions. Lexical-only IR
@@ -91,5 +101,9 @@ JavaScript in Node and executes it in Node-Wasm and Wasmtime.
 Source-size, nesting, statement and source-local budgets count source constructs.
 Generated regions, values and Wasm temporaries do not consume those admission
 budgets. Temporary materialization increases artifact size and Wasm instruction
-count; the runtime fuel allowance remains unchanged. This representation adds no
-optimizer, arbitrary control-flow graph, SSA conversion or new admitted syntax.
+count; the runtime fuel allowance remains unchanged. A `for` counts once, each
+actual body statement/block/return counts once, and a header declaration counts
+once as a statement and once as a local. Generated header blocks, loop regions and
+the omitted-test predicate add no source statements or source nesting. Header
+expressions use the existing expression depth checks. There is no optimizer,
+arbitrary control-flow graph or SSA conversion.
