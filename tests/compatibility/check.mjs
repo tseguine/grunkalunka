@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { suiteInventory } from './suites.mjs';
 import { programSources } from './program-sources.mjs';
+import { readRejectionInventory, validateRejectionInventory, rejectionClassification, validateRejectionReport } from './rejection-inventory.mjs';
 
 const directory = fileURLToPath(new URL('./', import.meta.url));
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -67,6 +68,7 @@ vectors.push(...additionalVectors.map(vector => [vector.a, vector.b]));
 const input = vectors.map(([a, b]) => `${bits(a)} ${bits(b)}`).join('\n') + '\n';
 
 // Validate the whole selected inventory before executing any fixtures.
+const rejectionInventory = validateRejectionInventory(rejected, readRejectionInventory());
 const ids = new Set();
 const preparedSources = new Map();
 function register(id, expectation) {
@@ -211,6 +213,8 @@ for (const [name, source, extension = 'js', diagnostic, gap] of rejected) {
     id: `rejected:${name}`, expectation: 'rejected', executed: true, outcome: 'passed',
     extension, source: `reject-${name}.${extension}`, sourceSha256: sha256(source),
     diagnostic: result.stderr.trim(), exitStatus: result.status, artifactAbsent: true, loweringGap,
+    classification: rejectionClassification(rejectionInventory, name),
+    lowering: { executed: false, outcome: 'not-executed' },
   });
 }
 
@@ -244,6 +248,7 @@ assert.equal(fixtures.filter(fixture => fixture.loweringGap).length,
   rejected.filter(fixture => fixture[4]).length, 'missing lowering gap observations');
 const report = {
   schemaVersion: 1, corpusVersion, runtime, externalSources, externalSuites: suiteInventory(fixtures),
+  rejectionInventory: { schemaVersion: 1, groups: structuredClone(rejectionInventory.groups) },
   compiler: { binarySha256: sha256(await readFile(binary)), lockfileSha256: sha256(lockfile), lockedWasmtimeVersion: lockedWasmtime[1] },
   fixtures,
   counts: { admitted: programs.length, rejected: rejected.length, unimplemented: unimplemented.length,
@@ -253,6 +258,7 @@ const report = {
   modules: observations, comparisons, rejected: rejected.length, overwritePreserved: true,
   demo: { input: [4, 1], output: 3 },
 };
+validateRejectionReport(report, rejectionInventory);
 await writeFile(join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
 console.log(`PASS ${comparisons} numeric comparisons; ${rejected.length} rejected inputs; overwrite preserved`);
 console.log('DEMO: affine.ts -> Wasm; run(4, 1) = 3');

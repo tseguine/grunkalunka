@@ -33,6 +33,29 @@ programs beyond current admission. Node checks their expected results; the compi
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.
 
+The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
+also covers all 631 negatives, including the curated references. Its 55 groups
+distinguish 26 invalid sources, 79 resource restrictions and 526 open requirements.
+Records pin original source hashes, JS/TS extensions and the actual strict Module
+goal. Tests reject missing, stale, duplicate or changed records and invalid group,
+evidence, phase, harness or completion metadata before fixture execution. Feature
+dependencies describe interacting semantics; cycles are legal and do not schedule work.
+
+The report embeds the assessments and validates every resolved rejection classification
+after observation. A finite sensitivity probe drops classification after input validation;
+the final report check must fail. Rejection-test execution remains separate from
+unexecuted compiled lowering, and arbitrary negatives never run in Node. Const writes,
+TDZ/unresolved reads and unselected error paths are valid source with possible runtime
+errors, not invalid syntax. Entry, numeric ABI and structural-return policies remain
+open requirements. Language-error phase metadata describes the applicable standard,
+not the compiler frontend stage which happened to diagnose it. Browser regressions
+must cite the applicable standard even when engines agree; any intentional de facto
+deviation needs an explicit documented policy and configuration where appropriate.
+
+Mandelbrot's suite record separates demonstrated numeric `for` and bitwise/shift
+prerequisites from remaining typed-array and process/stdout blockers. This does not
+claim complete original output, upstream execution or benchmark performance.
+
 Test262 needs its original metadata, harness includes, strict/sloppy variants,
 negative-error phases, module and async semantics before claiming upstream passes.
 The TypeScript tests also include intentionally invalid programs and compiler-only

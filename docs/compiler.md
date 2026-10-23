@@ -36,6 +36,24 @@ contains 671 paired programs, 631 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
+The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
+classifies all 631 rejections in 55 groups: 26 invalid sources in their selected
+strict Module dialect, 79 explicit resource restrictions and 526 open requirements.
+Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
+original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
+official TypeScript syntax reference or explicit source-budget contract. A compiler
+diagnostic alone does not establish source invalidity. TypeScript assessments do
+not add a type checker or treat contradictory annotations as syntax errors.
+
+The harness validates complete, exact inventory coverage before executing fixtures.
+Its additive `rejectionInventory` report field carries the group assessments,
+descriptive feature dependencies, harness needs and observable completion criteria.
+Each rejection result records its resolved `classification` and a separate
+`lowering: { executed: false, outcome: 'not-executed' }`; a passing rejection check
+is not compiled language support. Final report validation rejects missing or changed
+classification. Only the existing 41 explicit curated oracle opt-ins execute in Node.
+Other rejection sources may throw or diverge and are never executed as JS.
+
 Corpus 5 includes 24 executed pairs and eight specific admission rejections adapted
 from a pinned [TypeScript arithmetic fixture](../tests/compatibility/typescript/README.md).
 The report records their upstream source, revision, hashes and ID/line mappings in

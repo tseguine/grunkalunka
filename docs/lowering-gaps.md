@@ -33,6 +33,23 @@ structural return rules are deliberate PoC admission restrictions, rather than
 invalid JavaScript. Source-size, depth, statement/local counts, input-batch and execution-fuel
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
+The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
+covers every current negative, beyond these 41 numeric reference opt-ins. Its 55
+groups classify 26 invalid sources, 79 resource restrictions and 526 open requirements
+across all 631 records. Each pins the exact source, extension and strict Module mode;
+group evidence, descriptive dependencies, harness needs and observable completion
+criteria keep future work visible. Source invalidity is assessed against the named
+language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
+and unresolved references can throw only when evaluated; unreachable branches may
+avoid those errors. PoC ABI/entry/return restrictions remain open requirements.
+
+Input and completed-report validation reject missing or stale inventory metadata.
+The existing fixture sources, expected diagnostics and curated independent oracles
+are preserved. A successful rejection test still records compiled lowering as
+`not-executed`; no additional negative source is executed in Node. Classifying this
+finite inventory is coverage bookkeeping, not closure of its open requirements or
+proof of complete ECMAScript/TypeScript conformance.
+
 The former `gap-as`, `gap-angle-assertion`, `gap-non-null` and `gap-satisfies`
 references are now admitted as `ts-erasure-as`, `ts-erasure-angle`,
 `ts-erasure-non-null` and `ts-erasure-satisfies`, with additional nested, effect,

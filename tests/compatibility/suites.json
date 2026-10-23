@@ -207,10 +207,13 @@
         }
       ],
       "blockers": [
-        "Full Mandelbrot output requires for loops, typed arrays, bitwise operators and process/stdout APIs."
+        "Typed arrays and process/stdout APIs remain blockers for full Mandelbrot output; complete original-program admission/output has not been demonstrated."
       ],
       "milestone": "P1",
-      "next": "Match a full selected program output before measuring its performance."
+      "next": "Match a full selected program output before measuring its performance.",
+      "fulfilledPrerequisites": [
+        "Number-only for loops and numeric bitwise/shift operators are demonstrated in the selected corpus."
+      ]
     },
     {
       "id": "jetstream",

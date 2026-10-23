@@ -1,0 +1,5495 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "id": "malformed-js",
+      "kind": "invalid-source",
+      "assessment": "Malformed function/string grammar in the selected strict Module source.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-literals",
+          "rule": "A string literal must terminate; a function declaration needs its syntactic components."
+        },
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
+          "rule": "Function declarations require their name, parameter list and body under this grammar."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "parse"
+    },
+    {
+      "id": "malformed-ts",
+      "kind": "invalid-source",
+      "assessment": "Malformed type syntax or a decorator attached to an interface; this assessment concerns TypeScript syntax, not type-checking. ",
+      "evidence": [
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-aliases",
+          "rule": "Aliases require a type and property signatures require their type after a colon; decorators do not decorate interfaces."
+        },
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/decorators.html",
+          "rule": "Decorators apply to the documented class and class-member declaration forms."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "parse"
+    },
+    {
+      "id": "misplaced-hashbang",
+      "kind": "invalid-source",
+      "assessment": "A hashbang marker is split, duplicated, nested or preceded by source characters, including BOM, in original Module text.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments",
+          "rule": "HashbangComment is available only in the initial input element; source is not stripped or reparsed."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "parse"
+    },
+    {
+      "id": "strict-parameters",
+      "kind": "invalid-source",
+      "assessment": "Duplicate parameters or eval binding in a strict Module function.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions-static-semantics-early-errors",
+          "rule": "Strict formal parameters cannot duplicate binding names or bind eval/arguments."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "early-error"
+    },
+    {
+      "id": "strict-octal",
+      "kind": "invalid-source",
+      "assessment": "Legacy octal escape is forbidden in strict Module source.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-literals-string-literals",
+          "rule": "Strict-mode string literals exclude legacy octal escape sequences."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "early-error"
+    },
+    {
+      "id": "illegal-loop-control",
+      "kind": "invalid-source",
+      "assessment": "Break or continue has no enclosing permitted target.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-break-statement-static-semantics-early-errors",
+          "rule": "Unlabelled break needs a surrounding iteration/switch; continue needs an iteration."
+        },
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-continue-statement-static-semantics-early-errors",
+          "rule": "The continue target must enclose the statement."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "early-error"
+    },
+    {
+      "id": "duplicate-lexical-binding",
+      "kind": "invalid-source",
+      "assessment": "A block declares the same lexical value binding twice.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-block-static-semantics-early-errors",
+          "rule": "Duplicate LexicallyDeclaredNames are an early error; a same-name type declaration alone is different."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "early-error"
+    },
+    {
+      "id": "invalid-compound-target",
+      "kind": "invalid-source",
+      "assessment": "An array literal is not a simple target for compound assignment.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-static-semantics-early-errors",
+          "rule": "Compound assignment requires a simple assignment target; array destructuring is available for plain equals assignment."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "parse-only"
+      ],
+      "languageErrorPhase": "early-error"
+    },
+    {
+      "id": "source-bytes",
+      "kind": "resource-restriction",
+      "assessment": "The original UTF-8 source exceeds the explicit PoC byte budget.",
+      "evidence": [
+        {
+          "source": "docs/compiler.md#experimental-contract",
+          "rule": "16 KiB original source bytes is a resource restriction, not a language validity judgment."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "source-budget"
+      ]
+    },
+    {
+      "id": "expression-depth",
+      "kind": "resource-restriction",
+      "assessment": "An expression exceeds the explicit source expression nesting budget.",
+      "evidence": [
+        {
+          "source": "docs/compiler.md#experimental-contract",
+          "rule": "expression nesting 128 is a resource restriction, not a language validity judgment."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "source-budget"
+      ]
+    },
+    {
+      "id": "predicate-depth",
+      "kind": "resource-restriction",
+      "assessment": "A predicate exceeds the explicit source predicate nesting budget.",
+      "evidence": [
+        {
+          "source": "docs/compiler.md#experimental-contract",
+          "rule": "predicate nesting 128 is a resource restriction, not a language validity judgment."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "source-budget"
+      ]
+    },
+    {
+      "id": "statement-depth",
+      "kind": "resource-restriction",
+      "assessment": "Statements exceed the explicit source statement nesting budget.",
+      "evidence": [
+        {
+          "source": "docs/compiler.md#experimental-contract",
+          "rule": "statement nesting 64 is a resource restriction, not a language validity judgment."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "source-budget"
+      ]
+    },
+    {
+      "id": "statement-count",
+      "kind": "resource-restriction",
+      "assessment": "Source statements, directives and type declarations exceed the shared statement budget.",
+      "evidence": [
+        {
+          "source": "docs/compiler.md#experimental-contract",
+          "rule": "256 statements is a resource restriction, not a language validity judgment."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "source-budget"
+      ]
+    },
+    {
+      "id": "local-count",
+      "kind": "resource-restriction",
+      "assessment": "Numeric value bindings exceed the cumulative source-local budget.",
+      "evidence": [
+        {
+          "source": "docs/compiler.md#experimental-contract",
+          "rule": "128 numeric locals is a resource restriction, not a language validity judgment."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "source-budget"
+      ]
+    },
+    {
+      "id": "remainder",
+      "kind": "open-requirement",
+      "assessment": "Numeric remainder or remainder assignment is valid but not lowered.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-multiplicative-operators",
+          "rule": "Remainder has specified Number semantics; compound assignment stores its result."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Admit Number remainder and its selected assignment forms with signed-zero, NaN, infinity and effect-order tests."
+      ]
+    },
+    {
+      "id": "exponentiation",
+      "kind": "open-requirement",
+      "assessment": "Exponentiation or exponentiation assignment is valid but not lowered.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-exp-operator",
+          "rule": "Exponentiation has specified Number semantics."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Admit Number exponentiation and selected assignment forms with standard corner cases and operand-order tests."
+      ]
+    },
+    {
+      "id": "logical-assignment",
+      "kind": "open-requirement",
+      "assessment": "Logical/nullish assignment is valid and needs selected-RHS/store semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation",
+          "rule": "Logical assignments short circuit and evaluate their assignment target once."
+        }
+      ],
+      "dependencies": [
+        "nullish-values"
+      ],
+      "harnessNeeds": [
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Admit logical/nullish assignments for a specified value domain with RHS-selection, target and stored-result tests."
+      ]
+    },
+    {
+      "id": "nullish-values",
+      "kind": "open-requirement",
+      "assessment": "Null/undefined values and nullish coalescing exceed the current numeric representation.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
+          "rule": "Nullish selection distinguishes null/undefined from other falsy values."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "value-representation"
+      ],
+      "observableDone": [
+        "Define the value representation and admit null/undefined selection with selected/unselected effect tests."
+      ]
+    },
+    {
+      "id": "boolean-values",
+      "kind": "open-requirement",
+      "assessment": "Boolean storage, results, coercions or discarded predicates exceed current numeric admission.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
+          "rule": "Comparisons and negation produce Boolean values; numeric operations apply the standard conversions."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "value-representation",
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Specify Boolean storage/result boundaries and admit the represented operations with coercion and effect-order tests."
+      ]
+    },
+    {
+      "id": "string-values",
+      "kind": "open-requirement",
+      "assessment": "String expressions or string conversions are valid but outside numeric admission.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-addition-operator-plus",
+          "rule": "Addition may concatenate strings; other numeric operations apply their specified conversions."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Represent the required strings and verify concatenation/conversion and discarded-expression behavior."
+      ]
+    },
+    {
+      "id": "object-values",
+      "kind": "open-requirement",
+      "assessment": "Object values, properties and object coercion require runtime value support.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-object-initializer",
+          "rule": "Object initializers produce objects; property access and conversion have independent runtime semantics."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit the represented object/property operations with identity, conversion and exception tests."
+      ]
+    },
+    {
+      "id": "array-values",
+      "kind": "open-requirement",
+      "assessment": "Array values and indexed access require runtime values and property semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-array-initializer",
+          "rule": "Array initializers create objects with indexed properties."
+        }
+      ],
+      "dependencies": [
+        "object-values"
+      ],
+      "harnessNeeds": [
+        "value-representation"
+      ],
+      "observableDone": [
+        "Admit arrays and indexed reads with independent numeric/result and identity tests."
+      ]
+    },
+    {
+      "id": "bigint-values",
+      "kind": "open-requirement",
+      "assessment": "BigInt operations and mixed Number/BigInt expressions are valid source and may throw at runtime.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-bitwise-operators-runtime-semantics-evaluation",
+          "rule": "Numeric operators distinguish Number and BigInt; unsupported mixtures can throw TypeError."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Specify BigInt representation and verify arithmetic, shifts, comparisons and mixed-domain errors."
+      ]
+    },
+    {
+      "id": "coercive-equality",
+      "kind": "open-requirement",
+      "assessment": "Equality involving non-Number values requires the standard coercion algorithms.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-equality-operators",
+          "rule": "Loose equality is distinct from strict equality and performs type-dependent conversions."
+        }
+      ],
+      "dependencies": [
+        "boolean-values",
+        "string-values",
+        "object-values",
+        "bigint-values",
+        "nullish-values"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Admit selected mixed-type equalities with independent standard-derived coercion cases."
+      ]
+    },
+    {
+      "id": "typeof",
+      "kind": "open-requirement",
+      "assessment": "typeof expressions require String results and special unresolved-reference behavior.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-typeof-operator",
+          "rule": "typeof handles unresolvable references specially and returns a String."
+        }
+      ],
+      "dependencies": [
+        "string-values",
+        "binding-errors"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit typeof with known values, unresolvable names and TDZ exception tests."
+      ]
+    },
+    {
+      "id": "void",
+      "kind": "open-requirement",
+      "assessment": "void expressions require Undefined results while preserving operand effects.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-void-operator",
+          "rule": "void evaluates its operand and yields undefined."
+        }
+      ],
+      "dependencies": [
+        "nullish-values"
+      ],
+      "harnessNeeds": [
+        "value-representation"
+      ],
+      "observableDone": [
+        "Admit void with operand-effect and Undefined-result tests."
+      ]
+    },
+    {
+      "id": "delete",
+      "kind": "open-requirement",
+      "assessment": "delete requires property/reference semantics and Boolean results.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-delete-operator",
+          "rule": "Delete evaluates references and handles property deletion."
+        }
+      ],
+      "dependencies": [
+        "object-values",
+        "boolean-values"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit selected deletion forms with property outcomes, effects and errors."
+      ]
+    },
+    {
+      "id": "in-operator",
+      "kind": "open-requirement",
+      "assessment": "The in operator requires object/property semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
+          "rule": "The in operator checks a property key against an object and can throw."
+        }
+      ],
+      "dependencies": [
+        "object-values",
+        "boolean-values"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit in with property-key conversion, inherited-property and non-object error tests."
+      ]
+    },
+    {
+      "id": "instanceof",
+      "kind": "open-requirement",
+      "assessment": "instanceof requires constructor/prototype and callable behavior.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-instanceofoperator",
+          "rule": "InstanceofOperator performs the specified instance test."
+        }
+      ],
+      "dependencies": [
+        "object-values",
+        "function-calls"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit selected instance checks with prototype and error cases."
+      ]
+    },
+    {
+      "id": "function-calls",
+      "kind": "open-requirement",
+      "assessment": "Calls, including calls in unselected source branches, remain unlowered.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-function-calls",
+          "rule": "Call evaluation evaluates the callee/arguments and invokes the callable; unselected runtime branches need not execute."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "numeric-oracle",
+        "host-capabilities",
+        "exception-outcome",
+        "termination-bound"
+      ],
+      "observableDone": [
+        "Admit a specified callable domain with argument order, return, selected-branch and capability tests."
+      ]
+    },
+    {
+      "id": "closures",
+      "kind": "open-requirement",
+      "assessment": "Captured bindings and nested function declarations need function/environment lifetime support.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
+          "rule": "Function creation captures its lexical environment."
+        }
+      ],
+      "dependencies": [
+        "function-calls"
+      ],
+      "harnessNeeds": [
+        "value-representation"
+      ],
+      "observableDone": [
+        "Admit nested/capturing functions with mutable capture and lifetime tests."
+      ]
+    },
+    {
+      "id": "recursion",
+      "kind": "open-requirement",
+      "assessment": "Recursive calls require bounded runtime call-stack behavior.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
+          "rule": "A function binding can be called recursively."
+        }
+      ],
+      "dependencies": [
+        "function-calls"
+      ],
+      "harnessNeeds": [
+        "numeric-oracle",
+        "termination-bound"
+      ],
+      "observableDone": [
+        "Admit recursive calls with finite reference cases and explicit stack/fuel behavior."
+      ]
+    },
+    {
+      "id": "classes",
+      "kind": "open-requirement",
+      "assessment": "Classes, construction and methods require object and function runtime semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-class-definitions",
+          "rule": "Class definitions establish constructors and methods."
+        }
+      ],
+      "dependencies": [
+        "object-values",
+        "function-calls"
+      ],
+      "harnessNeeds": [
+        "value-representation"
+      ],
+      "observableDone": [
+        "Admit selected class construction and method behavior with independent result tests."
+      ]
+    },
+    {
+      "id": "generators",
+      "kind": "open-requirement",
+      "assessment": "Generator functions and iterators exceed the synchronous numeric entry.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-generator-function-definitions",
+          "rule": "Generators suspend/resume through iterator results."
+        }
+      ],
+      "dependencies": [
+        "function-calls",
+        "object-values"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "termination-bound"
+      ],
+      "observableDone": [
+        "Admit generator execution with yield/resume and completion tests."
+      ]
+    },
+    {
+      "id": "async-functions",
+      "kind": "open-requirement",
+      "assessment": "Async functions/await require Promise and job execution semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-async-function-definitions",
+          "rule": "Async functions return Promises and await schedules continuation."
+        }
+      ],
+      "dependencies": [
+        "function-calls"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "host-capabilities"
+      ],
+      "observableDone": [
+        "Specify and admit Promise/job behavior with completion and rejection tests."
+      ]
+    },
+    {
+      "id": "modules",
+      "kind": "open-requirement",
+      "assessment": "Imports, exports and extra runtime module items are valid source beyond the PoC entry contract.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-scripts-and-modules.html#sec-modules",
+          "rule": "Module linking and evaluation are separate from parsing and exported function selection."
+        }
+      ],
+      "dependencies": [
+        "function-calls"
+      ],
+      "harnessNeeds": [
+        "module-linking",
+        "entry-contract"
+      ],
+      "observableDone": [
+        "Specify module graph/initialization and entry selection, then admit these shapes with linking/evaluation tests."
+      ]
+    },
+    {
+      "id": "entry-shape",
+      "kind": "open-requirement",
+      "assessment": "Valid modules may use other entry names, arities, export forms or no runtime entry.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-scripts-and-modules.html#sec-exports",
+          "rule": "The single named two-Number run entry is a PoC contract, not ECMAScript validity."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "entry-contract"
+      ],
+      "observableDone": [
+        "Specify and test additional entry/export/arity forms without marking excluded forms invalid."
+      ]
+    },
+    {
+      "id": "parameters",
+      "kind": "open-requirement",
+      "assessment": "Defaults, rest, destructuring, optional and this parameters require parameter binding/erasure beyond the PoC shape.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
+          "rule": "Function parameter initialization has distinct default/rest/destructuring behavior."
+        },
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/2/functions.html",
+          "rule": "TypeScript optional and this parameters are source type syntax; runtime behavior follows the erased function."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "entry-contract",
+        "exception-outcome",
+        "typescript-syntax"
+      ],
+      "observableDone": [
+        "Admit selected parameter forms with binding order, defaults, rest and original-TS erasure tests."
+      ]
+    },
+    {
+      "id": "var-bindings",
+      "kind": "open-requirement",
+      "assessment": "var declarations and hoisting need function-scoped initialization semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-variable-statement",
+          "rule": "VarDeclaredNames and function instantiation establish var bindings before body evaluation."
+        }
+      ],
+      "dependencies": [
+        "nullish-values"
+      ],
+      "harnessNeeds": [
+        "value-representation"
+      ],
+      "observableDone": [
+        "Admit var declaration/hoisting and shadowing with before-declaration read tests."
+      ]
+    },
+    {
+      "id": "uninitialized-bindings",
+      "kind": "open-requirement",
+      "assessment": "Uninitialized let and definite-assignment syntax are valid source, outside initialized numeric locals.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations",
+          "rule": "A let declaration without initializer initializes to undefined; TS definite assertions do not create runtime checks."
+        },
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/release-notes/typescript-2-7.html#definite-assignment-assertions",
+          "rule": "Definite-assignment assertions communicate to the checker, without supplying a runtime initializer."
+        }
+      ],
+      "dependencies": [
+        "nullish-values",
+        "binding-errors"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "typescript-syntax"
+      ],
+      "observableDone": [
+        "Admit uninitialized let/definite syntax with initialization, Undefined and TDZ tests."
+      ]
+    },
+    {
+      "id": "destructuring",
+      "kind": "open-requirement",
+      "assessment": "Binding or assignment destructuring requires pattern/iterator/property evaluation.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-destructuring-assignment",
+          "rule": "Destructuring evaluates the RHS and initializes or assigns pattern targets; Number RHS can throw."
+        }
+      ],
+      "dependencies": [
+        "array-values",
+        "object-values"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit selected binding/plain-assignment patterns with order, iterator/property access and error tests."
+      ]
+    },
+    {
+      "id": "const-errors",
+      "kind": "open-requirement",
+      "assessment": "Assignments/updates to const bindings are valid source and throw TypeError only if evaluated.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/executable-code-and-execution-contexts.html#sec-declarative-environment-records-setmutablebinding-n-v-s",
+          "rule": "SetMutableBinding throws for immutable bindings; an unselected branch may avoid the write."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "exception-outcome"
+      ],
+      "languageErrorPhase": "runtime",
+      "observableDone": [
+        "Represent and verify runtime immutable-binding errors, including unselected writes; do not misclassify source as invalid."
+      ]
+    },
+    {
+      "id": "binding-errors",
+      "kind": "open-requirement",
+      "assessment": "TDZ reads/writes and unresolved references are valid source, possibly unselected; evaluation may throw ReferenceError.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/executable-code-and-execution-contexts.html#sec-declarative-environment-records-getbindingvalue-n-s",
+          "rule": "Uninitialized lexical reads throw at runtime; scope/hoisting determine resolution."
+        },
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-getvalue",
+          "rule": "GetValue of an unresolvable reference throws ReferenceError; unresolved names are not a parse error."
+        }
+      ],
+      "dependencies": [
+        "var-bindings"
+      ],
+      "harnessNeeds": [
+        "exception-outcome"
+      ],
+      "languageErrorPhase": "runtime",
+      "observableDone": [
+        "Admit binding-error paths with ReferenceError outcomes and unselected-path success tests."
+      ]
+    },
+    {
+      "id": "immutable-globals",
+      "kind": "open-requirement",
+      "assessment": "Writes to standard Infinity/NaN globals are valid source and fail at runtime if evaluated.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/global-object.html#sec-value-properties-of-the-global-object",
+          "rule": "Infinity/NaN are non-writable global properties; strict writes throw through PutValue."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "exception-outcome"
+      ],
+      "languageErrorPhase": "runtime",
+      "observableDone": [
+        "Verify strict writes to immutable globals and unselected-write behavior with independent exception outcomes."
+      ]
+    },
+    {
+      "id": "wrapped-targets",
+      "kind": "open-requirement",
+      "assessment": "TypeScript expression wrappers around write targets remain unsupported by lowering, without adding type-check requirements.",
+      "evidence": [
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-assertions",
+          "rule": "Type assertions are removed and do not introduce runtime conversions; original TS source is retained."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "typescript-syntax",
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Admit supported erased write targets while preserving original AST, target evaluation and assignment/update results."
+      ]
+    },
+    {
+      "id": "property-targets",
+      "kind": "open-requirement",
+      "assessment": "Property assignment/update targets require object and strict property-write semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation",
+          "rule": "Assignment evaluates a reference then writes it; Number primitive properties may fail in strict mode."
+        }
+      ],
+      "dependencies": [
+        "object-values"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit property writes/updates with reference capture, strict primitive errors and effect-order tests."
+      ]
+    },
+    {
+      "id": "return-policy",
+      "kind": "open-requirement",
+      "assessment": "Valid function bodies can fall through, return undefined, diverge or return through paths beyond conservative analysis.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-return-statement",
+          "rule": "Return without expression yields undefined; a function need not structurally return a Number."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "entry-contract",
+        "termination-bound"
+      ],
+      "observableDone": [
+        "Specify additional completion/result contracts and admit corresponding paths with bounded numeric, Undefined and divergence tests."
+      ]
+    },
+    {
+      "id": "abrupt-tail-policy",
+      "kind": "open-requirement",
+      "assessment": "Valid unreachable runtime statements are rejected by conservative source admission.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-block-runtime-semantics-evaluation",
+          "rule": "StatementList propagates abrupt completion and does not evaluate the runtime suffix."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Admit and validate unreachable source without executing its suffix or changing completion alternatives."
+      ]
+    },
+    {
+      "id": "labels",
+      "kind": "open-requirement",
+      "assessment": "Labelled statements/break/continue require label target resolution.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-labelled-statements",
+          "rule": "Labels determine the appropriate break/continue target."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "numeric-oracle",
+        "termination-bound"
+      ],
+      "observableDone": [
+        "Admit label resolution with nested nearest/outer targets and bounded execution tests."
+      ]
+    },
+    {
+      "id": "switch",
+      "kind": "open-requirement",
+      "assessment": "Switch requires case selection, fallthrough and break completion.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-switch-statement",
+          "rule": "CaseBlock evaluates matching clauses and propagates completion."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Admit switch selection/fallthrough with default and break tests."
+      ]
+    },
+    {
+      "id": "for-in-of",
+      "kind": "open-requirement",
+      "assessment": "for-in/for-of require enumeration or iterator semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-for-in-and-for-of-statements",
+          "rule": "Enumeration and iterator binding are distinct from ordinary numeric for loops."
+        }
+      ],
+      "dependencies": [
+        "object-values",
+        "array-values"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "termination-bound"
+      ],
+      "observableDone": [
+        "Admit selected enumeration/iteration forms with ordering, bindings and iterator-close tests."
+      ]
+    },
+    {
+      "id": "exceptions",
+      "kind": "open-requirement",
+      "assessment": "Throw/catch/finally need exception values and completion/unwinding semantics.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-try-statement",
+          "rule": "Finally can replace or preserve prior completion, including return/break/continue."
+        }
+      ],
+      "dependencies": [
+        "binding-errors"
+      ],
+      "harnessNeeds": [
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Admit exception completion and cleanup with bounded throw/catch/finally composition tests."
+      ]
+    },
+    {
+      "id": "type-module-forms",
+      "kind": "open-requirement",
+      "assessment": "Type-only imports/re-export lists, ambient declarations and augmentations need explicit TypeScript module admission.",
+      "evidence": [
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/2/modules.html",
+          "rule": "Type-only module syntax is distinct from runtime imports; ambient declarations describe external values."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "typescript-syntax",
+        "module-linking"
+      ],
+      "observableDone": [
+        "Classify and admit the selected type module forms with original-source retention and no invented runtime values."
+      ]
+    },
+    {
+      "id": "typescript-runtime-forms",
+      "kind": "open-requirement",
+      "assessment": "Namespaces, enums and runtime generic/ambient function forms require their separate emission or admission decisions.",
+      "evidence": [
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/enums.html",
+          "rule": "Enums and namespaces can emit runtime code; generic type parameters erase but do not grant runtime entry admission."
+        },
+        {
+          "source": "https://www.typescriptlang.org/docs/handbook/namespaces.html",
+          "rule": "Namespaces organize value and type declarations and can emit code."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "typescript-syntax",
+        "value-representation"
+      ],
+      "observableDone": [
+        "Specify each supported declaration form and verify its actual runtime emission/erasure and binding behavior."
+      ]
+    },
+    {
+      "id": "function-context",
+      "kind": "open-requirement",
+      "assessment": "Function values, this and arguments require runtime function/context representation.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-primary-expression",
+          "rule": "This/identifier/arguments evaluation follows the execution context and value domain."
+        }
+      ],
+      "dependencies": [
+        "function-calls"
+      ],
+      "harnessNeeds": [
+        "value-representation"
+      ],
+      "observableDone": [
+        "Specify function/context representations and test function references, strict this and arguments behavior."
+      ]
+    }
+  ],
+  "records": [
+    {
+      "id": "gap-remainder",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9be5ea5ab4bff85ebd091c0c73696e3f0987cad3b6503d06e757353cc2d203b1",
+      "group": "remainder"
+    },
+    {
+      "id": "gap-power",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a3ce3becfe3b89c198cd77d9ac22d6f9fcdd89e05e2ada811507359b1be3fd76",
+      "group": "exponentiation"
+    },
+    {
+      "id": "gap-loose-equality-coercion",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a871485acfb6d0d7d9f6fc87ab3f3223e426a76e56de6c144ae5912af944121a",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "gap-nullish",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cc04ac11c14b9961473ec1c628ac3625e0098e727b8a9c6f4cb0f2df862ed31c",
+      "group": "nullish-values"
+    },
+    {
+      "id": "gap-typeof",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "34e0f464195e83123a20d4854639000916133aa27bcb6d79b7b51cf8c361f23a",
+      "group": "typeof"
+    },
+    {
+      "id": "gap-void",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "66d77e4e765a76f62ed187251314ec8608540d6b80cf2648f89d2fe9135250e1",
+      "group": "void"
+    },
+    {
+      "id": "gap-delete",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "007d45b36dfd6d6d941189163094b261019a260d0f23ed0736c45fc848ac0d3f",
+      "group": "delete"
+    },
+    {
+      "id": "gap-property-in",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7ed37657a852b28a30a9aab0afc073a099b5e536cbeea62d397d951e2204f7aa",
+      "group": "in-operator"
+    },
+    {
+      "id": "gap-instanceof",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "60bb329b7203c0372a4e973ae9339787ec49e2f014a1c8579865e91cdd17dddd",
+      "group": "instanceof"
+    },
+    {
+      "id": "gap-boolean-value",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9cfb72a0da82b3c6efa22935d3b24ea419bc56d235ae8291eeadcf069dc3cd7c",
+      "group": "boolean-values"
+    },
+    {
+      "id": "gap-string-coercion",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f62e0982596b138842c8528ee56dbbf8d24e5bb9cabc664c2c7ba76a5609586c",
+      "group": "string-values"
+    },
+    {
+      "id": "gap-object-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a7d2e7d7306cbde71e2fb1db6397b0a9d87f8c33d7f449c82347b1bea9157e46",
+      "group": "object-values"
+    },
+    {
+      "id": "gap-array-value",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2d0bd7338ed4499fdf7c1ff686f81383b08a807793cd605b91113bb4dc850ec7",
+      "group": "array-values"
+    },
+    {
+      "id": "gap-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "31c6f32864488366c8b7b5bb2b6061ad647e2c5930bfe6d34e558edb7239959a",
+      "group": "bigint-values"
+    },
+    {
+      "id": "gap-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "118acccdd3b18a2781b63f60f0af995d5f4193bcb39376b2a8cff7d6dcc1d521",
+      "group": "nullish-values"
+    },
+    {
+      "id": "gap-undefined",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a31795309b3926250fba5f2ff4123810096bb59b3a8fe9a9176bca777d13897e",
+      "group": "nullish-values"
+    },
+    {
+      "id": "gap-switch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ced717662fb6f26e1bd4f553db7716c7dc42697c174e5df51bbf25b5426ab604",
+      "group": "switch"
+    },
+    {
+      "id": "gap-label",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b30d1bd4274e5f766e58c5ec12b4c18aa6b592dd10eb9597faf3c20ac5458611",
+      "group": "labels"
+    },
+    {
+      "id": "gap-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "08843f1268bfccd6f0b591612d941aa21453d75125a6707cc73f8cf4dca3a91d",
+      "group": "closures"
+    },
+    {
+      "id": "gap-nested-function",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "61cc79649ccf859576a9893a906435006cdb8d06636b28446a4172aa7f7d2f80",
+      "group": "closures"
+    },
+    {
+      "id": "gap-recursion",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8190d1f9d685b33d615757bc4d97ab80769aba20c0c801ccd72258b04828dd0e",
+      "group": "recursion"
+    },
+    {
+      "id": "gap-module-import",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4599f4fdd69ab96c946b00a413ba2f83cd2fdc8db5b22276c74932531c11cfe2",
+      "group": "modules"
+    },
+    {
+      "id": "gap-var",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1cb57d3c74e3fb1b2b0314edb65c84f07971621077d965fa3b2f1a0cb63f1485",
+      "group": "var-bindings"
+    },
+    {
+      "id": "gap-var-hoisting",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ac1fe3ad1d6d4dd5c28604560eafd117cadd8dd3c17430ca0f1c9172cb23abae",
+      "group": "var-bindings"
+    },
+    {
+      "id": "gap-uninitialized-let",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d3d6244a1b7c62f6aca211c70f4e40c895b6756835b8bf156d7da8566dd19833",
+      "group": "uninitialized-bindings"
+    },
+    {
+      "id": "gap-local-destructure",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bd0e98405bb8cd832047966de53955f4ecf99acb4dddacea6b7830490c439841",
+      "group": "destructuring"
+    },
+    {
+      "id": "gap-destructuring-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1afc439b3efa7d353c3da4f0bbb7ee0aa4b9a3f0fd1ad3023b53881875b717d0",
+      "group": "destructuring"
+    },
+    {
+      "id": "gap-defaults",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bedf5ea6aa256c47e15d123b2c531da4deda48ce4f064d374ef1016bfa2060c8",
+      "group": "parameters"
+    },
+    {
+      "id": "gap-rest",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d66bca8a6c83f0ca28b4b433da842da4ef8ef0f0adf68da28d24ea738624a6f3",
+      "group": "parameters"
+    },
+    {
+      "id": "gap-closure-capture",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8805be1d8c56acc24526b4e518a2a83cf798e1dd6cb644e94bf25ba922660b60",
+      "group": "closures"
+    },
+    {
+      "id": "gap-catch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "982acc099faf201b17b7567aa5c2df65403c0136b17cc97ba70dc37b85fe79bc",
+      "group": "exceptions"
+    },
+    {
+      "id": "gap-finally-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b4ab88449bd24de349b188ca007fc0c7bd6dc720d3291b3a400b1d6b2b4c114",
+      "group": "exceptions"
+    },
+    {
+      "id": "gap-class-instance",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4e53fc4e32f09ab48567c2de6cef3463f491ec24391a0c8c355690761d5dd0f6",
+      "group": "classes"
+    },
+    {
+      "id": "gap-generator",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3b1a599b16870a482f7608908fbcc5e6d70b15d2d72f048e35eb752acf85b60a",
+      "group": "generators"
+    },
+    {
+      "id": "gap-async-await",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "735913a592f91c980a71bac74f112102d572af6f6dc989f6b571ef11877e786e",
+      "group": "async-functions"
+    },
+    {
+      "id": "gap-math-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a234791fa3870f0cc2b0fb01d83bdb818a4cf01c0cdd006501cb4c551e47e792",
+      "group": "function-calls"
+    },
+    {
+      "id": "gap-export-name",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "32b00e0e2e25d469c9d3c2b7efbc7f190697f842c4694566989414c073ae49da",
+      "group": "entry-shape"
+    },
+    {
+      "id": "gap-one-parameter",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d9c36f6ec2aa0c77801c770382cbc06d3246cc6a18110bab6d0fba2c7ab9afac",
+      "group": "parameters"
+    },
+    {
+      "id": "gap-extra-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2836cca1878c7eb340e6837b3de9cfd0d9cf62411b7294398a4b959337c3e8a9",
+      "group": "modules"
+    },
+    {
+      "id": "gap-while-guaranteed-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5dbc7444053d63cef1a3c3939c25bd88bade309a5f744d52acbb696e93460717",
+      "group": "return-policy"
+    },
+    {
+      "id": "gap-unreachable-after-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "045d353e3e5f6204c6467e5063e08c08f967271a6d1847aea64262e97ea12cb9",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "ts-erasure-as-depth-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8c52ca3b91a2d01d7504548569e1d3ff64cd020e0bd99a918ce1b4d7cbdea56c",
+      "group": "expression-depth"
+    },
+    {
+      "id": "ts-erasure-as-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c0705358ba49138db3f482a1f2f6cf93596cb2995c322ff3e163866364a8d512",
+      "group": "function-calls"
+    },
+    {
+      "id": "ts-erasure-as-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "369f082d45b6fd749b6c865b0133c0f7f34f77e6495126da873a0f87e0d08cfc",
+      "group": "string-values"
+    },
+    {
+      "id": "ts-erasure-as-object",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "60747e084926e06ecd88503c5e4fd2916fa5fb455ce21ed107fa9599dfd342ca",
+      "group": "object-values"
+    },
+    {
+      "id": "ts-erasure-as-assignment-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "70fba29b32c0064ad1798b5329b1134e0a3d6f687f1d4b0d88eb8de364affa2b",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-as-update-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4971851c0ccf611ce8b6183ce959464d6afd37694bd981c6ed682ca446dc7e0c",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-angle-depth-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "93dafd4a7a126436c78229c23d3d707fa1a198b3e644785be24867b7fd124489",
+      "group": "expression-depth"
+    },
+    {
+      "id": "ts-erasure-angle-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dca65097cecdc0cbd68353220f4e0207a8208a21f9c8bb53a8ecac1042ad4834",
+      "group": "function-calls"
+    },
+    {
+      "id": "ts-erasure-angle-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "258083a76e936ee982a4dde8da38e37b2cc57c1c528a1a8d1f12fb72cd3381d8",
+      "group": "string-values"
+    },
+    {
+      "id": "ts-erasure-angle-object",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4bfa8cf6003752b0fd7b5888bb42e7d7043900f725b010fecbf4e75eaf1eac5d",
+      "group": "object-values"
+    },
+    {
+      "id": "ts-erasure-angle-assignment-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "23c8c5de1f57422845b4567ba71d4debb2f55a737ef18058a498cb3fb4831af0",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-angle-update-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e823254937dfaab65b826995fde9f4bd230e2cbf15d080d1e0579fb7412f87fd",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-non-null-depth-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "97f567e59362c823ec19b0cd11e7f9f5bc9717402b0bf49272bf2f9e06759c43",
+      "group": "expression-depth"
+    },
+    {
+      "id": "ts-erasure-non-null-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e2447e57a86dd275530b9e676c397c75fdf64a635d9f1e084807f4b525329e0a",
+      "group": "function-calls"
+    },
+    {
+      "id": "ts-erasure-non-null-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3d79b23b826dcad02b6b22e196883a26a4148f233816ae3bd72a4f16939a9231",
+      "group": "string-values"
+    },
+    {
+      "id": "ts-erasure-non-null-object",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "092a21ae6b2b3eec1f816997b6d19d2117a82be5a553794d3af9220d4fedd9c5",
+      "group": "object-values"
+    },
+    {
+      "id": "ts-erasure-non-null-assignment-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5013fecf49137818f2020ad1095dfb0e18da522bca78c7aaa6bee6cc54f3e7d2",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-non-null-update-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3916ab4cc44f07ce33f9ce24a5425be55a46b195e06d2062235da170051abd73",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-satisfies-depth-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6817aee94fb575d63cd5b1199dc7467bde4d92af224d6cb8eb46074a1f0c4508",
+      "group": "expression-depth"
+    },
+    {
+      "id": "ts-erasure-satisfies-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ae0dd755e047db7de3150b1702a3275cdea3d458ff519d19da9be486de92675a",
+      "group": "function-calls"
+    },
+    {
+      "id": "ts-erasure-satisfies-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "27e52970f5e869ab72317944cd636f623ed0e1b16d165eb4c0aa00f1f473407e",
+      "group": "string-values"
+    },
+    {
+      "id": "ts-erasure-satisfies-object",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6a2126c19ff1bb24c4ac1a8c3b27497df975abf30189459df258cfaeb6c90893",
+      "group": "object-values"
+    },
+    {
+      "id": "ts-erasure-satisfies-assignment-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "69685191364fce9ad427dc97bfedf164817b3b0080289b3f0ab2efaf805edbec",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-satisfies-update-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fbd51e6e0a3b88e82d7c8d52254cc4e4193e292ddf4218003b4eb164857504d5",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "ts-erasure-predicate-depth-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8d1f0fd5f9f298cf2f9aa5b287bab7f2537a6c2ca42b7d36b8048fba578b4c1f",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "ts-erasure-const-write",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b69008f12466e43bda0647596bcc4a0683f53060e6d5f7e52a248da6c876fb1f",
+      "group": "const-errors"
+    },
+    {
+      "id": "ts-erasure-self-initializer",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "639d7b17ae2fbe510609bc803bf151454f9244e2ac4410a7ab4a21ca0e54aafb",
+      "group": "binding-errors"
+    },
+    {
+      "id": "ts-erasure-forward-initializer",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0d4ed89ad78289577282eead6778ba924fc80b02191e354ff449162538138433",
+      "group": "binding-errors"
+    },
+    {
+      "id": "ts-erasure-unselected-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "654d2a4f994633ff529f7dc2d0356490f1cc2416e93a95f10ec0cecbf120798d",
+      "group": "function-calls"
+    },
+    {
+      "id": "ts-erasure-boolean-return",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "84dd55257d6949cbf97a79bd4ab50a1e5e25db0b9b07b81a4048a3a54743215a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "ts-erasure-boolean-arithmetic",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5f87d094693f2f9e12fe4a6e4e406a0f53eae085ace924f15046d75d94fc99a6",
+      "group": "boolean-values"
+    },
+    {
+      "id": "for-var",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a6620ba9393f1dca83875cf50d0b77505c345a480fe4e010dd3b39cb0580918f",
+      "group": "var-bindings"
+    },
+    {
+      "id": "for-destructure",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "197bbdcad4d70bc3ff3c7a848b95761c77ee9751be6839deb7d48af399639582",
+      "group": "destructuring"
+    },
+    {
+      "id": "for-uninitialized",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "576fd857c0c42dfa3bc62f9d02129c40c765673fa415a6ca9da496742a90f002",
+      "group": "uninitialized-bindings"
+    },
+    {
+      "id": "for-self-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ab19de85c6d515bddb621955d2c846da5e94ab001d5d2f11f95c21481a4dc73b",
+      "group": "binding-errors"
+    },
+    {
+      "id": "for-self-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3cc1015a4a4054db6c26d3153ed7b00db4a012574d83b14a0bcd4021be107c5a",
+      "group": "binding-errors"
+    },
+    {
+      "id": "for-shadow-self-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d5f4aa161eca3cef4b4d831ab156424b03bbd39596eba7f76da57365f83d7089",
+      "group": "binding-errors"
+    },
+    {
+      "id": "for-header-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d6617e4f9a9473ec27b9968556fd23ac09800b2da88aa3adac38cf62cbfffd3b",
+      "group": "binding-errors"
+    },
+    {
+      "id": "for-body-local-step",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "084c25799f003324db305caa8dcb536dcd4fc3ef75b9de195578ffe3bfa5eec4",
+      "group": "binding-errors"
+    },
+    {
+      "id": "for-const-step-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fd71e84bc2f6f251402227db54434e3656555a6ae0193f90c9f02d9a5a5686c1",
+      "group": "const-errors"
+    },
+    {
+      "id": "for-const-step-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c185f2ef71af256edfe2ecfc9e9a56e6447c598b2bd9ca9509106dd73a180178",
+      "group": "const-errors"
+    },
+    {
+      "id": "for-const-test-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "18230baf04907254af3e3a8d2aa67a9c4bebb47a4d110a1bf079b1ef67c119df",
+      "group": "const-errors"
+    },
+    {
+      "id": "for-unselected-body",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6f94df4939b072c4da940acc1ad2bcc61f94b93b571b2b67e6392cd3393eb90a",
+      "group": "function-calls"
+    },
+    {
+      "id": "for-unselected-step",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "509691c615828fb6373fba7b0bf34eee243c2f36f380edfeb2eb290d31740967",
+      "group": "function-calls"
+    },
+    {
+      "id": "for-test-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bd69d8ca6060df9525213e0104a4d6012d2fd01ec1c9d0112eb12c0609e1d22b",
+      "group": "function-calls"
+    },
+    {
+      "id": "for-init-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4380d82b1d4c960af63d521dc949e86d79c1ddc26dba5010186544ebf9060df5",
+      "group": "function-calls"
+    },
+    {
+      "id": "for-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "69ce7d62d63d3e2ef2056fea12c54c68e1d6592c22ad8176511c5c9ad822c670",
+      "group": "return-policy"
+    },
+    {
+      "id": "for-omitted-test-return-policy",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc138156a8ad063ebebf5755c5652f41309bd03201111b679847af75fc2f0b6b",
+      "group": "return-policy"
+    },
+    {
+      "id": "for-in",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a8a472951a967a352c4303be97c0ebf33b39fee11b1d3525d5eb3b0ddfd2d2f5",
+      "group": "for-in-of"
+    },
+    {
+      "id": "for-of",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6ec79ccff9f7ab9e84d3c6f91990edb072bd1aa0bf66834c1aa199df066c6845",
+      "group": "for-in-of"
+    },
+    {
+      "id": "for-label",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6925b0244e14a04deb8288764be433d63d3ad5ee90272d777015e82e6dd17310",
+      "group": "labels"
+    },
+    {
+      "id": "for-header-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d02232524f53245b9f1c9cdb467bcb56e4031ddb6f8b3ab565f965536d74d7b7",
+      "group": "statement-count"
+    },
+    {
+      "id": "for-header-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "90e81924cb68a31275ec4b83c16875bf28137a6794ad9cd322b1ea2bdc8e5c17",
+      "group": "local-count"
+    },
+    {
+      "id": "for-source-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e89c07c2b10811d1386b9f580745f34d419626d2cbc5e5894bcd51cab71c59db",
+      "group": "statement-depth"
+    },
+    {
+      "id": "for-init-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc840ac4145c848d5dd9cef7a2f87cb0d3122c658a57c689f5f42825e2071034",
+      "group": "expression-depth"
+    },
+    {
+      "id": "for-test-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0e231d7d947c8492c2a5d6e9570e86cf4e4a459d6434681d43da1990cd3b6452",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "for-step-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e4386dbecd7820dc86874a480a979f78c9c516f3d2743e4e996609c93bfcb921",
+      "group": "expression-depth"
+    },
+    {
+      "id": "do-unsupported-test-after-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3416afe9d5a798347d9d5659e206cc164d6b2a51c725f98d4ee2b37978b6d556",
+      "group": "function-calls"
+    },
+    {
+      "id": "do-string-test",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ff9fb88568a52b4b82c871e234eab2e77d50d66b3be5d6fb1307e523bd34a6b6",
+      "group": "string-values"
+    },
+    {
+      "id": "do-unsupported-body",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e58a5dbc3dbbc6849fa0cb60de5b2bfd432d0704519890e5ac239e14de4913e2",
+      "group": "function-calls"
+    },
+    {
+      "id": "do-body-local-test",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b23499307ccc4b14249a2150d9f77619783f2a9fdd570f96457fcabb9c1556d",
+      "group": "binding-errors"
+    },
+    {
+      "id": "do-body-local-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "824fb902c727e55f5fc7f95eb9aa4ffef533f6790e66af6374408a57db057095",
+      "group": "binding-errors"
+    },
+    {
+      "id": "do-self-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3dffa21f6f270d21200d337a88e4aaed43c1006f1c388f7474cf1f4965d6eb43",
+      "group": "binding-errors"
+    },
+    {
+      "id": "do-const-body-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "506a1272aefb71993d44c2530463c48157201ec66e9436dfb1b0c2de346cf5df",
+      "group": "const-errors"
+    },
+    {
+      "id": "do-const-test-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "adbb610eb359119e17bef437a5e313e059c6771385e2d19f33e4c892e4973b13",
+      "group": "const-errors"
+    },
+    {
+      "id": "do-label",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2d793648e96085a446b2bff87f3e1645a46493bfa8222c6db74f27795fea95e8",
+      "group": "labels"
+    },
+    {
+      "id": "do-after-guaranteed-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e5bda55b05df6538bc3076376efe7a80116f9cf88954d61aa65c11705b91c14d",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "do-after-guaranteed-branches",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d278f08f2959ae83511d2f718bd9c71d10a44412189423383d3bbd13d7c3b2f3",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "do-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e53790d8ae21fc81ecd4123435dd9c1ae9857e03613c06eeeb76b59739c216f3",
+      "group": "return-policy"
+    },
+    {
+      "id": "do-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d5b11efde0edfce6d53e3ab533e9400ff138b6550db0c72fc3640cd089695414",
+      "group": "statement-count"
+    },
+    {
+      "id": "do-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "45ab180ea321655568cff0836e1aa3f07f23b51e67c04402b5ffc7431e744d46",
+      "group": "local-count"
+    },
+    {
+      "id": "do-source-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "230d8d2addb320d96fdde6f5e3cbc3618ef81e82e223803e900892e01f23616b",
+      "group": "statement-depth"
+    },
+    {
+      "id": "do-test-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e8005416d2d8ad95219f379043446c3f2f8b80110761e928e40ca2438afc8b17",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "equality-boolean-left",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e48fdfccfdbda20fdcb77619f719fc428fafafd8f02e3ec67092e01968471455",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "equality-boolean-right",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "adcdb336b021699eea3278adc971eeb0ded76e9e21f7984b1f08611fa1d0fbbf",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "inequality-boolean-left",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "295bb4820544f1ac9b5370d4bcdc270c2de5a1f0eed73fcb38039715c522990f",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "inequality-boolean-right",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "581c39d008a3d22df1863479e4ab0ac7d5cd7c6ed02630cff21f1ca006634037",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "equality-string-left",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8daf7999307f758b4d6adb11f3699730de9623d7ae76defe34360818403bc3a7",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "inequality-string-right",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3d0eecebf0fe94d32f99e5ea6189454ea91795fc34c71b4c06b108b159513e5c",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "equality-null-left",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "408e99e16b359e7f5e4d3bb0e0e7afa4b007b36494aad70254e68d62ff98addf",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "inequality-null-right",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "933ed0c226149997723a82102631bcd4eaf42246048bdbf8bc7675fb82cc305e",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "equality-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9e9c02440f6892295d30f2130f72bab9ed8384a843d5239ddb86dc29379df1ec",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "inequality-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7447051cbf9634a87e8828b705f9323889e022c31eeebef903b6983c4c82c2d2",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "equality-comparison-operand",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "09a10938fdca5dd6a685618b4fbfbb44df291e0ff7b8a280344018c2c6648941",
+      "group": "boolean-values"
+    },
+    {
+      "id": "equality-nested-operand",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "96a754245cdfde5aa8908c737ec47533ec3f4c4e37e5fbf1abdddf15af27cc47",
+      "group": "boolean-values"
+    },
+    {
+      "id": "equality-numeric-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "314c00184648d6e46bcf62f9eda88f26ad04c195a06c8fc844c8a2f875131e5b",
+      "group": "boolean-values"
+    },
+    {
+      "id": "equality-numeric-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9adfc0a17014b149f46269c3f8f3dec00c5731676c7c6e91f643e3dde5064430",
+      "group": "boolean-values"
+    },
+    {
+      "id": "inequality-arithmetic",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "678a01439b2b1a96fccc894b2d61493ca551541c1bba0eaed75d163e8edd5947",
+      "group": "boolean-values"
+    },
+    {
+      "id": "equality-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "29680d31ff9438134ff2027aefda98a50913e9c637314f1626f75f188f79e252",
+      "group": "function-calls"
+    },
+    {
+      "id": "equality-asserted-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "21a56630b256242fbb1ce148df3b0b9a2ab66923f5244907871ba95ed39abe8f",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "equality-expression-statement",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9a413cccaee1dc4f9c73d8579f0295e5ac6c0dc0bf3e21ef85ae633142d2dfb8",
+      "group": "boolean-values"
+    },
+    {
+      "id": "equality-predicate-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eb237b5fcde0c4266ccd2ba85aca48d542b1be459ccdff56a98574343b4b24dc",
+      "group": "expression-depth"
+    },
+    {
+      "id": "inequality-operand-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e690397cb12cb96b92a78aae374b43fab9331dbbd93ae924b663ea4ac93c7bbe",
+      "group": "expression-depth"
+    },
+    {
+      "id": "statement-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "db79c8e5dd97798f5a9405cd09a1eb1840e175d91583bfcecff8b054fd03dbae",
+      "group": "boolean-values"
+    },
+    {
+      "id": "statement-comparison",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6e183dfc094450f74558bb6df857014d947acae6ab9079a02650188871cf7656",
+      "group": "boolean-values"
+    },
+    {
+      "id": "statement-negation",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ee0f3eb7ea217c0c1457098844623b80ff52cb67645832e4f96700ce8e4e7c28",
+      "group": "boolean-values"
+    },
+    {
+      "id": "statement-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3c4da174eb7511c8b413c8df118039c4125db879323da7feda1b3c3662026ceb",
+      "group": "string-values"
+    },
+    {
+      "id": "statement-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0f7c690316ae296c7a40af808a04e128169b9fc0a8d3ff235d62e26ebf58269f",
+      "group": "function-calls"
+    },
+    {
+      "id": "statement-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fcaa4b10e4f4dd5d1d8ade1da7c8cade44d0e30893c26cf181f9ef955e74ff17",
+      "group": "binding-errors"
+    },
+    {
+      "id": "statement-comma-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1dedb3e74899c95352521a9736b57dfa1995314eb7eae575e0e2f83f3c367f25",
+      "group": "boolean-values"
+    },
+    {
+      "id": "statement-unselected-conditional-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "faa19f31e902f45936bbdb14c4d42b169a4b7fc5d2732b1cd59788bc738e0a03",
+      "group": "function-calls"
+    },
+    {
+      "id": "statement-unselected-logical-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "96a5735a133180d59e8de916b8913a97f7ae9ca01f9338d5c60136a39d20b0d8",
+      "group": "function-calls"
+    },
+    {
+      "id": "statement-wrapped-assignment-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f63a4b763b6614a35344c260b9adfa0b37279819b9c90e94c575b4e8534f6026",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "statement-wrapped-update-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8822caf9c830244d01948569e8301a711685cb604fb50d09c4910e934defd00e",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "statement-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c0fc0e8b9c1e1e871d96b3911c904268cb126fc7362cd42f8785da7a63140e3c",
+      "group": "const-errors"
+    },
+    {
+      "id": "statement-forward-reference",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cd2a3d2f7883cc3e6202eb18872294d03e20cf95582df4a3e7c0e4e366b02b24",
+      "group": "binding-errors"
+    },
+    {
+      "id": "statement-after-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "22c7bceb42e6d9e7e71e6bb5c592c5efe96f16aa48e0f63558f584b0544c505a",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "statement-expression-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d67b2aa00c775f75c72d509ebcdaafc0459f52b70a636fc09d8c1c644a6fd4e7",
+      "group": "expression-depth"
+    },
+    {
+      "id": "statement-count-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4f364a05e9c335405cc81fe2721bb92ebc5cf0d443f59adcf89df2aec7d68c26",
+      "group": "statement-count"
+    },
+    {
+      "id": "statement-asserted-boolean",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c254902c30acc3b1955ee8fe0be86287c00a1ec84758589510c67ed5d85381c5",
+      "group": "boolean-values"
+    },
+    {
+      "id": "statement-asserted-negation",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b6c6ac080c46a9549ede680cddcb9ecc39ab280cb2b17007bd2ce4b95171ca49",
+      "group": "boolean-values"
+    },
+    {
+      "id": "statement-asserted-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "06c3609fda021daff6ebff5682c0472e401b8ecb003a07327c55e0bf0af58604",
+      "group": "string-values"
+    },
+    {
+      "id": "empty-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9ac472167da634cc856328d5ce67be7152f8513db9df21a506115ad6187abef4",
+      "group": "statement-count"
+    },
+    {
+      "id": "empty-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7d240942feca329032d45f00a8123c78de59ae9297596544e43194aaf96a5f9c",
+      "group": "statement-depth"
+    },
+    {
+      "id": "empty-only-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a6d2e40171ea9d7ae306805dd4790a450a4538c2147897468b64bad986a68960",
+      "group": "return-policy"
+    },
+    {
+      "id": "empty-after-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6cc90a71986f94f5ab8699479f15772ea5de4c6f35caa0098ad04a1f5931bbe0",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "empty-return-without-value",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bdf3a4369f8e62d49f3dcb226497eb11997526fe91a7901823ac5d7e6df6326e",
+      "group": "return-policy"
+    },
+    {
+      "id": "empty-loop-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d525a8f9a97b0067ac1a461a412b0574033ec5e25d15dec40b2d8283855d945c",
+      "group": "return-policy"
+    },
+    {
+      "id": "empty-if-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8d270fa5279ba976933f71bbbeb6a556be7eda597938a83959122a2bfa268b5b",
+      "group": "return-policy"
+    },
+    {
+      "id": "empty-module-prefix",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b871d731219e85876d3bda66c7577f2ea52b8d6c994c8863d259efad3cb86b1e",
+      "group": "entry-shape"
+    },
+    {
+      "id": "declarators-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b99f8075ebf8d1e1c6101aa92e71d29eed937a084e804c5bedd31cc5a4e4e0d",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-self-later",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e9beab80f89b8c29b7e43a6274c6ef0d921cd6cf13615ee1e393e82de4dcfe42",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-shadow-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f5bb4a8cb07626ab8e2fe7ec5393b4eda10fe5a0885395c84ad13e789c16e451",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-shadow-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6473be971f7aba5023bc9070125458d3761613ed03f86fddf26668b9227c54c8",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-later-write-before-init",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eadf02e9dda39bb0a5d14c99b520ef45c04409b34fba7cade2f5b9d8981f2476",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-write-earlier-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0c5d8d8de167e5bebb472dd44583e0393580f1b5cdc344b8c3d9849facda5089",
+      "group": "const-errors"
+    },
+    {
+      "id": "declarators-missing-later-init",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1182f48ab3f0474140a4c9d8a160b0f6c38ea3bd57675652a9f0aba2b1af5435",
+      "group": "uninitialized-bindings"
+    },
+    {
+      "id": "declarators-later-destructure",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dad558be374ec6da75a943ba7b106eb547854f36df40e71896b6cfc11e37c5b0",
+      "group": "destructuring"
+    },
+    {
+      "id": "declarators-later-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3774ff2405fa1891566dd43175e92f8fce87998c39b6e16f0061be83a5fdc0af",
+      "group": "string-values"
+    },
+    {
+      "id": "declarators-later-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0b70bc4c3e757ed13cebda78963466f7ca210b7e1670f3d97afb7ba2298bb156",
+      "group": "boolean-values"
+    },
+    {
+      "id": "declarators-later-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3b2d62262a143e0c322a01f4c9aa3b43e4a39fda70e2873ba851bc2b9c84dbc3",
+      "group": "function-calls"
+    },
+    {
+      "id": "declarators-later-definite",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "54392c69293bfbe9b68265ef199b994a0dea8afb649dd603b720264905a8437f",
+      "group": "uninitialized-bindings"
+    },
+    {
+      "id": "declarators-for-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8443a4d261b3bd582642df973411d10ac8504f9d56cd03e46fed07ace6fefd92",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-for-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e2850974a38dc9329038163fd8288b029f40cb04128731dc59434e098a4417d0",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-for-body-step-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "55b0dd277fd33cac9fef54feb19727101a76e7624e7b4688b5b7c1f016be69f3",
+      "group": "binding-errors"
+    },
+    {
+      "id": "declarators-for-later-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f10ac022727aaa7bc2ba7ba18ef7d1d4ed3cad8b1f923472c18212158f7f5e0a",
+      "group": "const-errors"
+    },
+    {
+      "id": "declarators-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "10353c1dc5304f0848274fe9c07a4b71724e8058b58c0df080bd4c745630747b",
+      "group": "local-count"
+    },
+    {
+      "id": "declarators-cumulative-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6cdff39cfff00a230b710a72220e60cd9e5d5c37a759023d178e45dc450fba84",
+      "group": "local-count"
+    },
+    {
+      "id": "declarators-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "745bbf20db8000932312f1c87aeee37899b0d00257228c69aeed00ec28f19cf0",
+      "group": "statement-count"
+    },
+    {
+      "id": "declarators-header-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "13ca90c6e8151b1c6f9d880b5e4f921d4179afd21d8d93cb7315c0ddff87c2e2",
+      "group": "statement-count"
+    },
+    {
+      "id": "intrinsic-infinity-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2fb7ae403e0e41d55a75a4921db065d35d6a9c1dc1e36312c74ba4990c5ec070",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-infinity-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8c55a00bdcfc44462c9b5c6924d5be9805f1db83053ad2c7f7c9f933e3802193",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-infinity-nested-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5706ec994a5929aedc7db7950f94c6e0038894b49899c9694f99474e0be9448e",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-infinity-unselected-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4582d7df984a3cee16baa65343e6f5adabc0ec9e21b2f3830ca160e2da3f70d0",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-infinity-later-declarator-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "755bafd5eae9d1a697d5f6afd65dfa7dff699ac5e7e9b4fba497b45653421fcc",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-infinity-unselected-later-declarator",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cc020103e9a6f3b4c433bca0c8169471b82dd5b4546123e7061b0492be8ad499",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-infinity-for-later-declarator",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d2150bf9af472ef2892ac6937b31e3ba23224335d44a1f2d60b8ef33289cd1b6",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-infinity-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4e1240ed3f6e6b79c8be02041b31453c1280b0a1d8fa0865d3ab744724a8abff",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-infinity-compound-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "63c318de7ebae7552be76569bf888ea54454a0077274736412a8df2250a56137",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-infinity-prefix-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d93f7f6c8d7ef15d21168eb7d8728a01a0a157b7c036c562f00b2eef92539edd",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-infinity-postfix-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "50cea411333504a4f0d3fc4c618c8c161c59ecbb651b8849d43f97db0441df4e",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-infinity-unselected-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f556768545e424f878cdc661eacd84e15b0e56d556fc09f9a16da6663d515cfc",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-nan-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3e0507a3a51dfd5bdfcacc6156f1fe4cc7cbbed4ad394379b040b048ae2a734a",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-nan-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "808e20f1b80961875852aa6d9bca85fd9cc4b28a661e977d48a5b903fcaf0680",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-nan-nested-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c37a410ed97acbda824fa5c2f9ebd32be5c53c9f96dcc5fca71d1ed3bcbedf80",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-nan-unselected-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "264a580da6f905e46e75c6a8fb0622998e61b39a635ad9f70d026c54f3d500b0",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-nan-later-declarator-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "13c6cb5c12f3ebc122c8442220c56bb1a1b478051cc408a88f4aeb666bda77b6",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-nan-unselected-later-declarator",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1913781d73bc2858279615621002e1aabf94c96db8b977040dd30e8c06fc8097",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-nan-for-later-declarator",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "378b574437637ed0635a32e255ed851ac7852e56d76ce584eb812bfc7e759eec",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-nan-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e12921960c64be3566dce39b5efcce3376bdbc91a0c4eede2b29b72ba3a7c8d7",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-nan-compound-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5d489f52b978d559b0f245bc65b25646d046c20a29894872dcc1b4a412f7a279",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-nan-prefix-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "59c6218b0241c0e4447cfc77bcece7e67b971b142bed8e4c117647d3b176d7c5",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-nan-postfix-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "21755b8dad6592d27f7be72d7f4eac358a71e540d748b96f73b22d9b891bd9c1",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-nan-unselected-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3961a44e8d6419fd970f07e4790cbe3b6158211018835991632503fcbca1abcc",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "intrinsic-const-infinity-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "64fce37b8ece3e7b263cf4ccec152029a40a94fbf2e2b9d26fc2697e127de4ef",
+      "group": "const-errors"
+    },
+    {
+      "id": "intrinsic-const-nan-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "70221a33b55fc12bcaa25a8b58715a591fcc0b524cb0423a6ca6fa7eedaaa043",
+      "group": "const-errors"
+    },
+    {
+      "id": "intrinsic-inexact-infinity",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "750c2760b60be50968fa539e3c4471d11ee9f2ed0ffaa4f484476f0d5cf51fd5",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-inexact-nan",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e2d5f0faad123958317ab1618150bc84289dde8017023c6b05642a5751efcaf6",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-global-object-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ebb67d94842c5c5029b6966d793f6db456a61d743985e5d7964b3d02aa06e915",
+      "group": "object-values"
+    },
+    {
+      "id": "intrinsic-number-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "052e82dc4920dad9aa431538b02a8a767c2e1d8b9b30cb179c3a40c2e1676e85",
+      "group": "object-values"
+    },
+    {
+      "id": "intrinsic-unselected-unknown-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3a14531f3a52edc7051ba8034cf80435541f21866783ed8c2d586b03a22d4e24",
+      "group": "binding-errors"
+    },
+    {
+      "id": "intrinsic-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f8f39712518b371175107237df1abad166c9df02ddce2fa12b91b894a6d53521",
+      "group": "expression-depth"
+    },
+    {
+      "id": "break-no-loop",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cf7c8f9dc142ac5ce4d00df80360263b1606c9e103e7c24deb7f23a91b3b3a26",
+      "group": "illegal-loop-control"
+    },
+    {
+      "id": "break-label",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c7cbfbd802ebe06d4bd97a22b8245276f84eafa63e05100dbe7cb99bca827556",
+      "group": "labels"
+    },
+    {
+      "id": "break-switch-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f035afcac33b5aa15033b8c0c5681e966bb9115b80f5957459e4ca932b200de0",
+      "group": "switch"
+    },
+    {
+      "id": "break-do-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "adf8184a2611b2cb7c654fcd78b04fe6b2cc1121d6f0511b7fd57bad69672645",
+      "group": "return-policy"
+    },
+    {
+      "id": "break-do-mixed-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4a87341996c0f660fcac92136b62cdb3aeb4f2db9319a339f67694e7d3a5a821",
+      "group": "return-policy"
+    },
+    {
+      "id": "break-do-suffix-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fa85e64aa4898d50e483d275d004351e030fdb496d07a23cc904ec59cdb0a51b",
+      "group": "return-policy"
+    },
+    {
+      "id": "break-after-direct",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "16bfbddd616d79fc3dbbeb278ea76e3668f7ceb74a495dc9f5a12930d48567e9",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "break-after-block",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "84dbd2dca2f0b7efa9230ccc27e214146b267a9cc807381c1c8d4c96bdcbbb50",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "break-after-mixed",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "912c777a9ed90e91340f335197e9a9488f93579e9762da55312e7e97680c226a",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "break-after-both-arms",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ddf203b6c6e93fc2a0529b68fc382b1e15e44b5602a089bc397235a1b5ebf653",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "break-unselected-arm",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d137f50a4318559cbb15c74dcea4ae42d077a1c8930a7bf315c60b9828424896",
+      "group": "function-calls"
+    },
+    {
+      "id": "break-unselected-step",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c4c652281f59a0944f9e3540da92fcf06a79df366fe106ae4216e992af445db3",
+      "group": "function-calls"
+    },
+    {
+      "id": "break-unselected-do-test",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "75aed84f9b179fafbd26615d8d4773a0807da9db940a8a2894a7f75eef1ccf45",
+      "group": "function-calls"
+    },
+    {
+      "id": "break-initializer-still-numeric",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fccdb260d7c791f3f2b2913fdbcde2cdd78561343a691f79335d7f4a62f4f430",
+      "group": "boolean-values"
+    },
+    {
+      "id": "break-body-scope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cbdbddb9f81fee9d63792a0e5371b1942e5e0ef97663ed725f1ff49de8cbb253",
+      "group": "binding-errors"
+    },
+    {
+      "id": "break-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cc2583376def1c25b086717c1b8a779fdc6f431a65f54e9fedb6d4840c92c051",
+      "group": "statement-count"
+    },
+    {
+      "id": "break-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "905acfec414f1cd2a4649df18b7117461cfe472ddd0ed236a44f6e8f11673778",
+      "group": "statement-depth"
+    },
+    {
+      "id": "continue-no-loop",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1eeabc2ad8ce9351e67e698a3ba964d392313d16cb4d3b7ce76bead5b80ee732",
+      "group": "illegal-loop-control"
+    },
+    {
+      "id": "continue-label",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ef5cccfadd16dfe8abb8d79dfa33f205edc853723e3bac296758ca1cd7642644",
+      "group": "labels"
+    },
+    {
+      "id": "continue-do-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "64c273ae2e56f8ae62c07597abc91cce02a0ff8762121d4293d944cd755db801",
+      "group": "return-policy"
+    },
+    {
+      "id": "continue-do-mixed-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d8715c9b53f8c24d6a3eb3cf510a54f3ebf1d2c326497a5244c6d75fdeb7830a",
+      "group": "return-policy"
+    },
+    {
+      "id": "continue-do-suffix-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b62abfd929a103b181b5843c00b38df69d8b415f4be79a58033746bc4e2710d",
+      "group": "return-policy"
+    },
+    {
+      "id": "continue-while-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ef8036893a85d455dd81265d0d9523a87ae883c333c5f2858a1aed26520d0a6f",
+      "group": "return-policy"
+    },
+    {
+      "id": "continue-for-needs-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0a4bade7db848dae57282f73ea35d84187cc09174bd04642840974583aeb2e2e",
+      "group": "return-policy"
+    },
+    {
+      "id": "continue-after-direct",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "20d626581aa5d94b39dd273f2a2a6f0517001662310d4adeeb8e16d19222d1e9",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "continue-after-block",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fec04ceee61ee59abf2e48d7f6b0c28fd8371a1e4878a270627392736dcbce77",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "continue-after-both-arms",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4fb2db2805c1446ae6b02c79480b3cb7674996ad05a1bd7fdb3e8d9e60a838cc",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "continue-after-mixed-break",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "764046e24644aa1958c7c2ad153cc974941d952329650ce91caf82c89c27b1b3",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "continue-after-mixed-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "77c4e882e28e5162d68bbfe22dae7034d7d48f5a9c3a736d77fa11e3d3d83dcc",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "continue-unselected-arm",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4e3cd8a69b45d269adce13898bd9c66f31ac127b75a1e939a1f85b37b0f1e479",
+      "group": "function-calls"
+    },
+    {
+      "id": "continue-unselected-step",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c370b374beeb22afd5ad19e47e0d3d7f2e1f97ddd723ef921157edab62804d2d",
+      "group": "function-calls"
+    },
+    {
+      "id": "continue-unselected-do-test",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5a8f31350e3d18b4277675da219c59e2ca06f36e3147eea7f06b85110d9b44f4",
+      "group": "function-calls"
+    },
+    {
+      "id": "continue-for-body-step-scope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4cc669a8e45ce9965c1291901b0f49393471fe9a516d4725a8b8411e79279628",
+      "group": "binding-errors"
+    },
+    {
+      "id": "continue-do-body-test-scope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3d16b1d232f2c88dc98d4501361836a5c3db7bb41525eeb3344e8df4374d1cca",
+      "group": "binding-errors"
+    },
+    {
+      "id": "continue-header-scope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0b865833bc01139a444a4ef15a3f686ef5a4a9b76192fe5924e0dd16342665d5",
+      "group": "binding-errors"
+    },
+    {
+      "id": "continue-const-step",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e6b6741f8da403753f9bbcb94b8815ee8935225d080c54d6a755b3a025d62a01",
+      "group": "const-errors"
+    },
+    {
+      "id": "continue-numeric-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "12675a05174aa36bb5d7095353e8dcabe1706c9b899a24bab085dd7c2d5492e4",
+      "group": "boolean-values"
+    },
+    {
+      "id": "continue-switch-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "200590f090d7dd2612691762a32769a431eeb6421050ac0b9cb0d3a4abc52400",
+      "group": "switch"
+    },
+    {
+      "id": "continue-finally-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f5aac6d9a2c65911532fd31a6abbb6d88c2092a9fb978b981468aa5c59d0b491",
+      "group": "exceptions"
+    },
+    {
+      "id": "continue-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4c1b5795f4ed38ddce53e0d8d14da0df38a65a478846aa6c388592018be43b76",
+      "group": "statement-count"
+    },
+    {
+      "id": "continue-header-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3a012cceecad5d25434ece65479bebbd59bf11b250a70d76de228d70da117cc6",
+      "group": "statement-count"
+    },
+    {
+      "id": "continue-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cccab78ac9d49affb95346c81c7127bda16dea239a4f1e6a425069d0d4d21aef",
+      "group": "statement-depth"
+    },
+    {
+      "id": "continue-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "150f34e07e1a0651db7205fb6fb0b75ff5187cf2b1e956a648dfe856bd78b7cb",
+      "group": "local-count"
+    },
+    {
+      "id": "directive-module-budget-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "90855ade7e54781eb0998aa23de10edf2a44832ee44acb7debcfe58d48ecb9c8",
+      "group": "statement-count"
+    },
+    {
+      "id": "directive-function-budget-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8eca82de328010445e85ee06b9122d0122de81b39e4e0750a3ac1901afcc1d43",
+      "group": "statement-count"
+    },
+    {
+      "id": "directive-mixed-budget-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "339e9fa5d3cac34aa9be1a875f3ffd5c40263ddd85ecfb4da8efa862c02ae466",
+      "group": "statement-count"
+    },
+    {
+      "id": "directive-body-statement-budget",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f28088d13ed069de8ec24e632443c71ab577503993d495b68d13dd90b557e80c",
+      "group": "statement-count"
+    },
+    {
+      "id": "directive-nonprologue",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "035fea659bf657c903ad75c0dc2300a79154cdac7cb25d348a22ba4af6b08a56",
+      "group": "string-values"
+    },
+    {
+      "id": "directive-parenthesized",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "21ff8f54238bf46a925eba453ff03cd966ef74399dbe3f5b13f7424d96c17a43",
+      "group": "string-values"
+    },
+    {
+      "id": "directive-nested-block",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "88679bbefbc9a522d50ae74defc37ea25add51d9e02736c971099114477e71d5",
+      "group": "string-values"
+    },
+    {
+      "id": "directive-template",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c065b2637dfdcfaaedbc9e9e803bd26e38a99dad68bdcb8b37dc8775999e39ff",
+      "group": "string-values"
+    },
+    {
+      "id": "directive-ts-wrapped",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "df418ae5526b5e27ff6c319dc815affe615cc6410e5f67db246cdaafec85578d",
+      "group": "string-values"
+    },
+    {
+      "id": "directive-asi-add",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f51fcf8b3a858340a08fb654d6bdbc48f02b86807364041fca227c1f85347b12",
+      "group": "string-values"
+    },
+    {
+      "id": "directive-asi-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "908a7e7d748f8403a08675d93b970aa0daa6d68c341e5dab459d717fca6e67f1",
+      "group": "function-calls"
+    },
+    {
+      "id": "directive-post-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "72db873fee6105da1d2aadd4762ce10f936e9ccb5f2150f0f9b76174f848e56b",
+      "group": "modules"
+    },
+    {
+      "id": "directive-extra-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b27fb23f279c1107af8e02b2e8d956b85edbf83848d523177420f9aa131ca4c6",
+      "group": "modules"
+    },
+    {
+      "id": "directive-call-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "02f0921e636e52873a0c72ebe07558b7699fdd1b329c9a9bd839d265565cc706",
+      "group": "function-calls"
+    },
+    {
+      "id": "directive-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9d86a42ac2a0e48fbec1111deb9e78922e36b9f1330f6dfe64e232245d6c00fc",
+      "group": "return-policy"
+    },
+    {
+      "id": "directive-duplicate-parameter",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3bb9a7c0719a0534fb182e8b3e76d63170efdb830c28a17e1e8b5b0320cac83e",
+      "group": "strict-parameters"
+    },
+    {
+      "id": "directive-strict-binding",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b56901fa8281d616ffccb178208f17deb9c8399526d9f7429afcffe3ad5c02c8",
+      "group": "strict-parameters"
+    },
+    {
+      "id": "directive-invalid-octal",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d2fdcd387b34923d61941902e8b6514e80c7ffab4c3ffa80eddfcc155bb5cb9c",
+      "group": "strict-octal"
+    },
+    {
+      "id": "directive-malformed-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5e9ff549021debab91047e1e0b6828c221a47a3e2728901b8066e650be92f09e",
+      "group": "malformed-js"
+    },
+    {
+      "id": "directive-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9fefbe1df6eb29c02b8e5b13e81667c77d1b39eecea6340d24a9aa2dba62f3ae",
+      "group": "function-calls"
+    },
+    {
+      "id": "directive-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7fd80c39a4e393a29ec7b992ef249f588eebdb90de3bf249b75f1d3e052cdb68",
+      "group": "expression-depth"
+    },
+    {
+      "id": "bit-not-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c97309a679ff88ba746b5fae25f45a0883bd9a6a93398d31dd541862ed57842a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bit-not-comparison",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b41aa796db9a9d5db1fb98ba226cddaf2fd51e1671f8af278a8845f390365008",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bit-not-negation",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f4cbf15d1b0584f76ee16b62d651941e10bb45b94986eaec1146a610dd7f279d",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bit-not-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4a58f7959fe1ffd74f8767c95e833171dd7b4c8bbe343f20c621bdbc4d346ce7",
+      "group": "string-values"
+    },
+    {
+      "id": "bit-not-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dccc4b229d4d206c96101bcd845be0d7a18091472194f1c247e4655a9e6d55d4",
+      "group": "object-values"
+    },
+    {
+      "id": "bit-not-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8af9067015d7ca47258041b4762224e85a54311cddce6985f1d0742d1a5d4e3c",
+      "group": "bigint-values"
+    },
+    {
+      "id": "bit-not-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "efe5977f02f9f31b251e73c38bc8c28cd4d49f820539afe3221057eef4b176a6",
+      "group": "nullish-values"
+    },
+    {
+      "id": "bit-not-undefined",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "40cb1d957f1e7331c7ec5aaf35f3ebdd1a540850c170c842a7f467533631a275",
+      "group": "nullish-values"
+    },
+    {
+      "id": "bit-not-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc39cba87f9f39ad63c5185b02baf64dea1cde9716edaf06601d647dbefb167f",
+      "group": "binding-errors"
+    },
+    {
+      "id": "bit-not-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ebb4660ede6261a016c83a09d80170354ccf651ac252f753f700f900dd113613",
+      "group": "function-calls"
+    },
+    {
+      "id": "bit-not-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dc2e28fedf5e0d784531c174a9720f0b1ecd1597db42695cce61b544515f5478",
+      "group": "function-calls"
+    },
+    {
+      "id": "bit-not-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3ca2f45f5d4eab7edfda0c504ad6a48da5f67fdb8a09b676ad508c0f5be5f798",
+      "group": "const-errors"
+    },
+    {
+      "id": "bit-not-const-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ac80ba89aa23f3f35de3e62ed5e84751b0055f8756030e689409b3377ed8f6e0",
+      "group": "const-errors"
+    },
+    {
+      "id": "bit-not-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9ba7b1dd39b26d591866424073f0d90fd1cf7b244d08081d1028426c5d7553aa",
+      "group": "binding-errors"
+    },
+    {
+      "id": "bit-not-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "68211741596af173c6228604764733f1aa25621ddcf22872cbb3b32a0b2888f0",
+      "group": "binding-errors"
+    },
+    {
+      "id": "bit-not-remainder-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e707ddaf1f238428a2dcfa061e03108910fe1512d56202a4bdeaebfded0040a0",
+      "group": "remainder"
+    },
+    {
+      "id": "bit-not-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5bcd18f802ce7474797a24806426ef5eed29f461b76e46c78b80ecfeace7a805",
+      "group": "expression-depth"
+    },
+    {
+      "id": "bit-not-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0cd36c5b0044b1412a0cb909cb1036e2be050bdf91a09799f9f48e740925e60d",
+      "group": "statement-count"
+    },
+    {
+      "id": "bit-not-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "464fe0edaf717edcb611497df58688808bb56a8934fb3e81ee55c6853e4063c2",
+      "group": "local-count"
+    },
+    {
+      "id": "bit-not-asserted-boolean",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d7ea2c043e81793dbed5387e769d0bb2470359623f5813e2944bd77c7dbb72b6",
+      "group": "boolean-values"
+    },
+    {
+      "id": "hashbang-prefix-bom",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "216df9b782cf8869ef826dcdf6ffd4b4f897e8c7234ed35e7c597ce817011389",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-prefix-two-boms",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6582634c2b943a66593bdb948ee79996a6de8f880d7eb318af5c8b730b554744",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-prefix-space",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e4c45f44c1d5d8bf4dbde8e4fab24756e0f10ac1ac70c61e0e877c8551bb710f",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-prefix-tab",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e0dd8e966c6eea0e84a6bf547fee311b5441aaff92ceb5f2b3dfe683cef22863",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-prefix-newline",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "58ba3f780adacfabead0fc8b1a1bd062f286ed55be33404be79e47b2ca5d85c0",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-prefix-comment",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a0427c78320dcb4d08a515e733c2e4b961415b5db2785ee22e4f78fb7571a87d",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-ts-prefix-bom",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d49dec168f24262adc44869aea933cdff8cd85938614fc401df35de7678a191d",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-duplicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "10c7ee96a1f00abde4d84fd9d8ee112607a2906ec877d6bf25893894f2531624",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-nested",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea7d7a22659e5129498e778f5264381b732850e5fd1293551e4893992fc95185",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-split-marker",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "df7b04f2c85e30dc8132da03cc90883558eb1b0674682670d3f95d1e48807349",
+      "group": "misplaced-hashbang"
+    },
+    {
+      "id": "hashbang-empty-module",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3612ddaf46e149a4f583faf0face846585148f59e0ce2645594df83b5dc807e8",
+      "group": "entry-shape"
+    },
+    {
+      "id": "hashbang-comment-only",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "64307a7b1d0257138316240cbedf0c5c6981e5f542db49dd00800e5b95fc8368",
+      "group": "entry-shape"
+    },
+    {
+      "id": "hashbang-swallowed-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "07b619f47386d52afd768173c0731d2d28ee29291a91d53720c8712f32dab328",
+      "group": "entry-shape"
+    },
+    {
+      "id": "hashbang-extra-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2bfac2fcde54331647e9b9bc9d5e181159d5528507b97f2165f8de9d574abad8",
+      "group": "modules"
+    },
+    {
+      "id": "hashbang-module-empty-prefix",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "405b2e2891c45070ae9ae2982ac33e213f771d3e0c513c54b43a5b02dc443bfd",
+      "group": "entry-shape"
+    },
+    {
+      "id": "hashbang-wrong-entry",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a5cc4ff1b82c18845242e7cd3949282cbea7eed160c82402c2fdc2f6125b152e",
+      "group": "entry-shape"
+    },
+    {
+      "id": "hashbang-unsupported-body",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6280468f384cc8ea43b577452e3374749e72df24015b52ad4a5f7086bf283896",
+      "group": "function-calls"
+    },
+    {
+      "id": "hashbang-strict-binding",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "97db9c7fce2732b1b584b34cb72b0d7544ad4fd6dc4567548c914916e64499cd",
+      "group": "strict-parameters"
+    },
+    {
+      "id": "hashbang-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8e4c79fa4ee234366725f294123727633b31ce6ccbc2e53e9fb39e75d8133900",
+      "group": "statement-count"
+    },
+    {
+      "id": "hashbang-directive-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "774d89145a6d7fa5ad18a21a81941991400abef97a138b321cb927a42c6c139d",
+      "group": "statement-count"
+    },
+    {
+      "id": "hashbang-original-byte-overflow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b063f3eb1ebdbc07865f39101f884a65b2e41076a0b930b9659067aaf7a78076",
+      "group": "source-bytes"
+    },
+    {
+      "id": "hashbang-ts-original-byte-overflow",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "002773e8ab62a27ba17d350b528512d07e102bc54ba0b3d4f00ca3696fd7e4f2",
+      "group": "source-bytes"
+    },
+    {
+      "id": "bitwise-boolean-left-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "33e9715f11056dad57458e46395287e72f281a5171ad2ca9f79f6375ce702255",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-boolean-right-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3e0e885d56534d48ecb1ea6f29b6addb40395e607b794d3f41f5a542ab206299",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-boolean-left-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "95c3661ef3f2ba22bc63d5bf7c4e5231a22ba6a300c132f2c71cf5fd46648111",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-boolean-right-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6adc915d77fcca767657a229c2c270a22444e1542cfa52be583048412c4d2a78",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-boolean-left-2",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "db66563356a59d580e7ba32b3054d71b40e68eb1fb16acc56e03441c495377cd",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-boolean-right-2",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "25db8719c994843388c9415a4179dd286cef9661030baaf13e0c2e8170bad8a8",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-string-left",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a30107d50e81db5cd130e58724acfcfbc2a4405d99597ba0801fca5ff4716973",
+      "group": "string-values"
+    },
+    {
+      "id": "bitwise-string-right",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7960476a6076db774895a13375eeb78b1057d9364a7ecb8ec716933c3904925b",
+      "group": "string-values"
+    },
+    {
+      "id": "bitwise-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4b10f6eafd19f5dd46a48b7022483fa4fc502595bcbdc5efa9e538fd00940cf0",
+      "group": "object-values"
+    },
+    {
+      "id": "bitwise-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b85acff236d9329eb392f2b8691b26e67083f4fcb86c3f299849179454b97392",
+      "group": "bigint-values"
+    },
+    {
+      "id": "bitwise-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cc45fbe029f1e73784e2622e495e6c6b04b28b39f9a0b4437f53fd984b2b9904",
+      "group": "nullish-values"
+    },
+    {
+      "id": "bitwise-undefined",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8789a84753618aa2c67e0bbbee263a32d2b9d91fa19011529a271b44db4d22f6",
+      "group": "nullish-values"
+    },
+    {
+      "id": "bitwise-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d9836498caefa9671be6aefd4f4a5b3913431b9d111db56ea30672deac5904a9",
+      "group": "binding-errors"
+    },
+    {
+      "id": "bitwise-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0ba4751de11b3c9b63cff2bccdcd95bd7ef145b4fdd51522c8bc73753b24f497",
+      "group": "function-calls"
+    },
+    {
+      "id": "bitwise-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "56a6755164b9ad28f308b7fea4435d85d3a79c0f8c090296bb8a1d5bd59d7ee2",
+      "group": "function-calls"
+    },
+    {
+      "id": "bitwise-unselected-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d3a3528eb38e71a294471e5cf2b9dee3d1f6c0e25d43e916b98c7dfb17804135",
+      "group": "string-values"
+    },
+    {
+      "id": "bitwise-unselected-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "49b9319665b8d4d02d73c26df3e2b625a07a85ec4da41c147258ae29f6222a93",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-comparison",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a5c7b8b6efc0e287e1065a07a3206b05173d44890673937fa4e94548165b020a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-negation",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1b8d65b3f095853dad737303b3168b5496e1f5e6d480b2e23185c061692fc59e",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-asserted-boolean",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c598fb2348f68eddfb57359349009463bb2db9a456c1b194d744bbaa85e67401",
+      "group": "boolean-values"
+    },
+    {
+      "id": "bitwise-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4dee3a85d188fccec3e2b1b4917a7be16d5bc1831b9f37e87256c2ddca1420b5",
+      "group": "const-errors"
+    },
+    {
+      "id": "bitwise-const-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b9b1354b4796875aac7719ae6cc87f0f8343a88e65ec7f24cc4734bef58c4c19",
+      "group": "const-errors"
+    },
+    {
+      "id": "bitwise-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3f06b7522e94451a5d79c536ccc972779b973c8411596a05a51669bac5d69566",
+      "group": "binding-errors"
+    },
+    {
+      "id": "bitwise-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "59953a5f307d350b11f29596facf5b7e2cd4f20cf002aa7e159f0a6e91570966",
+      "group": "binding-errors"
+    },
+    {
+      "id": "bitwise-remainder-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "deef45e557d892533a45b22644fd93a8440faaa313eb077ae10f976526c6bbec",
+      "group": "remainder"
+    },
+    {
+      "id": "bitwise-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f1f261a247c13347b54842568aeb169084a86a49e18f6f482f30ce0481b87daf",
+      "group": "expression-depth"
+    },
+    {
+      "id": "bitwise-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "76123e5de780cb6bf3c32316b60d1f3ca37201f159ece1b21042416cb1c26218",
+      "group": "statement-count"
+    },
+    {
+      "id": "bitwise-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea9b3a74a47314c614fc690a6417a6c69eccc943f85914143b530d9f73e9f54c",
+      "group": "local-count"
+    },
+    {
+      "id": "shift-boolean-left-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "330e42862178ef99c39a45b8bac2e3c13053b7d2219708487ed5e3e268bc78df",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-boolean-right-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "12695f80fb359e44fe6f8df702a1ca9931a2fb96aed23ed2d0a3da5782118ced",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-boolean-left-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "da128170db5481923138fc5f88aa47937bd067077dae32e838cd5dc5c4c0039f",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-boolean-right-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6f6af3cb5141adb9821d0344dc866b155ee9614cb9249f99e84e78c6a1e874ce",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-boolean-left-2",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a764ecc62939db9ca2a2938db8e6322b4093b1aadc0a5e410f11880e6815b3fe",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-boolean-right-2",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9c02925a1a496e541c2aeb6751133f85560c805ea3558cfe5365f0a0df1d0647",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-string-left",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "40d99b2ffd84e261ba8380e1fae22ff086675829c43ecb08f75c43b418e5af2a",
+      "group": "string-values"
+    },
+    {
+      "id": "shift-string-right",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9064e62771a098959b06295841a7c9bd7e276b613a9938452df9b22061cc9d19",
+      "group": "string-values"
+    },
+    {
+      "id": "shift-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b432e67446f3c139e178a392b084a416e9c24e9cc7de9cf0712462b49ee34711",
+      "group": "object-values"
+    },
+    {
+      "id": "shift-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "681a3b37a6b47be0dfe4a690c39aba978735e601b976d98551c8fe50bab7c616",
+      "group": "bigint-values"
+    },
+    {
+      "id": "shift-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "30543dcbab21ce8d144cdaf5fcd41e91610d2a442a0f375b1efeb48783f1b1a0",
+      "group": "nullish-values"
+    },
+    {
+      "id": "shift-undefined",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "feb08f547539cb21e6d5109affccca6ed42ded3ea2162fb847bd443a62e21808",
+      "group": "nullish-values"
+    },
+    {
+      "id": "shift-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "840115e2c6cd14798b504c23502e6b766f661522161ba7bac4d65902f0af63de",
+      "group": "binding-errors"
+    },
+    {
+      "id": "shift-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e8d917a351e227603b792ffce9781c401f7e1f217d2465f07ecb94db59ac4b7d",
+      "group": "function-calls"
+    },
+    {
+      "id": "shift-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "86c108a38514c823c310da9dc28b0c8caf7f45c47975e72aa9c79814e2a9dace",
+      "group": "function-calls"
+    },
+    {
+      "id": "shift-unselected-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "681c57aeec3887f32bba64e2616514776a144e7735f7b0b7a31b4792cbd28e1b",
+      "group": "string-values"
+    },
+    {
+      "id": "shift-unselected-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f4306d09191151d5555d7aada842fea7f0fc7f64291d19081965ace8c6529b2c",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-comparison",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "24dc764e1b04cbe3d68dfc86bf373e54c5b5809e3de39a76ec6beed610dae5d3",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-negation",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3fd3c4e0c66b0f9a558a4d9dec7226137e2280ca9ba979e2207fbe329660743b",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-asserted-boolean",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c61a4bfa05fc79c811ed345dfe9c285b0105f9a0d9053c6267c2b05692f0498e",
+      "group": "boolean-values"
+    },
+    {
+      "id": "shift-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ec97cebdf9fd08d9acc5197f03855da6f466863ab03d29ba8c692e52b3be604f",
+      "group": "const-errors"
+    },
+    {
+      "id": "shift-const-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "388758497c804f72cedf87be5c85e5588b21938b05f70fcecc7d933edb799e7b",
+      "group": "const-errors"
+    },
+    {
+      "id": "shift-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4b1a7ac4609dc240c763d9ea716d3c6bdfb85eaeb7d738f6617926552536aefa",
+      "group": "binding-errors"
+    },
+    {
+      "id": "shift-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fb24c1eb6ee48c568aecd09c89a1eccf0edf88ff304721dd81113ce6fee179ba",
+      "group": "binding-errors"
+    },
+    {
+      "id": "shift-remainder-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fa281c9093f60d474a23d6d7574922308181fc66a340a33a8455a16bc8ffd15c",
+      "group": "remainder"
+    },
+    {
+      "id": "shift-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "61a949bbb7e60cad607e167bfd4088454ba34f8beff412ca7849aea5ec348a45",
+      "group": "expression-depth"
+    },
+    {
+      "id": "shift-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9cb1977423953ca9c267172b3f8d884db324910d0a1a2e55b587d110b019caa7",
+      "group": "statement-count"
+    },
+    {
+      "id": "shift-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8413367fe6763e1cc0f1f4efb2ba61d5e8af951f1b0ad28fbe0e8c875cec44d6",
+      "group": "local-count"
+    },
+    {
+      "id": "compound-immutable-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "662dba16043d3daaf3217b4e20c0622881f1b6f392ee3a4bd6f38f357aedd87a",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-immutable-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "43ea34623f93bf6ded6eca4d6af7ea5d716d2683038cd30a7d158973eeb1d536",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-immutable-2",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "053fe7e34a2c9a4e97950afd37d1278535d0791c7c4e8a20a812939d72449d20",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-immutable-3",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f9c4299d141ba8800f2e370a8b490bddeb7f6022e43d35b6c8434bcddb984969",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-immutable-4",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b15f2ecd073268269fe4cafa6ce5e45b48c445929d76cfff1b59e9fd4a94c624",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-immutable-5",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "36bae45827445366019654ba1ebff49d3e10e1ed32218e8f18aa6f9ac14edf2a",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3457317694d2ad094252fb2ad3ea913e940ef1a691266c6a280007fd30c5832e",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4de8d55316e0bb470c2e9aeaeee843729b3fab9003cbf2b283e8ad6e31697991",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-unselected-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d96d193ad6031ccb71e3359855909b5a365255ab3d67b37cfa454e8d44cf5923",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-scope-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2f9bfe7e96311e02df992d91d178704ed3b7545d98006548d85861ab435435d1",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-global-target",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "088f1a12554375a5726e7bfcef32fe8ea2779be8c7671f14e5ae59ce699f930c",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-infinity-target",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "de855c33e848711141acf4e29e7613d1f687f58d309c1336e3e516875ead4f91",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "compound-nan-target",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "184152cde622e0e0417d8f5c699d68c39441ac95aed22ec6dcb49bfed2c66bcd",
+      "group": "immutable-globals"
+    },
+    {
+      "id": "compound-property-target",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "65f48a2c61bced4bc94ad96eee79c1c71c3376ec9e7b3d13a3264251e0a2d294",
+      "group": "property-targets"
+    },
+    {
+      "id": "compound-destructuring-target",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d8ed98d50f52a90469c137d21add95961f34d89eeb2e36ccac16ae4da7c6776b",
+      "group": "invalid-compound-target"
+    },
+    {
+      "id": "compound-ts-wrapped-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "49714b87ef876707e9fc52a09912fb8ff83cc46b0ccded5787b4843ff69c5284",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "compound-ts-nonnull-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "def20f6f8c18f9b2b28534afb5be0fda74fa3e28cab2487ab4c6367350a47db8",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "compound-boolean-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cf12a79979695569d2e1a6c85d48e9560c1f8d12289ffe2396b28dce45e62ef1",
+      "group": "boolean-values"
+    },
+    {
+      "id": "compound-string-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1739d5d5eeb567e98f644fc237c4e32bd1629423c907d09b892fdddc6a4a01da",
+      "group": "string-values"
+    },
+    {
+      "id": "compound-object-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "85264eb501ddbfcbe579920a0f13d6f578ed8834a67873f48fe72187a362c121",
+      "group": "object-values"
+    },
+    {
+      "id": "compound-bigint-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6f18b375d5b9add79b781000611736c64a556c7694f81cdc8c0b7950a025ad9c",
+      "group": "bigint-values"
+    },
+    {
+      "id": "compound-null-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8eda9e1c4b3fc6ba33b7300fa162d6c7f5082ff4b48aea3bed79ddf7fdb3b189",
+      "group": "nullish-values"
+    },
+    {
+      "id": "compound-call-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9047e9b7ced8b083de1d838f2796c130a132dc94f6a0a0aed6554d980c13d15a",
+      "group": "function-calls"
+    },
+    {
+      "id": "compound-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "421cade2d382faebd65d7f00c1cd9c8c8e3dfdb9d2d8324ac71ec68b579bccc4",
+      "group": "function-calls"
+    },
+    {
+      "id": "compound-predicate-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "11d7797132e5f36c7bc0ffa821d727722227a7d7d1c2ae881c0b7ed0dca5b748",
+      "group": "boolean-values"
+    },
+    {
+      "id": "compound-remainder-remains",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5ba78e4227cdca9f91b2a16804d1f93a1c9cae4e840dc7cb9207abeb5b537059",
+      "group": "remainder"
+    },
+    {
+      "id": "compound-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a4613718ee1c748e79d782d235a2678aa325f2877e3cca5adb27ad89e0e39ae1",
+      "group": "expression-depth"
+    },
+    {
+      "id": "compound-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "39743226f78dd9849706701f893bd6843e330daaeb09e40bb81aba253dadd815",
+      "group": "statement-count"
+    },
+    {
+      "id": "compound-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c65d3ab2edf14a89a1f0d9c9ca808c74c587155a495a50293678f92319071cd5",
+      "group": "local-count"
+    },
+    {
+      "id": "annotation-runtime-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b076f918258d2e10900abfbdf29d12c6ff57cb3f6204e920993bbb105ec5f604",
+      "group": "string-values"
+    },
+    {
+      "id": "annotation-runtime-object",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6d905a023ef2249a682dd80b4f7a98a08698c914cfb96e99ca975238668e2ab3",
+      "group": "object-values"
+    },
+    {
+      "id": "annotation-runtime-boolean",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4d6cb43351720901d034bd434a382e4d7b1bb402f2c213bd58af9b9bf08623bb",
+      "group": "boolean-values"
+    },
+    {
+      "id": "annotation-runtime-null",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7216ab931479146a41641775f64de234f311b26d458deb16289b66b61e12e7d8",
+      "group": "nullish-values"
+    },
+    {
+      "id": "annotation-runtime-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fbf8ef1a8d7988b16c4ca69898c81731f99a913bdd3c57afe249734017cb3dd7",
+      "group": "function-calls"
+    },
+    {
+      "id": "annotation-self-reference",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4cc46968ee7c78087f26b4e6116fe0e20f7985609be8891521594ae811ec1cc5",
+      "group": "binding-errors"
+    },
+    {
+      "id": "annotation-forward-reference",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "21ada5cc6277239684e0eb6d156f15b7cea7d952b9e4ce9ed49489761f3c7532",
+      "group": "binding-errors"
+    },
+    {
+      "id": "annotation-const-write",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "713ec23579e27af22e980a25b744708f4b2c62cd9d1d155a45013ac83afb37cf",
+      "group": "const-errors"
+    },
+    {
+      "id": "annotation-missing-initializer",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "743dbff5fe92bce0f0efe95e87cc75128902a4ca01d644ea54ebd81db2d91e54",
+      "group": "uninitialized-bindings"
+    },
+    {
+      "id": "annotation-definite",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a787f4e5867e022f2c8a793287c7e50437d1fcafb44773b0bd9f0f662774a0ef",
+      "group": "uninitialized-bindings"
+    },
+    {
+      "id": "annotation-optional-parameter",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2650c0bceb1b308cb60c9f550bef4ee99bc818a697692f0abc523636e2fcdae2",
+      "group": "parameters"
+    },
+    {
+      "id": "annotation-default-parameter",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "22b7f0120d62524652ccd9c7f73cbbbfb5c4b6d0cc812d38a53cf696f8211a67",
+      "group": "parameters"
+    },
+    {
+      "id": "annotation-rest-parameter",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "43f14dafe79154b6319b5d213a29592569b7872f88e885cdd500c86a04e59e94",
+      "group": "parameters"
+    },
+    {
+      "id": "annotation-arity",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "76085b7ef916d0b506bd7f164832c1cf1e67a9d9d2e409a67f13e5acfd059fef",
+      "group": "parameters"
+    },
+    {
+      "id": "annotation-generic-function",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "165496aea0ed234ff49210bd53f782c61b9ffa92ef98c1490e27c651d44f0a9b",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "annotation-malformed-type",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "01b5d3e6252914f45180d7c891fa462b97e8fdad23233cec7393bcf88715823e",
+      "group": "malformed-ts"
+    },
+    {
+      "id": "annotation-duplicate-parameter",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e9a1fc50abe11cbbcb266330bda2027a64386b1d5c16264722115c66d705cbee",
+      "group": "strict-parameters"
+    },
+    {
+      "id": "annotation-unselected-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a6eb1d95b2225be21f7d7630519a280b11fa452726264ef8df729ad6b3aca066",
+      "group": "function-calls"
+    },
+    {
+      "id": "annotation-expression-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "270f0c79771586b5a3d8da4452e14ffa147eccd90272d8342164f52a0a505c19",
+      "group": "expression-depth"
+    },
+    {
+      "id": "annotation-statement-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "104ff707b98aa6a8af24250c7ff0c4fe6fc533eb9869b8fcb14a2e78132eb79d",
+      "group": "statement-count"
+    },
+    {
+      "id": "annotation-local-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "502862d56fe9b9f6b33b9b39b5034d42c458b985f9fdeff603308ef1e70483f2",
+      "group": "local-count"
+    },
+    {
+      "id": "annotation-original-byte-overflow",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c2061e25ce35a5df0d903052d2a0e60f8c3c42784ae20090ddef8f2c0aa1aaf6",
+      "group": "source-bytes"
+    },
+    {
+      "id": "type-declaration-excluded-import",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5d80a33a5f8b9b0eae7dbfa4ecc3465e25b72845f302c3e1efbdc2ef5086b68c",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-export-list",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9ba6dfc1ef3b88a603367efb91001432f27af95e9bf21fbb4dfdd8079f489a8d",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-re-export",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b68b6c5112b11abd6ddc235c6dcbb421440f9efdfff8cdccee997ceee5e1b2fc",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-export-star",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cfcb48e3373a872b0e6e94f00569090ae3b0c1e907c8cd750d320139e4d9ccb4",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-ambient-value",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c09671dc54562cc6d2d33957e1d0487365709546d0d8c4e9efcda3a584152255",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-ambient-function",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0785ad1258776d2d3176b495c095f8dfe65f31f9dc4b74e2f6c92e9476cac639",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-namespace",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c471922f6c59ce9067d37cbb88a8567388c32160699ce90baa187ee7a3981c45",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "type-declaration-excluded-ambient-namespace",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b228b4ff39f82d5fa6fd69359a6420ff5441ba825472f5c9c00101fb2c541d37",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "type-declaration-excluded-global-augmentation",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3328307e1a849d2a0022dff094cdd6f74267c40f768f910e61939cfc7a616abf",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-module-augmentation",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "000827e98f3fa5f665a95aeba971052c8b2b1b2c2b93d18bce19785451fea863",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-declaration-excluded-enum",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3d0a6682e395d4c22aa337bac636c8eebf1ba59234d9b268de91000478d874c7",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "type-declaration-excluded-const-enum",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bdc01aac8f336d283cc531e28dc14ed9e1a79422b0efff9e41647d11d5f5b666",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "type-declaration-excluded-ambient-enum",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0f5b961098ed4ee9f91cd9b5697832ce9fd25be443741e7176a6b7d4fad23709",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "type-declaration-excluded-runtime-default",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "19428bdb1a91ad87b545cfa409a34f20eb4c100c24ec1b2f23239088f29efb7f",
+      "group": "modules"
+    },
+    {
+      "id": "type-declaration-excluded-runtime-export",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f26c9521a87228d9374b5384c4a7ec371cd5795c456f063991def944c3171145",
+      "group": "modules"
+    },
+    {
+      "id": "type-declaration-only-types",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b773f1301b65c303903ae020237a321380073c02c6fe0ab3abf264e38bb3b071",
+      "group": "entry-shape"
+    },
+    {
+      "id": "type-declaration-bare-entry",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0c8894302e1c9687a76c8f64bd0ca50ab98ac199f6a5169ef0f51997fd14278f",
+      "group": "entry-shape"
+    },
+    {
+      "id": "type-declaration-type-not-value",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eef7dc8c87f49e9307ea70c6f0bc8febe89966cc810c3fca0b55688f78ae5100",
+      "group": "binding-errors"
+    },
+    {
+      "id": "type-declaration-type-tdz",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "faf5f4f383cefb3c730b7887e08bd125ebd4c161245782833e1f63ba70eee7a5",
+      "group": "binding-errors"
+    },
+    {
+      "id": "type-declaration-intrinsic-tdz",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e96a642900679f2ea82379b6d56998c65b344f453402d964217eaef0f24c333c",
+      "group": "binding-errors"
+    },
+    {
+      "id": "type-declaration-runtime-after-return",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c756e09d1202abaca4a861b31b205948f95c97579797cdb410e6fe3f4f87dedb",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "type-declaration-runtime-after-break",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d09dcf8831cc33255a9271008395d97649e1ca5c364267ff71ed1f0310f69879",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "type-declaration-runtime-after-continue",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "259f1955ede6355370b4fdeb1e690861f37bf0fbc51918d8b15f3d0f276db456",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "type-declaration-runtime-after-mixed",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d32e342d78527d6c34e8d73291d618bf03cd42eb9d652b31b27e20b45c17996c",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "type-declaration-runtime-after-empty",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d50ddb3f8ec32bf97120d49444203f6133a982ed8dfeba9e2f3e3202e9190a9e",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "type-declaration-mixed-break-fallback",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d84af9c7cbe92ef6eca83e3226c360d2e63f9b1692691e256faf6d10c3ab84e6",
+      "group": "return-policy"
+    },
+    {
+      "id": "type-declaration-mixed-continue-fallback",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "349bcd6be8e5cce12ad99a292753a06f656de79bedf7c32fd3385903103c77f4",
+      "group": "return-policy"
+    },
+    {
+      "id": "type-declaration-module-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "44456dbb51f78a85df933eee0b4330a6d59a8e3af4d2ced4407a78b99f5300dc",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-declaration-body-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "abf37e85ea549584b0594b8fc0f17e8d6839f27236af7fdcba990660ae1cbb00",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-declaration-export-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "21931bb1afec277b6a22b614b4848f8c218d7b92b218ef1068bbbe665f639d11",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-declaration-directive-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e9682e69557e3e5cb983d89574ab7b594c03b39f1439ad3c0c9af2f5862a57dd",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-declaration-default-wrapper-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f7dec9de0c869a3b4bf09afdb5a3d8d6efdecf6d9d6e6f8086bfd1542533fcdd",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-declaration-depth-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e962d89dbbd9572e7bb9cccdbc2636a5f607c06be864e4b2dbdeb019e21200dd",
+      "group": "statement-depth"
+    },
+    {
+      "id": "type-declaration-byte-overflow",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "93c6f8a32dd45eb613fe12cfcba08374acff5236228b4a6f512c3e8be1aca07d",
+      "group": "source-bytes"
+    },
+    {
+      "id": "type-declaration-malformed-alias",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e537a1ef0f86b652db12aa504dfbb7affcb86a1150470d79e82d25ee9955fdfc",
+      "group": "malformed-ts"
+    },
+    {
+      "id": "type-declaration-malformed-interface",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "205b0949a3b387ddb5e556d789c803e34a3259160c9404a576944633d711d37b",
+      "group": "malformed-ts"
+    },
+    {
+      "id": "type-declaration-decorator",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5e6b22183618a6f208b5f5a79bd727448904b9647792104465dbb8d50cb23f14",
+      "group": "malformed-ts"
+    },
+    {
+      "id": "type-declaration-duplicate-runtime-binding",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0f0eb95ca6f90ae947a57b0ccb3cc52153d9112b41959ec1db2a2ff926033a45",
+      "group": "duplicate-lexical-binding"
+    },
+    {
+      "id": "type-declaration-runtime-boolean",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f054b1b5874c41be511cc881daae13fcd2edea130b783ef7828640f15533ba75",
+      "group": "boolean-values"
+    },
+    {
+      "id": "type-declaration-unselected-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "844e005d93feff88035d54e0fa27fe157c81871743a6b65c8ccf7dab50f6fabb",
+      "group": "function-calls"
+    },
+    {
+      "id": "ts-rc1",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a74eff4b0cfda04c77f7b2c3276b1bbc298bf69716cd421c4e5d486a11b4aa33",
+      "group": "remainder"
+    },
+    {
+      "id": "ts-rc2",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8ee75166116daeefabebbc32269604e9a89da9418be9d85c7c0bf9354875677a",
+      "group": "remainder"
+    },
+    {
+      "id": "ts-rc3",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "db5c8b50217ee9132a685ecfe622329d3be9e47fbcef99597151f6a162bed011",
+      "group": "remainder"
+    },
+    {
+      "id": "ts-rc4",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "33381aa81b83d1b98e0632090bb24295ca922cc37074ec1705d335dc3d4f7c94",
+      "group": "remainder"
+    },
+    {
+      "id": "ts-rc5",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e4a628e635b47a1c67ca82d31648971c5a3071ac5e444939ed20b25535c752b6",
+      "group": "remainder"
+    },
+    {
+      "id": "ts-rc6",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4aa121b3edd25e95bd5371a2cf2541289486e32cb9844241776862e3c0203166",
+      "group": "remainder"
+    },
+    {
+      "id": "ts-rc7",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "71a5d3a357011040efcb5fb1dac67f988f22d433cc449e2e6c8353fd69aaec1e",
+      "group": "remainder"
+    },
+    {
+      "id": "ts-rc8",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b817f4b13ce3d571f6041bc5414a40ef11b8cce2a0393a018d8f2b9f512ffab",
+      "group": "remainder"
+    },
+    {
+      "id": "while-only-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7cc963114529d8a21abaa51026704a64cb02e614bc182ce3c638383a8274dc4c",
+      "group": "return-policy"
+    },
+    {
+      "id": "while-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "245990741f12a010a07bd6af5ba6a0dbd859192c6d53df6ac1a1a9dfe2fb435b",
+      "group": "function-calls"
+    },
+    {
+      "id": "while-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d0fd6931f51ea588c07d367894b5876db609e9c1cfd86291d39f9a7687bafd22",
+      "group": "binding-errors"
+    },
+    {
+      "id": "while-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d0f46f139f8ad11051fd52ab4097d50adba958f066bce277832a60bea0c81b36",
+      "group": "const-errors"
+    },
+    {
+      "id": "label",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc86cdd55a48d51fa44872b18f0cc10de3e5bb475a58bffda0ff9b63485006d8",
+      "group": "labels"
+    },
+    {
+      "id": "block-shadow-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "717f3def298014f635868ecca8af876889677ecf861947922d11c8282e3ceb7f",
+      "group": "binding-errors"
+    },
+    {
+      "id": "block-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "87f9157aa5e93e40a006a4652b2bf19ae0adc7cc2b6cc63b28715c3e489075a3",
+      "group": "binding-errors"
+    },
+    {
+      "id": "block-sibling-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8ab460f59d84452f02beb1ca61ec73caa667054860abd651e335bca55660477a",
+      "group": "binding-errors"
+    },
+    {
+      "id": "block-unreachable",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "155269765afefff2097714328b3def73b06a3838a45e2397c97b63bd787ed719",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "block-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f3565c3b3c236eb0d20884016b5dacb445cfcccaa804858f2846e17660e008b5",
+      "group": "statement-depth"
+    },
+    {
+      "id": "nested-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "927c119bd0d32c9da71b10d4c75543b612b473af46899ea6b499b8d6a8e87ceb",
+      "group": "statement-count"
+    },
+    {
+      "id": "block-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b57edcd117515fd4a48e47101ea3536ba287fa0086cce333d99466d6bebd3b6",
+      "group": "local-count"
+    },
+    {
+      "id": "if-partial-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "026abb3010c2aad20f1572b34ba21d87832df434aa3a728e32f659c997267e2b",
+      "group": "return-policy"
+    },
+    {
+      "id": "if-one-arm-fallthrough",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "88bed789ccd5f683561454201e7b8cda919fdf57b874c9a34711ab1f90d78aa3",
+      "group": "return-policy"
+    },
+    {
+      "id": "if-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "76ed76d12c89edf26faf43d7bdbd3d168936a754dada33ca256abe31c0fe487e",
+      "group": "const-errors"
+    },
+    {
+      "id": "if-sibling-binding",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "800c7c57d339a0e2f6927e0cc4b9aa3b9c43f460e51d4a5893bb8c6c837846d7",
+      "group": "binding-errors"
+    },
+    {
+      "id": "if-forward-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "85db013b20ec6c2e7b52dffac4c927a20bb58c66449f03f8ceb0f254f408db20",
+      "group": "binding-errors"
+    },
+    {
+      "id": "if-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6e8d1c4f36d73ac90d78d09bf87624f5622071c411d5cf607f8bb2f46b12f340",
+      "group": "function-calls"
+    },
+    {
+      "id": "if-following-total-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4e9b112a8f5c2bd31cc1e0068d2502e49775fb13b0d48b7188588c0a7b8b714b",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "if-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "db4151bf9d52a162e870dae778916c79cd96067be8708da3451e9effed0efffe",
+      "group": "statement-depth"
+    },
+    {
+      "id": "malformed",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cd104f88a839b3af35226a353fada8ac55ad96fdad79949c0665dca1cc3dc4f0",
+      "group": "malformed-js"
+    },
+    {
+      "id": "duplicate-parameter",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d2be43817b9a08e03fe72543b0db0819c04aa9ec7f2461f8faf7d3607ac8cec2",
+      "group": "strict-parameters"
+    },
+    {
+      "id": "extra-top-level",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1bb4a22a55b0bdfd131858a5b96331db086fb0a0fcd10d7f8142a7a75c880f39",
+      "group": "modules"
+    },
+    {
+      "id": "extra-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "734920648590865585ba1d8c1655402f1fe3bcc61cbb9acc515acc20a9b566e4",
+      "group": "modules"
+    },
+    {
+      "id": "default-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eae867641394dfd990b52ffeb39605a69b1cc310f6e8a96ddcfaa1595ad84215",
+      "group": "entry-shape"
+    },
+    {
+      "id": "named-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4b4ac5aac46be1e1830693aad45e812a1aebdd2a4f398f32caffdc1011a4b540",
+      "group": "entry-shape"
+    },
+    {
+      "id": "wrong-name",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0be1db156414617abfad5581d4d847ca113dddc4aae59d0a812ae414078dfc7e",
+      "group": "entry-shape"
+    },
+    {
+      "id": "async",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ec4d7b7a051068bafefc9ebc844969b40ee2500dd51fe1a813cba768a21d965a",
+      "group": "async-functions"
+    },
+    {
+      "id": "generator",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "350f2848494a3fefdb505819ea84e80b890a4a2250fd8b34f77a156a6bc69614",
+      "group": "generators"
+    },
+    {
+      "id": "default-param",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7b926767f09823c392f6f4093f6755edace3a89473fc15470ce0e7190188cf43",
+      "group": "parameters"
+    },
+    {
+      "id": "rest-param",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e5c84e85d9cae17bbc54c7c525edaa08f5d97eff1e4a75439eb8b16f40bfcb1a",
+      "group": "parameters"
+    },
+    {
+      "id": "destructure",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d9874a8b48e74b7f86291c9d21114e775d6dbb666e79fda7c6ba114766799b53",
+      "group": "destructuring"
+    },
+    {
+      "id": "arity",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d9c36f6ec2aa0c77801c770382cbc06d3246cc6a18110bab6d0fba2c7ab9afac",
+      "group": "parameters"
+    },
+    {
+      "id": "global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fa762980923e76014a472d7acaa75ba2a85bdaa24794b91494fdf4c8cea0ef0d",
+      "group": "binding-errors"
+    },
+    {
+      "id": "function-reference",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b669c1c2cc819f18b4fd37d7a0740e6816753900e27fb0e123fe7fec928097f8",
+      "group": "function-context"
+    },
+    {
+      "id": "arguments",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d7e047ce493c941b763eb067cf4df0f1f65ebee6bd0b94bc62a40d0ac75af28f",
+      "group": "function-context"
+    },
+    {
+      "id": "call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a234791fa3870f0cc2b0fb01d83bdb818a4cf01c0cdd006501cb4c551e47e792",
+      "group": "function-calls"
+    },
+    {
+      "id": "string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "19ed1ec97114f9199b31a96e152b3cb0aa3dccb1f09ba7c6c6207efc23164068",
+      "group": "string-values"
+    },
+    {
+      "id": "bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6130d279c196a456051fc6397aa2f73c87de647561124db855f78b1e15a0e10f",
+      "group": "bigint-values"
+    },
+    {
+      "id": "boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6623d58627f668683906f8f7e731f8c3edf56886cc7bfaece46e281f09564bbb",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-literal-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e19322e02eb6adec61850c72f58228ceda5eb567c29ce72e8a9ed56c81c60fab",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-literal-arithmetic",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a08ce43017a57a56ec9466eef57afa9352e3e88049b0d38173569fa7c6cd632a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-literal-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "36bdecb3b0d6847a304d80e753d9f8b05d50e1e3aae88bd0038fae36da35bd27",
+      "group": "function-calls"
+    },
+    {
+      "id": "boolean-literal-while-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3e7236405ddb347c934a13763be898c61db43055cb8516501752718a9d003c17",
+      "group": "function-calls"
+    },
+    {
+      "id": "predicate-conditional-unselected-alternate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d85ff87ef2f7aaa7968e70d77884d9fff49cabc79f1968344a8cb13576466ebb",
+      "group": "function-calls"
+    },
+    {
+      "id": "predicate-conditional-unselected-consequent",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5b549351a8720e493b06e938264fcf0f54fbd9ab402cd044d46f8eed847ba648",
+      "group": "function-calls"
+    },
+    {
+      "id": "predicate-conditional-unselected-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "088b59e7ce7a5e46992c49c74dad46a90b33fdfe6275ba3cdf0fd817747d0cfd",
+      "group": "const-errors"
+    },
+    {
+      "id": "predicate-conditional-numeric-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "37db71477ed311ecf3806a56ea1a69b9542b9ee00deb4c5972d8739d57ebd523",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-conditional-numeric-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9af704892c759d0d42d981893eb3ab38572d8680a868418333acfbc6a2984e5c",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-conditional-arithmetic",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "325cf93f49fc8ea30d59be6ae5004caacee5eea005822b56034a2b6c402c6401",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-conditional-assignment",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c8d919b9806351020c60c09540a3076aeb04107667bc803fafa2de0008f1f03b",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-conditional-nonfinal-comma",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7be4e641cc20c1ef9cc10ec8e58395a4451c5ffe21add34f986ba65d5d8816ca",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-conditional-equality-operand",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "68da9b038642022c1981c1cc10567ca54e6240656b347d9a2c34bf0495f16838",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-conditional-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9b8f5b7865e44fa6d2fc3fa1a02d29207866198a939f7db16cc54d891d3c20cc",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "boolean-equality-operands",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a76683e2472b7ba44bce8292a1061a6a8a1bccefef39072661fe3b7fb696546e",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-comma-nonfinal",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "50792141834a5857f7131e55f7ec4aa642d2e4f5be0857b03129caec5f8d3804",
+      "group": "boolean-values"
+    },
+    {
+      "id": "not-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a26a441ad8f2bef9fa4e0ddfa842e03ef72ed356c2165f2d3af77d899b70a552",
+      "group": "boolean-values"
+    },
+    {
+      "id": "not-arithmetic",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "21e071dd23edb24e65665f17fcb0ce03610943362be27f5cde9ab05327d22d4a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "not-equality-operand",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1dbab9a6fff5c3f740b1113ae2f375c4ec9954bb52d5f8c3df03932e759c2a8b",
+      "group": "boolean-values"
+    },
+    {
+      "id": "not-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9ff161089a4723e26a74d501fde6d12394022b7e015fbd41781332325aab775a",
+      "group": "function-calls"
+    },
+    {
+      "id": "not-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c7de60589d572f70c2b0a6ab220a923745dca0d7210ce3ceb659e835b2d800fc",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "predicate-and-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ba859e9168dd0499f9c8caf3074cc5a9362e16b66b5ac89a48e3fb3bd0259253",
+      "group": "function-calls"
+    },
+    {
+      "id": "predicate-or-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cd2a233e86a70e265d1127694d80644fa4caaed1e9c12825d3a1aa2bbf3386b9",
+      "group": "function-calls"
+    },
+    {
+      "id": "predicate-logical-unselected-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c7b683f141f716e6083f6db06ffd6b83be45fb48495983acb70b2ee2bd79d2a7",
+      "group": "const-errors"
+    },
+    {
+      "id": "predicate-logical-unselected-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b878554f76b57a29b43d87d994ca4a32ce8cc0c6b601941d65c6496565cfe68e",
+      "group": "binding-errors"
+    },
+    {
+      "id": "predicate-logical-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "065e0954a014ea57da82aaf8ab109d84161f386cdbd1161cda25b1821ce474f5",
+      "group": "string-values"
+    },
+    {
+      "id": "predicate-logical-numeric-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7e8329e89e75053ce2dcb3b4e61f4a1ee49ef09ad144576e2a1008a092390abd",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-logical-comma-nonfinal",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b34adccb684501f5388c6f0a63f0ba44d16a292f51e287b0484edb7d185685d9",
+      "group": "boolean-values"
+    },
+    {
+      "id": "predicate-logical-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a5ea14254c1cf3f15439d6cac6f85f6902ba3bf2c0be4a3d4b5b8318c4d7ad50",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "predicate-logical-nullish",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2516615f116e201c581665e2e9e48d0409cbe91889d9f82979221a907cd6c764",
+      "group": "nullish-values"
+    },
+    {
+      "id": "predicate-logical-statement",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "558ef32470c6698fa7ea247b884a689d9efca4702cf6c2bca74c565dc01526b5",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-literal-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0fe4d106166ee3d209c20eba7d90a297bc2428b5b1c77e14b22694abc289951c",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "850d4ef59159afe5a133379c5d2f3b4f9401a0b640d30d8a55df410d3774969b",
+      "group": "nullish-values"
+    },
+    {
+      "id": "remainder",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9be5ea5ab4bff85ebd091c0c73696e3f0987cad3b6503d06e757353cc2d203b1",
+      "group": "remainder"
+    },
+    {
+      "id": "power",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a3ce3becfe3b89c198cd77d9ac22d6f9fcdd89e05e2ada811507359b1be3fd76",
+      "group": "exponentiation"
+    },
+    {
+      "id": "logical-unsupported-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "afa7119978a76c6488bd0965e18346539aee4f489345a09b0762fce6a0345476",
+      "group": "function-calls"
+    },
+    {
+      "id": "logical-unsupported-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "272251a4bd8cdfcfe2a2277e99f08162d627c708d798f4e01bc59bbf80a6719c",
+      "group": "function-calls"
+    },
+    {
+      "id": "logical-unsupported-2",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "56793c30190397cdc27e6cd2d136a1f47b73eff48b3a7ae14c2ba7844f973aa7",
+      "group": "string-values"
+    },
+    {
+      "id": "logical-unsupported-3",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5cfaf8bf6792a454db075fae5dcdfdf36f04d6bb019d9fddb277abcf222a29b1",
+      "group": "object-values"
+    },
+    {
+      "id": "logical-unsupported-4",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1e9fa2db5b244014cb629be6af2d13b3bfd11cd559845bad75fcb4cb00ff4bd2",
+      "group": "boolean-values"
+    },
+    {
+      "id": "logical-unsupported-5",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "218ab69775e4706dfbb3a980cfbbaefe8844f462c1a662d18757b6dee0882723",
+      "group": "boolean-values"
+    },
+    {
+      "id": "logical-unsupported-6",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6226015638e9a66aae37ba82e716184c8df8823c8245cbec59d9bd8e67ba4e8a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "logical-unsupported-7",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ed089d04bd984099adb7e199651b8cf45464cf849b32ebefcb0a45187e2cc664",
+      "group": "boolean-values"
+    },
+    {
+      "id": "logical-unsupported-8",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2d29afbcb3f53e9fecc4dfe4d06880b0af936d608feefbc8da26e835d131db80",
+      "group": "nullish-values"
+    },
+    {
+      "id": "logical-unsupported-9",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8e3cbb500148e41e1c0a50f8dc3fd75e91581e74745a4924297ea5782a9c2cea",
+      "group": "binding-errors"
+    },
+    {
+      "id": "logical-unselected-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "46ac16c8547b83cc81721f1aecc316ef773dbabc51ecc69fb1757421493a4d71",
+      "group": "const-errors"
+    },
+    {
+      "id": "comma-nonfinal-predicate",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "94ca296198789fea9709218eeb10c6fb96c7eb52be2349778023be779942ee41",
+      "group": "boolean-values"
+    },
+    {
+      "id": "comparison",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7338dbfe84a7c72cb4b92cff31b2a3a376a3bb6b12f41ad6d1faa73ca0d25257",
+      "group": "boolean-values"
+    },
+    {
+      "id": "comma-unsupported-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7bfaa770117587f287c4454072853e7ef3ecc8ec4b42a941bfd191eb6c6e9fce",
+      "group": "function-calls"
+    },
+    {
+      "id": "comma-unsupported-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "52db57fb85976ede568453dda515b7cb7f8290232ab4373e75f89a9ac6359c7d",
+      "group": "function-calls"
+    },
+    {
+      "id": "comma-unsupported-2",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5fe20db464eb9e2469ef97315757b52853049e866306d6a6778ea8aa9cd345ff",
+      "group": "function-calls"
+    },
+    {
+      "id": "comma-unsupported-3",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7fb89db8138c039adb129d43d5584256a230c8256fae45b4d255b1bc99455d92",
+      "group": "string-values"
+    },
+    {
+      "id": "comma-unsupported-4",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3b24c0cdc960fdf4024d50d45e14346943ad8890da7ec0706fece40c387f80ae",
+      "group": "string-values"
+    },
+    {
+      "id": "comma-unsupported-5",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6999e32069dcbb91db764658f7be2e60974599f0f2dc058bc6a96635c32210f4",
+      "group": "object-values"
+    },
+    {
+      "id": "comma-unsupported-6",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dec38920db8dd61c6a77f4698b20de8ebc9524852e41bff68075866d9c25998f",
+      "group": "object-values"
+    },
+    {
+      "id": "comma-unsupported-7",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2b1d7d8b00083e30a22feeeddd1dd7a74573f3228c1e40c4a8daa647a0ad64ba",
+      "group": "boolean-values"
+    },
+    {
+      "id": "comma-unsupported-8",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "038fb4738e6ff7ee51e6816f35ad3ac50b818b6887ea227f0983438e5f8b1658",
+      "group": "boolean-values"
+    },
+    {
+      "id": "comma-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "503e826dc7cab965f7596b248e2093116d8c9e27d0cc0881bd0c66501c7aa3f5",
+      "group": "const-errors"
+    },
+    {
+      "id": "comma-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6c016c5864a5115ac9c74bd057c9d220923cac88aaf9e8ae4e58050650e973e6",
+      "group": "binding-errors"
+    },
+    {
+      "id": "comma-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "adf0adf823fae8e9472acf856644ed2643905ff2171d0a7aa29bb1f7f4c9a3d3",
+      "group": "binding-errors"
+    },
+    {
+      "id": "comma-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cb8faf0d51bf95f73685d2a5cc46102e3668452d4f1a801ba1ef841accee7bbe",
+      "group": "function-calls"
+    },
+    {
+      "id": "comma-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f0a49f6a58c937da461af98216c49fe82f7ff9901747d80c898af6de4a063489",
+      "group": "expression-depth"
+    },
+    {
+      "id": "comma-predicate-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fcd8f698510a5596487cef977f0a89aa69a385e3a955883b1f703b5398860844",
+      "group": "expression-depth"
+    },
+    {
+      "id": "object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "25f80bed597b3744a2aeb32a831225607b2eba3a3f33f4a6292b74cebdfbd4c0",
+      "group": "object-values"
+    },
+    {
+      "id": "array",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6addc8635568dae0d3d800749a54344f31bee210804b39116137c5695bd54a04",
+      "group": "array-values"
+    },
+    {
+      "id": "this",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c6e2af3b7e7cfc684d3f432e044538835641e71c8d4fb3c301a06d6fda6ebc27",
+      "group": "function-context"
+    },
+    {
+      "id": "unary-not",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c4bb4c41f6f1b6ca9499ba0c78bbe5f12cd6962ca6e3c0e9a27d2a149368c952",
+      "group": "boolean-values"
+    },
+    {
+      "id": "empty-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bdf3a4369f8e62d49f3dcb226497eb11997526fe91a7901823ac5d7e6df6326e",
+      "group": "return-policy"
+    },
+    {
+      "id": "type-param",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f6843951571f95863861cc61504b8885dee49fd0b48a02507551e76fa8a4e758",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "this-param",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "19e40023e81d66de28b6066c46a0bb78ee91c241543adb2f540075dca0b529cc",
+      "group": "parameters"
+    },
+    {
+      "id": "optional-param",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eaa562ed332c5c1c9322f7d9816b98d22a104f395a48a89a5ceeb0905dc1469c",
+      "group": "parameters"
+    },
+    {
+      "id": "declare",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a0654171257c495a4a5e0c30126d7568360d89a68b4aac887ed7d59f959f7207",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "over-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0b8d7a04c3450e89bb27728363e978f05438e2c9f2838f6c822937a54adede4b",
+      "group": "source-bytes"
+    },
+    {
+      "id": "depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "73e5e5fab1925e56431bb4cb6ff1b49c3520aa10b28b54139e4ec1303497bd5e",
+      "group": "expression-depth"
+    },
+    {
+      "id": "self-reference",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6cd3b18f64b7e9453abd35882e76b6cfebfb146c2ccea87031805641b204efd0",
+      "group": "binding-errors"
+    },
+    {
+      "id": "forward-reference",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eca006013645b72183d7ee86cdef60a156c6d520db5b9cdc6af58167cfc0a30f",
+      "group": "binding-errors"
+    },
+    {
+      "id": "dead-branch-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e35735f544f1a72af6f214602d1796c960492ae341d436040f7bfd33111bd113",
+      "group": "binding-errors"
+    },
+    {
+      "id": "local-destructure",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c8e3bde12c8dfdd6c75f313fce785b0a4029e79ab61f24aa17635c6967577214",
+      "group": "destructuring"
+    },
+    {
+      "id": "local-reassignment",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3bc7bbee1171210b39a85cf4b1a1764127cda9799db9aa13562181f532c75d1a",
+      "group": "const-errors"
+    },
+    {
+      "id": "const-assignment-expression",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "50ec10cf6769ab4e48e4c3b321af2ee28d793ba49b8423a84948f4499d9498a0",
+      "group": "const-errors"
+    },
+    {
+      "id": "self-write-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0c3c697a4e578c716f62b041009bf7735db9c055979ddce47d3edee92eef8b6c",
+      "group": "binding-errors"
+    },
+    {
+      "id": "forward-write-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2c4c19fc7ae7696bf6ecc9f5170bb622e0209fdeaa3c9aa4deefc92ae3c1a7e9",
+      "group": "binding-errors"
+    },
+    {
+      "id": "global-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4c70f452dd13e73bfa83105e2c180672cdb7ad0b6efcc0e2e14629ce649d5cba",
+      "group": "binding-errors"
+    },
+    {
+      "id": "unsupported-compound-0",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "04cd3f1dba3f84dda32d36fc31c8deb0c58af7307b04bf1d71c1befa43588aa3",
+      "group": "remainder"
+    },
+    {
+      "id": "unsupported-compound-1",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "353fa4e52b888502e55d6e23576547365d589da39832214ade02ad758d685dd8",
+      "group": "exponentiation"
+    },
+    {
+      "id": "unsupported-compound-8",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "21deae1a20f4ee62d59fc6e650952f03e48b9afe2af2971741a6fda9c5c16de3",
+      "group": "logical-assignment"
+    },
+    {
+      "id": "unsupported-compound-9",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9c28b7ff2bcad9b5f2d99ceec226f94c347001bb68abcbe47bacb6b3a82af28e",
+      "group": "logical-assignment"
+    },
+    {
+      "id": "unsupported-compound-10",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f4f8e0f8afbb4aaf5a528360b0944d6d61875e68ecaa0f30d2e69556a66c9eb0",
+      "group": "logical-assignment"
+    },
+    {
+      "id": "compound-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6693413c8f6c514b638367a48429c319006cbc9b1b68c46fc596ffd453592b33",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eedebbada47e15b37a42dd39aae1654d0c40676c5c6c8843ce9e108c964ba635",
+      "group": "property-targets"
+    },
+    {
+      "id": "compound-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "54ac5d4cd52307ad61b39a14dfa7a190d3f6a8178aca0e40b771d5d0c8f641c8",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "48d5fd042590a529738afa60718ae5850c913674b4b6289d94ecb496a29b283b",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a25cf2a10775e3ec1fa888335b1701015135cd8a15edc4c748e6c6a58568c04d",
+      "group": "binding-errors"
+    },
+    {
+      "id": "compound-unselected-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "db32a919cf8f75e606e827388211d08398fed8a84cb4ad8d6e127222be6dafd2",
+      "group": "const-errors"
+    },
+    {
+      "id": "compound-unsupported-unselected",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b1b6fc72f477c0aa3c7bba3faba3c148423dc481067a2e0227b3812731e19d3e",
+      "group": "remainder"
+    },
+    {
+      "id": "update-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "17da56692982798760df6150504d57f50b5fab10925627edcad030b5ca3a24c4",
+      "group": "const-errors"
+    },
+    {
+      "id": "update-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "17f000d004d034ee12c8d308abe8ecb30021dbebbfda274d7ea0d3fcb3dbe9fe",
+      "group": "property-targets"
+    },
+    {
+      "id": "update-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b4a816110064f1c294f244e00815922022a0654c03412b84db40302c2cce20b6",
+      "group": "binding-errors"
+    },
+    {
+      "id": "update-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b1899d31154aaba289ceed1431dd7427c21f448af578ed2c281515210214d1a1",
+      "group": "binding-errors"
+    },
+    {
+      "id": "update-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7be6cc61c7d0e7e9f8bddb9dccebb5f6b5e21c23c7385a94363d17a1eabab6df",
+      "group": "binding-errors"
+    },
+    {
+      "id": "update-unselected-const",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "58c0018127de21dd9195163a05245778a681bb825dc1cf0941769a99a3503f74",
+      "group": "const-errors"
+    },
+    {
+      "id": "update-wrapped-target",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "55ccad0b1179ba66cbd8b6d6aa31d9ac4a7141898984730f293fb74c534cf05a",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "parenthesized-write-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc4226c5056bcfa1c97d0459136db8950b609b523848dd1bcd0fc8f64164930f",
+      "group": "expression-depth"
+    },
+    {
+      "id": "property-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2e13d38aeba7c9fc1f1cde29b43251f186f3c6cc70b9cbf734298c05b9ce77e0",
+      "group": "property-targets"
+    },
+    {
+      "id": "destructuring-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1a5bf138e69f7ad141d37f5284d3681329c8df3cac61ed3fef84cdf451a5ecb1",
+      "group": "destructuring"
+    },
+    {
+      "id": "ts-wrapped-write",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "57ba3ef8fd20ff51b28d24750f52602d358c35f2cec5e1cc42c6ca65fa6655b1",
+      "group": "wrapped-targets"
+    },
+    {
+      "id": "uninitialized-let",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b1ecd30a1d3facec1b95fe929feba349e69082ef3346a01620acceb26ee70822",
+      "group": "uninitialized-bindings"
+    },
+    {
+      "id": "dead-branch-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "70a72fdc298b79e278bf9034b182812286486b2b45d2445f3ef0c594af5994a1",
+      "group": "const-errors"
+    },
+    {
+      "id": "dead-branch-forward-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "973889fbf3d7219661460053bdb2434c954aab7d28eb0d8f6afef72bc37b7adc",
+      "group": "binding-errors"
+    },
+    {
+      "id": "assignment-forward-statement",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e279f83edc2d3dd4e860d9772db94d13effd6f13f1ec8c4e356411d1fe8807d1",
+      "group": "binding-errors"
+    },
+    {
+      "id": "var-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "be922e9aeb7a9bad2063d8daef59581ace5be470049563dc3a74db5cd3efffa3",
+      "group": "var-bindings"
+    },
+    {
+      "id": "statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "301fa5c0fab749f23762d3996c8e5b7dd2ff952b829891db6d1e8d9529511ba9",
+      "group": "statement-count"
+    },
+    {
+      "id": "boolean-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ff82617809e65d0e17919751b81a35c3c82b50c9c9f7348a84011892d12765c0",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-arithmetic",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "acd423e440aed95754dddc8f40527d91748f886ff5ad5c09eb19b3abc318929e",
+      "group": "boolean-values"
+    },
+    {
+      "id": "invalid-dead-arm",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7b7aaa8832e790bfd27016c8ae8daee24c0071c53bbf9d20fa8742eee858e37c",
+      "group": "function-calls"
+    },
+    {
+      "id": "unreachable-extra",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a4242f1898026ac609dc37fc5a2c8a0af65cf62ccba311a0c255baac82428c04",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "08c55d8f6b6a68f567e9b02722b960b0b0d694c7538aba1784a54c9fc5c555da",
+      "group": "local-count"
+    }
+  ]
+}

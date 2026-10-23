@@ -12,6 +12,10 @@ for (const suite of catalog.suites) {
   assert.match(suite.entrySha256, /^[a-f0-9]{64}$/);
   assert.match(suite.licenseSha256, /^[a-f0-9]{64}$/);
   assert.ok(suite.blockers.length > 0 && suite.next.length > 0);
+  if (suite.fulfilledPrerequisites !== undefined) {
+    assert.ok(Array.isArray(suite.fulfilledPrerequisites) && suite.fulfilledPrerequisites.length > 0 &&
+      suite.fulfilledPrerequisites.every(item => typeof item === 'string' && item.length > 0));
+  }
   for (const item of suite.selection) {
     assert.ok(['adapted-runtime', 'admission-rejection'].includes(item.kind));
     assert.ok(item.id.startsWith(item.kind === 'adapted-runtime' ? 'admitted:' : 'rejected:'));

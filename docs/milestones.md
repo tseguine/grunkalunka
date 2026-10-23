@@ -190,6 +190,13 @@ the same client behaves predictably under different capability profiles.
   One full-source case composes module/post-return aliases with an unsigned shift
   assignment whose RHS writes its target, preserving the target snapshot.
 
+- Complete rejection classification: all 631 source-bound records in 55 groups
+  distinguish 26 invalid sources, 79 resource restrictions and 526 open requirements.
+  Input and final-report checks enforce coverage and preserve unexecuted lowering;
+  a missing resolved-report classification mutation is detected. Existing fixture
+  sources, diagnostics and 41 curated oracle opt-ins remain unchanged. This inventory
+  does not implement its open requirements or establish whole-language conformance.
+
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after
 each demonstrated unit; do not replace evidence with a checked milestone box.
