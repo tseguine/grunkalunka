@@ -14,8 +14,9 @@ import { numericDoPrograms, numericDoRejected } from './numeric-do.mjs';
 import { predicateNot } from './predicate-not.mjs';
 import { numericEqualityPrograms, numericEqualityRejected } from './numeric-equality.mjs';
 import { predicateLogical } from './predicate-logical.mjs';
+import { numericStatementPrograms, numericStatementRejected } from './numeric-statements.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 19;
+export const corpusVersion = 20;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -55,6 +56,7 @@ programs.push(...numericDoPrograms);
 programs.push(...predicateNot);
 programs.push(...numericEqualityPrograms);
 programs.push(...predicateLogical);
+programs.push(...numericStatementPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -135,6 +137,7 @@ export const rejected = [
   ...numericForRejected,
   ...numericDoRejected,
   ...numericEqualityRejected,
+  ...numericStatementRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -218,7 +221,6 @@ export const rejected = [
   ['comma-forward', 'export function run(a,b) { const x=(y=a,b); let y=b; return x; }'],
   ['comma-self', 'export function run(a,b) { let x=(x=a,b); return x; }'],
   ['comma-unselected-call', 'export function run(a,b) { return a?a:(Math.random(),b); }'],
-  ['comma-statement', 'export function run(a,b) { (a=b,b=a+1); return a+b; }'],
   ['comma-depth-limit', `export function run(a,b) { return ${'('.repeat(128)}a,b${')'.repeat(128)}; }`],
   ['comma-predicate-depth-limit', `export function run(a,b) { return ${'('.repeat(126)}a,a<b${')'.repeat(126)} ? a : b; }`],
   ['object', 'export function run(a,b) { return {}; }'],
@@ -264,7 +266,6 @@ export const rejected = [
   ['update-global', 'export function run(a,b) { return clock++; }'],
   ['update-unselected-const', 'export function run(a,b) { const x=a; return a?a:x++; }'],
   ['update-wrapped-target', 'export function run(a:number,b:number):number { return (a as number)++; }', 'ts'],
-  ['parenthesized-non-write', 'export function run(a,b) { ((a+(a=b))); return a; }'],
   ['parenthesized-write-depth', `export function run(a,b) { ${'('.repeat(129)}a=b${')'.repeat(129)}; return a; }`],
   ['property-write', 'export function run(a,b) { return a.x=b; }'],
   ['destructuring-write', 'export function run(a,b) { return [a]=b; }'],
@@ -274,7 +275,6 @@ export const rejected = [
   ['dead-branch-forward-write', 'export function run(a,b) { const x=a===a?a:(y=b); let y=a; return x+y; }'],
   ['assignment-forward-statement', 'export function run(a,b) { x=a; let x=b; return x; }'],
   ['var-local', 'export function run(a,b) { var x=a; return x; }'],
-  ['non-assignment-statement', 'export function run(a,b) { a+(a=b); return a; }'],
   ['statement-limit', `export function run(a,b) { ${'a=b;'.repeat(256)} return a; }`],
   ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }'],
   ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],

@@ -715,27 +715,6 @@ impl Lowering<'_, '_> {
                 Ok(true)
             }
             Statement::ExpressionStatement(statement) => {
-                let mut expression = &statement.expression;
-                let mut parentheses = 0;
-                while let Expression::ParenthesizedExpression(inner) = expression {
-                    if parentheses >= 128 {
-                        return Err(unsupported(
-                            expression,
-                            "expression nesting exceeds this experiment's limit",
-                        ));
-                    }
-                    parentheses += 1;
-                    expression = &inner.expression;
-                }
-                if !matches!(
-                    expression,
-                    Expression::AssignmentExpression(_) | Expression::UpdateExpression(_)
-                ) {
-                    return Err(unsupported(
-                        statement.as_ref(),
-                        "only assignments and updates are admitted as expression statements",
-                    ));
-                }
                 self.expression(&statement.expression, region, 0)?;
                 Ok(false)
             }
@@ -761,6 +740,27 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn discarded_numeric_statement() {
+        crate::compile("export function run(a,b) { a+(a=b); return a; }", false).unwrap();
+    }
+    #[test]
+    fn discarded_comma_statement() {
+        crate::compile(
+            "export function run(a,b) { (a=b,b=a+1); return a+b; }",
+            false,
+        )
+        .unwrap();
+    }
+    #[test]
+    fn discarded_wrapped_statement() {
+        crate::compile(
+            "export function run(a,b) { (a=b) as string; return a; }",
+            true,
+        )
+        .unwrap();
+    }
+
     fn same_numeric_equality(loose: &str, strict: &str) {
         let compile = |expression| {
             crate::compile(

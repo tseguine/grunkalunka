@@ -1,7 +1,8 @@
 # Known lowering gaps
 
 The current compiler admits one exported two-number function with numeric locals,
-assignments, branches, while/for/do loops, TypeScript expression wrappers and returns.
+numeric expression statements, assignments, branches, while/for/do loops,
+TypeScript expression wrappers and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
@@ -90,7 +91,7 @@ the current single-top-level-function rule. Such a rejection identifies the firs
 blocking frontier; it does not independently exercise every deeper missing stage.
 
 Compound arithmetic assignments, prefix/postfix increments/decrements and
-parenthesized write statements and numeric comma expressions have graduated into the admitted differential
+parenthesized expressions, discarded numeric statements and numeric comma expressions have graduated into the admitted differential
 corpus, including ordered mutation and returned-value regressions.
 
 Numeric `&&` and `||` now short-circuit and preserve their selected operand.

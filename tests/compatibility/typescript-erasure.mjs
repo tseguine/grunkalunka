@@ -55,7 +55,6 @@ for (const [name, wrap, nested] of forms) {
   typescriptErasureRejected.push(
     reject(`${name}-assignment-target`, `return (${wrap('a')}) = b;`, 'assignment target must be an initialized identifier'),
     reject(`${name}-update-target`, `return (${wrap('a')})++;`, 'update target must be an initialized identifier'),
-    reject(`${name}-statement`, `${wrap('a = b')}; return a;`, 'only assignments and updates are admitted as expression statements'),
   );
 }
 typescriptErasurePrograms.push(['ts-erasure-predicate-depth-boundary', 'if (a) return a; return b;',
