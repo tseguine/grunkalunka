@@ -117,6 +117,9 @@ impl Emitter<'_> {
                         Binary::BitAnd => ("i32.and\n", true),
                         Binary::BitOr => ("i32.or\n", true),
                         Binary::BitXor => ("i32.xor\n", true),
+                        Binary::ShiftLeft => ("i32.shl\n", true),
+                        Binary::ShiftRight => ("i32.shr_s\n", true),
+                        Binary::ShiftRightUnsigned => ("i32.shr_u\n", true),
                     };
                     if bitwise {
                         self.int32_bits(*left);
@@ -127,7 +130,12 @@ impl Emitter<'_> {
                     }
                     self.output.push_str(instruction);
                     if bitwise {
-                        self.output.push_str("f64.convert_i32_s\n");
+                        self.output
+                            .push_str(if matches!(operator, Binary::ShiftRightUnsigned) {
+                                "f64.convert_i32_u\n"
+                            } else {
+                                "f64.convert_i32_s\n"
+                            });
                     }
                     self.set(*result);
                 }

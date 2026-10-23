@@ -27,7 +27,7 @@ numericStatementPrograms.push(
 );
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, &, | and ^ are admitted';
+const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
 const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [

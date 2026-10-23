@@ -349,10 +349,13 @@ impl Lowering<'_, '_> {
                     BinaryOperator::BitwiseAnd => Binary::BitAnd,
                     BinaryOperator::BitwiseOR => Binary::BitOr,
                     BinaryOperator::BitwiseXOR => Binary::BitXor,
+                    BinaryOperator::ShiftLeft => Binary::ShiftLeft,
+                    BinaryOperator::ShiftRight => Binary::ShiftRight,
+                    BinaryOperator::ShiftRightZeroFill => Binary::ShiftRightUnsigned,
                     _ => {
                         return Err(unsupported(
                             expression,
-                            "only binary +, -, *, /, &, | and ^ are admitted",
+                            "only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted",
                         ));
                     }
                 };
@@ -826,6 +829,21 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shift_unsigned_is_admitted() {
+        crate::compile("export function run(a,b) { return -1 >>> 0; }", false).unwrap();
+    }
+
+    #[test]
+    fn shift_signed_is_admitted() {
+        crate::compile("export function run(a,b) { return -1 >> 0; }", false).unwrap();
+    }
+
+    #[test]
+    fn shift_left_is_admitted() {
+        crate::compile("export function run(a,b) { return 1 << 31; }", false).unwrap();
+    }
+
     #[test]
     fn bitwise_binary_and_is_admitted() {
         crate::compile("export function run(a,b) { return 5 & 3; }", false).unwrap();

@@ -41,7 +41,7 @@ numericBitwiseBinary.push(
 );
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, &, | and ^ are admitted';
+const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
 const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
@@ -67,7 +67,6 @@ const negatives = [
   ['bitwise-const-update', 'const x=a; return x++ | b;', 'update to a const binding is not admitted'],
   ['bitwise-self-tdz', 'let x=x ^ a; return x;', reference],
   ['bitwise-forward-tdz', 'const x=y & a; let y=b; return x;', reference],
-  ['bitwise-shift-remains', 'return (a<<b) | 1;', binary],
   ['bitwise-compound-remains', 'return a & (b|=1);', 'only =, +=, -=, *= and /= assignments are admitted'],
   ['bitwise-remainder-remains', 'return (a%b) ^ 1;', binary],
   ['bitwise-depth-limit', `return a${' & 1'.repeat(129)};`, 'expression nesting exceeds'],

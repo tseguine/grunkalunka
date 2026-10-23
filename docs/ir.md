@@ -41,6 +41,12 @@ Emission applies the same conversion helper to each captured value, uses `i32.an
 `i32.or` or `i32.xor`, then converts the signed result to `f64`. The verifier's
 existing numeric operand/result contract applies. Arithmetic binary emission and
 the conversion helper remain unchanged.
+`ShiftLeft`, `ShiftRight` and `ShiftRightUnsigned` are also Number-valued binary
+operations. They use the same captured bit conversion and eager operand order.
+The count's low five bits agree for `ToInt32` and `ToUint32`; Wasm shifts mask
+them modulo 32. `i32.shl` and `i32.shr_s` return through signed `f64` conversion.
+Only `i32.shr_u` returns through unsigned conversion, preserving values up to
+`4294967295` instead of interpreting the high bit as a negative sign.
 `Initialize` and `Store` consume numeric values and change source cells.
 Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
 operation. They allocate no source cell and perform no host lookup. Resolved

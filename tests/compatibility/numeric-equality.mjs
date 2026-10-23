@@ -26,7 +26,7 @@ numericEqualityPrograms.push(['equality-typescript-wrappers',
   'return (((a as number)! == (<number>b)) as boolean)?-0:0;']);
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, &, | and ^ are admitted';
+const binary = 'only binary +, -, *, /, &, |, ^, <<, >> and >>> are admitted';
 const negatives = [
   ['equality-boolean-left', 'return true==1?a:b;', expression],
   ['equality-boolean-right', 'return 1==true?a:b;', expression],

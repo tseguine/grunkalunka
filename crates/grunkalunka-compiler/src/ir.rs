@@ -30,6 +30,9 @@ pub(crate) enum Binary {
     BitAnd,
     BitOr,
     BitXor,
+    ShiftLeft,
+    ShiftRight,
+    ShiftRightUnsigned,
 }
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Compare {
@@ -594,8 +597,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn binary_bitwise_requires_numeric_operands_and_result() {
-        for operator in [Binary::BitAnd, Binary::BitOr, Binary::BitXor] {
+    fn integer_binary_requires_numeric_operands_and_result() {
+        for operator in [
+            Binary::BitAnd,
+            Binary::BitOr,
+            Binary::BitXor,
+            Binary::ShiftLeft,
+            Binary::ShiftRight,
+            Binary::ShiftRightUnsigned,
+        ] {
             for types in [
                 [Type::Number, Type::Number, Type::Number],
                 [Type::Predicate, Type::Number, Type::Number],

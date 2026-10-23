@@ -6,14 +6,14 @@ TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled lo
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 45 curated reference cases in
+The executable frontier contains 42 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
 
 | Area | Exact fixture IDs |
 | --- | --- |
-| Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-shift-left`, `gap-shift-right`, `gap-shift-unsigned`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
+| Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
 | General JavaScript values | `gap-boolean-value`, `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
 | Additional control flow | `gap-switch`, `gap-label` |
 | Functions, calls and recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
@@ -118,7 +118,7 @@ negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 45 examples are a
+or change the reference result to match a lowering bug. The 42 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -135,8 +135,14 @@ The former `gap-bit-and`, `gap-bit-or` and `gap-bit-xor` references and ordinary
 `bitwise` rejection are promoted in
 [`numeric-bitwise-binary.mjs`](../tests/compatibility/numeric-bitwise-binary.mjs).
 Both operands must be Numbers and execute eagerly in source order; each truncates
-and wraps before the operation returns a signed numeric result. Shifts, bitwise
+and wraps before the operation returns a signed numeric result. Bitwise
 compound assignments and mixed-type coercion remain outside admission.
+
+The former `gap-shift-left`, `gap-shift-right` and `gap-shift-unsigned` references
+and `bitwise-shift-remains` rejection are promoted in
+[`numeric-shifts.mjs`](../tests/compatibility/numeric-shifts.mjs). Number operands
+use five masked count bits; `<<`/`>>` yield signed Numbers and `>>>` yields an
+unsigned Number. Shift compound assignments and nonnumeric operands remain rejected.
 
 The former `gap-break` reference is now `break-promoted-reference` in
 [`numeric-break.mjs`](../tests/compatibility/numeric-break.mjs). Unlabelled break
