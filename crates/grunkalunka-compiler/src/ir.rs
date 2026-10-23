@@ -136,6 +136,65 @@ pub(crate) enum Exit {
     Fallthrough,
     Yield(ValueId),
     Return(ValueId),
+    Break,
+}
+
+/// Possible source completions. Only normal paths reach a sequential suffix.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Completion {
+    pub normal: bool,
+    pub returns: bool,
+    pub breaks: bool,
+}
+
+impl Completion {
+    pub const NORMAL: Self = Self {
+        normal: true,
+        returns: false,
+        breaks: false,
+    };
+    pub const RETURN: Self = Self {
+        normal: false,
+        returns: true,
+        breaks: false,
+    };
+    pub const BREAK: Self = Self {
+        normal: false,
+        returns: false,
+        breaks: true,
+    };
+
+    pub fn union(self, other: Self) -> Self {
+        Self {
+            normal: self.normal || other.normal,
+            returns: self.returns || other.returns,
+            breaks: self.breaks || other.breaks,
+        }
+    }
+
+    pub fn then(self, other: Self) -> Self {
+        Self {
+            normal: self.normal && other.normal,
+            returns: self.returns || (self.normal && other.returns),
+            breaks: self.breaks || (self.normal && other.breaks),
+        }
+    }
+
+    pub fn pretest_loop(self) -> Self {
+        Self {
+            normal: true,
+            returns: self.returns,
+            breaks: false,
+        }
+    }
+
+    pub fn do_loop(self) -> Self {
+        Self {
+            normal: self.normal || self.breaks,
+            returns: self.returns,
+            breaks: false,
+        }
+    }
 }
 
 fn invalid(span: Span, reason: &str) -> String {
@@ -216,19 +275,28 @@ impl Verifier<'_> {
         outer_values: &BTreeSet<ValueId>,
         outer_cells: &BTreeSet<SlotId>,
         ancestors: &mut Vec<RegionId>,
-    ) -> Result<bool, String> {
+        allow_break: bool,
+    ) -> Result<Completion, String> {
         if !self.regions.insert(region.id) {
             return Err(invalid(region.span, "region ID is not unique"));
         }
         ancestors.push(region.id);
         let mut visible = outer_values.clone();
         let mut initialized = outer_cells.clone();
-        let mut returns = false;
+        let mut completion = Completion::NORMAL;
         for operation in &region.operations {
             let span = operation.span;
-            if returns {
-                return Err(invalid(span, "operation after guaranteed return"));
+            if !completion.normal {
+                return Err(invalid(
+                    span,
+                    if completion == Completion::RETURN {
+                        "operation after guaranteed return"
+                    } else {
+                        "operation after guaranteed abrupt completion"
+                    },
+                ));
             }
+            let mut next = Completion::NORMAL;
             match &operation.kind {
                 Op::Not { result, input } => {
                     self.value(*input, Type::Predicate, &visible, span)?;
@@ -238,8 +306,16 @@ impl Verifier<'_> {
                     self.define(*result, Type::Predicate, &mut visible, span)?
                 }
                 Op::DoWhile { body, condition } => {
-                    returns =
-                        self.region(body, Contract::Statement, &visible, &initialized, ancestors)?;
+                    next = self
+                        .region(
+                            body,
+                            Contract::Statement,
+                            &visible,
+                            &initialized,
+                            ancestors,
+                            true,
+                        )?
+                        .do_loop();
                     // The condition is a sibling and is checked even when the
                     // first body entry guarantees a function return.
                     self.region(
@@ -248,6 +324,7 @@ impl Verifier<'_> {
                         &visible,
                         &initialized,
                         ancestors,
+                        false,
                     )?;
                 }
                 Op::Constant { result, .. } => {
@@ -313,12 +390,13 @@ impl Verifier<'_> {
                     self.define(*result, Type::Predicate, &mut visible, span)?;
                 }
                 Op::Block(child) => {
-                    returns = self.region(
+                    next = self.region(
                         child,
                         Contract::Statement,
                         &visible,
                         &initialized,
                         ancestors,
+                        allow_break,
                     )?;
                 }
                 Op::If {
@@ -339,17 +417,29 @@ impl Verifier<'_> {
                     } else {
                         Contract::Statement
                     };
-                    let left =
-                        self.region(consequent, contract, &visible, &initialized, ancestors)?;
-                    let right =
-                        self.region(alternate, contract, &visible, &initialized, ancestors)?;
+                    let left = self.region(
+                        consequent,
+                        contract,
+                        &visible,
+                        &initialized,
+                        ancestors,
+                        allow_break && result.is_none(),
+                    )?;
+                    let right = self.region(
+                        alternate,
+                        contract,
+                        &visible,
+                        &initialized,
+                        ancestors,
+                        allow_break && result.is_none(),
+                    )?;
                     if let Some(result) = result {
                         let Contract::Yield(ty) = contract else {
                             unreachable!()
                         };
                         self.define(*result, ty, &mut visible, span)?;
                     }
-                    returns = left && right;
+                    next = left.union(right);
                 }
                 Op::While {
                     condition,
@@ -362,16 +452,37 @@ impl Verifier<'_> {
                         &visible,
                         &initialized,
                         ancestors,
+                        false,
                     )?;
-                    self.region(body, Contract::Statement, &visible, &initialized, ancestors)?;
+                    next = self
+                        .region(
+                            body,
+                            Contract::Statement,
+                            &visible,
+                            &initialized,
+                            ancestors,
+                            true,
+                        )?
+                        .pretest_loop();
                     // Verify the sibling step even when every body path returns.
                     if let Some(step) = step {
-                        self.region(step, Contract::Statement, &visible, &initialized, ancestors)?;
+                        let step_completion = self.region(
+                            step,
+                            Contract::Statement,
+                            &visible,
+                            &initialized,
+                            ancestors,
+                            false,
+                        )?;
+                        if step_completion != Completion::NORMAL {
+                            return Err(invalid(step.span, "loop step must complete normally"));
+                        }
                     }
                     // Pretest loops do not prove return coverage. This remains
                     // conservative for a source for loop with an omitted test.
                 }
             }
+            completion = completion.then(next);
         }
         for (index, slot) in self.function.slots.iter().enumerate() {
             if slot.owner == region.id && !initialized.contains(&SlotId(index)) {
@@ -382,24 +493,29 @@ impl Verifier<'_> {
             }
         }
         match (contract, region.exit) {
-            (Contract::Yield(ty), Exit::Yield(value)) if !returns => {
+            (Contract::Yield(ty), Exit::Yield(value)) if completion == Completion::NORMAL => {
                 self.value(value, ty, &visible, region.span)?
             }
-            (Contract::Statement | Contract::Function, Exit::Return(value)) if !returns => {
+            (Contract::Statement | Contract::Function, Exit::Return(value))
+                if completion.normal =>
+            {
                 self.value(value, Type::Number, &visible, region.span)?;
-                returns = true;
+                completion = completion.then(Completion::RETURN);
+            }
+            (Contract::Statement, Exit::Break) if completion.normal && allow_break => {
+                completion = completion.then(Completion::BREAK);
             }
             (Contract::Statement | Contract::Function, Exit::Fallthrough) => {}
             _ => return Err(invalid(region.span, "invalid region exit contract")),
         }
-        if matches!(contract, Contract::Function) && !returns {
+        if matches!(contract, Contract::Function) && completion != Completion::RETURN {
             return Err(invalid(
                 region.span,
                 "function must return a number on every structural path",
             ));
         }
         ancestors.pop();
-        Ok(returns)
+        Ok(completion)
     }
 }
 
@@ -435,6 +551,7 @@ pub(crate) fn verify(function: &Function) -> Result<(), String> {
         &BTreeSet::new(),
         &initialized,
         &mut Vec::new(),
+        false,
     )?;
     for slot in &function.slots {
         if !verifier.regions.contains(&slot.owner) {
@@ -453,6 +570,164 @@ pub(crate) fn verify(function: &Function) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn break_loop() -> Function {
+        let mut body = region(vec![], Exit::Break);
+        body.id = RegionId(1);
+        let mut condition = region(
+            vec![Op::Boolean {
+                result: ValueId(1),
+                value: false,
+            }],
+            Exit::Yield(ValueId(1)),
+        );
+        condition.id = RegionId(2);
+        let mut f = function(
+            vec![
+                Op::Constant {
+                    result: ValueId(0),
+                    value: 7.0,
+                },
+                Op::While {
+                    condition,
+                    body,
+                    step: None,
+                },
+            ],
+            Exit::Return(ValueId(0)),
+        );
+        f.values.push(Type::Predicate);
+        f
+    }
+
+    // The malformed inner header must not inherit the outer body's break target.
+    fn inside_outer_loop(mut f: Function) -> Function {
+        let mut body = region(vec![], f.body.exit);
+        body.operations = std::mem::take(&mut f.body.operations);
+        body.id = RegionId(3);
+        let mut condition = region(
+            vec![Op::Boolean {
+                result: ValueId(2),
+                value: false,
+            }],
+            Exit::Yield(ValueId(2)),
+        );
+        condition.id = RegionId(4);
+        f.values.extend([Type::Predicate, Type::Number]);
+        f.body = region(
+            vec![
+                Op::Constant {
+                    result: ValueId(3),
+                    value: 9.0,
+                },
+                Op::While {
+                    condition,
+                    body,
+                    step: None,
+                },
+            ],
+            Exit::Return(ValueId(3)),
+        );
+        f
+    }
+
+    #[test]
+    fn break_is_consumed_only_by_a_loop_body() {
+        verify(&break_loop()).unwrap();
+        verify(&inside_outer_loop(break_loop())).unwrap();
+        let mut f = function(vec![], Exit::Break);
+        f.values.clear();
+        assert!(verify(&f).unwrap_err().contains("exit contract"));
+    }
+
+    #[test]
+    fn break_headers_reject_nested_block_and_if_exits() {
+        for in_step in [false, true] {
+            for in_if in [false, true] {
+                let mut f = inside_outer_loop(break_loop());
+                let mut bad = region(vec![], Exit::Break);
+                bad.id = RegionId(6);
+                let nested = if in_if {
+                    let mut alternate = region(vec![], Exit::Fallthrough);
+                    alternate.id = RegionId(7);
+                    Op::If {
+                        result: None,
+                        condition: ValueId(if in_step { 4 } else { 1 }),
+                        consequent: bad,
+                        alternate,
+                    }
+                } else {
+                    Op::Block(bad)
+                };
+                if in_step {
+                    f.values.push(Type::Predicate);
+                }
+                let Op::While { body, .. } = &mut f.body.operations[1].kind else {
+                    panic!()
+                };
+                let Op::While {
+                    condition, step, ..
+                } = &mut body.operations[1].kind
+                else {
+                    panic!()
+                };
+                if in_step {
+                    let mut tail = region(
+                        vec![
+                            Op::Boolean {
+                                result: ValueId(4),
+                                value: true,
+                            },
+                            nested,
+                        ],
+                        Exit::Fallthrough,
+                    );
+                    tail.id = RegionId(5);
+                    *step = Some(tail);
+                } else {
+                    condition.operations.push(Operation {
+                        span: condition.span,
+                        kind: nested,
+                    });
+                }
+                assert!(verify(&f).unwrap_err().contains("exit contract"));
+            }
+        }
+    }
+
+    #[test]
+    fn break_step_cannot_hide_a_return() {
+        let mut f = break_loop();
+        let mut tail = region(vec![], Exit::Return(ValueId(0)));
+        tail.id = RegionId(5);
+        let Op::While { step, .. } = &mut f.body.operations[1].kind else {
+            panic!()
+        };
+        *step = Some(tail);
+        assert!(
+            verify(&inside_outer_loop(f))
+                .unwrap_err()
+                .contains("step must complete normally")
+        );
+    }
+
+    #[test]
+    fn break_and_return_alternatives_are_preserved() {
+        let mixed = Completion::BREAK.union(Completion::NORMAL);
+        assert_eq!(
+            mixed.then(Completion::NORMAL).then(Completion::RETURN),
+            Completion::BREAK.union(Completion::RETURN)
+        );
+        assert_eq!(
+            mixed.then(Completion::RETURN).do_loop(),
+            Completion::NORMAL.union(Completion::RETURN)
+        );
+        assert_eq!(
+            Completion::BREAK.then(Completion::NORMAL),
+            Completion::BREAK
+        );
+        assert_eq!(Completion::BREAK.pretest_loop(), Completion::NORMAL);
+    }
     fn region(operations: Vec<Op>, exit: Exit) -> Region {
         Region {
             id: RegionId(0),

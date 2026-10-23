@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 24
-contains 404 paired programs, 411 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 25
+contains 424 paired programs, 425 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -143,6 +143,16 @@ TypeScript erasure and depth bounds; 32 boundary rejections preserve TDZ (includ
 later declarators), write, exact-name and property-access restrictions. The two former global-value gap
 references are promoted, leaving 54 lowering-gap references.
 
+Corpus 25 admits unlabelled `break` in while/for/do bodies. Twenty paired
+programs cover nearest-loop targeting, nested blocks/branches, skipped for steps
+and do tests, mixed break/return paths, body initialization and source budgets.
+Eighteen boundary rejections preserve whole-AST admission, guaranteed-abrupt tail
+rejection and numeric return coverage. Four old break rejections are promoted.
+A finite mutation retaining an outer break target instead of the nearest target
+emits valid Wasm but changes the nested-loop result from 33 to 1; the regression
+detects it. The reference frontier now contains 53 gaps. Continue and labelled control remain
+unsupported.
+
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
 artifact was created; it does not count as supported execution. Unimplemented
@@ -210,7 +220,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Early numeric returns are supported. Every structural path must return a number:
   a sequence must reach a guaranteed return; a block inherits that result; an `if`
   guarantees return only when both present arms do. Missing-return paths and
-  statements following a guaranteed return are rejected, even if valid JavaScript.
+  statements following a guaranteed return or break (including mixed abrupt
+  branches) are rejected, even if valid JavaScript.
   Each declaration has one or more initialized identifiers, evaluated left to right;
   each binding becomes available only after its own initializer. References resolve
   through semantic symbol identities.
@@ -269,7 +280,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   list, or an admitted numeric expression. Tests use the admitted predicate forms, or may be omitted for an
   unconditional test; updates are numeric expressions or omitted. Initialization
   runs once, then each iteration tests, executes the body, and executes the update.
-  A return skips the update, but the compiler still admits the whole source body
+  A return or break skips the update, but the compiler still admits the whole source body
   and update independently. Header bindings are visible only inside the loop;
   body locals are invisible to the update. `for` remains possibly falling through
   for structural return checking, including with an omitted test. The supported
@@ -277,14 +288,20 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   and `eval` remain unsupported.
   Numeric `do...while` executes its body before every test, including the first.
   Body locals are invisible to the condition and initialize on each body entry.
-  A return skips the test at runtime; the entire test must still satisfy admission.
+  A return or break skips the test at runtime; the entire test must still satisfy admission.
   A `do` guarantees a numeric return exactly when its body does, so a guaranteed
   returning body needs no fallback and any following statement is rejected.
+  Unlabelled `break` exits the nearest enclosing while/for/do loop, including
+  through nested blocks and branches. It never supplies a numeric return; mixed
+  break/return paths remain distinct until the loop consumes its own breaks.
+  Each source break counts once as a statement, while generated exit blocks do
+  not consume source budgets. The emitter's additional do exit block may change
+  artifact bytes and fuel cost; the 10,000-fuel allowance is unchanged.
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
   type-only declarations, uninitialized locals and compound operators beyond the four above,
-  `for-in`/`for-of`, `break`/`continue`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
+  `for-in`/`for-of`, `continue`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
   TypeScript-wrapped assignment/update targets are still rejected.
@@ -322,15 +339,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1013232 numeric comparisons; 411 rejected inputs; overwrite preserved
+PASS 1063392 numeric comparisons; 425 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-404 programs, each written as JS and TS, produce 808 modules.
+424 programs, each written as JS and TS, produce 848 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,013,232 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,063,392 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -442,7 +459,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-411 malformed or unsupported programs fail explicitly, each with a unique
+425 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

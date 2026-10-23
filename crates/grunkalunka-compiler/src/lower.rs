@@ -11,8 +11,8 @@ use oxc_syntax::operator::{
 };
 
 use crate::ir::{
-    self, Binary, Compare, Exit, Op, Operation, Region, RegionId, Slot, SlotId, Type, Unary,
-    ValueId,
+    self, Binary, Compare, Completion, Exit, Op, Operation, Region, RegionId, Slot, SlotId, Type,
+    Unary, ValueId,
 };
 use crate::{check_annotation, unsupported};
 
@@ -63,6 +63,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub next_region: usize,
     pub local_count: usize,
     pub statement_count: usize,
+    pub in_loop_body: bool,
 }
 
 impl Lowering<'_, '_> {
@@ -508,24 +509,28 @@ impl Lowering<'_, '_> {
         Ok(result)
     }
 
-    // True means every structurally possible path returns a numeric value.
+    // Preserve every possible completion; only normal paths reach the suffix.
     pub fn sequence(
         &mut self,
         statements: &[Statement<'_>],
         region: &mut Region,
         depth: usize,
-    ) -> Result<bool, String> {
-        let mut returns = false;
+    ) -> Result<Completion, String> {
+        let mut completion = Completion::NORMAL;
         for statement in statements {
-            if returns {
+            if !completion.normal {
                 return Err(unsupported(
                     statement,
-                    "statements after a guaranteed return are not admitted",
+                    if completion == Completion::RETURN {
+                        "statements after a guaranteed return are not admitted"
+                    } else {
+                        "statements after a guaranteed abrupt completion are not admitted"
+                    },
                 ));
             }
-            returns = self.statement(statement, region, depth)?;
+            completion = completion.then(self.statement(statement, region, depth)?);
         }
-        Ok(returns)
+        Ok(completion)
     }
 
     fn charge_statement(&mut self, statement: &impl GetSpan) -> Result<(), String> {
@@ -596,31 +601,53 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
+    fn loop_body(
+        &mut self,
+        statement: &Statement<'_>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<Completion, String> {
+        let outer = self.in_loop_body;
+        self.in_loop_body = true;
+        let result = self.statement(statement, region, depth);
+        self.in_loop_body = outer;
+        result
+    }
+
     fn statement(
         &mut self,
         statement: &Statement<'_>,
         region: &mut Region,
         depth: usize,
-    ) -> Result<bool, String> {
+    ) -> Result<Completion, String> {
         if depth > 64 {
             return Err(unsupported(statement, "statement nesting exceeds 64"));
         }
         self.charge_statement(statement)?;
         match statement {
-            Statement::EmptyStatement(_) => Ok(false),
+            Statement::BreakStatement(statement) => {
+                if statement.label.is_some() || !self.in_loop_body {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "only unlabelled break inside a loop is admitted",
+                    ));
+                }
+                region.exit = Exit::Break;
+                Ok(Completion::BREAK)
+            }
+            Statement::EmptyStatement(_) => Ok(Completion::NORMAL),
             Statement::DoWhileStatement(statement) => {
                 let mut body = self.region(&statement.body);
                 let visible = self.bindings.len();
-                let returns = self.statement(&statement.body, &mut body, depth + 1)?;
+                let returns = self.loop_body(&statement.body, &mut body, depth + 1)?;
                 self.bindings.truncate(visible);
                 // Admit the whole condition even when a body return skips it.
                 let mut condition = self.region(&statement.test);
                 let predicate = self.predicate(&statement.test, &mut condition, 0)?;
                 condition.exit = Exit::Yield(predicate);
                 Self::push(region, statement.as_ref(), Op::DoWhile { body, condition });
-                // The body executes at least once; other abrupt control forms
-                // remain outside admission.
-                Ok(returns)
+                // The body executes at least once; this loop consumes its breaks.
+                Ok(returns.do_loop())
             }
             Statement::ForStatement(statement) => {
                 // This lexical block and the loop's regions are generated, so
@@ -666,7 +693,7 @@ impl Lowering<'_, '_> {
                 };
                 condition.exit = Exit::Yield(predicate);
                 let mut body = self.region(&statement.body);
-                self.statement(&statement.body, &mut body, depth + 1)?;
+                let completion = self.loop_body(&statement.body, &mut body, depth + 1)?;
                 self.bindings.truncate(header_bindings);
                 // Always admit the update, including after a returning body.
                 let step = if let Some(update) = &statement.update {
@@ -689,7 +716,7 @@ impl Lowering<'_, '_> {
                 Self::push(region, statement.as_ref(), Op::Block(header));
                 // Preserve the existing conservative structural return policy,
                 // even when the source omits its test.
-                Ok(false)
+                Ok(completion.pretest_loop())
             }
             Statement::WhileStatement(statement) => {
                 let mut condition = self.region(&statement.test);
@@ -697,7 +724,7 @@ impl Lowering<'_, '_> {
                 condition.exit = Exit::Yield(value);
                 let mut body = self.region(&statement.body);
                 let visible = self.bindings.len();
-                self.statement(&statement.body, &mut body, depth + 1)?;
+                let completion = self.loop_body(&statement.body, &mut body, depth + 1)?;
                 self.bindings.truncate(visible);
                 Self::push(
                     region,
@@ -708,7 +735,7 @@ impl Lowering<'_, '_> {
                         step: None,
                     },
                 );
-                Ok(false)
+                Ok(completion.pretest_loop())
             }
             Statement::IfStatement(statement) => {
                 let condition = self.predicate(&statement.test, region, 0)?;
@@ -724,7 +751,7 @@ impl Lowering<'_, '_> {
                     self.bindings.truncate(visible);
                     returns
                 } else {
-                    false
+                    Completion::NORMAL
                 };
                 Self::push(
                     region,
@@ -736,7 +763,7 @@ impl Lowering<'_, '_> {
                         alternate,
                     },
                 );
-                Ok(consequent_returns && alternate_returns)
+                Ok(consequent_returns.union(alternate_returns))
             }
             Statement::BlockStatement(block) => {
                 let mut child = self.region(block.as_ref());
@@ -752,15 +779,15 @@ impl Lowering<'_, '_> {
                     .as_ref()
                     .ok_or("return must have a numeric expression")?;
                 region.exit = Exit::Return(self.expression(expression, region, 0)?);
-                Ok(true)
+                Ok(Completion::RETURN)
             }
             Statement::ExpressionStatement(statement) => {
                 self.expression(&statement.expression, region, 0)?;
-                Ok(false)
+                Ok(Completion::NORMAL)
             }
             Statement::VariableDeclaration(declaration) => {
                 self.declaration(declaration, region)?;
-                Ok(false)
+                Ok(Completion::NORMAL)
             }
             _ => Err(unsupported(
                 statement,
@@ -780,6 +807,32 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn break_exits_each_numeric_loop() {
+        for body in [
+            "while(a) { break; } return b;",
+            "for(;;a=b) { break; } return a;",
+            "do { break; } while(a=b); return a;",
+        ] {
+            crate::compile(&format!("export function run(a,b) {{ {body} }}"), false)
+                .unwrap_or_else(|error| panic!("{body}: {error}"));
+        }
+    }
+
+    #[test]
+    fn break_alternatives_survive_a_return_suffix() {
+        let error = crate::compile(
+            "export function run(a,b) { do { if(a) break; return b; } while(0); }",
+            false,
+        )
+        .err()
+        .expect("break path still needs a numeric return");
+        assert!(
+            error.contains("every structural path must return"),
+            "{error}"
+        );
+    }
+
     #[test]
     fn reads_unresolved_infinity() {
         let intrinsic =

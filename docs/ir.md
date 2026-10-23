@@ -67,7 +67,7 @@ execute again on each loop visit, while every definition remains unique in the I
 ## Structured regions and exits
 
 Regions contain ordered operations and an explicit `Fallthrough`, `Yield(value)`
-or `Return(value)` exit. `Block`, `If`, `While` and `DoWhile` preserve structured control flow.
+or `Return(value)` exit; statement regions can also exit with `Break`. `Block`, `If`, `While` and `DoWhile` preserve structured control flow.
 Values are visible in their defining region and nested regions. A child or sibling
 value cannot escape through an ordinary reference. A value-producing conditional
 uses an `If` result: both arms yield its declared type and the parent defines the joined
@@ -137,3 +137,25 @@ once as a statement, with one local charged per declarator. Generated header blo
 loop regions and the omitted-test predicate add no source statements or source nesting. Header
 expressions use the existing expression depth checks. There is no optimizer,
 arbitrary control-flow graph or SSA conversion.
+
+## Unlabelled loop exits
+
+Lowering and verification independently compute possible `Normal`, `Return` and
+`Break` completions with the same small algebra. Sequential composition preserves
+prior abrupt alternatives and applies the suffix only to normal paths. Branches
+union their outcomes. A fallthrough exit preserves that accumulated set: it does
+not invent a normal path after all-abrupt branches. Functions must end with exactly
+`Return`; statements after guaranteed abrupt completion are rejected.
+
+A loop consumes only its nearest body's breaks. Pretest loops remain possibly
+normal; do loops convert body breaks into normal loop completion while preserving
+possible returns. All explicit condition/yield regions and for steps must complete
+normally, even under an outer loop body. Their verifier context denies inherited
+breaks through nested blocks and branches. The generated for-initializer `Block`
+is an ordinary untagged lexical region; source lowering enforces its numeric
+initializer restriction rather than claiming the verifier identifies it as a header.
+
+The emitter activates an exit target only during each loop body and restores the
+outer target after nested loops. Do loops gain an outer Wasm exit block. A break
+branches there, bypassing a for step or do condition without allocating source
+cells or consuming generated-block source budgets. Continue and labels are absent.

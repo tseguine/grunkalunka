@@ -51,7 +51,6 @@ for (const [id, body, expected, diagnostic] of [
 ]) add(id, 'values', body, expected, diagnostic);
 
 for (const [id, body, expected] of [
-  ['break', 'while (1) { a=a+b; break; } return a;', 6],
   ['continue', 'let i=0; while(i<2) { i=i+1; if(i===1) continue; a=a+b; } return a;', 6],
   ['switch', 'switch(a) { case 4: return b; default: return a; }', 2],
   ['label', 'outer: while(1) { a=a+b; break outer; } return a;', 6],

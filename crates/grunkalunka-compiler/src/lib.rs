@@ -149,12 +149,13 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         bindings,
         local_count: 0,
         statement_count: 0,
+        in_loop_body: false,
         slots,
         values: Vec::new(),
         next_region: 0,
     };
     let mut region = lowering.region(body.as_ref());
-    if !lowering.sequence(&body.statements, &mut region, 0)? {
+    if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
         return Err(unsupported(
             body.as_ref(),
             "every structural path must return a numeric value",

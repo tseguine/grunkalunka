@@ -19,8 +19,9 @@ import { predicateConditional } from './predicate-conditional.mjs';
 import { emptyStatementPrograms, emptyStatementRejected } from './empty-statements.mjs';
 import { multipleDeclarators, multipleDeclaratorsRejected } from './multiple-declarators.mjs';
 import { intrinsicNumberPrograms, intrinsicNumberRejected } from './intrinsic-numbers.mjs';
+import { numericBreak, numericBreakRejected } from './numeric-break.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 24;
+export const corpusVersion = 25;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -65,6 +66,7 @@ programs.push(...predicateConditional);
 programs.push(...emptyStatementPrograms);
 programs.push(...multipleDeclarators);
 programs.push(...intrinsicNumberPrograms);
+programs.push(...numericBreak);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -149,12 +151,12 @@ export const rejected = [
   ...emptyStatementRejected,
   ...multipleDeclaratorsRejected,
   ...intrinsicNumberRejected,
+  ...numericBreakRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
   ['while-leak', 'export function run(a,b) { while (0) { const x=a; } return x; }'],
   ['while-const-write', 'export function run(a,b) { const x=a; while (0) { x=b; } return x; }'],
-  ['while-break', 'export function run(a,b) { while (a) { break; } return b; }'],
   ['while-continue', 'export function run(a,b) { while (a) { continue; } return b; }'],
   ['label', 'export function run(a,b) { here: while (0) { a=b; } return a; }'],
   ['block-shadow-initializer', 'export function run(a,b) { const x=a; { const x=x+b; return x; } }'],
@@ -305,7 +307,7 @@ export const rejected = [
 
 // These are recorded gaps, not skipped executable tests or passing fixtures.
 export const unimplemented = [
-  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Additional control forms (break, continue and labels) are not lowered.' },
+  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Additional control forms (continue and labels) are not lowered.' },
   { id: 'functions-modules', milestone: 'L3', reason: 'Calls, module graphs and initialization order are not lowered.' },
   { id: 'js-values-coercion', milestone: 'L4', reason: 'Only primitive numbers cross the experimental ABI.' },
   { id: 'closures-exceptions-async', milestone: 'L5', reason: 'Lifetime, unwinding and job semantics are not implemented.' },
