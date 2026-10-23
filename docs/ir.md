@@ -57,7 +57,7 @@ execute again on each loop visit, while every definition remains unique in the I
 ## Structured regions and exits
 
 Regions contain ordered operations and an explicit `Fallthrough`, `Yield(value)`
-or `Return(value)` exit. `Block`, `If` and `While` preserve structured control flow.
+or `Return(value)` exit. `Block`, `If`, `While` and `DoWhile` preserve structured control flow.
 Values are visible in their defining region and nested regions. A child or sibling
 value cannot escape through an ordinary reference. A numeric conditional expression
 uses an `If` result: both arms yield a number and the parent defines the joined
@@ -79,6 +79,14 @@ a generated true predicate. Pretest loops remain conservative for return coverag
 including `for` with an omitted test. A statement if guarantees return only when
 both arms do; a block carries its
 child's return coverage. Every function must return a number on all structural paths.
+
+`DoWhile` owns sibling body and condition regions. Both inherit only outer values
+and initialized cells; neither can use new values or cells from the other. The
+emitter executes the body, evaluates the whole predicate condition, then branches
+back when it is true. A function return skips the condition at runtime, but the
+verifier always checks it. Because the body executes at least once, `DoWhile`
+carries its body's guaranteed-return coverage. Other abrupt control forms remain
+outside source admission.
 
 Wasm emission uses direct `if`, `block` and `loop` instructions. Lexical-only IR
 blocks need no extra Wasm control instruction. The final `unreachable` assists Wasm
@@ -103,7 +111,7 @@ JavaScript in Node and executes it in Node-Wasm and Wasmtime.
 Source-size, nesting, statement and source-local budgets count source constructs.
 Generated regions, values and Wasm temporaries do not consume those admission
 budgets. Temporary materialization increases artifact size and Wasm instruction
-count; the runtime fuel allowance remains unchanged. A `for` counts once, each
+count; the runtime fuel allowance remains unchanged. A `for` or `do` counts once, each
 actual body statement/block/return counts once, and a header declaration counts
 once as a statement and once as a local. Generated header blocks, loop regions and
 the omitted-test predicate add no source statements or source nesting. Header

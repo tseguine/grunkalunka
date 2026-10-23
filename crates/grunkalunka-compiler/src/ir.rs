@@ -121,6 +121,10 @@ pub(crate) enum Op {
         body: Region,
         step: Option<Region>,
     },
+    DoWhile {
+        body: Region,
+        condition: Region,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -224,6 +228,19 @@ impl Verifier<'_> {
             match &operation.kind {
                 Op::Boolean { result, .. } => {
                     self.define(*result, Type::Predicate, &mut visible, span)?
+                }
+                Op::DoWhile { body, condition } => {
+                    returns =
+                        self.region(body, Contract::Statement, &visible, &initialized, ancestors)?;
+                    // The condition is a sibling and is checked even when the
+                    // first body entry guarantees a function return.
+                    self.region(
+                        condition,
+                        Contract::Yield(Type::Predicate),
+                        &visible,
+                        &initialized,
+                        ancestors,
+                    )?;
                 }
                 Op::Constant { result, .. } => {
                     self.define(*result, Type::Number, &mut visible, span)?
@@ -489,6 +506,158 @@ mod tests {
         );
         f.values = vec![Type::Number, Type::Number, Type::Predicate, Type::Number];
         f
+    }
+
+    fn do_while_function(body_returns: bool) -> Function {
+        let mut body = region(
+            vec![Op::Constant {
+                result: ValueId(1),
+                value: 1.0,
+            }],
+            if body_returns {
+                Exit::Return(ValueId(1))
+            } else {
+                Exit::Fallthrough
+            },
+        );
+        body.id = RegionId(1);
+        let mut condition = region(
+            vec![
+                Op::Constant {
+                    result: ValueId(2),
+                    value: 0.0,
+                },
+                Op::Truthy {
+                    result: ValueId(3),
+                    input: ValueId(2),
+                },
+            ],
+            Exit::Yield(ValueId(3)),
+        );
+        condition.id = RegionId(2);
+        let mut f = function(
+            vec![
+                Op::Constant {
+                    result: ValueId(0),
+                    value: 0.0,
+                },
+                Op::DoWhile { body, condition },
+            ],
+            if body_returns {
+                Exit::Fallthrough
+            } else {
+                Exit::Return(ValueId(0))
+            },
+        );
+        f.values = vec![Type::Number, Type::Number, Type::Number, Type::Predicate];
+        f
+    }
+
+    #[test]
+    fn do_while_return_coverage_follows_its_body() {
+        verify(&do_while_function(true)).unwrap();
+        verify(&do_while_function(false)).unwrap();
+        let mut f = do_while_function(false);
+        verify(&f).unwrap();
+        f.body.exit = Exit::Fallthrough;
+        assert!(verify(&f).unwrap_err().contains("every structural path"));
+        let mut f = do_while_function(true);
+        f.body.operations.push(Operation {
+            span: Span::new(4, 8),
+            kind: Op::Constant {
+                result: ValueId(4),
+                value: 0.0,
+            },
+        });
+        f.values.push(Type::Number);
+        assert!(verify(&f).unwrap_err().contains("after guaranteed return"));
+    }
+
+    #[test]
+    fn do_while_checks_its_test_even_when_the_body_returns() {
+        let mut f = do_while_function(true);
+        let Op::DoWhile { condition, .. } = &mut f.body.operations[1].kind else {
+            panic!()
+        };
+        condition.operations.push(Operation {
+            span: Span::new(4, 8),
+            kind: Op::Load {
+                result: ValueId(4),
+                slot: SlotId(99),
+            },
+        });
+        f.values.push(Type::Number);
+        assert!(verify(&f).unwrap_err().contains("slot"));
+        let mut f = do_while_function(true);
+        let Op::DoWhile { condition, .. } = &mut f.body.operations[1].kind else {
+            panic!()
+        };
+        condition.exit = Exit::Yield(ValueId(2));
+        assert!(verify(&f).unwrap_err().contains("value type"));
+    }
+
+    #[test]
+    fn do_while_regions_cannot_share_new_values() {
+        for into_condition in [false, true] {
+            let mut f = do_while_function(false);
+            verify(&f).unwrap();
+            let Op::DoWhile { body, condition } = &mut f.body.operations[1].kind else {
+                panic!()
+            };
+            let (target, input) = if into_condition {
+                (condition, ValueId(1))
+            } else {
+                (body, ValueId(2))
+            };
+            target.operations.push(Operation {
+                span: Span::new(4, 8),
+                kind: Op::Unary {
+                    result: ValueId(4),
+                    operator: Unary::Plus,
+                    input,
+                },
+            });
+            f.values.push(Type::Number);
+            assert!(verify(&f).unwrap_err().contains("not visible"));
+        }
+    }
+
+    #[test]
+    fn do_while_regions_cannot_share_new_source_cells() {
+        for into_condition in [false, true] {
+            let mut f = do_while_function(false);
+            verify(&f).unwrap();
+            let Op::DoWhile { body, condition } = &mut f.body.operations[1].kind else {
+                panic!()
+            };
+            let (source, target, value) = if into_condition {
+                (body, condition, ValueId(1))
+            } else {
+                (condition, body, ValueId(2))
+            };
+            f.slots.push(Slot {
+                owner: source.id,
+                mutable: true,
+                parameter: false,
+                span: Span::new(4, 8),
+            });
+            source.operations.push(Operation {
+                span: Span::new(4, 8),
+                kind: Op::Initialize {
+                    slot: SlotId(2),
+                    value,
+                },
+            });
+            target.operations.push(Operation {
+                span: Span::new(4, 8),
+                kind: Op::Load {
+                    result: ValueId(4),
+                    slot: SlotId(2),
+                },
+            });
+            f.values.push(Type::Number);
+            assert!(verify(&f).unwrap_err().contains("owner"));
+        }
     }
 
     #[test]

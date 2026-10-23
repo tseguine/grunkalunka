@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 15
-contains 240 paired programs, 288 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 16
+contains 261 paired programs, 304 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -90,7 +90,11 @@ Corpus 15 adds 16 paired Boolean-literal condition cases, including finite
 `for` conditions. `true` and `false` produce typed predicates in conditions and
 final predicate-position comma operands; source locals and returns stay numeric.
 Boolean-valued ternary arms, Boolean equality operands and Boolean logical
-operands remain rejected. The frontier still contains 60 reference-validated gaps.
+operands remain rejected. That run still contained 60 reference-validated gaps.
+
+Corpus 16 promotes numeric `do...while` loops with 21 paired programs and 18
+boundary rejections. The original `gap-do` reference and blanket `do-loop`
+rejection are retired. There are 59 remaining lowering-gap references.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -151,7 +155,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Inputs are **already primitive JS numbers**, represented as Wasm `f64` values.
   This ABI contract is independent of whether TS annotations are present.
 - The body admits initialized numeric `const`/`let` declarations, assignment and
-  update statements in source order, lexical blocks and statement `if`/`else`, and `while`/`for` loops.
+  update statements in source order, lexical blocks and statement `if`/`else`, and `while`/`for`/`do...while` loops.
   Early numeric returns are supported. Every structural path must return a number:
   a sequence must reach a guaranteed return; a block inherits that result; an `if`
   guarantees return only when both present arms do. Missing-return paths and
@@ -201,11 +205,16 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   for structural return checking, including with an omitted test. The supported
   numeric subset cannot observe per-iteration environment identity because captures
   and `eval` remain unsupported.
+  Numeric `do...while` executes its body before every test, including the first.
+  Body locals are invisible to the condition and initialize on each body entry.
+  A return skips the test at runtime; the entire test must still satisfy admission.
+  A `do` guarantees a numeric return exactly when its body does, so a guaranteed
+  returning body needs no fallback and any following statement is rejected.
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
   type-only declarations, uninitialized locals and compound operators beyond the four above,
-  `do`, `for-in`/`for-of`, `break`/`continue`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
+  `for-in`/`for-of`, `break`/`continue`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
   TypeScript-wrapped assignment/update targets and wrappers around an entire
@@ -218,7 +227,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
 - Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
   across all lexical scopes and 256 recursively counted statements, including
-  block/`if`/`while`/`for` nodes, both arms, loop bodies and returns; a `for` header
+  block/`if`/`while`/`for`/`do` nodes, both arms, loop bodies and returns; a `for` header
   declaration counts once as a statement and once as a local. Header expressions
   use the ordinary expression nesting budget. Statement nesting limit 64;
   generated IR values, regions and Wasm temporaries do not consume source budgets;
@@ -244,15 +253,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 601920 numeric comparisons; 288 rejected inputs; overwrite preserved
+PASS 654588 numeric comparisons; 304 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-240 programs, each written as JS and TS, produce 480 modules.
+261 programs, each written as JS and TS, produce 522 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 601,920 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 654,588 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -275,6 +284,15 @@ the header declaration charge and exclude generated regions. A finite mutation
 moving the step before the body changes a result from 12 to 123 and is detected.
 The admitted order follows [ForBodyEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-forbodyevaluation);
 captures and observable per-iteration environment identity remain outside admission.
+
+The [numeric do fixtures](../tests/compatibility/numeric-do.mjs) check at-least-once
+execution with zero, signed zero and NaN tests, repeated condition effects, per-entry
+initialization, nested scopes and early returns. Guaranteed returning bodies need
+no fallback, while unsupported conditions are rejected even after such returns.
+A finite `false` condition composes with the admitted Boolean-literal predicates.
+Exact statement/local/depth limits remain source-based. A finite mutation treating
+the loop as a pretest loop changes a result from 5 to 2 and is detected. The order follows
+[DoWhileLoopEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-runtime-semantics-dowhileloopevaluation).
 
 The expressions cover basic operators, nested unary operators, signed-zero and
 smallest-subnormal literals, overflow literals, integer literals rounded beyond
@@ -316,7 +334,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-288 malformed or unsupported programs fail explicitly, each with a unique
+304 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

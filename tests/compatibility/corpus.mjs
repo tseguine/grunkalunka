@@ -10,8 +10,9 @@ import { commaSequences } from './comma-sequences.mjs';
 import { numericLogical } from './numeric-logical.mjs';
 import { numericForPrograms, numericForRejected } from './numeric-for.mjs';
 import { booleanLiterals } from './boolean-literals.mjs';
+import { numericDoPrograms, numericDoRejected } from './numeric-do.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 15;
+export const corpusVersion = 16;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -47,6 +48,7 @@ programs.push(...commaSequences);
 programs.push(...numericLogical);
 programs.push(...numericForPrograms);
 programs.push(...booleanLiterals);
+programs.push(...numericDoPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -125,6 +127,7 @@ export const rejected = [
   ...loweringGaps,
   ...typescriptErasureRejected,
   ...numericForRejected,
+  ...numericDoRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -132,7 +135,6 @@ export const rejected = [
   ['while-const-write', 'export function run(a,b) { const x=a; while (0) { x=b; } return x; }'],
   ['while-break', 'export function run(a,b) { while (a) { break; } return b; }'],
   ['while-continue', 'export function run(a,b) { while (a) { continue; } return b; }'],
-  ['do-loop', 'export function run(a,b) { do { a=a+b; } while (0); return a; }'],
   ['label', 'export function run(a,b) { here: while (0) { a=b; } return a; }'],
   ['block-shadow-initializer', 'export function run(a,b) { const x=a; { const x=x+b; return x; } }'],
   ['block-leak', 'export function run(a,b) { { const x=a; } return x; }'],
@@ -265,7 +267,7 @@ export const rejected = [
 
 // These are recorded gaps, not skipped executable tests or passing fixtures.
 export const unimplemented = [
-  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Additional control forms (do, break, continue and labels) are not lowered.' },
+  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Additional control forms (break, continue and labels) are not lowered.' },
   { id: 'functions-modules', milestone: 'L3', reason: 'Calls, module graphs and initialization order are not lowered.' },
   { id: 'js-values-coercion', milestone: 'L4', reason: 'Only primitive numbers cross the experimental ABI.' },
   { id: 'closures-exceptions-async', milestone: 'L5', reason: 'Lifetime, unwinding and job semantics are not implemented.' },

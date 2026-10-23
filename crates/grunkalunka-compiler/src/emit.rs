@@ -34,6 +34,13 @@ impl Emitter<'_> {
                     writeln!(self.output, "i32.const {}", i32::from(*value)).unwrap();
                     self.set(*result);
                 }
+                Op::DoWhile { body, condition } => {
+                    let label = body.id.0;
+                    writeln!(self.output, "loop $do{label}").unwrap();
+                    self.region(body);
+                    self.region(condition);
+                    writeln!(self.output, "br_if $do{label}\nend").unwrap();
+                }
                 Op::Constant { result, value } => {
                     let literal = if value.is_nan() {
                         "nan".to_string()

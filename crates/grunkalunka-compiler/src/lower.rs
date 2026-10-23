@@ -527,6 +527,20 @@ impl Lowering<'_, '_> {
         }
         self.charge_statement(statement)?;
         match statement {
+            Statement::DoWhileStatement(statement) => {
+                let mut body = self.region(&statement.body);
+                let visible = self.bindings.len();
+                let returns = self.statement(&statement.body, &mut body, depth + 1)?;
+                self.bindings.truncate(visible);
+                // Admit the whole condition even when a body return skips it.
+                let mut condition = self.region(&statement.test);
+                let predicate = self.predicate(&statement.test, &mut condition, 0)?;
+                condition.exit = Exit::Yield(predicate);
+                Self::push(region, statement.as_ref(), Op::DoWhile { body, condition });
+                // The body executes at least once; other abrupt control forms
+                // remain outside admission.
+                Ok(returns)
+            }
             Statement::ForStatement(statement) => {
                 // This lexical block and the loop's regions are generated, so
                 // they consume neither source statements nor nesting depth.
@@ -706,6 +720,23 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    fn admits_do(body: &str) {
+        crate::compile(&format!("export function run(a,b) {{ {body} }}"), false).unwrap();
+    }
+
+    #[test]
+    fn do_runs_before_zero_test() {
+        admits_do("do { a+=b; } while(0); return a;");
+    }
+    #[test]
+    fn do_three_iterations() {
+        admits_do("let i=0; do { a+=b; i++; } while(i<3); return a;");
+    }
+    #[test]
+    fn do_return_skips_test_without_fallback() {
+        admits_do("do { return a; } while(a=b);");
+    }
+
     fn admits_for(body: &str) {
         crate::compile(&format!("export function run(a,b) {{ {body} }}"), false).unwrap();
     }
