@@ -17,8 +17,9 @@ import { predicateLogical } from './predicate-logical.mjs';
 import { numericStatementPrograms, numericStatementRejected } from './numeric-statements.mjs';
 import { predicateConditional } from './predicate-conditional.mjs';
 import { emptyStatementPrograms, emptyStatementRejected } from './empty-statements.mjs';
+import { multipleDeclarators, multipleDeclaratorsRejected } from './multiple-declarators.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 22;
+export const corpusVersion = 23;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -61,6 +62,7 @@ programs.push(...predicateLogical);
 programs.push(...numericStatementPrograms);
 programs.push(...predicateConditional);
 programs.push(...emptyStatementPrograms);
+programs.push(...multipleDeclarators);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -143,6 +145,7 @@ export const rejected = [
   ...numericEqualityRejected,
   ...numericStatementRejected,
   ...emptyStatementRejected,
+  ...multipleDeclaratorsRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -256,7 +259,6 @@ export const rejected = [
   ['self-reference', 'export function run(a,b) { const x=x; return x; }'],
   ['forward-reference', 'export function run(a,b) { const x=y; const y=a; return x; }'],
   ['dead-branch-forward', 'export function run(a,b) { const x=a===a?a:y; const y=b; return x; }'],
-  ['multiple-declarators', 'export function run(a,b) { const x=a,y=b; return x+y; }'],
   ['local-destructure', 'export function run(a,b) { const {x}=a; return x; }'],
   ['local-reassignment', 'export function run(a,b) { const x=a; x=b; return x; }'],
   ['const-assignment-expression', 'export function run(a,b) { const x=a; return x=b; }'],

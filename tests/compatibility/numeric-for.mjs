@@ -36,12 +36,11 @@ numericForPrograms.push(['for-composed-headers',
 const statement = 'statement is outside the numeric experiment';
 const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
-const declaration = 'one initialized const or let identifier per declaration is admitted';
+const declaration = 'initialized const or let identifiers are required';
 const assignmentConst = 'assignment to a const binding is not admitted';
 const returns = 'every structural path must return a numeric value';
 const negatives = [
   ['for-var', 'for(var i=0;0;i++) {} return a;', declaration],
-  ['for-multiple-declarations', 'for(let i=0,j=0;0;i++) {} return a;', declaration],
   ['for-destructure', 'for(const [i]=a;0;) {} return a;', 'local destructuring is not admitted'],
   ['for-uninitialized', 'for(let i;0;i++) {} return a;', 'numeric local must have an initializer'],
   ['for-self-initializer', 'for(let i=i;0;i++) {} return a;', reference],

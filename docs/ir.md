@@ -17,6 +17,11 @@ local declarations initialize their own region's slots once per lexical entry.
 A loop body may enter its region repeatedly and initialize those cells on each
 entry. Stores require an initialized, mutable cell.
 
+A declaration may initialize several numeric bindings. Lowering appends each
+initializer and its `Initialize` in source order, exposing that binding only after
+its initializer and before the next declarator. Symbol identity keeps a later
+shadow from falling back to an outer binding.
+
 A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
 `Constant`, `Load`, `Unary`, `Binary`, `Compare`, `Truthy`, `Boolean` and `Not` produce values.
 `Boolean` defines a `Predicate` and emits canonical `i32` zero/one; it never
@@ -125,7 +130,7 @@ Generated regions, values and Wasm temporaries do not consume those admission
 budgets. Temporary materialization increases artifact size and Wasm instruction
 count; the runtime fuel allowance remains unchanged. A `for` or `do` counts once, each
 actual body statement/block/return counts once, and a header declaration counts
-once as a statement and once as a local. Generated header blocks, loop regions and
-the omitted-test predicate add no source statements or source nesting. Header
+once as a statement, with one local charged per declarator. Generated header blocks,
+loop regions and the omitted-test predicate add no source statements or source nesting. Header
 expressions use the existing expression depth checks. There is no optimizer,
 arbitrary control-flow graph or SSA conversion.

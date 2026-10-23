@@ -527,54 +527,55 @@ impl Lowering<'_, '_> {
         declaration: &VariableDeclaration<'_>,
         region: &mut Region,
     ) -> Result<(), String> {
-        if self.local_count >= 128 {
-            return Err(unsupported(
-                declaration,
-                "at most 128 numeric locals are admitted",
-            ));
-        }
         if !matches!(
             declaration.kind,
             VariableDeclarationKind::Const | VariableDeclarationKind::Let
         ) || declaration.declare
-            || declaration.declarations.len() != 1
+            || declaration.declarations.is_empty()
         {
             return Err(unsupported(
                 declaration,
-                "one initialized const or let identifier per declaration is admitted",
+                "initialized const or let identifiers are required",
             ));
         }
-        let local = &declaration.declarations[0];
-        if local.definite {
-            return Err(unsupported(
-                local,
-                "definite-assignment assertions are not admitted",
-            ));
+        for local in &declaration.declarations {
+            if self.local_count >= 128 {
+                return Err(unsupported(
+                    local,
+                    "at most 128 numeric locals are admitted",
+                ));
+            }
+            if local.definite {
+                return Err(unsupported(
+                    local,
+                    "definite-assignment assertions are not admitted",
+                ));
+            }
+            check_annotation(local.type_annotation.as_deref())?;
+            let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+                return Err(unsupported(local, "local destructuring is not admitted"));
+            };
+            let initializer = local
+                .init
+                .as_ref()
+                .ok_or("numeric local must have an initializer")?;
+            let value = self.expression(initializer, region, 0)?;
+            let slot = SlotId(self.slots.len());
+            let mutable = declaration.kind == VariableDeclarationKind::Let;
+            self.slots.push(Slot {
+                owner: region.id,
+                mutable,
+                parameter: false,
+                span: local.span(),
+            });
+            self.local_count += 1;
+            Self::push(region, local, Op::Initialize { slot, value });
+            self.bindings.push(NumericBinding {
+                symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
+                slot,
+                mutable,
+            });
         }
-        check_annotation(local.type_annotation.as_deref())?;
-        let BindingPattern::BindingIdentifier(identifier) = &local.id else {
-            return Err(unsupported(local, "local destructuring is not admitted"));
-        };
-        let initializer = local
-            .init
-            .as_ref()
-            .ok_or("numeric local must have an initializer")?;
-        let value = self.expression(initializer, region, 0)?;
-        let slot = SlotId(self.slots.len());
-        let mutable = declaration.kind == VariableDeclarationKind::Let;
-        self.slots.push(Slot {
-            owner: region.id,
-            mutable,
-            parameter: false,
-            span: local.span(),
-        });
-        self.local_count += 1;
-        Self::push(region, local, Op::Initialize { slot, value });
-        self.bindings.push(NumericBinding {
-            symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
-            slot,
-            mutable,
-        });
         Ok(())
     }
 

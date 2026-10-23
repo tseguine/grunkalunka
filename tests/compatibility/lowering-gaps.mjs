@@ -6,7 +6,7 @@ const unary = 'only unary + and - are admitted';
 const statement = 'statement is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 const topLevel = 'exactly one exported function and no directives/hashbang are admitted';
-const declaration = 'one initialized const or let identifier per declaration is admitted';
+const declaration = 'initialized const or let identifiers are required';
 const ordinaryParameters = 'exactly two ordinary numeric parameters are admitted';
 const plainFunction = 'expected a plain, synchronous, non-generic function named run';
 
@@ -69,7 +69,6 @@ add('var', 'bindings', 'var x=a; return x+b;', 6, declaration);
 add('var-hoisting', 'bindings', 'const before = x === undefined ? 1 : 0; var x=a; return before;', 1, reference,
   { prerequisites: ['undefined values', 'var bindings'] });
 add('uninitialized-let', 'bindings', 'let x; x=a; return x;', 4, 'numeric local must have an initializer');
-add('multiple-declarators', 'bindings', 'const x=a,y=b; return x+y;', 6, declaration);
 add('local-destructure', 'bindings', 'const {x}={x:a}; return x+b;', 6, 'local destructuring is not admitted', { prerequisites: ['object values'] });
 add('destructuring-write', 'bindings', 'let x=a; [x]=[b]; return x;', 2, 'assignment target must be an initialized identifier', { prerequisites: ['array values'] });
 add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators are not admitted',

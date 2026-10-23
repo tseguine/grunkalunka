@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 22
-contains 367 paired programs, 363 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 23
+contains 385 paired programs, 381 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -129,6 +129,14 @@ Corpus 22 admits empty statements with 12 paired programs and eight boundary
 rejections. The former `statement-empty` rejection is promoted. The gap frontier
 remains 57 references.
 
+Corpus 23 admits multiple initialized numeric `let`/`const` declarators, including
+`for` headers. Eighteen paired programs cover left-to-right initialization,
+earlier-binding dependencies, lexical shadowing, effects and source budgets.
+Each initializer runs before its binding becomes available; later initializers
+may use earlier bindings. Twenty-one boundary rejections preserve TDZ, numeric
+admission and cumulative limits. The multiple-declarator gap is promoted, leaving
+56 reference cases.
+
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
 artifact was created; it does not count as supported execution. Unimplemented
@@ -197,8 +205,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   a sequence must reach a guaranteed return; a block inherits that result; an `if`
   guarantees return only when both present arms do. Missing-return paths and
   statements following a guaranteed return are rejected, even if valid JavaScript.
-  Each declaration has one identifier and initializer; the binding becomes available
-  only after that initializer. References resolve through semantic symbol identities.
+  Each declaration has one or more initialized identifiers, evaluated left to right;
+  each binding becomes available only after its own initializer. References resolve
+  through semantic symbol identities.
   Numeric expressions admit literals, initialized bindings, parentheses, binary
   `+ - * /`, unary `+ -`, and ternaries. Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= == != === !==` comparisons and primitive-number truthiness. Truthiness
@@ -245,8 +254,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   falling through, even when its body returns. A following numeric return is required
   on that path. Loop-body locals are initialized on each entry and disappear from
   visibility on exit; physical slots are not reused for sibling declarations.
-  Numeric `for` initializers may be omitted, one initialized `let`/`const`, or an
-  admitted numeric expression. Tests use the admitted predicate forms, or may be omitted for an
+  Numeric `for` initializers may be omitted, an initialized `let`/`const` binding
+  list, or an admitted numeric expression. Tests use the admitted predicate forms, or may be omitted for an
   unconditional test; updates are numeric expressions or omitted. Initialization
   runs once, then each iteration tests, executes the body, and executes the update.
   A return skips the update, but the compiler still admits the whole source body
@@ -277,8 +286,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
   across all lexical scopes and 256 recursively counted statements, including
   block/`if`/`while`/`for`/`do` nodes, both arms, loop bodies and returns; a `for` header
-  declaration counts once as a statement and once as a local. Header expressions
-  use the ordinary expression nesting budget. Statement nesting limit 64;
+  declaration counts once as a statement, with one local per declarator. Header
+  expressions use the ordinary expression nesting budget. Statement nesting limit 64;
   generated IR values, regions and Wasm temporaries do not consume source budgets;
   host input batches at most 4096
   pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the vector
@@ -302,15 +311,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 920436 numeric comparisons; 363 rejected inputs; overwrite preserved
+PASS 965580 numeric comparisons; 381 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-367 programs, each written as JS and TS, produce 734 modules.
+385 programs, each written as JS and TS, produce 770 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 920,436 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 965,580 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -414,7 +423,15 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-363 malformed or unsupported programs fail explicitly, each with a unique
+The [binding-list fixtures](../tests/compatibility/multiple-declarators.mjs) compare
+left-to-right initializer effects, earlier-binding reads and lexical scope.
+A finite mutation that reversed declarator order changed an independent-effects
+result from 14 to 13 and was detected; restoring source order restored the checks.
+Each initializer is checked before publishing its own binding, preserving
+self/forward-reference rejection even when a later binding shadows an outer one.
+The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
+
+381 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved
