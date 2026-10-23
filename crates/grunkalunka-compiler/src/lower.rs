@@ -1,9 +1,8 @@
 //! Source admission and AST-to-region lowering. Source limits count source nodes,
 //! never the generated regions, values or Wasm temporary locals.
 use oxc_ast::ast::{
-    AssignmentTarget, BindingPattern, CallExpression, Expression, ForStatementInit,
-    IdentifierReference, SimpleAssignmentTarget, Statement, VariableDeclaration,
-    VariableDeclarationKind,
+    BindingPattern, CallExpression, Expression, ForStatementInit, IdentifierReference,
+    SimpleAssignmentTarget, Statement, VariableDeclaration, VariableDeclarationKind,
 };
 use oxc_semantic::{Semantic, SymbolId};
 use oxc_span::GetSpan;
@@ -81,6 +80,38 @@ fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression
         Expression::TSNonNullExpression(wrapper) => Some(&wrapper.expression),
         Expression::TSSatisfiesExpression(wrapper) => Some(&wrapper.expression),
         _ => None,
+    }
+}
+
+// Resolve only the original reference; never evaluate a write target as a value.
+// Oxc discards outer target parentheses, but retained inner nodes each cost depth.
+fn target_identifier<'e, 'a>(
+    target: &'e SimpleAssignmentTarget<'a>,
+    depth: usize,
+) -> Result<Option<&'e IdentifierReference<'a>>, String> {
+    if let SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) = target {
+        return Ok(Some(identifier));
+    }
+    let Some(mut expression) = target.get_expression() else {
+        return Ok(None);
+    };
+    let mut depth = depth + 1;
+    loop {
+        if depth > 128 {
+            return Err(unsupported(
+                expression,
+                "expression nesting exceeds this experiment's limit",
+            ));
+        }
+        match expression {
+            Expression::Identifier(identifier) => return Ok(Some(identifier)),
+            Expression::ParenthesizedExpression(wrapper) => expression = &wrapper.expression,
+            _ => match erased_inner(expression) {
+                Some(inner) => expression = inner,
+                None => return Ok(None),
+            },
+        }
+        depth += 1;
     }
 }
 
@@ -255,7 +286,12 @@ impl Lowering<'_, '_> {
                         ));
                     }
                 };
-                let AssignmentTarget::AssignmentTargetIdentifier(identifier) = &assignment.left
+                let Some(identifier) = assignment
+                    .left
+                    .as_simple_assignment_target()
+                    .map(|target| target_identifier(target, depth))
+                    .transpose()?
+                    .flatten()
                 else {
                     return Err(unsupported(
                         expression,
@@ -300,9 +336,7 @@ impl Lowering<'_, '_> {
                 return Ok(value);
             }
             Expression::UpdateExpression(update) => {
-                let SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) =
-                    &update.argument
-                else {
+                let Some(identifier) = target_identifier(&update.argument, depth)? else {
                     return Err(unsupported(
                         expression,
                         "update target must be an initialized identifier",

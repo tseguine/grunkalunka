@@ -109,6 +109,12 @@ that point; an assignment yields its stored value snapshot. Compound assignments
 load the previous target before evaluating the RHS, then store and yield their
 computed result. Prefix updates yield the new snapshot; postfix updates yield the
 old snapshot after storing the new value.
+TypeScript-wrapped source write targets resolve to the same original identifier
+reference and numeric slot before these operations are emitted. Each retained type
+wrapper and inner parenthesis charges source expression depth; discarded outer
+target parentheses are unavailable after Oxc parsing. No wrapper operation or
+coercion enters this IR. Symbol identity, const/TDZ checks and whole-module function
+write rejection are unchanged, including in unselected or unused source functions.
 Bitwise/shift compound operators reuse this same `Load`/`Binary`/`Store` path,
 including unsigned Number results from `>>>=`; they add no new IR operations.
 

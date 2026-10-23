@@ -34,8 +34,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 699 negatives, including the curated references. Its 57 groups
-distinguish 26 invalid sources, 87 resource restrictions and 586 open requirements.
+also covers all 685 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 87 resource restrictions and 572 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -125,3 +125,13 @@ cover semantic shadows, dead patches and unused helper patches. Ordinary numeric
 Math parameter/local mutation remains admitted; type-only Math names remain erased.
 The two promoted requirements retain their source bytes and curated provenance;
 664 other old rejection records and all 39 remaining curated references are unchanged.
+
+Wrapped TypeScript write targets add 14 exact source promotions and 37 paired
+runtime cases. Original TS modules use hand-paired full JS oracles; no regular
+expression erasure or checker supplies the oracle. Four wrapper forms, mixed and
+retained inner parentheses, all compound operators, prefix/postfix snapshots,
+shadowing, helper/loop compositions and exact depth boundaries are covered.
+Compiler tests preserve const/TDZ/global/function-write and nonidentifier rejection,
+including unselected and unused helper bodies. Finite mutations skip wrapper depth,
+bypass semantic resolution, or delay target loading; each fails before exact source
+restoration and a fresh rebuild. None of these negative sources is run in Node.

@@ -40,8 +40,6 @@ const negatives = [
   ['statement-comma-predicate', '(a<b,a); return a;', binary],
   ['statement-unselected-conditional-call', '0?Math.random():a; return a;', expression],
   ['statement-unselected-logical-call', '0&&Math.random(); return a;', expression],
-  ['statement-wrapped-assignment-target', '((a as number)=b); return a;', 'assignment target must be an initialized identifier', 'ts'],
-  ['statement-wrapped-update-target', '(a as number)++; return a;', 'update target must be an initialized identifier', 'ts'],
   ['statement-const-write', 'const x=a; x+(x=b); return a;', 'assignment to a const binding is not admitted'],
   ['statement-forward-reference', 'x+1; let x=a; return x;', reference],
   ['statement-after-return', 'return a; a+b;', 'statements after a guaranteed return are not admitted'],

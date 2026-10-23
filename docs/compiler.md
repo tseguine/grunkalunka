@@ -31,14 +31,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 37
-contains 779 paired programs, 699 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 38
+contains 830 paired programs, 685 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 699 rejections in 57 groups: 26 invalid sources in their selected
-strict Module dialect, 87 explicit resource restrictions and 586 open requirements.
+classifies all 685 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 87 explicit resource restrictions and 572 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -292,6 +292,19 @@ code passes before the canonical check. All 1,500 prior JS/TS source/Wasm varian
 unchanged. Affine stays 93 bytes and Mandelbrot 504; fuel remains 10,000, with no
 speed claim.
 
+Corpus 38 promotes exactly 14 original TypeScript wrapped-target rejections,
+preserving their TS bytes and IDs with hand-paired unannotated full JS oracles.
+Another 37 pairs cover all supported compound operators, prefix/postfix snapshots,
+misleading type assertions, numeric shadow bindings, helpers, finite loops and depth.
+Target resolution peels one retained wrapper or inner parenthesized node at a time
+and passes the original identifier to the existing symbol/const/initialization checks.
+Depth starts at the containing assignment/update; every retained target wrapper or
+inner parenthesis adds one, with 128 admitted and 129 rejected. Oxc discards outer
+target parentheses before lowering, so those discarded nodes cannot be counted.
+The original AST and semantics stay intact. No type checker, coercion, new IR or
+additional write target kind is introduced. The empty wrapped-target group is removed;
+all 685 other rejection observations and 39 curated references remain unchanged.
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -473,7 +486,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   statements evaluate their full expression and discard its Number result. This
   includes writes, arithmetic, comma expressions, numeric short-circuit and ternary
   expressions, parentheses and runtime-transparent TypeScript wrappers. Writes to `const`, globals,
-  self/forward locals, property/destructuring and TS-wrapped targets are rejected.
+  self/forward locals and property/destructuring targets are rejected.
+  TypeScript `as`, angle assertions, non-null and `satisfies` wrappers may surround
+  numeric assignment/update targets; their original identifier references retain
+  semantic binding identity. Types do not coerce or validate the Number operand.
   Scope exit removes bindings from visibility without recycling their physical
   Wasm slots. Both branches are admitted independently before encoding. Explicit
   Wasm returns preserve completion; a final `unreachable` is a validator aid only
@@ -535,7 +551,6 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
-  TypeScript-wrapped assignment/update targets are still rejected.
 - Admission covers the entire AST, including directives/modifiers stored outside
   ordinary statements; directives and explicit type declarations still charge
   their source statements. Oxc parser and semantic syntax diagnostics are checked.
@@ -575,15 +590,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1953732 numeric comparisons; 699 rejected inputs; overwrite preserved
+PASS 2081640 numeric comparisons; 685 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-779 programs, each written as JS and TS, produce 1558 modules.
+830 programs, each written as JS and TS, produce 1660 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,953,732 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,081,640 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -591,7 +606,8 @@ use hand-paired JavaScript references. They check all four wrappers around numbe
 and comparisons, nested forms, ordered writes, snapshots, loop-condition effects,
 NaN/±0 behavior and the 128-node nesting boundary. Unsupported calls, strings and objects remain
 rejected inside wrappers, including unselected arms. Const writes, uninitialized
-bindings, wrapped targets, and depth 129 also remain rejected.
+bindings and depth 129 also remain rejected. Wrapped writes now have separate
+hand-paired [target fixtures](../tests/compatibility/numeric-ts-write-targets.mjs).
 This follows TypeScript's runtime treatment of
 [assertions and non-null expressions](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-assertions)
 and the type-only role of [`satisfies`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator),
@@ -772,7 +788,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-699 malformed or unsupported programs fail explicitly, each with a unique
+685 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

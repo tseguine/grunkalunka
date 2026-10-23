@@ -52,10 +52,6 @@ for (const [name, wrap, nested] of forms) {
   for (const [kind, inner] of [['call', 'Math.random()'], ['string', '"4"'], ['object', '{x:a}']]) {
     typescriptErasureRejected.push(reject(`${name}-${kind}`, `return ${wrap(inner)};`, expression));
   }
-  typescriptErasureRejected.push(
-    reject(`${name}-assignment-target`, `return (${wrap('a')}) = b;`, 'assignment target must be an initialized identifier'),
-    reject(`${name}-update-target`, `return (${wrap('a')})++;`, 'update target must be an initialized identifier'),
-  );
 }
 typescriptErasurePrograms.push(['ts-erasure-predicate-depth-boundary', 'if (a) return a; return b;',
   `if (a${'!'.repeat(128)}) return a; return b;`]);

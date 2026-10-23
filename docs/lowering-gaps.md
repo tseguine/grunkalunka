@@ -33,9 +33,9 @@ invalid JavaScript. Source-size, depth, statement/local counts, input-batch and 
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
-covers every current negative, beyond these 39 numeric reference opt-ins. Its 57
-groups classify 26 invalid sources, 87 resource restrictions and 586 open requirements
-across all 699 records. Each pins the exact source, extension and strict Module mode;
+covers every current negative, beyond these 39 numeric reference opt-ins. Its 56
+groups classify 26 invalid sources, 87 resource restrictions and 572 open requirements
+across all 685 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -55,7 +55,9 @@ references are now admitted as `ts-erasure-as`, `ts-erasure-angle`,
 predicate and boundary cases in
 [`typescript-erasure.mjs`](../tests/compatibility/typescript-erasure.mjs).
 These expression wrappers erase without adding type checking;
-TypeScript-wrapped assignment/update targets remain outside admission.
+Numeric assignment/update targets now also accept those four retained wrappers,
+with original symbol identity and per-retained-node depth accounting. Property,
+destructuring, const, TDZ, unresolved and function-binding writes remain rejected.
 
 The former `gap-for` reference is now `for-promoted-reference` in
 [`numeric-for.mjs`](../tests/compatibility/numeric-for.mjs), with additional scope,
@@ -227,3 +229,10 @@ The subsequent pristine numeric Math.abs intrinsic promotes only `gap-math-call`
 and the identical ordinary `call` source. Its original source/oracle and provenance
 are retained in `numeric-math-abs.mjs`; the other 39 references are unchanged.
 Mutable/external realm builtins and module imports remain open requirements.
+
+Fourteen ordinary wrapped-target rejections are now admitted with exact original TS
+sources and hand-paired erased JS oracles in
+[`numeric-ts-write-targets.mjs`](../tests/compatibility/numeric-ts-write-targets.mjs).
+No curated reference is promoted. The remaining 685 negatives retain exact source,
+mode and diagnostics; 39 explicit gap oracles remain. The wrapped-target group is
+removed without weakening inventory or report validation.

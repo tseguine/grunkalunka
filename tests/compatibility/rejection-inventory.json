@@ -837,25 +837,6 @@
       ]
     },
     {
-      "id": "wrapped-targets",
-      "kind": "open-requirement",
-      "assessment": "TypeScript expression wrappers around write targets remain unsupported by lowering, without adding type-check requirements.",
-      "evidence": [
-        {
-          "source": "https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-assertions",
-          "rule": "Type assertions are removed and do not introduce runtime conversions; original TS source is retained."
-        }
-      ],
-      "dependencies": [],
-      "harnessNeeds": [
-        "typescript-syntax",
-        "numeric-oracle"
-      ],
-      "observableDone": [
-        "Admit supported erased write targets while preserving original AST, target evaluation and assignment/update results."
-      ]
-    },
-    {
       "id": "property-targets",
       "kind": "open-requirement",
       "assessment": "Property assignment/update targets require object and strict property-write semantics.",
@@ -1422,20 +1403,6 @@
       "group": "object-values"
     },
     {
-      "id": "ts-erasure-as-assignment-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "70fba29b32c0064ad1798b5329b1134e0a3d6f687f1d4b0d88eb8de364affa2b",
-      "group": "wrapped-targets"
-    },
-    {
-      "id": "ts-erasure-as-update-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4971851c0ccf611ce8b6183ce959464d6afd37694bd981c6ed682ca446dc7e0c",
-      "group": "wrapped-targets"
-    },
-    {
       "id": "ts-erasure-angle-depth-limit",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -1462,20 +1429,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "4bfa8cf6003752b0fd7b5888bb42e7d7043900f725b010fecbf4e75eaf1eac5d",
       "group": "object-values"
-    },
-    {
-      "id": "ts-erasure-angle-assignment-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "23c8c5de1f57422845b4567ba71d4debb2f55a737ef18058a498cb3fb4831af0",
-      "group": "wrapped-targets"
-    },
-    {
-      "id": "ts-erasure-angle-update-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "e823254937dfaab65b826995fde9f4bd230e2cbf15d080d1e0579fb7412f87fd",
-      "group": "wrapped-targets"
     },
     {
       "id": "ts-erasure-non-null-depth-limit",
@@ -1506,20 +1459,6 @@
       "group": "object-values"
     },
     {
-      "id": "ts-erasure-non-null-assignment-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "5013fecf49137818f2020ad1095dfb0e18da522bca78c7aaa6bee6cc54f3e7d2",
-      "group": "wrapped-targets"
-    },
-    {
-      "id": "ts-erasure-non-null-update-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "3916ab4cc44f07ce33f9ce24a5425be55a46b195e06d2062235da170051abd73",
-      "group": "wrapped-targets"
-    },
-    {
       "id": "ts-erasure-satisfies-depth-limit",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -1546,20 +1485,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "6a2126c19ff1bb24c4ac1a8c3b27497df975abf30189459df258cfaeb6c90893",
       "group": "object-values"
-    },
-    {
-      "id": "ts-erasure-satisfies-assignment-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "69685191364fce9ad427dc97bfedf164817b3b0080289b3f0ab2efaf805edbec",
-      "group": "wrapped-targets"
-    },
-    {
-      "id": "ts-erasure-satisfies-update-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "fbd51e6e0a3b88e82d7c8d52254cc4e4193e292ddf4218003b4eb164857504d5",
-      "group": "wrapped-targets"
     },
     {
       "id": "ts-erasure-predicate-depth-limit",
@@ -2106,20 +2031,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "96a5735a133180d59e8de916b8913a97f7ae9ca01f9338d5c60136a39d20b0d8",
       "group": "function-calls"
-    },
-    {
-      "id": "statement-wrapped-assignment-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f63a4b763b6614a35344c260b9adfa0b37279819b9c90e94c575b4e8534f6026",
-      "group": "wrapped-targets"
-    },
-    {
-      "id": "statement-wrapped-update-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "8822caf9c830244d01948569e8301a711685cb604fb50d09c4910e934defd00e",
-      "group": "wrapped-targets"
     },
     {
       "id": "statement-const-write",
@@ -3816,20 +3727,6 @@
       "group": "invalid-compound-target"
     },
     {
-      "id": "compound-ts-wrapped-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "49714b87ef876707e9fc52a09912fb8ff83cc46b0ccded5787b4843ff69c5284",
-      "group": "wrapped-targets"
-    },
-    {
-      "id": "compound-ts-nonnull-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "def20f6f8c18f9b2b28534afb5be0fda74fa3e28cab2487ab4c6367350a47db8",
-      "group": "wrapped-targets"
-    },
-    {
       "id": "compound-boolean-rhs",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5300,13 +5197,6 @@
       "group": "const-errors"
     },
     {
-      "id": "update-wrapped-target",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "55ccad0b1179ba66cbd8b6d6aa31d9ac4a7141898984730f293fb74c534cf05a",
-      "group": "wrapped-targets"
-    },
-    {
       "id": "parenthesized-write-depth",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5326,13 +5216,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "1a5bf138e69f7ad141d37f5284d3681329c8df3cac61ed3fef84cdf451a5ecb1",
       "group": "destructuring"
-    },
-    {
-      "id": "ts-wrapped-write",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "57ba3ef8fd20ff51b28d24750f52602d358c35f2cec5e1cc42c6ca65fa6655b1",
-      "group": "wrapped-targets"
     },
     {
       "id": "uninitialized-let",

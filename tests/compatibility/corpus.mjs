@@ -32,8 +32,9 @@ import { typeDeclarationPrograms, typeDeclarationRejected } from './type-declara
 import { numericCalls, numericCallsRejected } from './numeric-calls.mjs';
 import { numericRemainderPrograms } from './numeric-remainder.mjs';
 import { numericMathAbs, numericMathAbsRejected } from './numeric-math-abs.mjs';
+import { numericTsWriteTargets } from './numeric-ts-write-targets.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 37;
+export const corpusVersion = 38;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -91,6 +92,7 @@ programs.push(...typeDeclarationPrograms);
 programs.push(...numericCalls);
 programs.push(...numericRemainderPrograms);
 programs.push(...numericMathAbs);
+programs.push(...numericTsWriteTargets);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -313,11 +315,9 @@ export const rejected = [
   ['update-self', 'export function run(a,b) { let x=x++; return x; }'],
   ['update-global', 'export function run(a,b) { return clock++; }'],
   ['update-unselected-const', 'export function run(a,b) { const x=a; return a?a:x++; }'],
-  ['update-wrapped-target', 'export function run(a:number,b:number):number { return (a as number)++; }', 'ts'],
   ['parenthesized-write-depth', `export function run(a,b) { ${'('.repeat(129)}a=b${')'.repeat(129)}; return a; }`],
   ['property-write', 'export function run(a,b) { return a.x=b; }'],
   ['destructuring-write', 'export function run(a,b) { return [a]=b; }'],
-  ['ts-wrapped-write', 'export function run(a:number,b:number):number { return (a as number)=b; }', 'ts'],
   ['uninitialized-let', 'export function run(a,b) { let x; return x=a; }'],
   ['dead-branch-const-write', 'export function run(a,b) { const x=a; return a===a?a:(x=b); }'],
   ['dead-branch-forward-write', 'export function run(a,b) { const x=a===a?a:(y=b); let y=a; return x+y; }'],

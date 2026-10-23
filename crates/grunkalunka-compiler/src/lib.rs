@@ -270,6 +270,138 @@ mod tests {
     use super::compile;
 
     #[test]
+    fn typescript_wrapped_write_targets_are_admitted() {
+        for source in [
+            "export function run(a:number,b:number):number { return (a as number)=b; }",
+            "export function run(a:number,b:number):number { return (a as number)++; }",
+        ] {
+            compile(source, true).expect("retained TS wrappers must preserve the numeric target");
+        }
+    }
+
+    #[test]
+    fn typescript_wrapped_targets_preserve_depth_and_binding_guards() {
+        for count in [128, 129] {
+            for operation in ["=b", "++"] {
+                let source = format!(
+                    "export function run(a,b) {{ return a{} {operation}; }}",
+                    "!".repeat(count)
+                );
+                let result = compile(&source, true);
+                if count == 128 {
+                    result.unwrap();
+                } else {
+                    assert!(result.err().unwrap().contains("expression nesting exceeds"));
+                }
+            }
+        }
+        for (count, admitted) in [(126, true), (127, false)] {
+            let source = format!(
+                "export function run(a,b) {{ return a=(b{} =a); }}",
+                "!".repeat(count)
+            );
+            assert_eq!(compile(&source, true).is_ok(), admitted, "{source}");
+        }
+        for (count, admitted) in [(126, true), (127, false)] {
+            let source = format!(
+                "export function run(a,b) {{ return ((a{}) as number)=b; }}",
+                "!".repeat(count)
+            );
+            assert_eq!(compile(&source, true).is_ok(), admitted, "{source}");
+        }
+        for (body, reason) in [
+            ("const x=a; return (x as unknown)=b;", "const binding"),
+            (
+                "const x=a; if(0) (x as unknown)++; return a;",
+                "const binding",
+            ),
+            ("let x=(x as number)=b; return x;", "not an initialized"),
+            ("return (x as number)++; let x=a;", "not an initialized"),
+            ("return (clock as number)=a;", "not an initialized"),
+            ("return (Infinity as number)++;", "not an initialized"),
+            ("return (a.x as number)=b;", "assignment target"),
+            ("return (a[b] as number)++;", "update target"),
+            ("return (a as number)**=b;", "only ="),
+        ] {
+            let error = compile(&format!("export function run(a,b) {{ {body} }}"), true)
+                .err()
+                .unwrap();
+            assert!(error.contains(reason), "{body}: {error}");
+        }
+        let error = compile(
+            "export function run(a,b) { let x=a; { let x=(x as number)=b; } return x; }",
+            true,
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains("not an initialized"));
+        let error=compile("function unused(x) { const y=x; (y as number)++; return x; } export function run(a,b) { return a; }",true).err().unwrap();
+        assert!(error.contains("const binding"));
+        for target in [
+            "Math as unknown",
+            "<number>Math",
+            "Math!",
+            "Math satisfies number",
+        ] {
+            for source in [
+                format!("export function run(a,b) {{ if(0) ({target})=a; return Math.abs(a); }}"),
+                format!(
+                    "function unused(x) {{ ({target})++; return x; }} export function run(a,b) {{ return Math.abs(a); }}"
+                ),
+            ] {
+                assert!(
+                    compile(&source, true)
+                        .err()
+                        .unwrap()
+                        .contains("not an initialized")
+                );
+            }
+        }
+        assert!(
+            compile(
+                "export function run(Math,b) { (Math as number)+=b; return Math; }",
+                true
+            )
+            .is_ok()
+        );
+        assert!(
+            compile(
+                "export function run(a,b) { const Math=a; (Math as number)=b; return a; }",
+                true
+            )
+            .err()
+            .unwrap()
+            .contains("const binding")
+        );
+        for target in ["f as number", "<number>f", "f!", "f satisfies number"] {
+            for operation in ["=a", "+=a", "++"] {
+                let source = format!(
+                    "function f(x) {{ return x; }} function unused(x) {{ if(0) ({target}){operation}; return x; }} export function run(a,b) {{ return a; }}"
+                );
+                assert!(
+                    compile(&source, true)
+                        .err()
+                        .unwrap()
+                        .contains("writes to a function binding")
+                );
+            }
+        }
+        for target in [
+            "({} as number)",
+            "(Math.random() as number)",
+            "([a] as number)",
+        ] {
+            assert!(
+                compile(
+                    &format!("export function run(a,b) {{ return {target}=b; }}"),
+                    true
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn remainder_binary_is_admitted() {
         compile("export function run(a,b) { return a % b; }", false)
             .expect("Number remainder must compile");
@@ -277,6 +409,11 @@ mod tests {
 
     #[test]
     fn remainder_assignment_is_admitted() {
+        compile(
+            "export function run(a,b) { return (a as number)%=b; }",
+            true,
+        )
+        .expect("remainder assignment retains wrapped numeric target");
         compile("export function run(a,b) { return a %= b; }", false)
             .expect("Number remainder assignment must compile");
     }
@@ -323,7 +460,6 @@ mod tests {
             ("const x=a; return x%=b;", "const binding", false),
             ("let x=(x%=b); return x;", "not an initialized", false),
             ("return a.x%=b;", "assignment target", false),
-            ("return (a as number)%=b;", "assignment target", true),
             (
                 "if(false) return a%Math.random(); return a;",
                 "expression is outside",
