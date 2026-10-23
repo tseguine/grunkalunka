@@ -38,7 +38,7 @@ be represented internally without changing the public two-number/result-number A
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
 | C1 — executable compatibility matrix | Done | [Corpus version 4](../tests/compatibility/corpus.mjs): 72 paired programs, 100 rejection fixtures, five explicit unexecuted feature groups. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | Planned | Pin and license-check an appropriate Test262 subset; connect tests to supported semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
-| R1 — WIT capability profiles | In progress: R1a/b demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection and expired-epoch trapping/renewal at a subsequent call. Still to observe: epoch interruption during a guest invocation and a bounded host call, as requested by the research roadmap. These are separate controls, not a complete component budget. |
+| R1 — WIT capability profiles | In progress: R1a/b/c demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal and epoch expiry triggered by a host callback during an active invocation. Still to observe: a bounded host call. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
 | A1 — first useful framework app | Planned | A small application with straightforward build/run/debug/package flow, using prior component/capability evidence. Show the same application under two capability profiles. |
 | B1 — reusable browser pieces | Later | Compare libraries before custom implementation. Own HTML/CSS modules should work through explicit inputs outside the browser shell; prove a second consumer. Embedded and standalone browser use primarily differ through capability profiles. |
@@ -92,8 +92,11 @@ the same client behaves predictably under different capability profiles.
 - R1b: two finite core-module tests observe per-memory growth limits and expired
   epoch deadlines at a subsequent call. Omission mutations fail both checks.
   Wall-clock latency, aggregate budgets and portability remain P1 follow-ups.
-  R1 remains open for running-guest epoch interruption and
-  bounded host-call observations; further language/module work stays planned above.
+  R1 remains open for bounded host-call observations; further language/module work
+  stays planned above.
+- R1c: a finite guest performs observable work, then a host callback expires its
+  epoch deadline during the invocation. The call traps before finishing all three
+  iterations. Disabled ticking returns 42; omission mutation fails the trap check.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after

@@ -83,7 +83,7 @@ cases, not general handle unforgeability or a hardened arbitrary-component servi
 
 ## Independent execution budgets
 
-R1b adds two finite core-module observations in
+R1b/c add finite core-module observations in
 [budgets.rs](../crates/grunkalunka-runtime/tests/budgets.rs), independent of the
 component's capability policy:
 
@@ -91,23 +91,36 @@ component's capability policy:
 | --- | --- | --- |
 | Per-memory growth | The same module grows from one 64 KiB page to two, returning previous size 1; its declared maximum is three pages | A 65,536-byte store limiter is installed before instantiation. Zero-page growth returns 1; two one-page growth attempts each return -1 and leave actual size at one page. |
 | Expired epoch deadline at a subsequent call | An isolated epoch-enabled engine with fuel disabled returns 42 before a tick | One engine tick reaches the store's deadline; the next finite call traps as `Trap::Interrupt`. Renewing the deadline lets the same instance return 42 again. |
+| Epoch expiry during an active invocation | A finite three-iteration guest calls `host.tick()` after first incrementing its observable iteration counter. With ticking disabled, it returns 42 after all three iterations; callback count is 1. | With ticking enabled in a fresh instance, the host callback advances the shared engine epoch. The active invocation traps as `Trap::Interrupt`, callback count is 1 and the observed iteration count is at least 1 but fewer than 3. |
 
-Both tests pass on the observed Windows x86-64 host. Omitting the memory limiter
-makes growth return 1 instead of -1; omitting the epoch tick makes the expected
+The memory and subsequent-call epoch tests pass on the observed Windows x86-64
+host. Omitting the memory limiter makes growth return 1 instead of -1; omitting
+the epoch tick makes the expected
 trapping call return 42. Each mutation fails its corresponding test, and restoring
-the controls returns both tests to green. The epoch test is compiled only on
+the controls returns both tests to green. Both epoch tests are compiled only on
 targets with 64-bit atomics, matching Wasmtime's epoch API availability.
 
+The additional active-invocation test uses the same compiled
+[finite guest](../crates/grunkalunka-runtime/tests/fixtures/epoch-during-call.wat)
+for its positive and interrupting cases. It inspects the exported iteration global
+through the host API after the call, without invoking guest code again. Omitting
+the callback's epoch increment lets the guest finish with 42 and fails the expected
+trap assertion; restoring it returns all three budget tests to green.
+
 The memory cap applies to each linear memory, not aggregate memory, host data,
-compilation costs or process usage. The epoch test demonstrates expired-deadline
-handling at call entry; it does not interrupt an already-running guest or measure
+compilation costs or process usage. The subsequent-call epoch test demonstrates
+expired-deadline handling at call entry; it does not interrupt an already-running guest or measure
 scheduling accuracy, wall-clock latency or a hard time limit. Epochs do not preempt
-blocked host calls. No timer, thread or infinite loop is needed for either test.
+blocked host calls. R1c demonstrates epoch expiry triggered by a host callback
+during an active invocation; the observed trap could occur at the host-return
+boundary or a subsequent guest checkpoint. It does not establish asynchronous
+preemption of uninterrupted guest computation. No timer, thread or infinite loop
+is needed for these budget tests.
 
 The separate numeric runtime test observes typed fuel exhaustion and a subsequent
-successful call. It never sends its infinite fixture to a JS engine. These three
+successful call. It never sends its infinite fixture to a JS engine. These independent
 observations do not establish a comprehensive budget for the R1a component.
-Running-guest epoch interruption and a bounded host call remain R1 follow-ups.
+A bounded host call remains an R1 follow-up.
 Wall-clock latency, aggregate budgets and portability remain P1 work.
 
 This unit enables Wasmtime's `component-model` feature while retaining disabled
