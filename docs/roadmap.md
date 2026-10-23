@@ -179,6 +179,46 @@ defaults still need concrete experiments. Start with a useful embedded applicati
 slice once the platform seams can support it, and demonstrate that changing the
 profile changes authority without replacing the environment implementation.
 
+### Reusable implementation pieces
+
+Maximize reasonable reuse and modularity across the project. If HTML/CSS functionality
+is implemented here rather than supplied by an existing library, it should be usable
+independently of the browser environment and its shell. Candidate boundaries include
+HTML parsing/document representation, CSS parsing, style calculation and layout;
+their actual APIs and division should follow demonstrated consumers and coupling.
+
+Keep document access, resource resolution, viewport information, font metrics and
+rendering services explicit where needed. Avoid quietly reaching through browser
+globals or its event loop. A module may depend on other libraries and contracts;
+standalone use should be possible by supplying those dependencies deliberately.
+Prove useful reuse with a small second consumer (for example, a parser tool or
+headless layout probe) as each piece emerges, without building speculative plugin
+frameworks or stabilizing public APIs before there is evidence for their shape.
+
+### Browser conformance evidence and feature roadmap
+
+Use complementary sources selected in discussion:
+
+| Source | Role |
+| --- | --- |
+| [Test262](https://github.com/tc39/test262) | ECMAScript language/runtime conformance. |
+| [Web Platform Tests](https://web-platform-tests.org/) | Browser API, integration and rendering behavior, mapped to the standards being implemented. |
+| [Acid1/2/3](https://www.acidtests.org/) | Historical integration/visual regression checkpoints; pin test versions and record intentional differences. |
+| [Can I Use](https://caniuse.com/ciu/about) | Feature inventory and roadmap input; connect chosen features to standards, tests, capability requirements and representative applications. |
+
+The [Acid maintainers](https://www.acidtests.org/) state that the suite is no longer
+maintained and parts of Acid3 no longer reflect current standards consensus. Use
+it as historical evidence, not a current certification gate. Can I Use's own
+[support definition](https://caniuse.com/ciu/about) describes basic usable support,
+not exhaustive conformance. Treat its feature map as planning evidence and record
+our own measured support; do not substitute another browser's support label for tests.
+
+Pin imported test/data versions and inspect applicable licenses before copying or
+redistributing them. Can I Use's [data repository](https://github.com/Fyrd/caniuse)
+states CC BY 4.0 and requests attribution to caniuse.com. A reference link alone
+does not require importing the corpus. No browser test corpus or support dataset
+has been vendored or executed at this stage.
+
 ## Node-compatible environment: conformance by observation
 
 Use automated black-box comparison against a pinned Node runtime as the primary
