@@ -19,6 +19,8 @@ This repository starts with research and small disposable experiments. It now ha
 a working numeric compiler fragment; the production architecture remains open.
 
 - [Research roadmap](docs/roadmap.md): questions, next experiments, and exit criteria.
+- [Active milestones](docs/milestones.md): lowering, compatibility and capability
+  demonstrations, with current status and observable completion criteria.
 - [Frontend semantics spike](spikes/001-frontend-semantics/README.md): executable
   observations about Oxc's parsing, bindings, and diagnostics.
 - [Numeric Wasm PoC](spikes/002-numeric-wasm/README.md): paired JS/TS arithmetic
