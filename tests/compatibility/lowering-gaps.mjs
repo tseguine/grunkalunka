@@ -2,7 +2,7 @@
 // Their rejection checks must never count as executed lowering support.
 const expression = 'expression is outside the numeric experiment';
 const binary = 'only binary +, -, * and / are admitted';
-const unary = 'only unary + and - are admitted';
+const unary = 'only unary +, - and ~ are admitted';
 const statement = 'statement is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 const topLevel = 'exactly one exported function and no hashbang are admitted';
@@ -32,7 +32,6 @@ for (const [id, body, expected, diagnostic] of [
   ['shift-unsigned', 'return a >>> b;', 1, binary],
   ['loose-equality-coercion', 'return a == "4" ? 1 : 0;', 1, expression],
   ['nullish', 'return (a === 4 ? null : a) ?? b;', 2, expression],
-  ['bit-not', 'return ~a;', -5, unary],
   ['typeof', 'return typeof a === "number" ? 1 : 0;', 1, unary],
   ['void', 'return void a === undefined ? 1 : 0;', 1, unary],
   ['delete', 'return delete a.x ? 1 : 0;', 1, unary],

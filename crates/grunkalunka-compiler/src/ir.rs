@@ -19,6 +19,7 @@ pub(crate) enum Type {
 pub(crate) enum Unary {
     Plus,
     Negate,
+    BitNot,
 }
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Binary {
@@ -588,6 +589,44 @@ pub(crate) fn verify(function: &Function) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bit_not_requires_numeric_input_and_result() {
+        for (input_type, result_type) in [
+            (Type::Number, Type::Number),
+            (Type::Predicate, Type::Number),
+            (Type::Number, Type::Predicate),
+        ] {
+            let input = if input_type == Type::Number {
+                Op::Load {
+                    result: ValueId(0),
+                    slot: SlotId(0),
+                }
+            } else {
+                Op::Boolean {
+                    result: ValueId(0),
+                    value: true,
+                }
+            };
+            let mut f = function(
+                vec![
+                    input,
+                    Op::Unary {
+                        result: ValueId(1),
+                        operator: Unary::BitNot,
+                        input: ValueId(0),
+                    },
+                ],
+                Exit::Return(ValueId(1)),
+            );
+            f.values = vec![input_type, result_type];
+            if input_type == Type::Number && result_type == Type::Number {
+                verify(&f).unwrap();
+            } else {
+                assert!(verify(&f).unwrap_err().contains("type"));
+            }
+        }
+    }
 
     #[test]
     fn continue_alternatives_reach_the_nearest_loop_only() {

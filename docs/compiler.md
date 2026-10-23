@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 27
-contains 470 paired programs, 464 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 28
+contains 491 paired programs, 483 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -159,7 +159,7 @@ tests, mixed abrupt paths, lexical initialization and exact source budgets.
 Twenty-six boundary rejections preserve numeric headers, whole-source admission,
 return coverage and the remaining control exclusions. Four finite continue
 rejections are promoted; the old potentially infinite while-continue rejection is
-retired without executing its source. The reference frontier now has 52 gaps.
+retired without executing its source. That run left 52 reference gaps.
 
 Corpus 27 admits Oxc-recognized module/function directive prologues. Nineteen
 paired full-source programs retain their exact JS/TS module text, covering strict,
@@ -169,6 +169,14 @@ non-prologue string rejection, the entry contract and hashbang refusal. The two
 reference gaps and two ordinary directive rejections are promoted, leaving 50
 reference gaps. Skipping directive charges wrongly admits 257 statements and is
 detected; ignoring full-source overrides fails the source-construction tests.
+
+Corpus 28 admits numeric unary `~` with 21 paired programs and 20 boundary
+rejections. The former `gap-bit-not` reference is promoted, leaving 49 reference
+gaps. Operands truncate toward zero and wrap modulo `2^32`; NaN, infinities and
+signed zero convert to zero before complement, producing -1. The result remains
+a Number. Boolean, string and BigInt operands, binary bitwise operators and
+shifts remain outside admission. A full-source directive/postfix-update case checks
+that directives erase while the complement operand still runs once.
 
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
@@ -257,7 +265,9 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   These reads generate constants without host access; other global references and
   property access such as `globalThis.Infinity` or `Number.NaN` remain rejected.
   Numeric expressions admit literals, these two intrinsic reads, initialized bindings, parentheses, binary
-  `+ - * /`, unary `+ -`, and ternaries. Conditions admit Boolean literals, logical negation, numeric
+  `+ - * /`, unary `+ - ~`, and ternaries. Numeric `~` uses signed 32-bit wrapping
+  semantics and yields a Number, without coercing other source value types.
+  Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= == != === !==` comparisons and primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
   Both equality operands must lower to numbers. On this domain, `==`/`!=` use
@@ -382,15 +392,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1178760 numeric comparisons; 464 rejected inputs; overwrite preserved
+PASS 1231428 numeric comparisons; 483 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-470 programs, each written as JS and TS, produce 940 modules.
+491 programs, each written as JS and TS, produce 982 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,178,760 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,231,428 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -454,6 +464,18 @@ statements after a guaranteed return, a module-level prefix and bare `return;`
 remain rejected. This follows
 [EmptyStatement evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-empty-statement-runtime-semantics-evaluation).
 
+The [numeric complement fixtures](../tests/compatibility/numeric-bit-not.mjs)
+check truncation, wrapping, nonfinite inputs, nested complements, update snapshots,
+TypeScript wrappers, predicates, finite loops and source budgets. Complement follows
+[Number::bitwiseNOT](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-numeric-types-number-bitwiseNOT)
+and [ToInt32](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-toint32).
+The emitter reduces a captured value modulo `2^32`, converts without trapping to
+`i64`, wraps to `i32`, complements, then converts the signed result to `f64`.
+It reads the captured snapshot twice without repeating source evaluation. A
+separate emitted-Wasm probe checks 4,265 inputs in both engines, including raw
+bits and neighbors around `2^31`, `2^32`, `2^53` and `2^84`. Finite mutations
+flooring the initial value or saturating directly to `i32` are detected and restored.
+
 The expressions cover basic operators, nested unary operators, signed-zero and
 smallest-subnormal literals, overflow literals, integer literals rounded beyond
 `2^53`, nondecimal literals, grouping/cancellation and separate rounding. Input
@@ -500,6 +522,11 @@ from 490. The full corpus uses the same 10,000-fuel allowance. Finite mutation p
 detect skipping the for update (40 instead of 43) and skipping the do test (31
 instead of 11). Neither probe requires an unbounded loop in JavaScript or Node-Wasm.
 
+Adding numeric `~` leaves the non-complement affine and Mandelbrot artifacts
+byte-identical at 93 and 504 bytes respectively. Complement expressions add an
+inline conversion sequence; no execution-speed claim follows. The full corpus
+retains the 10,000-fuel allowance.
+
 The [binding-list fixtures](../tests/compatibility/multiple-declarators.mjs) compare
 left-to-right initializer effects, earlier-binding reads and lexical scope.
 A finite mutation that reversed declarator order changed an independent-effects
@@ -508,7 +535,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-464 malformed or unsupported programs fail explicitly, each with a unique
+483 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

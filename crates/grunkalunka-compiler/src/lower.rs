@@ -324,7 +324,13 @@ impl Lowering<'_, '_> {
                 let operator = match unary.operator {
                     UnaryOperator::UnaryPlus => Unary::Plus,
                     UnaryOperator::UnaryNegation => Unary::Negate,
-                    _ => return Err(unsupported(expression, "only unary + and - are admitted")),
+                    UnaryOperator::BitwiseNot => Unary::BitNot,
+                    _ => {
+                        return Err(unsupported(
+                            expression,
+                            "only unary +, - and ~ are admitted",
+                        ));
+                    }
                 };
                 let input = self.expression(&unary.argument, region, depth + 1)?;
                 let result = self.value(Type::Number);
@@ -817,6 +823,16 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bit_not_zero_is_admitted() {
+        crate::compile("export function run(a,b) { return ~0; }", false).unwrap();
+    }
+
+    #[test]
+    fn bit_not_negative_one_is_admitted() {
+        crate::compile("export function run(a,b) { return ~(-1); }", false).unwrap();
+    }
+
     #[test]
     fn continue_reaches_each_loops_next_iteration_machinery() {
         for body in [

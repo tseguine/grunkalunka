@@ -29,6 +29,17 @@ impl Emitter<'_> {
         .unwrap();
     }
 
+    // Reduce a captured Number modulo 2^32 before conversion; saturation alone
+    // would clamp large numbers. Nonfinite inputs produce NaN, which saturates to 0.
+    fn int32_bits(&mut self, input: ValueId) {
+        self.get(input);
+        self.output.push_str("f64.trunc\n");
+        self.get(input);
+        self.output.push_str(
+            "f64.trunc\nf64.const 4294967296\nf64.div\nf64.trunc\nf64.const 4294967296\nf64.mul\nf64.sub\ni64.trunc_sat_f64_s\ni32.wrap_i64\n",
+        );
+    }
+
     fn region(&mut self, region: &Region) {
         for operation in &region.operations {
             match &operation.kind {
@@ -78,9 +89,17 @@ impl Emitter<'_> {
                     operator,
                     input,
                 } => {
-                    self.get(*input);
-                    if matches!(operator, Unary::Negate) {
-                        self.output.push_str("f64.neg\n");
+                    match operator {
+                        Unary::Plus => self.get(*input),
+                        Unary::Negate => {
+                            self.get(*input);
+                            self.output.push_str("f64.neg\n");
+                        }
+                        Unary::BitNot => {
+                            self.int32_bits(*input);
+                            self.output
+                                .push_str("i32.const -1\ni32.xor\nf64.convert_i32_s\n");
+                        }
                     }
                     self.set(*result);
                 }

@@ -28,6 +28,13 @@ A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
 produces a numeric source value. Source slots and function returns remain `Number`.
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
 first pass through `Truthy`; negation evaluates its operand once.
+`Unary::BitNot` consumes and produces a `Number`. Emission truncates its captured
+input toward zero, reduces it modulo `2^32`, then uses saturating `f64`-to-`i64`
+conversion and `i32.wrap_i64`. NaN and infinite inputs reduce to NaN and saturate
+to zero. Complement uses `i32.xor` with -1 and signed conversion back to `f64`.
+The inline sequence reads the same captured value twice; it never reevaluates the
+source operand or mutates its snapshot. Its integer stack intermediates require
+no new IR type, source cell, import or generated Wasm function.
 `Initialize` and `Store` consume numeric values and change source cells.
 Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
 operation. They allocate no source cell and perform no host lookup. Resolved
