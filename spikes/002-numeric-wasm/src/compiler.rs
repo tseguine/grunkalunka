@@ -36,17 +36,18 @@ fn check_annotation(annotation: Option<&TSTypeAnnotation<'_>>) -> Result<(), Str
     Ok(())
 }
 
-// Vector position is the Wasm slot, with the two parameters first.
+// Active lexical bindings refer to monotonically allocated physical Wasm slots.
 struct NumericBinding {
     symbol: SymbolId,
+    slot: usize,
     mutable: bool,
 }
 
-fn binding_index(
+fn numeric_binding<'b>(
     identifier: &IdentifierReference<'_>,
     semantic: &Semantic<'_>,
-    bindings: &[NumericBinding],
-) -> Result<usize, String> {
+    bindings: &'b [NumericBinding],
+) -> Result<&'b NumericBinding, String> {
     let reference = identifier
         .reference_id
         .get()
@@ -54,7 +55,7 @@ fn binding_index(
     let symbol = semantic.scoping().get_reference(reference).symbol_id();
     bindings
         .iter()
-        .position(|binding| Some(binding.symbol) == symbol)
+        .find(|binding| Some(binding.symbol) == symbol)
         .ok_or_else(|| {
             unsupported(
                 identifier,
@@ -88,7 +89,7 @@ fn lower_expression(
             writeln!(output, "f64.const {value}").unwrap();
         }
         Expression::Identifier(identifier) => {
-            let index = binding_index(identifier, semantic, bindings)?;
+            let index = numeric_binding(identifier, semantic, bindings)?.slot;
             writeln!(output, "local.get {index}").unwrap();
         }
         Expression::AssignmentExpression(assignment) => {
@@ -104,15 +105,15 @@ fn lower_expression(
                     "assignment target must be an initialized identifier",
                 ));
             };
-            let index = binding_index(identifier, semantic, bindings)?;
-            if !bindings[index].mutable {
+            let binding = numeric_binding(identifier, semantic, bindings)?;
+            if !binding.mutable {
                 return Err(unsupported(
                     expression,
                     "assignment to a const binding is not admitted",
                 ));
             }
             lower_expression(&assignment.right, semantic, bindings, output, depth + 1)?;
-            writeln!(output, "local.tee {index}").unwrap();
+            writeln!(output, "local.tee {}", binding.slot).unwrap();
         }
         Expression::ParenthesizedExpression(parenthesized) => {
             lower_expression(
@@ -232,6 +233,164 @@ fn lower_predicate(
     Ok(())
 }
 
+struct StatementLowering<'s, 'a> {
+    semantic: &'s Semantic<'a>,
+    bindings: Vec<NumericBinding>,
+    local_count: usize,
+    statement_count: usize,
+    output: String,
+}
+
+impl StatementLowering<'_, '_> {
+    // True means every structurally possible path returns a numeric value.
+    fn sequence(&mut self, statements: &[Statement<'_>], depth: usize) -> Result<bool, String> {
+        let mut returns = false;
+        for statement in statements {
+            if returns {
+                return Err(unsupported(
+                    statement,
+                    "statements after a guaranteed return are not admitted",
+                ));
+            }
+            returns = self.statement(statement, depth)?;
+        }
+        Ok(returns)
+    }
+
+    fn statement(&mut self, statement: &Statement<'_>, depth: usize) -> Result<bool, String> {
+        if depth > 64 {
+            return Err(unsupported(statement, "statement nesting exceeds 64"));
+        }
+        if self.statement_count >= 256 {
+            return Err(unsupported(
+                statement,
+                "at most 256 statements including blocks and returns are admitted",
+            ));
+        }
+        self.statement_count += 1;
+        match statement {
+            Statement::IfStatement(statement) => {
+                lower_predicate(
+                    &statement.test,
+                    self.semantic,
+                    &self.bindings,
+                    &mut self.output,
+                    0,
+                )?;
+                self.output.push_str("if\n");
+                let visible = self.bindings.len();
+                let consequent_returns = self.statement(&statement.consequent, depth + 1)?;
+                self.bindings.truncate(visible);
+                let alternate_returns = if let Some(alternate) = &statement.alternate {
+                    self.output.push_str("else\n");
+                    let returns = self.statement(alternate, depth + 1)?;
+                    self.bindings.truncate(visible);
+                    returns
+                } else {
+                    false
+                };
+                self.output.push_str("end\n");
+                Ok(consequent_returns && alternate_returns)
+            }
+            Statement::BlockStatement(block) => {
+                let visible = self.bindings.len();
+                let result = self.sequence(&block.body, depth + 1);
+                self.bindings.truncate(visible);
+                result
+            }
+            Statement::ReturnStatement(statement) => {
+                let expression = statement
+                    .argument
+                    .as_ref()
+                    .ok_or("return must have a numeric expression")?;
+                lower_expression(
+                    expression,
+                    self.semantic,
+                    &self.bindings,
+                    &mut self.output,
+                    0,
+                )?;
+                self.output.push_str("return\n");
+                Ok(true)
+            }
+            Statement::ExpressionStatement(statement) => {
+                if !matches!(statement.expression, Expression::AssignmentExpression(_)) {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "only assignments are admitted as expression statements",
+                    ));
+                }
+                lower_expression(
+                    &statement.expression,
+                    self.semantic,
+                    &self.bindings,
+                    &mut self.output,
+                    0,
+                )?;
+                self.output.push_str("drop\n");
+                Ok(false)
+            }
+            Statement::VariableDeclaration(declaration) => {
+                if self.local_count >= 128 {
+                    return Err(unsupported(
+                        statement,
+                        "at most 128 numeric locals are admitted",
+                    ));
+                }
+                if !matches!(
+                    declaration.kind,
+                    VariableDeclarationKind::Const | VariableDeclarationKind::Let
+                ) || declaration.declare
+                    || declaration.declarations.len() != 1
+                {
+                    return Err(unsupported(
+                        declaration.as_ref(),
+                        "one initialized const or let identifier per declaration is admitted",
+                    ));
+                }
+                let local = &declaration.declarations[0];
+                if local.definite {
+                    return Err(unsupported(
+                        local,
+                        "definite-assignment assertions are not admitted",
+                    ));
+                }
+                check_annotation(local.type_annotation.as_deref())?;
+                let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+                    return Err(unsupported(local, "local destructuring is not admitted"));
+                };
+                let initializer = local
+                    .init
+                    .as_ref()
+                    .ok_or("numeric local must have an initializer")?;
+                // Publish a binding only after its initializer has been admitted/lowered.
+                // Even dead-branch self/forward references are outside this narrow contract.
+                lower_expression(
+                    initializer,
+                    self.semantic,
+                    &self.bindings,
+                    &mut self.output,
+                    0,
+                )?;
+                let slot = 2 + self.local_count;
+                self.local_count += 1;
+                writeln!(self.output, "local.set {slot}").unwrap();
+                self.bindings.push(NumericBinding {
+                    symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
+                    slot,
+                    mutable: declaration.kind == VariableDeclarationKind::Let,
+                });
+
+                Ok(false)
+            }
+            _ => Err(unsupported(
+                statement,
+                "statement is outside the numeric experiment",
+            )),
+        }
+    }
+}
+
 pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
     if source.len() > 16_384 {
         return Err("source exceeds this experiment's 16 KiB limit".into());
@@ -314,6 +473,7 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
             ));
         };
         bindings.push(NumericBinding {
+            slot: bindings.len(),
             symbol: identifier
                 .symbol_id
                 .get()
@@ -322,107 +482,38 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         });
     }
     let body = function.body.as_ref().ok_or("function must have a body")?;
-    if !body.directives.is_empty() || body.statements.is_empty() || body.statements.len() > 256 {
+    if !body.directives.is_empty() {
         return Err(unsupported(
             body.as_ref(),
-            "body must contain at most 256 statements including the final return, and no directives",
+            "function directives are not admitted",
         ));
     }
-    let mut instructions = String::new();
-    let parameter_count = bindings.len();
-    for statement in &body.statements[..body.statements.len() - 1] {
-        if let Statement::ExpressionStatement(statement) = statement {
-            if !matches!(statement.expression, Expression::AssignmentExpression(_)) {
-                return Err(unsupported(
-                    statement.as_ref(),
-                    "only assignments are admitted as expression statements",
-                ));
-            }
-            lower_expression(
-                &statement.expression,
-                &built.semantic,
-                &bindings,
-                &mut instructions,
-                0,
-            )?;
-            instructions.push_str("drop\n");
-            continue;
-        }
-        let Statement::VariableDeclaration(declaration) = statement else {
-            return Err(unsupported(
-                statement,
-                "only initialized numeric const/let declarations and assignments may precede the final return",
-            ));
-        };
-        if bindings.len() - parameter_count >= 128 {
-            return Err(unsupported(
-                statement,
-                "at most 128 numeric locals are admitted",
-            ));
-        }
-        if !matches!(
-            declaration.kind,
-            VariableDeclarationKind::Const | VariableDeclarationKind::Let
-        ) || declaration.declare
-            || declaration.declarations.len() != 1
-        {
-            return Err(unsupported(
-                declaration.as_ref(),
-                "one initialized const or let identifier per declaration is admitted",
-            ));
-        }
-        let local = &declaration.declarations[0];
-        if local.definite {
-            return Err(unsupported(
-                local,
-                "definite-assignment assertions are not admitted",
-            ));
-        }
-        check_annotation(local.type_annotation.as_deref())?;
-        let BindingPattern::BindingIdentifier(identifier) = &local.id else {
-            return Err(unsupported(local, "local destructuring is not admitted"));
-        };
-        let initializer = local
-            .init
-            .as_ref()
-            .ok_or("numeric local must have an initializer")?;
-        // Publish a binding only after its initializer has been admitted/lowered.
-        // Even dead-branch self/forward references are outside this narrow contract.
-        lower_expression(
-            initializer,
-            &built.semantic,
-            &bindings,
-            &mut instructions,
-            0,
-        )?;
-        writeln!(instructions, "local.set {}", bindings.len()).unwrap();
-        bindings.push(NumericBinding {
-            symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
-            mutable: declaration.kind == VariableDeclarationKind::Let,
-        });
-    }
-    let Statement::ReturnStatement(return_statement) = body.statements.last().unwrap() else {
-        return Err(unsupported(
-            body.as_ref(),
-            "body must contain a return expression",
-        ));
+    let mut lowering = StatementLowering {
+        semantic: &built.semantic,
+        bindings,
+        local_count: 0,
+        statement_count: 0,
+        output: String::new(),
     };
-    let expression = return_statement
-        .argument
-        .as_ref()
-        .ok_or("return must have a numeric expression")?;
-    lower_expression(expression, &built.semantic, &bindings, &mut instructions, 0)?;
+    if !lowering.sequence(&body.statements, 0)? {
+        return Err(unsupported(
+            body.as_ref(),
+            "every structural path must return a numeric value",
+        ));
+    }
     let mut wat = "(module (func (export \"run\") (param f64 f64) (result f64)\n".to_string();
-    if bindings.len() > parameter_count {
+    if lowering.local_count > 0 {
         writeln!(
             wat,
             "(local {})",
-            vec!["f64"; bindings.len() - parameter_count].join(" ")
+            vec!["f64"; lowering.local_count].join(" ")
         )
         .unwrap();
     }
-    wat.push_str(&instructions);
-    wat.push_str("))\n");
+    wat.push_str(&lowering.output);
+    // Structured return analysis above rules out source fallthrough. This is only
+    // a validator aid after nested void blocks/branches whose arms return.
+    wat.push_str("unreachable\n))\n");
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })
 }

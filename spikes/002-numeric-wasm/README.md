@@ -30,8 +30,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 2
-contains 43 paired programs, 77 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 3
+contains 57 paired programs, 93 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -61,7 +61,7 @@ export function run(a: number, b: number): number {
 }
 ```
 
-It emits **61 bytes of portable core Wasm**, identical to the JS fixture's output.
+It emits **63 bytes of portable core Wasm**, identical to the JS fixture's output.
 Calling `run(4, 1)` returns `3` under both Wasmtime and Node-Wasm. This is artifact
 size only; it excludes the compiler and runtime and is not a platform footprint claim.
 
@@ -88,7 +88,11 @@ not a hardened arbitrary-module execution service.
   Inputs are **already primitive JS numbers**, represented as Wasm `f64` values.
   This ABI contract is independent of whether TS annotations are present.
 - The body admits initialized numeric `const`/`let` declarations and simple
-  assignment statements in source order, followed by one numeric return.
+  assignment statements in source order, lexical blocks and statement `if`/`else`.
+  Early numeric returns are supported. Every structural path must return a number:
+  a sequence must reach a guaranteed return; a block inherits that result; an `if`
+  guarantees return only when both present arms do. Missing-return paths and
+  statements following a guaranteed return are rejected, even if valid JavaScript.
   Each declaration has one identifier and initializer; the binding becomes available
   only after that initializer. References resolve through semantic symbol identities.
   Numeric expressions admit literals, initialized bindings, parentheses, binary
@@ -99,11 +103,15 @@ not a hardened arbitrary-module execution service.
   return the assigned number. The RHS runs once; Wasm `local.tee` preserves its
   value. Assignment statements discard that value. Writes to `const`, globals,
   self/forward locals, property/destructuring and TS-wrapped targets are rejected.
+  Scope exit removes bindings from visibility without recycling their physical
+  Wasm slots. Both branches are admitted independently before encoding. Explicit
+  Wasm returns preserve completion; a final `unreachable` is a validator aid only
+  after the structural return check succeeds.
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
   casts/assertions, uninitialized locals, compound assignments, increment/decrement,
-  statement blocks/`if`, loops, logical operators and numeric
+  loops, logical operators and numeric
   truthiness. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
@@ -114,7 +122,8 @@ not a hardened arbitrary-module execution service.
   or fused multiply-add lowering. Literal values use Oxc's binary64 parse followed
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
 - Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
-  and 256 body statements including the final return;
+  across all lexical scopes and 256 recursively counted statements, including
+  block/`if` nodes, both arms and returns; statement nesting limit 64;
   host input batches at most 4096
   pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the vector
   replay has a three-minute bound. These are experiment bounds, not platform policy.
@@ -137,15 +146,15 @@ this spike; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 106124 numeric comparisons; 77 rejected inputs; overwrite preserved
+PASS 140676 numeric comparisons; 93 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-Forty-three programs, each written as JS and TS, produce 86 modules. Each module is
+Fifty-seven programs, each written as JS and TS, produce 114 modules. Each module is
 validated and run in Wasmtime and Node-Wasm over 617 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`. This yields 106,124 engine-to-JS comparisons. The explicit demo calls in
+`4752554e`. This yields 140,676 engine-to-JS comparisons. The explicit demo calls in
 both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The expressions cover basic operators, nested unary operators, signed-zero and
@@ -167,7 +176,15 @@ sensitivity to lost writes; it is not exhaustive mutation testing.
 Simple identifier targets have no observable target-evaluation effects here;
 general property-target assignment behavior remains untested.
 
-Seventy-seven malformed or unsupported programs fail explicitly, each with a unique
+Block/branch fixtures cover same-named sibling locals, outer mutation, parameter
+shadowing, initialization boundaries, dangling `else`, both-arm return and one-arm
+early return followed by a fallback. Negative fixtures cover scope leaks, branch
+fallthrough, unreachable extra statements and recursive limits. Replacing a nested
+early return with `drop` still validates as Wasm but returns the fallback value;
+the behavioral comparison detects it. The affine artifact grew from 61 to 63 bytes
+when explicit return/completion handling was added.
+
+Ninety-three malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

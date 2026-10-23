@@ -1,5 +1,5 @@
 // Selected numeric ABI evidence; not a full-language compatibility inventory.
-export const corpusVersion = 2;
+export const corpusVersion = 3;
 
 const expressions = [
   ['affine', '(a * 2 + b) / 3'], ['add', 'a + b'], ['subtract', 'a - b'],
@@ -19,6 +19,31 @@ const expressions = [
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
 programs.push(
+  ['block-return', '{ const x = a + b; return x; }', '{ const x: number = a + b; return x; }'],
+  ['block-shadow', 'let x = a; { const x = b; a = x; } return a + x;',
+    'let x: number = a; { const x: number = b; a = x; } return a + x;'],
+  ['block-siblings', 'let x = a; { let y = b; x = y; } { let y = a; x = x + y; } return x;',
+    'let x: number = a; { let y: number = b; x = y; } { let y: number = a; x = x + y; } return x;'],
+  ['block-empty', '{} return a;', '{} return a;'],
+  ['block-depth-boundary', `${'{'.repeat(64)}return a;${'}'.repeat(64)}`,
+    `${'{'.repeat(64)}return a;${'}'.repeat(64)}`],
+  ['if-selection', 'let x = a; if (a < b) { x = b; } else { x = -a; } return x;',
+    'let x: number = a; if (a < b) { x = b; } else { x = -a; } return x;'],
+  ['if-early', 'if (a < b) return a; return b;', 'if (a < b) return a; return b;'],
+  ['if-total', 'if (a < b) { return a; } else { return b; }',
+    'if (a < b) { return a; } else { return b; }'],
+  ['if-nested-return', 'if (a === a) { if (b < b) return 0; return a; } else { return b; }',
+    'if (a === a) { if (b < b) return 0; return a; } else { return b; }'],
+  ['if-dangling-else', 'let x = 0; if (a < b) if (b > 0) x = a; else x = b; return x;',
+    'let x: number = 0; if (a < b) if (b > 0) x = a; else x = b; return x;'],
+  ['if-branch-slots', 'let x = a; if (a < b) { const y = b; x = y; } else { const y = a; x = y / 2; } const z = b; return x + z;',
+    'let x: number = a; if (a < b) { const y: number = b; x = y; } else { const y: number = a; x = y / 2; } const z: number = b; return x + z;'],
+  ['if-condition-effect', 'let x = a; if ((x = b) < (b = a)) { x = x + 1; } return x + b;',
+    'let x: number = a; if ((x = b) < (b = a)) { x = x + 1; } return x + b;'],
+  ['if-return-skips-write', 'let x = a; if (a < b) { return x; } x = b; return x;',
+    'let x: number = a; if (a < b) { return x; } x = b; return x;'],
+  ['if-shadow-parameter', 'if (a < b) { const a = b; return a; } return a;',
+    'if (a < b) { const a: number = b; return a; } return a;'],
   ['let-local', 'let x = a; return x;', 'let x: number = a; return x;'],
   ['assignment', 'return a = b;', 'return a = b;'],
   ['assignment-result-state', 'return (a = b) + a;', 'return (a = b) + a;'],
@@ -53,6 +78,22 @@ programs.push(
 
 
 export const rejected = [
+  ['block-shadow-initializer', 'export function run(a,b) { const x=a; { const x=x+b; return x; } }'],
+  ['block-leak', 'export function run(a,b) { { const x=a; } return x; }'],
+  ['block-sibling-leak', 'export function run(a,b) { { const x=a; } { return x; } }'],
+  ['block-unreachable', 'export function run(a,b) { { return a; b=a; } }'],
+  ['block-depth', `export function run(a,b) { ${'{'.repeat(65)}return a;${'}'.repeat(65)} }`],
+  ['nested-statement-limit', `export function run(a,b) { { ${'a=b;'.repeat(255)} return a; } }`],
+  ['block-local-limit', `export function run(a,b) { { ${Array.from({length:65},(_,i)=>`let x${i}=a;`).join(' ')} } { ${Array.from({length:64},(_,i)=>`let y${i}=b;`).join(' ')} } return a; }`],
+  ['if-partial-return', 'export function run(a,b) { if (a < b) return a; }'],
+  ['if-one-arm-fallthrough', 'export function run(a,b) { if (a < b) { return a; } else { a=b; } }'],
+  ['if-const-write', 'export function run(a,b) { const x=a; if (a===a) { return a; } else { x=b; return x; } }'],
+  ['if-sibling-binding', 'export function run(a,b) { if (a<b) { const x=a; return x; } else { return x; } }'],
+  ['if-forward-local', 'export function run(a,b) { if(a<b) { return x; } const x=a; return x; }'],
+  ['if-raw-number', 'export function run(a,b) { if(a) return a; return b; }'],
+  ['if-unselected-call', 'export function run(a,b) { if(a===a) return a; else return Math.random(); }'],
+  ['if-following-total-return', 'export function run(a,b) { if(a<b) return a; else return b; return 0; }'],
+  ['if-depth', `export function run(a,b) { ${'if(a<b) '.repeat(66)}a=b; return a; }`],
   ['malformed', 'export function ('],
   ['duplicate-parameter', 'export function run(a, a) { return a; }'],
   ['extra-top-level', 'sideEffect(); export function run(a,b) { return a+b; }'],
@@ -134,7 +175,7 @@ export const rejected = [
 
 // These are recorded gaps, not skipped executable tests or passing fixtures.
 export const unimplemented = [
-  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Statement blocks, branches and loops still need scoped lowering and execution bounds.' },
+  { id: 'mutable-control-flow', milestone: 'L2', reason: 'Numeric truthiness and loops still need lowering and execution-bound observations.' },
   { id: 'functions-modules', milestone: 'L3', reason: 'Calls, module graphs and initialization order are not lowered.' },
   { id: 'js-values-coercion', milestone: 'L4', reason: 'Only primitive numbers cross the experimental ABI.' },
   { id: 'closures-exceptions-async', milestone: 'L5', reason: 'Lifetime, unwinding and job semantics are not implemented.' },

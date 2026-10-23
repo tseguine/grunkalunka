@@ -93,9 +93,9 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](../spikes/002-numeric-wasm/README.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-106,124 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 77 rejected
+140,676 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 93 rejected
 inputs, including numeric locals, comparison-controlled ternaries and simple
-assignment (L1/L2a). It preserves AST grouping and observes local mutation,
+assignment, lexical blocks, statement branches and early returns (L1/L2a/L2b). It preserves AST grouping and observes local mutation,
 statement/operand evaluation order and selected-branch effects. External effects
 and coercive values remain unsupported. This is an executed fragment, not adoption
 of a restricted platform language or a completed compiler architecture.
