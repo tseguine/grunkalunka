@@ -94,8 +94,10 @@ parenthesized write statements and numeric comma expressions have graduated into
 corpus, including ordered mutation and returned-value regressions.
 
 Numeric `&&` and `||` now short-circuit and preserve their selected operand.
-Boolean operands, including comparison results used as operands, and nullish
-coalescing remain outside admission.
+In numeric value positions, Boolean operands (including comparison results) remain
+outside admission. In predicate positions logical operators may combine admitted
+predicates and numeric truthiness, preserving short-circuit effects. Nullish
+coalescing remains outside admission in both contexts.
 
 Boolean literals are admitted in predicate positions. Boolean locals/returns,
 Boolean-valued ternary arms and Boolean equality operands remain outside admission.

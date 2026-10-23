@@ -13,8 +13,9 @@ import { booleanLiterals } from './boolean-literals.mjs';
 import { numericDoPrograms, numericDoRejected } from './numeric-do.mjs';
 import { predicateNot } from './predicate-not.mjs';
 import { numericEqualityPrograms, numericEqualityRejected } from './numeric-equality.mjs';
+import { predicateLogical } from './predicate-logical.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 18;
+export const corpusVersion = 19;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -53,6 +54,7 @@ programs.push(...booleanLiterals);
 programs.push(...numericDoPrograms);
 programs.push(...predicateNot);
 programs.push(...numericEqualityPrograms);
+programs.push(...predicateLogical);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -183,13 +185,21 @@ export const rejected = [
   ['boolean-conditional-value', 'export function run(a,b) { if(a?true:false) return a; return b; }'],
   ['boolean-equality-operands', 'export function run(a,b) { if(true===false) return a; return b; }'],
   ['boolean-comma-nonfinal', 'export function run(a,b) { if((true,a)) return a; return b; }'],
-  ['boolean-logical-operands', 'export function run(a,b) { if(true && a) return a; return b; }'],
   ['not-local', 'export function run(a,b) { const x=!a; return x?a:b; }'],
   ['not-arithmetic', 'export function run(a,b) { return (!a)+b; }'],
   ['not-equality-operand', 'export function run(a,b) { if(!a===!b) return a; return b; }'],
-  ['not-logical-operand', 'export function run(a,b) { if(!a&&b) return a; return b; }'],
   ['not-unselected-call', 'export function run(a,b) { if(true) return a; else if(!Math.random()) return b; return a; }'],
   ['not-depth-limit', `export function run(a,b) { if(${'!'.repeat(129)}a) return a; return b; }`],
+  ['predicate-and-unselected-call', 'export function run(a,b) { if(false && Math.random()) return a; return b; }'],
+  ['predicate-or-unselected-call', 'export function run(a,b) { if(true || Math.random()) return a; return b; }'],
+  ['predicate-logical-unselected-const', 'export function run(a,b) { const x=a; if(true || (x=b)) return a; return b; }'],
+  ['predicate-logical-unselected-global', 'export function run(a,b) { if(true || clock) return a; return b; }'],
+  ['predicate-logical-string', 'export function run(a,b) { if(a && "x") return a; return b; }'],
+  ['predicate-logical-numeric-local', 'export function run(a,b) { const x=true && a; return x; }'],
+  ['predicate-logical-comma-nonfinal', 'export function run(a,b) { if((a<b,a) && b) return a; return b; }'],
+  ['predicate-logical-depth', `export function run(a,b) { if(${Array(130).fill('a').join('&&')}) return a; return b; }`],
+  ['predicate-logical-nullish', 'export function run(a,b) { if(a ?? b) return a; return b; }'],
+  ['predicate-logical-statement', 'export function run(a,b) { true && a++; return a; }'],
   ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],
   ['null', 'export function run(a,b) { return null; }'],
   ['remainder', 'export function run(a,b) { return a % b; }'],
@@ -268,7 +278,6 @@ export const rejected = [
   ['statement-limit', `export function run(a,b) { ${'a=b;'.repeat(256)} return a; }`],
   ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }'],
   ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
-  ['logical-predicate', 'export function run(a,b) { return (a<b && a>0)?a:b; }'],
   ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
   ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],
   ['local-type', 'export function run(a:number,b:number):number { const x:string=a; return x; }', 'ts'],

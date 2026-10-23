@@ -61,9 +61,15 @@ execute again on each loop visit, while every definition remains unique in the I
 Regions contain ordered operations and an explicit `Fallthrough`, `Yield(value)`
 or `Return(value)` exit. `Block`, `If`, `While` and `DoWhile` preserve structured control flow.
 Values are visible in their defining region and nested regions. A child or sibling
-value cannot escape through an ordinary reference. A numeric conditional expression
-uses an `If` result: both arms yield a number and the parent defines the joined
+value cannot escape through an ordinary reference. A value-producing conditional
+uses an `If` result: both arms yield its declared type and the parent defines the joined
 value. Statement branches have no result and may fall through or return.
+The verifier checks the result ID before choosing the arm contract, requires both
+arms to yield that exact type, and exposes the joined value only after both arms.
+Emission selects `f64` or `i32` from the verified result type. Numeric ternaries
+and logical value expressions join numbers. Logical conditions join predicates:
+the left predicate is evaluated once and the RHS predicate only in its selected
+branch. Boolean-valued source ternary arms remain outside admission.
 
 `While` owns a condition region yielding a predicate, a statement body region,
 and an optional statement step region. Existing source `while` loops have no step.

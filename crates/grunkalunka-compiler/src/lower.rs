@@ -395,6 +395,37 @@ impl Lowering<'_, '_> {
             Self::push(region, expression, Op::Not { result, input });
             return Ok(result);
         }
+        if let Expression::LogicalExpression(logical) = expression {
+            if logical.operator == LogicalOperator::Coalesce {
+                return Err(unsupported(
+                    expression,
+                    "expression is outside the numeric experiment",
+                ));
+            }
+            let left = self.predicate(&logical.left, region, depth + 1)?;
+            let mut selected = self.region(&logical.right);
+            let right = self.predicate(&logical.right, &mut selected, depth + 1)?;
+            selected.exit = Exit::Yield(right);
+            let mut skipped = self.region(&logical.left);
+            skipped.exit = Exit::Yield(left);
+            let (consequent, alternate) = if logical.operator == LogicalOperator::And {
+                (selected, skipped)
+            } else {
+                (skipped, selected)
+            };
+            let result = self.value(Type::Predicate);
+            Self::push(
+                region,
+                expression,
+                Op::If {
+                    result: Some(result),
+                    condition: left,
+                    consequent,
+                    alternate,
+                },
+            );
+            return Ok(result);
+        }
         if let Expression::SequenceExpression(sequence) = expression {
             let (last, preceding) = sequence.expressions.split_last().ok_or_else(|| {
                 unsupported(sequence.as_ref(), "comma expression must have an operand")

@@ -126,11 +126,12 @@ impl Emitter<'_> {
                     alternate,
                 } => {
                     self.get(*condition);
-                    self.output.push_str(if result.is_some() {
-                        "if (result f64)\n"
-                    } else {
-                        "if\n"
-                    });
+                    self.output
+                        .push_str(match result.map(|id| self.function.values[id.0]) {
+                            Some(Type::Number) => "if (result f64)\n",
+                            Some(Type::Predicate) => "if (result i32)\n",
+                            None => "if\n",
+                        });
                     self.region(consequent);
                     self.output.push_str("else\n");
                     self.region(alternate);

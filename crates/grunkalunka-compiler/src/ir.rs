@@ -328,8 +328,14 @@ impl Verifier<'_> {
                     alternate,
                 } => {
                     self.value(*condition, Type::Predicate, &visible, span)?;
-                    let contract = if result.is_some() {
-                        Contract::Yield(Type::Number)
+                    let contract = if let Some(result) = result {
+                        let ty = self
+                            .function
+                            .values
+                            .get(result.0)
+                            .copied()
+                            .ok_or_else(|| invalid(span, "invalid if result value ID"))?;
+                        Contract::Yield(ty)
                     } else {
                         Contract::Statement
                     };
@@ -338,7 +344,10 @@ impl Verifier<'_> {
                     let right =
                         self.region(alternate, contract, &visible, &initialized, ancestors)?;
                     if let Some(result) = result {
-                        self.define(*result, Type::Number, &mut visible, span)?;
+                        let Contract::Yield(ty) = contract else {
+                            unreachable!()
+                        };
+                        self.define(*result, ty, &mut visible, span)?;
                     }
                     returns = left && right;
                 }
@@ -1106,6 +1115,84 @@ mod tests {
             Type::Number,
         ];
         f
+    }
+
+    fn predicate_if() -> Function {
+        let mut f = value_if();
+        let Op::If {
+            consequent,
+            alternate,
+            ..
+        } = &mut f.body.operations[2].kind
+        else {
+            panic!()
+        };
+        consequent.operations[0].kind = Op::Boolean {
+            result: ValueId(2),
+            value: true,
+        };
+        alternate.operations[0].kind = Op::Boolean {
+            result: ValueId(3),
+            value: false,
+        };
+        f.values[2..].fill(Type::Predicate);
+        f.body.exit = Exit::Return(ValueId(0));
+        f
+    }
+
+    #[test]
+    fn if_can_join_predicates_without_making_them_numeric() {
+        let mut f = predicate_if();
+        verify(&f).unwrap();
+        f.body.exit = Exit::Return(ValueId(4));
+        assert!(verify(&f).unwrap_err().contains("type"));
+        f.body.exit = Exit::Return(ValueId(0));
+        f.body.operations.push(Operation {
+            span: Span::new(4, 8),
+            kind: Op::Store {
+                slot: SlotId(0),
+                value: ValueId(4),
+            },
+        });
+        assert!(verify(&f).unwrap_err().contains("type"));
+    }
+
+    #[test]
+    fn predicate_join_checks_result_arms_and_visibility() {
+        let mut f = predicate_if();
+        verify(&f).unwrap();
+        let Op::If { result, .. } = &mut f.body.operations[2].kind else {
+            panic!()
+        };
+        *result = Some(ValueId(99));
+        assert!(verify(&f).is_err());
+        let mut f = predicate_if();
+        f.values[4] = Type::Number;
+        assert!(verify(&f).unwrap_err().contains("type"));
+        let mut f = predicate_if();
+        let Op::If { alternate, .. } = &mut f.body.operations[2].kind else {
+            panic!()
+        };
+        alternate.exit = Exit::Yield(ValueId(0));
+        assert!(verify(&f).unwrap_err().contains("type"));
+        let mut f = predicate_if();
+        let Op::If { result, .. } = &mut f.body.operations[2].kind else {
+            panic!()
+        };
+        *result = Some(ValueId(1));
+        assert!(verify(&f).unwrap_err().contains("defined twice"));
+        let mut f = predicate_if();
+        let Op::If { consequent, .. } = &mut f.body.operations[2].kind else {
+            panic!()
+        };
+        consequent.exit = Exit::Yield(ValueId(4));
+        assert!(verify(&f).unwrap_err().contains("not visible"));
+        let mut f = predicate_if();
+        let Op::If { alternate, .. } = &mut f.body.operations[2].kind else {
+            panic!()
+        };
+        alternate.exit = Exit::Yield(ValueId(2));
+        assert!(verify(&f).unwrap_err().contains("not visible"));
     }
 
     #[test]
