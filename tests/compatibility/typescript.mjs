@@ -29,7 +29,7 @@ for (const [index, item] of manifest.cases.entries()) {
   if (item.expectation === 'admitted') typescriptPrograms.push([item.id, body, body]);
   else typescriptRejected.push([item.id,
     `export function run(a: number, b: number): number { ${body} }`, 'ts',
-    'only binary +, -, * and / are admitted']);
+    'only binary +, -, *, /, &, | and ^ are admitted']);
 }
 
 export const typescriptSource = {

@@ -35,6 +35,12 @@ to zero. Complement uses `i32.xor` with -1 and signed conversion back to `f64`.
 The inline sequence reads the same captured value twice; it never reevaluates the
 source operand or mutates its snapshot. Its integer stack intermediates require
 no new IR type, source cell, import or generated Wasm function.
+`Binary::BitAnd`, `BitOr` and `BitXor` also consume and produce `Number` values.
+Lowering captures the left operand before lowering the right; both execute eagerly.
+Emission applies the same conversion helper to each captured value, uses `i32.and`,
+`i32.or` or `i32.xor`, then converts the signed result to `f64`. The verifier's
+existing numeric operand/result contract applies. Arithmetic binary emission and
+the conversion helper remain unchanged.
 `Initialize` and `Store` consume numeric values and change source cells.
 Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
 operation. They allocate no source cell and perform no host lookup. Resolved

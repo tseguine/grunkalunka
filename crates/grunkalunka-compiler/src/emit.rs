@@ -109,14 +109,26 @@ impl Emitter<'_> {
                     left,
                     right,
                 } => {
-                    self.get(*left);
-                    self.get(*right);
-                    self.output.push_str(match operator {
-                        Binary::Add => "f64.add\n",
-                        Binary::Subtract => "f64.sub\n",
-                        Binary::Multiply => "f64.mul\n",
-                        Binary::Divide => "f64.div\n",
-                    });
+                    let (instruction, bitwise) = match operator {
+                        Binary::Add => ("f64.add\n", false),
+                        Binary::Subtract => ("f64.sub\n", false),
+                        Binary::Multiply => ("f64.mul\n", false),
+                        Binary::Divide => ("f64.div\n", false),
+                        Binary::BitAnd => ("i32.and\n", true),
+                        Binary::BitOr => ("i32.or\n", true),
+                        Binary::BitXor => ("i32.xor\n", true),
+                    };
+                    if bitwise {
+                        self.int32_bits(*left);
+                        self.int32_bits(*right);
+                    } else {
+                        self.get(*left);
+                        self.get(*right);
+                    }
+                    self.output.push_str(instruction);
+                    if bitwise {
+                        self.output.push_str("f64.convert_i32_s\n");
+                    }
                     self.set(*result);
                 }
                 Op::Compare {

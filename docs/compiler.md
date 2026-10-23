@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 29
-contains 509 paired programs, 502 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 30
+contains 539 paired programs, 528 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -174,8 +174,8 @@ Corpus 28 admits numeric unary `~` with 21 paired programs and 20 boundary
 rejections. The former `gap-bit-not` reference is promoted, leaving 49 reference
 gaps. Operands truncate toward zero and wrap modulo `2^32`; NaN, infinities and
 signed zero convert to zero before complement, producing -1. The result remains
-a Number. Boolean, string and BigInt operands, binary bitwise operators and
-shifts remain outside admission. A full-source directive/postfix-update case checks
+a Number. That unit left Boolean, string and BigInt operands, binary bitwise operators
+and shifts outside admission. A full-source directive/postfix-update case checks
 that directives erase while the complement operand still runs once.
 
 Corpus 29 admits only hashbang comments recognized by Oxc at the start of the
@@ -186,6 +186,15 @@ promoted, leaving 48 reference gaps. Twenty-two new boundary rejections preserve
 misplaced/BOM-prefixed hashbang syntax errors, the entry contract, unsupported
 bodies and original-source limits. Restoring the refusal, stripping a leading BOM
 or charging a hashbang as a statement is detected by finite mutation probes.
+
+Corpus 30 admits Number-only binary `&`, `|` and `^` with 30 paired programs and
+30 boundary rejections. Three reference gaps and the ordinary bitwise rejection
+are promoted, leaving 45 reference gaps. Both operands execute eagerly, left to
+right, with the left value captured before RHS effects. Each operand truncates and
+wraps to 32 bits; the signed result converts back to a Number, with positive zero.
+Shifts, bitwise compound assignments and mixed-type coercion remain outside admission.
+One full-source case combines a hashbang and module/function directives with a
+RHS write, preserving the captured left value and the exact original JS oracle.
 
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
@@ -274,8 +283,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   These reads generate constants without host access; other global references and
   property access such as `globalThis.Infinity` or `Number.NaN` remain rejected.
   Numeric expressions admit literals, these two intrinsic reads, initialized bindings, parentheses, binary
-  `+ - * /`, unary `+ - ~`, and ternaries. Numeric `~` uses signed 32-bit wrapping
-  semantics and yields a Number, without coercing other source value types.
+  `+ - * / & | ^`, unary `+ - ~`, and ternaries. Numeric `~`, `&`, `|` and `^` use signed 32-bit wrapping
+  semantics and yield Numbers, without coercing other source value types.
+  Binary bitwise operands both run eagerly, left to right; RHS writes cannot
+  replace the captured left value. Results use signed conversion, including positive zero.
   Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= == != === !==` comparisons and primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
@@ -371,7 +382,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Everything else is rejected: extra statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
-  type-only declarations, uninitialized locals and compound operators beyond the four above,
+  type-only declarations, uninitialized locals, shifts and compound operators beyond the four above,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
@@ -410,15 +421,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1276572 numeric comparisons; 502 rejected inputs; overwrite preserved
+PASS 1351812 numeric comparisons; 528 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-509 programs, each written as JS and TS, produce 1018 modules.
+539 programs, each written as JS and TS, produce 1078 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,276,572 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,351,812 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -494,6 +505,18 @@ separate emitted-Wasm probe checks 4,265 inputs in both engines, including raw
 bits and neighbors around `2^31`, `2^32`, `2^53` and `2^84`. Finite mutations
 flooring the initial value or saturating directly to `i32` are detected and restored.
 
+The [binary bitwise fixtures](../tests/compatibility/numeric-bitwise-binary.mjs)
+check all three operations over the full vectors, operand snapshots, eager RHS
+effects, nested complements, TypeScript wrappers, finite loops and source limits.
+They follow [NumberBitwiseOp](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-numberbitwiseop)
+and [ordered binary evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-evaluatestringornumericbinaryexpression).
+Both captured values use the unchanged complement conversion helper before
+`i32.and`, `i32.or` or `i32.xor`, then signed conversion returns a Number. An
+additional emitted-Wasm probe checks 5,110 input pairs in both engines, covering
+raw bits, fractions, wrapping boundaries and nonfinite inputs on either side.
+Finite mutations mapping AND to OR or evaluating the RHS before capturing the
+left operand change expected results from 1 to 7 or 3 and are detected.
+
 The expressions cover basic operators, nested unary operators, signed-zero and
 smallest-subnormal literals, overflow literals, integer literals rounded beyond
 `2^53`, nondecimal literals, grouping/cancellation and separate rounding. Input
@@ -545,6 +568,10 @@ byte-identical at 93 and 504 bytes respectively. Complement expressions add an
 inline conversion sequence; no execution-speed claim follows. The full corpus
 retains the 10,000-fuel allowance.
 
+Adding binary `&`, `|` and `^` also leaves all 1,018 previous JS/TS artifacts
+byte-identical, including affine at 93 bytes and Mandelbrot at 504 bytes. The new
+operators add two inline operand conversions and keep the same fuel allowance.
+
 The [binding-list fixtures](../tests/compatibility/multiple-declarators.mjs) compare
 left-to-right initializer effects, earlier-binding reads and lexical scope.
 A finite mutation that reversed declarator order changed an independent-effects
@@ -553,7 +580,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-502 malformed or unsupported programs fail explicitly, each with a unique
+528 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

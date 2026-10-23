@@ -27,6 +27,9 @@ pub(crate) enum Binary {
     Subtract,
     Multiply,
     Divide,
+    BitAnd,
+    BitOr,
+    BitXor,
 }
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Compare {
@@ -589,6 +592,49 @@ pub(crate) fn verify(function: &Function) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn binary_bitwise_requires_numeric_operands_and_result() {
+        for operator in [Binary::BitAnd, Binary::BitOr, Binary::BitXor] {
+            for types in [
+                [Type::Number, Type::Number, Type::Number],
+                [Type::Predicate, Type::Number, Type::Number],
+                [Type::Number, Type::Predicate, Type::Number],
+                [Type::Number, Type::Number, Type::Predicate],
+            ] {
+                let mut operations: Vec<_> = types[..2]
+                    .iter()
+                    .enumerate()
+                    .map(|(id, ty)| {
+                        if *ty == Type::Number {
+                            Op::Constant {
+                                result: ValueId(id),
+                                value: 5.0,
+                            }
+                        } else {
+                            Op::Boolean {
+                                result: ValueId(id),
+                                value: true,
+                            }
+                        }
+                    })
+                    .collect();
+                operations.push(Op::Binary {
+                    result: ValueId(2),
+                    operator,
+                    left: ValueId(0),
+                    right: ValueId(1),
+                });
+                let mut f = function(operations, Exit::Return(ValueId(2)));
+                f.values = types.to_vec();
+                if types.iter().all(|ty| *ty == Type::Number) {
+                    verify(&f).unwrap();
+                } else {
+                    assert!(verify(&f).unwrap_err().contains("type"));
+                }
+            }
+        }
+    }
 
     #[test]
     fn bit_not_requires_numeric_input_and_result() {

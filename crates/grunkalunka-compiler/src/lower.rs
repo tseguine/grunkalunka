@@ -346,10 +346,13 @@ impl Lowering<'_, '_> {
                     BinaryOperator::Subtraction => Binary::Subtract,
                     BinaryOperator::Multiplication => Binary::Multiply,
                     BinaryOperator::Division => Binary::Divide,
+                    BinaryOperator::BitwiseAnd => Binary::BitAnd,
+                    BinaryOperator::BitwiseOR => Binary::BitOr,
+                    BinaryOperator::BitwiseXOR => Binary::BitXor,
                     _ => {
                         return Err(unsupported(
                             expression,
-                            "only binary +, -, * and / are admitted",
+                            "only binary +, -, *, /, &, | and ^ are admitted",
                         ));
                     }
                 };
@@ -823,6 +826,21 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bitwise_binary_and_is_admitted() {
+        crate::compile("export function run(a,b) { return 5 & 3; }", false).unwrap();
+    }
+
+    #[test]
+    fn bitwise_binary_or_is_admitted() {
+        crate::compile("export function run(a,b) { return 5 | 3; }", false).unwrap();
+    }
+
+    #[test]
+    fn bitwise_binary_xor_is_admitted() {
+        crate::compile("export function run(a,b) { return 5 ^ 3; }", false).unwrap();
+    }
+
     #[test]
     fn bit_not_zero_is_admitted() {
         crate::compile("export function run(a,b) { return ~0; }", false).unwrap();

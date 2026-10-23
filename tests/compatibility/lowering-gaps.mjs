@@ -1,7 +1,7 @@
 // Valid reference programs outside the current numeric admission.
 // Their rejection checks must never count as executed lowering support.
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, * and / are admitted';
+const binary = 'only binary +, -, *, /, &, | and ^ are admitted';
 const unary = 'only unary +, - and ~ are admitted';
 const statement = 'statement is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
@@ -24,9 +24,6 @@ function add(id, category, body, expected, diagnostic, options = {}) {
 for (const [id, body, expected, diagnostic] of [
   ['remainder', 'return a % b;', 0, binary],
   ['power', 'return a ** b;', 16, binary],
-  ['bit-and', 'return a & b;', 0, binary],
-  ['bit-or', 'return a | b;', 6, binary],
-  ['bit-xor', 'return a ^ b;', 6, binary],
   ['shift-left', 'return a << b;', 16, binary],
   ['shift-right', 'return a >> b;', 1, binary],
   ['shift-unsigned', 'return a >>> b;', 1, binary],

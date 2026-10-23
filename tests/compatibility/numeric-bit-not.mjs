@@ -32,7 +32,7 @@ numericBitNot.push(['bit-not-directive-postfix', 'return ~a++ + a;', 'return ~a+
 
 const expression = 'expression is outside the numeric experiment';
 const unary = 'only unary +, - and ~ are admitted';
-const binary = 'only binary +, -, * and / are admitted';
+const binary = 'only binary +, -, *, /, &, | and ^ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
   ['bit-not-boolean', 'return ~true;', expression],
