@@ -7,7 +7,8 @@ use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, 
 struct Emitter<'a> {
     function: &'a Function,
     output: String,
-    break_label: Option<usize>,
+    // One ID names paired exit/body-end targets, active only inside its loop body.
+    loop_label: Option<usize>,
 }
 
 impl Emitter<'_> {
@@ -43,9 +44,11 @@ impl Emitter<'_> {
                 Op::DoWhile { body, condition } => {
                     let label = body.id.0;
                     writeln!(self.output, "block $exit{label}\nloop $do{label}").unwrap();
-                    let outer = self.break_label.replace(label);
+                    let outer = self.loop_label.replace(label);
+                    writeln!(self.output, "block $continue{label}").unwrap();
                     self.region(body);
-                    self.break_label = outer;
+                    self.output.push_str("end\n");
+                    self.loop_label = outer;
                     self.region(condition);
                     writeln!(self.output, "br_if $do{label}\nend\nend").unwrap();
                 }
@@ -154,9 +157,11 @@ impl Emitter<'_> {
                     // the final failed test. Its values never escape to the body or step.
                     self.region(condition);
                     writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
-                    let outer = self.break_label.replace(label);
+                    let outer = self.loop_label.replace(label);
+                    writeln!(self.output, "block $continue{label}").unwrap();
                     self.region(body);
-                    self.break_label = outer;
+                    self.output.push_str("end\n");
+                    self.loop_label = outer;
                     if let Some(step) = step {
                         self.region(step);
                     }
@@ -170,7 +175,15 @@ impl Emitter<'_> {
                 writeln!(
                     self.output,
                     "br $exit{}",
-                    self.break_label.expect("verified loop break")
+                    self.loop_label.expect("verified loop break")
+                )
+                .unwrap();
+            }
+            Exit::Continue => {
+                writeln!(
+                    self.output,
+                    "br $continue{}",
+                    self.loop_label.expect("verified loop continue")
                 )
                 .unwrap();
             }
@@ -187,7 +200,7 @@ pub(crate) fn emit(function: &Function) -> Result<String, String> {
     ir::verify(function)?;
     let mut emitter = Emitter {
         function,
-        break_label: None,
+        loop_label: None,
         output: "(module (func (export \"run\") (param f64 f64) (result f64)\n".to_string(),
     };
     // Source cells and typed value snapshots occupy disjoint physical locals.

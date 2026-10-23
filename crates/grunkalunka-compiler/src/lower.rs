@@ -625,6 +625,16 @@ impl Lowering<'_, '_> {
         }
         self.charge_statement(statement)?;
         match statement {
+            Statement::ContinueStatement(statement) => {
+                if statement.label.is_some() || !self.in_loop_body {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "only unlabelled continue inside a loop is admitted",
+                    ));
+                }
+                region.exit = Exit::Continue;
+                Ok(Completion::CONTINUE)
+            }
             Statement::BreakStatement(statement) => {
                 if statement.label.is_some() || !self.in_loop_body {
                     return Err(unsupported(
@@ -646,7 +656,7 @@ impl Lowering<'_, '_> {
                 let predicate = self.predicate(&statement.test, &mut condition, 0)?;
                 condition.exit = Exit::Yield(predicate);
                 Self::push(region, statement.as_ref(), Op::DoWhile { body, condition });
-                // The body executes at least once; this loop consumes its breaks.
+                // The body executes at least once; this loop consumes its loop control.
                 Ok(returns.do_loop())
             }
             Statement::ForStatement(statement) => {
@@ -807,6 +817,32 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn continue_reaches_each_loops_next_iteration_machinery() {
+        for body in [
+            "let i=0; while(i++<3) { continue; } return i;",
+            "let g=0,s=0; for(;g++<3;s++) { continue; } return 10*g+s;",
+            "let i=0,t=0; do { i++; if(i<3) continue; } while((t++,0)); return i*10+t;",
+        ] {
+            crate::compile(&format!("export function run(a,b) {{ {body} }}"), false)
+                .unwrap_or_else(|error| panic!("{body}: {error}"));
+        }
+    }
+
+    #[test]
+    fn continue_alternative_survives_a_return_suffix() {
+        let error = crate::compile(
+            "export function run(a,b) { do { if(a) continue; return b; } while(0); }",
+            false,
+        )
+        .err()
+        .expect("a continue path still needs a numeric return after the loop");
+        assert!(
+            error.contains("every structural path must return"),
+            "{error}"
+        );
+    }
+
     #[test]
     fn break_exits_each_numeric_loop() {
         for body in [

@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 25
-contains 424 paired programs, 425 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 26
+contains 451 paired programs, 446 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -150,8 +150,16 @@ Eighteen boundary rejections preserve whole-AST admission, guaranteed-abrupt tai
 rejection and numeric return coverage. Four old break rejections are promoted.
 A finite mutation retaining an outer break target instead of the nearest target
 emits valid Wasm but changes the nested-loop result from 33 to 1; the regression
-detects it. The reference frontier now contains 53 gaps. Continue and labelled control remain
+detects it. That run left 53 reference gaps. Continue and labelled control remained
 unsupported.
+
+Corpus 26 admits unlabelled `continue` in while/for/do bodies. Twenty-seven paired
+programs cover nearest-loop targeting, outer-target restoration, for updates, do
+tests, mixed abrupt paths, lexical initialization and exact source budgets.
+Twenty-six boundary rejections preserve numeric headers, whole-source admission,
+return coverage and the remaining control exclusions. Four finite continue
+rejections are promoted; the old potentially infinite while-continue rejection is
+retired without executing its source. The reference frontier now has 52 gaps.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -220,7 +228,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Early numeric returns are supported. Every structural path must return a number:
   a sequence must reach a guaranteed return; a block inherits that result; an `if`
   guarantees return only when both present arms do. Missing-return paths and
-  statements following a guaranteed return or break (including mixed abrupt
+  statements following a guaranteed return, break or continue (including mixed abrupt
   branches) are rejected, even if valid JavaScript.
   Each declaration has one or more initialized identifiers, evaluated left to right;
   each binding becomes available only after its own initializer. References resolve
@@ -294,14 +302,20 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Unlabelled `break` exits the nearest enclosing while/for/do loop, including
   through nested blocks and branches. It never supplies a numeric return; mixed
   break/return paths remain distinct until the loop consumes its own breaks.
-  Each source break counts once as a statement, while generated exit blocks do
-  not consume source budgets. The emitter's additional do exit block may change
+  Unlabelled `continue` ends the nearest loop body, reaching the while test,
+  the for update then test, or the do test. Nested loops restore both outer targets.
+  Continue is distinct from normal completion and return until its loop consumes it;
+  a do body with both return and continue paths still needs a following return.
+  Explicit condition/yield regions and for updates must complete normally, and
+  source for initializers remain numeric. Each source break or continue counts
+  once as a statement, while generated exit/body-end blocks do not consume source
+  budgets. The emitter's additional loop blocks may change
   artifact bytes and fuel cost; the 10,000-fuel allowance is unchanged.
 - Everything else is rejected: extra statements/exports/imports, directives,
   hashbangs, defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, other annotations, calls, strings/objects/BigInts,
   type-only declarations, uninitialized locals and compound operators beyond the four above,
-  `for-in`/`for-of`, `continue`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
+  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
   TypeScript-wrapped assignment/update targets are still rejected.
@@ -339,15 +353,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1063392 numeric comparisons; 425 rejected inputs; overwrite preserved
+PASS 1131108 numeric comparisons; 446 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-424 programs, each written as JS and TS, produce 848 modules.
+451 programs, each written as JS and TS, produce 902 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,063,392 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,131,108 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -451,6 +465,12 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
+The continue emitter adds a generated body-end block per loop. The affine artifact
+stays at 93 bytes; the retained Mandelbrot orbit now measures 504 bytes, up 14 bytes
+from 490. The full corpus uses the same 10,000-fuel allowance. Finite mutation probes
+detect skipping the for update (40 instead of 43) and skipping the do test (31
+instead of 11). Neither probe requires an unbounded loop in JavaScript or Node-Wasm.
+
 The [binding-list fixtures](../tests/compatibility/multiple-declarators.mjs) compare
 left-to-right initializer effects, earlier-binding reads and lexical scope.
 A finite mutation that reversed declarator order changed an independent-effects
@@ -459,7 +479,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-425 malformed or unsupported programs fail explicitly, each with a unique
+446 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

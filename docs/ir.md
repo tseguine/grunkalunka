@@ -140,22 +140,26 @@ arbitrary control-flow graph or SSA conversion.
 
 ## Unlabelled loop exits
 
-Lowering and verification independently compute possible `Normal`, `Return` and
-`Break` completions with the same small algebra. Sequential composition preserves
+Lowering and verification independently compute possible `Normal`, `Return`,
+`Break` and `Continue` completions with the same small algebra. Sequential composition preserves
 prior abrupt alternatives and applies the suffix only to normal paths. Branches
 union their outcomes. A fallthrough exit preserves that accumulated set: it does
 not invent a normal path after all-abrupt branches. Functions must end with exactly
 `Return`; statements after guaranteed abrupt completion are rejected.
 
-A loop consumes only its nearest body's breaks. Pretest loops remain possibly
-normal; do loops convert body breaks into normal loop completion while preserving
+A loop consumes only its nearest body's breaks and continues. Pretest loops remain possibly
+normal; do loops convert body breaks/continues into possible normal loop completion while preserving
 possible returns. All explicit condition/yield regions and for steps must complete
 normally, even under an outer loop body. Their verifier context denies inherited
-breaks through nested blocks and branches. The generated for-initializer `Block`
+break/continue through nested blocks and branches. A do body with return and
+continue alternatives therefore still needs a following numeric return. The generated for-initializer `Block`
 is an ordinary untagged lexical region; source lowering enforces its numeric
 initializer restriction rather than claiming the verifier identifies it as a header.
 
-The emitter activates an exit target only during each loop body and restores the
-outer target after nested loops. Do loops gain an outer Wasm exit block. A break
-branches there, bypassing a for step or do condition without allocating source
-cells or consuming generated-block source budgets. Continue and labels are absent.
+The emitter activates paired exit/body-end targets only during each loop body and
+restores the outer targets after nested loops. A break branches to the outer loop
+exit, bypassing a for step or do condition. A continue branches to the generated
+body-end block, then reaches the while condition, the for step followed by its
+condition, or the do condition. These blocks allocate no source cells and consume
+no source budgets. They can increase artifact size and instruction cost; fuel
+remains 10,000 per call. Labels remain outside admission.

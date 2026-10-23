@@ -2,11 +2,11 @@
 
 The current compiler admits one exported two-number function with numeric locals,
 numeric expression statements, empty statements, assignments, branches, while/for/do loops,
-TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled loop breaks and returns.
+TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled loop break/continue and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 53 curated reference cases in
+The executable frontier contains 52 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -15,7 +15,7 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | --- | --- |
 | Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-bit-and`, `gap-bit-or`, `gap-bit-xor`, `gap-shift-left`, `gap-shift-right`, `gap-shift-unsigned`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-bit-not`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
 | General JavaScript values | `gap-boolean-value`, `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
-| Additional control flow | `gap-continue`, `gap-switch`, `gap-label` |
+| Additional control flow | `gap-switch`, `gap-label` |
 | Functions, calls and recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
 | Module loading | `gap-module-import` |
 | Bindings and parameter forms | `gap-var`, `gap-var-hoisting`, `gap-uninitialized-let`, `gap-local-destructure`, `gap-destructuring-write`, `gap-defaults`, `gap-rest` |
@@ -45,7 +45,7 @@ TypeScript-wrapped assignment/update targets remain outside admission.
 The former `gap-for` reference is now `for-promoted-reference` in
 [`numeric-for.mjs`](../tests/compatibility/numeric-for.mjs), with additional scope,
 ordering, omission and source-budget checks. `for-in`/`for-of`,
-`continue` and labels remain unsupported.
+labels remain unsupported.
 
 The former `gap-do` reference is now `do-promoted-reference` in
 [`numeric-do.mjs`](../tests/compatibility/numeric-do.mjs), with at-least-once,
@@ -118,7 +118,7 @@ negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 53 examples are a
+or change the reference result to match a lowering bug. The 52 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -129,5 +129,12 @@ a value representation, GC strategy, final entry ABI or capability-profile defau
 The former `gap-break` reference is now `break-promoted-reference` in
 [`numeric-break.mjs`](../tests/compatibility/numeric-break.mjs). Unlabelled break
 exits the nearest while/for/do loop, skipping the for step or do condition. Mixed
-break/return paths do not prove a numeric return. Continue, switch, labels and
+break/return paths do not prove a numeric return. Switch, labels and
 try/finally remain outside admission.
+
+The former `gap-continue`, `for-continue`, `do-continue` and
+`break-continue-remains` references are now finite admitted cases in
+[`numeric-continue.mjs`](../tests/compatibility/numeric-continue.mjs). Continue
+reaches the nearest loop's while test, for update then test, or do test. The old
+potentially infinite `while-continue` rejection is retired without executing its
+source; finite terminal-test and nested-target cases replace its coverage.
