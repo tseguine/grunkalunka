@@ -1,4 +1,4 @@
-// One-command replay: compile the research tool, then compare its emitted Wasm.
+// One-command replay: build the workspace, then compare its emitted Wasm.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -11,5 +11,5 @@ function run(command, args, timeout) {
   assert.equal(result.status, 0, `${command} failed`);
 }
 run(process.execPath, ['scripts/licenses.mjs'], 60_000);
-run('cargo', ['build', '--manifest-path', 'spikes/002-numeric-wasm/Cargo.toml', '--locked', '--offline', '-j', '4'], 600_000);
-run(process.execPath, ['spikes/002-numeric-wasm/check.mjs'], 240_000);
+run('cargo', ['build', '--workspace', '--locked', '--offline', '-j', '4'], 600_000);
+run(process.execPath, ['tests/compatibility/check.mjs'], 240_000);

@@ -19,7 +19,7 @@ pretending a whole browser/framework is a short implementation task.
 
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
-| L0 — numeric expressions | Done | JS/TS -> portable Wasm; Wasmtime + Node-Wasm differential tests including signed zero, NaN, infinities and rounding. [Spike 002](../spikes/002-numeric-wasm/README.md). |
+| L0 — numeric expressions | Done | JS/TS -> portable Wasm; Wasmtime + Node-Wasm differential tests including signed zero, NaN, infinities and rounding. [Compiler contract](compiler.md). |
 | L1 — local values and decisions | Done | Numeric `const` locals and comparison-controlled ternaries; the L1 run had 31 JS/TS pairs, 76,508 engine comparisons and 64 rejected inputs. Bindings become available after their initializer. |
 | L2 — mutable control flow | In progress | L2a/b: initialized numeric mutation, lexical blocks, statement `if`/`else` and early returns; 57 JS/TS pairs, 140,676 comparisons, 93 rejections. Scope visibility is separate from physical slots; return analysis rejects fallthrough. Next: numeric truthiness and bounded loops, including NaN/±0, per-iteration initialization and observed fuel exhaustion. |
 | L3 — functions and modules | Planned | Multiple functions, calls and one small module graph with explicit imports/exports. Test evaluation order, argument handling and module initialization. Reject unsupported cycles/features explicitly. |
@@ -35,8 +35,8 @@ be represented internally without changing the public two-number/result-number A
 
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
-| W0 — maintained implementation workspace | Next | Move demonstrated compiler/runtime functionality into the main Cargo workspace at development version `0.0.1`; retain the differential corpus as regression coverage. Continue PoC iteration in maintained crates. Reserve disposable spikes for unresolved design questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 3](../spikes/002-numeric-wasm/corpus.mjs): 57 paired programs, 93 rejection fixtures, five explicit unexecuted feature groups. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
+| C1 — executable compatibility matrix | Done | [Corpus version 3](../tests/compatibility/corpus.mjs): 57 paired programs, 93 rejection fixtures, five explicit unexecuted feature groups. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | Planned | Pin and license-check an appropriate Test262 subset; connect tests to supported semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Next after scalar control flow | One component and an explicit host resource/interface. Same artifact under absent/denied/granted profiles; observe authority changes, isolation and revocation behavior. Add resource/fuel/deadline observations as independent checks. No ambient WASI links by default. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -81,8 +81,9 @@ the same client behaves predictably under different capability profiles.
 - L2a: initialized mutation and assignment values pass 106,124 comparisons;
   the corpus detects a deliberately omitted write.
 - L2b: scoped statements and early returns pass 140,676 comparisons; a lost
-  early return is detected even when the resulting Wasm validates. Next: promote
-  the implementation into the main workspace, then numeric truthiness and loops.
+  early return is detected even when the resulting Wasm validates.
+- W0: compiler, numeric runtime and CLI are maintained workspace crates at 0.0.1.
+  Next: numeric truthiness and loops in the main implementation.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after

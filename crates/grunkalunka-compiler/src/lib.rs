@@ -1,4 +1,5 @@
-//! Narrow, disposable AST-to-WAT lowering. This is not the platform language contract.
+//! JS/TS parsing and numeric AST-to-Wasm lowering.
+//! The admitted numeric contract is documented in docs/compiler.md.
 use std::fmt::Write;
 
 use oxc_allocator::Allocator;

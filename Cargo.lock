@@ -485,8 +485,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "grunkalunka-numeric-spike"
-version = "0.0.0"
+name = "grunkalunka-cli"
+version = "0.0.1"
+dependencies = [
+ "grunkalunka-compiler",
+ "grunkalunka-runtime",
+]
+
+[[package]]
+name = "grunkalunka-compiler"
+version = "0.0.1"
 dependencies = [
  "oxc_allocator",
  "oxc_ast",
@@ -494,8 +502,14 @@ dependencies = [
  "oxc_semantic",
  "oxc_span",
  "oxc_syntax",
- "wasmtime",
  "wat",
+]
+
+[[package]]
+name = "grunkalunka-runtime"
+version = "0.0.1"
+dependencies = [
+ "wasmtime",
 ]
 
 [[package]]

@@ -46,7 +46,7 @@ The repository already has a dependency-free check entry point:
 ```sh
 # Once, to acquire the locked Rust dependencies:
 cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
-cargo fetch --locked --manifest-path spikes/002-numeric-wasm/Cargo.toml
+cargo fetch --locked
 # Verified from the repository root:
 node scripts/check.mjs
 # Package-script wiring (local npm launch currently fails):
@@ -90,7 +90,7 @@ Sources: [Node subprocess API](https://nodejs.org/api/child_process.html) and
 Do not batch all experiments into an infrastructure project. Each should end with
 replayable evidence, discarded alternatives, limits, and a next recommendation.
 
-The [numeric PoC](../spikes/002-numeric-wasm/README.md) now exercises the pure
+The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
 140,676 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 93 rejected
@@ -150,7 +150,7 @@ distribution scheme, or permanent capability API is settled by this roadmap.
 
 Dependency policy: keep our source MIT and avoid GPL/LGPL terms, checking
 transitives as well as direct dependencies. Where an explicit permissive alternative
-exists, record that choice. [Current metadata screening](../spikes/002-numeric-wasm/LICENSES.md)
+exists, record that choice. [Current metadata screening](dependencies.md)
 is reproducible but does not replace notices and bundled-material review before
 binary distribution.
 

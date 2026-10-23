@@ -2,64 +2,67 @@
 
 **Gimme damn damn WASM!**
 
-The intended product is a web application framework with familiar JS/TS authoring,
-portable deployment, and explicit capabilities.
+A web application framework with familiar JS/TS authoring, portable deployment,
+and explicit capabilities. Its foundation is a Wasm-first Rust component and
+application platform, using Wasmtime initially and WIT/Component Model interfaces
+at component boundaries. Browser, Node-compatible and desktop environments are
+applications on that platform.
 
-Its foundation is a Wasm-first, Rust-based, capability-oriented component and
-application platform. The compiler/runtime machinery should serve a straightforward
-build, run, debug, package and deployment experience.
+The maintained implementation is at development version **0.0.1**. The project is
+still in PoC development: useful pieces are implemented and tested directly in
+the main workspace, while unresolved design questions may use disposable spikes.
+The current compiler admits an explicit numeric subset; it does not yet implement
+full JavaScript/TypeScript, browser APIs or Node runtime compatibility.
 
-The direction is TypeScript-first compilation to WebAssembly with vanilla JavaScript
-compatibility, WIT/Component Model interfaces, and Wasmtime as the initial runtime.
-Browser, Node-compatible, and desktop environments are applications built on the
-platform. Their APIs should not become ambient authority in the platform core.
+## Build and run
 
-This repository starts with research and small disposable experiments. It now has
-a working numeric compiler fragment; the production architecture remains open.
-
-- [Research roadmap](docs/roadmap.md): questions, next experiments, and exit criteria.
-- [Active milestones](docs/milestones.md): lowering, compatibility and capability
-  demonstrations, with current status and observable completion criteria.
-- [Frontend semantics spike](spikes/001-frontend-semantics/README.md): executable
-  observations about Oxc's parsing, bindings, and diagnostics.
-- [Numeric Wasm PoC](spikes/002-numeric-wasm/README.md): paired JS/TS arithmetic
-  compiled into Wasm and compared with JavaScript under Wasmtime and Node-Wasm.
-
-## Run the working PoC
+Install current Rust stable and Node.js 20 or newer. Acquire the locked dependencies
+once, then build and verify offline:
 
 ```sh
-# Initial dependency acquisition:
+cargo fetch --locked
 cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
-cargo fetch --locked --manifest-path spikes/002-numeric-wasm/Cargo.toml
+cargo build --workspace --locked --offline
+node scripts/check.mjs
+```
+
+The complete check includes formatting, Clippy, workspace tests, dependency
+screening, the historical frontend observations and the differential regression
+corpus. To replay only the compiler/runtime demonstration:
+
+```sh
 node scripts/poc.mjs
 ```
 
-The demo compiles `(a * 2 + b) / 3` from TS/JS and executes the emitted Wasm.
-For `(4, 1)` it returns `3`. The replay checks edge-case numeric results in two
-Wasm engines and verifies rejection of unsupported syntax. See the PoC for its
-explicit numeric ABI, limits, emitted files and license-screening details.
+It compiles JS and TS to real portable Wasm, runs that Wasm in Wasmtime and Node,
+and compares results against original JavaScript. The affine example computes
+`(a * 2 + b) / 3`; `run(4, 1)` returns `3`.
 
-## Run the first experiment
-
-Use a current Rust stable toolchain and Node.js 20 or newer. The first Cargo run
-downloads the pinned dependencies; subsequent runs can use `--offline`.
-
-```sh
-cd spikes/001-frontend-semantics
-cargo run --locked
-node oracle.mjs
+```text
+target/debug/grunkalunka compile SOURCE.ts NEW-OUTPUT.wasm
+target/debug/grunkalunka wat SOURCE.ts
+target/debug/grunkalunka eval OUTPUT.wasm < input-bits.txt
 ```
 
-The first Rust probe inspects source; Node supplies its JavaScript behavior baseline.
-That first spike generates no Wasm; the numeric PoC above adds compilation.
-Read each spike's playback for the precise claims.
+Add `.exe` on Windows. See the compiler contract for the binary64 input protocol,
+admitted language, limits and diagnostics. Compilation refuses existing output
+files. The numeric runtime executes locally generated modules without ambient
+imports; it is not a hardened arbitrary-module service.
 
-From the repository root, `node scripts/check.mjs` runs formatting, linting, the Rust
-probes, JS oracles, dependency-license screening and the numeric PoC.
-`npm run check` provides package-script wiring, but its
-local execution fails before entering the script (`node` is not found in its child
-shell; root cause unconfirmed). The dependency-free runner is also intended for Bun via
-`bun run --bun check`; Bun execution has not yet been verified here. See the roadmap
-for the build-support direction and the one-time dependency fetch command.
+## Workspace
 
-MIT licensed. Third-party dependencies retain their own licenses.
+- `crates/grunkalunka-compiler`: source text to portable numeric Wasm; independent of Wasmtime.
+- `crates/grunkalunka-runtime`: numeric module instantiation and execution.
+- `crates/grunkalunka-cli`: file and standard-input handling, compile/inspect/evaluate commands.
+- `tests/compatibility`: maintained JS/TS differential fixtures and evidence reports.
+
+[Compiler contract](docs/compiler.md) | [Milestones](docs/milestones.md) ·
+[Research roadmap](docs/roadmap.md) | [Dependencies](docs/dependencies.md)
+
+Package scripts provide `build`, `poc` and `check` entry points. Direct Node execution
+is verified on this workstation; its npm launcher currently fails before entering
+the runner because a child shell cannot find Node. Bun and other host platforms
+remain unverified. The [frontend research](spikes/001-frontend-semantics/README.md)
+is retained separately from the maintained workspace.
+
+MIT licensed. Third-party material retains its applicable licenses and notices.

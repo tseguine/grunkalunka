@@ -3,16 +3,21 @@
 Grunkalunka's own source stays MIT. Avoid GPL/LGPL dependencies;
 an explicit permissive alternative may be chosen for a dual-licensed dependency.
 
-Run `node scripts/licenses.mjs` from the repository root. It reads both locked,
-offline Cargo metadata graphs, checks exact reviewed license expressions, and
-writes per-package name/version/source/declared/selected inventories to each
-spike's ignored `target/license-inventory.json`. It includes all packages returned
+Run `node scripts/licenses.mjs` from the repository root. It reads the locked,
+offline Cargo metadata graphs for the workspace and retained frontend research,
+checks exact reviewed license expressions, and
+writes per-package name/version/source/declared/selected inventories to root
+`target/license-inventory.json` and the frontend spike's own ignored target
+directory. It includes all packages returned
 by unfiltered Cargo metadata (including other-target/build packages), rather than
 only crates compiled on the current Windows host. Missing/unreviewed expressions
 fail the check. The selected expression must contain no GPL/LGPL license.
 
-Observed 2026-10-23: 83 packages for spike 001; 175 for spike 002; 176 distinct package
-versions across both. Our two experimental packages are included in those counts.
+Observed 2026-10-23: 177 workspace packages and 83 frontend-research packages;
+178 distinct package versions across both graphs, including the three maintained
+workspace crates at 0.0.1 and the historical frontend package. The migration retained
+all 174 external numeric-implementation package versions, sources, checksums and
+resolved feature sets.
 
 Direct packages: Oxc 0.155.0 crates declare MIT; Wasmtime 50.0.0 declares
 `Apache-2.0 WITH LLVM-exception`; wat 1.262.0 declares
@@ -38,7 +43,7 @@ fnv, rustc-demangle and version_check have bundled MIT and Apache license files;
 the MIT alternative is selected. Dragonbox includes its Apache/LLVM and Boost
 license files. No third-party source was copied into this repository by the PoC.
 
-This is dependency-metadata screening for a local experiment, not a complete legal
+This is dependency-metadata screening for the current development build, not a complete legal
 or redistribution audit. The downloaded crates retain their license/notice files.
 Before distributing the compiler/Wasmtime host binary, collect the required notices
 and review bundled/native material and applicable terms; metadata alone cannot

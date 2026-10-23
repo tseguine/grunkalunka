@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const directory = fileURLToPath(new URL('./', import.meta.url));
-const binary = join(directory, 'target', 'debug', `grunkalunka-numeric-spike${process.platform === 'win32' ? '.exe' : ''}`);
-const outputRoot = join(directory, 'target', 'poc-runs');
+const root = fileURLToPath(new URL('../../', import.meta.url));
+const binary = join(root, 'target', 'debug', `grunkalunka${process.platform === 'win32' ? '.exe' : ''}`);
+const outputRoot = join(root, 'target', 'compatibility-runs');
 await mkdir(outputRoot, { recursive: true });
 const output = await mkdtemp(join(outputRoot, 'run-'));
 let activeFixture = 'inventory';
@@ -88,7 +89,7 @@ for (const { id, milestone, reason } of unimplemented) {
 }
 assert.ok(Number.isSafeInteger(corpusVersion) && corpusVersion > 0);
 const sha256 = data => createHash('sha256').update(data).digest('hex');
-const lockfile = await readFile(new URL('Cargo.lock', import.meta.url));
+const lockfile = await readFile(join(root, 'Cargo.lock'));
 const lockedWasmtime = lockfile.toString('utf8').match(/name = "wasmtime"\r?\nversion = "([^"]+)"/);
 assert.ok(lockedWasmtime, 'locked Wasmtime version missing');
 const runtime = {

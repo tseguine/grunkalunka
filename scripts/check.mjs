@@ -11,11 +11,14 @@ function run(command, args) {
   }
 }
 
-for (const spike of ['001-frontend-semantics', '002-numeric-wasm']) {
+for (const spike of ['001-frontend-semantics']) {
   const manifest = `spikes/${spike}/Cargo.toml`;
   run('cargo', ['fmt', '--manifest-path', manifest, '--check']);
   run('cargo', ['clippy', '--locked', '--offline', '--manifest-path', manifest, '-j', '4', '--', '-D', 'warnings']);
 }
+run('cargo', ['fmt', '--all', '--check']);
+run('cargo', ['clippy', '--workspace', '--all-targets', '--locked', '--offline', '-j', '4', '--', '-D', 'warnings']);
+run('cargo', ['test', '--workspace', '--locked', '--offline', '-j', '4']);
 run('cargo', ['run', '--locked', '--offline', '--manifest-path', 'spikes/001-frontend-semantics/Cargo.toml']);
 run(process.execPath, ['spikes/001-frontend-semantics/oracle.mjs']);
 run(process.execPath, ['scripts/poc.mjs']);

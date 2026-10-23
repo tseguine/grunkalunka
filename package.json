@@ -1,10 +1,12 @@
 {
-  "name": "grunkalunka-research",
+  "name": "grunkalunka",
   "private": true,
   "type": "module",
   "scripts": {
     "check": "node scripts/check.mjs",
     "poc": "node scripts/poc.mjs",
-    "build:spike": "cargo build --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml"
-  }
+    "build:spike": "cargo build --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml",
+    "build": "cargo build --workspace --locked --offline"
+  },
+  "version": "0.0.1"
 }

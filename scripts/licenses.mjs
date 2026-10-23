@@ -1,4 +1,4 @@
-// Metadata screening for the locked research graphs, not a redistribution audit.
+// Metadata screening for locked workspace/research graphs, not a redistribution audit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -20,8 +20,7 @@ const choices = new Map([
   ['Unlicense OR MIT', 'MIT'], ['Unicode-3.0', 'Unicode-3.0'], ['Zlib', 'Zlib'],
 ]);
 const all = new Map();
-for (const spike of ['001-frontend-semantics', '002-numeric-wasm']) {
-  const manifest = `spikes/${spike}/Cargo.toml`;
+for (const [label, manifest] of [['workspace', 'Cargo.toml'], ['frontend-research', 'spikes/001-frontend-semantics/Cargo.toml']]) {
   const result = spawnSync('cargo', ['metadata', '--manifest-path', manifest, '--locked', '--offline', '--format-version', '1'],
     { cwd: root, encoding: 'utf8', shell: false, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 });
   if (result.error) throw result.error;
@@ -38,6 +37,6 @@ for (const spike of ['001-frontend-semantics', '002-numeric-wasm']) {
   const destination = join(root, dirname(manifest), 'target', 'license-inventory.json');
   await mkdir(dirname(destination), { recursive: true });
   await writeFile(destination, JSON.stringify({ manifest, packages }, null, 2) + '\n');
-  console.log(`PASS licenses ${spike}: ${packages.length} packages; no selected GPL/LGPL license`);
+  console.log(`PASS licenses ${label}: ${packages.length} packages; no selected GPL/LGPL license`);
 }
 console.log(`PASS ${all.size} distinct package versions screened (all target/build packages returned by Cargo metadata)`);

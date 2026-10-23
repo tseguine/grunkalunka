@@ -1,5 +1,6 @@
-//! Disposable compiler/Wasmtime harness for locally generated numeric artifacts.
-mod compiler;
+//! Build and execute the maintained numeric compiler contract.
+use grunkalunka_compiler as compiler;
+use grunkalunka_runtime::NumericInstance;
 
 use std::{
     env,
@@ -8,7 +9,6 @@ use std::{
     io::{self, BufRead, Write},
     path::Path,
 };
-use wasmtime::{Config, Engine, Instance, Module, Store};
 
 fn compile_file(path: &str) -> Result<compiler::Artifact, Box<dyn Error>> {
     let typescript = match Path::new(path)
@@ -24,17 +24,7 @@ fn compile_file(path: &str) -> Result<compiler::Artifact, Box<dyn Error>> {
 }
 
 fn evaluate(path: &str) -> Result<(), Box<dyn Error>> {
-    let mut config = Config::new();
-    config.consume_fuel(true);
-    let engine = Engine::new(&config)?;
-    let module = Module::from_binary(&engine, &fs::read(path)?)?;
-    if module.imports().len() != 0 {
-        return Err("this experiment admits no module imports".into());
-    }
-    let mut store = Store::new(&engine, ());
-    store.set_fuel(10_000)?;
-    let instance = Instance::new(&mut store, &module, &[])?;
-    let run = instance.get_typed_func::<(f64, f64), f64>(&mut store, "run")?;
+    let mut instance = NumericInstance::new(&fs::read(path)?)?;
     for (index, line) in io::stdin().lock().lines().enumerate() {
         if index >= 4096 {
             return Err("at most 4096 input pairs are admitted".into());
@@ -46,8 +36,7 @@ fn evaluate(path: &str) -> Result<(), Box<dyn Error>> {
         }
         let a = f64::from_bits(u64::from_str_radix(inputs[0], 16)?);
         let b = f64::from_bits(u64::from_str_radix(inputs[1], 16)?);
-        store.set_fuel(10_000)?;
-        let value = run.call(&mut store, (a, b))?;
+        let value = instance.run(a, b)?;
         println!("{:016x}", value.to_bits());
     }
     Ok(())
@@ -65,7 +54,7 @@ fn execute() -> Result<(), Box<dyn Error>> {
         }
         [command, source] if command == "wat" => print!("{}", compile_file(source)?.wat),
         [command, path] if command == "eval" => evaluate(path)?,
-        _ => return Err("usage: grunkalunka-numeric-spike compile SOURCE.{js,ts} OUT.wasm | wat SOURCE | eval OUT.wasm < input-bits.txt".into()),
+        _ => return Err("usage: grunkalunka compile SOURCE.{js,ts} OUT.wasm | wat SOURCE | eval OUT.wasm < input-bits.txt".into()),
     }
     Ok(())
 }
