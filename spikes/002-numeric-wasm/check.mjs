@@ -1,6 +1,8 @@
 // Differential experiment: original JS vs emitted Wasm in Wasmtime and Node.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { corpusVersion, programs, rejected, unimplemented } from './corpus.mjs';
 import { mkdir, mkdtemp, readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +12,10 @@ const binary = join(directory, 'target', 'debug', `grunkalunka-numeric-spike${pr
 const outputRoot = join(directory, 'target', 'poc-runs');
 await mkdir(outputRoot, { recursive: true });
 const output = await mkdtemp(join(outputRoot, 'run-'));
+let activeFixture = 'inventory';
+process.on('uncaughtExceptionMonitor', () => {
+  console.error(`FAIL ${activeFixture}; partial artifacts: ${output}`);
+});
 const seed = 0x4752554en;
 const started = performance.now();
 
@@ -55,39 +61,46 @@ function randomBits() {
 }
 for (let i = 0; i < 256; i++) vectors.push([randomBits(), randomBits()]);
 const input = vectors.map(([a, b]) => `${bits(a)} ${bits(b)}`).join('\n') + '\n';
-const expressions = [
-  ['affine', '(a * 2 + b) / 3'], ['add', 'a + b'], ['subtract', 'a - b'],
-  ['multiply', 'a * b'], ['divide', 'a / b'], ['negate', '-a'], ['unary-plus', '+a'],
-  ['negative-zero', '-0'], ['subnormal-literal', '5e-324 + a'],
-  ['overflow-literal', '1e999 + a'], ['rounded-literal', '9007199254740993 - a'],
-  ['group-left', '(a + b) + 1'], ['group-right', 'a + (b + 1)'],
-  ['separate-rounding', '(a * 1.0000000000000002) - a'],
-  ['literal-bases', '0x10 + 0b10 + 0o7 + 1_000 + a - b'],
-  ['nested-unary', '-(+(-(a / -(b + 1))))'],
-  ['less-than', 'a < b ? a : b'], ['less-equal', 'a <= b ? a : b'],
-  ['greater-than', 'a > b ? a : b'], ['greater-equal', 'a >= b ? a : b'],
-  ['strict-equal', 'a === b ? -0 : 0'], ['strict-not-equal', 'a !== b ? -0 : 0'],
-  ['nan-comparison', 'a === a ? b : -0'], ['signed-zero-branch', 'a < 0 ? -0 : 0'],
-  ['nested-conditional', 'a < b ? (a === 0 ? -0 : a) : (a === a ? b : -0)'],
-  ['conditional-operands', '(a < b ? a : b) >= 0 ? a + b : a - b'],
-];
-const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
-programs.push(
-  ['chained-locals', 'const x = a * 2; const y = x + b; return y / 3;',
-    'const x: number = a * 2; const y: number = x + b; return y / 3;'],
-  ['local-decision', 'const delta = a - b; const magnitude = delta >= 0 ? delta : -delta; return magnitude;',
-    'const delta: number = a - b; const magnitude: number = delta >= 0 ? delta : -delta; return magnitude;'],
-  ['unicode-locals', 'const λ = a - b; const π = λ / 2; return π;',
-    'const λ: number = a - b; const π: number = λ / 2; return π;'],
-  ['local-shadows-function', 'const run = a + b; return run;',
-    'const run: number = a + b; return run;'],
-  ['local-signed-zero', 'const x = a === b ? -0 : 0; return -x;',
-    'const x: number = a === b ? -0 : 0; return -x;'],
-);
 
+// Validate the whole selected inventory before executing any fixtures.
+const ids = new Set();
+function register(id, expectation) {
+  assert.match(id, /^[a-z][a-z0-9-]*$/);
+  const key = `${expectation}:${id}`;
+  assert.ok(!ids.has(key), `duplicate fixture ID: ${key}`);
+  ids.add(key);
+  return key;
+}
+for (const [id, js, ts] of programs) {
+  register(id, 'admitted');
+  assert.equal(typeof js, 'string');
+  assert.equal(typeof ts, 'string');
+}
+for (const [id, source, extension = 'js'] of rejected) {
+  register(id, 'rejected');
+  assert.equal(typeof source, 'string');
+  assert.ok(['js', 'ts'].includes(extension));
+}
+for (const { id, milestone, reason } of unimplemented) {
+  register(id, 'unimplemented');
+  assert.match(milestone, /^[A-Z][0-9]+$/);
+  assert.ok(typeof reason === 'string' && reason.length > 0);
+}
+assert.ok(Number.isSafeInteger(corpusVersion) && corpusVersion > 0);
+const sha256 = data => createHash('sha256').update(data).digest('hex');
+const lockfile = await readFile(new URL('Cargo.lock', import.meta.url));
+const lockedWasmtime = lockfile.toString('utf8').match(/name = "wasmtime"\r?\nversion = "([^"]+)"/);
+assert.ok(lockedWasmtime, 'locked Wasmtime version missing');
+const runtime = {
+  name: process.versions.bun ? 'bun' : 'node',
+  version: process.versions.bun ?? process.versions.node,
+  versions: process.versions, platform: process.platform, arch: process.arch,
+};
 const observations = [];
+const fixtures = [];
 let comparisons = 0;
 for (const [name, bodyJS, bodyTS] of programs) {
+  activeFixture = `admitted:${name}`;
   const sourceJS = name === 'affine'
     ? await readFile(new URL('fixtures/affine.js', import.meta.url), 'utf8')
     : `export function run(a, b) { ${bodyJS} }\n`;
@@ -96,6 +109,7 @@ for (const [name, bodyJS, bodyTS] of programs) {
     : `export function run(a: number, b: number): number { ${bodyTS} }\n`;
   const reference = await import(`data:text/javascript;base64,${Buffer.from(sourceJS).toString('base64')}`);
   const modules = [];
+  const variants = [];
   for (const [extension, source] of [['js', sourceJS], ['ts', sourceTS]]) {
     const sourcePath = join(output, `${name}.${extension}`);
     const wasmPath = join(output, `${name}-${extension}.wasm`);
@@ -115,102 +129,71 @@ for (const [name, bodyJS, bodyTS] of programs) {
       const expected = reference.run(a, b);
       const details = `${name}.${extension} seed=${seed.toString(16)} vector=${i} a=${bits(a)} b=${bits(b)}`;
       same(expected, number(wasmtime[i]), `${details} Wasmtime`);
-      same(expected, native(a, b), `${details} Node-Wasm`);
+      same(expected, native(a, b), `${details} ${runtime.name}-Wasm`);
       comparisons += 2;
     }
+    variants.push({
+      extension, source: `${name}.${extension}`, sourceSha256: sha256(source),
+      wasm: `${name}-${extension}.wasm`, wasmSha256: sha256(wasm),
+      wat: `${name}-${extension}.wat`, wasmBytes: wasm.length, vectors: vectors.length,
+      engines: ['wasmtime', `${runtime.name}-wasm`], comparisons: vectors.length * 2,
+      outcome: 'passed',
+    });
     observations.push({ fixture: `${name}.${extension}`, wasmBytes: wasm.length, vectors: vectors.length });
     modules.push(wasm);
   }
   assert.deepEqual(modules[0], modules[1], `${name}: annotation-only variants emitted different bytes`);
-  console.log(`PASS ${name}: JS + TS, ${vectors.length} vectors, Wasmtime + Node-Wasm`);
+  fixtures.push({ id: `admitted:${name}`, expectation: 'admitted', executed: true, outcome: 'passed', variants });
+  console.log(`PASS ${name}: JS + TS, ${vectors.length} vectors, Wasmtime + ${runtime.name}-Wasm`);
 }
 
 // Every negative gets its own nonexistent artifact path. Never execute these in Node.
-const rejected = [
-  ['malformed', 'export function ('],
-  ['duplicate-parameter', 'export function run(a, a) { return a; }'],
-  ['extra-top-level', 'sideEffect(); export function run(a,b) { return a+b; }'],
-  ['extra-export', 'export function run(a,b) { return a; } export const x = 2;'],
-  ['default-export', 'export default function run(a,b) { return a; }'],
-  ['named-export', 'function run(a,b) { return a; } export {run};'],
-  ['wrong-name', 'export function other(a,b) { return a; }'],
-  ['async', 'export async function run(a,b) { return a; }'],
-  ['generator', 'export function* run(a,b) { return a; }'],
-  ['default-param', 'export function run(a=sideEffect(),b) { return a; }'],
-  ['rest-param', 'export function run(a,...b) { return a; }'],
-  ['destructure', 'export function run({a},b) { return a; }'],
-  ['arity', 'export function run(a) { return a; }'],
-  ['global', 'export function run(a,b) { return clock; }'],
-  ['function-reference', 'export function run(a,b) { return run; }'],
-  ['arguments', 'export function run(a,b) { return arguments[0]; }'],
-  ['call', 'export function run(a,b) { return Math.abs(a); }'],
-  ['string', 'export function run(a,b) { return a + "1"; }'],
-  ['bigint', 'export function run(a,b) { return 1n; }'],
-  ['boolean', 'export function run(a,b) { return true; }'],
-  ['null', 'export function run(a,b) { return null; }'],
-  ['remainder', 'export function run(a,b) { return a % b; }'],
-  ['power', 'export function run(a,b) { return a ** b; }'],
-  ['bitwise', 'export function run(a,b) { return a | b; }'],
-  ['logical', 'export function run(a,b) { return a || b; }'],
-  ['comparison', 'export function run(a,b) { return a < b; }'],
-  ['conditional', 'export function run(a,b) { return a ? a : b; }'],
-  ['sequence', 'export function run(a,b) { return (a,b); }'],
-  ['assignment', 'export function run(a,b) { return a=b; }'],
-  ['update', 'export function run(a,b) { return a++; }'],
-  ['object', 'export function run(a,b) { return {}; }'],
-  ['array', 'export function run(a,b) { return []; }'],
-  ['this', 'export function run(a,b) { return this; }'],
-  ['unary-not', 'export function run(a,b) { return !a; }'],
-  ['extra-body', 'export function run(a,b) { a++; return a; }'],
-  ['empty-return', 'export function run(a,b) { return; }'],
-  ['body-directive', 'export function run(a,b) { "use strict"; return a; }'],
-  ['module-directive', '"use strict"; export function run(a,b) { return a; }'],
-  ['hashbang', '#!/usr/bin/env node\nexport function run(a,b) { return a; }'],
-  ['type-param', 'export function run<T>(a:number,b:number):number { return a; }', 'ts'],
-  ['this-param', 'export function run(this:void,a:number,b:number):number { return a; }', 'ts'],
-  ['optional-param', 'export function run(a?:number,b?:number):number { return a; }', 'ts'],
-  ['string-annotation', 'export function run(a:string,b:number):number { return a; }', 'ts'],
-  ['return-annotation', 'export function run(a:number,b:number):string { return a; }', 'ts'],
-  ['type-assertion', 'export function run(a:number,b:number):number { return a as number; }', 'ts'],
-  ['declare', 'export declare function run(a:number,b:number):number;', 'ts'],
-  ['over-limit', 'export function run(a,b) { return a; }' + ' '.repeat(16384)],
-  ['depth-limit', `export function run(a,b) { return ${'('.repeat(140)}a${')'.repeat(140)}; }`],
-  ['self-reference', 'export function run(a,b) { const x=x; return x; }'],
-  ['forward-reference', 'export function run(a,b) { const x=y; const y=a; return x; }'],
-  ['dead-branch-forward', 'export function run(a,b) { const x=a===a?a:y; const y=b; return x; }'],
-  ['let-local', 'export function run(a,b) { let x=a; return x; }'],
-  ['multiple-declarators', 'export function run(a,b) { const x=a,y=b; return x+y; }'],
-  ['local-destructure', 'export function run(a,b) { const {x}=a; return x; }'],
-  ['local-reassignment', 'export function run(a,b) { const x=a; x=b; return x; }'],
-  ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }'],
-  ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
-  ['loose-equality', 'export function run(a,b) { return a==b?a:b; }'],
-  ['logical-predicate', 'export function run(a,b) { return (a<b && a>0)?a:b; }'],
-  ['boolean-predicate', 'export function run(a,b) { return true?a:b; }'],
-  ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
-  ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],
-  ['local-type', 'export function run(a:number,b:number):number { const x:string=a; return x; }', 'ts'],
-  ['local-limit', `export function run(a,b) { ${Array.from({length:129},(_,i)=>`const x${i}=a;`).join(' ')} return a; }`],
-];
 for (const [name, source, extension = 'js'] of rejected) {
+  activeFixture = `rejected:${name}`;
   const sourcePath = join(output, `reject-${name}.${extension}`);
   const wasmPath = join(output, `reject-${name}.wasm`);
   await writeFile(sourcePath, source, { flag: 'wx' });
-  invoke(['compile', sourcePath, wasmPath], '', false);
+  const result = invoke(['compile', sourcePath, wasmPath], '', false);
   await assert.rejects(access(wasmPath), { code: 'ENOENT' });
+  fixtures.push({
+    id: `rejected:${name}`, expectation: 'rejected', executed: true, outcome: 'passed',
+    extension, source: `reject-${name}.${extension}`, sourceSha256: sha256(source),
+    diagnostic: result.stderr.trim(), exitStatus: result.status, artifactAbsent: true,
+  });
 }
 
 // Existing output is preserved even for an otherwise valid compilation.
+activeFixture = 'overwrite-sentinel';
 const sentinel = join(output, 'sentinel.wasm');
 await writeFile(sentinel, 'preserve me', { flag: 'wx' });
 invoke(['compile', join(output, 'affine.js'), sentinel], '', false);
 assert.equal(await readFile(sentinel, 'utf8'), 'preserve me');
 
+activeFixture = 'affine-demo';
 const affine = new WebAssembly.Instance(new WebAssembly.Module(await readFile(join(output, 'affine-ts.wasm'))));
 assert.equal(affine.exports.run(4, 1), 3);
 assert.equal(number(invoke(['eval', join(output, 'affine-ts.wasm')], `${bits(4)} ${bits(1)}\n`).stdout.trim()), 3);
+activeFixture = 'report-inventory';
+for (const gap of unimplemented) {
+  fixtures.push({
+    ...gap, id: `unimplemented:${gap.id}`, expectation: 'unimplemented', executed: false,
+    outcome: 'not-executed', milestone: `docs/milestones.md`,
+    milestoneId: gap.milestone,
+  });
+}
+assert.equal(fixtures.length, ids.size, 'missing/extra fixture results');
+assert.deepEqual(new Set(fixtures.map(fixture => fixture.id)), ids);
+assert.equal(fixtures.filter(fixture => fixture.expectation === 'admitted').length, programs.length);
+assert.ok(fixtures.filter(fixture => fixture.expectation === 'admitted').every(fixture =>
+  fixture.variants.length === 2 && new Set(fixture.variants.map(variant => variant.extension)).size === 2));
+assert.equal(observations.length, programs.length * 2);
+assert.equal(comparisons, programs.length * 2 * vectors.length * 2);
 const report = {
-  seed: seed.toString(16), node: process.version, vectorsPerModule: vectors.length,
+  schemaVersion: 1, corpusVersion, runtime,
+  compiler: { binarySha256: sha256(await readFile(binary)), lockfileSha256: sha256(lockfile), lockedWasmtimeVersion: lockedWasmtime[1] },
+  fixtures,
+  counts: { admitted: programs.length, rejected: rejected.length, unimplemented: unimplemented.length },
+  seed: seed.toString(16), vectorsPerModule: vectors.length,
   modules: observations, comparisons, rejected: rejected.length, overwritePreserved: true,
   demo: { input: [4, 1], output: 3 },
 };

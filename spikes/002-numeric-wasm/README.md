@@ -27,6 +27,30 @@ emitted `.wat` and `.wasm`, rejection fixture, and `report.json`. Keep the print
 directory for inspection. Build outputs and replay directories are ignored and
 retained as useful evidence; no servers, ports or background services are used.
 
+### Compatibility corpus and report
+
+[corpus.mjs](corpus.mjs) versions the selected programs, expected rejections and
+unimplemented surfaces independently of the replay harness. Corpus version 1
+contains 31 paired programs, 64 rejection fixtures and five unexecuted feature
+groups linked to milestone IDs. These are selected evidence and gaps, not an
+inventory of the entire language or a compatibility percentage.
+
+The JSON report separates each fixture's expected admission from its observed
+test outcome. A passing rejection test means a diagnostic was produced and no
+artifact was created; it does not count as supported execution. Unimplemented
+entries carry `executed: false` and `outcome: "not-executed"`. Every executable
+entry must produce its expected variants before a completed report is written.
+A failed run exits nonzero with the fixture path or ID and diagnostics; partial
+artifacts remain in the run directory, without a completed success report.
+
+Report schema 1 records the corpus version, actual reference runtime/engine
+versions, host OS/architecture, locked Wasmtime version, lockfile and compiler
+binary SHA-256 hashes, seed, counts, per-fixture diagnostics and source/artifact
+paths. Paths are relative to the run directory, except milestone links, which
+are relative to the repository root. Source and Wasm hashes identify the exact
+bytes used, including file-backed fixtures. Locked dependency versions describe
+build inputs; they are not runtime introspection of an arbitrary binary.
+
 ## Concrete demo
 
 The retained `fixtures/affine.ts` is:

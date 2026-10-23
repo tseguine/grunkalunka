@@ -35,7 +35,7 @@ be represented internally without changing the public two-number/result-number A
 
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
-| C1 — executable compatibility matrix | Next | A versioned fixture manifest records admitted, rejected and unimplemented surfaces with reference runtime versions. Every admitted fixture compares original JS to emitted Wasm in both engines; every rejection verifies a diagnostic and no artifact. Preserve deterministic seed, counts and concrete gaps. |
+| C1 — executable compatibility matrix | Done | [Corpus version 1](../spikes/002-numeric-wasm/corpus.mjs): 31 paired programs, 64 rejection fixtures, five explicit unexecuted feature groups. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | Planned | Pin and license-check an appropriate Test262 subset; connect tests to supported semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Next after scalar control flow | One component and an explicit host resource/interface. Same artifact under absent/denied/granted profiles; observe authority changes, isolation and revocation behavior. Add resource/fuel/deadline observations as independent checks. No ambient WASI links by default. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -75,7 +75,9 @@ the same client behaves predictably under different capability profiles.
   browser/framework direction. Its full checks passed before integration into
   `master`. L0 has 39,488 numeric comparisons and 48 expected rejections.
 - L1: const locals and conditional expressions pass 76,508 comparisons; no new
-  runtime dependency required. Next: C1's explicit manifest, then L2 control flow.
+  runtime dependency required.
+- C1: the same corpus now produces a versioned per-fixture evidence inventory.
+  Next: L2 control flow in independently demonstrated slices.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after
