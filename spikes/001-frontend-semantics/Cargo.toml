@@ -1,0 +1,13 @@
+[package]
+name = "grunkalunka-frontend-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+
+[dependencies]
+oxc_allocator = "=0.155.0"
+oxc_parser = "=0.155.0"
+oxc_semantic = "=0.155.0"
+oxc_span = "=0.155.0"

@@ -1,0 +1,9 @@
+{
+  "name": "grunkalunka-research",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "build:spike": "cargo build --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml"
+  }
+}
