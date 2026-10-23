@@ -273,3 +273,11 @@ An initial hashbang recognized by Oxc is discarded without any IR, values, sourc
 cells, statement charge or nesting level. Its original UTF-8 bytes remain in the
 source-size budget. Parsing uses unchanged source, so prefixed or misplaced
 hashbangs keep their syntax errors; the numeric entry contract is unchanged.
+
+Discarded expression statements, non-final comma operands and expression-form for
+initializers/updates may evaluate Numbers or Booleans. The lowerer inspects retained
+result-producing syntax before emitting and preserves original node depths. Boolean
+shapes use existing predicate operations; Number-only trees use unchanged numeric
+lowering. Mixed logical/conditional results may normalize to predicates because the
+value is discarded and Number/Boolean truthiness has no user hooks. Source cells,
+arguments and returns remain Number-only; no IR or emitter operation is added.

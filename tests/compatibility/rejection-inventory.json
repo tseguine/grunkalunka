@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Boolean storage, results, coercions or discarded predicates exceed current numeric admission.",
+      "assessment": "Boolean storage, numeric arguments/results and coercive operations exceed current Number-only value admission; discarded Number/Boolean evaluation is admitted.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -1949,13 +1949,6 @@
       "group": "coercive-equality"
     },
     {
-      "id": "equality-expression-statement",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9a413cccaee1dc4f9c73d8579f0295e5ac6c0dc0bf3e21ef85ae633142d2dfb8",
-      "group": "boolean-values"
-    },
-    {
       "id": "equality-predicate-depth-limit",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1968,27 +1961,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "e690397cb12cb96b92a78aae374b43fab9331dbbd93ae924b663ea4ac93c7bbe",
       "group": "expression-depth"
-    },
-    {
-      "id": "statement-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "db79c8e5dd97798f5a9405cd09a1eb1840e175d91583bfcecff8b054fd03dbae",
-      "group": "boolean-values"
-    },
-    {
-      "id": "statement-comparison",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6e183dfc094450f74558bb6df857014d947acae6ab9079a02650188871cf7656",
-      "group": "boolean-values"
-    },
-    {
-      "id": "statement-negation",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ee0f3eb7ea217c0c1457098844623b80ff52cb67645832e4f96700ce8e4e7c28",
-      "group": "boolean-values"
     },
     {
       "id": "statement-string",
@@ -2010,13 +1982,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "fcaa4b10e4f4dd5d1d8ade1da7c8cade44d0e30893c26cf181f9ef955e74ff17",
       "group": "binding-errors"
-    },
-    {
-      "id": "statement-comma-predicate",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "1dedb3e74899c95352521a9736b57dfa1995314eb7eae575e0e2f83f3c367f25",
-      "group": "boolean-values"
     },
     {
       "id": "statement-unselected-conditional-call",
@@ -2066,20 +2031,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "4f364a05e9c335405cc81fe2721bb92ebc5cf0d443f59adcf89df2aec7d68c26",
       "group": "statement-count"
-    },
-    {
-      "id": "statement-asserted-boolean",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c254902c30acc3b1955ee8fe0be86287c00a1ec84758589510c67ed5d85381c5",
-      "group": "boolean-values"
-    },
-    {
-      "id": "statement-asserted-negation",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b6c6ac080c46a9549ede680cddcb9ecc39ab280cb2b17007bd2ce4b95171ca49",
-      "group": "boolean-values"
     },
     {
       "id": "statement-asserted-string",
@@ -4560,13 +4511,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "predicate-conditional-nonfinal-comma",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7be4e641cc20c1ef9cc10ec8e58395a4451c5ffe21add34f986ba65d5d8816ca",
-      "group": "boolean-values"
-    },
-    {
       "id": "predicate-conditional-equality-operand",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -4585,13 +4529,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "a76683e2472b7ba44bce8292a1061a6a8a1bccefef39072661fe3b7fb696546e",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-comma-nonfinal",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "50792141834a5857f7131e55f7ec4aa642d2e4f5be0857b03129caec5f8d3804",
       "group": "boolean-values"
     },
     {
@@ -4672,13 +4609,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "predicate-logical-comma-nonfinal",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b34adccb684501f5388c6f0a63f0ba44d16a292f51e287b0484edb7d185685d9",
-      "group": "boolean-values"
-    },
-    {
       "id": "predicate-logical-depth",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -4691,13 +4621,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "2516615f116e201c581665e2e9e48d0409cbe91889d9f82979221a907cd6c764",
       "group": "nullish-values"
-    },
-    {
-      "id": "predicate-logical-statement",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "558ef32470c6698fa7ea247b884a689d9efca4702cf6c2bca74c565dc01526b5",
-      "group": "boolean-values"
     },
     {
       "id": "boolean-literal-depth",
@@ -4798,13 +4721,6 @@
       "group": "const-errors"
     },
     {
-      "id": "comma-nonfinal-predicate",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "94ca296198789fea9709218eeb10c6fb96c7eb52be2349778023be779942ee41",
-      "group": "boolean-values"
-    },
-    {
       "id": "comparison",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -4859,13 +4775,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "dec38920db8dd61c6a77f4698b20de8ebc9524852e41bff68075866d9c25998f",
       "group": "object-values"
-    },
-    {
-      "id": "comma-unsupported-7",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2b1d7d8b00083e30a22feeeddd1dd7a74573f3228c1e40c4a8daa647a0ad64ba",
-      "group": "boolean-values"
     },
     {
       "id": "comma-unsupported-8",
@@ -6349,6 +6258,216 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "45a0edd351fc047b852f91121ff15ed46008427f0b1095fe01645b7ff43e899c",
+      "group": "expression-depth"
+    },
+    {
+      "id": "discarded-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3c4da174eb7511c8b413c8df118039c4125db879323da7feda1b3c3662026ceb",
+      "group": "string-values"
+    },
+    {
+      "id": "discarded-asserted-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f353a3ac4e130e4c4633ba6c3bd1f3f01d0f48ba5a8f449f7cc5b4406052a6e1",
+      "group": "string-values"
+    },
+    {
+      "id": "discarded-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c8ed307ab3dc05d402f8ca03ba73de131a69e5cfa1482809417ad7f6005a47e6",
+      "group": "object-values"
+    },
+    {
+      "id": "discarded-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4750db473ffb0e353284ee4cc39e329223c95ea62075563a94c9cf1ab49b4110",
+      "group": "nullish-values"
+    },
+    {
+      "id": "discarded-undefined",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "67ca4cf7ef0e0582b9b3dd7ab1725b95a3545d8ab17239678a2276cffafab6b2",
+      "group": "nullish-values"
+    },
+    {
+      "id": "discarded-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fcaa4b10e4f4dd5d1d8ade1da7c8cade44d0e30893c26cf181f9ef955e74ff17",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0f7c690316ae296c7a40af808a04e128169b9fc0a8d3ff235d62e26ebf58269f",
+      "group": "function-calls"
+    },
+    {
+      "id": "discarded-comparison-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "43e9e990fb1665d152c451c4aadadf6bcdb341f9e3068edf5b3df60f45832e7a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-nested-comparison",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "46fe17093676a121ba3387b44368a03b8fe3f53ed9c211d74d18a85569a41745",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-number-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6623d58627f668683906f8f7e731f8c3edf56886cc7bfaece46e281f09564bbb",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-number-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "352e161b8424eb4a19693e27dbbc966b411e36442b442eb70a33d9b1d10ec348",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-number-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ef0b79f16aaa5d562dc6944d161d99fed7ef9aafe473605e9fa517d37e92314f",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-number-argument",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3cf40a6bc77cd03c9c03214b4ffc051cde4a524ecef0007d4b0cb75b16d27181",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-number-arithmetic",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "393decb102698f037696aa9f899e9026ecb7854ad8f8fa9602312628f22e65a2",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-final-comma-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b02952fb8bf02409b7a3bdaaa7c741eaebd43272c27128a2aa1ec66a2cdd83cd",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-dead-logical-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b78e9ad6e244abdf247ed3ff6939616daa3350df83746f7fa61cf415be10a71f",
+      "group": "function-calls"
+    },
+    {
+      "id": "discarded-dead-conditional-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "585204c69aef2287b6e4645d0aeafeb4927a3f33d9347297b29b7773e2bc6496",
+      "group": "function-calls"
+    },
+    {
+      "id": "discarded-dead-conditional-boolean-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "38b8f4c62f605ee27687b56d35111200496d6fc67cf42d0040a6cd4e5e67dca0",
+      "group": "function-calls"
+    },
+    {
+      "id": "discarded-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "efc6f1697d6460ac5e3398f0746b002f6ada6d7e88a8f33ca95e271197cdfc60",
+      "group": "const-errors"
+    },
+    {
+      "id": "discarded-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea28ea2a12e085192bbbba51261e95c6ca9cbb289cb0b266c8a1c6a5b13b6b44",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-unselected-global",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "84ce9836d1b709565306f901e40fce0db946adf1c3cd0c0d6ded078aafbba3ce",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-property-target",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3db39642472c22d7671fd48c50ecb66c59aae4cd2cf6efc64ee18ba49cf899ed",
+      "group": "property-targets"
+    },
+    {
+      "id": "discarded-nullish",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8579a29f43d4555ffafe768dfed4a60cf9affe0d36d4e4092c8541d1b7814de4",
+      "group": "nullish-values"
+    },
+    {
+      "id": "discarded-predicate-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "53ca76cafb80f4d0c4737d56d8e368dee8ec9cc4c1a2cd379d2276fc585f0ee1",
+      "group": "expression-depth"
+    },
+    {
+      "id": "discarded-comparison-depth",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fb7e584ce7b85b1776f550960abdee03f5896bfedc8ce284fff537b4acb9467a",
+      "group": "expression-depth"
+    },
+    {
+      "id": "discarded-count-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5b6f9becbd9969a62556aaa5f519e427e2b86b50981254cac1befb90f0ec0428",
+      "group": "statement-count"
+    },
+    {
+      "id": "discarded-after-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9153dbe012348331b14ea97ce29fa5b0258a957b46130111445539f80437547f",
+      "group": "abrupt-tail-policy"
+    },
+    {
+      "id": "discarded-for-update-dead",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "408a4a5aada6d1fc50a007175f5d2b861dd1f54d0cf572b11d40c91d73acac27",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-unused-helper",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "28cf0557f7eb3ed4c99ce9d83b2724a6a8306387300f555358358002d7c098b3",
+      "group": "function-calls"
+    },
+    {
+      "id": "discarded-comma-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "97ffc505ba7a4277937befd78d5ddbcc8f7e4406b8895145bfc0f8a66e8ee3d0",
       "group": "expression-depth"
     }
   ]

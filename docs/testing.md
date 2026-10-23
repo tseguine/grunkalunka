@@ -34,8 +34,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 750 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 88 resource restrictions and 636 open requirements.
+also covers all 767 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 92 resource restrictions and 649 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -154,3 +154,11 @@ Finite mutations invert the conversion, classify arbitrary truthy Numbers as Boo
 duplicate operand evaluation or reset operand depth. Every mutant fails before
 exact source restoration, mtime refresh and rebuilding. No new negative is executed
 as JS; the remaining 750 rejection observations and 39 gap oracles are retained.
+
+Discarded-value fixtures compare effects, snapshots, selected/skipped logical and
+conditional branches, numeric helpers, TS wrappers and finite loop headers/bodies.
+Nested comma depth and statement-budget boundaries retain the original source
+charges. Four finite sensitivity probes detect dropped evaluation, double
+evaluation, eager short-circuit RHS execution and depth reset; exact restoration
+refreshes source mtimes before rebuilding. All retained negative programs are
+compiled only and never executed as arbitrary Node oracles.

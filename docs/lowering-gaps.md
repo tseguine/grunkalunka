@@ -1,7 +1,7 @@
 # Known lowering gaps
 
 The current compiler admits one exported two-number function with numeric locals,
-numeric expression statements, empty statements, assignments, branches, while/for/do loops,
+Number/Boolean expression statements, empty statements, assignments, branches, while/for/do loops,
 TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled loop break/continue and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
@@ -34,8 +34,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 39 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 88 resource restrictions and 636 open requirements
-across all 750 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 92 resource restrictions and 649 open requirements
+across all 767 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -247,5 +247,11 @@ literals, logical negation and admitted numeric comparisons/equalities through
 runtime-transparent wrappers. The four original `bit-not-boolean`,
 `bit-not-comparison`, `bit-not-negation` and `bit-not-asserted-boolean` cases retain
 IDs/source bytes in the admitted corpus. The Boolean-values group remains open
-with 82 records; no curated reference is promoted. Other Boolean value positions,
+with 82 records at that step; no curated reference is promoted. Other Boolean value positions,
 root Boolean logical/conditional operands and general coercion remain separate work.
+
+Discarded Number/Boolean evaluation promotes exactly 13 original ordinary fixtures,
+retaining their source bytes, IDs and strict Module dialect. It covers statement,
+comma-prefix and expression-form for-header positions, including mixed selected
+results. No curated reference or inventory group is removed. Boolean storage,
+coercive arguments/results and unsupported source in skipped branches remain open.

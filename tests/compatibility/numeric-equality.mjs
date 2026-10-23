@@ -45,7 +45,6 @@ const negatives = [
   ['inequality-arithmetic', 'return (a!=b)+a;', binary],
   ['equality-unselected-call', 'return 0?(a==Math.random()?1:0):b;', expression],
   ['equality-asserted-string', 'return ((a==("4" as number)) as boolean)?1:0;', expression, 'ts'],
-  ['equality-expression-statement', 'a==b; return a;', binary],
   ['equality-predicate-depth-limit', `return ${'('.repeat(127)}a==b${')'.repeat(127)}?a:b;`, 'expression nesting exceeds'],
   ['inequality-operand-depth-limit', `return ${'('.repeat(127)}a${')'.repeat(127)}!=b?a:b;`, 'expression nesting exceeds'],
 ];

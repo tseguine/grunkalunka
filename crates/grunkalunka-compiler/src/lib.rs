@@ -747,4 +747,32 @@ mod tests {
         source.push(' ');
         assert!(compile(&source, false).err().unwrap().contains("16 KiB"));
     }
+
+    #[test]
+    fn discarded_boolean_statement() {
+        compile("export function run(a,b) { true; return a; }", false).unwrap();
+    }
+
+    #[test]
+    fn discarded_comparison_in_numeric_comma() {
+        compile("export function run(a,b) { return (a++<b,a); }", false).unwrap();
+    }
+
+    #[test]
+    fn discarded_mixed_logical_result() {
+        compile(
+            "export function run(a,b) { a && (b++<a); return b; }",
+            false,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn discarded_mixed_conditional_result() {
+        compile(
+            "export function run(a,b) { a ? b++ : false; return b; }",
+            false,
+        )
+        .unwrap();
+    }
 }

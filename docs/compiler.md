@@ -31,14 +31,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 40
-contains 919 paired programs, 750 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 41
+contains 964 paired programs, 767 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 750 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 88 explicit resource restrictions and 636 open requirements.
+classifies all 767 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 92 explicit resource restrictions and 649 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -330,6 +330,12 @@ It does not admit general Boolean values, storage, arithmetic, calls or root log
 and conditional Boolean operands. Logical `!` retains its existing predicate domain.
 All 750 other rejections and 39 curated reference observations stay unchanged.
 
+Corpus 41 admits discarded Number/Boolean evaluation with 45 paired programs,
+including 13 exact ordinary promotions, and 30 new boundary rejections. Effects,
+short-circuit selection and original nesting depth survive discarded results.
+All 737 retained rejection diagnostics remain exact; all 39 curated gap references
+remain. This introduces no Boolean storage, call arguments, ABI results or coercion.
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -435,7 +441,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   [Math.trunc](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.trunc)
   and [Wasm floating numerics](https://webassembly.github.io/spec/core/exec/numerics.html#op-fsqrt).
 - The body admits initialized numeric `const`/`let` declarations and
-  discarded numeric expression statements in source order, lexical blocks and
+  discarded Number/Boolean expression statements in source order, lexical blocks and
   statement `if`/`else`, and `while`/`for`/`do...while` loops. Empty statements
   fall through without generating IR operations, values or source cells. They
   count once toward the statement budget and use ordinary source nesting. An
@@ -472,10 +478,14 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   zeros compare equal. Ordered snapshots preserve operand effects. No coercion
   is introduced, and equality results remain predicates rather than numeric
   locals, arithmetic operands or direct ABI results.
-  Numeric comma operands execute left to right and yield the final value snapshot;
-  in predicate positions the final operand may instead be any admitted predicate. Non-final
-  comparisons remain outside admission. Predicate-valued expression statements,
-  including comparisons and logical negation, remain outside admission.
+  Comma operands execute left to right; non-final Number or Boolean results are
+  evaluated and discarded. The final operand retains its surrounding Number or
+  predicate contract. Expression statements and expression-form for initializers
+  and updates also discard Number/Boolean results. A pure bounded syntax inspection
+  selects predicate lowering only for Boolean-producing result shapes, including
+  mixed logical/conditional results; Number-only trees retain their original path.
+  Only the selected branch executes. Type assertions never prove runtime kinds;
+  storage, arguments, assignments, arithmetic and returns remain Number-only.
   Numeric `&&` and `||` evaluate the left operand once and return its original
   snapshot or the selected RHS result. The RHS is fully admitted but executes only
   in the selected branch. In predicate positions `&&` and `||` may also combine
@@ -531,8 +541,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   on that path. Loop-body locals are initialized on each entry and disappear from
   visibility on exit; physical slots are not reused for sibling declarations.
   Numeric `for` initializers may be omitted, an initialized `let`/`const` binding
-  list, or an admitted numeric expression. Tests use the admitted predicate forms, or may be omitted for an
-  unconditional test; updates are numeric expressions or omitted. Initialization
+  list, or an admitted discarded Number/Boolean expression. Tests use the admitted predicate forms, or may be omitted for an
+  unconditional test; updates are discarded Number/Boolean expressions or omitted. Initialization
   runs once, then each iteration tests, executes the body, and executes the update.
   A return or break skips the update, but the compiler still admits the whole source body
   and update independently. Header bindings are visible only inside the loop;
@@ -623,15 +633,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 2304852 numeric comparisons; 750 rejected inputs; overwrite preserved
+PASS 2417712 numeric comparisons; 767 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-919 programs, each written as JS and TS, produce 1838 modules.
+964 programs, each written as JS and TS, produce 1928 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,304,852 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,417,712 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -821,7 +831,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-750 malformed or unsupported programs fail explicitly, each with a unique
+767 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

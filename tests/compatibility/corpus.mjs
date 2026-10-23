@@ -35,8 +35,9 @@ import { numericMathAbs, numericMathAbsRejected } from './numeric-math-abs.mjs';
 import { numericTsWriteTargets } from './numeric-ts-write-targets.mjs';
 import { numericMathUnary, numericMathUnaryRejected } from './numeric-math-unary.mjs';
 import { numericBooleanComplement } from './numeric-boolean-complement.mjs';
+import { discardedValues, discardedValuesRejected } from './discarded-values.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 40;
+export const corpusVersion = 41;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -97,6 +98,7 @@ programs.push(...numericMathAbs);
 programs.push(...numericTsWriteTargets);
 programs.push(...numericMathUnary);
 programs.push(...numericBooleanComplement);
+programs.push(...discardedValues);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -194,6 +196,7 @@ export const rejected = [
   ...numericCallsRejected,
   ...numericMathAbsRejected,
   ...numericMathUnaryRejected,
+  ...discardedValuesRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -245,11 +248,9 @@ export const rejected = [
   ['predicate-conditional-numeric-local', 'export function run(a,b) { const x=a?true:false; return x; }'],
   ['predicate-conditional-arithmetic', 'export function run(a,b) { return (a?true:false)+b; }'],
   ['predicate-conditional-assignment', 'export function run(a,b) { if(a?(a=true):false) return a; return b; }'],
-  ['predicate-conditional-nonfinal-comma', 'export function run(a,b) { if((a?true:false,b)) return a; return b; }'],
   ['predicate-conditional-equality-operand', 'export function run(a,b) { if((a?true:false)==0) return a; return b; }'],
   ['predicate-conditional-depth', `export function run(a,b) { if(${'a?true:'.repeat(129)}false) return a; return b; }`],
   ['boolean-equality-operands', 'export function run(a,b) { if(true===false) return a; return b; }'],
-  ['boolean-comma-nonfinal', 'export function run(a,b) { if((true,a)) return a; return b; }'],
   ['not-local', 'export function run(a,b) { const x=!a; return x?a:b; }'],
   ['not-arithmetic', 'export function run(a,b) { return (!a)+b; }'],
   ['not-equality-operand', 'export function run(a,b) { if(!a===!b) return a; return b; }'],
@@ -261,10 +262,8 @@ export const rejected = [
   ['predicate-logical-unselected-global', 'export function run(a,b) { if(true || clock) return a; return b; }'],
   ['predicate-logical-string', 'export function run(a,b) { if(a && "x") return a; return b; }'],
   ['predicate-logical-numeric-local', 'export function run(a,b) { const x=true && a; return x; }'],
-  ['predicate-logical-comma-nonfinal', 'export function run(a,b) { if((a<b,a) && b) return a; return b; }'],
   ['predicate-logical-depth', `export function run(a,b) { if(${Array(130).fill('a').join('&&')}) return a; return b; }`],
   ['predicate-logical-nullish', 'export function run(a,b) { if(a ?? b) return a; return b; }'],
-  ['predicate-logical-statement', 'export function run(a,b) { true && a++; return a; }'],
   ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],
   ['null', 'export function run(a,b) { return null; }'],
   ['power', 'export function run(a,b) { return a ** b; }'],
@@ -272,11 +271,10 @@ export const rejected = [
     'a && (b<1)', '(a<1) || b', 'a || true', 'false && a', 'a ?? b', '1 || (clock=b)'].map((body,index) =>
     [`logical-unsupported-${index}`, `export function run(a,b) { return ${body}; }`]),
   ['logical-unselected-const', 'export function run(a,b) { const x=a; return 1 || (x=b); }'],
-  ['comma-nonfinal-predicate', 'export function run(a,b) { if((a<b,a)) return a; return b; }'],
   ['comparison', 'export function run(a,b) { return a < b; }'],
   ...['Math.random(),a', 'a,Math.random(),b', 'a,Math.random()', '"4",a', 'a,"4"',
-    '{x:a},a', 'a,{x:a}', 'a<b,a', 'a,a<b'].map((body, index) =>
-    [`comma-unsupported-${index}`, `export function run(a,b) { return (${body}); }`]),
+    '{x:a},a', 'a,{x:a}', 'a<b,a', 'a,a<b'].flatMap((body, index) => index===7?[]:
+    [[`comma-unsupported-${index}`, `export function run(a,b) { return (${body}); }`]]),
   ['comma-const-write', 'export function run(a,b) { const x=a; return (x=b,x); }'],
   ['comma-forward', 'export function run(a,b) { const x=(y=a,b); let y=b; return x; }'],
   ['comma-self', 'export function run(a,b) { let x=(x=a,b); return x; }'],

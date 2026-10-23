@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-2,304,852 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 750 rejected
+2,417,712 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 767 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Top-level numeric
@@ -355,3 +355,7 @@ ceil and trunc through direct Wasm f64 operations. It is isolated from external
 mutable JS realms; shadowed intrinsic calls and source patch attempts remain
 rejected. This bounded family does not settle
 mutable builtin objects, reification, coercion or realm ownership.
+
+Number/Boolean results may now be discarded in statements, comma prefixes and
+expression-form for headers while preserving their effects and selected branches.
+This does not settle general Boolean storage, call signatures or value representation.

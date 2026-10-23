@@ -31,13 +31,9 @@ const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted'
 const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ['statement-boolean', 'true; return a;', expression],
-  ['statement-comparison', 'a<b; return a;', binary],
-  ['statement-negation', '!a; return a;', unary],
   ['statement-string', '("x"); return a;', expression],
   ['statement-call', 'Math.random(); return a;', expression],
   ['statement-global', 'clock; return a;', reference],
-  ['statement-comma-predicate', '(a<b,a); return a;', binary],
   ['statement-unselected-conditional-call', '0?Math.random():a; return a;', expression],
   ['statement-unselected-logical-call', '0&&Math.random(); return a;', expression],
   ['statement-const-write', 'const x=a; x+(x=b); return a;', 'assignment to a const binding is not admitted'],
@@ -45,8 +41,6 @@ const negatives = [
   ['statement-after-return', 'return a; a+b;', 'statements after a guaranteed return are not admitted'],
   ['statement-expression-depth-limit', `${'('.repeat(129)}a${')'.repeat(129)}; return a;`, 'expression nesting exceeds'],
   ['statement-count-limit', `${'a;'.repeat(256)} return a;`, 'at most 256 statements'],
-  ['statement-asserted-boolean', 'true as number; return a;', expression, 'ts'],
-  ['statement-asserted-negation', '(!a) as number; return a;', unary, 'ts'],
   ['statement-asserted-string', '("x") satisfies number; return a;', expression, 'ts'],
 ];
 export const numericStatementRejected = negatives.map(([id, body, diagnostic, extension='js']) => [id,

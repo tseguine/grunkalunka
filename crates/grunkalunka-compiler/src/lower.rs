@@ -124,6 +124,48 @@ fn boolean_shape(mut expression: &Expression<'_>, mut depth: usize) -> bool {
     false
 }
 
+// Inspect only result-producing syntax, before emitting anything. Types asserted by
+// TypeScript are not runtime kinds. Ordinary lowering owns the depth diagnostic.
+fn discarded_boolean_shape(expression: &Expression<'_>, depth: usize) -> bool {
+    if depth > 128 {
+        return false;
+    }
+    if let Some(inner) = erased_inner(expression) {
+        return discarded_boolean_shape(inner, depth + 1);
+    }
+    match expression {
+        Expression::BooleanLiteral(_) => true,
+        Expression::UnaryExpression(unary) => unary.operator == UnaryOperator::LogicalNot,
+        Expression::BinaryExpression(binary) => matches!(
+            binary.operator,
+            BinaryOperator::LessThan
+                | BinaryOperator::LessEqualThan
+                | BinaryOperator::GreaterThan
+                | BinaryOperator::GreaterEqualThan
+                | BinaryOperator::Equality
+                | BinaryOperator::StrictEquality
+                | BinaryOperator::Inequality
+                | BinaryOperator::StrictInequality
+        ),
+        Expression::ParenthesizedExpression(wrapper) => {
+            discarded_boolean_shape(&wrapper.expression, depth + 1)
+        }
+        Expression::SequenceExpression(sequence) => sequence
+            .expressions
+            .last()
+            .is_some_and(|last| discarded_boolean_shape(last, depth + 1)),
+        Expression::ConditionalExpression(conditional) => {
+            discarded_boolean_shape(&conditional.consequent, depth + 1)
+                || discarded_boolean_shape(&conditional.alternate, depth + 1)
+        }
+        Expression::LogicalExpression(logical) if logical.operator != LogicalOperator::Coalesce => {
+            discarded_boolean_shape(&logical.left, depth + 1)
+                || discarded_boolean_shape(&logical.right, depth + 1)
+        }
+        _ => false,
+    }
+}
+
 // Resolve only the original reference; never evaluate a write target as a value.
 // Oxc discards outer target parentheses, but retained inner nodes each cost depth.
 fn target_identifier<'e, 'a>(
@@ -169,6 +211,22 @@ pub(super) struct Lowering<'s, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    // Number and Boolean results can be discarded without exposing a value kind.
+    // Keep numeric lowering byte-identical; never retry a partially emitted tree.
+    fn discarded(
+        &mut self,
+        expression: &Expression<'_>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<(), String> {
+        if discarded_boolean_shape(expression, depth) {
+            self.predicate(expression, region, depth)?;
+        } else {
+            self.expression(expression, region, depth)?;
+        }
+        Ok(())
+    }
+
     pub fn region(&mut self, node: &impl GetSpan) -> Region {
         let id = RegionId(self.next_region);
         self.next_region += 1;
@@ -473,7 +531,7 @@ impl Lowering<'_, '_> {
                     unsupported(sequence.as_ref(), "comma expression must have an operand")
                 })?;
                 for operand in preceding {
-                    self.expression(operand, region, depth + 1)?;
+                    self.discarded(operand, region, depth + 1)?;
                 }
                 return self.expression(last, region, depth + 1);
             }
@@ -681,7 +739,7 @@ impl Lowering<'_, '_> {
                 unsupported(sequence.as_ref(), "comma expression must have an operand")
             })?;
             for operand in preceding {
-                self.expression(operand, region, depth + 1)?;
+                self.discarded(operand, region, depth + 1)?;
             }
             return self.predicate(last, region, depth + 1);
         }
@@ -884,7 +942,7 @@ impl Lowering<'_, '_> {
                             self.declaration(declaration, &mut header)?;
                         }
                         _ => {
-                            self.expression(init.to_expression(), &mut header, 0)?;
+                            self.discarded(init.to_expression(), &mut header, 0)?;
                         }
                     }
                 }
@@ -921,7 +979,7 @@ impl Lowering<'_, '_> {
                 // Always admit the update, including after a returning body.
                 let step = if let Some(update) = &statement.update {
                     let mut step = self.region(update);
-                    self.expression(update, &mut step, 0)?;
+                    self.discarded(update, &mut step, 0)?;
                     Some(step)
                 } else {
                     None
@@ -1005,7 +1063,7 @@ impl Lowering<'_, '_> {
                 Ok(Completion::RETURN)
             }
             Statement::ExpressionStatement(statement) => {
-                self.expression(&statement.expression, region, 0)?;
+                self.discarded(&statement.expression, region, 0)?;
                 Ok(Completion::NORMAL)
             }
             Statement::VariableDeclaration(declaration) => {
