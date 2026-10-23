@@ -4,15 +4,11 @@ This is the active execution plan. Each milestone ends in a runnable demonstrati
 measured compatibility evidence, and an updated status. A rejected input is not a
 supported feature; an unattempted test is not a passing test.
 
-## Working authority and quality
+## Execution scope and quality
 
-On 2026-10-23 the user authorized autonomous iteration and merging to `master`
-through the spike/PoC stage, while retaining similar quality and reducing approval
-ceremonies. Use small coherent commits, meaningful tests, proportional review and
-clear limitations. Routine implementation choices and verified local integration
-do not require renewed approval. Revisit major direction changes, irreversible
-external actions, and a transition out of this stage. This is project-specific;
-it does not change workspace policy for other projects.
+Use small coherent commits, meaningful tests, proportional review and clear
+limitations. Each experiment should resolve a concrete engineering uncertainty
+before broader implementation depends on its result.
 
 The current goal's first practical horizon is L1, L2, C1 and R1: useful scalar
 control flow, explicit compatibility reporting, and one component whose authority
@@ -47,11 +43,27 @@ be represented internally without changing the public two-number/result-number A
 | B1 — reusable browser pieces | Later | Compare libraries before custom implementation. Own HTML/CSS modules should work through explicit inputs outside the browser shell; prove a second consumer. Embedded and standalone browser use primarily differ through capability profiles. |
 | M1 — alternative markup + converters | Research gate | Evaluate KDL/SDLang as application authoring syntaxes for XHTML-equivalent documents. Support includes round-trip converters: preserve namespaces, attributes, ordered mixed text/elements, significant whitespace and comments. Reject unsupported constructs without data loss. Exact source formatting/trivia preservation is a separate fidelity contract. |
 
+### Later authoring option: XAML
+
+Evaluate XAML as a UI authoring language after the application and rendering
+contracts have executable evidence. Select a dialect and an explicit supported
+subset before claiming compatibility. Explore object/property construction,
+namespaces, bindings, resources, styles/templates and event wiring separately;
+parsing XML alone does not demonstrate UI compatibility. Keep host access behind
+the same capability interfaces used by other authoring formats.
+
+XAML's object model is a separate research question from M1's XHTML-equivalent
+KDL/SDLang syntax. Identify which constructs can share a representation and which
+need distinct semantics before promising lossless cross-format conversion.
+Any supported converter needs an explicit fidelity contract and round-trip tests.
+See Microsoft's [XAML language overview](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/xaml/)
+and [WinUI XAML overview](https://learn.microsoft.com/en-us/windows/apps/develop/platform/xaml/xaml-overview)
+for the language/framework distinction and representative UI features.
+
 ### Candidate reference client: Obshittian
 
-The user proposed an Obsidian-like client, self-deprecatingly named **Obshittian**.
-Treat it as a candidate reference application, not an instruction to implement a
-full clone now. A useful first slice would edit/save Markdown notes inside a
+**Obshittian** is a candidate Obsidian-like reference application. A useful first
+slice would edit/save Markdown notes inside a
 granted vault and follow note links. It could exercise rendering, editing,
 persistence, search and later extension capabilities through the framework.
 Verify that its vault capability cannot access paths outside the grant, and that

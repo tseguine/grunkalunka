@@ -7,8 +7,7 @@ a promise that any prototype will become the architecture.
 ## Direction
 
 Product framing: a web application framework that makes building, running,
-debugging, packaging and shipping applications straightforward. The user's shorthand
-is "a web application framework that doesn't suck." The platform and compiler
+debugging, packaging and shipping applications straightforward. The platform and compiler
 serve that developer experience; they are not the product pitch by themselves.
 
 - Wasm-first, Rust-based, capability-oriented components and applications.
@@ -152,15 +151,14 @@ Dependency policy: keep our source MIT and avoid GPL/LGPL terms, checking
 transitives as well as direct dependencies. Where an explicit permissive alternative
 exists, record that choice. [Current metadata screening](../spikes/002-numeric-wasm/LICENSES.md)
 is reproducible but does not replace notices and bundled-material review before
-binary distribution. Aligned dependency use covers downloading it and its required
-packages, per the user's explicit clarification.
+binary distribution.
 
 ## Browser environment scope
 
 The browser environment should serve both an embeddable web application runtime
 in the Ultralight/Electron category and a real, desirable standalone browser.
 **The primary difference between embedded and standalone use is the capability
-profile**, per the user's clarification, rather than separate environment engines
+profile**, rather than separate environment engines
 or hard-coded product modes. An embedded slice is a practical early demonstration,
 not a separate architecture that must later be replaced to make a browser.
 
@@ -198,7 +196,7 @@ frameworks or stabilizing public APIs before there is evidence for their shape.
 
 ### Browser conformance evidence and feature roadmap
 
-Use complementary sources selected in discussion:
+Use complementary sources:
 
 | Source | Role |
 | --- | --- |
@@ -223,7 +221,7 @@ has been vendored or executed at this stage.
 ## Node-compatible environment: conformance by observation
 
 Use automated black-box comparison against a pinned Node runtime as the primary
-compatibility method, as requested by the user. This concerns the environment
+compatibility method. This concerns the environment
 application's behavior, independently of Node/Bun support for build tooling.
 The target is drop-in compatibility for the Node environment, including deliberate
 emulation of security-uncritical bugs and quirks where compatibility requires it.

@@ -3,8 +3,7 @@
 **Gimme damn damn WASM!**
 
 The intended product is a web application framework with familiar JS/TS authoring,
-portable deployment, and explicit capabilities: in the user's words, "a web
-application framework that doesn't suck."
+portable deployment, and explicit capabilities.
 
 Its foundation is a Wasm-first, Rust-based, capability-oriented component and
 application platform. The compiler/runtime machinery should serve a straightforward

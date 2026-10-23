@@ -1,8 +1,7 @@
 # Dependency license screening
 
-Grunkalunka's own source stays MIT. The user selected avoiding GPL/LGPL dependencies;
+Grunkalunka's own source stays MIT. Avoid GPL/LGPL dependencies;
 an explicit permissive alternative may be chosen for a dual-licensed dependency.
-User alignment on a dependency also covers downloading it and its required packages.
 
 Run `node scripts/licenses.mjs` from the repository root. It reads both locked,
 offline Cargo metadata graphs, checks exact reviewed license expressions, and
