@@ -537,7 +537,7 @@
     {
       "id": "function-calls",
       "kind": "open-requirement",
-      "assessment": "Calls, including calls in unselected source branches, remain unlowered.",
+      "assessment": "Indirect, property, wrapped-callee, spread, generic and non-exact-arity calls remain outside the direct numeric call subset; unsupported calls in unselected source still reject.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-function-calls",
@@ -578,7 +578,7 @@
     {
       "id": "recursion",
       "kind": "open-requirement",
-      "assessment": "Recursive calls require bounded runtime call-stack behavior.",
+      "assessment": "Nested recursive function declarations still need lexical function/environment support; top-level direct numeric recursion is admitted with existing runtime protections.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
@@ -1070,6 +1070,44 @@
       ],
       "observableDone": [
         "Specify function/context representations and test function references, strict this and arguments behavior."
+      ]
+    },
+    {
+      "id": "function-parameter-count",
+      "kind": "resource-restriction",
+      "assessment": "A helper exceeds the backend limit of 1000 parameters.",
+      "evidence": [
+        {
+          "source": "docs/compiler.md#experimental-contract",
+          "rule": "The 1000-parameter backend resource cap is separate from ECMAScript source validity."
+        }
+      ],
+      "dependencies": [],
+      "harnessNeeds": [
+        "source-budget"
+      ]
+    },
+    {
+      "id": "function-binding-writes",
+      "kind": "open-requirement",
+      "assessment": "Writes to resolved module function bindings require mutable callable selection beyond statically resolved direct calls, including writes in unselected or unused bodies.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/executable-code-and-execution-contexts.html#sec-declarative-environment-records-setmutablebinding-n-v-s",
+          "rule": "Mutable function bindings may be assigned; a static call target cannot ignore writes which may change its value."
+        }
+      ],
+      "dependencies": [
+        "function-calls",
+        "function-context"
+      ],
+      "harnessNeeds": [
+        "numeric-oracle",
+        "value-representation",
+        "exception-outcome"
+      ],
+      "observableDone": [
+        "Represent mutable function bindings and test writes, subsequent calls, selected paths and non-callable outcomes."
       ]
     }
   ],
@@ -5490,6 +5528,363 @@
       "sourceMode": "module-strict",
       "sourceSha256": "08c55d8f6b6a68f567e9b02722b960b0b0d694c7538aba1784a54c9fc5c555da",
       "group": "local-count"
+    },
+    {
+      "id": "direct-call-missing",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c0df3411b897836d1c1c48d95d0d83421d0f466aa2d65a66bcc9137c71bba984",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-extra",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "44f9f34913c1811b2c675bb230c2a191b500232dedd3e13284c7a7e6e26a0356",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-spread",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5adaf62858cb93e5ba49a633c69c0e42defe84b6bf4b83e4d16becf6b9d24cbb",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-optional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e6abcaf8cecd80f7d9d92d83b840b7c6d3170ae73e6178204c3419af1f2814e9",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fbbe7840f3fc0a1e6e35dc53ad5a019a2f957222177bf9d026d206057bef5049",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-wrapped-callee",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "945842fbe97f9ae99792f5d1738cd9a679f3959a26bb13a66b772e2eeeeccc4d",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-generic-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e442d761d7585e94a9d4d84abad2151ac2a2a7e02e91e5748ad2d1ff864308f1",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-numeric-shadow-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "58319fe323bfca477ef6e9c0848d4e4e7300d742cb2f60b16d2cccf3e192a0b6",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-parameter-shadow-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b7422345982eacc877a321c1f6d0e06c03e86845d3fbe0250b336bf89c570e79",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-tdz-shadow-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "502d3073b4d36c0ced4200edd7d222ae29c1d43b10d467c9b85689c47a87ecc8",
+      "group": "binding-errors"
+    },
+    {
+      "id": "direct-call-function-value",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9f9c87e66aef4fee34442de843f37f284df82ac9d42ca68329038cab8adf9cf5",
+      "group": "function-context"
+    },
+    {
+      "id": "direct-call-function-alias",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2e7da0df94a0dfd1ecad3bd328bd74d26c2943852c08796836ac7146b1106c58",
+      "group": "function-context"
+    },
+    {
+      "id": "direct-call-function-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "69a17172736fbb71a81694bd68d74b79b238ee76e0453bda6e2bcce2a03847d8",
+      "group": "function-binding-writes"
+    },
+    {
+      "id": "direct-call-function-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "237a37cdc5e581f2149369d77f87b85abf317ec0253acbe63b93bbaa10329c39",
+      "group": "function-binding-writes"
+    },
+    {
+      "id": "direct-call-dead-function-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ff9c975c7232bd71f86ea0f3e81e4ab460e61e28b9631e059ba8392dc35032b9",
+      "group": "function-binding-writes"
+    },
+    {
+      "id": "direct-call-unused-function-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1cb81433c528ac26fddb62d3f25df7a48855c71b7a410796049cbf41da705871",
+      "group": "function-binding-writes"
+    },
+    {
+      "id": "direct-call-capture-entry-parameter",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1b6f71564ddd3bde102bb29f22832c80181c19cea2bec558c914e9aabe7749a3",
+      "group": "binding-errors"
+    },
+    {
+      "id": "direct-call-cross-function-local",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e8abe0f90b1d514f3d53f44f29c4a60a7809e9b9d0ad4b166daf06101b5c8b33",
+      "group": "binding-errors"
+    },
+    {
+      "id": "direct-call-nested-declaration",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "62e2a5f9ae89f5ddb8f2fe4be54222b42492769ab373abe997613bba1f413acf",
+      "group": "closures"
+    },
+    {
+      "id": "direct-call-unused-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "908cd397bcd62589d46868fab6f0763284ce4c63b7533968fd164831344a0f3d",
+      "group": "string-values"
+    },
+    {
+      "id": "direct-call-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "992962503d4d3ce449edabea14ba708156d6be360eb97b358e66a6dbbb4cedbe",
+      "group": "return-policy"
+    },
+    {
+      "id": "direct-call-unused-missing-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f8b69c31b44590cc9faa9a2accea27cac5853c653fde1a06be9173ccfd87a025",
+      "group": "return-policy"
+    },
+    {
+      "id": "direct-call-boolean-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9b0239d9b15fee908dae35dab8159c91323b1bbf3c2c09c0e7144dbb8e08e16f",
+      "group": "boolean-values"
+    },
+    {
+      "id": "direct-call-argument-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5860ae7d3d8c95e1349adf4de33f88156ea0eb1d51879a3e558df51b8cf44fb4",
+      "group": "boolean-values"
+    },
+    {
+      "id": "direct-call-argument-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a8fc2c36d5879ba336e9c1307b6def21bc4d74d8de4965f285340b515b161d2e",
+      "group": "string-values"
+    },
+    {
+      "id": "direct-call-argument-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1d8a1639fd6f92414faf7593ed7c2a8fcc99fcf38ee7e1f9709844ecc4133530",
+      "group": "object-values"
+    },
+    {
+      "id": "direct-call-argument-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0a5228d3bea27ccdf5ba4ee9c108aa75934d64c8a51531eb41c62ba0b2798a99",
+      "group": "bigint-values"
+    },
+    {
+      "id": "direct-call-argument-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4b0468013b07d4c846185e9cbc1f8557a86752e21057b20b1c25b32298f65167",
+      "group": "nullish-values"
+    },
+    {
+      "id": "direct-call-argument-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "912bb702f25cce0568e8a181e5dab5d0f60306e2fa326328c464a6be25909177",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-unselected-argument",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7a6c377bd6efe16f01d326332effedcc57325f1db010a5df6722bcc941fdc093",
+      "group": "function-calls"
+    },
+    {
+      "id": "direct-call-predicate-argument",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f7e12230f4464f33d935d2f581613c8475be9a3eefed0cdff477702113aab779",
+      "group": "boolean-values"
+    },
+    {
+      "id": "direct-call-helper-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7b5d2287f94ff36bc1d1ca636bf4db882e4fda0722f1f57275491fdda326fdf8",
+      "group": "const-errors"
+    },
+    {
+      "id": "direct-call-helper-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b83e7652e6ab739df14b5ed9b2065f48747e8abeb9daa42adff954f16441fc34",
+      "group": "binding-errors"
+    },
+    {
+      "id": "direct-call-helper-default",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f9a383c6e80f314053876a82f76948c2f6fc576aa2223b245ce7431dc9d4564a",
+      "group": "parameters"
+    },
+    {
+      "id": "direct-call-helper-rest",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "56d830b29bae355314a6125b7564ed0f59a8a845c17ce8878a386d02e641fa89",
+      "group": "parameters"
+    },
+    {
+      "id": "direct-call-helper-destructure",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dddd6e406234cae3647829550500ad30f0d4167426437db37446e2caaf59b20d",
+      "group": "parameters"
+    },
+    {
+      "id": "direct-call-helper-optional",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2576772908a210ddeac9da4fc407220a6605b6c58178cc149b7a8e0a77ed6ff5",
+      "group": "parameters"
+    },
+    {
+      "id": "direct-call-helper-this",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ec44d4f02357682c491b61972ed3715b7928271a0b04af267a8f3d3bb063c5a4",
+      "group": "parameters"
+    },
+    {
+      "id": "direct-call-helper-generic",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6553c86bb3829759bf1bae932e2cdfe1d446c40e85128ae89d79997222931035",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "direct-call-helper-async",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "57e802d639dd56d1b9fd06c0e0303a8bcf935632730ce0aaab2f82ff003ece1f",
+      "group": "async-functions"
+    },
+    {
+      "id": "direct-call-helper-generator",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8a2998665a3bb9711389cbd1ba4120ad17c1183e75da94eab85e04c9aac3ebf8",
+      "group": "generators"
+    },
+    {
+      "id": "direct-call-helper-arguments",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b3f3a14f3d60f21117506fe9d15b8378482f9615e741a5c2c966100da371325e",
+      "group": "function-context"
+    },
+    {
+      "id": "direct-call-helper-construct",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "761fe0e36fbe4e5a67e35b00867b4606255119e530d28b746cf67b3f4c7ddf89",
+      "group": "classes"
+    },
+    {
+      "id": "direct-call-helper-export",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0736b7937ea960d0a30f7a71750208f4319501dae54bc5dc968dcb2a5ba84d1f",
+      "group": "modules"
+    },
+    {
+      "id": "direct-call-ambient-helper",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "955321803f2f034835fa45053e3894fae807b76bd325e32e383894f9b27e4120",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "direct-call-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "27485aa4e9cf6c428dc1613bb5f465ec8206383dd365e613b39ff437e40756ad",
+      "group": "statement-count"
+    },
+    {
+      "id": "direct-call-global-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e06945be9ce83122c106567cb869ed2310497b830f6c95e5c11dd51ab9571cbd",
+      "group": "local-count"
+    },
+    {
+      "id": "direct-call-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9c615d95fadde88a35ea0013fcf2260863dcc2ffc59ddd35a0f133abc949482f",
+      "group": "expression-depth"
+    },
+    {
+      "id": "direct-call-statement-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8b7b76c0add2db2c0432cc2032b74c1973746d0aa2caae0889baea762ab9498d",
+      "group": "statement-depth"
+    },
+    {
+      "id": "direct-call-1001-parameters",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7d442cd6dd9578535e64b992a616c60a72eaee315ec6c08b48ac559cb3b03bd9",
+      "group": "function-parameter-count"
+    },
+    {
+      "id": "direct-call-byte-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2fd7a3d76c9880cc7c6abbc5b4c5bee038abd2636e0d57f749def52c870f74b2",
+      "group": "source-bytes"
     }
   ]
 }

@@ -31,14 +31,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 34
-contains 671 paired programs, 631 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 35
+contains 710 paired programs, 682 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 631 rejections in 55 groups: 26 invalid sources in their selected
-strict Module dialect, 79 explicit resource restrictions and 526 open requirements.
+classifies all 682 rejections in 57 groups: 26 invalid sources in their selected
+strict Module dialect, 85 explicit resource restrictions and 571 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -253,6 +253,12 @@ A full-source composition case combines a module alias, annotated numeric locals
 and a post-return alias with an unsigned shift assignment whose RHS writes its
 target, preserving the captured left value and stored result.
 
+Corpus 35 adds direct calls to plain top-level numeric helpers, including forward,
+self and mutual calls. Thirty-nine paired full-source programs and 51 new boundary
+rejections cover signatures, argument snapshots, separate invocation state, TS
+metadata, finite recursion and global source budgets. No prior rejection is
+promoted; all 41 reference gaps retain their original programs and diagnostics.
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -318,9 +324,22 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 ## Experimental contract
 
 - One runtime module-level `export function run` with two ordinary parameters,
-  alongside only the explicit type declarations described below.
+  alongside plain unexported numeric helper declarations and the explicit type declarations described below.
   Inputs are **already primitive JS numbers**, represented as Wasm `f64` values.
   This ABI contract is independent of whether TS annotations are present.
+- Helper signatures are collected before any body is lowered, so calls can precede
+  declarations. A bare callee must resolve by semantic SymbolId to a collected
+  function; local/parameter/TDZ shadows never fall back by spelling. All arguments
+  must be Numbers and match the declared count exactly, including zero. Arguments
+  execute once from left to right and retain snapshots across later argument
+  writes. Each invocation has independent mutable parameters and locals. Every
+  body, including unused helpers, must satisfy numeric return coverage. Function
+  values, aliases, nested declarations/captures and writes to function bindings
+  are rejected, including writes in dead or unused code. Missing/extra arguments,
+  spread, defaults, rest, optional and generic calls remain outside this subset.
+  Self/mutual calls share the existing Wasmtime store's fuel budget; they do not
+  renew it. The existing engine stack guard also remains in place. Neither is a
+  static termination proof or a guarantee for arbitrary host-thread stacks.
 - The body admits initialized numeric `const`/`let` declarations and
   discarded numeric expression statements in source order, lexical blocks and
   statement `if`/`else`, and `while`/`for`/`do...while` loops. Empty statements
@@ -390,8 +409,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   those declarations and default interface exports are also admitted. Each whole
   declaration, including its export wrapper, charges one source statement and
   retains ordinary statement depth checks. Type members emit no operations and
-  consume no runtime locals or expression depth. Module admission selects exactly
-  one remaining runtime item and applies the existing exported-entry checks;
+  consume no runtime locals or expression depth. Module admission selects one
+  exported entry and any plain unexported helpers;
   imports, export/re-export lists, ambient values, enums, namespaces and module/global
   augmentations remain unsupported. Type names do not create numeric bindings.
   `=`, `+=`, `-=`, `*=`, `/=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
@@ -463,7 +482,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
 - Everything else is rejected: extra statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
-  `this` parameters, modifiers, calls, strings/objects/BigInts,
+  `this` parameters, modifiers, indirect/property/optional calls, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `%=`/`**=`/`&&=`/`||=`/`??=` assignments,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
@@ -477,9 +496,12 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   or fused multiply-add lowering. Literal values use Oxc's binary64 parse followed
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
 - Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
-  across all lexical scopes and 256 recursively counted statements, including
+  across all functions and lexical scopes and 256 recursively counted statements, including
   module/function directives, explicit type declarations, block/`if`/`while`/`for`/`do`
-  nodes, both arms, loop bodies and returns; a `for` header
+  nodes, both arms, loop bodies and returns. Each added helper declaration charges
+  once; the historical entry wrapper remains uncharged. Helper parameters are
+  separate from the declared-local budget and limited to 1,000 per function by the
+  backend resource bound. A `for` header
   declaration counts once as a statement, with one local per declarator. Header
   expressions use the ordinary expression nesting budget. Statement nesting limit 64;
   generated IR values, regions and Wasm temporaries do not consume source budgets;
@@ -505,21 +527,21 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 1682868 numeric comparisons; 631 rejected inputs; overwrite preserved
+PASS 1780680 numeric comparisons; 682 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-671 programs, each written as JS and TS, produce 1342 modules.
+710 programs, each written as JS and TS, produce 1420 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,682,868 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 1,780,680 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
 use hand-paired JavaScript references. They check all four wrappers around numbers
 and comparisons, nested forms, ordered writes, snapshots, loop-condition effects,
-NaN/±0 behavior and the 128-node nesting boundary. Calls, strings and objects remain
+NaN/±0 behavior and the 128-node nesting boundary. Unsupported calls, strings and objects remain
 rejected inside wrappers, including unselected arms. Const writes, uninitialized
 bindings, wrapped targets, and depth 129 also remain rejected.
 This follows TypeScript's runtime treatment of
@@ -621,6 +643,17 @@ mutation changes a stored/yielded result from 11 to 77 and is detected; the orig
 mapping is restored before the canonical replay. No conversion, IR or emitter
 change is needed.
 
+The [direct-call fixtures](../tests/compatibility/numeric-calls.mjs) use complete
+JS/TS modules and exact full-source JS oracles. Recursion counters and loops are
+finite independently of the 627 input pairs. The 1,000-parameter case is validated
+and executed in both engines; 1,001 parameters reject before emission. A finite
+argument-order mutation changes a stored result from 533 to 353 and is detected.
+A separate Wasmtime-only finite-depth recursion test observed `OutOfFuel`, then
+successfully reused the same instance. It does not claim that `StackOverflow` was
+observed, and is never executed in a JS oracle. Adding calls leaves all 1,342 prior
+JS/TS source and Wasm variants byte-identical, including affine at 93 bytes and
+Mandelbrot at 504 bytes. The fuel allowance remains 10,000; no speed claim follows.
+
 The expressions cover basic operators, nested unary operators, signed-zero and
 smallest-subnormal literals, overflow literals, integer literals rounded beyond
 `2^53`, nondecimal literals, grouping/cancellation and separate rounding. Input
@@ -691,7 +724,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-631 malformed or unsupported programs fail explicitly, each with a unique
+682 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

@@ -22,6 +22,12 @@ pub(super) struct NumericBinding {
     pub mutable: bool,
 }
 
+pub(super) struct NumericFunction {
+    pub symbol: SymbolId,
+    pub id: ir::FunctionId,
+    pub parameter_count: usize,
+}
+
 fn numeric_binding<'b>(
     identifier: &IdentifierReference<'_>,
     semantic: &Semantic<'_>,
@@ -57,6 +63,7 @@ fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression
 
 pub(super) struct Lowering<'s, 'a> {
     pub semantic: &'s Semantic<'a>,
+    pub functions: &'s [NumericFunction],
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,
@@ -107,6 +114,53 @@ impl Lowering<'_, '_> {
             return self.expression(inner, region, depth + 1);
         }
         let kind = match expression {
+            Expression::CallExpression(call) => {
+                let Expression::Identifier(identifier) = &call.callee else {
+                    return Err(unsupported(
+                        expression,
+                        "expression is outside the numeric experiment",
+                    ));
+                };
+                let symbol = identifier.reference_id.get().and_then(|reference| {
+                    self.semantic.scoping().get_reference(reference).symbol_id()
+                });
+                let function = self
+                    .functions
+                    .iter()
+                    .find(|function| Some(function.symbol) == symbol)
+                    .ok_or_else(|| {
+                        unsupported(expression, "expression is outside the numeric experiment")
+                    })?;
+                if call.optional || call.type_arguments.is_some() {
+                    return Err(unsupported(
+                        expression,
+                        "optional and generic calls are not admitted",
+                    ));
+                }
+                if call.arguments.len() != function.parameter_count {
+                    return Err(unsupported(
+                        expression,
+                        "call requires exactly the declared number of arguments",
+                    ));
+                }
+                let function = function.id;
+                let mut arguments = Vec::new();
+                for argument in &call.arguments {
+                    let Some(argument) = argument.as_expression() else {
+                        return Err(unsupported(
+                            expression,
+                            "spread call arguments are not admitted",
+                        ));
+                    };
+                    arguments.push(self.expression(argument, region, depth + 1)?);
+                }
+                let result = self.value(Type::Number);
+                Op::Call {
+                    result,
+                    function,
+                    arguments,
+                }
+            }
             Expression::NumericLiteral(literal) => {
                 let result = self.value(Type::Number);
                 Op::Constant {
@@ -383,7 +437,8 @@ impl Lowering<'_, '_> {
             }
         };
         let result = match &kind {
-            Op::Constant { result, .. }
+            Op::Call { result, .. }
+            | Op::Constant { result, .. }
             | Op::Load { result, .. }
             | Op::Unary { result, .. }
             | Op::Binary { result, .. } => *result,
@@ -826,8 +881,9 @@ impl Lowering<'_, '_> {
         }
     }
 
-    pub fn finish(self, body: Region) -> ir::Function {
+    pub fn finish(self, body: Region, parameter_count: usize) -> ir::Function {
         ir::Function {
+            parameter_count,
             slots: self.slots,
             values: self.values,
             body,

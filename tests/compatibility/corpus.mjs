@@ -29,8 +29,9 @@ import { numericShifts, numericShiftsRejected } from './numeric-shifts.mjs';
 import { numericBitwiseCompounds, numericBitwiseCompoundsRejected } from './numeric-bitwise-compounds.mjs';
 import { annotationPrograms, annotationRejected } from './type-annotations.mjs';
 import { typeDeclarationPrograms, typeDeclarationRejected } from './type-declarations.mjs';
+import { numericCalls, numericCallsRejected } from './numeric-calls.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 34;
+export const corpusVersion = 35;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -85,6 +86,7 @@ programs.push(...numericShifts);
 programs.push(...numericBitwiseCompounds);
 programs.push(...annotationPrograms);
 programs.push(...typeDeclarationPrograms);
+programs.push(...numericCalls);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -179,6 +181,7 @@ export const rejected = [
   ...numericBitwiseCompoundsRejected,
   ...annotationRejected,
   ...typeDeclarationRejected,
+  ...numericCallsRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -329,7 +332,7 @@ export const rejected = [
 // These are recorded gaps, not skipped executable tests or passing fixtures.
 export const unimplemented = [
   { id: 'mutable-control-flow', milestone: 'L2', reason: 'Switch and labelled control flow are not lowered.' },
-  { id: 'functions-modules', milestone: 'L3', reason: 'Calls, module graphs and initialization order are not lowered.' },
+  { id: 'functions-modules', milestone: 'L3', reason: 'Indirect/nested functions, module graphs and initialization order are not lowered.' },
   { id: 'js-values-coercion', milestone: 'L4', reason: 'Only primitive numbers cross the experimental ABI.' },
   { id: 'closures-exceptions-async', milestone: 'L5', reason: 'Lifetime, unwinding and job semantics are not implemented.' },
   { id: 'component-capabilities', milestone: 'R1', reason: 'Core numeric modules do not exercise WIT resources or host authority.' },

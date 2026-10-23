@@ -16,7 +16,7 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Operators and coercive equality | `gap-remainder`, `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
 | General JavaScript values | `gap-boolean-value`, `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
 | Additional control flow | `gap-switch`, `gap-label` |
-| Functions, calls and recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
+| Function values, nested declarations and nested recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
 | Module loading | `gap-module-import` |
 | Bindings and parameter forms | `gap-var`, `gap-var-hoisting`, `gap-uninitialized-let`, `gap-local-destructure`, `gap-destructuring-write`, `gap-defaults`, `gap-rest` |
 | Closures | `gap-closure-capture` |
@@ -34,9 +34,9 @@ invalid JavaScript. Source-size, depth, statement/local counts, input-batch and 
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
-covers every current negative, beyond these 41 numeric reference opt-ins. Its 55
-groups classify 26 invalid sources, 79 resource restrictions and 526 open requirements
-across all 631 records. Each pins the exact source, extension and strict Module mode;
+covers every current negative, beyond these 41 numeric reference opt-ins. Its 57
+groups classify 26 invalid sources, 85 resource restrictions and 571 open requirements
+across all 682 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -206,3 +206,10 @@ aliases/interfaces and their direct named exports, plus default interface export
 retain the original AST and emit no runtime code. Each charges one statement;
 type members create no runtime cells or expression work. Imports, export lists,
 ambient values, enums, namespaces and augmentations remain separate gaps.
+
+Direct top-level numeric helper calls, including self/mutual recursion, are covered
+in [`numeric-calls.mjs`](../tests/compatibility/numeric-calls.mjs). They promote no
+existing rejection. `gap-call` still needs an arrow function value/capture;
+`gap-nested-function` and `gap-recursion` still contain nested declarations.
+`Math.abs` and module imports remain outside direct bare-identifier admission.
+All 41 reference sources, oracles and recorded diagnostics are retained.

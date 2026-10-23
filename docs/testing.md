@@ -34,8 +34,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 631 negatives, including the curated references. Its 55 groups
-distinguish 26 invalid sources, 79 resource restrictions and 526 open requirements.
+also covers all 682 negatives, including the curated references. Its 57 groups
+distinguish 26 invalid sources, 85 resource restrictions and 571 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -93,3 +93,10 @@ oracle selection, reject incomplete metadata, and preserve legacy body fixtures.
 Full-source directive fixtures therefore exercise module prologues in their
 original positions. The replay reads retained input/oracle bytes back to verify
 source hashes rather than silently replacing full source with generated wrappers.
+
+The direct numeric call fixtures use full JS/TS modules and unchanged full-source
+JS oracles. They cover zero/one/multiple arguments, a 1,000-parameter backend
+boundary, snapshots, invocation isolation and fixed-counter self/mutual recursion.
+All 631 prior rejection sources/modes/diagnostics and 41 gap oracles are retained.
+A separate Wasmtime-only excessive finite-depth recursion test checks a typed
+fuel/stack trap and instance reuse; it never runs a recursive overflow in Node.

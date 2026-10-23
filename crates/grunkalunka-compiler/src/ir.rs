@@ -8,6 +8,8 @@ pub(crate) struct ValueId(pub usize);
 pub(crate) struct SlotId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct RegionId(pub usize);
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FunctionId(pub usize);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Type {
@@ -54,9 +56,16 @@ pub(crate) struct Slot {
 
 #[derive(Debug)]
 pub(crate) struct Function {
+    pub parameter_count: usize,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,
     pub body: Region,
+}
+
+#[derive(Debug)]
+pub(crate) struct Module {
+    // Entry first; all signatures are available before any body is verified.
+    pub functions: Vec<Function>,
 }
 
 #[derive(Debug)]
@@ -75,6 +84,11 @@ pub(crate) struct Operation {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    Call {
+        result: ValueId,
+        function: FunctionId,
+        arguments: Vec<ValueId>,
+    },
     Not {
         result: ValueId,
         input: ValueId,
@@ -235,6 +249,7 @@ enum Contract {
 
 struct Verifier<'a> {
     function: &'a Function,
+    signatures: &'a [usize],
     defined: BTreeSet<ValueId>,
     regions: BTreeSet<RegionId>,
 }
@@ -320,6 +335,26 @@ impl Verifier<'_> {
             }
             let mut next = Completion::NORMAL;
             match &operation.kind {
+                Op::Call {
+                    result,
+                    function,
+                    arguments,
+                } => {
+                    let count = self
+                        .signatures
+                        .get(function.0)
+                        .ok_or_else(|| invalid(span, "invalid callee function ID"))?;
+                    if arguments.len() != *count {
+                        return Err(invalid(
+                            span,
+                            "call argument count does not match signature",
+                        ));
+                    }
+                    for argument in arguments {
+                        self.value(*argument, Type::Number, &visible, span)?;
+                    }
+                    self.define(*result, Type::Number, &mut visible, span)?;
+                }
                 Op::Not { result, input } => {
                     self.value(*input, Type::Predicate, &visible, span)?;
                     self.define(*result, Type::Predicate, &mut visible, span)?;
@@ -544,29 +579,63 @@ impl Verifier<'_> {
     }
 }
 
-pub(crate) fn verify(function: &Function) -> Result<(), String> {
+pub(crate) fn verify_module(module: &Module) -> Result<(), String> {
+    let entry = module
+        .functions
+        .first()
+        .ok_or("internal IR: missing entry function")?;
+    if entry.parameter_count != 2 {
+        return Err(invalid(
+            entry.body.span,
+            "entry must have two numeric parameters",
+        ));
+    }
+    let signatures: Vec<_> = module
+        .functions
+        .iter()
+        .map(|function| function.parameter_count)
+        .collect();
+    for function in &module.functions {
+        verify_function(function, &signatures)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn verify(function: &Function) -> Result<(), String> {
+    verify_function(function, &[function.parameter_count])
+}
+
+fn verify_function(function: &Function, signatures: &[usize]) -> Result<(), String> {
+    if function.parameter_count > 1000 {
+        return Err(invalid(
+            function.body.span,
+            "at most 1000 function parameters are admitted",
+        ));
+    }
     let mut initialized = BTreeSet::new();
     for (index, slot) in function.slots.iter().enumerate() {
-        if slot.parameter != (index < 2)
+        if slot.parameter != (index < function.parameter_count)
             || (slot.parameter && (slot.owner != function.body.id || !slot.mutable))
         {
             return Err(invalid(
                 slot.span,
-                "exactly two mutable root parameter slots are required",
+                "mutable root parameter slots must match the signature",
             ));
         }
         if slot.parameter {
             initialized.insert(SlotId(index));
         }
     }
-    if initialized.len() != 2 {
+    if initialized.len() != function.parameter_count {
         return Err(invalid(
             function.body.span,
-            "two initialized parameters are required",
+            "initialized parameters must match the signature",
         ));
     }
     let mut verifier = Verifier {
         function,
+        signatures,
         defined: BTreeSet::new(),
         regions: BTreeSet::new(),
     };
@@ -595,6 +664,118 @@ pub(crate) fn verify(function: &Function) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn calling_module() -> Module {
+        let mut caller = function(
+            vec![
+                Op::Constant {
+                    result: ValueId(0),
+                    value: 5.0,
+                },
+                Op::Constant {
+                    result: ValueId(1),
+                    value: 3.0,
+                },
+                Op::Call {
+                    result: ValueId(2),
+                    function: FunctionId(1),
+                    arguments: vec![ValueId(0), ValueId(1)],
+                },
+            ],
+            Exit::Return(ValueId(2)),
+        );
+        caller.values = vec![Type::Number; 3];
+        let callee = function(
+            vec![Op::Load {
+                result: ValueId(0),
+                slot: SlotId(0),
+            }],
+            Exit::Return(ValueId(0)),
+        );
+        Module {
+            functions: vec![caller, callee],
+        }
+    }
+
+    #[test]
+    fn calls_check_callee_arity_and_arguments_before_defining_the_result() {
+        verify_module(&calling_module()).unwrap();
+        for (callee, arguments, expected) in [
+            (FunctionId(2), vec![ValueId(0), ValueId(1)], "callee"),
+            (FunctionId(1), vec![ValueId(0)], "argument count"),
+            (FunctionId(1), vec![ValueId(2), ValueId(1)], "not visible"),
+        ] {
+            let mut module = calling_module();
+            module.functions[0].body.operations[2].kind = Op::Call {
+                result: ValueId(2),
+                function: callee,
+                arguments,
+            };
+            assert!(verify_module(&module).unwrap_err().contains(expected));
+        }
+    }
+
+    #[test]
+    fn calls_require_numeric_arguments_and_result() {
+        for predicate_argument in [true, false] {
+            let mut module = calling_module();
+            if predicate_argument {
+                module.functions[0].values[1] = Type::Predicate;
+                module.functions[0].body.operations[1].kind = Op::Boolean {
+                    result: ValueId(1),
+                    value: true,
+                };
+            } else {
+                module.functions[0].values[2] = Type::Predicate;
+            }
+            assert!(verify_module(&module).unwrap_err().contains("type"));
+        }
+    }
+
+    #[test]
+    fn calls_cannot_read_a_child_region_or_another_functions_values() {
+        let mut module = calling_module();
+        let mut child = region(
+            vec![Op::Constant {
+                result: ValueId(0),
+                value: 5.0,
+            }],
+            Exit::Fallthrough,
+        );
+        child.id = RegionId(1);
+        module.functions[0].body.operations[0].kind = Op::Block(child);
+        assert!(verify_module(&module).unwrap_err().contains("not visible"));
+        let mut module = calling_module();
+        module.functions[0].body.operations.drain(0..2);
+        assert!(verify_module(&module).unwrap_err().contains("not visible"));
+    }
+
+    #[test]
+    fn module_signatures_and_each_function_have_independent_parameter_and_loop_state() {
+        let mut module = calling_module();
+        module.functions[1].parameter_count = 1;
+        let Op::Call { arguments, .. } = &mut module.functions[0].body.operations[2].kind else {
+            unreachable!()
+        };
+        arguments.truncate(1);
+        assert!(verify_module(&module).unwrap_err().contains("signature"));
+        let mut module = calling_module();
+        module.functions[1].body.exit = Exit::Continue;
+        assert!(
+            verify_module(&module)
+                .unwrap_err()
+                .contains("exit contract")
+        );
+        let mut module = calling_module();
+        module.functions[0].parameter_count = 1;
+        assert!(verify_module(&module).unwrap_err().contains("entry"));
+        assert!(
+            verify_module(&Module {
+                functions: Vec::new()
+            })
+            .is_err()
+        );
+    }
 
     #[test]
     fn integer_binary_requires_numeric_operands_and_result() {
@@ -999,6 +1180,7 @@ mod tests {
     }
     fn function(operations: Vec<Op>, exit: Exit) -> Function {
         Function {
+            parameter_count: 2,
             slots: (0..2)
                 .map(|_| Slot {
                     owner: RegionId(0),

@@ -4,7 +4,7 @@ mod emit;
 mod ir;
 mod lower;
 
-use lower::{Lowering, NumericBinding};
+use lower::{Lowering, NumericBinding, NumericFunction};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
@@ -64,118 +64,203 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
     let program = &parsed.program;
     // The original annotated AST stays available through lowering. Type syntax
     // is unvalidated metadata; the ABI and runtime operands determine admission.
-    let mut runtime = program
+    let runtime: Vec<_> = program
         .body
         .iter()
-        .filter(|statement| !is_type_declaration(statement));
-    let (Some(entry), None) = (runtime.next(), runtime.next()) else {
+        .filter(|statement| !is_type_declaration(statement))
+        .collect();
+    if runtime.is_empty() {
         return Err(unsupported(
             program,
             "exactly one exported function is admitted",
         ));
-    };
-    let Statement::ExportDeclaration(export) = entry else {
+    }
+    // Keep the original single-runtime-item diagnostics, including a bare run.
+    if runtime.len() == 1 && !matches!(runtime[0], Statement::ExportDeclaration(_)) {
         return Err(unsupported(program, "expected 'export function run(a, b)'"));
-    };
-    let Declaration::FunctionDeclaration(function) = &export.declaration else {
-        return Err(unsupported(
-            export.as_ref(),
-            "only a function declaration is admitted",
-        ));
-    };
-    if function.r#type != FunctionType::FunctionDeclaration
-        || function
-            .id
-            .as_ref()
-            .is_none_or(|id| id.name.as_str() != "run")
-        || function.r#async
-        || function.generator
-        || function.declare
-        || function.type_parameters.is_some()
-        || function.this_param.is_some()
-    {
-        return Err(unsupported(
-            function.as_ref(),
-            "expected a plain, synchronous, non-generic function named run",
-        ));
     }
-    if function.params.kind != FormalParameterKind::FormalParameter
-        || function.params.items.len() != 2
-        || function.params.rest.is_some()
-    {
-        return Err(unsupported(
-            function.params.as_ref(),
-            "exactly two ordinary numeric parameters are admitted",
-        ));
+    let mut entry = None;
+    let mut helpers = Vec::new();
+    for statement in &runtime {
+        match statement {
+            Statement::ExportDeclaration(export) => {
+                let Declaration::FunctionDeclaration(function) = &export.declaration else {
+                    return Err(if runtime.len() == 1 {
+                        unsupported(export.as_ref(), "only a function declaration is admitted")
+                    } else {
+                        unsupported(program, "exactly one exported function is admitted")
+                    });
+                };
+                if entry.replace(function.as_ref()).is_some() {
+                    return Err(unsupported(
+                        program,
+                        "exactly one exported function is admitted",
+                    ));
+                }
+            }
+            Statement::FunctionDeclaration(function)
+                if !function.declare && function.body.is_some() =>
+            {
+                helpers.push(function.as_ref());
+            }
+            _ => {
+                return Err(unsupported(
+                    program,
+                    "exactly one exported function is admitted",
+                ));
+            }
+        }
     }
-    let mut bindings = Vec::new();
-    let mut slots = Vec::new();
-    for parameter in &function.params.items {
-        if parameter.optional
-            || parameter.initializer.is_some()
-            || !parameter.decorators.is_empty()
-            || parameter.accessibility.is_some()
-            || parameter.readonly
-            || parameter.r#override
+    let entry =
+        entry.ok_or_else(|| unsupported(program, "exactly one exported function is admitted"))?;
+    let declarations: Vec<_> = std::iter::once(entry).chain(helpers).collect();
+    let mut signatures = Vec::new();
+    for (index, function) in declarations.iter().enumerate() {
+        if function.r#type != FunctionType::FunctionDeclaration
+            || function.id.is_none()
+            || (index == 0
+                && function
+                    .id
+                    .as_ref()
+                    .is_none_or(|id| id.name.as_str() != "run"))
+            || function.r#async
+            || function.generator
+            || function.declare
+            || function.type_parameters.is_some()
+            || function.this_param.is_some()
         {
             return Err(unsupported(
-                parameter,
-                "parameter modifiers, defaults and decorators are not admitted",
+                *function,
+                if index == 0 {
+                    "expected a plain, synchronous, non-generic function named run"
+                } else {
+                    "expected a plain, synchronous, non-generic numeric helper"
+                },
             ));
         }
-        let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+        if function.params.kind != FormalParameterKind::FormalParameter
+            || (index == 0 && function.params.items.len() != 2)
+            || function.params.rest.is_some()
+        {
             return Err(unsupported(
-                parameter,
-                "destructured parameters are not admitted",
+                function.params.as_ref(),
+                if index == 0 {
+                    "exactly two ordinary numeric parameters are admitted"
+                } else {
+                    "ordinary numeric helper parameters are required"
+                },
             ));
+        }
+        if function.params.items.len() > 1000 {
+            return Err(unsupported(
+                function.params.as_ref(),
+                "at most 1000 function parameters are admitted",
+            ));
+        }
+        let identifier = function.id.as_ref().ok_or("missing function identifier")?;
+        let symbol = identifier
+            .symbol_id
+            .get()
+            .ok_or("missing function binding")?;
+        if built
+            .semantic
+            .scoping()
+            .get_resolved_references(symbol)
+            .any(|reference| reference.is_write())
+        {
+            return Err(unsupported(
+                identifier,
+                "writes to a function binding are not admitted",
+            ));
+        }
+        signatures.push(NumericFunction {
+            symbol,
+            id: ir::FunctionId(index),
+            parameter_count: function.params.items.len(),
+        });
+    }
+    let mut functions = Vec::new();
+    let mut local_count = 0;
+    let mut statement_count = 0;
+    for (index, function) in declarations.iter().enumerate() {
+        let mut bindings = Vec::new();
+        let mut slots = Vec::new();
+        for parameter in &function.params.items {
+            if parameter.optional
+                || parameter.initializer.is_some()
+                || !parameter.decorators.is_empty()
+                || parameter.accessibility.is_some()
+                || parameter.readonly
+                || parameter.r#override
+            {
+                return Err(unsupported(
+                    parameter,
+                    "parameter modifiers, defaults and decorators are not admitted",
+                ));
+            }
+            let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                return Err(unsupported(
+                    parameter,
+                    "destructured parameters are not admitted",
+                ));
+            };
+            bindings.push(NumericBinding {
+                slot: ir::SlotId(bindings.len()),
+                symbol: identifier
+                    .symbol_id
+                    .get()
+                    .ok_or("missing parameter binding")?,
+                mutable: true,
+            });
+            slots.push(ir::Slot {
+                owner: ir::RegionId(0),
+                mutable: true,
+                parameter: true,
+                span: parameter.span(),
+            });
+        }
+        let body = function.body.as_ref().ok_or("function must have a body")?;
+        let mut lowering = Lowering {
+            semantic: &built.semantic,
+            functions: &signatures,
+            bindings,
+            local_count,
+            statement_count,
+            in_loop_body: false,
+            slots,
+            values: Vec::new(),
+            next_region: 0,
         };
-        bindings.push(NumericBinding {
-            slot: ir::SlotId(bindings.len()),
-            symbol: identifier
-                .symbol_id
-                .get()
-                .ok_or("missing parameter binding")?,
-            mutable: true,
-        });
-        slots.push(ir::Slot {
-            owner: ir::RegionId(0),
-            mutable: true,
-            parameter: true,
-            span: parameter.span(),
-        });
+        if index == 0 {
+            for directive in &program.directives {
+                lowering.charge_statement(directive)?;
+            }
+            for declaration in program
+                .body
+                .iter()
+                .filter(|statement| is_type_declaration(statement))
+            {
+                lowering.charge_statement(declaration)?;
+            }
+        } else {
+            lowering.charge_statement(*function)?;
+        }
+        for directive in &body.directives {
+            lowering.charge_statement(directive)?;
+        }
+        let mut region = lowering.region(body.as_ref());
+        if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
+            return Err(unsupported(
+                body.as_ref(),
+                "every structural path must return a numeric value",
+            ));
+        }
+        local_count = lowering.local_count;
+        statement_count = lowering.statement_count;
+        functions.push(lowering.finish(region, function.params.items.len()));
     }
-    let body = function.body.as_ref().ok_or("function must have a body")?;
-    let mut lowering = Lowering {
-        semantic: &built.semantic,
-        bindings,
-        local_count: 0,
-        statement_count: 0,
-        in_loop_body: false,
-        slots,
-        values: Vec::new(),
-        next_region: 0,
-    };
-    // Oxc already recognized these literal expression statements. ESM is strict,
-    // and their completion values are unobserved by the numeric return ABI.
-    for directive in program.directives.iter().chain(&body.directives) {
-        lowering.charge_statement(directive)?;
-    }
-    for declaration in program
-        .body
-        .iter()
-        .filter(|statement| is_type_declaration(statement))
-    {
-        lowering.charge_statement(declaration)?;
-    }
-    let mut region = lowering.region(body.as_ref());
-    if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
-        return Err(unsupported(
-            body.as_ref(),
-            "every structural path must return a numeric value",
-        ));
-    }
-    let function = lowering.finish(region);
-    let wat = emit::emit(&function)?;
+    let module = ir::Module { functions };
+    let wat = emit::emit(&module)?;
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })
 }
@@ -183,6 +268,17 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
 #[cfg(test)]
 mod tests {
     use super::compile;
+
+    #[test]
+    fn direct_numeric_helpers_with_distinct_arities_are_admitted() {
+        for source in [
+            "function value() { return 7; } export function run(a,b) { return value(); }",
+            "export function run(a,b) { return inc(a); } function inc(x) { return x+1; }",
+            "function pack(x,y,z) { return x*100+y*10+z; } export function run(a,b) { return pack(a,b,3); }",
+        ] {
+            compile(source, false).unwrap();
+        }
+    }
 
     #[test]
     fn type_aliases_preserve_the_numeric_artifact() {

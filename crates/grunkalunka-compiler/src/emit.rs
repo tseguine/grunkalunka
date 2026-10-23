@@ -43,6 +43,17 @@ impl Emitter<'_> {
     fn region(&mut self, region: &Region) {
         for operation in &region.operations {
             match &operation.kind {
+                Op::Call {
+                    result,
+                    function,
+                    arguments,
+                } => {
+                    for argument in arguments {
+                        self.get(*argument);
+                    }
+                    writeln!(self.output, "call {}", function.0).unwrap();
+                    self.set(*result);
+                }
                 Op::Not { result, input } => {
                     self.get(*input);
                     self.output.push_str("i32.eqz\n");
@@ -235,26 +246,44 @@ impl Emitter<'_> {
     }
 }
 
-pub(crate) fn emit(function: &Function) -> Result<String, String> {
-    ir::verify(function)?;
-    let mut emitter = Emitter {
-        function,
-        loop_label: None,
-        output: "(module (func (export \"run\") (param f64 f64) (result f64)\n".to_string(),
-    };
-    // Source cells and typed value snapshots occupy disjoint physical locals.
-    for _ in function.slots.iter().skip(2) {
-        emitter.output.push_str("(local f64)\n");
+pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
+    ir::verify_module(module)?;
+    let mut output = String::from("(module ");
+    for (index, function) in module.functions.iter().enumerate() {
+        let mut header = if index == 0 {
+            String::from("(func (export \"run\")")
+        } else {
+            String::from("(func")
+        };
+        if function.parameter_count > 0 {
+            header.push_str(" (param");
+            for _ in 0..function.parameter_count {
+                header.push_str(" f64");
+            }
+            header.push(')');
+        }
+        header.push_str(" (result f64)\n");
+        let mut emitter = Emitter {
+            function,
+            loop_label: None,
+            output: header,
+        };
+        // Source cells and typed value snapshots occupy disjoint physical locals.
+        for _ in function.slots.iter().skip(function.parameter_count) {
+            emitter.output.push_str("(local f64)\n");
+        }
+        for ty in &function.values {
+            emitter.output.push_str(match ty {
+                Type::Number => "(local f64)\n",
+                Type::Predicate => "(local i32)\n",
+            });
+        }
+        emitter.region(&function.body);
+        // The verifier proved return coverage. This only helps Wasm validation after
+        // nested void branches whose arms return; it supplies no source semantics.
+        emitter.output.push_str("unreachable\n)");
+        output.push_str(&emitter.output);
     }
-    for ty in &function.values {
-        emitter.output.push_str(match ty {
-            Type::Number => "(local f64)\n",
-            Type::Predicate => "(local i32)\n",
-        });
-    }
-    emitter.region(&function.body);
-    // The verifier proved return coverage. This only helps Wasm validation after
-    // nested void branches whose arms return; it supplies no source semantics.
-    emitter.output.push_str("unreachable\n))\n");
-    Ok(emitter.output)
+    output.push_str(")\n");
+    Ok(output)
 }

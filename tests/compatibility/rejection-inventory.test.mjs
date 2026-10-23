@@ -11,7 +11,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 631);
+  assert.equal(inventory.records.size, 682);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -65,6 +65,10 @@ test('valid throwing/unselected programs and temporary entry/return policies rem
   }
   assert.equal(rejectionClassification(inventory, 'compound-destructuring-target').kind, 'invalid-source');
   assert.equal(rejectionClassification(inventory, 'local-limit').kind, 'resource-restriction');
+  assert.equal(rejectionClassification(inventory, 'direct-call-1001-parameters').kind, 'resource-restriction');
+  for (const id of ['direct-call-missing', 'direct-call-function-write', 'direct-call-numeric-shadow-call']) {
+    assert.equal(rejectionClassification(inventory, id).kind, 'open-requirement', id);
+  }
 });
 
 function completedReport(inventory) {

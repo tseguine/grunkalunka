@@ -22,7 +22,7 @@ pretending a whole browser/framework is a short implementation task.
 | L0 — numeric expressions | Done | JS/TS -> portable Wasm; Wasmtime + Node-Wasm differential tests including signed zero, NaN, infinities and rounding. [Compiler contract](compiler.md). |
 | L1 — local values and decisions | Done | Numeric `const` locals and comparison-controlled ternaries; the L1 run had 31 JS/TS pairs, 76,508 engine comparisons and 64 rejected inputs. Bindings become available after their initializer. |
 | L2 — mutable control flow | Demonstrated | Numeric mutation, lexical blocks, `if`/`else`, early returns, numeric truthiness and `while`/`for`/`do...while`; the initial L2 run had 72 JS/TS pairs, 177,696 comparisons and 100 rejections. NaN/±0 conditions, nested loops, per-entry initialization and selected branches agree with JS. A separate runtime test observes OutOfFuel and successful instance reuse. Numeric compound assignments, prefix/postfix updates and parenthesized write statements are now admitted. Unlabelled break/continue now target the nearest while/for/do loop; switch, labels and other control forms remain explicit compatibility gaps. |
-| L3 — functions and modules | Planned | Multiple functions, calls and one small module graph with explicit imports/exports. Test evaluation order, argument handling and module initialization. Reject unsupported cycles/features explicitly. |
+| L3 — functions and modules | In progress | Top-level direct numeric helpers, exact arity, ordered argument snapshots and self/mutual recursion are demonstrated. Function values, nested declarations, captures and module graphs/initialization remain. |
 | L4 — JS value semantics | Research gate | Compare small value-representation experiments for strings, undefined/null, booleans, numbers, objects/prototypes and coercion. Demonstrate equivalent observable behavior before selecting a production representation or GC strategy. |
 | L5 — exceptions, closures and async | Planned | Separate demonstrated slices for capture/lifetime, throw/catch/finally and promise/job ordering. No blanket compatibility claim from one slice. |
 | T1 — tsrs integration | Research gate | Pin source; perform one real type query associated with an expression; compare tsrs-only against Oxc+tsrs representations. Type information must not erase observable JS behavior. |
@@ -36,7 +36,7 @@ be represented internally without changing the public two-number/result-number A
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 34](../tests/compatibility/corpus.mjs): 671 paired programs, 631 rejection fixtures, five explicit unexecuted feature groups. The [41 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| C1 — executable compatibility matrix | Done | [Corpus version 35](../tests/compatibility/corpus.mjs): 710 paired programs, 682 rejection fixtures, five explicit unexecuted feature groups. The [41 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 24 adapted runtime cases and eight admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -196,6 +196,15 @@ the same client behaves predictably under different capability profiles.
   a missing resolved-report classification mutation is detected. Existing fixture
   sources, diagnostics and 41 curated oracle opt-ins remain unchanged. This inventory
   does not implement its open requirements or establish whole-language conformance.
+
+- Direct top-level numeric helpers retain the public entry ABI and use verified
+  function IDs/signatures and captured arguments. Thirty-nine paired modules and
+  51 new rejections cover arities, shadows, independent parameters/locals, finite
+  recursion and global budgets. No old rejection is promoted. A reversed-argument
+  mutation is detected; the Wasmtime-only deep-call test observes fuel exhaustion
+  and instance reuse without claiming stack-overflow observation. The expanded
+  source-bound inventory has 682 records in 57 groups: 26 invalid sources, 85
+  resource restrictions and 571 open requirements.
 
 Use [the research roadmap](roadmap.md) for rationale, source references, licensing,
 quirk flags, browser scope and portable/module boundaries. Update this plan after

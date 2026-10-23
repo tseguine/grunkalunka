@@ -16,6 +16,27 @@ metadata interface is introduced. Type-guided optimization remains separate work
 `src/ir.rs` defines the representation and verifier. `src/emit.rs` emits structured
 Wasm. These files live in `crates/grunkalunka-compiler/`.
 
+## Modules and direct numeric calls
+
+A module holds an entry-first list of functions, indexed by `FunctionId`. Each
+function records its numeric parameter count and owns independent source slots,
+values, regions and loop-emission state. Only entry zero is exported as `run`,
+with its original two-number/result-number ABI. Helpers may have zero through
+1,000 parameters; every function returns a Number on all structural paths.
+
+`Call` records a callee ID, ordered argument ValueIds and a numeric result. The
+module verifier collects signatures before checking bodies, then verifies callee IDs,
+exact arity and visible Number arguments before defining the result. Emission
+loads captured arguments in order, emits a direct numeric-index Wasm call, then
+materializes its result. No table, closure, new value type or host import is used.
+Forward/self/mutual calls use the same operation. Source function bindings cannot
+be written; shadowed references use semantic identity rather than spelling.
+
+Module-wide statement/local budgets survive lowering each function. Added helper
+declarations and every body/directive count once; generated calls/regions do not
+add source statements. Single-function modules retain their original artifact
+bytes. Internal calls share runtime fuel and the engine's existing stack guard.
+
 ## Source cells and computed values
 
 A `SlotId` names a numeric source binding. Each slot records its owning lexical
@@ -30,7 +51,7 @@ its initializer and before the next declarator. Symbol identity keeps a later
 shadow from falling back to an outer binding.
 
 A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
-`Constant`, `Load`, `Unary`, `Binary`, `Compare`, `Truthy`, `Boolean` and `Not` produce values.
+`Call`, `Constant`, `Load`, `Unary`, `Binary`, `Compare`, `Truthy`, `Boolean` and `Not` produce values.
 `Boolean` defines a `Predicate` and emits canonical `i32` zero/one; it never
 produces a numeric source value. Source slots and function returns remain `Number`.
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
