@@ -45,7 +45,6 @@ const negatives = [
   ['statement-const-write', 'const x=a; x+(x=b); return a;', 'assignment to a const binding is not admitted'],
   ['statement-forward-reference', 'x+1; let x=a; return x;', reference],
   ['statement-after-return', 'return a; a+b;', 'statements after a guaranteed return are not admitted'],
-  ['statement-empty', '; return a;', 'statement is outside the numeric experiment'],
   ['statement-expression-depth-limit', `${'('.repeat(129)}a${')'.repeat(129)}; return a;`, 'expression nesting exceeds'],
   ['statement-count-limit', `${'a;'.repeat(256)} return a;`, 'at most 256 statements'],
   ['statement-asserted-boolean', 'true as number; return a;', expression, 'ts'],

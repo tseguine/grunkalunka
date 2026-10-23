@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 21
-contains 355 paired programs, 356 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 22
+contains 367 paired programs, 363 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -125,6 +125,10 @@ source admission. Numeric-value ternaries keep numeric arms. Boolean locals,
 returns, arithmetic and equality operands remain unsupported. The original
 Boolean-conditional rejection is promoted; the 57 gap references are unchanged.
 
+Corpus 22 admits empty statements with 12 paired programs and eight boundary
+rejections. The former `statement-empty` rejection is promoted. The gap frontier
+remains 57 references.
+
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
 artifact was created; it does not count as supported execution. Unimplemented
@@ -185,7 +189,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   This ABI contract is independent of whether TS annotations are present.
 - The body admits initialized numeric `const`/`let` declarations and
   discarded numeric expression statements in source order, lexical blocks and
-  statement `if`/`else`, and `while`/`for`/`do...while` loops.
+  statement `if`/`else`, and `while`/`for`/`do...while` loops. Empty statements
+  fall through without generating IR operations, values or source cells. They
+  count once toward the statement budget and use ordinary source nesting. An
+  empty body does not establish return coverage or prove termination.
   Early numeric returns are supported. Every structural path must return a number:
   a sequence must reach a guaranteed return; a block inherits that result; an `if`
   guarantees return only when both present arms do. Missing-return paths and
@@ -260,7 +267,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   `for-in`/`for-of`, `break`/`continue`, labels and nullish coalescing. Boolean arithmetic/returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
-  TypeScript-wrapped assignment/update targets and empty statements are still rejected.
+  TypeScript-wrapped assignment/update targets are still rejected.
 - Admission covers the entire AST, including directives/modifiers stored outside
   ordinary statements. Oxc parser and semantic syntax diagnostics are checked.
   The compiler does not run a TypeScript type checker or infer arbitrary JS types.
@@ -295,15 +302,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 890340 numeric comparisons; 356 rejected inputs; overwrite preserved
+PASS 920436 numeric comparisons; 363 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-355 programs, each written as JS and TS, produce 710 modules.
+367 programs, each written as JS and TS, produce 734 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 890,340 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 920,436 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -357,6 +364,16 @@ completion values cannot cross this experiment's explicit numeric return ABI.
 A finite mutation skipping statement lowering changes a returned result from 3
 to 2 and is detected; the full replay runs after exact restoration.
 
+The [empty statement fixtures](../tests/compatibility/empty-statements.mjs) check
+standalone/nested empties, branches and finite loop bodies with input-independent
+counters. Exactly 255 empty statements followed by a return fit the 256-statement
+budget; one more empty is rejected. A mutation skipping empty-statement charges
+wrongly admits the latter program and is detected. Sixty-four nested `if(false)`
+statements with an empty body fit the nesting bound; 65 do not. Missing returns,
+statements after a guaranteed return, a module-level prefix and bare `return;`
+remain rejected. This follows
+[EmptyStatement evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-empty-statement-runtime-semantics-evaluation).
+
 The expressions cover basic operators, nested unary operators, signed-zero and
 smallest-subnormal literals, overflow literals, integer literals rounded beyond
 `2^53`, nondecimal literals, grouping/cancellation and separate rounding. Input
@@ -397,7 +414,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-356 malformed or unsupported programs fail explicitly, each with a unique
+363 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

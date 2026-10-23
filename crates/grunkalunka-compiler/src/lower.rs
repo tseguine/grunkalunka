@@ -589,6 +589,7 @@ impl Lowering<'_, '_> {
         }
         self.charge_statement(statement)?;
         match statement {
+            Statement::EmptyStatement(_) => Ok(false),
             Statement::DoWhileStatement(statement) => {
                 let mut body = self.region(&statement.body);
                 let visible = self.bindings.len();
@@ -761,6 +762,21 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn empty_statement_falls_through() {
+        let empty = crate::compile("export function run(a,b) { ; return a; }", false).unwrap();
+        let plain = crate::compile("export function run(a,b) { return a; }", false).unwrap();
+        assert_eq!(empty.wasm, plain.wasm);
+    }
+    #[test]
+    fn empty_loop_body_is_admitted() {
+        crate::compile(
+            "export function run(a,b) { let i=0; while(i++<3); return a; }",
+            false,
+        )
+        .unwrap();
+    }
+
     #[test]
     fn discarded_numeric_statement() {
         crate::compile("export function run(a,b) { a+(a=b); return a; }", false).unwrap();

@@ -96,12 +96,13 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-890,340 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 356 rejected
+920,436 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 363 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops (L1/L2). Number-only `==`/`!=` predicates share strict
 numeric equality semantics; coercion remains outside admission. Numeric expression
-statements preserve effects while discarding their Number result. TypeScript expression and predicate wrappers erase while
+statements preserve effects while discarding their Number result. Empty statements
+fall through without IR allocation while consuming the ordinary source budget. TypeScript expression and predicate wrappers erase while
 their runtime operands remain subject to the numeric admission. Type checking and
 type-only declarations remain separate work. It preserves AST grouping and observes
 local mutation, statement/operand evaluation order and selected-branch effects. External effects

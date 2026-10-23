@@ -1,7 +1,7 @@
 # Known lowering gaps
 
 The current compiler admits one exported two-number function with numeric locals,
-numeric expression statements, assignments, branches, while/for/do loops,
+numeric expression statements, empty statements, assignments, branches, while/for/do loops,
 TypeScript expression wrappers and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
