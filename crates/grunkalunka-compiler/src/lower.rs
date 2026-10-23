@@ -395,6 +395,27 @@ impl Lowering<'_, '_> {
             Self::push(region, expression, Op::Not { result, input });
             return Ok(result);
         }
+        if let Expression::ConditionalExpression(conditional) = expression {
+            let condition = self.predicate(&conditional.test, region, depth + 1)?;
+            let mut consequent = self.region(&conditional.consequent);
+            let left = self.predicate(&conditional.consequent, &mut consequent, depth + 1)?;
+            consequent.exit = Exit::Yield(left);
+            let mut alternate = self.region(&conditional.alternate);
+            let right = self.predicate(&conditional.alternate, &mut alternate, depth + 1)?;
+            alternate.exit = Exit::Yield(right);
+            let result = self.value(Type::Predicate);
+            Self::push(
+                region,
+                expression,
+                Op::If {
+                    result: Some(result),
+                    condition,
+                    consequent,
+                    alternate,
+                },
+            );
+            return Ok(result);
+        }
         if let Expression::LogicalExpression(logical) = expression {
             if logical.operator == LogicalOperator::Coalesce {
                 return Err(unsupported(

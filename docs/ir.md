@@ -69,7 +69,11 @@ arms to yield that exact type, and exposes the joined value only after both arms
 Emission selects `f64` or `i32` from the verified result type. Numeric ternaries
 and logical value expressions join numbers. Logical conditions join predicates:
 the left predicate is evaluated once and the RHS predicate only in its selected
-branch. Boolean-valued source ternary arms remain outside admission.
+branch. Source ternaries consumed as conditions also join predicates, converting
+each arm in its own region. Number-value ternaries still require numeric arms;
+Boolean locals and returns remain outside admission. Previously admitted numeric
+ternaries in predicate positions may therefore emit different bytes, while their
+results and selected effects must remain equivalent.
 
 `While` owns a condition region yielding a predicate, a statement body region,
 and an optional statement step region. Existing source `while` loops have no step.

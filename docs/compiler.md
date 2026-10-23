@@ -31,8 +31,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 20
-contains 336 paired programs, 347 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 21
+contains 355 paired programs, 356 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -117,6 +117,13 @@ outside admission. That run retained 57 lowering-gap references.
 Corpus 20 admits discarded numeric expression statements with 20 paired programs
 and 20 boundary rejections. Three numeric-statement and four whole-TypeScript-wrapper
 rejections are promoted. The lowering-gap frontier remains 57 references.
+
+Corpus 21 adds 19 paired conditional-predicate cases. In predicate positions,
+ternaries may select Boolean, comparison, negation or numeric-truthiness arms.
+The test runs once and only the selected arm executes, while both arms undergo
+source admission. Numeric-value ternaries keep numeric arms. Boolean locals,
+returns, arithmetic and equality operands remain unsupported. The original
+Boolean-conditional rejection is promoted; the 57 gap references are unchanged.
 
 The JSON report separates each fixture's expected admission from its observed
 test outcome. A passing rejection test means a diagnostic was produced and no
@@ -205,8 +212,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   result is a canonical predicate, with the same evaluation order and selected
   effects. Boolean/comparison operands remain rejected in numeric value positions;
   `??` remains rejected in both contexts.
-  Both ternary arms must be admitted and lower to structured Wasm
-  `if (result f64)`. Optional TS annotations must be exactly `number`.
+  Both ternary arms must be admitted. In Number-value positions they yield numbers
+  through `if (result f64)`; in predicate positions they yield predicates through
+  `if (result i32)`, converting only the selected arm to truthiness at runtime.
+  Optional TS annotations must be exactly `number`.
   TypeScript `as`, angle-bracket assertions, postfix non-null `!`, and `satisfies`
   are erased in expression and predicate positions. Each wrapper counts toward
   nesting, and its runtime operand must independently satisfy admission. Wrapped
@@ -286,15 +295,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 842688 numeric comparisons; 347 rejected inputs; overwrite preserved
+PASS 890340 numeric comparisons; 356 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-336 programs, each written as JS and TS, produce 672 modules.
+355 programs, each written as JS and TS, produce 710 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 842,688 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 890,340 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -388,7 +397,7 @@ bytes (+30 bytes); the retained Mandelbrot orbit grows from 273 to 490 bytes
 (+217 bytes). Both retain their results under the unchanged 10,000-fuel allowance.
 These measurements describe artifact growth, with no execution-speed claim.
 
-347 malformed or unsupported programs fail explicitly, each with a unique
+356 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved

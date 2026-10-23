@@ -15,8 +15,9 @@ import { predicateNot } from './predicate-not.mjs';
 import { numericEqualityPrograms, numericEqualityRejected } from './numeric-equality.mjs';
 import { predicateLogical } from './predicate-logical.mjs';
 import { numericStatementPrograms, numericStatementRejected } from './numeric-statements.mjs';
+import { predicateConditional } from './predicate-conditional.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 20;
+export const corpusVersion = 21;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -57,6 +58,7 @@ programs.push(...predicateNot);
 programs.push(...numericEqualityPrograms);
 programs.push(...predicateLogical);
 programs.push(...numericStatementPrograms);
+programs.push(...predicateConditional);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -185,7 +187,16 @@ export const rejected = [
   ['boolean-literal-arithmetic', 'export function run(a,b) { return true+b; }'],
   ['boolean-literal-unselected-call', 'export function run(a,b) { if(false) return Math.random(); return a; }'],
   ['boolean-literal-while-unselected-call', 'export function run(a,b) { while(false) return Math.random(); return a; }'],
-  ['boolean-conditional-value', 'export function run(a,b) { if(a?true:false) return a; return b; }'],
+  ['predicate-conditional-unselected-alternate', 'export function run(a,b) { if(true?true:Math.random()) return a; return b; }'],
+  ['predicate-conditional-unselected-consequent', 'export function run(a,b) { if(false?Math.random():false) return a; return b; }'],
+  ['predicate-conditional-unselected-const', 'export function run(a,b) { const x=a; if(true?true:(x=b)) return a; return b; }'],
+  ['predicate-conditional-numeric-return', 'export function run(a,b) { return a?true:false; }'],
+  ['predicate-conditional-numeric-local', 'export function run(a,b) { const x=a?true:false; return x; }'],
+  ['predicate-conditional-arithmetic', 'export function run(a,b) { return (a?true:false)+b; }'],
+  ['predicate-conditional-assignment', 'export function run(a,b) { if(a?(a=true):false) return a; return b; }'],
+  ['predicate-conditional-nonfinal-comma', 'export function run(a,b) { if((a?true:false,b)) return a; return b; }'],
+  ['predicate-conditional-equality-operand', 'export function run(a,b) { if((a?true:false)==0) return a; return b; }'],
+  ['predicate-conditional-depth', `export function run(a,b) { if(${'a?true:'.repeat(129)}false) return a; return b; }`],
   ['boolean-equality-operands', 'export function run(a,b) { if(true===false) return a; return b; }'],
   ['boolean-comma-nonfinal', 'export function run(a,b) { if((true,a)) return a; return b; }'],
   ['not-local', 'export function run(a,b) { const x=!a; return x?a:b; }'],

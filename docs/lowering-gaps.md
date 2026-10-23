@@ -100,8 +100,9 @@ outside admission. In predicate positions logical operators may combine admitted
 predicates and numeric truthiness, preserving short-circuit effects. Nullish
 coalescing remains outside admission in both contexts.
 
-Boolean literals are admitted in predicate positions. Boolean locals/returns,
-Boolean-valued ternary arms and Boolean equality operands remain outside admission.
+Boolean literals and conditional arms are admitted in predicate positions.
+Boolean locals/returns, Boolean-valued arms in numeric ternaries and Boolean
+equality operands remain outside admission.
 Logical negation is admitted in predicate positions, including nested negation and
 negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 
