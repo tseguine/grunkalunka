@@ -1,8 +1,9 @@
 //! Source admission and AST-to-region lowering. Source limits count source nodes,
 //! never the generated regions, values or Wasm temporary locals.
 use oxc_ast::ast::{
-    AssignmentTarget, BindingPattern, Expression, ForStatementInit, IdentifierReference,
-    SimpleAssignmentTarget, Statement, VariableDeclaration, VariableDeclarationKind,
+    AssignmentTarget, BindingPattern, CallExpression, Expression, ForStatementInit,
+    IdentifierReference, SimpleAssignmentTarget, Statement, VariableDeclaration,
+    VariableDeclarationKind,
 };
 use oxc_semantic::{Semantic, SymbolId};
 use oxc_span::GetSpan;
@@ -46,6 +47,28 @@ fn numeric_binding<'b>(
                 identifier,
                 "reference is not an initialized numeric parameter or local",
             )
+        })
+}
+
+// The numeric module supplies a pristine intrinsic, never an external realm object.
+fn is_math_abs(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> bool {
+    let Expression::StaticMemberExpression(member) = &call.callee else {
+        return false;
+    };
+    let Expression::Identifier(object) = &member.object else {
+        return false;
+    };
+    !call.optional
+        && call.type_arguments.is_none()
+        && !member.optional
+        && member.property.name == "abs"
+        && object.name == "Math"
+        && object.reference_id.get().is_some_and(|reference| {
+            semantic
+                .scoping()
+                .get_reference(reference)
+                .symbol_id()
+                .is_none()
         })
 }
 
@@ -114,6 +137,27 @@ impl Lowering<'_, '_> {
             return self.expression(inner, region, depth + 1);
         }
         let kind = match expression {
+            Expression::CallExpression(call) if is_math_abs(call, self.semantic) => {
+                if call.arguments.len() != 1 {
+                    return Err(unsupported(
+                        expression,
+                        "Math.abs requires exactly one numeric argument",
+                    ));
+                }
+                let Some(argument) = call.arguments[0].as_expression() else {
+                    return Err(unsupported(
+                        expression,
+                        "spread call arguments are not admitted",
+                    ));
+                };
+                let input = self.expression(argument, region, depth + 1)?;
+                let result = self.value(Type::Number);
+                Op::Unary {
+                    result,
+                    operator: Unary::Abs,
+                    input,
+                }
+            }
             Expression::CallExpression(call) => {
                 let Expression::Identifier(identifier) = &call.callee else {
                     return Err(unsupported(

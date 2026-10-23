@@ -6,7 +6,7 @@ TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled lo
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 40 curated reference cases in
+The executable frontier contains 39 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -23,7 +23,6 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Exceptions and completion | `gap-catch`, `gap-finally-return` |
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
-| Globals and standard library | `gap-math-call` |
 | PoC entry and source restrictions | `gap-export-name`, `gap-one-parameter`, `gap-extra-export` |
 | Conservative return analysis | `gap-while-guaranteed-return`, `gap-unreachable-after-return` |
 
@@ -34,9 +33,9 @@ invalid JavaScript. Source-size, depth, statement/local counts, input-batch and 
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
-covers every current negative, beyond these 40 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 85 resource restrictions and 555 open requirements
-across all 666 records. Each pins the exact source, extension and strict Module mode;
+covers every current negative, beyond these 39 numeric reference opt-ins. Its 57
+groups classify 26 invalid sources, 87 resource restrictions and 586 open requirements
+across all 699 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -134,7 +133,7 @@ negated numeric comparisons; it does not add Boolean locals or numeric coercion.
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 40 examples are a
+or change the reference result to match a lowering bug. The 39 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -211,7 +210,6 @@ Direct top-level numeric helper calls, including self/mutual recursion, are cove
 in [`numeric-calls.mjs`](../tests/compatibility/numeric-calls.mjs). They promote no
 existing rejection. `gap-call` still needs an arrow function value/capture;
 `gap-nested-function` and `gap-recursion` still contain nested declarations.
-`Math.abs` and module imports remain outside direct bare-identifier admission.
 That call-only unit retained all 41 reference sources, oracles and diagnostics.
 
 Number `%` and `%=` now promote the exact `gap-remainder`, ordinary `remainder`,
@@ -224,3 +222,8 @@ leaving 40 curated references and 666 classified negatives. The two enumerated
 operator diagnostics truthfully add `%`/`%=`; other retained diagnostic text and
 source positions remain unchanged. Coercion, BigInt and unsupported write targets
 remain separate requirements.
+
+The subsequent pristine numeric Math.abs intrinsic promotes only `gap-math-call`
+and the identical ordinary `call` source. Its original source/oracle and provenance
+are retained in `numeric-math-abs.mjs`; the other 39 references are unchanged.
+Mutable/external realm builtins and module imports remain open requirements.

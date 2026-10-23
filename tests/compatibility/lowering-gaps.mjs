@@ -77,8 +77,6 @@ add('generator', 'generators-async', 'function* values() { yield a; return b; } 
 add('async-await', 'generators-async', '', 6, plainFunction, { milestone: 'L5',
   source: 'export async function run(a,b) { return a + await Promise.resolve(b); }', prerequisites: ['Promise built-in', 'calls'] });
 
-add('math-call', 'globals-builtins', 'return Math.abs(a);', 4, expression, { args: [-4,2], prerequisites: ['property access', 'calls'] });
-
 add('export-name', 'input-shapes', '', 6, plainFunction,
   { source: 'export function sum(a,b) { return a+b; }', entry: 'sum', milestone: 'L3' });
 add('one-parameter', 'input-shapes', '', 4, ordinaryParameters,

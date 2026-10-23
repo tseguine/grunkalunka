@@ -31,8 +31,9 @@ import { annotationPrograms, annotationRejected } from './type-annotations.mjs';
 import { typeDeclarationPrograms, typeDeclarationRejected } from './type-declarations.mjs';
 import { numericCalls, numericCallsRejected } from './numeric-calls.mjs';
 import { numericRemainderPrograms } from './numeric-remainder.mjs';
+import { numericMathAbs, numericMathAbsRejected } from './numeric-math-abs.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 36;
+export const corpusVersion = 37;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -89,6 +90,7 @@ programs.push(...annotationPrograms);
 programs.push(...typeDeclarationPrograms);
 programs.push(...numericCalls);
 programs.push(...numericRemainderPrograms);
+programs.push(...numericMathAbs);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -184,6 +186,7 @@ export const rejected = [
   ...annotationRejected,
   ...typeDeclarationRejected,
   ...numericCallsRejected,
+  ...numericMathAbsRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -221,7 +224,6 @@ export const rejected = [
   ['global', 'export function run(a,b) { return clock; }'],
   ['function-reference', 'export function run(a,b) { return run; }'],
   ['arguments', 'export function run(a,b) { return arguments[0]; }'],
-  ['call', 'export function run(a,b) { return Math.abs(a); }'],
   ['string', 'export function run(a,b) { return a + "1"; }'],
   ['bigint', 'export function run(a,b) { return 1n; }'],
   ['boolean', 'export function run(a,b) { return true; }', 'js', 'expression is outside the numeric experiment'],

@@ -146,6 +146,10 @@ impl Emitter<'_> {
                     input,
                 } => {
                     match operator {
+                        Unary::Abs => {
+                            self.get(*input);
+                            self.output.push_str("f64.abs\n");
+                        }
                         Unary::Plus => self.get(*input),
                         Unary::Negate => {
                             self.get(*input);

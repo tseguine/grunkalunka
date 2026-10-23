@@ -28,14 +28,14 @@ adapted runtime results and successful rejection checks are separate counts.
 Unmodified upstream suite execution remains `not-executed`, including for TypeScript.
 This is a selected-case inventory, not a denominator for the full upstream suites.
 
-The separate [lowering-gap inventory](lowering-gaps.md) specifies 40 reference
+The separate [lowering-gap inventory](lowering-gaps.md) specifies 39 reference
 programs beyond current admission. Node checks their expected results; the compiler
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 666 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 85 resource restrictions and 555 open requirements.
+also covers all 699 negatives, including the curated references. Its 57 groups
+distinguish 26 invalid sources, 87 resource restrictions and 586 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -116,3 +116,12 @@ is distinct from wrong-result checking. Finite differential evidence and the hel
 conditional integer bound do not prove exhaustive binary64 conformance, arbitrary
 composition fuel capacity or performance. The TypeScript adapter now executes all
 32 selected numeric expressions while full upstream execution remains unexecuted.
+
+Math.abs fixtures use the numeric profile's pristine intrinsic and an unmodified
+Node Math.abs oracle. No host monkeypatch oracle is executed. The registered raw-bit
+kernel test compiles production lowering and compares 4,109 inputs in both engines;
+non-NaNs require exact bits and NaNs require the NaN class. Separate rejection tests
+cover semantic shadows, dead patches and unused helper patches. Ordinary numeric
+Math parameter/local mutation remains admitted; type-only Math names remain erased.
+The two promoted requirements retain their source bytes and curated provenance;
+664 other old rejection records and all 39 remaining curated references are unchanged.

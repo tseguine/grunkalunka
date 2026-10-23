@@ -1091,6 +1091,32 @@
       "observableDone": [
         "Represent mutable function bindings and test writes, subsequent calls, selected paths and non-callable outcomes."
       ]
+    },
+    {
+      "id": "mutable-intrinsics",
+      "kind": "open-requirement",
+      "assessment": "Math/global builtin mutation and reification require mutable realm objects and value semantics; the numeric execution profile supplies only a pristine Math.abs intrinsic.",
+      "evidence": [
+        {
+          "source": "https://tc39.es/ecma262/multipage/global-object.html#sec-other-properties-of-the-global-object-math",
+          "rule": "The Math property is a writable, configurable global property; it must not be treated as an immutable ECMAScript object binding."
+        },
+        {
+          "source": "https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math",
+          "rule": "Math methods are ordinary builtin function properties; the numeric profile does not expose a mutable external realm object."
+        }
+      ],
+      "dependencies": [
+        "function-context",
+        "property-targets"
+      ],
+      "harnessNeeds": [
+        "value-representation",
+        "numeric-oracle"
+      ],
+      "observableDone": [
+        "Specify mutable builtin/realm object ownership and test mutation, reification and subsequent calls without bypassing lexical binding identity."
+      ]
     }
   ],
   "records": [
@@ -1331,13 +1357,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "735913a592f91c980a71bac74f112102d572af6f6dc989f6b571ef11877e786e",
       "group": "async-functions"
-    },
-    {
-      "id": "gap-math-call",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a234791fa3870f0cc2b0fb01d83bdb818a4cf01c0cdd006501cb4c551e47e792",
-      "group": "function-calls"
     },
     {
       "id": "gap-export-name",
@@ -4574,13 +4593,6 @@
       "group": "function-context"
     },
     {
-      "id": "call",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a234791fa3870f0cc2b0fb01d83bdb818a4cf01c0cdd006501cb4c551e47e792",
-      "group": "function-calls"
-    },
-    {
       "id": "string",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5755,6 +5767,251 @@
       "sourceMode": "module-strict",
       "sourceSha256": "2fd7a3d76c9880cc7c6abbc5b4c5bee038abd2636e0d57f749def52c870f74b2",
       "group": "source-bytes"
+    },
+    {
+      "id": "math-abs-local-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "97fb3522c11b83ea7aea68281a92ac1d5f98fbf0f49cb7b169c18eb1b437b03f",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-self-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b1293ccc500d72070e5b26edadf6124243473d19c147e53c70483121c4502f96",
+      "group": "binding-errors"
+    },
+    {
+      "id": "math-abs-forward-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "40e0b30030e9393b2e4ba3e87d45b12e7917e481a9c84d4fa3e54833a51848a7",
+      "group": "binding-errors"
+    },
+    {
+      "id": "math-abs-unselected-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4bd11f6729a8d8d4ff0f987be4ee611fcb66ecbd706f4f19fa89085ac3c9f341",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-computed",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e56389caf6e018624f19a78c5abc947e57d198411fda88e9592da4441f8c2541",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-optional-member",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ae05233679996844b4304fbed37cd2f8ca5e15c056523fdedc937a4f533ab5d4",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-optional-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0cf654638b4c47730bfff6919b75681b5786cca34ae869887c1e74199f88ddf6",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-wrapped-callee",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b3529030a8063c0866d4922c30f1488b96a8e28cca66681ed85ad40e8b0a7ac",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-constructor",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d22f4780c1d515337ca40036a12e571c37f2ba396fe75c1e0c543d2bd336b089",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-first-class",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3b60b6c5efa7f8ca247bc48fb1ae1beee548e24b4ee7856cd54c784bd63aac36",
+      "group": "function-context"
+    },
+    {
+      "id": "math-abs-alias",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "22a7d494368f6bc655ff667f0082488e3cdb2bfa8faa3de163f3fef80b464077",
+      "group": "function-context"
+    },
+    {
+      "id": "math-abs-other-method",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8c222da2c20194c90557dcc33d3d01a386ce90401f7ca4b0c1aa709ec6ad1a19",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-boolean",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3cf40a6bc77cd03c9c03214b4ffc051cde4a524ecef0007d4b0cb75b16d27181",
+      "group": "boolean-values"
+    },
+    {
+      "id": "math-abs-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9e57a5545efc92a1fc86bb1b9e51e7b08308c1d7d979f88ddb0775ccb6b94a34",
+      "group": "string-values"
+    },
+    {
+      "id": "math-abs-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dc6eaa8fbe78b2698037f7c9bb2d5ab237f07dcfc4207a7a13219a6fedc7efaa",
+      "group": "object-values"
+    },
+    {
+      "id": "math-abs-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "38074a4d7792114904fb4f08001e05b034305c2388e066f5519677e01fd522fa",
+      "group": "bigint-values"
+    },
+    {
+      "id": "math-abs-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "170f0f5249a9e0723dca1c92ee84e0c8f39acf4cb42fbaa876c4eada2a2809c6",
+      "group": "nullish-values"
+    },
+    {
+      "id": "math-abs-dead-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5a2eaddffb4cf80b21f70990ced5205625b4a04632ba684643640ccc2a54af05",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-missing",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d72df3382d9d9832fe8eddfc6c27b8489628d2099a72bbd2457688754ea864fd",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-extra",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b3cc7508e2f1fa4daad8ce46a99444d712dd956618b080e646432aac0d459e9c",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-spread",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6764fc0c96f1b187648665095df5b5457b2eecc6e1ab7f93ffd0216fc964424e",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-generic",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "563de76a79db6b7ebbd91df53c2f28dd1a8086ab8632483e8b1057e3ea39722e",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-undefined",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea6373fadd7cfef7e67f7ee822dbdaba72df641754f1130438c5fbea922cd43e",
+      "group": "nullish-values"
+    },
+    {
+      "id": "math-abs-global-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "266a3af4878c2ca4d9fe0bc47cb770339c81023af5341c8b888887cef7eb8546",
+      "group": "mutable-intrinsics"
+    },
+    {
+      "id": "math-abs-global-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bb8be679e2e1c9cb0a2215ec2d0d072f0c25e3dccb94e457b45712bba289f7d3",
+      "group": "mutable-intrinsics"
+    },
+    {
+      "id": "math-abs-property-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2cb2e35d846079878e2056a0a5983db8e8908d795bad8a580677d1ebf01d30c4",
+      "group": "property-targets"
+    },
+    {
+      "id": "math-abs-dead-property-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bc53418c48c2b6916effd284313ec5790c7d97e3214f3b834a7bd38947f1e5ad",
+      "group": "property-targets"
+    },
+    {
+      "id": "math-abs-dead-global-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "56b8d88af9ca7fc0c6a999280e82943ebc77962ec6fbef976187b973f1d5cb76",
+      "group": "mutable-intrinsics"
+    },
+    {
+      "id": "math-abs-delete",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e961766f38e5cbf08c6e9417af83849bc595fad84ceba5151b170870307d5530",
+      "group": "delete"
+    },
+    {
+      "id": "math-abs-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e626a0af96e2917f34099b9e763e219393dd0e265c0e66acdea8f8c754d8ac3b",
+      "group": "const-errors"
+    },
+    {
+      "id": "math-abs-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b362c3c4b13fe21f11440b2145341c6926842f2d6f5641c4eaa1736b609b178f",
+      "group": "expression-depth"
+    },
+    {
+      "id": "math-abs-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1278ac13935b4601aacbf1bcf1ad0ecad3c31a277b2cceb194fe3fb14a45170d",
+      "group": "statement-count"
+    },
+    {
+      "id": "math-abs-parameter-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e0704dc6e469082a11c0238f25f0a42c386caccb04940fa7df6205f2bdbdc7b9",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-module-helper-shadow",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8a448d9d8720681a4acf738442a18980af264d1767f0df4ffda3272a8b3dc1af",
+      "group": "function-calls"
+    },
+    {
+      "id": "math-abs-unused-helper-patch",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eb7d8358ef8aed5ce9ea2335da3249b2f6d034e2799abbc3c5181f57d2c41c2c",
+      "group": "property-targets"
     }
   ]
 }

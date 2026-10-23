@@ -56,6 +56,12 @@ A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
 produces a numeric source value. Source slots and function returns remain `Number`.
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
 first pass through `Truthy`; negation evaluates its operand once.
+`Unary::Abs` consumes a captured Number and defines a Number through `f64.abs`.
+It represents only the numeric profile's pristine Math.abs intrinsic: the lowerer
+checks exact syntax, arity and unresolved value identity before emitting it. It
+adds no host import, helper function, source cell or value type. Existing generic
+Unary verification enforces numeric operand/result visibility and definition order.
+
 `Unary::BitNot` consumes and produces a `Number`. Emission truncates its captured
 input toward zero, reduces it modulo `2^32`, then uses saturating `f64`-to-`i64`
 conversion and `i32.wrap_i64`. NaN and infinite inputs reduce to NaN and saturate
