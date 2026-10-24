@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rejected } from './corpus.mjs';
 import { constBooleanPrograms, promotedBooleanGap } from './const-boolean.mjs';
+import { discardedPredicateBindings, discardedPredicatePromotions } from './discarded-predicate-bindings.mjs';
 import { arithmeticPredicateBindings, arithmeticPredicatePromotions } from './arithmetic-predicate-bindings.mjs';
 import { unaryPredicateBindings, unaryPredicatePromotions } from './unary-predicate-bindings.mjs';
 import { numericBooleanArithmetic, booleanArithmeticPromotions } from './numeric-boolean-arithmetic.mjs';
@@ -76,11 +77,26 @@ test('arithmetic Predicate promotions retain four IDs and three duplicate-source
   }
 });
 
+test('discarded Predicate promotions retain five IDs and three exact original JS sources', () => {
+  assert.deepEqual(discardedPredicatePromotions.map(p=>p[0]), [
+    'const-boolean-statement', 'unary-predicate-binding-reject-discard',
+    'arithmetic-predicate-binding-reject-discard', 'const-boolean-comma-prefix', 'const-boolean-for-update',
+  ]);
+  assert.equal(new Set(discardedPredicatePromotions.map(p=>p[1])).size, 3);
+  for(const [id,js,hash] of discardedPredicatePromotions) {
+    const source=programSources(discardedPredicateBindings.find(p=>p[0]===id));
+    assert.equal(source.sourceJS,js);
+    assert.equal(source.oracleSource,js);
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),hash);
+    assert.ok(!rejected.some(r=>r[0]===id));
+  }
+});
+
 test('every rejection has a source-bound assessment in the selected strict Module mode', () => {
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 884);
+  assert.equal(inventory.records.size, 905);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

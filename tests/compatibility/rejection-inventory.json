@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean locals admit predicate-position reads and unary +, - and ~ and binary arithmetic +, -, *, / and % reads of initialized immutable Predicate bindings. Inline Boolean-producing shapes also convert to Number for binary +, -, *, / and %. Mutable storage, bare Boolean binding operands outside those unary and arithmetic bridges, Boolean arguments/results and general coercion remain outside admission. Discarded inline Number/Boolean evaluation is admitted, but discarded Boolean identifier reads remain outside admission.",
+      "assessment": "Immutable Boolean locals admit predicate-position reads and unary +, - and ~ and binary arithmetic +, -, *, / and % reads of initialized immutable Predicate bindings. Inline Boolean-producing shapes also convert to Number for binary +, -, *, / and %. Mutable storage, bare Boolean binding operands outside those unary and arithmetic bridges, Boolean arguments/results and general coercion remain outside admission. Discarded inline Number/Boolean evaluation and bare/wrapped initialized immutable Predicate identifier reads are admitted. This leaf eligibility does not widen root logical/conditional/sequence classification, mutable storage or other value positions.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -6422,27 +6422,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "const-boolean-statement",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "41cdf1262f1a0f7b30ba299fb241a0d9c9239710c3fd361d075a3ccb7524e1b3",
-      "group": "boolean-values"
-    },
-    {
-      "id": "const-boolean-comma-prefix",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6704f919e3e4fd74709f1d18023152f813fd9b13959b3022c4a8fa5ee5e29330",
-      "group": "boolean-values"
-    },
-    {
-      "id": "const-boolean-for-update",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4a0c87c13b1536b9c873f1a3da6283639a9cffce68df1b38570b64c7e9967e40",
-      "group": "boolean-values"
-    },
-    {
       "id": "const-boolean-discarded-logical",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6954,13 +6933,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "unary-predicate-binding-reject-discard",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "41cdf1262f1a0f7b30ba299fb241a0d9c9239710c3fd361d075a3ccb7524e1b3",
-      "group": "boolean-values"
-    },
-    {
       "id": "unary-predicate-binding-reject-equality",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7112,13 +7084,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
-      "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-discard",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "41cdf1262f1a0f7b30ba299fb241a0d9c9239710c3fd361d075a3ccb7524e1b3",
       "group": "boolean-values"
     },
     {
@@ -7287,6 +7252,188 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "0cfe9e639bec821135ddc13bbe8e2155afd2dd502a32cdaa8277494dea83b775",
+      "group": "expression-depth"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-root-logical",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "974e15fd0ecb05bddeab5ab205673d72e37e8f44b0d4d96713a283580165f097",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-root-conditional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f1b61f72291efa73923c67e9912a8e26d30c59a09d5da4cee5e96179f24a4697",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-root-sequence",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "947b65bf0435d83dd7ba5ebffa82468f5cb1afba8670f54504cab950f07a9cac",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "af7f4950684c593128dca8bc5a5447498fd7b73436cf2063eeee1e36dd7745bb",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-assignment",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc3ca2a98e515b26cb56a5260816fd5e4ca7f32df7ecd9c8399bdb2e3a9f97cf",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-assignment-result",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4a6c4c6df1805aced1dffd8d6a54b01f3d3b751c83bde82c24027c3c2900a6ad",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-compound",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0d07cc5477cd8440e4582b724a0b1ffab2ce45f98c88ac9d8015ccc9206ff287",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-equality",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7d48cdc934683f58b36cad689ec4e07806fbc2146438408dd5157ba0115cf185",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-bitwise",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b4a12986c87f4b8f8bb5a45556723d149a791c2de05e77812b9112379438e0e1",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-shift",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4badb35624721e01a2cea4b0e6a897b8e3f4d2edb9114b22ce134463ecd9b216",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-mutable",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "eca7560dd60d2bfb8766b6bf9bd51d51a5957fdb7f607c6fb8caeea2993df964",
+      "group": "boolean-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d875579f8f8b5df065faf4d3307f97bccf21a654b55f6abd7a85287508108154",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea1c0714b11e57b1deaa8ae22320203c6cb83fc7623bbd5399bf7d69b3d63fc8",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-shadow-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fef8ee1c2db353022063911116af5be53aefe4fd5b06bfbdfd3be24341361551",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-outscope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7ee3beb082d8ae28bfc8455f3a3fc7050c9df79eaa1e8611ea96fdf3cb333f52",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-unresolved",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fcaa4b10e4f4dd5d1d8ade1da7c8cade44d0e30893c26cf181f9ef955e74ff17",
+      "group": "binding-errors"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6d3761a0842365865e4c46ae4e4e3c9c03f62bfe16c541b96f2abd7a413a38c0",
+      "group": "const-errors"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-for-update-dead-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8e3fbd6596ead8b393d2cbd6e5bea3d1acbdec3a757f5664411b5c9b3ecde7af",
+      "group": "function-calls"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cc2e7ccdf2600267d4a18735c35124cce6a4eab92c51625dd445f47d025ee836",
+      "group": "string-values"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-local129",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e2dc82bb240b09034080d286e880ab671fa535d0e6fa57036dc998ce94f8d313",
+      "group": "local-count"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-statement257",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "678dd4c7048ac78334fd4b413b5c77f392e841fe9c20616c9eda22340841d8e1",
+      "group": "statement-count"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-statement-depth129",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "63234a5dcd92bde3d3853c51965d9335df556633edbc076c98eeae5dcd44c533",
+      "group": "expression-depth"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-comma-prefix-depth129",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7057fb84c2e7378e1d5cbdbbd4cd1194046c3218d36c639ce7ade7e01136b83f",
+      "group": "expression-depth"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-for-init-depth129",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b1cd207c00ac8146f394c24f6f3c746aa5dd7f1baba608a6e907f7e7ee608f99",
+      "group": "expression-depth"
+    },
+    {
+      "id": "discarded-predicate-binding-reject-for-update-depth129",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6752138284293a80851dd3ffbbd07c017ea0f50e1033a73d6b3e8d12f0b749f6",
       "group": "expression-depth"
     }
   ]

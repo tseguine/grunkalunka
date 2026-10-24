@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-3,124,968 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 884 rejected
+3,257,892 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 905 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Top-level numeric
@@ -366,8 +366,9 @@ This does not settle general Boolean storage, call signatures or value represent
 ## Boolean const storage boundary
 
 Immutable Boolean locals now support predicate-position reads using fixed scalar
-slots. Mutable storage, Boolean call/return signatures, other Number uses and discarded
-identifier reads remain separate work. This does not choose a general JavaScript
+slots. Mutable storage, Boolean call/return signatures and other Number uses remain
+separate work; discarded identifier leaves now have the narrow eligibility below.
+This does not choose a general JavaScript
 value representation; see [the bounded contract](compiler.md#immutable-boolean-predicate-locals).
 
 ## Primitive arithmetic operands
@@ -382,3 +383,8 @@ This reuses the existing scalar bridge without choosing a general value architec
 The arithmetic binding step changes only source eligibility. Deferred bitwise/shift
 work and its native frontend-liveness incident require a separate design decision;
 this does not restart that failed budget or select a general JS value architecture.
+
+Discarded contexts now also admit bare/wrapped initialized immutable Predicate
+identifier reads via existing SymbolId/slot evidence. This changes only the leaf
+selector, preserving the free result-join classifier and all other value/storage
+policies. It does not resolve the separately deferred native frontend-liveness work.

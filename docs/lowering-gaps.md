@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 121 resource restrictions and 737 open requirements
-across all 884 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 127 resource restrictions and 752 open requirements
+across all 905 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -269,8 +269,8 @@ Immutable Boolean predicate locals promote exactly `gap-boolean-value`,
 `boolean-literal-local`, `not-local` and `equality-numeric-local`. The former curated
 reference retains its original oracle, values/L4 metadata, inputs `[4,2]` and +0
 result in the admitted fixtures and direct contract test. The frontier now has 38
-references. Mutable Boolean storage, other Number uses and binding-aware discarded reads
-remain open; [the bounded contract](compiler.md#immutable-boolean-predicate-locals)
+references. Mutable Boolean storage and other Number uses remain open;
+the separate discarded-leaf boundary is described below. [The bounded contract](compiler.md#immutable-boolean-predicate-locals)
 spells out the initializer and predicate-position restrictions.
 
 ## Primitive arithmetic frontier
@@ -297,5 +297,15 @@ Initialized immutable Predicate bindings now enter binary `+`, `-`, `*`, `/` and
 `%` through the same bounded semantic eligibility used by unary operators. Four
 ordinary IDs retain original source identities, including three duplicate-source
 observations. All 38 curated references remain. The Boolean group stays open for
-other operator/value positions, mutable storage and general coercion; this is not
+other operator/value positions, mutable storage and general coercion; discarded
+identifier leaves are separately covered below. This is not
 closure of that group or the separately deferred frontend-liveness work.
+
+## Discarded Predicate binding frontier
+
+Five ordinary sources now admit immutable Predicate identifier reads in discarded
+contexts, retaining IDs and three distinct original JS sources. The Boolean group
+remains open; none of the 38 curated references transfers. Root join classification,
+mutable bindings, Boolean results/arguments and assignment-value policy are unchanged.
+The exact native-liveness incident on deferred bitwise/shift work remains deferred;
+this independent selector is not a repair or a new attempt budget.

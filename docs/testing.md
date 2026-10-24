@@ -56,8 +56,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 884 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 121 resource restrictions and 737 open requirements.
+also covers all 905 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 127 resource restrictions and 752 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -266,3 +266,22 @@ conversion, wrapper charging and duplicate predicate effects, followed by exact
 source restoration and fresh builds. Final artifact/whole-object auditing compares
 all 1158 old pairs, 857 retained rejections and 38 curated references; the Boolean
 assessment change is explicit rather than a normalization of old observations.
+
+## Discarded immutable Predicate binding coverage
+
+`discarded-predicate-bindings.mjs` covers true/false reads in statements, comma
+prefixes and both for headers, four TypeScript wrappers, aliases, initialization
+once/capture, semantic shadows, annotations, helper functions and finite loop
+re-entry/continue. Existing effectful inline discards retain once-only and skipped
+behavior. Root-join, binding, assignment-result and other value-position negatives
+keep the eligibility extension narrow. Five exact promotion IDs retain their full
+original JS text and independent paired TypeScript sources.
+
+The fresh CLI first checks the exact 554-byte retained Number depth rejection,
+then all 61 current nesting negatives and original-depth128/129 Number/inline-
+Boolean/binding controls in all four discard contexts. Any native failure stops the
+unit. Mutation probes target missing eligibility, root-join widening, wrapper depth
+at a comma-prefix entry depth of one, and duplicate effectful predicate evaluation.
+Restoration refreshes source mtime and rebuilds. Final auditing preserves all 1246
+old pairs, 879 other whole rejection observations and 38 curated oracles, with only
+the exact Boolean assessment update and declared promotions/new fixtures permitted.

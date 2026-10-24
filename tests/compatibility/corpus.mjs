@@ -42,7 +42,8 @@ import { constBooleanPrograms, constBooleanRejected } from './const-boolean.mjs'
 import { numericBooleanArithmetic, numericBooleanArithmeticRejected } from './numeric-boolean-arithmetic.mjs';
 import { unaryPredicateBindings, unaryPredicateBindingsRejected } from './unary-predicate-bindings.mjs';
 import { arithmeticPredicateBindings, arithmeticPredicateBindingsRejected } from './arithmetic-predicate-bindings.mjs';
-export const corpusVersion = 45;
+import { discardedPredicateBindings, discardedPredicateBindingsRejected } from './discarded-predicate-bindings.mjs';
+export const corpusVersion = 46;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -109,6 +110,7 @@ programs.push(...numericBooleanUnary);
 programs.push(...numericBooleanArithmetic);
 programs.push(...unaryPredicateBindings);
 programs.push(...arithmeticPredicateBindings);
+programs.push(...discardedPredicateBindings);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -212,6 +214,7 @@ export const rejected = [
   ...numericBooleanArithmeticRejected,
   ...unaryPredicateBindingsRejected,
   ...arithmeticPredicateBindingsRejected,
+  ...discardedPredicateBindingsRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],

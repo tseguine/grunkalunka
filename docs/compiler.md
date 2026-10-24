@@ -37,14 +37,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 45
-contains 1246 paired programs, 884 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 46
+contains 1299 paired programs, 905 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 884 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 121 explicit resource restrictions and 737 open requirements.
+classifies all 905 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 127 explicit resource restrictions and 752 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -914,8 +914,8 @@ negation and predicate logical/conditional operands. Unary `+`, `-` and `~` also
 read initialized immutable Predicate bindings through the separate unary bridge
 below. Binary arithmetic also uses that binding eligibility as described below. Mutable Boolean
 locals and other Number positions (including returns and call arguments), root logical/conditional
-initializer joins, bare discarded identifiers, comma prefixes,
-for-update reads and discarded `flag && (a=b)` remain outside this bounded unit.
+initializer joins and discarded `flag && (a=b)` remain outside this bounded unit.
+Bare/wrapped immutable Predicate reads in discarded contexts are covered below.
 All source locals share the unchanged cumulative 128 limit across functions/scopes;
 its diagnostic now says “source locals” for both Number and Predicate cells.
 
@@ -966,9 +966,10 @@ lowered once as a predicate and the existing `NumberFromPredicate` conversion
 feeds the unchanged Number unary operation. Wrappers retain original depth.
 
 The free Boolean-shape classifier, initializer, discarded value and numeric-identifier
-admission remain unchanged. The later arithmetic bridge below extends only five
-binary operand callers. A bare `flag` still cannot be returned, passed, assigned,
-discarded or used in equality/bitwise/
+admission remain unchanged by that unary step. The later arithmetic bridge below
+extends only five binary operand callers; the later discard selector admits only
+leaf reads in discarded contexts. A bare `flag` still cannot be returned, passed,
+assigned or used in equality/bitwise/
 shift/compound positions. Mutable Boolean storage and root Boolean joins remain
 outside admission. The resulting Number may compose through existing numeric paths.
 
@@ -990,7 +991,8 @@ NumberFromPredicate; the left result is captured before the right is evaluated.
 Number fallback, the binary dispatcher and the free Boolean classifier are unchanged.
 
 This does not extend bitwise/shift/equality/compound operands, Boolean returns or
-arguments, discarded binding reads, mutable storage or root Boolean joins. The
+arguments, mutable storage or root Boolean joins. Discarded binding reads are
+covered by the separate leaf-only selector below. The
 native frontend liveness incident on the deferred bitwise candidate is not repaired
 or retried here: the retained exact 554-byte Number depth rejection and all other
 retained nesting rejections are checked before expanded focus; any native failure
@@ -1001,5 +1003,30 @@ Corpus 45 adds 88 pairs and 27 classified negatives. Exactly four ordinary IDs m
 `unary-predicate-binding-reject-arithmetic` and `boolean-arithmetic-bare-const-right`.
 The first three retain the same original JS bytes under distinct IDs. Two former
 Rust guards transfer verbatim into positive assertions. No curated reference moves.
-Current totals are 1246 pairs, 884 rejections and 38 curated references; all 1158
+That arithmetic step recorded 1246 pairs, 884 rejections and 38 curated references; all 1158
 prior pairs and 857 other rejection observations remain the baseline.
+
+## Discarded immutable Predicate binding reads
+
+Expression statements, comma prefixes and expression-form for initializers/updates
+now admit bare/wrapped initialized immutable Predicate identifiers. The free
+`discarded_boolean_shape` check runs first; only when false does the unchanged
+`operand_boolean_shape` leaf check run. Both bodies and all result-join rules are
+unchanged. The original operand lowers once through `predicate` to an unused Load;
+there is no Number conversion, initializer replay or new storage/value position.
+SymbolId, publication, immutable slot kind, original wrappers/depth and lexical
+visibility remain authoritative. Ordinary Number and previously admitted inline
+Boolean discard paths remain byte-identical.
+
+This does not newly classify root logical/conditional/sequence results as Boolean.
+For example `flag&&(a=b)` still rejects; new comma-prefix reads may naturally
+compose inside otherwise admitted Number trees. Boolean returns/arguments, mutable
+storage, assignment results and other excluded operator operands stay separate.
+
+Corpus 46 adds 53 pairs and 26 classified negatives. Exactly five ordinary IDs
+move: `const-boolean-statement`, `unary-predicate-binding-reject-discard`,
+`arithmetic-predicate-binding-reject-discard`, `const-boolean-comma-prefix` and
+`const-boolean-for-update`. The first three preserve the same original JS source
+under distinct IDs. One former Rust guard transfers verbatim positive. No curated
+reference moves; all 38 remain. Current totals: 1299 pairs, 905 rejections and 56
+groups (26 invalid, 127 resource, 752 open requirements).

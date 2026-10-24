@@ -319,3 +319,12 @@ unchanged and no call/storage type is widened. See [the source boundary](compile
 The arithmetic binding extension is source eligibility only: no IR operation,
 slot kind, verifier rule, emitter, call ABI, index layout or conversion changes.
 All Number operand paths and their emitted artifacts remain the baseline.
+
+## Discarded Predicate binding loads
+
+The discard selector additionally recognizes initialized immutable Predicate
+identifier leaves through existing semantic eligibility. It lowers the original
+operand once with the existing Predicate Load and leaves that value unused, just
+as for other admitted discarded predicates. No NumberFromPredicate conversion,
+new IR operation, verifier/emitter change or source/result type profile is needed.
+The free discard classifier and its logical/conditional/sequence rules are unchanged.

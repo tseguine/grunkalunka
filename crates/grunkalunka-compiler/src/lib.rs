@@ -271,6 +271,64 @@ mod tests {
     use super::compile;
 
     #[test]
+    fn discarded_immutable_predicate_bindings_are_admitted() {
+        let mut failures = Vec::new();
+        for (id, body) in [
+            (
+                "const-boolean-statement",
+                "const flag=true; flag; return a;",
+            ),
+            (
+                "unary-predicate-binding-reject-discard",
+                "const flag=true; flag; return a;",
+            ),
+            (
+                "arithmetic-predicate-binding-reject-discard",
+                "const flag=true; flag; return a;",
+            ),
+            (
+                "const-boolean-comma-prefix",
+                "const flag=true; return (flag,a);",
+            ),
+            (
+                "const-boolean-for-update",
+                "const flag=true; for(let i=0;i<1;flag) { i++; } return a;",
+            ),
+        ] {
+            if let Err(error) = compile(&format!("export function run(a,b) {{ {body} }}"), false) {
+                failures.push((id, error));
+            }
+        }
+        assert!(failures.is_empty(), "{failures:?}");
+    }
+
+    #[test]
+    fn discarded_predicate_bindings_keep_root_joins_and_scope_guards() {
+        for body in [
+            "const flag=true; flag&&(a=b); return a;",
+            "const flag=true; a?flag:flag; return a;",
+            "const flag=true; a,flag; return a;",
+            "const flag=true; { flag; const flag=false; } return a;",
+            "{const flag=true;} flag; return a;",
+            "clock; return a;",
+            "let flag=true; flag; return a;",
+            "const flag=true; a=flag; return a;",
+        ] {
+            assert!(
+                compile(&format!("export function run(a,b) {{ {body} }}"), false).is_err(),
+                "{body}"
+            );
+        }
+        for depth in [128, 129] {
+            let source = format!(
+                "export function run(a,b) {{ const flag=true; flag{},a; return a; }}",
+                "!".repeat(depth - 1)
+            );
+            assert_eq!(compile(&source, true).is_ok(), depth == 128, "{source}");
+        }
+    }
+
+    #[test]
     fn arithmetic_operators_read_immutable_predicate_bindings() {
         let mut failures = Vec::new();
         for (id, body) in [
@@ -926,10 +984,6 @@ mod tests {
             (
                 "const flag=true; { const x=flag; const flag=false; } return a;",
                 "reference is not an initialized",
-            ),
-            (
-                "const flag=true; flag; return a;",
-                "Boolean bindings are not admitted",
             ),
             (
                 "const flag=true; let copy=flag; return a;",

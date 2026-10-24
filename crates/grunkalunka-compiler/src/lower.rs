@@ -219,7 +219,9 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<(), String> {
-        if discarded_boolean_shape(expression, depth) {
+        if discarded_boolean_shape(expression, depth)
+            || self.operand_boolean_shape(expression, depth)
+        {
             self.predicate(expression, region, depth)?;
         } else {
             self.expression(expression, region, depth)?;
