@@ -15,6 +15,7 @@ pub(crate) struct FunctionId(pub usize);
 pub(crate) enum Type {
     Number,
     Predicate,
+    General,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -89,8 +90,22 @@ pub(crate) struct Operation {
     pub kind: Op,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Nullish {
+    Undefined,
+    Null,
+}
+
 #[derive(Debug)]
 pub(crate) enum Op {
+    Nullish {
+        result: ValueId,
+        value: Nullish,
+    },
+    Pack {
+        result: ValueId,
+        input: ValueId,
+    },
     Call {
         result: ValueId,
         function: FunctionId,
@@ -261,6 +276,8 @@ enum Contract {
 struct Verifier<'a> {
     function: &'a Function,
     signatures: &'a [usize],
+    return_type: Type,
+    entry_type: Type,
     defined: BTreeSet<ValueId>,
     regions: BTreeSet<RegionId>,
 }
@@ -346,6 +363,9 @@ impl Verifier<'_> {
             }
             let mut next = Completion::NORMAL;
             match &operation.kind {
+                Op::Nullish { result, .. } => {
+                    self.define(*result, Type::General, &mut visible, span)?;
+                }
                 Op::Call {
                     result,
                     function,
@@ -364,7 +384,24 @@ impl Verifier<'_> {
                     for argument in arguments {
                         self.value(*argument, Type::Number, &visible, span)?;
                     }
-                    self.define(*result, Type::Number, &mut visible, span)?;
+                    let ty = if function.0 == 0 {
+                        self.entry_type
+                    } else {
+                        Type::Number
+                    };
+                    self.define(*result, ty, &mut visible, span)?;
+                }
+                Op::Pack { result, input } => {
+                    let ty = *self
+                        .function
+                        .values
+                        .get(input.0)
+                        .ok_or_else(|| invalid(span, "invalid pack input"))?;
+                    if ty == Type::General {
+                        return Err(invalid(span, "pack requires a scalar input"));
+                    }
+                    self.value(*input, ty, &visible, span)?;
+                    self.define(*result, Type::General, &mut visible, span)?;
                 }
                 Op::Not { result, input } => {
                     self.value(*input, Type::Predicate, &visible, span)?;
@@ -571,7 +608,7 @@ impl Verifier<'_> {
             (Contract::Statement | Contract::Function, Exit::Return(value))
                 if completion.normal =>
             {
-                self.value(value, Type::Number, &visible, region.span)?;
+                self.value(value, self.return_type, &visible, region.span)?;
                 completion = completion.then(Completion::RETURN);
             }
             (Contract::Statement, Exit::Break) if completion.normal && allow_loop_control => {
@@ -595,6 +632,13 @@ impl Verifier<'_> {
 }
 
 pub(crate) fn verify_module(module: &Module) -> Result<(), String> {
+    verify_module_with_entry_type(module, Type::Number)
+}
+
+pub(crate) fn verify_module_with_entry_type(
+    module: &Module,
+    entry_type: Type,
+) -> Result<(), String> {
     let entry = module
         .functions
         .first()
@@ -610,18 +654,33 @@ pub(crate) fn verify_module(module: &Module) -> Result<(), String> {
         .iter()
         .map(|function| function.parameter_count)
         .collect();
-    for function in &module.functions {
-        verify_function(function, &signatures)?;
+    for (index, function) in module.functions.iter().enumerate() {
+        verify_function(
+            function,
+            &signatures,
+            if index == 0 { entry_type } else { Type::Number },
+            entry_type,
+        )?;
     }
     Ok(())
 }
 
 #[cfg(test)]
 fn verify(function: &Function) -> Result<(), String> {
-    verify_function(function, &[function.parameter_count])
+    verify_function(
+        function,
+        &[function.parameter_count],
+        Type::Number,
+        Type::Number,
+    )
 }
 
-fn verify_function(function: &Function, signatures: &[usize]) -> Result<(), String> {
+fn verify_function(
+    function: &Function,
+    signatures: &[usize],
+    return_type: Type,
+    entry_type: Type,
+) -> Result<(), String> {
     if function.parameter_count > 1000 {
         return Err(invalid(
             function.body.span,
@@ -630,6 +689,9 @@ fn verify_function(function: &Function, signatures: &[usize]) -> Result<(), Stri
     }
     let mut initialized = BTreeSet::new();
     for (index, slot) in function.slots.iter().enumerate() {
+        if slot.ty == Type::General {
+            return Err(invalid(slot.span, "General source slots are not admitted"));
+        }
         if slot.parameter && slot.ty != Type::Number {
             return Err(invalid(slot.span, "parameter slots must be Number"));
         }
@@ -654,6 +716,8 @@ fn verify_function(function: &Function, signatures: &[usize]) -> Result<(), Stri
     let mut verifier = Verifier {
         function,
         signatures,
+        return_type,
+        entry_type,
         defined: BTreeSet::new(),
         regions: BTreeSet::new(),
     };
@@ -2482,5 +2546,98 @@ mod tests {
             )
             .unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod primitive_value_tests {
+    use super::*;
+    fn lower(source: &str) -> Module {
+        crate::lower_source_with_entry_type(source, false, Type::General).unwrap()
+    }
+    #[test]
+    fn pack_requires_visible_scalar_input_and_general_result() {
+        for (input, output, reverse) in [
+            (ValueId(0), Type::General, false),
+            (ValueId(99), Type::General, false),
+            (ValueId(1), Type::General, false),
+            (ValueId(0), Type::Number, false),
+            (ValueId(0), Type::General, true),
+        ] {
+            let mut module =
+                crate::lower_source("export function run(a,b) {return a;}", false).unwrap();
+            let f = &mut module.functions[0];
+            f.values.push(output);
+            f.body.operations.push(Operation {
+                span: f.body.span,
+                kind: Op::Pack {
+                    result: ValueId(1),
+                    input,
+                },
+            });
+            f.body.exit = Exit::Return(ValueId(1));
+            if reverse {
+                f.body.operations.reverse();
+            }
+            assert_eq!(
+                verify_module_with_entry_type(&module, Type::General).is_ok(),
+                input == ValueId(0) && output == Type::General && !reverse
+            );
+        }
+    }
+    #[test]
+    fn primitive_returns_and_cells_obey_their_profile() {
+        let mut module = lower("export function run(a,b) {return null;}");
+        verify_module_with_entry_type(&module, Type::General).unwrap();
+        assert!(verify_module(&module).is_err());
+        module.functions[0].values[0] = Type::Number;
+        assert!(verify_module_with_entry_type(&module, Type::General).is_err());
+        let mut module = lower("export function run(a,b) {return a;}");
+        module.functions[0].slots[0].ty = Type::General;
+        assert!(
+            verify_module_with_entry_type(&module, Type::General)
+                .unwrap_err()
+                .contains("General source slots")
+        );
+    }
+    #[test]
+    fn general_if_joins_and_calls_check_result_types() {
+        let mut module = lower("export function run(a,b) {return a ? run(0,b) : null;}");
+        verify_module_with_entry_type(&module, Type::General).unwrap();
+        let f = &mut module.functions[0];
+        let Op::If {
+            result, consequent, ..
+        } = &f.body.operations.last().unwrap().kind
+        else {
+            panic!("if");
+        };
+        let call = consequent
+            .operations
+            .iter()
+            .find_map(|op| match op.kind {
+                Op::Call { result, .. } => Some(result),
+                _ => None,
+            })
+            .unwrap();
+        let joined = result.unwrap();
+        f.values[call.0] = Type::Number;
+        assert!(verify_module_with_entry_type(&module, Type::General).is_err());
+        module.functions[0].values[call.0] = Type::General;
+        module.functions[0].values[joined.0] = Type::Number;
+        assert!(verify_module_with_entry_type(&module, Type::General).is_err());
+        let mut module =
+            lower("function h(a,b){return a+b;} export function run(a,b){return h(a,b);}");
+        let f = &mut module.functions[0];
+        let call = f
+            .body
+            .operations
+            .iter()
+            .find_map(|op| match op.kind {
+                Op::Call { result, .. } => Some(result),
+                _ => None,
+            })
+            .unwrap();
+        f.values[call.0] = Type::General;
+        assert!(verify_module_with_entry_type(&module, Type::General).is_err());
     }
 }

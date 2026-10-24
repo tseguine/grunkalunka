@@ -8,7 +8,8 @@ Node supplies an independent original-JS reference and a second Wasm engine.
 Private IR cells have a fixed existing `Number` or `Predicate` type. Source lowering
 creates Number cells and immutable Boolean const cells for predicate and selected
 unary Number reads.
-All entry/helper parameters and returns remain Number-only. This adds no dynamic
+In the default numeric profile, all entry/helper parameters and returns remain
+Number-only. This adds no dynamic
 type inference or boxing; see the [bounded source contract](#immutable-boolean-predicate-locals).
 
 ## Expression evaluation control
@@ -1165,5 +1166,30 @@ not an exhaustive language inventory.
 sum type, renewing the same fuel budget as `NumericInstance`. Invalid tags or
 noncanonical non-Number payloads return errors. The numeric ABI remains available.
 See [ADR0002](adr/0002-tagged-primitive-values.md) for the wire contract and alternatives.
-This is runtime groundwork: the maintained compiler and CLI still target numeric
-results. No additional source fixture is counted as supported by this unit.
+`compile_value(source, typescript)` now emits this ABI through the original Oxc
+parser/semantic pass, explicit evaluator and verified IR. `compile` and every CLI
+command retain the numeric profile and its artifacts/diagnostics.
+
+The value profile admits explicit returns of null, unresolved global `undefined`,
+Boolean literals/comparisons/negation/immutable Predicate cells, and admitted Number
+expressions. Conditional arms may return different primitive kinds. Comma-expression
+prefixes retain the existing discarded-expression contract; only the final operand
+uses General evaluation. TS assertions and declaration metadata do not establish
+runtime kinds. An initialized Number binding named `undefined` remains a Number.
+
+The entry has two Number parameters and a General result. Helpers retain Number
+parameters/results, including the existing 1000-source-parameter limit. A direct call
+to the entry can produce a General result; using that result in a numeric operand,
+condition or numeric helper return is rejected until coercion support exists.
+Original symbol identity, argument snapshots, source budgets and selected-arm effects
+are preserved. Scalar computations retain scalar IR until an explicit `Pack` creates
+a General value; there is no heap allocation or NaN boxing.
+
+The separate [primitive-return tests](../crates/grunkalunka-runtime/tests/compiled-values.rs)
+exercise 27 JS/TS pairs, 54 compiled modules and 14 input pairs: 756 calls per Wasm
+engine (1512 comparisons against original JS). These finite cases do not promote
+numeric-corpus or curated rejection fixtures. Corpus 50 remains 1466 pairs and 995
+rejections under the numeric profile. General source cells/parameters, mixed-kind
+operators/truthiness/coercions, empty/implicit returns, strings/objects/BigInts and
+CLI selection of the value profile remain open. Logical expressions still use the
+existing scalar operand contracts; this is not general JavaScript expression support.

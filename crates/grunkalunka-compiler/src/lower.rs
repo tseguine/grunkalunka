@@ -28,6 +28,7 @@ pub(super) struct NumericFunction {
     pub symbol: SymbolId,
     pub id: ir::FunctionId,
     pub parameter_count: usize,
+    pub return_type: Type,
 }
 
 fn numeric_binding<'b>(
@@ -201,6 +202,7 @@ fn target_identifier<'e, 'a>(
 }
 
 pub(super) struct Lowering<'s, 'a> {
+    pub return_type: Type,
     pub semantic: &'s Semantic<'a>,
     pub functions: &'s [NumericFunction],
     pub bindings: Vec<NumericBinding>,
@@ -386,6 +388,7 @@ impl Lowering<'_, '_> {
                 Type::Number
             };
             let value = match ty {
+                Type::General => unreachable!("scalar declaration typing"),
                 Type::Predicate => self.predicate(initializer, region, 0)?,
                 Type::Number => self.expression(initializer, region, 0)?,
             };
@@ -594,11 +597,22 @@ impl Lowering<'_, '_> {
                 Ok(returns)
             }
             Statement::ReturnStatement(statement) => {
-                let expression = statement
-                    .argument
-                    .as_ref()
-                    .ok_or("return must have a numeric expression")?;
-                region.exit = Exit::Return(self.expression(expression, region, 0)?);
+                let expression =
+                    statement
+                        .argument
+                        .as_ref()
+                        .ok_or(if self.return_type == Type::General {
+                            "return must have a primitive expression"
+                        } else {
+                            "return must have a numeric expression"
+                        })?;
+                let value = if self.return_type == Type::General {
+                    self.evaluate(expression, region, 0, evaluate::Mode::General)?
+                        .expect("General expression result")
+                } else {
+                    self.expression(expression, region, 0)?
+                };
+                region.exit = Exit::Return(value);
                 Ok(Completion::RETURN)
             }
             Statement::ExpressionStatement(statement) => {

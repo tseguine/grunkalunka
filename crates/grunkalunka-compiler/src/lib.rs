@@ -1,4 +1,4 @@
-//! JS/TS parsing, verified numeric region lowering and structured Wasm emission.
+//! JS/TS parsing, verified typed region lowering and structured Wasm emission.
 //! The admitted numeric contract is documented in docs/compiler.md.
 mod emit;
 #[cfg(test)]
@@ -63,6 +63,14 @@ fn is_type_module_item(statement: &Statement<'_>) -> bool {
 }
 
 fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
+    lower_source_with_entry_type(source, typescript, ir::Type::Number)
+}
+
+fn lower_source_with_entry_type(
+    source: &str,
+    typescript: bool,
+    entry_type: ir::Type,
+) -> Result<ir::Module, String> {
     if source.len() > 16_384 {
         return Err("source exceeds this experiment's 16 KiB limit".into());
     }
@@ -195,6 +203,11 @@ fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
             symbol,
             id: ir::FunctionId(index),
             parameter_count: function.params.items.len(),
+            return_type: if index == 0 {
+                entry_type
+            } else {
+                ir::Type::Number
+            },
         });
     }
     let mut functions = Vec::new();
@@ -240,6 +253,11 @@ fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
         }
         let body = function.body.as_ref().ok_or("function must have a body")?;
         let mut lowering = Lowering {
+            return_type: if index == 0 {
+                entry_type
+            } else {
+                ir::Type::Number
+            },
             semantic: &built.semantic,
             functions: &signatures,
             bindings,
@@ -271,7 +289,11 @@ fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
         if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
             return Err(unsupported(
                 body.as_ref(),
-                "every structural path must return a numeric value",
+                if lowering.return_type == ir::Type::General {
+                    "every structural path must return a primitive value"
+                } else {
+                    "every structural path must return a numeric value"
+                },
             ));
         }
         local_count = lowering.local_count;
@@ -284,6 +306,14 @@ fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
 pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
     let module = lower_source(source, typescript)?;
     let wat = emit::emit(&module)?;
+    let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
+    Ok(Artifact { wat, wasm })
+}
+
+/// Compile an entry returning a tagged primitive value, with two Number inputs.
+pub fn compile_value(source: &str, typescript: bool) -> Result<Artifact, String> {
+    let module = lower_source_with_entry_type(source, typescript, ir::Type::General)?;
+    let wat = emit::emit_with_entry_type(&module, ir::Type::General)?;
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })
 }

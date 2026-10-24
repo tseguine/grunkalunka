@@ -350,5 +350,9 @@ Explicit type-argument calls and runtime TypeScript constructs remain open.
 
 A maintained tagged primitive runtime boundary now distinguishes undefined, null,
 booleans and numbers. Its typed result, import denial and fuel behavior are tested
-independently. Compiler source admission, generic helper transport and heap-backed
-values remain separate requirements; the source compatibility counts do not change.
+independently. `compile_value` now lowers explicit four-kind primitive returns through
+verified General snapshots and pair emission, with Number/Predicate specialization.
+A separate finite suite compares 27 JS/TS pairs on 14 inputs with original JS in both
+Wasm engines (1512 comparisons). The numeric corpus and its rejection counts remain
+unchanged. General source cells/coercions/helper parameters, implicit returns, CLI
+profile selection and heap-backed values remain open.

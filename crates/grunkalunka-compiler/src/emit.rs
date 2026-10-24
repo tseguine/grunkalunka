@@ -50,6 +50,7 @@ const NUMBER_REMAINDER: &str = r#"(func $number_remainder (param $a f64) (param 
 
 struct Emitter<'a> {
     function: &'a Function,
+    value_offsets: Vec<usize>,
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
     loop_label: Option<usize>,
@@ -58,20 +59,16 @@ struct Emitter<'a> {
 
 impl Emitter<'_> {
     fn get(&mut self, value: ValueId) {
-        writeln!(
-            self.output,
-            "local.get {}",
-            self.function.slots.len() + value.0
-        )
-        .unwrap();
+        writeln!(self.output, "local.get {}", self.value_offsets[value.0]).unwrap();
+        if self.function.values[value.0] == Type::General {
+            writeln!(self.output, "local.get {}", self.value_offsets[value.0] + 1).unwrap();
+        }
     }
     fn set(&mut self, value: ValueId) {
-        writeln!(
-            self.output,
-            "local.set {}",
-            self.function.slots.len() + value.0
-        )
-        .unwrap();
+        if self.function.values[value.0] == Type::General {
+            writeln!(self.output, "local.set {}", self.value_offsets[value.0] + 1).unwrap();
+        }
+        writeln!(self.output, "local.set {}", self.value_offsets[value.0]).unwrap();
     }
 
     // Reduce a captured Number modulo 2^32 before conversion; saturation alone
@@ -88,6 +85,23 @@ impl Emitter<'_> {
     fn region(&mut self, region: &Region) {
         for operation in &region.operations {
             match &operation.kind {
+                Op::Nullish { result, value } => {
+                    let tag = match value {
+                        ir::Nullish::Undefined => 0,
+                        ir::Nullish::Null => 1,
+                    };
+                    writeln!(self.output, "i32.const {tag}\nf64.const 0").unwrap();
+                    self.set(*result);
+                }
+                Op::Pack { result, input } => {
+                    let boolean = self.function.values[input.0] == Type::Predicate;
+                    writeln!(self.output, "i32.const {}", if boolean { 2 } else { 3 }).unwrap();
+                    self.get(*input);
+                    if boolean {
+                        self.output.push_str("f64.convert_i32_u\n");
+                    }
+                    self.set(*result);
+                }
                 Op::Call {
                     result,
                     function,
@@ -260,6 +274,7 @@ impl Emitter<'_> {
                         .push_str(match result.map(|id| self.function.values[id.0]) {
                             Some(Type::Number) => "if (result f64)\n",
                             Some(Type::Predicate) => "if (result i32)\n",
+                            Some(Type::General) => "if (result i32 f64)\n",
                             None => "if\n",
                         });
                     self.region(consequent);
@@ -322,6 +337,18 @@ impl Emitter<'_> {
 
 pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
     ir::verify_module(module)?;
+    emit_verified(module, Type::Number)
+}
+
+pub(crate) fn emit_with_entry_type(
+    module: &ir::Module,
+    entry_type: Type,
+) -> Result<String, String> {
+    ir::verify_module_with_entry_type(module, entry_type)?;
+    emit_verified(module, entry_type)
+}
+
+fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String> {
     let mut output = String::from("(module ");
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
@@ -337,9 +364,24 @@ pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
             }
             header.push(')');
         }
-        header.push_str(" (result f64)\n");
+        header.push_str(if index == 0 && entry_type == Type::General {
+            " (result i32 f64)\n"
+        } else {
+            " (result f64)\n"
+        });
+        let mut offset = function.slots.len();
+        let value_offsets = function
+            .values
+            .iter()
+            .map(|ty| {
+                let current = offset;
+                offset += if *ty == Type::General { 2 } else { 1 };
+                current
+            })
+            .collect();
         let mut emitter = Emitter {
             function,
+            value_offsets,
             loop_label: None,
             needs_remainder: false,
             output: header,
@@ -349,12 +391,14 @@ pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
             emitter.output.push_str(match slot.ty {
                 Type::Number => "(local f64)\n",
                 Type::Predicate => "(local i32)\n",
+                Type::General => unreachable!("verified scalar source slots"),
             });
         }
         for ty in &function.values {
             emitter.output.push_str(match ty {
                 Type::Number => "(local f64)\n",
                 Type::Predicate => "(local i32)\n",
+                Type::General => "(local i32 f64)\n",
             });
         }
         emitter.region(&function.body);

@@ -612,3 +612,13 @@ fn numeric_logical_assignment_selected_result_is_the_stored_rhs() {
         assert!(matches!(selected.exit, Exit::Yield(result) if result == *value));
     }
 }
+
+#[test]
+fn general_returns_use_the_same_nonrecursive_evaluator() {
+    let source = "export function run(a,b) {return a ? (b+=1, null) : (b<0 ? true : undefined);}";
+    let (result, maximum, entries, pending) = observe(|| crate::compile_value(source, false));
+    result.unwrap();
+    assert_eq!(maximum, 1);
+    assert_eq!(entries, 1);
+    assert!(pending > 1);
+}

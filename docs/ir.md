@@ -1,4 +1,4 @@
-# Numeric region IR
+# Typed region IR
 
 The numeric compiler lowers admitted Oxc syntax into an internal typed, structured
 region representation, verifies that representation, then emits WAT and encodes
@@ -21,8 +21,9 @@ Wasm. These files live in `crates/grunkalunka-compiler/`.
 A module holds an entry-first list of functions, indexed by `FunctionId`. Each
 function records its numeric parameter count and owns independent source slots,
 values, regions and loop-emission state. Only entry zero is exported as `run`,
-with its original two-number/result-number ABI. Helpers may have zero through
-1,000 parameters; every function returns a Number on all structural paths.
+with its original two-number/result-number ABI in the numeric profile. Helpers may have zero through
+1,000 parameters; the numeric profile returns a Number on all structural paths.
+The primitive return profile below changes only the entry result signature.
 
 `Call` records a callee ID, ordered argument ValueIds and a numeric result. The
 module verifier collects signatures before checking bodies, then verifies callee IDs,
@@ -53,10 +54,10 @@ initializer and its `Initialize` in source order, exposing that binding only aft
 its initializer and before the next declarator. Symbol identity keeps a later
 shadow from falling back to an outer binding.
 
-A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
+A `ValueId` names one typed definition in the IR: `Number`, `Predicate` or `General`.
 `Call`, `Constant`, `Load`, `Unary`, `Binary`, `Compare`, `Truthy`, `Boolean` and `Not` produce values.
 `Boolean` defines a `Predicate` and emits canonical `i32` zero/one; it never
-produces a numeric source value. Source-lowered slots and function returns remain `Number`.
+produces a numeric source value. Source slots remain scalar; default-profile function returns remain `Number`.
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
 first pass through `Truthy`; negation evaluates its operand once.
 `Unary::Abs` consumes a captured Number and defines a Number through `f64.abs`.
@@ -361,3 +362,23 @@ runtime and ABI remain unchanged. See [the source contract](compiler.md#type-onl
 Generic function declaration type parameters are frontend metadata only. They add no
 IR fields, values, instructions, Wasm parameters or runtime type proofs. Entry/helper
 signatures and ordered calls keep the existing numeric contract. See [the source contract](compiler.md#generic-declaration-metadata).
+
+## Primitive return profile
+
+`compile_value` selects an explicit entry-result signature of `General`, retaining
+Number parameters and Number helper results. The module verifier checks each return
+and each call result against that profile. A call to entry zero produces General;
+a numeric helper call produces Number. The selected profile is not inferred from
+an annotation, and the existing numeric module debug structure stays unchanged.
+
+`Nullish` defines canonical undefined/null General constants. `Pack` consumes a
+visible Number or Predicate and defines a General snapshot; it rejects General
+inputs, missing/forward inputs and non-General results. General-valued `If` arms
+must each yield a visible General value. Source cells cannot have General type yet.
+
+Emission assigns one physical local per scalar snapshot and two per General
+snapshot, computing offsets from logical widths. General loads push tag then
+payload, and stores consume payload then tag. General joins and entry returns have
+Wasm result type `(i32,f64)`. Calls capture Number arguments in source order. No
+heap, imports, boxing allocation or reserved Number bit patterns are introduced.
+The [wire contract](adr/0002-tagged-primitive-values.md) defines the four tags.

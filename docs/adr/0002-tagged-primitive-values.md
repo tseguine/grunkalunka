@@ -2,7 +2,7 @@
 
 Date: 2026-10-24
 
-Status: Accepted for the primitive runtime ABI; compiler admission and heap layout remain separate.
+Status: Accepted for the primitive runtime ABI and explicit compiler return profile; heap layout remains separate.
 
 ## Context
 
@@ -34,8 +34,9 @@ and non-NaN numbers by bits.
 
 Both execution profiles use the same import-free instantiation and renewed fuel
 budget. Keep stores independent. Add no ambient imports, dependencies, guest heap
-allocation or collector. The compiler and CLI do not emit or select this ABI yet.
-Runtime fixtures establish transport and validation, not additional JS/TS source support.
+allocation or collector. The compiler exposes `compile_value` for this ABI; the CLI
+continues to select the numeric profile. Runtime-only fixtures establish transport
+and validation; separate compiled-source tests establish bounded source support.
 
 ## Alternatives
 
@@ -48,9 +49,20 @@ Runtime fixtures establish transport and validation, not additional JS/TS source
 
 ## Consequences and verification
 
-The primitive API is independently usable by import-free Wasm producers. A following
-compiler unit must lower real source to this boundary through the verified IR and
-explicit evaluator; handwritten Wasm runtime tests cannot establish that source support.
+The primitive API is independently usable by import-free Wasm producers. The compiler
+return profile lowers real JS/TS through the verified IR and explicit evaluator:
+`General` snapshots, scalar-to-General `Pack`, nullish constants and General-valued
+conditional joins. Number/Predicate computations and source cells stay specialized.
+Function signatures are supplied explicitly by the selected profile: entry results
+are General and helper results Number. Annotation syntax supplies neither inference
+nor an alternative runtime signature. Calls and returns are checked against that
+profile before emission. General temporaries use paired physical locals; Number and
+Predicate temporaries keep one local. Typed pair loads/stores preserve stack order.
+
+Source tests compare original JS with Wasmtime and Node-Wasm, including mixed returns,
+Number edge cases, side effects and direct calls. General source cells, helper formals,
+coercions and implicit returns remain separate units; no heap choice follows from
+this result ABI. The numeric profile keeps its original artifacts and diagnostics.
 
 Verify four-kind identity, numeric edge cases, malformed tags/payloads, signature
 separation, unused import denial, repeated-call fuel renewal and recovery after fuel

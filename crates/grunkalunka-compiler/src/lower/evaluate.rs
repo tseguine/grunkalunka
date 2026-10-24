@@ -9,17 +9,19 @@ pub(super) enum Mode {
     Predicate,
     Discard,
     Arithmetic,
+    General,
 }
 
 #[derive(Clone, Copy)]
 enum Value {
     Number(ValueId),
     Predicate(ValueId),
+    General(ValueId),
 }
 impl Value {
     fn id(self) -> ValueId {
         match self {
-            Self::Number(id) | Self::Predicate(id) => id,
+            Self::Number(id) | Self::Predicate(id) | Self::General(id) => id,
         }
     }
     fn number(self) -> ValueId {
@@ -54,6 +56,7 @@ impl Regions<'_> {
 enum Work<'e, 'a> {
     Eval(&'e Expression<'a>, usize, Mode),
     Forget,
+    Pack(&'e Expression<'a>),
     Convert(&'e Expression<'a>),
     Truthy(&'e Expression<'a>),
     Not(&'e Expression<'a>),
@@ -238,6 +241,12 @@ impl Lowering<'_, '_> {
                     );
                     values.push(Value::Number(result));
                 }
+                Work::Pack(node) => {
+                    let input = values.pop().expect("pack input").id();
+                    let result = self.value(Type::General);
+                    Self::push(regions.current(), node, Op::Pack { result, input });
+                    values.push(Value::General(result));
+                }
                 Work::Truthy(node) => {
                     let input = values.pop().expect("truthiness input").number();
                     let result = self.value(Type::Predicate);
@@ -403,7 +412,8 @@ impl Lowering<'_, '_> {
                         arguments.push(values.pop().expect("call argument").number());
                     }
                     if index == call.arguments.len() {
-                        let result = self.value(Type::Number);
+                        let ty = self.functions[function.0].return_type;
+                        let result = self.value(ty);
                         Self::push(
                             regions.current(),
                             node,
@@ -413,7 +423,11 @@ impl Lowering<'_, '_> {
                                 arguments,
                             },
                         );
-                        values.push(Value::Number(result));
+                        values.push(if ty == Type::General {
+                            Value::General(result)
+                        } else {
+                            Value::Number(result)
+                        });
                     } else {
                         // Validate a later spread only after earlier arguments finish.
                         let Some(argument) = call.arguments[index].as_expression() else {
@@ -496,10 +510,10 @@ impl Lowering<'_, '_> {
                 } => {
                     let value = values.pop().expect("alternate result").id();
                     let alternate = regions.finish(value);
-                    let ty = if matches!(mode, Mode::Predicate) {
-                        Type::Predicate
-                    } else {
-                        Type::Number
+                    let ty = match mode {
+                        Mode::General => Type::General,
+                        Mode::Predicate => Type::Predicate,
+                        _ => Type::Number,
                     };
                     let result = self.value(ty);
                     Self::push(
@@ -512,10 +526,10 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    values.push(if ty == Type::Predicate {
-                        Value::Predicate(result)
-                    } else {
-                        Value::Number(result)
+                    values.push(match ty {
+                        Type::General => Value::General(result),
+                        Type::Predicate => Value::Predicate(result),
+                        Type::Number => Value::Number(result),
                     });
                 }
                 Work::LogicalLeft {
@@ -528,6 +542,7 @@ impl Lowering<'_, '_> {
                 } => {
                     let left = values.pop().expect("logical left");
                     let condition = match left {
+                        Value::General(_) => unreachable!("scalar logical continuation"),
                         Value::Predicate(id) => id,
                         Value::Number(input) => {
                             let result = self.value(Type::Predicate);
@@ -622,6 +637,65 @@ impl Lowering<'_, '_> {
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
+                    }
+                    if matches!(mode, Mode::General) {
+                        let nullish = match node {
+                            Expression::NullLiteral(_) => Some(ir::Nullish::Null),
+                            Expression::Identifier(identifier)
+                                if identifier.name == "undefined"
+                                    && identifier.reference_id.get().is_some_and(|reference| {
+                                        self.semantic
+                                            .scoping()
+                                            .get_reference(reference)
+                                            .symbol_id()
+                                            .is_none()
+                                    }) =>
+                            {
+                                Some(ir::Nullish::Undefined)
+                            }
+                            _ => None,
+                        };
+                        // Resolve the original callee symbol, never its spelling or a TS annotation.
+                        let general_call = match node {
+                            Expression::CallExpression(call) => match &call.callee {
+                                Expression::Identifier(identifier) => {
+                                    let symbol =
+                                        identifier.reference_id.get().and_then(|reference| {
+                                            self.semantic
+                                                .scoping()
+                                                .get_reference(reference)
+                                                .symbol_id()
+                                        });
+                                    self.functions.iter().any(|function| {
+                                        Some(function.symbol) == symbol
+                                            && function.return_type == Type::General
+                                    })
+                                }
+                                _ => false,
+                            },
+                            _ => false,
+                        };
+                        if let Some(value) = nullish {
+                            let result = self.value(Type::General);
+                            Self::push(regions.current(), node, Op::Nullish { result, value });
+                            values.push(Value::General(result));
+                            continue;
+                        } else if !general_call
+                            && !matches!(
+                                node,
+                                Expression::ConditionalExpression(_)
+                                    | Expression::SequenceExpression(_)
+                            )
+                        {
+                            let scalar = if self.operand_boolean_shape(node, depth) {
+                                Mode::Predicate
+                            } else {
+                                Mode::Number
+                            };
+                            work.push(Work::Pack(node));
+                            work.push(Work::Eval(node, depth, scalar));
+                            continue;
+                        }
                     }
                     if matches!(mode, Mode::Predicate) {
                         if let Expression::BooleanLiteral(literal) = node {
@@ -838,6 +912,14 @@ impl Lowering<'_, '_> {
                                     return Err(unsupported(
                                         node,
                                         "call requires exactly the declared number of arguments",
+                                    ));
+                                }
+                                if function.return_type == Type::General
+                                    && !matches!(mode, Mode::General)
+                                {
+                                    return Err(unsupported(
+                                        node,
+                                        "value-returning calls require a General result position",
                                     ));
                                 }
                                 work.push(Work::Call {
