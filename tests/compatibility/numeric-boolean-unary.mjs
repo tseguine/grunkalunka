@@ -45,7 +45,6 @@ const negatives=[
  ['root-logical','return +(true&&false);',expression,'boolean-values'],
  ['root-conditional','return -(a?true:false);',expression,'boolean-values'],
  ['root-sequence','return +(0,true);',expression,'boolean-values'],
- ['identifier','const flag=true; return +flag;','Boolean bindings are not admitted in numeric value positions','boolean-values'],
  ['bare-not','return !a;','only unary +, - and ~ are admitted','boolean-values'],
  ['string','return +"1";',expression,'string-values'],
  ['bigint','return -1n;',expression,'bigint-values'],

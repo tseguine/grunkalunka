@@ -105,7 +105,10 @@ ordered argument snapshots and independent invocation cells. Function values,
 nested declarations/captures and module initialization remain separate work. Number-only `==`/`!=` predicates share strict
 numeric equality semantics; coercion remains outside admission. Numeric unary `~`
 and binary `&`, `|` and `^` use signed 32-bit truncation/wrapping semantics and
-return Numbers. Number shifts mask counts to five bits: `<<` and `>>` return signed
+return Numbers. Unary `+`, `-` and `~` also explicitly convert initialized immutable
+Predicate bindings, using semantic identity rather than annotation spelling. Other
+bare Boolean binding value positions remain outside this bridge. Number shifts mask
+counts to five bits: `<<` and `>>` return signed
 results, while `>>>` zero-fills and returns an unsigned Number. Both operands run
 eagerly in source order. Bitwise/shift compound assignments capture the initialized
 target before RHS effects, then store and yield the result through existing
@@ -363,7 +366,7 @@ This does not settle general Boolean storage, call signatures or value represent
 ## Boolean const storage boundary
 
 Immutable Boolean locals now support predicate-position reads using fixed scalar
-slots. Mutable storage, Boolean call/return signatures, Number uses and discarded
+slots. Mutable storage, Boolean call/return signatures, other Number uses and discarded
 identifier reads remain separate work. This does not choose a general JavaScript
 value representation; see [the bounded contract](compiler.md#immutable-boolean-predicate-locals).
 
@@ -371,5 +374,5 @@ value representation; see [the bounded contract](compiler.md#immutable-boolean-p
 
 Inline Boolean-producing shapes can now become Number operands of binary
 `+`, `-`, `*`, `/` and `%`, retaining effect order and signed-zero behavior.
-Bare Boolean bindings, other operator families and general coercion remain open.
+Bare Boolean binding binary operands, other operator families and general coercion remain open.
 This reuses the existing scalar bridge without choosing a general value architecture.

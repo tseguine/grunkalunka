@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 109 resource restrictions and 704 open requirements
-across all 839 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 114 resource restrictions and 721 open requirements
+across all 861 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -267,7 +267,7 @@ Immutable Boolean predicate locals promote exactly `gap-boolean-value`,
 `boolean-literal-local`, `not-local` and `equality-numeric-local`. The former curated
 reference retains its original oracle, values/L4 metadata, inputs `[4,2]` and +0
 result in the admitted fixtures and direct contract test. The frontier now has 38
-references. Mutable Boolean storage, Number uses and binding-aware discarded reads
+references. Mutable Boolean storage, other Number uses and binding-aware discarded reads
 remain open; [the bounded contract](compiler.md#immutable-boolean-predicate-locals)
 spells out the initializer and predicate-position restrictions.
 
@@ -278,3 +278,13 @@ Six original ordinary sources graduate; no curated reference changes. Bare Boole
 binding operands, other operator families and general coercion remain separate
 work. [The source contract](compiler.md#inline-boolean-arithmetic-operands) preserves
 primitive conversion, snapshots, skipped-branch admission and original depth.
+
+## Unary Predicate binding frontier
+
+Unary `+`, `-` and `~` now accept initialized immutable Predicate bindings using
+semantic identity and original wrapper depth. The three original ordinary
+`const-boolean-complement`, `const-boolean-plus` and
+`boolean-numeric-unary-reject-identifier` IDs retain their source bytes; no curated
+reference changes. Binary arithmetic and the other value-position classifiers do
+not inherit this eligibility. Mutable storage, direct Boolean results/arguments,
+root Boolean joins and bare-binding binary operands remain separate requirements.

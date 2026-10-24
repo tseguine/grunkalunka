@@ -72,8 +72,6 @@ const negatives=[
   ['comma-prefix','const flag=true; return (flag,a);',numeric],
   ['for-update','const flag=true; for(let i=0;i<1;flag) { i++; } return a;',numeric],
   ['discarded-logical','const flag=true; flag&&(a=b); return a;',numeric],
-  ['complement','const flag=true; return ~flag;',numeric],
-  ['plus','const flag=true; return +flag;',numeric],
   ['arithmetic','const flag=true; return flag+a;',numeric],
   ['argument','const flag=true; return Math.abs(flag);',numeric],
   ['assignment-rhs','const flag=true; a=flag; return a;',numeric],

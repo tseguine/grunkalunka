@@ -6,7 +6,8 @@ encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
 Private IR cells have a fixed existing `Number` or `Predicate` type. Source lowering
-creates Number cells and immutable Boolean const cells for predicate-position reads.
+creates Number cells and immutable Boolean const cells for predicate and selected
+unary Number reads.
 All entry/helper parameters and returns remain Number-only. This adds no dynamic
 type inference or boxing; see the [bounded source contract](#immutable-boolean-predicate-locals).
 
@@ -36,14 +37,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 43
-contains 1115 paired programs, 839 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 44
+contains 1158 paired programs, 861 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 839 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 109 explicit resource restrictions and 704 open requirements.
+classifies all 861 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 114 explicit resource restrictions and 721 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -909,9 +910,11 @@ The binding becomes visible only after its initializer succeeds. Symbol identity
 TDZ, lexical scope and once-only initializer effects remain authoritative.
 
 Reads are admitted in existing predicate positions, including conditions, logical
-negation and predicate logical/conditional operands. Mutable Boolean locals, Number
-positions (including returns, call arguments and arithmetic), root logical/conditional
-initializer joins, `~flag`, `+flag`, bare discarded identifiers, comma prefixes,
+negation and predicate logical/conditional operands. Unary `+`, `-` and `~` also
+read initialized immutable Predicate bindings through the separate unary bridge
+below, producing Numbers without widening other value positions. Mutable Boolean
+locals and other Number positions (including returns, call arguments and arithmetic), root logical/conditional
+initializer joins, bare discarded identifiers, comma prefixes,
 for-update reads and discarded `flag && (a=b)` remain outside this bounded unit.
 All source locals share the unchanged cumulative 128 limit across functions/scopes;
 its diagnostic now says “source locals” for both Number and Predicate cells.
@@ -939,7 +942,7 @@ right evaluation. Primitive conversion has no object hooks; ordinary Number
 operands keep their original lowering and artifact bytes.
 
 This leaves equality/comparison, bitwise/shift and compound operand dispatch
-unchanged. Bare Boolean const identifiers remain rejected in Number positions;
+unchanged. Bare Boolean const identifiers remain rejected as binary Number operands;
 `!flag` may use existing predicate-position reads. Root Boolean logical/conditional
 or comma-result operands are not inferred as Boolean shapes, while ordinary Number
 sequence/conditional/logical expressions continue to compose. Strings, objects,
@@ -948,6 +951,29 @@ existing private helper, including in nested regions, and preserves signed zero.
 
 Corpus 43 adds 66 pairs (six exact ordinary promotions) and 30 classified negatives.
 Three former Rust-only rejection bodies are retained as positive assertions and
-execution witnesses. No curated reference is transferred: all 38 remain. Current
-counts are 1115 pairs, 2230 modules, 2,796,420 comparisons and 839 rejections in 56
+execution witnesses. No curated reference is transferred: all 38 remain. That run
+recorded 1115 pairs, 2230 modules, 2,796,420 comparisons and 839 rejections in 56
 groups (26 invalid, 109 resource restrictions, 704 open); 102 Boolean frontiers remain.
+
+## Unary reads of immutable Predicate bindings
+
+Unary `+`, `-` and `~` recognize initialized immutable Predicate const bindings,
+including through retained TypeScript and parenthesis wrappers. Eligibility uses
+the original reference's semantic SymbolId, published binding and fixed slot kind;
+annotation spelling does not prove a runtime Boolean. The original operand is
+lowered once as a predicate and the existing `NumberFromPredicate` conversion
+feeds the unchanged Number unary operation. Wrappers retain original depth.
+
+The free Boolean-shape classifier and binary arithmetic, initializer, discarded
+value and numeric-identifier admission remain unchanged. A bare `flag` still cannot
+be returned, passed, assigned, discarded or used in arithmetic/equality/bitwise/
+shift/compound positions. Mutable Boolean storage and root Boolean joins remain
+outside admission. The resulting Number may compose through existing numeric paths.
+
+Corpus 44 adds 43 pairs and 25 source-bound negatives. Exactly three ordinary IDs
+move: `const-boolean-complement`, `const-boolean-plus` and
+`boolean-numeric-unary-reject-identifier`; the latter two deliberately retain the
+same original JS source under distinct IDs. No curated reference transfers.
+Three former Rust guard spellings are positive assertions, with the additional
+`const x=true; return ~x;` body retained as an execution witness. The existing
+1115 admitted pairs and 836 other rejection observations remain the baseline.

@@ -40,7 +40,8 @@ import { numericBooleanUnary, numericBooleanUnaryRejected } from './numeric-bool
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
 import { constBooleanPrograms, constBooleanRejected } from './const-boolean.mjs';
 import { numericBooleanArithmetic, numericBooleanArithmeticRejected } from './numeric-boolean-arithmetic.mjs';
-export const corpusVersion = 43;
+import { unaryPredicateBindings, unaryPredicateBindingsRejected } from './unary-predicate-bindings.mjs';
+export const corpusVersion = 44;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -105,6 +106,7 @@ programs.push(...discardedValues);
 programs.push(...constBooleanPrograms);
 programs.push(...numericBooleanUnary);
 programs.push(...numericBooleanArithmetic);
+programs.push(...unaryPredicateBindings);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -206,6 +208,7 @@ export const rejected = [
   ...constBooleanRejected,
   ...numericBooleanUnaryRejected,
   ...numericBooleanArithmeticRejected,
+  ...unaryPredicateBindingsRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],

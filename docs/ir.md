@@ -116,6 +116,11 @@ copies its Number; unary minus uses f64 negation and preserves the -0 result of
 A pure bounded AST shape
 classifier selects this path; original operand lowering performs effects once and
 counts all retained source wrappers at the original operand depth.
+Unary `+`, `-` and `~` additionally select initialized immutable Predicate slots by
+the original reference's SymbolId and fixed slot kind. This separate bounded
+eligibility check preserves wrappers/depth and does not change binary classifiers.
+The operand still lowers once through predicate `Load` and the same explicit
+conversion; all operators and ABI results remain Number-typed.
 
 `Initialize` and `Store` require an input matching the slot type; `Load` defines
 a result of that type. Nonparameter `Number`/`Predicate` slots emit f64/i32 locals.

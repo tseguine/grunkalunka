@@ -56,8 +56,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 839 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 109 resource restrictions and 704 open requirements.
+also covers all 861 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 114 resource restrictions and 721 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -226,7 +226,25 @@ cases cover 1110/410 evaluation-order snapshots, once-only effects, signed zero,
 NaN/infinities/subnormals, wrappers, const-predicate negation, helpers, finite loops
 and source bounds. Four targeted mutants exercise conversion, order, duplication
 and depth. Three old Rust-only rejection programs are retained as positive checks.
-Current totals: 1115 pairs, 839 rejections and 38 curated references; 56 inventory
+That arithmetic run recorded 1115 pairs, 839 rejections and 38 curated references; 56 inventory
 groups classify 26 invalid, 109 resource restrictions and 704 open requirements.
 The Boolean-values assessment is widened explicitly; retained record identities
 and all other group fields remain unchanged apart from the six promotions/new records.
+
+## Unary immutable Predicate binding coverage
+
+`unary-predicate-bindings.mjs` checks all unary operators on true/false cells,
+aliases, captured/once-only initializers, numeric and Predicate shadows, intrinsic
+names, misleading annotations, four TS wrappers, original depth and finite loops.
+Signed zero is compared by bits; +false is +0 and -false is -0. Three exact ordinary
+promotions retain IDs, hashes and both duplicate-source observations. Direct return,
+call/assignment/discard/equality, binary and mutable-storage exclusions stay open.
+
+The CLI depth controls run before expanded focus: the exact retained 554-byte
+bitwise depth-limit source must keep its diagnostic and no artifact, followed by
+Number and Boolean original-depth 128/129 controls. Native failure stops the unit.
+Four built lowerer mutations exercise wrong binding kind, conversion, wrapper-depth
+charging and duplicate effectful predicate evaluation; exact restoration refreshes
+source mtime before rebuilding. The 836 retained rejection objects and all old
+Number source/WAT/Wasm artifacts have an explicit baseline audit; negatives are not
+executed as arbitrary Node programs.

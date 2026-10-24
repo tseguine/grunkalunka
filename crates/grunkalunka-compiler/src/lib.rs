@@ -271,6 +271,50 @@ mod tests {
     use super::compile;
 
     #[test]
+    fn unary_operators_read_immutable_predicate_bindings() {
+        for body in [
+            "const flag=true; return +flag;",
+            "const flag=true; return ~flag;",
+            "const x=true; return ~x;",
+            "const flag=false; return -flag;",
+            "const one=a<b; const two=one; return +two;",
+        ] {
+            compile(&format!("export function run(a,b) {{ {body} }}"), false).unwrap();
+        }
+    }
+
+    #[test]
+    fn unary_predicate_binding_bridge_keeps_scope_and_value_boundaries() {
+        for body in [
+            "const flag=true; return flag;",
+            "const flag=true; return Math.abs(flag);",
+            "const flag=true; return flag+a;",
+            "const flag=true; return flag|a;",
+            "const flag=true; return flag<<a;",
+            "const flag=true; a+=flag; return a;",
+            "const flag=true; return +(a?flag:false);",
+            "let flag=true; return +flag;",
+            "const flag=+flag; return a;",
+            "return +flag; const flag=true;",
+            "{const flag=true;} return +flag;",
+        ] {
+            assert!(
+                compile(&format!("export function run(a,b) {{ {body} }}"), false).is_err(),
+                "{body}"
+            );
+        }
+        for operator in ["+", "-", "~"] {
+            for depth in [127, 128] {
+                let source = format!(
+                    "export function run(a,b) {{ const flag=true; return {operator}flag{}; }}",
+                    "!".repeat(depth)
+                );
+                assert_eq!(compile(&source, true).is_ok(), depth == 127, "{source}");
+            }
+        }
+    }
+
+    #[test]
     fn primitive_boolean_numeric_unary_is_admitted() {
         for expression in [
             "+false", "-false", "+true", "-true", "+(a<b)", "-(a===b)", "+!a", "-!!a",
@@ -290,7 +334,6 @@ mod tests {
             "return +(true&&false);",
             "return -(a?true:false);",
             "return +(0,true);",
-            "const flag=true; return +flag;",
             "return +(true===a);",
             "return +!(0&&Math.random());",
             "const x=0; return +!(x=1);",
@@ -349,7 +392,6 @@ mod tests {
     fn boolean_bit_not_keeps_shape_depth_and_source_guards() {
         for body in [
             "return true;",
-            "const x=true; return ~x;",
             "return ~(a?true:false);",
             "return ~(true&&false);",
             "return ~!(0&&Math.random());",
@@ -860,10 +902,6 @@ mod tests {
             ),
             (
                 "const flag=true; flag; return a;",
-                "Boolean bindings are not admitted",
-            ),
-            (
-                "const flag=true; return ~flag;",
                 "Boolean bindings are not admitted",
             ),
             (
