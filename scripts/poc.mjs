@@ -2,8 +2,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { programs, rejected } from '../tests/compatibility/corpus.mjs';
+import { watchdogBudget, corpusWatchdogCounts } from '../tests/compatibility/watchdog-budget.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const { outerMs } = watchdogBudget(corpusWatchdogCounts(programs, rejected));
 function run(command, args, timeout) {
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: false, timeout });
   if (result.error) throw result.error;
@@ -12,4 +15,4 @@ function run(command, args, timeout) {
 }
 run(process.execPath, ['scripts/licenses.mjs'], 60_000);
 run('cargo', ['build', '--workspace', '--locked', '--offline', '-j', '4'], 600_000);
-run(process.execPath, ['tests/compatibility/check.mjs'], 240_000);
+run(process.execPath, ['tests/compatibility/check.mjs'], outerMs);

@@ -38,6 +38,18 @@ adapted runtime results and successful rejection checks are separate counts.
 Unmodified upstream suite execution remains `not-executed`, including for TypeScript.
 This is a selected-case inventory, not a denominator for the full upstream suites.
 
+The compatibility watchdog derives its whole-run budget from the current inventory:
+`innerMs = min(600000, max(180000, 30000 + 200*P + 25*R + 100*G))`, where `P` is
+paired programs, `R` is rejection rows and `G` is curated rejection-oracle rows
+(`0 <= G <= R`). Counts must be safe nonnegative integers, and unsafe intermediate
+arithmetic is rejected before execution. The outer compatibility subprocess timeout
+is `innerMs + 60000`, at most 660000ms. These rounded allowances are an engineering
+watchdog allocation, not measured per-row costs, a benchmark or a performance SLA.
+The guard checks elapsed time before each CLI launch, allowing the exact deadline
+and rejecting the next launch over budget. Individual CLI subprocesses retain their
+30000ms timeout; curated JavaScript oracles retain 5000ms. Semantic assertions and
+report completion are required regardless of the allocated budget.
+
 The separate [lowering-gap inventory](lowering-gaps.md) specifies 39 reference
 programs beyond current admission. Node checks their expected results; the compiler
 must still reject each with the recorded diagnostic and create no artifact. These

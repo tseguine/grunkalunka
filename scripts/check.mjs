@@ -15,6 +15,7 @@ run(process.execPath, ['--test', 'tests/compatibility/suites.test.mjs', 'tests/c
   'tests/compatibility/benchmarks-game.test.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/gap-oracle.test.mjs', 'tests/compatibility/program-sources.test.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/rejection-inventory.test.mjs']);
+run(process.execPath, ['--test', 'tests/compatibility/watchdog-budget.test.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/numeric-math-abs-kernel.test.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/numeric-math-unary-kernel.test.mjs']);
 for (const spike of ['001-frontend-semantics']) {

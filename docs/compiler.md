@@ -639,8 +639,10 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   expressions use the ordinary expression nesting budget. Statement nesting limit 64;
   generated IR values, regions and Wasm temporaries do not consume source budgets;
   host input batches at most 4096
-  pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the vector
-  replay has a three-minute bound. These are experiment bounds, not platform policy.
+  pairs and 10,000 fuel per call. Each harness subprocess has a timeout; the whole
+  compatibility replay uses the [inventory-derived watchdog](testing.md), with a
+  three-minute floor, ten-minute cap and one-minute outer subprocess margin. These
+  are engineering experiment bounds, not measured performance or platform policy.
 - Compile finishes parsing/admission/encoding in memory before opening a fresh
   output file. Existing destinations are refused. Expected compile rejection must
   leave its previously nonexistent destination absent.

@@ -8,12 +8,14 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { suiteInventory } from './suites.mjs';
 import { programSources } from './program-sources.mjs';
+import { watchdogBudget, corpusWatchdogCounts, assertWithinWatchdog } from './watchdog-budget.mjs';
 import { readRejectionInventory, validateRejectionInventory, rejectionClassification, validateRejectionReport } from './rejection-inventory.mjs';
 
 const directory = fileURLToPath(new URL('./', import.meta.url));
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const binary = join(root, 'target', 'debug', `grunkalunka${process.platform === 'win32' ? '.exe' : ''}`);
 const outputRoot = join(root, 'target', 'compatibility-runs');
+const { innerMs } = watchdogBudget(corpusWatchdogCounts(programs, rejected));
 await mkdir(outputRoot, { recursive: true });
 const output = await mkdtemp(join(outputRoot, 'run-'));
 let activeFixture = 'inventory';
@@ -24,7 +26,7 @@ const seed = 0x4752554en;
 const started = performance.now();
 
 function invoke(args, input = '', success = true) {
-  if (performance.now() - started > 180_000) throw new Error('experiment exceeded three-minute harness limit');
+  assertWithinWatchdog(performance.now() - started, innerMs);
   const result = spawnSync(binary, args, {
     cwd: directory, input, encoding: 'utf8', shell: false, timeout: 30_000, maxBuffer: 4 * 1024 * 1024,
   });
