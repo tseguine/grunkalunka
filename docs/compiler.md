@@ -36,14 +36,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 42
-contains 1049 paired programs, 815 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 43
+contains 1115 paired programs, 839 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 815 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 104 explicit resource restrictions and 685 open requirements.
+classifies all 839 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 109 explicit resource restrictions and 704 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -501,8 +501,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Both equality operands must lower to numbers. On this domain, `==`/`!=` use
   the same comparisons as `===`/`!==`: NaN is unequal to every number and signed
   zeros compare equal. Ordered snapshots preserve operand effects. No coercion
-  is introduced between equality operands. Its result remains a predicate until an
-  admitted unary conversion explicitly produces a Number.
+  is introduced by equality itself. Results remain predicates, and may enter the
+  explicit primitive Number bridges; direct ABI results remain Number-only.
   Comma operands execute left to right; non-final Number or Boolean results are
   evaluated and discarded. The final operand retains its surrounding Number or
   predicate contract. Expression statements and expression-form for initializers
@@ -510,7 +510,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   selects predicate lowering only for Boolean-producing result shapes, including
   mixed logical/conditional results; Number-only trees retain their original path.
   Only the selected branch executes. Type assertions never prove runtime kinds;
-  mutable storage, arguments, assignments, arithmetic and returns remain Number-only.
+  mutable storage, call arguments, assignment RHS values and returns remain Number-only.
+  Binary arithmetic has the bounded inline operand conversions described below.
   Immutable Boolean const locals have the predicate-position boundary described below.
   Numeric `&&` and `||` evaluate the left operand once and return its original
   snapshot or the selected RHS result. The RHS is fully admitted but executes only
@@ -618,7 +619,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`&&=`/`||=`/`??=` assignments,
-  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Other Boolean arithmetic, Boolean returns and self/forward local references are
+  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic outside the explicit inline bridges, Boolean returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
 - Admission covers the entire AST, including directives/modifiers stored outside
@@ -659,18 +660,18 @@ Oxc 0.155.0; Wasmtime 50.0.0 with Cranelift/runtime/std/anyhow features, default
 wat 1.262.0. Cargo lockfile pins transitives. Dev build, Rust debug info disabled in
 this development build; neither compiler nor runtime was release-benchmarked.
 
-The retained corpus-42 replay observed:
+The corpus-43 replay reports:
 
 ```text
-PASS 2528064 numeric comparisons; 797 rejected inputs; overwrite preserved
+PASS 2796420 numeric comparisons; 839 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-1008 programs, each written as JS and TS, produce 2016 modules.
+1115 programs, each written as JS and TS, produce 2230 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,528,064 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,796,420 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -860,7 +861,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-797 malformed or unsupported programs fail explicitly, each with a unique
+839 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved
@@ -926,3 +927,27 @@ That predicate-local run recorded 1008 pairs, 2016 modules, 2,528,064 engine-to-
 797 rejections, 38 curated references and 56 inventory groups: 26 invalid sources,
 99 resource restrictions and 672 open requirements. The Boolean-values group retains
 90 records. Existing Number source/WAT/Wasm artifacts remain unchanged.
+
+## Inline Boolean arithmetic operands
+
+Binary `+`, `-`, `*`, `/` and `%` accept inline Boolean-producing operand shapes:
+Boolean literals, logical negation and admitted numeric comparisons/equalities,
+through retained parentheses and TypeScript wrappers. An arithmetic-only lowering
+helper evaluates each recognized predicate once and uses `NumberFromPredicate`
+to obtain false/true as +0/1. Left evaluation and its captured result finish before
+right evaluation. Primitive conversion has no object hooks; ordinary Number
+operands keep their original lowering and artifact bytes.
+
+This leaves equality/comparison, bitwise/shift and compound operand dispatch
+unchanged. Bare Boolean const identifiers remain rejected in Number positions;
+`!flag` may use existing predicate-position reads. Root Boolean logical/conditional
+or comma-result operands are not inferred as Boolean shapes, while ordinary Number
+sequence/conditional/logical expressions continue to compose. Strings, objects,
+BigInts and general coercion remain outside this profile. Remainder still uses its
+existing private helper, including in nested regions, and preserves signed zero.
+
+Corpus 43 adds 66 pairs (six exact ordinary promotions) and 30 classified negatives.
+Three former Rust-only rejection bodies are retained as positive assertions and
+execution witnesses. No curated reference is transferred: all 38 remain. Current
+counts are 1115 pairs, 2230 modules, 2,796,420 comparisons and 839 rejections in 56
+groups (26 invalid, 109 resource restrictions, 704 open); 102 Boolean frontiers remain.

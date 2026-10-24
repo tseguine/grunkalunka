@@ -96,7 +96,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
 independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
-2,528,064 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 797 rejected
+2,796,420 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 839 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
 and while/for/do loops with nearest-loop unlabelled break/continue (L1/L2). Top-level numeric
@@ -366,3 +366,10 @@ Immutable Boolean locals now support predicate-position reads using fixed scalar
 slots. Mutable storage, Boolean call/return signatures, Number uses and discarded
 identifier reads remain separate work. This does not choose a general JavaScript
 value representation; see [the bounded contract](compiler.md#immutable-boolean-predicate-locals).
+
+## Primitive arithmetic operands
+
+Inline Boolean-producing shapes can now become Number operands of binary
+`+`, `-`, `*`, `/` and `%`, retaining effect order and signed-zero behavior.
+Bare Boolean bindings, other operator families and general coercion remain open.
+This reuses the existing scalar bridge without choosing a general value architecture.

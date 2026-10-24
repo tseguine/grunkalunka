@@ -109,12 +109,13 @@ fuel-headroom guarantee. See the standard [Number remainder rule](https://tc39.e
 `NumberFromPredicate { input, result }` requires a visible `Predicate` input and
 uniquely defines a `Number` result. It emits `f64.convert_i32_u` on the existing
 canonical zero/one predicate, implementing Boolean-to-Number only for selected
-primitive-Boolean operands of numeric `+`, `-` and `~`. Their `Unary` operations
-still consume and return Number. Plus copies its Number; minus uses f64 negation
-and preserves the -0 result of `-false`. This bridge adds no Boolean parameter,
-return or general coercion. A pure bounded AST shape
+primitive-Boolean operands of numeric unary `+`, `-`, `~` and binary
+`+`, `-`, `*`, `/`, `%`. Their operations consume and return Number. Unary plus
+copies its Number; unary minus uses f64 negation and preserves the -0 result of
+`-false`. These bridges add no Boolean parameter, return or general coercion.
+A pure bounded AST shape
 classifier selects this path; original operand lowering performs effects once and
-counts all retained source wrappers at the original unary argument depth.
+counts all retained source wrappers at the original operand depth.
 
 `Initialize` and `Store` require an input matching the slot type; `Load` defines
 a result of that type. Nonparameter `Number`/`Predicate` slots emit f64/i32 locals.
@@ -299,3 +300,11 @@ aliases resolve through SymbolId and the slot type. Number slots keep their old
 lowering. No new IR operation, Wasm layout or call signature is introduced.
 See [the predicate-position source contract](compiler.md#immutable-boolean-predicate-locals)
 for the intentionally narrower source reads, initializer forms and shared local budget.
+
+## Arithmetic operand conversion
+
+The source arithmetic helper reuses `NumberFromPredicate` only for recognized
+inline Boolean operands of binary `+`, `-`, `*`, `/` and `%`. It preserves original
+depth, effects and captured left-before-right values. Number operands use unchanged
+expression lowering. No IR, verifier or emitter operation is added; no binding-aware
+classifier or call/storage type is widened. See [the source boundary](compiler.md#inline-boolean-arithmetic-operands).

@@ -350,13 +350,11 @@ mod tests {
         for body in [
             "return true;",
             "const x=true; return ~x;",
-            "return true+1;",
             "return ~(a?true:false);",
             "return ~(true&&false);",
             "return ~!(0&&Math.random());",
             "return Math.abs(true);",
             "return ~(true==a);",
-            "return ~((a<b) as number)+true;",
         ] {
             assert!(
                 compile(&format!("export function run(a,b) {{ {body} }}"), true).is_err(),
@@ -588,7 +586,6 @@ mod tests {
     #[test]
     fn remainder_keeps_numeric_target_and_source_budget_guards() {
         for (body, reason, typescript) in [
-            ("return a%true;", "expression is outside", false),
             ("return a%\"3\";", "expression is outside", false),
             ("return 1n%2n;", "expression is outside", false),
             ("const x=a; return x%=b;", "const binding", false),
@@ -901,5 +898,42 @@ mod tests {
             false,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn boolean_arithmetic_operands_use_numeric_results() {
+        for (body, typescript) in [
+            ("return true+a;", false),
+            ("return a-false;", false),
+            ("return false*true;", false),
+            ("return (a<b)/(!a);", false),
+            ("return a%(a===b);", false),
+            ("return true+1;", true),
+            ("return ~((a<b) as number)+true;", true),
+            ("return a%true;", false),
+        ] {
+            compile(
+                &format!("export function run(a,b) {{ {body} }}"),
+                typescript,
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn boolean_arithmetic_keeps_other_operand_boundaries() {
+        for (body, reason) in [
+            (
+                "const flag=true; return flag+a;",
+                "Boolean bindings are not admitted",
+            ),
+            ("a+=true; return a;", "expression is outside"),
+            ("return true==a?1:0;", "expression is outside"),
+            ("return a&true;", "expression is outside"),
+            ("return (a?true:false)+1;", "expression is outside"),
+        ] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            assert!(compile(&source, false).err().unwrap().contains(reason));
+        }
     }
 }

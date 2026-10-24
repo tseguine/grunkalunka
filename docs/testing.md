@@ -50,14 +50,14 @@ and rejecting the next launch over budget. Individual CLI subprocesses retain th
 30000ms timeout; curated JavaScript oracles retain 5000ms. Semantic assertions and
 report completion are required regardless of the allocated budget.
 
-The separate [lowering-gap inventory](lowering-gaps.md) specifies 39 reference
+The separate [lowering-gap inventory](lowering-gaps.md) specifies 38 reference
 programs beyond current admission. Node checks their expected results; the compiler
 must still reject each with the recorded diagnostic and create no artifact. These
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 815 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 104 resource restrictions and 685 open requirements.
+also covers all 839 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 109 resource restrictions and 704 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -214,6 +214,19 @@ initialization, original-node depth and cumulative mixed-type local budgets.
 Both retained return frontiers pin their full diagnostic/span; 13 pre-existing
 local-budget diagnostics change only “numeric” to “source”. The curated promotion's
 original source hashes and independent +0 reference are checked directly.
-Current corpus: 1008 pairs, 2016 modules and 2,528,064 comparisons; 797 rejections
+Corpus 42 recorded 1008 pairs, 2016 modules and 2,528,064 comparisons; 797 rejections
 in 56 groups (26 invalid, 99 resource restrictions, 672 open), including 90 Boolean
 frontiers and 38 curated references. Prior admitted source/WAT/Wasm artifacts remain exact.
+
+## Inline Boolean arithmetic coverage
+
+`numeric-boolean-arithmetic.mjs` adds 66 paired cases (six exact source promotions)
+and 30 classified negatives. Every operator has Boolean left/right/both operands;
+cases cover 1110/410 evaluation-order snapshots, once-only effects, signed zero,
+NaN/infinities/subnormals, wrappers, const-predicate negation, helpers, finite loops
+and source bounds. Four targeted mutants exercise conversion, order, duplication
+and depth. Three old Rust-only rejection programs are retained as positive checks.
+Current totals: 1115 pairs, 839 rejections and 38 curated references; 56 inventory
+groups classify 26 invalid, 109 resource restrictions and 704 open requirements.
+The Boolean-values assessment is widened explicitly; retained record identities
+and all other group fields remain unchanged apart from the six promotions/new records.

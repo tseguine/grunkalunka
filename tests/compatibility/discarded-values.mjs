@@ -58,7 +58,6 @@ const negatives=[
   ['number-local','let x=true; return a;',expression],
   ['number-rhs','a=true; return a;',expression],
   ['number-argument','return Math.abs(true);',expression],
-  ['number-arithmetic','return true+a;',expression],
   ['final-comma-boolean','return (a,true);',expression],
   ['dead-logical-call','false&&Math.random(); return a;',expression],
   ['dead-conditional-call','true?a:Math.random(); return a;',expression],

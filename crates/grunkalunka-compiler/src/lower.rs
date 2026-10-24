@@ -619,8 +619,22 @@ impl Lowering<'_, '_> {
                         ));
                     }
                 };
-                let left = self.expression(&binary.left, region, depth + 1)?;
-                let right = self.expression(&binary.right, region, depth + 1)?;
+                let (left, right) = if matches!(
+                    operator,
+                    Binary::Add
+                        | Binary::Subtract
+                        | Binary::Multiply
+                        | Binary::Divide
+                        | Binary::Remainder
+                ) {
+                    let left = self.arithmetic_operand(&binary.left, region, depth + 1)?;
+                    let right = self.arithmetic_operand(&binary.right, region, depth + 1)?;
+                    (left, right)
+                } else {
+                    let left = self.expression(&binary.left, region, depth + 1)?;
+                    let right = self.expression(&binary.right, region, depth + 1)?;
+                    (left, right)
+                };
                 let result = self.value(Type::Number);
                 Op::Binary {
                     result,
@@ -646,6 +660,28 @@ impl Lowering<'_, '_> {
         };
         Self::push(region, expression, kind);
         Ok(result)
+    }
+
+    // Primitive Boolean conversion belongs only to binary arithmetic operands.
+    // Preserve the retained node's depth and evaluate it once into a snapshot.
+    fn arithmetic_operand(
+        &mut self,
+        expression: &Expression<'_>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<ValueId, String> {
+        if boolean_shape(expression, depth) {
+            let input = self.predicate(expression, region, depth)?;
+            let result = self.value(Type::Number);
+            Self::push(
+                region,
+                expression,
+                Op::NumberFromPredicate { result, input },
+            );
+            Ok(result)
+        } else {
+            self.expression(expression, region, depth)
+        }
     }
 
     fn predicate(

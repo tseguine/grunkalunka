@@ -62,5 +62,4 @@ typescriptErasureRejected.push(
   reject('forward-initializer', 'const x = y!; const y = a; return x;', reference),
   reject('unselected-call', 'return a === a ? a : (Math.random() as number);', expression),
   reject('boolean-return', 'return (a < b) as boolean;', binary),
-  reject('boolean-arithmetic', 'return ((a < b) as boolean) + b;', binary),
 );

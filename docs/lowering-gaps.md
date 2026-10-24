@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 104 resource restrictions and 685 open requirements
-across all 815 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 109 resource restrictions and 704 open requirements
+across all 839 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -123,8 +123,8 @@ parenthesized expressions, discarded numeric statements and numeric comma expres
 corpus, including ordered mutation and returned-value regressions.
 
 Numeric `&&` and `||` now short-circuit and preserve their selected operand.
-In numeric value positions, Boolean operands (including comparison results) remain
-outside admission. In predicate positions logical operators may combine admitted
+Outside the explicit inline primitive bridges, Boolean operands (including comparison
+results) remain outside numeric value admission. In predicate positions logical operators may combine admitted
 predicates and numeric truthiness, preserving short-circuit effects. Nullish
 coalescing remains outside admission in both contexts.
 
@@ -270,3 +270,11 @@ result in the admitted fixtures and direct contract test. The frontier now has 3
 references. Mutable Boolean storage, Number uses and binding-aware discarded reads
 remain open; [the bounded contract](compiler.md#immutable-boolean-predicate-locals)
 spells out the initializer and predicate-position restrictions.
+
+## Primitive arithmetic frontier
+
+The explicit inline Boolean bridges now cover binary `+`, `-`, `*`, `/` and `%`.
+Six original ordinary sources graduate; no curated reference changes. Bare Boolean
+binding operands, other operator families and general coercion remain separate
+work. [The source contract](compiler.md#inline-boolean-arithmetic-operands) preserves
+primitive conversion, snapshots, skipped-branch admission and original depth.
