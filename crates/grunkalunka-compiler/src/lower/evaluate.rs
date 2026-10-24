@@ -599,7 +599,15 @@ impl Lowering<'_, '_> {
                 } => {
                     let left = values.pop().expect("logical left");
                     let condition = match left {
-                        Value::General(_) => unreachable!("scalar logical continuation"),
+                        Value::General(input) => {
+                            let result = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::GeneralTruthy { result, input },
+                            );
+                            result
+                        }
                         Value::Predicate(id) => id,
                         Value::Number(input) => {
                             let result = self.value(Type::Predicate);
@@ -635,10 +643,10 @@ impl Lowering<'_, '_> {
                     } else {
                         (skipped, selected)
                     };
-                    let ty = if matches!(mode, Mode::Predicate) {
-                        Type::Predicate
-                    } else {
-                        Type::Number
+                    let ty = match mode {
+                        Mode::General => Type::General,
+                        Mode::Predicate => Type::Predicate,
+                        _ => Type::Number,
                     };
                     let result = self.value(ty);
                     Self::push(
@@ -651,10 +659,10 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    values.push(if ty == Type::Predicate {
-                        Value::Predicate(result)
-                    } else {
-                        Value::Number(result)
+                    values.push(match ty {
+                        Type::General => Value::General(result),
+                        Type::Predicate => Value::Predicate(result),
+                        Type::Number => Value::Number(result),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
@@ -665,6 +673,8 @@ impl Lowering<'_, '_> {
                         || self.operand_boolean_shape(node, depth)
                     {
                         Mode::Predicate
+                    } else if self.general_logical_shape(node, depth) {
+                        Mode::General
                     } else {
                         Mode::Number
                     };
@@ -751,6 +761,7 @@ impl Lowering<'_, '_> {
                             values.push(Value::General(result));
                             continue;
                         } else if !general_call
+                            && !self.general_logical_shape(node, depth)
                             && !matches!(
                                 node,
                                 Expression::ConditionalExpression(_)

@@ -652,3 +652,42 @@ fn general_truthiness_uses_one_pending_evaluator_entry() {
     assert_eq!(entries, 1);
     assert!(pending > 1);
 }
+
+#[test]
+fn general_logical_skipped_region_yields_the_original_left_snapshot() {
+    use crate::ir::{Exit, Op, Type};
+    for operator in ["&&", "||"] {
+        let source = format!("export function run(a,b) {{return null{operator}true;}}");
+        let (module, maximum, entries, pending) =
+            observe(|| crate::lower_source_with_entry_type(&source, false, Type::General));
+        let module = module.unwrap();
+        assert_eq!(maximum, 1);
+        assert_eq!(entries, 1);
+        assert!(pending > 1);
+        let f = &module.functions[0];
+        let Op::Nullish { result: left, .. } = f.body.operations[0].kind else {
+            panic!("left snapshot")
+        };
+        let Op::GeneralTruthy { input, .. } = f.body.operations[1].kind else {
+            panic!("left condition")
+        };
+        assert_eq!(input, left);
+        let Op::If {
+            consequent,
+            alternate,
+            result: Some(result),
+            ..
+        } = &f.body.operations[2].kind
+        else {
+            panic!("logical If")
+        };
+        assert_eq!(f.values[result.0], Type::General);
+        let skipped = if operator == "&&" {
+            alternate
+        } else {
+            consequent
+        };
+        assert!(skipped.operations.is_empty());
+        assert!(matches!(skipped.exit,Exit::Yield(id) if id==left));
+    }
+}

@@ -287,7 +287,6 @@ fn value_profile_keeps_scope_and_reports_remaining_gaps() {
         "export function run(a,b) {return 'string';}",
         "export function run(a,b) {return a ? null : missing;}",
         "export function run(a,b) {return null+1;}",
-        "export function run(a,b) {return null||a;}",
         "export function run(a,b) {return;}",
         "export function run(a,b) {if(a) return null;}",
         "export function run(a,b) {return run?.(a,b);}",

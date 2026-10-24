@@ -340,7 +340,6 @@ mod tests {
             "return true!=false?1:0;",
             "return true<false?1:0;",
             "return true===false;",
-            "const flag=true; return (flag&&true)===false?1:0;",
             "const flag=flag===true; return a;",
             "const flag=true; { const copy=flag===true; const flag=false; } return a;",
             "return false?(true===!Math.random()?1:0):a;",
@@ -400,7 +399,6 @@ mod tests {
     #[test]
     fn discarded_predicate_bindings_keep_root_joins_and_scope_guards() {
         for body in [
-            "const flag=true; flag&&(a=b); return a;",
             "const flag=true; a?flag:flag; return a;",
             "const flag=true; a,flag; return a;",
             "const flag=true; { flag; const flag=false; } return a;",
@@ -1085,7 +1083,6 @@ mod tests {
                 "const flag=true; let copy=flag; return a;",
                 "Boolean bindings are not admitted",
             ),
-            ("const flag=true&&a; return a;", "expression is outside"),
         ] {
             let source = format!("export function run(a,b) {{ {source} }}");
             assert!(compile(&source, false).err().unwrap().contains(reason));

@@ -53,7 +53,9 @@ import { generalConstBindings } from './general-const-bindings.mjs';
 
 import { generalTruthiness } from './general-truthiness.mjs';
 
-export const corpusVersion = 53;
+import { generalLogical } from './general-logical.mjs';
+
+export const corpusVersion = 54;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -125,6 +127,7 @@ programs.push(...strictBooleanEquality);
 programs.push(...primitiveStrictEquality);
 programs.push(...generalConstBindings);
 programs.push(...generalTruthiness);
+programs.push(...generalLogical);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);
@@ -294,7 +297,7 @@ export const rejected = [
   ['predicate-logical-unselected-const', 'export function run(a,b) { const x=a; if(true || (x=b)) return a; return b; }'],
   ['predicate-logical-unselected-global', 'export function run(a,b) { if(true || clock) return a; return b; }'],
   ['predicate-logical-string', 'export function run(a,b) { if(a && "x") return a; return b; }'],
-  ['predicate-logical-numeric-local', 'export function run(a,b) { const x=true && a; return x; }'],
+  ['predicate-logical-numeric-local', 'export function run(a,b) { const x=true && a; return x; }', 'js', 'General bindings require a primitive value position'],
   ['predicate-logical-depth', `export function run(a,b) { if(${Array(130).fill('a').join('&&')}) return a; return b; }`],
   ['predicate-logical-nullish', 'export function run(a,b) { if(a ?? b) return a; return b; }'],
   ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],

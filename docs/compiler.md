@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 53
-contains 1510 paired programs, 986 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 54
+contains 1530 paired programs, 982 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 986 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 811 open requirements.
+classifies all 982 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 807 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1212,16 +1212,17 @@ existing files are never overwritten.
 
 `node scripts/poc.mjs` builds offline and runs both profile reports. The separate
 [primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
-21 JS/TS pairs on 14 input pairs: 1176 comparisons with original JS across Wasmtime
+25 JS/TS pairs on 14 input pairs: 1400 comparisons with original JS across Wasmtime
 and Node-Wasm. It checks 6 rejected pairs and five CLI control groups, covering input
 validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
 fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
 compiler/lock hashes, host versions, standard references and invocation results.
 
-Four exact original numeric rejection sources (`boolean`, `null`, `comparison`,
-`predicate-conditional-numeric-return`) execute successfully in this value profile;
+Eight exact original numeric rejection sources (`boolean`, `null`, `comparison`,
+`predicate-conditional-numeric-return`, and `logical-unsupported-4` through
+`logical-unsupported-7`) execute successfully in this value profile;
 the report also verifies their continued numeric-profile rejection. This is
-profile-specific support, not removal of those four numeric rejections. The six selected value rejection pairs are not an
+profile-specific support, not removal of those eight numeric rejections. The six selected value rejection pairs are not an
 exhaustive value-profile gap inventory. Numeric and value reports live separately
 under `target/compatibility-runs/` and `target/value-compatibility-runs/`.
 
@@ -1251,7 +1252,7 @@ pairs of twelve primitive representatives with both strict operators and both
 profiles: 576 modules executed by Wasmtime and Node against standard-derived results.
 These finite fixtures do not establish complete language support.
 
-Loose equality, General-valued logical selection, mutable General cells,
+Loose equality, mutable General cells,
 General helper parameters/results, strings, BigInts and objects remain separate work.
 Strict equality does not coerce operands and adds no heap or host capability.
 
@@ -1301,7 +1302,7 @@ canonical representation makes its payload alone sufficient: nullish payloads ar
 kinds; String, BigInt, object and HTMLDDA semantics are not represented.
 
 Existing predicate short-circuit regions preserve skipped effects while still
-validating all source branches. General-valued `&&`/`||`, nullish coalescing, numeric
+validating all source branches. Nullish coalescing, numeric
 coercion, mutable General storage and additional runtime kinds remain separate work.
 
 Corpus 53 adds sixteen paired programs, reaching 1510 pairs, 986 rejections and
@@ -1310,3 +1311,36 @@ The separate Value profile promotes `general-condition` with its exact original
 JS/TS source: 21 pairs, six selected rejection pairs and 1176 engine comparisons.
 The runtime matrix covers 144 modules with standard-derived goldens plus 48
 conditional/loop/effect modules across JS/TS, both profiles and both engines.
+
+## General-valued logical selection
+
+`&&` and `||` accept admitted General operands in primitive value positions.
+The left operand is evaluated and captured once. `GeneralTruthy` supplies its
+condition; `&&` selects the right operand only for truthy left values, while `||`
+selects it only for falsy left values. The skipped arm yields the original left
+snapshot and the selected arm yields the right snapshot, preserving kind and
+payload rather than returning a Boolean. Both source operands must be admitted.
+See [logical evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation).
+
+The existing pending logical continuations build a General-valued `If`; no new IR
+operation, heap, import, ABI or dependency is introduced. Number-only logical trees
+retain scalar evaluation followed by the existing Pack in the Value profile.
+Old Number/Predicate discard routes also remain unchanged. Newly eligible discarded
+logical expressions use General evaluation only after those original classifiers.
+TypeScript wrappers retain source depth charges and never establish runtime kinds.
+
+Corpus 54 promotes four original numeric rejection observations of three distinct
+source strings, preserving their IDs and hashes, and adds sixteen other paired
+programs. Totals are 1530 pairs, 982 rejections and 36 curated references. One retained
+source, `predicate-logical-numeric-local`, now diagnoses its unsupported numeric read
+after successful General initialization. A General binding still cannot be returned
+through the numeric ABI or used in a numeric operand without further support.
+
+The Value profile adds four exact remaining numeric rejection sources, reaching
+25 pairs, six selected rejection pairs and eight recorded numeric origins. The
+runtime matrix executes 1152 JS/TS modules across both profiles and engines, checking
+selected kinds, signed zero, NaN and strict-equality observations; 38 effect modules
+check selected/skipped effects and aliases. Twelve saved prior numeric logical
+Value-profile modules also retain exact WAT/Wasm. These are finite coverage witnesses.
+Nullish coalescing, numeric coercion, mutable General cells and General logical
+assignments remain separate work.

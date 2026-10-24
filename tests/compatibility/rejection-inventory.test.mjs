@@ -1,3 +1,4 @@
+import { generalLogical, generalLogicalPromotions } from './general-logical.mjs';
 import { valuePrograms, valueRejected } from './primitive-values.mjs';
 import { generalConstBindings, generalConstBindingPromotion } from './general-const-bindings.mjs';
 import assert from 'node:assert/strict';
@@ -144,7 +145,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 986);
+  assert.equal(inventory.records.size, 982);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -294,4 +295,12 @@ test('Value-profile truthiness promotion retains both original complete sources'
  assert.equal(fixture.sourceJS,'export function run(a,b) {if(null) return a; return b;}\n');
  assert.equal(fixture.sourceTS,'export function run(a:number,b:number):unknown {if(null) return a; return b;}\n');
  assert.ok(!valueRejected.some(p=>p.id==='general-condition'));
+});
+
+test('General logical promotions retain four observations of three exact sources',()=>{
+ assert.equal(generalLogicalPromotions.length,4);assert.equal(new Set(generalLogicalPromotions.map(p=>p[1])).size,3);
+ for(const [id,js,ts,hash] of generalLogicalPromotions){
+  const source=programSources(generalLogical.find(p=>p[0]===id));assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});
+  assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(r=>r[0]===id));
+ }
 });

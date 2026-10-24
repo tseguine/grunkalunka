@@ -44,7 +44,6 @@ const negatives=[
  ['loose-not-equal','return true!=false?1:0;',expression,'coercive-equality'],
  ['relational','return true<false?1:0;',expression,'boolean-values'],
  ['direct-return','return true===false;',binary,'boolean-values'],
- ['root-logical','const flag=true; return (flag&&true)===false?1:0;',numeric,'boolean-values'],
  ['mutable','let flag=true; return flag===false?1:0;',expression,'boolean-values'],
  ['self','const flag=flag===true; return a;',reference,'binding-errors'],
  ['forward','const first=flag===true; const flag=true; return a;',reference,'binding-errors'],

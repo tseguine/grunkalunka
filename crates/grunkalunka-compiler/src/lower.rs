@@ -498,6 +498,23 @@ impl Lowering<'_, '_> {
         }
     }
 
+    // Keep existing scalar Number logical results specialized; wrappers still charge depth.
+    fn general_logical_shape(&self, mut expression: &Expression<'_>, mut depth: usize) -> bool {
+        while depth <= 128 {
+            if let Some(inner) = erased_inner(expression) {
+                expression = inner;
+            } else if let Expression::ParenthesizedExpression(wrapper) = expression {
+                expression = &wrapper.expression;
+            } else {
+                return matches!(expression,Expression::LogicalExpression(logical)
+                    if matches!(logical.operator,LogicalOperator::And|LogicalOperator::Or))
+                    && !self.numeric_result_shape(expression, depth);
+            }
+            depth += 1;
+        }
+        false
+    }
+
     fn declaration(
         &mut self,
         declaration: &VariableDeclaration<'_>,

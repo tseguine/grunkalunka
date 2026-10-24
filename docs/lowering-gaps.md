@@ -1,8 +1,8 @@
 # Known lowering gaps
 
-This page and the 986 rejection fixtures below describe the **numeric profile**.
+This page and the 982 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
-supports undefined/null/Boolean/Number returns. Four exact original numeric rejection
+supports undefined/null/Boolean/Number returns. Eight exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
 counts are profile-specific, not a total number of missing language features.
 The value report has eight selected rejected pairs, not an exhaustive inventory.
@@ -45,8 +45,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 811 open requirements
-across all 986 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 807 open requirements
+across all 982 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -374,7 +374,7 @@ rejection with its original JS/TS text; its selected rejection count is now seve
 General const storage and aliases do not imply coercion. Two original numeric
 rejections now reach the explicit General-binding numeric-use guard rather than
 failing at initialization; their source hashes remain unchanged. Mutable General
-cells, General-valued logical operands, arguments and helper results stay open.
+cells, numeric coercions, arguments and helper results stay open.
 
 ## General truthiness increment
 
@@ -386,6 +386,24 @@ All 56 inventory groups remain, with 811 open, 144 resource and 31 invalid recor
 The separate Value profile transfers the original `general-condition` sources to
 execution, reaching 21 pairs and six selected rejections.
 
-ToBoolean covers the four represented primitive kinds. General-valued logical
-results, nullish coalescing, numeric coercions, mutable General cells and heap kinds
+ToBoolean covers the four represented primitive kinds. Nullish coalescing,
+numeric coercions, mutable General cells and heap kinds
 remain open. A successful condition does not imply admission in numeric operands.
+
+## General logical selection increment
+
+Corpus 54 transfers four rejection observations of three exact original sources:
+`const-boolean-discarded-logical`, `const-boolean-logical-initializer`,
+`discarded-predicate-binding-reject-root-logical` and
+`strict-boolean-equality-reject-root-logical`. Duplicate-source observations keep
+both IDs. Sixteen additional pairs cover primitive selected kinds and effects.
+Current totals are 1530 pairs, 982 numeric rejections and 36 curated references;
+56 groups retain 807 open, 144 resource and 31 invalid observations.
+
+`predicate-logical-numeric-local` retains its original source/hash and rejection;
+its diagnostic now reaches the unsupported numeric read of a General binding.
+The separate Value profile executes four more exact remaining numeric rejection
+sources, reaching 25 pairs, six selected rejections and eight recorded numeric
+origins. That profile-specific support does not remove those eight numeric records.
+General-valued &&/|| now preserve the selected primitive kind; ??, numeric coercion,
+mutable General cells and General logical assignments remain open.

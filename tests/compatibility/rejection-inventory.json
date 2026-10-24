@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The primitive Value profile represents Null and Undefined. Immutable General const locals/aliases store admitted primitive expressions; strict ===/!== compares them in either result profile. ToBoolean admits represented kinds in predicate conditions, negation and predicate short-circuit composition. Numeric-only returns, numeric coercion, mutable General storage, nullish coalescing and General-valued logical operators remain outside admission.",
+      "assessment": "The primitive Value profile represents Null and Undefined. Immutable General const locals/aliases store admitted primitive expressions; strict ===/!== compares them in either result profile. ToBoolean admits represented kinds in predicate conditions, negation and predicate short-circuit composition. Numeric-only returns, numeric coercion, mutable General storage, nullish coalescing and additional runtime kinds remain outside admission. General-valued &&/|| and newly eligible discarded logical expressions now admit the represented primitive kinds; nullish coalescing, mutable General cells and numeric coercion remain separate.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean locals admit predicate-position reads, selected unary +, - and ~ conversions, selected binary arithmetic and discarded reads. Strict ===/!== additionally compares admitted Boolean/Number/nullish operands, including General conditional/sequence joins; the separate Value profile can return Boolean. Existing numeric-profile Boolean ABI returns, Boolean arguments, mutable General storage, General-valued logical operands and coercion beyond the selected scalar bridges remain outside admission. Root logical/conditional/sequence eligibility outside strict-equality operands and primitive-return positions retains its existing restrictions. Immutable General const locals and aliases now store admitted primitive expressions and can be read in primitive result/strict-equality positions or discarded as identifiers. Mutable General cells, scalar use of General bindings and General numeric coercion remain outside admission. ToBoolean now admits General bindings and represented nullish values in predicate positions, including negation and predicate short-circuiting; General-valued logical selection remains separate.",
+      "assessment": "Immutable Boolean locals admit predicate-position reads, selected unary +, - and ~ conversions, selected binary arithmetic and discarded reads. Strict ===/!== additionally compares admitted Boolean/Number/nullish operands, including General conditional/sequence joins; the separate Value profile can return Boolean. Existing numeric-profile Boolean ABI returns, Boolean arguments, mutable General storage, General logical assignments and coercion beyond the selected scalar bridges remain outside admission. Root conditional/sequence eligibility outside existing admitted positions retains its restrictions. Immutable General const locals and aliases now store admitted primitive expressions and can be read in primitive result/strict-equality positions or discarded as identifiers. Mutable General cells, scalar use of General bindings and General numeric coercion remain outside admission. ToBoolean now admits General bindings and represented nullish values in predicate positions, including negation and predicate short-circuiting; General logical selection now admits represented primitive operands, preserving the selected kind/payload. General-valued &&/|| and newly eligible discarded logical expressions now admit the represented primitive kinds; nullish coalescing, mutable General cells and numeric coercion remain separate.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -6331,13 +6331,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "const-boolean-discarded-logical",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "974e15fd0ecb05bddeab5ab205673d72e37e8f44b0d4d96713a283580165f097",
-      "group": "boolean-values"
-    },
-    {
       "id": "const-boolean-argument",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6413,13 +6406,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "5f81b92eac847c06940c058984aee08b8a4f0ff497659831d3245ca0865bd68c",
       "group": "binding-errors"
-    },
-    {
-      "id": "const-boolean-logical-initializer",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "28c9375a8efe96f02444af120853f065faa039d340a602d630749397fee707ad",
-      "group": "boolean-values"
     },
     {
       "id": "const-boolean-dead-unsupported",
@@ -7150,13 +7136,6 @@
       "group": "expression-depth"
     },
     {
-      "id": "discarded-predicate-binding-reject-root-logical",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "974e15fd0ecb05bddeab5ab205673d72e37e8f44b0d4d96713a283580165f097",
-      "group": "boolean-values"
-    },
-    {
       "id": "discarded-predicate-binding-reject-root-conditional",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7357,13 +7336,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "1c01377225b60e14488db48cc0ddfc957fe9af46c610a40c154a9d6faa7432cf",
-      "group": "boolean-values"
-    },
-    {
-      "id": "strict-boolean-equality-reject-root-logical",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "511b126934a43eaa27736f56d0dca00ec805c49c4b69d4604967c70499d84d1c",
       "group": "boolean-values"
     },
     {

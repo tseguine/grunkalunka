@@ -36,7 +36,7 @@ be represented internally without changing the public two-number/result-number A
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 53](../tests/compatibility/corpus.mjs): 1510 paired programs, 986 rejection fixtures, five explicit unexecuted feature groups. The [36 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| C1 — executable compatibility matrix | Done | [Corpus version 54](../tests/compatibility/corpus.mjs): 1530 paired programs, 982 rejection fixtures, five explicit unexecuted feature groups. The [36 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 32 adapted runtime cases and zero selected admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -383,3 +383,12 @@ scalar paths. Corpus 53 has 1510 pairs, 986 rejections and 36 curated references
 this increment adds sixteen pairs and promotes no numeric negative. The separate
 Value profile promotes its original `general-condition` sources, reaching 21 pairs
 and six selected rejected pairs. General-valued logical selection remains separate.
+
+General-valued &&/|| now use captured General operands and selected If arms; new
+discarded logical shapes use the same evaluation after existing scalar classifiers.
+Corpus 54 has 1530 pairs, 982 rejections and 36 curated references (807 open,
+144 resource, 31 invalid in 56 groups). Four original rejection observations of
+three exact sources transfer; one retained diagnostic advances to a numeric read.
+The Value profile records four additional exact numeric origins: 25 pairs, six
+selected rejections and eight origins. Number-only logical Value artifacts retain
+their scalar specialization. General logical assignment and ?? remain separate.

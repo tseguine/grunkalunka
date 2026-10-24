@@ -29,8 +29,16 @@ const rows = [
   ['boolean-choice', 'return a?true:false;'],
   ['general-local', 'const x=null; return x;'],
   ['general-condition', 'if(null) return a; return b;'],
+  ['logical-and','return a&&(b<1);'],
+  ['logical-or','return (a<1)||b;'],
+  ['logical-number-or-boolean','return a||true;'],
+  ['logical-false-and-number','return false&&a;'],
 ];
 const numericOrigins = {
+  "logical-and": ["logical-unsupported-4", "export function run(a,b) { return a && (b<1); }"],
+  "logical-or": ["logical-unsupported-5", "export function run(a,b) { return (a<1) || b; }"],
+  "logical-number-or-boolean": ["logical-unsupported-6", "export function run(a,b) { return a || true; }"],
+  "logical-false-and-number": ["logical-unsupported-7", "export function run(a,b) { return false && a; }"],
   true: ['boolean', 'export function run(a,b) { return true; }'],
   null: ['null', 'export function run(a,b) { return null; }'],
   comparison: ['comparison', 'export function run(a,b) { return a < b; }'],
@@ -42,7 +50,7 @@ export const valuePrograms = rows.map(([id, body]) => ({
   sourceJS: numericOrigins[id]?.[1] ?? (id === 'helper' ? 'function rem(x,y){return x%y;}\n' : '') + wrap(body, false),
   sourceTS: (id === 'helper' ? 'function rem<T>(x:number,y:number):number{return x%y;}\n' : '')
     + wrap(id === 'type-wrapper' ? 'return ((a?null:b) as unknown)!;' : body, true),
-  standards: id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
+  standards: id.startsWith('logical-') ? [returns, types, conditional, spec + 'ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation'] : id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
 }));
 const expression = 'expression is outside the numeric experiment';
 export const valueRejected = [

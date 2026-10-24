@@ -426,5 +426,19 @@ routing and source wrappers retain their original depth charges.
 On the closed canonical four-kind domain, `abs(payload) > 0` implements ToBoolean:
 nullish payloads are +0, Boolean payloads are 0/1, and Number zero/NaN compare false.
 No tag dispatch is needed. New runtime kinds must revisit this operation before
-admission. No heap, import or numeric coercion is introduced; General-valued logical
-selection still requires its own lowering contract.
+admission. No heap, import or numeric coercion is introduced. General-valued logical
+selection uses the contract below.
+
+### General logical joins
+
+The existing `If` operation represents General-valued `&&` and `||`. The evaluator
+captures the left General ValueId, emits GeneralTruthy for its condition, and owns a
+separate right child region. One arm yields the original left capture without more
+operations; the other evaluates and yields the right General capture. The join and
+both yielded values have General type under the existing verifier contract.
+
+The same pending continuations retain their original Number/Predicate behavior.
+A positive bounded Number-result scan keeps previously admitted Number-only logical
+expressions on their scalar path before Pack. Newly admitted discarded logical
+expressions use General mode only when the original scalar classifiers do not apply.
+Neither conversion nor result selection alters either operand's captured payload.

@@ -53,7 +53,6 @@ const numeric='Boolean bindings are not admitted in numeric value positions';
 const reference='reference is not an initialized numeric parameter or local';
 const expression='expression is outside the numeric experiment';
 const negatives=[
- ['root-logical','const flag=true; flag&&(a=b); return a;',numeric,'boolean-values'],
  ['root-conditional','const flag=true; a?flag:flag; return a;',numeric,'boolean-values'],
  ['root-sequence','const flag=true; a,flag; return a;',numeric,'boolean-values'],
  ['return','const flag=true; return flag;',numeric,'boolean-values'],
