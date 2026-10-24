@@ -10,9 +10,9 @@ pub(super) fn number_result_shape(
     depth: usize,
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
-    is_number_symbol: impl Fn(SymbolId) -> bool,
+    mut is_number_symbol: impl FnMut(SymbolId) -> bool,
 ) -> bool {
-    let identifier_number = |identifier: &IdentifierReference<'_>| {
+    let mut identifier_number = |identifier: &IdentifierReference<'_>| {
         let Some(reference) = identifier.reference_id.get() else {
             return false;
         };
@@ -119,7 +119,7 @@ pub(super) fn number_result_shape(
     true
 }
 
-pub(crate) fn general_mutable_locals(
+pub(crate) fn general_mutable_bindings(
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
 ) -> BTreeSet<SymbolId> {
@@ -150,6 +150,7 @@ pub(crate) fn general_mutable_locals(
                     && let Some(symbol) = identifier.symbol_id.get()
                 {
                     parameters.insert(symbol);
+                    mutable.insert(symbol);
                 }
             }
             _ => (),
@@ -176,31 +177,50 @@ pub(crate) fn general_mutable_locals(
             writes.entry(symbol).or_default().push(&assignment.right);
         }
     }
-    let mut numbers = definitions.keys().copied().collect::<BTreeSet<_>>();
-    loop {
-        let is_number = |symbol| parameters.contains(&symbol) || numbers.contains(&symbol);
-        let removed = definitions
-            .iter()
-            .filter_map(|(symbol, initializer)| {
-                if !numbers.contains(symbol) {
-                    return None;
-                }
-                let initialized_number = initializer.is_some_and(|expression| {
-                    number_result_shape(expression, 0, semantic, functions, is_number)
-                });
-                let writes_number = writes.get(symbol).is_none_or(|values| {
-                    values.iter().all(|expression| {
-                        number_result_shape(expression, 0, semantic, functions, is_number)
-                    })
-                });
-                (!initialized_number || !writes_number).then_some(*symbol)
+    // A candidate stays Number exactly when its initial value and every plain write
+    // have Number shape and all symbol dependencies stay Number. Start with the
+    // greatest candidate set, then propagate removals through reverse edges once.
+    let candidates = definitions
+        .keys()
+        .chain(parameters.iter())
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mut dependents: BTreeMap<SymbolId, BTreeSet<SymbolId>> = BTreeMap::new();
+    let mut invalid = BTreeSet::new();
+    for symbol in &candidates {
+        let mut required = BTreeSet::new();
+        let mut shape = |expression| {
+            number_result_shape(expression, 0, semantic, functions, |input| {
+                required.insert(input);
+                true
             })
-            .collect::<Vec<_>>();
-        if removed.is_empty() {
-            break;
+        };
+        let initialized_number = parameters.contains(symbol)
+            || definitions
+                .get(symbol)
+                .and_then(|value| *value)
+                .is_some_and(&mut shape);
+        let writes_number = writes
+            .get(symbol)
+            .is_none_or(|values| values.iter().all(|expression| shape(expression)));
+        if !initialized_number || !writes_number {
+            invalid.insert(*symbol);
         }
-        for symbol in removed {
-            numbers.remove(&symbol);
+        for input in required {
+            if candidates.contains(&input) {
+                dependents.entry(input).or_default().insert(*symbol);
+            } else {
+                invalid.insert(*symbol);
+            }
+        }
+    }
+    let mut numbers = candidates;
+    let mut pending = invalid.into_iter().collect::<Vec<_>>();
+    while let Some(input) = pending.pop() {
+        if numbers.remove(&input)
+            && let Some(readers) = dependents.get(&input)
+        {
+            pending.extend(readers.iter().copied());
         }
     }
     mutable.difference(&numbers).copied().collect()

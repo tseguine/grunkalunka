@@ -55,8 +55,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 56
-contains 1589 paired programs, 955 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 57
+contains 1605 paired programs, 955 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -1212,17 +1212,19 @@ existing files are never overwritten.
 
 `node scripts/poc.mjs` builds offline and runs both profile reports. The separate
 [primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
-34 JS/TS pairs on 14 input pairs: 1904 comparisons with original JS across Wasmtime
+42 JS/TS pairs on 14 input pairs: 2352 comparisons with original JS across Wasmtime
 and Node-Wasm. It checks 4 rejected pairs and six CLI control groups, covering input
 validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
 fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
 compiler/lock hashes, host versions, standard references and invocation results.
 
-Eight exact original numeric rejection sources (`boolean`, `null`, `comparison`,
+Twelve exact original numeric rejection sources (`boolean`, `null`, `comparison`,
 `predicate-conditional-numeric-return`, and `logical-unsupported-4` through
-`logical-unsupported-7`) execute successfully in this value profile;
+`logical-unsupported-7`, `discarded-number-rhs`, `const-boolean-assignment-rhs`,
+`discarded-predicate-binding-reject-assignment-result` and
+`predicate-conditional-assignment`) execute successfully in this value profile;
 the report also verifies their continued numeric-profile rejection. This is
-profile-specific support, not removal of those eight numeric rejections. The four selected value rejection pairs are not an
+profile-specific support, not removal of those twelve numeric rejections. The four selected value rejection pairs are not an
 exhaustive value-profile gap inventory. Numeric and value reports live separately
 under `target/compatibility-runs/` and `target/value-compatibility-runs/`.
 
@@ -1412,3 +1414,37 @@ The runtime matrix checks 2976 JS/TS modules across both result profiles and eng
 against fixed numeric goldens, including signed zero, NaN, infinities and subnormals.
 Additional effect, scope, call and original-source witnesses are finite evidence;
 they do not establish exhaustive language compatibility.
+
+## Source parameter cells
+
+Parameters can receive represented primitive kinds through plain `=`. A readonly
+plan selects a General source cell when initial Number values and later writes
+cannot remain Number. The physical signature and input slots stay Number; selected
+cells are initialized by loading and packing those incoming values before body
+execution. Original SymbolIds then resolve to the initialized source cell.
+[ADR 0004](adr/0004-general-parameter-cells.md) records the representation,
+alternatives and worklist analysis.
+
+Number-only parameters retain their previous cells and artifacts. General cells
+keep captured assignment results and aliases; later writes cannot change an
+already captured value. Entry and helper functions use the same rule. Generated
+parameter storage does not consume the source-local budget. Existing source,
+statement, local, parameter-count, signature and execution limits remain.
+General call arguments, defaults/rest/destructuring and compound/update/logical
+writes remain separate requirements. Discarded comma expressions with a final
+General result also remain a separately observed gap.
+
+Corpus 57 adds sixteen numeric pairs, reaching 1605 pairs with the same 955
+rejections and 36 curated references. Seven rejection diagnostics advance from
+parameter writes to numeric reads/returns of General cells; their exact sources
+and inventory records remain. The Value profile executes the four distinct
+original JS sources represented by those seven observations, with four pinned
+numeric origins, and adds four parameter cases: 42 pairs, four selected rejected
+pairs, twelve numeric origins, 2352 result comparisons and six control groups.
+The two existing termination-only observations remain outside result comparisons.
+
+Finite runtime coverage includes 96 kind-transition modules, 64 snapshot/effect
+modules, a 1000-parameter helper with a changed source parameter, and the unchanged
+128-source-local budget. A 1000-parameter dependency chain is compiled/validated
+without claiming execution within the normal call-fuel budget. Its discarded
+sequence ends with scalar zero to isolate that existing expression-routing gap.

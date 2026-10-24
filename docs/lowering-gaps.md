@@ -2,7 +2,7 @@
 
 This page and the 955 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
-supports undefined/null/Boolean/Number returns. Eight exact original numeric rejection
+supports undefined/null/Boolean/Number returns. Twelve exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
 counts are profile-specific, not a total number of missing language features.
 The value report has eight selected rejected pairs, not an exhaustive inventory.
@@ -446,3 +446,21 @@ The Value profile has 34 paired result programs, four selected rejection pairs,
 execute; the former unconditional-recursion `general-number-call` sources instead
 compile and exhaust fuel as separately recorded controls. Their two termination
 observations do not contribute result comparisons or language coverage claims.
+
+## General source parameter increment
+
+Corpus 57 adds sixteen numeric pairs: 1605 pairs, 955 rejection observations,
+36 curated references and the same 780 open/144 resource/31 invalid classifications
+in 56 groups. No numeric rejection transfers in this step. Seven diagnostics
+advance past parameter writes to Number-only reads/returns, with original source
+hashes and records unchanged. The Value profile executes their four distinct JS
+sources and adds four parameter cases, reaching 42 pairs, four selected rejected
+pairs, twelve numeric origins and 2352 result comparisons. Duplicate observations
+are not counted as distinct language features.
+
+General parameter writes use local source cells initialized from Number ABI
+parameters. General call arguments, defaults/rest/destructuring, compound/update/
+logical writes and discarded sequences ending in General remain open. A large
+flat dependency-chain witness uses a trailing scalar zero; it demonstrates storage
+planning and Wasm validation, not support for that discarded-General sequence or
+execution within the normal fuel allowance.

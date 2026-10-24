@@ -18,7 +18,7 @@ use crate::{is_type_declaration, unsupported};
 
 mod evaluate;
 mod storage;
-pub(super) use storage::general_mutable_locals;
+pub(super) use storage::general_mutable_bindings;
 
 pub(super) struct NumericBinding {
     pub symbol: SymbolId,
@@ -207,7 +207,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub return_type: Type,
     pub semantic: &'s Semantic<'a>,
     pub functions: &'s [NumericFunction],
-    pub general_locals: &'s std::collections::BTreeSet<SymbolId>,
+    pub general_bindings: &'s std::collections::BTreeSet<SymbolId>,
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,
@@ -238,6 +238,46 @@ impl Lowering<'_, '_> {
             span: node.span(),
             operations: Vec::new(),
             exit: Exit::Fallthrough,
+        }
+    }
+
+    // Physical parameters retain Number signature slots. Only source bindings whose
+    // later writes require General storage receive a separately initialized cell.
+    pub(super) fn initialize_general_parameters(&mut self, region: &mut Region) {
+        for index in 0..self.bindings.len() {
+            if !self.general_bindings.contains(&self.bindings[index].symbol) {
+                continue;
+            }
+            let input_slot = self.bindings[index].slot;
+            let span = self.slots[input_slot.0].span;
+            let number = self.value(Type::Number);
+            Self::push(
+                region,
+                &span,
+                Op::Load {
+                    result: number,
+                    slot: input_slot,
+                },
+            );
+            let value = self.value(Type::General);
+            Self::push(
+                region,
+                &span,
+                Op::Pack {
+                    result: value,
+                    input: number,
+                },
+            );
+            let slot = SlotId(self.slots.len());
+            self.slots.push(Slot {
+                ty: Type::General,
+                owner: region.id,
+                mutable: true,
+                parameter: false,
+                span,
+            });
+            Self::push(region, &span, Op::Initialize { slot, value });
+            self.bindings[index].slot = slot;
         }
     }
 
@@ -503,7 +543,7 @@ impl Lowering<'_, '_> {
             } else if identifier
                 .symbol_id
                 .get()
-                .is_some_and(|symbol| self.general_locals.contains(&symbol))
+                .is_some_and(|symbol| self.general_bindings.contains(&symbol))
                 || !self.numeric_result_shape(initializer, 0)
             {
                 Type::General

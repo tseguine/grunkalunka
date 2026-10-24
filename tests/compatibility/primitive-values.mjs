@@ -42,8 +42,20 @@ const rows = [
   ['tonumber-boolean','let value=null; value=a?true:false; return value*b;'],
   ['tonumber-snapshot','let value=null; value=a; return value-(value=b);'],
   ['tonumber-recursive-result','return a?null:run(1,b)+1;'],
+  ['parameter-boolean','a=true; return a;'],
+  ['parameter-predicate','const flag=true; a=flag; return a;'],
+  ['parameter-assignment-result','const flag=true; (a=flag); return a;'],
+  ['parameter-conditional-assignment','if(a?(a=true):false) return a; return b;'],
+  ['parameter-null','a=null; return a;'],
+  ['parameter-capture','const old=a; a=null; return old;'],
+  ['parameter-alias','a=b; b=null; return a;'],
+  ['parameter-selected','a=a?false:b; return a;'],
 ];
 const numericOrigins = {
+  'parameter-boolean':['discarded-number-rhs','export function run(a,b) { a=true; return a; }'],
+  'parameter-predicate':['const-boolean-assignment-rhs','export function run(a,b) { const flag=true; a=flag; return a; }'],
+  'parameter-assignment-result':['discarded-predicate-binding-reject-assignment-result','export function run(a,b) { const flag=true; (a=flag); return a; }'],
+  'parameter-conditional-assignment':['predicate-conditional-assignment','export function run(a,b) { if(a?(a=true):false) return a; return b; }'],
   "logical-and": ["logical-unsupported-4", "export function run(a,b) { return a && (b<1); }"],
   "logical-or": ["logical-unsupported-5", "export function run(a,b) { return (a<1) || b; }"],
   "logical-number-or-boolean": ["logical-unsupported-6", "export function run(a,b) { return a || true; }"],
@@ -59,7 +71,7 @@ export const valuePrograms = rows.map(([id, body]) => ({
   sourceJS: numericOrigins[id]?.[1] ?? (id === 'helper' ? 'function rem(x,y){return x%y;}\n' : '') + wrap(body, false),
   sourceTS: (id === 'helper' ? 'function rem<T>(x:number,y:number):number{return x%y;}\n' : '')
     + wrap(id === 'type-wrapper' ? 'return ((a?null:b) as unknown)!;' : body, true),
-  standards: (id.startsWith('tonumber-') || id === 'coercion') ? [returns, types, conditional, spec + 'abstract-operations.html#sec-tonumber', spec + 'ecmascript-language-expressions.html#sec-applystringornumericbinaryoperator'] : id.startsWith('mutable-') ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : id.startsWith('logical-') ? [returns, types, conditional, spec + 'ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation'] : id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
+  standards: id.startsWith('parameter-') ? [returns, types, conditional, spec + 'ordinary-and-exotic-objects-behaviours.html#sec-functiondeclarationinstantiation', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : (id.startsWith('tonumber-') || id === 'coercion') ? [returns, types, conditional, spec + 'abstract-operations.html#sec-tonumber', spec + 'ecmascript-language-expressions.html#sec-applystringornumericbinaryoperator'] : id.startsWith('mutable-') ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : id.startsWith('logical-') ? [returns, types, conditional, spec + 'ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation'] : id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
 }));
 const expression = 'expression is outside the numeric experiment';
 export const valueRejected = [

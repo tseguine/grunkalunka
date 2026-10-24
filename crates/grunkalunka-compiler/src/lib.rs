@@ -212,7 +212,7 @@ fn lower_source_with_entry_type(
             },
         });
     }
-    let general_locals = lower::general_mutable_locals(&built.semantic, &signatures);
+    let general_bindings = lower::general_mutable_bindings(&built.semantic, &signatures);
     let mut functions = Vec::new();
     let mut local_count = 0;
     let mut statement_count = 0;
@@ -263,7 +263,7 @@ fn lower_source_with_entry_type(
             },
             semantic: &built.semantic,
             functions: &signatures,
-            general_locals: &general_locals,
+            general_bindings: &general_bindings,
             bindings,
             local_count,
             statement_count,
@@ -290,6 +290,7 @@ fn lower_source_with_entry_type(
             lowering.charge_statement(directive)?;
         }
         let mut region = lowering.region(body.as_ref());
+        lowering.initialize_general_parameters(&mut region);
         if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
             return Err(unsupported(
                 body.as_ref(),

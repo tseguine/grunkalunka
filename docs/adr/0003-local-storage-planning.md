@@ -87,3 +87,10 @@ These startup-inclusive, 1 ms sampled observations include process/cache noise a
 may miss a terminal peak. They cover the combined implementation, do not isolate
 the node-index cost, and establish no general performance or portability claim.
 Broader tuning remains evidence-driven; no source or execution budget was widened.
+
+## Subsequent parameter extension
+
+[ADR 0004](0004-general-parameter-cells.md) extends storage planning to parameter
+plain writes and replaces repeated fixed-point scans with reverse invalidation.
+It supersedes the Number-only source-parameter boundary described above; physical
+parameter signatures remain Number-only. The primitive representation is unchanged.

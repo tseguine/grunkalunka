@@ -1,3 +1,4 @@
+import { generalParameters } from './general-parameters.mjs';
 import { generalToNumber } from './general-tonumber.mjs';
 // Selected numeric ABI evidence; not a full-language compatibility inventory.
 import { typescriptPrograms, typescriptRejected, typescriptSource } from './typescript.mjs';
@@ -58,7 +59,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 56;
+export const corpusVersion = 57;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -133,6 +134,7 @@ programs.push(...generalTruthiness);
 programs.push(...generalLogical);
 programs.push(...mutableGeneralLocals);
 programs.push(...generalToNumber);
+programs.push(...generalParameters);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);

@@ -477,3 +477,19 @@ binary arithmetic operand requests, after preserving scalar Number/Predicate
 paths. It does not turn a numeric ABI return or argument into a coercion position.
 Each operand is captured once by the same nonrecursive pending evaluator; General
 writes and unsupported operator families retain their admission checks.
+
+### Source parameter shadows
+
+Physical signature slots remain the first `parameter_count` Number slots and begin
+initialized. If a source parameter may change primitive kind, lowering creates a
+General root local, loads/packs the original incoming Number and initializes the
+new cell before body evaluation. Source SymbolId resolution switches to that cell
+after initialization. Other parameters receive no added cells or operations.
+
+These generated cells use normal General local ownership/visibility/Store rules;
+they are not General ABI parameters or additional source local declarations.
+The verifier retains its exact Number signature-slot invariant. The original
+positive storage classifier records symbol dependencies, and reverse invalidation
+computes the greatest Number candidate set without repeated whole-plan scans.
+Unseeded Number cycles remain candidates; normal lexical source validation still
+controls admission. A non-Number seed invalidates every dependent candidate.

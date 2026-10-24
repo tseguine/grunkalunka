@@ -320,7 +320,6 @@ fn primitive_coercion_does_not_widen_other_source_contracts() {
         "let value=null; value&&=a; return a;",
         "return +value; let value=null;",
         "const value=null; value=1; return +value;",
-        "a=null; return +a;",
     ] {
         let source = format!("export function run(a,b) {{{body}}}");
         let error = compile(&source, false).err().unwrap();

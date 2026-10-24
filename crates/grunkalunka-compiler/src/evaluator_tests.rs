@@ -715,3 +715,34 @@ fn general_number_conversion_stays_in_the_single_pending_evaluator() {
     let function = &module.functions[0];
     assert!(function.body.operations.iter().any(|op|matches!(op.kind,Op::NumberFromGeneral{input,result} if function.values[input.0]==Type::General && function.values[result.0]==Type::Number)));
 }
+
+#[test]
+fn parameter_storage_worklist_propagates_seeds_but_retains_number_cycles() {
+    use crate::ir::Type;
+    for (body, general) in [
+        ("a=b; b=a; return a;", 0),
+        ("a=b; b=null; return +a;", 2),
+        ("a=b; b=a; b=null; return +a;", 2),
+        ("let captured=a; a=null; return +captured;", 2),
+        ("const captured=a; a=null; return +captured;", 2),
+        ("let captured=0; captured=a; a=null; return +captured;", 2),
+        ("a=+b; b=null; return +a;", 1),
+    ] {
+        let source = format!("export function run(a,b) {{{body}}}");
+        let (module, maximum, _, _) = observe(|| crate::lower_source(&source, false));
+        let module = module.unwrap();
+        assert_eq!(maximum, 1);
+        let f = &module.functions[0];
+        assert_eq!(f.parameter_count, 2);
+        assert!(
+            f.slots[..2]
+                .iter()
+                .all(|s| s.parameter && s.ty == Type::Number)
+        );
+        assert_eq!(
+            f.slots.iter().filter(|s| s.ty == Type::General).count(),
+            general,
+            "{source}"
+        );
+    }
+}

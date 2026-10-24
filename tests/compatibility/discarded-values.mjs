@@ -55,7 +55,7 @@ const negatives=[
   ['comparison-boolean','true==a; return a;',expression],
   ['nested-comparison','(a<b)==0; return a;',binary],
   ['number-return','return true;',expression],
-  ['number-rhs','a=true; return a;',expression],
+  ['number-rhs','a=true; return a;','General bindings require a primitive value position'],
   ['number-argument','return Math.abs(true);',expression],
   ['final-comma-boolean','return (a,true);',expression],
   ['dead-logical-call','false&&Math.random(); return a;',expression],

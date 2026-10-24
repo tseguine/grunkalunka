@@ -2859,3 +2859,37 @@ mod general_number_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod general_parameter_cell_tests {
+    use super::*;
+    fn module() -> Module {
+        crate::lower_source_with_entry_type(
+            "export function run(a,b) {a=null; return a;}",
+            false,
+            Type::General,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn parameter_shadow_keeps_number_signature_and_initialized_owned_general_cell() {
+        verify_module_with_entry_type(&module(), Type::General).unwrap();
+        for change in 0..4 {
+            let mut m = module();
+            let f = &mut m.functions[0];
+            assert_eq!(f.slots[0].ty, Type::Number);
+            assert!(f.slots[0].parameter);
+            assert_eq!(f.slots[2].ty, Type::General);
+            assert!(!f.slots[2].parameter);
+            match change {
+                0 => {
+                    f.body.operations.remove(2);
+                }
+                1 => f.slots[2].parameter = true,
+                2 => f.slots[2].owner = RegionId(99),
+                _ => f.slots[0].ty = Type::General,
+            }
+            assert!(verify_module_with_entry_type(&m, Type::General).is_err());
+        }
+    }
+}

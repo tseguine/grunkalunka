@@ -332,3 +332,14 @@ test('Value arithmetic promotes exact coercion sources and retains recursive sou
  assert.equal(recursive.sourceTS,'export function run(a:number,b:number):unknown {return run(0,b)+1;}\n');
  assert.ok(!valueRejected.some(p=>['coercion','general-number-call'].includes(p.id)));
 });
+
+test('Value parameter cases retain four distinct exact numeric rejection origins',()=>{
+ const expected=new Map([
+  ['parameter-boolean',['discarded-number-rhs','export function run(a,b) { a=true; return a; }']],
+  ['parameter-predicate',['const-boolean-assignment-rhs','export function run(a,b) { const flag=true; a=flag; return a; }']],
+  ['parameter-assignment-result',['discarded-predicate-binding-reject-assignment-result','export function run(a,b) { const flag=true; (a=flag); return a; }']],
+  ['parameter-conditional-assignment',['predicate-conditional-assignment','export function run(a,b) { if(a?(a=true):false) return a; return b; }']],
+ ]);
+ for(const [id,[origin,source]] of expected){const fixture=valuePrograms.find(p=>p.id===id);assert.equal(fixture.numericOrigin,origin);assert.equal(fixture.sourceJS,source);assert.equal(rejected.find(p=>p[0]===origin)[1],source);}
+ assert.equal(new Set([...expected.values()].map(([,source])=>source)).size,4);
+});
