@@ -82,6 +82,13 @@ enum Work<'e, 'a> {
         left: ValueId,
         operator: Compare,
     },
+    LogicalAssign {
+        node: &'e Expression<'a>,
+        assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
+        slot: SlotId,
+        old: ValueId,
+        condition: ValueId,
+    },
     Assign {
         node: &'e Expression<'a>,
         slot: SlotId,
@@ -146,6 +153,59 @@ fn predicate_number<'e, 'a>(work: &mut Vec<Work<'e, 'a>>, node: &'e Expression<'
 }
 
 impl Lowering<'_, '_> {
+    // Logical assignment validates and captures the target before entering its RHS.
+    // All RHS work stays in the selected owned child; no old assignment route changes.
+    fn schedule_numeric_logical_assignment<'e, 'a>(
+        &mut self,
+        node: &'e Expression<'a>,
+        assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
+        depth: usize,
+        regions: &mut Regions<'_>,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        let Some(identifier) = assignment
+            .left
+            .as_simple_assignment_target()
+            .map(|target| target_identifier(target, depth))
+            .transpose()?
+            .flatten()
+        else {
+            return Err(unsupported(
+                node,
+                "assignment target must be an initialized identifier",
+            ));
+        };
+        let binding = numeric_binding(identifier, self.semantic, &self.bindings)?;
+        if !binding.mutable {
+            return Err(unsupported(
+                node,
+                "assignment to a const binding is not admitted",
+            ));
+        }
+        let slot = binding.slot;
+        let old = self.value(Type::Number);
+        Self::push(regions.current(), node, Op::Load { result: old, slot });
+        let condition = self.value(Type::Predicate);
+        Self::push(
+            regions.current(),
+            node,
+            Op::Truthy {
+                result: condition,
+                input: old,
+            },
+        );
+        regions.children.push(self.region(&assignment.right));
+        work.push(Work::LogicalAssign {
+            node,
+            assignment,
+            slot,
+            old,
+            condition,
+        });
+        work.push(Work::Eval(&assignment.right, depth + 1, Mode::Number));
+        Ok(())
+    }
+
     pub(super) fn evaluate<'e, 'a>(
         &mut self,
         expression: &'e Expression<'a>,
@@ -275,6 +335,37 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(Value::Predicate(result));
+                }
+                Work::LogicalAssign {
+                    node,
+                    assignment,
+                    slot,
+                    old,
+                    condition,
+                } => {
+                    let value = values.pop().expect("logical assignment RHS").number();
+                    let mut selected = regions.finish(value);
+                    Self::push(&mut selected, node, Op::Store { slot, value });
+                    let mut skipped = self.region(&assignment.left);
+                    skipped.exit = Exit::Yield(old);
+                    let (consequent, alternate) =
+                        if assignment.operator == AssignmentOperator::LogicalAnd {
+                            (selected, skipped)
+                        } else {
+                            (skipped, selected)
+                        };
+                    let result = self.value(Type::Number);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::If {
+                            result: Some(result),
+                            condition,
+                            consequent,
+                            alternate,
+                        },
+                    );
+                    values.push(Value::Number(result));
                 }
                 Work::Assign {
                     node,
@@ -760,6 +851,19 @@ impl Lowering<'_, '_> {
                             }
                         }
                         Expression::AssignmentExpression(assignment) => {
+                            if matches!(
+                                assignment.operator,
+                                AssignmentOperator::LogicalAnd | AssignmentOperator::LogicalOr
+                            ) {
+                                self.schedule_numeric_logical_assignment(
+                                    node,
+                                    assignment,
+                                    depth,
+                                    &mut regions,
+                                    &mut work,
+                                )?;
+                                continue;
+                            }
                             let operator = match assignment.operator {
                                 AssignmentOperator::Assign => None,
                                 AssignmentOperator::Addition => Some(Binary::Add),
@@ -778,7 +882,7 @@ impl Lowering<'_, '_> {
                                 _ => {
                                     return Err(unsupported(
                                         node,
-                                        "only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted",
+                                        "only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, >>>=, &&= and ||= assignments are admitted",
                                     ));
                                 }
                             };

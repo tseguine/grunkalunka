@@ -54,14 +54,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 47
-contains 1346 paired programs, 924 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 48
+contains 1410 paired programs, 950 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 924 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 129 explicit resource restrictions and 769 open requirements.
+classifies all 950 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 133 explicit resource restrictions and 791 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -639,7 +639,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - Everything else is rejected: extra statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
-  other declaration forms, uninitialized locals, `**=`/`&&=`/`||=`/`??=` assignments,
+  other declaration forms, uninitialized locals, `**=`/`??=` assignments,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic outside the explicit operand bridges, Boolean returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
@@ -1072,6 +1072,35 @@ unary/arithmetic bridges and immutable initializers; no general kind policy foll
 
 Corpus 47 adds 47 pairs and 21 classified negatives. Exactly two ordinary sources
 move unchanged: `boolean-equality-operands` and `not-equality-operand`, both JS strict
-Modules. No curated reference or Rust-only negative body transfers. Selected totals
-are 1346 pairs, 924 rejections and 38 curated references; all 1299 prior pairs and
+Modules. No curated reference or Rust-only negative body transfers. That step recorded
+1346 pairs, 924 rejections and 38 curated references; all 1299 prior pairs and
 903 other rejection observations remain the baseline.
+
+## Numeric logical assignment
+
+Initialized mutable Number parameters and `let` identifiers admit `&&=` and `||=`.
+The original target is validated and loaded once before RHS effects. Number
+truthiness selects the RHS for `&&=` on truthy values and `||=` on falsy values;
+`0`, `-0` and NaN are falsy. The selected RHS must be an admitted Number expression.
+It runs once, stores inside the selected child region and yields its captured
+result. The skipped child performs no RHS evaluation or Store and yields the
+original captured Number, preserving signed zero and NaN class. A later sibling
+write cannot change the assignment result snapshot. The complete RHS must satisfy
+source admission even when runtime selection skips it.
+
+Original target SymbolId resolution, wrapper depth, initialization/publication and
+const restrictions remain. Even valid JavaScript const writes that would short
+circuit stay outside this admission profile; they are not classified as invalid
+syntax. `??=`, `**=`, property/global/uninitialized targets, general values and bare
+Boolean RHS results remain outside admission. Explicit existing numeric bridges
+may supply Number RHS values. No classifier, IR/backend/runtime, ABI, dependency
+or source budget changes.
+
+Corpus 48 contributes 64 paired programs (including two exact ordinary promotions)
+and 28 classified negatives. `unsupported-compound-8` and `unsupported-compound-9`
+retain their original JS strict Module sources; no curated reference or Rust-only
+guard transfers. The two retained `**=`/`??=` observations change only their honest
+operator-whitelist text. The logical-assignment group remains open with an explicit
+Number-only assessment. Current totals are 1410 pairs, 950 rejections and 38 curated
+references; 922 old rejection observations remain, with those two exact diagnostic
+text exceptions. This is bounded source support, not a general assignment policy.

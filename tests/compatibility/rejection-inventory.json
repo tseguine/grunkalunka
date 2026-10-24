@@ -252,7 +252,7 @@
     {
       "id": "logical-assignment",
       "kind": "open-requirement",
-      "assessment": "Logical/nullish assignment is valid and needs selected-RHS/store semantics.",
+      "assessment": "Initialized mutable Number identifiers admit &&= and ||= with selected RHS evaluation, a selected Store and captured results. Nullish assignment, const assignment admission and general value storage remain outside this profile.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation",
@@ -4903,20 +4903,6 @@
       "group": "exponentiation"
     },
     {
-      "id": "unsupported-compound-8",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "21deae1a20f4ee62d59fc6e650952f03e48b9afe2af2971741a6fda9c5c16de3",
-      "group": "logical-assignment"
-    },
-    {
-      "id": "unsupported-compound-9",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9c28b7ff2bcad9b5f2d99ceec226f94c347001bb68abcbe47bacb6b3a82af28e",
-      "group": "logical-assignment"
-    },
-    {
       "id": "unsupported-compound-10",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7567,6 +7553,202 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "59c334a4baa6a96924cdbf8abf0c62537e8d6444da7a02da1d7179d2bef0424e",
+      "group": "expression-depth"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-const-skip",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "26b12ca7d080b89ddf2cad12672d8d6286855b8ab36f48a20ceb8d3f826a256c",
+      "group": "const-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-const-selected",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "25b24611252228aadbdc27e434b4dcd05bcb9a27b2e002a428058c6c4cc0ef43",
+      "group": "const-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4864524a74e4a4b414a4ebb653c9ea028ebff04064e2c9227ff0b5ccca4db373",
+      "group": "property-targets"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-unresolved",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0c384fe5de8c7917f31edca556b8c74f95caba4e6530f6870363637ca3e93bb1",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0f04cfcdcc7db23903f0eef582b5682954f514e7c87dd72ad373a5e43dd70ef4",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "70265af1462eb29386a40e036a33d74069375d45c3b0ba34ab7536516917f4f9",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-shadow-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fdd5793ed665295e22cc6d272af55bd065b04ab335a5f60a7aa86c4094dff288",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-scope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "918f169413a1b355c2c7dfa54c2d0cb8ecad3d69f8fbbc9feb5543e4a90695e6",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9d8371e572dff128ae055f248ccfdfc2ef8a5380a83857e0eef03cad64e378ec",
+      "group": "function-calls"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-boolean-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "23b00c1b1a05c120a12948ceb55178b985d2a4e6f2d48fcc2140bee465a189a5",
+      "group": "boolean-values"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-string-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1c119933663c874080e0b44693e9f65415d56fc76572e0c564f55e5ecc1ade3f",
+      "group": "string-values"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-bigint-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4101ad556809923ea8a8f84cbb8a0a79bccf19409d7e8d091f6d160131b0734e",
+      "group": "bigint-values"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-js-depth129",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b9bac717d2446528fe309e3cf1bf601324e3aa5457ddfdad6dbecdf4423264f9",
+      "group": "expression-depth"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-and-ts-depth129",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "89b6f2bf4f795d744af836cf000754ea30f243aa42b96d8806cfc9927aaf7864",
+      "group": "expression-depth"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-const-skip",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "081e8cddf387220be832fbd5e7615f9bf5699cc3468f665377bc3037bd44bae1",
+      "group": "const-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-const-selected",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7316262df01475583041a5fb43f39ed7c22d4aa3f4e4eb4d7bbc2b34a7ff37e2",
+      "group": "const-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-property",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6ab2841467e6fc9b9e099cbfa13a52f54f3d10154c66bcc82af8967722bce75f",
+      "group": "property-targets"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-unresolved",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9aef70cde9d91fe47bdf375e9db8744bd797e158944498f1a698b901570e4926",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "446b05af489a77d8c5f0fb1a495cbca3867c7ed09f6016a51c8bd42f060dfc1e",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "f7cb51108a251b293b8e46a6597dd014d1c5f5137f7b955810f7b6ef9775d6cb",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-shadow-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e33ec44f1474fc6ecb303a8ee2e678b8eca54772afacd94fb34b52ddb5b4438a",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-scope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "25169c27220332a6f2090d1a043ca741e931a6322758768864fe3be4e40161d5",
+      "group": "binding-errors"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "89db41ceca9984b1096b2cbfd0b21217d2f28b18fa2f408609a050c4d5e62d19",
+      "group": "function-calls"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-boolean-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d667006dbe421be086f2f77901477207a73190de632df6a886882dcf3a45b12e",
+      "group": "boolean-values"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-string-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e337c6547d9131022b290d1e81e2d3c4221c2f79274ae3230663b97c40356c90",
+      "group": "string-values"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-bigint-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "17da3364df75f53e52fea0b7af46967df5a608e862127640eedf161839b8d6e0",
+      "group": "bigint-values"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-js-depth129",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c4400572a7c61a91ca3fb4b269dfdb6dc4c5dedcb60b0c735984974cccc34f4f",
+      "group": "expression-depth"
+    },
+    {
+      "id": "numeric-logical-assignment-reject-or-ts-depth129",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4a8cad2462d0adcfaee44896e429fa8be3d19fa945ff69174624edd1c6730e57",
       "group": "expression-depth"
     }
   ]

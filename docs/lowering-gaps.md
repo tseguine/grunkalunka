@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 129 resource restrictions and 769 open requirements
-across all 924 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 133 resource restrictions and 791 open requirements
+across all 950 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -175,7 +175,7 @@ The ordinary `unsupported-compound-2` through `unsupported-compound-7`,
 `shift-compound-remains-2` rejections are promoted in
 [`numeric-bitwise-compounds.mjs`](../tests/compatibility/numeric-bitwise-compounds.mjs).
 These six mappings reuse target capture, RHS evaluation, store and result snapshots.
-The curated gap count is unchanged. Remaining ordinary IDs 0, 1, 8, 9 and 10 retain
+The curated gap count is unchanged. At that step, ordinary IDs 0, 1, 8, 9 and 10 retained
 their original `%=`/`**=`/`&&=`/`||=`/`??=` programs; unsupported write targets and
 nonnumeric RHS values remain outside admission.
 
@@ -321,3 +321,14 @@ Predicate bindings and selected inline shapes, preserving original depth/effects
 No curated reference moves. The other 903 rejection observations remain the baseline.
 The Boolean-values assessment explicitly records this extension; loose or mixed-kind
 equality, Boolean relational operands, general storage and ABI values remain open.
+
+## Numeric logical-assignment frontier
+
+Exactly `unsupported-compound-8` (`&&=`) and `unsupported-compound-9` (`||=`) move
+unchanged into paired Number support. No curated reference moves. Initialized
+mutable Number identifiers capture their target once, evaluate/store only the
+selected Number RHS and return the selected or old snapshot. The logical-assignment
+group remains open: `??=`, const assignment admission and general value storage
+are separate requirements. Const early-skip sources remain valid JavaScript outside
+this profile. Retained `unsupported-compound-1`/`10` source/mode/span/classification
+stay exact; only their operator-whitelist diagnostic text advances.

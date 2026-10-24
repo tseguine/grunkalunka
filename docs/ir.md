@@ -339,3 +339,13 @@ Same-kind source `===`/`!==` converts each proven Boolean operand with the exist
 identity. The verifier still requires Number comparison operands and a Predicate
 result. Number paths, value capture, IR types, emitter operations and ABI are
 unchanged; this adds no dynamic kind dispatch or mixed-kind equality policy.
+
+## Numeric logical assignment
+
+Source `&&=`/`||=` reuses existing Number `Load`, Predicate `Truthy`, Number-result
+`If`, `Store` and `Yield` operations. The parent captures the target before RHS
+work; the selected child contains the RHS and its final Store, while the skipped
+child contains neither and yields the captured old Number. The selected child
+yields the stored RHS snapshot. Existing value visibility, slot mutability and
+region verification apply unchanged; no new IR operation, type, emitter layout or
+ABI is introduced. See [the source contract](compiler.md#numeric-logical-assignment).

@@ -44,7 +44,8 @@ import { unaryPredicateBindings, unaryPredicateBindingsRejected } from './unary-
 import { arithmeticPredicateBindings, arithmeticPredicateBindingsRejected } from './arithmetic-predicate-bindings.mjs';
 import { discardedPredicateBindings, discardedPredicateBindingsRejected } from './discarded-predicate-bindings.mjs';
 import { strictBooleanEquality, strictBooleanEqualityRejected } from './strict-boolean-equality.mjs';
-export const corpusVersion = 47;
+import { numericLogicalAssignment, numericLogicalAssignmentRejected } from './numeric-logical-assignment.mjs';
+export const corpusVersion = 48;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -113,6 +114,7 @@ programs.push(...unaryPredicateBindings);
 programs.push(...arithmeticPredicateBindings);
 programs.push(...discardedPredicateBindings);
 programs.push(...strictBooleanEquality);
+programs.push(...numericLogicalAssignment);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -218,6 +220,7 @@ export const rejected = [
   ...arithmeticPredicateBindingsRejected,
   ...discardedPredicateBindingsRejected,
   ...strictBooleanEqualityRejected,
+  ...numericLogicalAssignmentRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -317,10 +320,9 @@ export const rejected = [
   ['forward-write-initializer', 'export function run(a,b) { const x=(y=a); let y=b; return x+y; }'],
   ['global-write', 'export function run(a,b) { return clock=a; }'],
   ...[['unsupported-compound-1','**='],
-    ['unsupported-compound-8','&&='], ['unsupported-compound-9','||='],
     ['unsupported-compound-10','??=']].map(([id,operator]) =>
     [id, `export function run(a,b) { return a ${operator} b; }`, 'js',
-      'only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted']),
+      'only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, >>>=, &&= and ||= assignments are admitted']),
   ['compound-const', 'export function run(a,b) { const x=a; return x+=b; }'],
   ['compound-property', 'export function run(a,b) { return a.x+=b; }'],
   ['compound-forward', 'export function run(a,b) { const x=(y+=a); let y=b; return x+y; }'],

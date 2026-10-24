@@ -519,3 +519,96 @@ fn characterization_setup_frontiers_keep_their_original_diagnostics() {
         assert_eq!(maximum, 1);
     }
 }
+
+#[test]
+fn numeric_logical_assignment_keeps_store_and_rhs_in_selected_region() {
+    use crate::ir::{Exit, Op, SlotId, ValueId};
+    for operator in ["&&=", "||="] {
+        let source = format!("export function run(a,b) {{ return a {operator} b; }}");
+        let (module, maximum, _, _) = observe(|| crate::lower_source(&source, false));
+        let module = module.unwrap();
+        assert_eq!(maximum, 1);
+        let operations = &module.functions[0].body.operations;
+        assert_eq!(
+            operations.len(),
+            3,
+            "only captured Load/Truthy/If in parent"
+        );
+        assert!(matches!(
+            operations[0].kind,
+            Op::Load {
+                result: ValueId(0),
+                slot: SlotId(0)
+            }
+        ));
+        assert!(matches!(
+            operations[1].kind,
+            Op::Truthy {
+                input: ValueId(0),
+                ..
+            }
+        ));
+        let Op::If {
+            consequent,
+            alternate,
+            result: Some(result),
+            ..
+        } = &operations[2].kind
+        else {
+            panic!("logical assignment If")
+        };
+        let (selected, skipped) = if operator == "&&=" {
+            (consequent, alternate)
+        } else {
+            (alternate, consequent)
+        };
+        assert_eq!(selected.operations.len(), 2, "RHS Load and selected Store");
+        assert!(matches!(
+            selected.operations[0].kind,
+            Op::Load {
+                result: ValueId(2),
+                slot: SlotId(1)
+            }
+        ));
+        assert!(matches!(
+            selected.operations[1].kind,
+            Op::Store {
+                slot: SlotId(0),
+                value: ValueId(2)
+            }
+        ));
+        assert!(
+            matches!(selected.exit, Exit::Yield(ValueId(2))),
+            "selected result is RHS snapshot"
+        );
+        assert!(skipped.operations.is_empty(), "no skipped RHS/Store");
+        assert!(matches!(skipped.exit, Exit::Yield(ValueId(0))));
+        assert!(matches!(module.functions[0].body.exit, Exit::Return(value) if value == *result));
+    }
+}
+
+#[test]
+fn numeric_logical_assignment_selected_result_is_the_stored_rhs() {
+    use crate::ir::{Exit, Op};
+    for operator in ["&&=", "||="] {
+        let source = format!("export function run(a,b) {{ return a {operator} (a=b,a+1); }}");
+        let module = crate::lower_source(&source, false).unwrap();
+        let Op::If {
+            consequent,
+            alternate,
+            ..
+        } = &module.functions[0].body.operations[2].kind
+        else {
+            panic!("logical assignment If")
+        };
+        let selected = if operator == "&&=" {
+            consequent
+        } else {
+            alternate
+        };
+        let Op::Store { value, .. } = &selected.operations.last().unwrap().kind else {
+            panic!("selected final Store")
+        };
+        assert!(matches!(selected.exit, Exit::Yield(result) if result == *value));
+    }
+}

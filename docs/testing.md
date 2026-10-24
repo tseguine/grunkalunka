@@ -67,8 +67,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 924 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 129 resource restrictions and 769 open requirements.
+also covers all 950 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 133 resource restrictions and 791 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -313,3 +313,14 @@ strict-only gate, reverse order and duplicate a predicate; every probe requires
 exact restoration and a fresh successful build/test. Any native failure stops work.
 Final auditing must preserve all 1299 old pairs, 903 retained rejection observations
 and 38 curated references, with only the explicit Boolean assessment change.
+
+The [numeric logical-assignment fixtures](../tests/compatibility/numeric-logical-assignment.mjs)
+cover selected/skipped Number `&&=`/`||=`, signed-zero/NaN truthiness, same-target
+RHS writes, later sibling writes, once-only effects, wrappers, helpers and loops.
+Real-parser private-IR assertions require captured parent Load/Truthy/If, a selected
+RHS/Store and an empty skipped child yielding the old snapshot. An unconditional
+same-old Store can be runtime-unobservable for this domain, so structural Store
+placement is checked independently of engine results. Selected-result checks use
+the RHS snapshot, including a deliberately stale-old-result sensitivity probe.
+The two ordinary promotions and two remaining whitelist-diagnostic changes are
+pinned individually; no curated reference transfers or broad normalization applies.

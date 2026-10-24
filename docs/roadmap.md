@@ -115,7 +115,7 @@ target before RHS effects, then store and yield the result through existing
 numeric operations. Retained TypeScript wrappers around numeric write targets
 resolve through original binding identity and source depth checks. Number `%` and `%=` now use exact remainder semantics with
 a private arithmetic helper. Numeric `~` also bridges known Boolean-producing
-operand shapes to Number without general Boolean storage or coercion; power, logical and nullish assignments remain outside admission. Numeric expression
+operand shapes to Number without general Boolean storage or coercion; power and nullish assignments remain outside admission. Numeric expression
 statements preserve effects while discarding their Number result. Empty statements
 fall through without IR allocation while consuming the ordinary source budget. TypeScript expression and predicate wrappers erase while
 their runtime operands remain subject to the numeric admission. Parameter, return
@@ -396,5 +396,15 @@ support `===`/`!==` when both original operands qualify. Their captured predicat
 convert once, left before right, through existing Number comparison operations.
 This preserves the original Number path and does not settle mixed-kind equality,
 loose Boolean coercion, relational Boolean operands, dynamic values or a new ABI.
-The selected corpus contains 1346 pairs and 924 rejection fixtures, including the
+The selected corpus contains 1410 pairs and 950 rejection fixtures, including the
 unchanged 38 curated gaps. See [the bounded contract](compiler.md#strict-same-kind-boolean-equality).
+
+## Number logical assignment
+
+Initialized mutable Number identifiers now admit `&&=`/`||=` with one captured
+left read, selected RHS evaluation and Store, and captured selected/skipped results.
+This uses the current pending-work evaluator and typed region operations; it does
+not choose a general value representation. `??=`, const assignment admission,
+properties and general value storage remain separate work, and the logical-assignment
+group stays open. Corpus 48 records 1410 pairs, 950 rejections and 38 curated gaps;
+only two original ordinary sources promote. See [the bounded contract](compiler.md#numeric-logical-assignment).
