@@ -220,7 +220,7 @@ the same client behaves predictably under different capability profiles.
   the existing assignment/update paths. Fourteen exact source promotions and 37
   extra pairs cover snapshots, all supported compounds, scopes and source depth.
   Three finite depth/binding/order mutants are detected. No checker, coercion, IR
-  or ABI expansion follows. Current inventory: 685 records in 56 groups, with 26
+  or ABI expansion follows. At that step, the inventory contained 685 records in 56 groups, with 26
   invalid sources, 87 resource restrictions, 572 open requirements and 39 references.
 
 - Numeric Boolean complement admits four exact old sources and 36 extra pairs.

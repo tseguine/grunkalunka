@@ -140,7 +140,7 @@ coercion; immutable Boolean predicate locals are covered by the const policy bel
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 39 examples are a
+or change the reference result to match a lowering bug. The 38 examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -151,7 +151,9 @@ a value representation, GC strategy, final entry ABI or capability-profile defau
 The former `gap-bit-not` reference is now `bit-not-promoted-reference` in
 [`numeric-bit-not.mjs`](../tests/compatibility/numeric-bit-not.mjs). Numeric unary
 `~` truncates and wraps to signed 32-bit bits before complementing and returns a
-Number. It does not admit Boolean, string or BigInt operands.
+Number. Selected inline Boolean operands and initialized immutable Predicate bindings
+are admitted through the documented [unary bridges](compiler.md#unary-reads-of-immutable-predicate-bindings).
+String and BigInt operands remain outside admission.
 
 The former `gap-bit-and`, `gap-bit-or` and `gap-bit-xor` references and ordinary
 `bitwise` rejection are promoted in
