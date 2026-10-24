@@ -1,6 +1,6 @@
 # Known lowering gaps
 
-This page and the 974 rejection fixtures below describe the **numeric profile**.
+This page and the 955 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Eight exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -45,8 +45,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 799 open requirements
-across all 974 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 780 open requirements
+across all 955 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -425,3 +425,24 @@ rejections and eight exact remaining numeric origins. General parameter writes,
 compound/update/logical assignment, uninitialized let, numeric coercion and ?? remain
 separate requirements. Conservative storage planning does not imply flow-sensitive
 narrowing or that a captured alias follows later writes.
+
+## Primitive ToNumber arithmetic increment
+
+Corpus 56 transfers nineteen exact original observations for nullish/Boolean
+unary conversion, General operands and conditional/logical/sequence arithmetic.
+All original IDs, sources and hashes remain in admitted fixtures. Sixteen additional
+pairs cover cell writes, snapshots, effects, aliases, loops and TypeScript wrappers.
+Totals are 1589 pairs and 955 numeric rejections: 780 open, 144 resource and 31
+invalid observations in 56 groups. The 36 curated numeric references are unchanged.
+
+Conversion covers the four represented primitive kinds at unary +/minus and binary
++, -, *, /, % operands. Relational/loose comparisons, other conversion positions,
+General parameter writes, compound/update/logical assignments, implicit lexical
+initialization, ?? and additional runtime kinds remain open. The frozen Boolean
+bitwise/shift repair is not resumed by this increment.
+
+The Value profile has 34 paired result programs, four selected rejection pairs,
+1904 comparisons and eight exact numeric origins. Its former `coercion` sources
+execute; the former unconditional-recursion `general-number-call` sources instead
+compile and exhaust fuel as separately recorded controls. Their two termination
+observations do not contribute result comparisons or language coverage claims.

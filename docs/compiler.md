@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 55
-contains 1554 paired programs, 974 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 56
+contains 1589 paired programs, 955 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 974 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 799 open requirements.
+classifies all 955 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 780 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1212,8 +1212,8 @@ existing files are never overwritten.
 
 `node scripts/poc.mjs` builds offline and runs both profile reports. The separate
 [primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
-29 JS/TS pairs on 14 input pairs: 1624 comparisons with original JS across Wasmtime
-and Node-Wasm. It checks 6 rejected pairs and five CLI control groups, covering input
+34 JS/TS pairs on 14 input pairs: 1904 comparisons with original JS across Wasmtime
+and Node-Wasm. It checks 4 rejected pairs and six CLI control groups, covering input
 validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
 fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
 compiler/lock hashes, host versions, standard references and invocation results.
@@ -1222,7 +1222,7 @@ Eight exact original numeric rejection sources (`boolean`, `null`, `comparison`,
 `predicate-conditional-numeric-return`, and `logical-unsupported-4` through
 `logical-unsupported-7`) execute successfully in this value profile;
 the report also verifies their continued numeric-profile rejection. This is
-profile-specific support, not removal of those eight numeric rejections. The six selected value rejection pairs are not an
+profile-specific support, not removal of those eight numeric rejections. The four selected value rejection pairs are not an
 exhaustive value-profile gap inventory. Numeric and value reports live separately
 under `target/compatibility-runs/` and `target/value-compatibility-runs/`.
 
@@ -1377,3 +1377,38 @@ changing their source hashes. The separate Value profile adds four mutable cases
 reaching 29 pairs, six selected rejection pairs and eight exact numeric origins.
 The runtime transition matrix checks 576 JS/TS modules across both profiles and
 engines, with additional alias, assignment-result, scope and budget witnesses.
+
+## Explicit primitive numeric conversion
+
+Unary `+`/`-` and binary `+`, `-`, `*`, `/`, `%` now accept admitted operands
+of the four represented primitive kinds. A typed `NumberFromGeneral` operation
+implements the [ToNumber algorithm](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-tonumber):
+undefined becomes NaN, null/false become +0, true becomes 1, and Number retains its
+payload. Strings, BigInts, Symbols and objects are not represented by this operation.
+For the admitted primitive domain, arithmetic follows
+[ApplyStringOrNumericBinaryOperator](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-applystringornumericbinaryoperator)
+without a string-concatenation branch.
+
+The pending evaluator keeps existing Number and Predicate operand paths before
+using General evaluation plus conversion. Original operands are evaluated once,
+left before right, with captured values retained across later writes. Conditional,
+logical, sequence and plain-assignment results can supply General operands.
+General-returning calls can supply arithmetic operands in the Value profile.
+Numeric return and parameter contracts remain unchanged. This does not add
+relational/loose equality conversions, compound/update operators, additional
+bitwise/shift operands, Math intrinsic conversions or additional source kinds.
+
+Corpus 56 promotes nineteen exact original numeric rejection observations and
+adds sixteen other paired programs: 1589 pairs, 955 rejections, 36 curated references,
+and 780 open/144 resource/31 invalid observations across 56 groups. The separate
+Value profile promotes the exact `coercion` sources and adds four programs, reaching
+34 pairs, four selected rejected pairs and 1904 result comparisons. The exact former
+`general-number-call` rejection sources now compile but recurse unconditionally;
+they are retained as two fuel-exhaustion observations, excluded from result
+comparisons and feature-completion counts. Existing five control groups remain,
+with a sixth for that termination-only case.
+
+The runtime matrix checks 2976 JS/TS modules across both result profiles and engines
+against fixed numeric goldens, including signed zero, NaN, infinities and subnormals.
+Additional effect, scope, call and original-source witnesses are finite evidence;
+they do not establish exhaustive language compatibility.

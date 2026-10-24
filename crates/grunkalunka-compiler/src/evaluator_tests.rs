@@ -501,20 +501,12 @@ fn left_snapshot_precedes_right_assignment() {
 
 #[test]
 fn characterization_setup_frontiers_report_the_remaining_unsupported_use() {
-    for (source, expected) in [
-        (
-            "export function run(a,b) { const flag=a?(b?true:false):!a; return +flag; }",
-            "unsupported at bytes 67..71: General bindings require a primitive value position",
-        ),
-        (
-            "export function run(a,b) { const flag=true; flag; a; !a; (a=1,flag); a?flag:!b; flag&&true; return a; }",
-            "unsupported at bytes 62..66: Boolean bindings are not admitted in numeric value positions",
-        ),
-    ] {
-        let (result, maximum, _, _) = observe(|| crate::lower_source(source, false));
-        assert_eq!(result.unwrap_err(), expected);
-        assert_eq!(maximum, 1);
-    }
+    let source = "export function run(a,b) { const flag=true; flag; a; !a; (a=1,flag); a?flag:!b; flag&&true; return a; }";
+    let expected =
+        "unsupported at bytes 62..66: Boolean bindings are not admitted in numeric value positions";
+    let (result, maximum, _, _) = observe(|| crate::lower_source(source, false));
+    assert_eq!(result.unwrap_err(), expected);
+    assert_eq!(maximum, 1);
 }
 
 #[test]
@@ -710,4 +702,16 @@ fn mutable_storage_plans_later_writes_without_reentering_evaluation() {
     )
     .unwrap();
     assert_eq!(scalar.functions[0].slots[2].ty, Type::Number);
+}
+
+#[test]
+fn general_number_conversion_stays_in_the_single_pending_evaluator() {
+    use crate::ir::{Op, Type};
+    let source = "export function run(a,b) { const flag=a?(b?true:false):!a; return +flag; }";
+    let (module, maximum, _, pending) = observe(|| crate::lower_source(source, false));
+    let module = module.unwrap();
+    assert_eq!(maximum, 1);
+    assert!(pending > 1);
+    let function = &module.functions[0];
+    assert!(function.body.operations.iter().any(|op|matches!(op.kind,Op::NumberFromGeneral{input,result} if function.values[input.0]==Type::General && function.values[result.0]==Type::Number)));
 }

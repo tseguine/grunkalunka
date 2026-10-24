@@ -1,6 +1,7 @@
+import { generalToNumber, generalToNumberPromotions } from './general-tonumber.mjs';
 import { mutableGeneralLocals, mutableGeneralPromotions } from './mutable-general-locals.mjs';
 import { generalLogical, generalLogicalPromotions } from './general-logical.mjs';
-import { valuePrograms, valueRejected } from './primitive-values.mjs';
+import { valuePrograms, valueRejected, valueFuelCases } from './primitive-values.mjs';
 import { generalConstBindings, generalConstBindingPromotion } from './general-const-bindings.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -146,7 +147,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 974);
+  assert.equal(inventory.records.size, 955);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -312,4 +313,22 @@ test('mutable General local promotions preserve eight exact original source obse
   const source=programSources(mutableGeneralLocals.find(p=>p[0]===id));assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});
   assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(r=>r[0]===id));
  }
+});
+
+test('General ToNumber promotions preserve nineteen exact original observations',()=>{
+ assert.equal(generalToNumberPromotions.length,19);
+ for(const [id,js,ts,hash] of generalToNumberPromotions){
+  const sources=programSources(generalToNumber.find(p=>p[0]===id));assert.deepEqual(sources,{sourceJS:js,sourceTS:ts,oracleSource:js});
+  assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(r=>r[0]===id));
+ }
+});
+
+test('Value arithmetic promotes exact coercion sources and retains recursive source as termination-only evidence',()=>{
+ const expectedJS='export function run(a,b) {return null+1;}\n';
+ const expectedTS='export function run(a:number,b:number):unknown {return null+1;}\n';
+ const fixture=valuePrograms.find(p=>p.id==='coercion');assert.equal(fixture.sourceJS,expectedJS);assert.equal(fixture.sourceTS,expectedTS);
+ const recursive=valueFuelCases.find(p=>p.id==='general-number-call');
+ assert.equal(recursive.sourceJS,'export function run(a,b) {return run(0,b)+1;}\n');
+ assert.equal(recursive.sourceTS,'export function run(a:number,b:number):unknown {return run(0,b)+1;}\n');
+ assert.ok(!valueRejected.some(p=>['coercion','general-number-call'].includes(p.id)));
 });

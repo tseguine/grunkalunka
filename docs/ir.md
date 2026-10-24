@@ -462,3 +462,18 @@ value for the Store, then returns the original Number. This is storage packing,
 not ToNumber. The verifier retains type, initialization, mutability and lexical-owner
 checks. Parameters remain Number; unsupported General compound/update/logical
 writes are diagnosed before creating scalar loads.
+
+### NumberFromGeneral
+
+`NumberFromGeneral` consumes one visible General snapshot and defines a Number.
+The verifier rejects missing/forward inputs, non-General inputs and non-Number
+results. Canonical payloads for null, Boolean and Number already equal their
+ToNumber result; tag zero (undefined) selects a NaN constant instead. The emitter
+uses one tag test and a typed f64 branch without altering a retained payload.
+No runtime helper, import or heap allocation is needed.
+
+Lowering schedules this conversion only for unary +/minus and the existing five
+binary arithmetic operand requests, after preserving scalar Number/Predicate
+paths. It does not turn a numeric ABI return or argument into a coercion position.
+Each operand is captured once by the same nonrecursive pending evaluator; General
+writes and unsupported operator families retain their admission checks.

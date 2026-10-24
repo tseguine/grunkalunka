@@ -37,6 +37,11 @@ const rows = [
   ['mutable-boolean','let value=true; value=a?false:true; return value;'],
   ['mutable-alias','let first=a,second=b; first=second; second=null; return first;'],
   ['mutable-assignment','let left=null,right=false; return left=(right=a?true:b);'],
+  ['coercion','return null+1;'],
+  ['tonumber-nullish','const value=a?undefined:null; return +value;'],
+  ['tonumber-boolean','let value=null; value=a?true:false; return value*b;'],
+  ['tonumber-snapshot','let value=null; value=a; return value-(value=b);'],
+  ['tonumber-recursive-result','return a?null:run(1,b)+1;'],
 ];
 const numericOrigins = {
   "logical-and": ["logical-unsupported-4", "export function run(a,b) { return a && (b<1); }"],
@@ -54,17 +59,24 @@ export const valuePrograms = rows.map(([id, body]) => ({
   sourceJS: numericOrigins[id]?.[1] ?? (id === 'helper' ? 'function rem(x,y){return x%y;}\n' : '') + wrap(body, false),
   sourceTS: (id === 'helper' ? 'function rem<T>(x:number,y:number):number{return x%y;}\n' : '')
     + wrap(id === 'type-wrapper' ? 'return ((a?null:b) as unknown)!;' : body, true),
-  standards: id.startsWith('mutable-') ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : id.startsWith('logical-') ? [returns, types, conditional, spec + 'ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation'] : id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
+  standards: (id.startsWith('tonumber-') || id === 'coercion') ? [returns, types, conditional, spec + 'abstract-operations.html#sec-tonumber', spec + 'ecmascript-language-expressions.html#sec-applystringornumericbinaryoperator'] : id.startsWith('mutable-') ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : id.startsWith('logical-') ? [returns, types, conditional, spec + 'ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation'] : id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
 }));
 const expression = 'expression is outside the numeric experiment';
 export const valueRejected = [
   ['empty-return', 'return;', 'return must have a primitive expression'],
   ['implicit-return', 'if(a) return null;', 'every structural path must return a primitive value'],
   ['nullish-operator', 'return null??b;', expression],
-  ['coercion', 'return null+1;', expression],
   ['string', 'return "x";', expression],
-  ['general-number-call', 'return run(0,b)+1;', 'value-returning calls require a General result position'],
 ].map(([id, body, diagnostic]) => ({
   id, sourceJS: wrap(body, false), sourceTS: wrap(body, true), diagnostic,
   standards: [returns, types, conditional],
 }));
+
+// Exact former admission rejection; unconditional recursion has no JS-result oracle.
+// Its generated module is checked separately for bounded fuel exhaustion.
+export const valueFuelCases = [{
+  id: 'general-number-call',
+  sourceJS: wrap('return run(0,b)+1;', false),
+  sourceTS: wrap('return run(0,b)+1;', true),
+  standards: [returns, types, conditional, spec + 'abstract-operations.html#sec-tonumber'],
+}];

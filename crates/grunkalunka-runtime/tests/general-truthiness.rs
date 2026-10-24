@@ -235,7 +235,6 @@ fn truthiness_preserves_remaining_scope_kind_and_depth_guards() {
             "const value=null; if(value) value=1; return a;",
             "if(value) return a; const value=null; return b;",
             "const value=value?null:a; return b;",
-            "const value=null; return +value;",
         ] {
             let error = compile_value(&format!("export function run(a,b) {{{body}}}"), ts)
                 .err()

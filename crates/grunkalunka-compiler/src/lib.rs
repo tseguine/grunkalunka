@@ -473,8 +473,6 @@ mod tests {
             "const flag=true; return flag|a;",
             "const flag=true; return flag<<a;",
             "const flag=true; a+=flag; return a;",
-            "const flag=true; return +(a?flag:false);",
-            "let flag=true; return +flag;",
             "const flag=+flag; return a;",
             "return +flag; const flag=true;",
             "{const flag=true;} return +flag;",
@@ -512,9 +510,6 @@ mod tests {
     fn primitive_boolean_numeric_unary_keeps_shape_depth_and_bindings() {
         for body in [
             "return !a;",
-            "return +(true&&false);",
-            "return -(a?true:false);",
-            "return +(0,true);",
             "return +!(0&&Math.random());",
             "const x=0; return +!(x=1);",
             "return -!x; const x=0;",
@@ -1138,7 +1133,6 @@ mod tests {
             ("a+=true; return a;", "expression is outside"),
             ("return true==a?1:0;", "expression is outside"),
             ("return a&true;", "expression is outside"),
-            ("return (a?true:false)+1;", "expression is outside"),
         ] {
             let source = format!("export function run(a,b) {{ {body} }}");
             assert!(compile(&source, false).err().unwrap().contains(reason));

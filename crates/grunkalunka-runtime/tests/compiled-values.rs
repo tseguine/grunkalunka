@@ -92,10 +92,8 @@ fn calls_use_the_callees_result_type() {
         };
         assert_value(&instance.run(1.0, 7.0).unwrap(), &expected);
     }
-    for source in [
-        "export function run(a,b) {return run(0,b)+1;}",
-        "function helper(a,b) {return run(a,b);} export function run(a,b) {return helper(a,b);}",
-    ] {
+    {
+        let source = "function helper(a,b) {return run(a,b);} export function run(a,b) {return helper(a,b);}";
         let error = match compile_value(source, false) {
             Ok(_) => panic!("General result used as Number"),
             Err(error) => error,
@@ -285,7 +283,6 @@ fn value_profile_keeps_scope_and_reports_remaining_gaps() {
     for source in [
         "export function run(a,b) {return 'string';}",
         "export function run(a,b) {return a ? null : missing;}",
-        "export function run(a,b) {return null+1;}",
         "export function run(a,b) {return;}",
         "export function run(a,b) {if(a) return null;}",
         "export function run(a,b) {return run?.(a,b);}",

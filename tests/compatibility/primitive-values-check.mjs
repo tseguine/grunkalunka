@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { valuePrograms, valueRejected } from './primitive-values.mjs';
+import { valuePrograms, valueRejected, valueFuelCases } from './primitive-values.mjs';
 import { rejected as numericRejected } from './corpus.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -155,8 +155,22 @@ invoke(['compile-value', fuelSource, fuelWasm]);
 const fuel = invoke(['eval-value', fuelWasm], '3ff0000000000000 0000000000000000\n', false);
 assert.equal(fuel.stdout, ''); assert.match(fuel.stderr, /fuel/);
 report.controls.push('fuel exhaustion');
-assert.equal(report.pairedPrograms, 29); assert.equal(report.numericOriginCases,8); assert.equal(report.rejections.length, 12);
-assert.equal(report.comparisons, 1624);
+report.terminationCases=[];
+for (const {id,sourceJS,sourceTS,standards} of valueFuelCases) {
+  for (const [extension,source] of [['js',sourceJS],['ts',sourceTS]]) {
+    const name='reject-'+id+'.'+extension, output=name+'.wasm';
+    const artifact=save(name,source), wasmPath=path.join(run,output);
+    invoke(['compile-value',path.join(run,name),wasmPath]);
+    const wasm=fs.readFileSync(wasmPath);
+    const result=invoke(['eval-value',wasmPath],zero,false);
+    assert.equal(result.stdout,'');assert.match(result.stderr,/fuel/);
+    report.terminationCases.push({id,extension,standards,source:artifact,wasm:{path:output,sha256:sha(wasm)},admitted:true,executed:true,outcome:'fuel-exhausted',resultComparison:false});
+  }
+}
+assert.equal(report.terminationCases.length,2);
+report.controls.push('admitted recursive General numeric result exhausts fuel');
+assert.equal(report.pairedPrograms, 34); assert.equal(report.numericOriginCases,8); assert.equal(report.rejections.length, 8);
+assert.equal(report.comparisons, 1904);
 report.artifacts = fs.readdirSync(run).sort().map(name => {const bytes=fs.readFileSync(path.join(run,name)); return {path:name,bytes:bytes.length,sha256:sha(bytes)};});
 save('report.json', JSON.stringify(report, null, 2) + '\n');
 console.log(`PASS primitive-return-v1: ${report.pairedPrograms} pairs, ${report.rejectedPairs} rejected pairs, ${report.comparisons} comparisons, ${report.controls.length} CLI controls`);

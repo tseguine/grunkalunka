@@ -286,6 +286,16 @@ impl Emitter<'_> {
                     });
                     self.set(*result);
                 }
+                Op::NumberFromGeneral { result, input } => {
+                    // Canonical null/Boolean/Number payloads already equal ToNumber.
+                    // Undefined alone needs NaN instead of its canonical zero payload.
+                    writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
+                    self.output
+                        .push_str("i32.eqz\nif (result f64)\nf64.const nan\nelse\n");
+                    writeln!(self.output, "local.get {}", self.value_offsets[input.0] + 1).unwrap();
+                    self.output.push_str("end\n");
+                    self.set(*result);
+                }
                 Op::GeneralTruthy { result, input } => {
                     // Canonical nullish payloads are zero, Boolean payloads are 0/1;
                     // Number payloads keep their value. This implements all four kinds.

@@ -170,6 +170,10 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    NumberFromGeneral {
+        result: ValueId,
+        input: ValueId,
+    },
     Block(Region),
     If {
         result: Option<ValueId>,
@@ -521,6 +525,10 @@ impl Verifier<'_> {
                 Op::GeneralTruthy { result, input } => {
                     self.value(*input, Type::General, &visible, span)?;
                     self.define(*result, Type::Predicate, &mut visible, span)?;
+                }
+                Op::NumberFromGeneral { result, input } => {
+                    self.value(*input, Type::General, &visible, span)?;
+                    self.define(*result, Type::Number, &mut visible, span)?;
                 }
                 Op::Block(child) => {
                     next = self.region(
@@ -2822,6 +2830,32 @@ mod mutable_general_tests {
                 _ => f.slots[2].parameter = true,
             }
             assert!(verify_module_with_entry_type(&m, Type::General).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod general_number_tests {
+    use super::*;
+    #[test]
+    fn number_from_general_requires_visible_general_input_and_number_result() {
+        let module =
+            crate::lower_source("export function run(a,b) {return +null;}", false).unwrap();
+        verify_module(&module).unwrap();
+        for change in 0..4 {
+            let mut m =
+                crate::lower_source("export function run(a,b) {return +null;}", false).unwrap();
+            let f = &mut m.functions[0];
+            let Op::NumberFromGeneral { input, result } = &mut f.body.operations[1].kind else {
+                panic!("conversion")
+            };
+            match change {
+                0 => *input = ValueId(99),
+                1 => f.values[input.0] = Type::Number,
+                2 => f.values[result.0] = Type::General,
+                _ => f.body.operations.swap(0, 1),
+            }
+            assert!(verify_module(&m).is_err());
         }
     }
 }

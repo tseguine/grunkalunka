@@ -66,6 +66,7 @@ enum Work<'e, 'a> {
     Convert(&'e Expression<'a>),
     Truthy(&'e Expression<'a>),
     GeneralTruthy(&'e Expression<'a>),
+    NumberFromGeneral(&'e Expression<'a>),
     Not(&'e Expression<'a>),
     Unary(&'e Expression<'a>, Unary),
     BinaryRight {
@@ -274,6 +275,16 @@ impl Lowering<'_, '_> {
                     let result = self.value(Type::General);
                     Self::push(regions.current(), node, Op::Pack { result, input });
                     values.push(Value::General(result));
+                }
+                Work::NumberFromGeneral(node) => {
+                    let input = values.pop().expect("General numeric input").general();
+                    let result = self.value(Type::Number);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::NumberFromGeneral { result, input },
+                    );
+                    values.push(Value::Number(result));
                 }
                 Work::GeneralTruthy(node) => {
                     let input = values.pop().expect("General truthiness input").general();
@@ -717,8 +728,11 @@ impl Lowering<'_, '_> {
                 Work::Eval(node, depth, Mode::Arithmetic) => {
                     if self.operand_boolean_shape(node, depth) {
                         predicate_number(&mut work, node, depth);
-                    } else {
+                    } else if self.numeric_result_shape(node, depth) {
                         work.push(Work::Eval(node, depth, Mode::Number));
+                    } else {
+                        work.push(Work::NumberFromGeneral(node));
+                        work.push(Work::Eval(node, depth, Mode::General));
                     }
                 }
                 Work::Eval(node, depth, mode) => {
@@ -1239,7 +1253,9 @@ impl Lowering<'_, '_> {
                                 }
                             };
                             work.push(Work::Unary(node, operator));
-                            if self.operand_boolean_shape(&unary.argument, depth + 1) {
+                            if !matches!(operator, Unary::BitNot) {
+                                work.push(Work::Eval(&unary.argument, depth + 1, Mode::Arithmetic));
+                            } else if self.operand_boolean_shape(&unary.argument, depth + 1) {
                                 predicate_number(&mut work, &unary.argument, depth + 1);
                             } else {
                                 work.push(Work::Eval(&unary.argument, depth + 1, Mode::Number));

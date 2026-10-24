@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, and plain writes may change local kind after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Numeric-only returns/operands of General cells, numeric coercion, General parameter writes, compound/update/logical assignments, implicit initialization and nullish coalescing remain separate requirements.",
+      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, General parameter writes, compound/update/logical assignments, implicit initialization, nullish coalescing and heap kinds remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Predicate const locals keep their selected scalar unary/arithmetic bridges. Initialized mutable locals can use General storage planned from initializers and later plain writes, including Boolean/Number/nullish kind changes and alias captures. General cells admit plain assignment, ToBoolean, strict equality and logical selection; the Value profile can return represented primitive kinds. Numeric reads of General cells, compound/update/logical assignments on General storage, General parameters and unrepresented runtime kinds remain outside admission.",
+      "assessment": "Immutable Boolean const cells retain scalar specialization, and General const/let cells can hold represented primitive kinds. ToBoolean, strict equality, &&/|| selection and discarded reads admit represented Booleans. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps false to +0 and true to 1, including General conditional/sequence/assignment results. Numeric-profile Boolean returns, call arguments, General parameter writes, compound/update/logical assignments, relational/loose comparison conversions and further bitwise/shift operands remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -4385,13 +4385,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "predicate-conditional-arithmetic",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "325cf93f49fc8ea30d59be6ae5004caacee5eea005822b56034a2b6c402c6401",
-      "group": "boolean-values"
-    },
-    {
       "id": "predicate-conditional-assignment",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6443,27 +6436,6 @@
       "group": "local-count"
     },
     {
-      "id": "boolean-numeric-unary-reject-root-logical",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "70ce8d976ce1a4b398c180236044bdce107ec4a3f146a05622747bf6cd6bca74",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-numeric-unary-reject-root-conditional",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ae3bb7cd15229787f394f2cc79ea72010fd1dbf16108435f15f8562a53dd10ee",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-numeric-unary-reject-root-sequence",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "13870ed25d5474cee333cc9cd91fd2fc1c7cfa176ea49c3493355676caa2d746",
-      "group": "boolean-values"
-    },
-    {
       "id": "boolean-numeric-unary-reject-bare-not",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6490,13 +6462,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "525dd3722283103e171fc6194ef386a863880b17a4291e5c73917bf9bcc3edb7",
       "group": "object-values"
-    },
-    {
-      "id": "boolean-numeric-unary-reject-null",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a4c46dfc1802c8a3211ba61bfa4da9dadd0576b0f4e49fd794f32ae8ca035bfc",
-      "group": "nullish-values"
     },
     {
       "id": "boolean-numeric-unary-reject-unselected-call",
@@ -6597,34 +6562,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "boolean-arithmetic-logical-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ce220bb9b3b98858d1b926951e499340207df92cdcbaceee3aab6cd996f29439",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-arithmetic-logical-bool-result",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "bfdc7bd11392f46517cb14e9b1297b67b9acb47705e4f3f40d894ea53a0b41f3",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-arithmetic-conditional-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4bdf6513fb4667b6b46c52b6246eecb2bb995e304ac245c7a67ab7134b1f552c",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-arithmetic-root-comma-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2da0ce28df906d995d8497069d41e8d2d5fccaa784b46fcfa47e2e636359ac91",
-      "group": "boolean-values"
-    },
-    {
       "id": "boolean-arithmetic-string",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6644,20 +6581,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "9b114e3decd2256df176cb9528ba5f4baebee1643f391a7838d69bfed663d4d5",
       "group": "bigint-values"
-    },
-    {
-      "id": "boolean-arithmetic-null",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c7efa834a2bd39d868fb18e0291ad26c90056052a702b74e3d04245d625db4f6",
-      "group": "nullish-values"
-    },
-    {
-      "id": "boolean-arithmetic-undefined",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "5317dc0dca8ae495de0322485b2d9fa0b3fc4cbef420dc1dfb6fcbc5527b2885",
-      "group": "nullish-values"
     },
     {
       "id": "boolean-arithmetic-unselected-call",
@@ -6800,34 +6723,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "unary-predicate-binding-reject-mutable",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "5991104a2a19911c79f893ea5d1d93ff10fdb90ff26c48b6d960cb11eed1e30f",
-      "group": "boolean-values"
-    },
-    {
-      "id": "unary-predicate-binding-reject-root-logical",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "89822def306645bc8e6ed5e2fa01e09c88b1013a7b2b0e3ee60eb7be86cf0ce4",
-      "group": "boolean-values"
-    },
-    {
-      "id": "unary-predicate-binding-reject-root-conditional",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7999e0993e13a164d868a98f3f7c749f8fb0b1933cf605bb42566b671e00358d",
-      "group": "boolean-values"
-    },
-    {
-      "id": "unary-predicate-binding-reject-root-sequence",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "52c378dad70be010b4b957dc96762384f627ce412bbbd3c7cf869078bfba35a9",
-      "group": "boolean-values"
-    },
-    {
       "id": "unary-predicate-binding-reject-self",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6958,34 +6853,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "0d07cc5477cd8440e4582b724a0b1ffab2ce45f98c88ac9d8015ccc9206ff287",
-      "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-mutable",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c6452ea50cdeb3a69519b1a8575d1b3b3b8a66d5434e3e29af08e61d1d525bcc",
-      "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-root-conditional",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "52e6ef51355561ca46416550f795022e60badc4b6b718982d3f839f0ec012135",
-      "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-root-logical",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "e58757eb5a34a9e0c38c0f1d9899ae8d75fa69477ce712e9ffce5c796fe26d1a",
-      "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-root-sequence",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "12677d7129d8e022d255bbb89864227e2b8db0597424419d41991e48de0c4d5b",
       "group": "boolean-values"
     },
     {

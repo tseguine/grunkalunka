@@ -42,14 +42,10 @@ numericBooleanUnary.push(['boolean-numeric-unary-helper','','',undefined,undefin
 const expression='expression is outside the numeric experiment';
 const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
- ['root-logical','return +(true&&false);',expression,'boolean-values'],
- ['root-conditional','return -(a?true:false);',expression,'boolean-values'],
- ['root-sequence','return +(0,true);',expression,'boolean-values'],
  ['bare-not','return !a;','only unary +, - and ~ are admitted','boolean-values'],
  ['string','return +"1";',expression,'string-values'],
  ['bigint','return -1n;',expression,'bigint-values'],
  ['object','return +({});',expression,'object-values'],
- ['null','return +null;',expression,'nullish-values'],
  ['unselected-call','return +!(0&&Math.random());',expression,'function-calls'],
  ['const-write','const x=0; if(0) return +!(x=1); return 0;','assignment to a const binding is not admitted','const-errors'],
  ['tdz','return -!x; const x=0;',reference,'binding-errors'],
