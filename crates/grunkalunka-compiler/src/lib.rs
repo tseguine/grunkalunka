@@ -1,6 +1,8 @@
 //! JS/TS parsing, verified numeric region lowering and structured Wasm emission.
 //! The admitted numeric contract is documented in docs/compiler.md.
 mod emit;
+#[cfg(test)]
+mod evaluator_tests;
 mod ir;
 mod lower;
 
@@ -43,7 +45,7 @@ fn is_type_declaration(statement: &Statement<'_>) -> bool {
     }
 }
 
-pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
+fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
     if source.len() > 16_384 {
         return Err("source exceeds this experiment's 16 KiB limit".into());
     }
@@ -260,7 +262,11 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
         statement_count = lowering.statement_count;
         functions.push(lowering.finish(region, function.params.items.len()));
     }
-    let module = ir::Module { functions };
+    Ok(ir::Module { functions })
+}
+
+pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
+    let module = lower_source(source, typescript)?;
     let wat = emit::emit(&module)?;
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })

@@ -2,7 +2,7 @@
 
 Date: 2026-10-24
 
-Status: Accepted direction; production implementation pending.
+Status: Accepted; maintained expression evaluator implemented with explicit pending work.
 
 ## Context
 
@@ -89,6 +89,19 @@ performance, cross-platform or out-of-memory equivalence result.
   full offline checks; inspect the complete diff and independent review evidence.
 - Introduce no unsafe ownership escape, RefCell workaround, new source cap,
   stack/profile change, dependency or public IR/ABI change for this migration.
+
+## Maintained implementation
+
+The production evaluator is maintained separately in
+[`lower/evaluate.rs`](../../crates/grunkalunka-compiler/src/lower/evaluate.rs), with
+original statement/declaration entrypoints forwarding requests. It covers the
+complete evaluator component, including calls, assignments/updates, logical/comma
+expressions, all selected bridges and wrappers. Its root region remains borrowed;
+a LIFO vector owns unfinished children, and continuations move completed regions.
+There is no recursive legacy evaluator fallback or copied experiment path.
+Private characterization and entry observations complement the full existing
+corpus artifact and diagnostic invariance checks; the IR/backend and source
+admission remain unchanged.
 
 ## Consequences and remaining work
 

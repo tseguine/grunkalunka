@@ -10,6 +10,17 @@ No tagged-pair or general value representation is selected. The bounded
 [immutable Boolean const policy](compiler.md#immutable-boolean-predicate-locals)
 uses the existing Predicate cells for predicate-position reads.
 
+The private [evaluator control tests](../crates/grunkalunka-compiler/src/evaluator_tests.rs)
+use real parsing, semantic analysis and region lowering. Finite characterization
+covers each admitted expression family and all four evaluator modes, including
+incremental argument/spread validation, bridges, snapshots and nested regions.
+Test-only observations measure actual evaluator entries and pending-work length;
+entry balance is checked after both success and error, and active entry depth is
+one. These observations do not measure native-stack bytes or establish a heap bound.
+Small private-IR assertions protect allocation order that runtime results cannot
+expose. Whole-corpus source/WAT/Wasm and complete rejection observations provide
+the broader control-refactor invariance check; they do not add source support.
+
 All six reference suites are registered in
 [`suites.json`](../tests/compatibility/suites.json) at immutable upstream revisions.
 The registry records source and root-license hashes observed during public source

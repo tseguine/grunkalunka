@@ -11,6 +11,23 @@ unary Number reads.
 All entry/helper parameters and returns remain Number-only. This adds no dynamic
 type inference or boxing; see the [bounded source contract](#immutable-boolean-predicate-locals).
 
+## Expression evaluation control
+
+Number, Predicate, discarded evaluation and arithmetic-operand conversion use one
+[explicit pending-work evaluator](../crates/grunkalunka-compiler/src/lower/evaluate.rs).
+Requests borrow original AST nodes; a cursor owns unfinished child regions, and
+continuations own completed children until their parent operation is emitted.
+Evaluation modes, original depth charges, first diagnostics, snapshots and region
+allocation order retain their existing source contract. This changes control flow,
+not source admission, IR types or the public compile API.
+
+The [decision and alternatives](adr/0001-explicit-evaluator-control.md) distinguish
+this maintained implementation from the disposable feasibility study. Evaluator
+requests do not recursively enter the evaluator. Parsing/semantic analysis,
+statements, shape classification, IR verification/emission, debug rendering and
+destruction retain separate recursion concerns; this is no whole-frontend liveness,
+heap bound, portability or performance claim.
+
 ## Replay
 
 From the repository root, with current Rust stable and Node available:
