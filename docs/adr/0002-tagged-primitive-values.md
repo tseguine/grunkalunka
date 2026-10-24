@@ -35,7 +35,8 @@ and non-NaN numbers by bits.
 Both execution profiles use the same import-free instantiation and renewed fuel
 budget. Keep stores independent. Add no ambient imports, dependencies, guest heap
 allocation or collector. The compiler exposes `compile_value` for this ABI; the CLI
-continues to select the numeric profile. Runtime-only fixtures establish transport
+selects it explicitly with `compile-value`, `wat-value` and `eval-value`. The original
+commands retain the numeric profile. Runtime-only fixtures establish transport
 and validation; separate compiled-source tests establish bounded source support.
 
 ## Alternatives

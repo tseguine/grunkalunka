@@ -354,5 +354,9 @@ independently. `compile_value` now lowers explicit four-kind primitive returns t
 verified General snapshots and pair emission, with Number/Predicate specialization.
 A separate finite suite compares 27 JS/TS pairs on 14 inputs with original JS in both
 Wasm engines (1512 comparisons). The numeric corpus and its rejection counts remain
-unchanged. General source cells/coercions/helper parameters, implicit returns, CLI
-profile selection and heap-backed values remain open.
+unchanged. The CLI now selects this profile through `compile-value`/`wat-value`/
+`eval-value`. Its separate report executes 19 pairs on 14 inputs (1064 comparisons),
+checks eight rejected pairs and five CLI control groups, and verifies four exact
+original numeric rejection sources as value-profile admissions while retaining their
+numeric rejection. General source cells/coercions/helper parameters, primitive
+equality, implicit returns and heap-backed values remain open.

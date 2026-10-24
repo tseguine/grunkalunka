@@ -1167,8 +1167,9 @@ sum type, renewing the same fuel budget as `NumericInstance`. Invalid tags or
 noncanonical non-Number payloads return errors. The numeric ABI remains available.
 See [ADR0002](adr/0002-tagged-primitive-values.md) for the wire contract and alternatives.
 `compile_value(source, typescript)` now emits this ABI through the original Oxc
-parser/semantic pass, explicit evaluator and verified IR. `compile` and every CLI
-command retain the numeric profile and its artifacts/diagnostics.
+parser/semantic pass, explicit evaluator and verified IR. `compile` and the original
+`compile`/`wat`/`eval` CLI commands retain the numeric profile and its artifacts/diagnostics.
+The `compile-value`/`wat-value`/`eval-value` commands select the primitive-return profile.
 
 The value profile admits explicit returns of null, unresolved global `undefined`,
 Boolean literals/comparisons/negation/immutable Predicate cells, and admitted Number
@@ -1191,5 +1192,34 @@ engine (1512 comparisons against original JS). These finite cases do not promote
 numeric-corpus or curated rejection fixtures. Corpus 50 remains 1466 pairs and 995
 rejections under the numeric profile. General source cells/parameters, mixed-kind
 operators/truthiness/coercions, empty/implicit returns, strings/objects/BigInts and
-CLI selection of the value profile remain open. Logical expressions still use the
+general heap integration remain open. Logical expressions still use the
 existing scalar operand contracts; this is not general JavaScript expression support.
+
+
+### CLI value protocol and separate reporting
+
+Both evaluation profiles read the same two 16-digit hexadecimal binary64 input
+patterns per line, with at most 4096 lines. `eval-value` writes one line per successful
+call: `undefined`, `null`, `boolean:0`, `boolean:1`, or `number:<16 lowercase hex digits>`.
+Number output keeps the runtime's bits, including signed zero and NaNs. Compatibility
+comparisons use NaN class rather than requiring an identical NaN payload.
+Value runtime errors include their cause chain; numeric error formatting is unchanged.
+The evaluator uses `ValueInstance`, including its import policy, typed signature and
+renewed fuel. Compilation completes admission/encoding before creating a new output;
+existing files are never overwritten.
+
+`node scripts/poc.mjs` builds offline and runs both profile reports. The separate
+[primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
+19 JS/TS pairs on 14 input pairs: 1064 comparisons with original JS across Wasmtime
+and Node-Wasm. It checks 8 rejected pairs and five CLI control groups, covering input
+validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
+fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
+compiler/lock hashes, host versions, standard references and invocation results.
+
+Four exact original numeric rejection sources (`boolean`, `null`, `comparison`,
+`predicate-conditional-numeric-return`) execute successfully in this value profile;
+the report also verifies their continued numeric-profile rejection. This is
+profile-specific support, not removal from the 995 numeric rejections or the 38
+curated numeric references. The eight selected value rejection pairs are not an
+exhaustive value-profile gap inventory. Numeric and value reports live separately
+under `target/compatibility-runs/` and `target/value-compatibility-runs/`.

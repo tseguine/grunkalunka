@@ -1,13 +1,20 @@
 # Known lowering gaps
 
-The current compiler admits one exported two-number function with numeric locals and immutable Boolean predicate locals,
+This page and the 995 rejection fixtures below describe the **numeric profile**.
+The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
+supports undefined/null/Boolean/Number returns. Four exact original numeric rejection
+sources now execute in that profile; its CLI report records both outcomes. These
+counts are profile-specific, not a total number of missing language features.
+The value report has eight selected rejected pairs, not an exhaustive inventory.
+
+The numeric profile admits one exported two-number function with numeric locals and immutable Boolean predicate locals,
 Number/Boolean expression statements, empty statements, assignments, branches, while/for/do loops,
 TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled loop break/continue and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
 Selected primitive-Boolean operands of unary `+`, `-` and `~` explicitly produce
-Numbers. This does not admit general Boolean storage, Boolean ABI returns or other
+Numbers. In the numeric profile this does not admit general Boolean storage, Boolean ABI returns or other
 primitive coercions; none of the 38 curated gaps is promoted by unary plus/minus.
 
 The executable frontier contains 38 curated reference cases in

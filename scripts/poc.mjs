@@ -16,3 +16,4 @@ function run(command, args, timeout) {
 run(process.execPath, ['scripts/licenses.mjs'], 60_000);
 run('cargo', ['build', '--workspace', '--locked', '--offline', '-j', '4'], 600_000);
 run(process.execPath, ['tests/compatibility/check.mjs'], outerMs);
+run(process.execPath, ['tests/compatibility/primitive-values-check.mjs'], 90_000);
