@@ -341,7 +341,6 @@ mod tests {
     #[test]
     fn strict_boolean_equality_keeps_kind_scope_and_depth_boundaries() {
         for body in [
-            "return true<false?1:0;",
             "return true===false;",
             "const flag=flag===true; return a;",
             "const flag=true; { const copy=flag===true; const flag=false; } return a;",

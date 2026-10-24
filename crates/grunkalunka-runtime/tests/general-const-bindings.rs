@@ -168,7 +168,6 @@ console.log('PASS '+cases.length+' General const modules');
 fn general_const_cells_preserve_lexical_and_use_boundaries() {
     for ts in [false, true] {
         for body in [
-            "const value=null; return value<1?1:0;",
             "const value=null; value=1; return a;",
             "const value=null; if(0) value=1; return a;",
             "const value=null; return value++;",

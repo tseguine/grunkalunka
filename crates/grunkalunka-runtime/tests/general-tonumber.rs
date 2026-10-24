@@ -312,7 +312,6 @@ fn primitive_coercion_does_not_widen_other_source_contracts() {
         "return {}+a;",
         "return a&true;",
         "const value=null; return ~value;",
-        "const value=null; return value<1?1:0;",
         "let value=null; value&&=a; return a;",
         "return +value; let value=null;",
         "const value=null; value=1; return +value;",

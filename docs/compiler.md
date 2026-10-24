@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 62
-contains 1721 paired programs, 923 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 63
+contains 1739 paired programs, 921 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 923 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 748 open requirements.
+classifies all 921 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 746 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1584,3 +1584,30 @@ four selected rejected pairs, six controls and two termination-only observations
 remain unchanged. Runtime coverage includes 1280 independent-golden modules,
 64 effect/order modules and 26 exact former Rust guard modules across eligible
 JS/TS/profile combinations, plus two semantic mutations.
+
+## Primitive relational comparisons
+
+`<`, `<=`, `>` and `>=` now admit the four represented primitive kinds through
+existing arithmetic conversion and Number comparisons. Undefined converts to NaN,
+null to +0, and Booleans to 0/1. All four relations are false when either converted
+operand is NaN. In particular, `<=` and `>=` cannot be implemented as simple
+negations of the opposite strict relation. This follows
+[IsLessThan](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-islessthan)
+and [relational evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators-runtime-semantics-evaluation).
+
+Both operands evaluate once, left to right, retaining the left snapshot across RHS
+writes, including `>`/`>=`. Conversions are pure for these four kinds. Equality
+routes and their strict Boolean specialization remain separate; positive Number
+operand paths retain their previous output. No IR, ABI, dependency, storage-planning
+or source-budget change is introduced. Strings, BigInts, Symbols, objects and
+observable ToPrimitive conversion remain outside this domain.
+
+Corpus 63 promotes two exact original JS observations and adds sixteen pairs:
+1739 pairs, 921 numeric rejections and 36 curated references. Its 56 inventory
+groups contain 746 open, 144 resource and 31 invalid observations. No retained
+rejection diagnostic changes. Value reporting adds four pairs, reaching 67 pairs
+and 3752 comparisons; thirteen numeric origins, four selected rejected pairs, six
+control groups and two termination-only observations remain unchanged. Coverage
+includes 1024 independent-golden modules, 64 effect/order modules, twelve exact
+former Rust guard modules and an operand-order mutation, across JS/TS and both
+profiles. Predicate-depth, local and statement limits retain their guards.

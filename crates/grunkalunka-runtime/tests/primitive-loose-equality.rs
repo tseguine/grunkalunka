@@ -325,7 +325,6 @@ fn loose_equality_retains_unrepresented_kind_scope_and_depth_guards() {
         "return 1n==a?1:0;",
         "return {}==a?1:0;",
         "return Symbol()==a?1:0;",
-        "return true<a?1:0;",
         "return true==a;",
         "return value==null?1:0; let value=null;",
         "const value=null; return (value=a)==a?1:0;",

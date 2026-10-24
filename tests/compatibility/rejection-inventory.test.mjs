@@ -1,3 +1,4 @@
+import { primitiveRelational, primitiveRelationalPromotions } from './primitive-relational.mjs';
 import { primitiveCompound, primitiveCompoundPromotions } from './primitive-compound.mjs';
 import { implicitLet, implicitLetPromotions } from './implicit-let.mjs';
 import { primitiveLooseEquality, primitiveLooseEqualityPromotions } from './primitive-loose-equality.mjs';
@@ -151,7 +152,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 923);
+  assert.equal(inventory.records.size, 921);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -371,4 +372,10 @@ test('implicit let retains four original JS or TS promotion sources',()=>{
 test('primitive arithmetic compounds retain five exact numeric promotion observations',()=>{
  assert.equal(primitiveCompoundPromotions.length,5);
  for(const [id,js,ts,hash] of primitiveCompoundPromotions){const sources=programSources(primitiveCompound.find(p=>p[0]===id));assert.deepEqual(sources,{sourceJS:js,sourceTS:ts,oracleSource:js});assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(p=>p[0]===id));}
+});
+
+
+test('primitive relational conversions retain two exact numeric promotion sources',()=>{
+ assert.equal(primitiveRelationalPromotions.length,2);
+ for(const [id,js,ts,hash] of primitiveRelationalPromotions){const sources=programSources(primitiveRelational.find(p=>p[0]===id));assert.deepEqual(sources,{sourceJS:js,sourceTS:ts,oracleSource:js});assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(p=>p[0]===id));}
 });

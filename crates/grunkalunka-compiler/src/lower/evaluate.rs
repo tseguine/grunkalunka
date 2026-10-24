@@ -412,7 +412,21 @@ impl Lowering<'_, '_> {
                     if booleans {
                         predicate_number(&mut work, right, depth);
                     } else {
-                        work.push(Work::Eval(right, depth, Mode::Number));
+                        work.push(Work::Eval(
+                            right,
+                            depth,
+                            if matches!(
+                                operator,
+                                Compare::Less
+                                    | Compare::LessEqual
+                                    | Compare::Greater
+                                    | Compare::GreaterEqual
+                            ) {
+                                Mode::Arithmetic
+                            } else {
+                                Mode::Number
+                            },
+                        ));
                     }
                 }
                 Work::Compare {
@@ -972,7 +986,15 @@ impl Lowering<'_, '_> {
                                 if booleans {
                                     predicate_number(&mut work, &binary.left, depth + 1);
                                 } else {
-                                    work.push(Work::Eval(&binary.left, depth + 1, Mode::Number));
+                                    work.push(Work::Eval(
+                                        &binary.left,
+                                        depth + 1,
+                                        if equality {
+                                            Mode::Number
+                                        } else {
+                                            Mode::Arithmetic
+                                        },
+                                    ));
                                 }
                                 continue;
                             }
