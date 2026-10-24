@@ -1,3 +1,4 @@
+import { generalDiscard, generalDiscardPromotions } from './general-discard.mjs';
 import { generalToNumber, generalToNumberPromotions } from './general-tonumber.mjs';
 import { mutableGeneralLocals, mutableGeneralPromotions } from './mutable-general-locals.mjs';
 import { generalLogical, generalLogicalPromotions } from './general-logical.mjs';
@@ -147,7 +148,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 955);
+  assert.equal(inventory.records.size, 951);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -342,4 +343,9 @@ test('Value parameter cases retain four distinct exact numeric rejection origins
  ]);
  for(const [id,[origin,source]] of expected){const fixture=valuePrograms.find(p=>p.id===id);assert.equal(fixture.numericOrigin,origin);assert.equal(fixture.sourceJS,source);assert.equal(rejected.find(p=>p[0]===origin)[1],source);}
  assert.equal(new Set([...expected.values()].map(([,source])=>source)).size,4);
+});
+
+test('General discarded values retain all four original numeric promotion sources',()=>{
+ assert.equal(generalDiscardPromotions.length,4);
+ for(const [id,js,ts,hash] of generalDiscardPromotions){const source=programSources(generalDiscard.find(p=>p[0]===id));assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(p=>p[0]===id));}
 });

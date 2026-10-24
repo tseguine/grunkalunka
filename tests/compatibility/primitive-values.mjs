@@ -50,6 +50,10 @@ const rows = [
   ['parameter-capture','const old=a; a=null; return old;'],
   ['parameter-alias','a=b; b=null; return a;'],
   ['parameter-selected','a=a?false:b; return a;'],
+  ['discard-nullish','null; undefined; return a;'],
+  ['discard-sequence','a=null,b=false; return a;'],
+  ['discard-conditional','a?(null,b):(undefined,false); return a?null:b;'],
+  ['discard-call','if(a) run(0,b++); return b;'],
 ];
 const numericOrigins = {
   'parameter-boolean':['discarded-number-rhs','export function run(a,b) { a=true; return a; }'],
@@ -71,7 +75,7 @@ export const valuePrograms = rows.map(([id, body]) => ({
   sourceJS: numericOrigins[id]?.[1] ?? (id === 'helper' ? 'function rem(x,y){return x%y;}\n' : '') + wrap(body, false),
   sourceTS: (id === 'helper' ? 'function rem<T>(x:number,y:number):number{return x%y;}\n' : '')
     + wrap(id === 'type-wrapper' ? 'return ((a?null:b) as unknown)!;' : body, true),
-  standards: id.startsWith('parameter-') ? [returns, types, conditional, spec + 'ordinary-and-exotic-objects-behaviours.html#sec-functiondeclarationinstantiation', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : (id.startsWith('tonumber-') || id === 'coercion') ? [returns, types, conditional, spec + 'abstract-operations.html#sec-tonumber', spec + 'ecmascript-language-expressions.html#sec-applystringornumericbinaryoperator'] : id.startsWith('mutable-') ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : id.startsWith('logical-') ? [returns, types, conditional, spec + 'ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation'] : id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
+  standards: id.startsWith('discard-') ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-expression-statement-runtime-semantics-evaluation', spec + 'ecmascript-language-expressions.html#sec-comma-operator-runtime-semantics-evaluation'] : id.startsWith('parameter-') ? [returns, types, conditional, spec + 'ordinary-and-exotic-objects-behaviours.html#sec-functiondeclarationinstantiation', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : (id.startsWith('tonumber-') || id === 'coercion') ? [returns, types, conditional, spec + 'abstract-operations.html#sec-tonumber', spec + 'ecmascript-language-expressions.html#sec-applystringornumericbinaryoperator'] : id.startsWith('mutable-') ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations', spec + 'ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation'] : id.startsWith('logical-') ? [returns, types, conditional, spec + 'ecmascript-language-expressions.html#sec-binary-logical-operators-runtime-semantics-evaluation'] : id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
 }));
 const expression = 'expression is outside the numeric experiment';
 export const valueRejected = [

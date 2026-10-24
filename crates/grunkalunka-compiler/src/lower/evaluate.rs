@@ -719,8 +719,10 @@ impl Lowering<'_, '_> {
                         Mode::Predicate
                     } else if self.general_logical_shape(node, depth) {
                         Mode::General
-                    } else {
+                    } else if self.numeric_result_shape(node, depth) {
                         Mode::Number
+                    } else {
+                        Mode::General
                     };
                     work.push(Work::Forget);
                     work.push(Work::Eval(node, depth, mode));

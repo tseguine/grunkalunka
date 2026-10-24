@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 57
-contains 1605 paired programs, 955 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 58
+contains 1625 paired programs, 951 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 955 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 780 open requirements.
+classifies all 951 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 776 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1212,7 +1212,7 @@ existing files are never overwritten.
 
 `node scripts/poc.mjs` builds offline and runs both profile reports. The separate
 [primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
-42 JS/TS pairs on 14 input pairs: 2352 comparisons with original JS across Wasmtime
+46 JS/TS pairs on 14 input pairs: 2576 comparisons with original JS across Wasmtime
 and Node-Wasm. It checks 4 rejected pairs and six CLI control groups, covering input
 validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
 fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
@@ -1448,3 +1448,32 @@ modules, a 1000-parameter helper with a changed source parameter, and the unchan
 128-source-local budget. A 1000-parameter dependency chain is compiled/validated
 without claiming execution within the normal call-fuel budget. Its discarded
 sequence ends with scalar zero to isolate that existing expression-routing gap.
+
+## Discarded primitive expressions
+
+When an expression result is unused by the supported function contract, lowering
+still evaluates it and performs GetValue. Nullish literals and admitted General
+sequence/conditional/call results can now be discarded. Existing positive General
+binding/assignment, Predicate, General logical and Number routes retain priority;
+only the remaining expressions use General evaluation followed by Forget.
+No numeric conversion is added. The same original AST nodes, pending continuations
+and source-depth charges remain in use.
+
+Sequence operands retain left-to-right evaluation, and only a selected conditional
+or logical branch executes. Discard does not excuse TDZ, unknown references,
+const writes, unsupported operands in unselected branches, source budgets or return
+policies. General calls keep their existing argument/signature contracts. No new
+operator, source kind, host capability, ABI or IR operation is introduced.
+
+Corpus 58 promotes four exact original numeric observations and adds sixteen
+other pairs: 1625 pairs, 951 rejections, 36 curated references, and 776 open/144
+resource/31 invalid observations in 56 groups. Remaining rejection diagnostics
+and records retain their original identities. The Value profile adds four cases,
+reaching 46 pairs, four selected rejected pairs, twelve numeric origins, 2576 result
+comparisons, six controls and the same two termination-only observations.
+
+Finite runtime checks cover 288 primitive-form modules, 64 effect modules, fourteen
+exact former guard modules and existing depth/statement/local limits. The original
+1000-parameter chain that ended in a discarded General assignment now compiles and
+validates without a trailing scalar. It is instantiated/validated in both engines;
+no execution or call-fuel result is claimed for that large witness.

@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, compound/update/logical assignments, implicit initialization, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments, other parameter write operators and discarded sequences ending in General remain separate requirements.",
+      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, compound/update/logical assignments, implicit initialization, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean const cells retain scalar specialization, and General const/let cells can hold represented primitive kinds. ToBoolean, strict equality, &&/|| selection and discarded reads admit represented Booleans. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps false to +0 and true to 1, including General conditional/sequence/assignment results. Numeric-profile Boolean returns, call arguments, compound/update/logical assignments, relational/loose comparison conversions and further bitwise/shift operands remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments, other parameter write operators and discarded sequences ending in General remain separate requirements.",
+      "assessment": "Immutable Boolean const cells retain scalar specialization, and General const/let cells can hold represented primitive kinds. ToBoolean, strict equality, &&/|| selection and discarded reads admit represented Booleans. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps false to +0 and true to 1, including General conditional/sequence/assignment results. Numeric-profile Boolean returns, call arguments, compound/update/logical assignments, relational/loose comparison conversions and further bitwise/shift operands remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -6100,20 +6100,6 @@
       "group": "object-values"
     },
     {
-      "id": "discarded-null",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4750db473ffb0e353284ee4cc39e329223c95ea62075563a94c9cf1ab49b4110",
-      "group": "nullish-values"
-    },
-    {
-      "id": "discarded-undefined",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "67ca4cf7ef0e0582b9b3dd7ab1725b95a3545d8ab17239678a2276cffafab6b2",
-      "group": "nullish-values"
-    },
-    {
       "id": "discarded-global",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6959,20 +6945,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "0cfe9e639bec821135ddc13bbe8e2155afd2dd502a32cdaa8277494dea83b775",
       "group": "expression-depth"
-    },
-    {
-      "id": "discarded-predicate-binding-reject-root-conditional",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f1b61f72291efa73923c67e9912a8e26d30c59a09d5da4cee5e96179f24a4697",
-      "group": "boolean-values"
-    },
-    {
-      "id": "discarded-predicate-binding-reject-root-sequence",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "947b65bf0435d83dd7ba5ebffa82468f5cb1afba8670f54504cab950f07a9cac",
-      "group": "boolean-values"
     },
     {
       "id": "discarded-predicate-binding-reject-return",

@@ -500,13 +500,12 @@ fn left_snapshot_precedes_right_assignment() {
 }
 
 #[test]
-fn characterization_setup_frontiers_report_the_remaining_unsupported_use() {
+fn discarded_join_characterization_completes_in_one_pending_evaluator() {
     let source = "export function run(a,b) { const flag=true; flag; a; !a; (a=1,flag); a?flag:!b; flag&&true; return a; }";
-    let expected =
-        "unsupported at bytes 62..66: Boolean bindings are not admitted in numeric value positions";
-    let (result, maximum, _, _) = observe(|| crate::lower_source(source, false));
-    assert_eq!(result.unwrap_err(), expected);
+    let (result, maximum, _, pending) = observe(|| crate::lower_source(source, false));
+    result.unwrap();
     assert_eq!(maximum, 1);
+    assert!(pending > 1);
 }
 
 #[test]

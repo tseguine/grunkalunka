@@ -48,8 +48,6 @@ const negatives=[
   ['string','("x"); return a;',expression],
   ['asserted-string','("x") as boolean; return a;',expression,'ts'],
   ['object','({}); return a;',expression],
-  ['null','null; return a;',expression],
-  ['undefined','undefined; return a;',reference],
   ['global','clock; return a;',reference],
   ['call','Math.random(); return a;',expression],
   ['comparison-boolean','true==a; return a;',expression],

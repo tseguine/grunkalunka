@@ -404,8 +404,6 @@ mod tests {
     #[test]
     fn discarded_predicate_bindings_keep_root_joins_and_scope_guards() {
         for body in [
-            "const flag=true; a?flag:flag; return a;",
-            "const flag=true; a,flag; return a;",
             "const flag=true; { flag; const flag=false; } return a;",
             "{const flag=true;} flag; return a;",
             "clock; return a;",

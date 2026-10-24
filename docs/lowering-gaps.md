@@ -1,6 +1,6 @@
 # Known lowering gaps
 
-This page and the 955 rejection fixtures below describe the **numeric profile**.
+This page and the 951 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Twelve exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -45,8 +45,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 780 open requirements
-across all 955 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 776 open requirements
+across all 951 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -464,3 +464,21 @@ logical writes and discarded sequences ending in General remain open. A large
 flat dependency-chain witness uses a trailing scalar zero; it demonstrates storage
 planning and Wasm validation, not support for that discarded-General sequence or
 execution within the normal fuel allowance.
+
+## Discarded General primitive increment
+
+Corpus 58 transfers `discarded-null`, `discarded-undefined` and the original
+root-conditional/root-sequence Predicate-binding discard observations to execution.
+All four IDs and exact original JS/TS sources remain in admitted fixtures.
+Sixteen other pairs cover effects, loops, snapshots and type wrappers. Totals are
+1625 pairs, 951 numeric rejections and 36 curated references: 776 open, 144 resource
+and 31 invalid observations across 56 groups. No retained diagnostic advances.
+
+General-valued discarded sequences and conditional/call results now work under
+the existing source and signature contracts, resolving the gap observed during
+parameter-cell work. The exact formerly failing 1000-parameter chain compiles and
+validates without trailing scalar zero; its execution is not counted. Value
+reporting reaches 46 pairs/four selected rejections/twelve numeric origins and
+2576 comparisons, with prior controls and termination-only observations unchanged.
+Other operators, write families, General arguments, implicit lexical initialization
+and unrepresented kinds remain separate requirements.

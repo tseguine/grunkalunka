@@ -329,7 +329,6 @@ fn parameter_cells_keep_argument_and_other_write_contracts() {
         "a=null; {let a=a;} return 1;",
         "a=null; return missing;",
         "a='x'; return a;",
-        "a=null,b=false; return a;",
     ] {
         let source = format!("export function run(a,b) {{{body}}}");
         let error = compile_value(&source, false).err().unwrap();

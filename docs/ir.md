@@ -493,3 +493,17 @@ positive storage classifier records symbol dependencies, and reverse invalidatio
 computes the greatest Number candidate set without repeated whole-plan scans.
 Unseeded Number cycles remain candidates; normal lexical source validation still
 controls admission. A non-Number seed invalidates every dependent candidate.
+
+### Discard routing for General values
+
+Discard requests keep the existing positive scalar and General routes before
+falling back to General evaluation. The resulting captured ValueId is forgotten
+by the evaluator after its operations/effects have been emitted. A General result
+is one logical snapshot even though its physical layout has two locals; no implicit
+numeric conversion or additional IR operation is required.
+
+This extends sequence/conditional/general-call and nullish expression statements
+while retaining once-only evaluation, lexical validation, selected-branch effects
+and original source-budget charges. Every previously admitted expression keeps its
+original specialized route. Discarding a value does not waive admission of its
+source operands or make General arguments/unsupported operators valid.

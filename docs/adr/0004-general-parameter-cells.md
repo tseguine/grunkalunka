@@ -66,3 +66,10 @@ A large flat dependency-chain witness ends its discarded comma expression with a
 scalar zero to isolate storage planning. A discarded sequence whose final value
 is General remains a separately recorded lowering gap; successful parameter writes
 do not imply that expression-routing support.
+
+## Subsequent discard extension
+
+The later discarded-primitive increment resolves that final-General sequence gap.
+The exact original 1000-parameter chain now compiles/validates without scalar zero.
+This does not change the parameter representation or claim that executing the
+large witness fits within the ordinary call-fuel allowance.
