@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, compound/update/logical assignments, implicit initialization, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes.",
+      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, compound/update/logical assignments, implicit initialization, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean const cells retain scalar specialization, and General const/let cells can hold represented primitive kinds. ToBoolean, strict equality, &&/|| selection and discarded reads admit represented Booleans. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps false to +0 and true to 1, including General conditional/sequence/assignment results. Numeric-profile Boolean returns, call arguments, compound/update/logical assignments, relational/loose comparison conversions and further bitwise/shift operands remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes.",
+      "assessment": "Immutable Boolean const cells retain scalar specialization, and General const/let cells can hold represented primitive kinds. ToBoolean, strict equality, &&/|| selection and discarded reads admit represented Booleans. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps false to +0 and true to 1, including General conditional/sequence/assignment results. Numeric-profile Boolean returns, call arguments, compound/update/logical assignments, relational/loose comparison conversions and further bitwise/shift operands remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -386,7 +386,7 @@
     {
       "id": "coercive-equality",
       "kind": "open-requirement",
-      "assessment": "Strict equality over the four admitted primitive kinds is supported without coercion. Loose equality involving non-Number values still requires the standard coercion algorithms; String, BigInt and object equality remain outside admission.",
+      "assessment": "Loose ==/!= now admit the four represented primitive kinds. Same-kind comparisons retain strict equality semantics, null and undefined compare equal, Boolean/Number pairs use numeric equality, and nullish/non-nullish pairs differ. Number-only comparisons retain scalar paths. Strings, BigInts, Symbols, objects, ToPrimitive and optional IsHTMLDDA behavior remain separate requirements; successful rejection is not support.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-equality-operators",
@@ -1802,34 +1802,6 @@
       "group": "predicate-depth"
     },
     {
-      "id": "equality-boolean-left",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "e48fdfccfdbda20fdcb77619f719fc428fafafd8f02e3ec67092e01968471455",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "equality-boolean-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "adcdb336b021699eea3278adc971eeb0ded76e9e21f7984b1f08611fa1d0fbbf",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "inequality-boolean-left",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "295bb4820544f1ac9b5370d4bcdc270c2de5a1f0eed73fcb38039715c522990f",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "inequality-boolean-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "581c39d008a3d22df1863479e4ab0ac7d5cd7c6ed02630cff21f1ca006634037",
-      "group": "coercive-equality"
-    },
-    {
       "id": "equality-string-left",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1841,20 +1813,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "3d0eecebf0fe94d32f99e5ea6189454ea91795fc34c71b4c06b108b159513e5c",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "equality-null-left",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "408e99e16b359e7f5e4d3bb0e0e7afa4b007b36494aad70254e68d62ff98addf",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "inequality-null-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "933ed0c226149997723a82102631bcd4eaf42246048bdbf8bc7675fb82cc305e",
       "group": "coercive-equality"
     },
     {
@@ -1870,20 +1828,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "7447051cbf9634a87e8828b705f9323889e022c31eeebef903b6983c4c82c2d2",
       "group": "coercive-equality"
-    },
-    {
-      "id": "equality-comparison-operand",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "09a10938fdca5dd6a685618b4fbfbb44df291e0ff7b8a280344018c2c6648941",
-      "group": "boolean-values"
-    },
-    {
-      "id": "equality-nested-operand",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "96a754245cdfde5aa8908c737ec47533ec3f4c4e37e5fbf1abdddf15af27cc47",
-      "group": "boolean-values"
     },
     {
       "id": "equality-numeric-return",
@@ -4392,13 +4336,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "predicate-conditional-equality-operand",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "68da9b038642022c1981c1cc10567ca54e6240656b347d9a2c34bf0495f16838",
-      "group": "boolean-values"
-    },
-    {
       "id": "predicate-conditional-depth",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6114,20 +6051,6 @@
       "group": "function-calls"
     },
     {
-      "id": "discarded-comparison-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "43e9e990fb1665d152c451c4aadadf6bcdb341f9e3068edf5b3df60f45832e7a",
-      "group": "boolean-values"
-    },
-    {
-      "id": "discarded-nested-comparison",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "46fe17093676a121ba3387b44368a03b8fe3f53ed9c211d74d18a85569a41745",
-      "group": "boolean-values"
-    },
-    {
       "id": "discarded-number-return",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6279,13 +6202,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "fc3ca2a98e515b26cb56a5260816fd5e4ca7f32df7ecd9c8399bdb2e3a9f97cf",
-      "group": "boolean-values"
-    },
-    {
-      "id": "const-boolean-comparison-operand",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6b4c1127a8344c7699391b9bd637e15b910cebd8e54f50592919527c1b4e8bd0",
       "group": "boolean-values"
     },
     {
@@ -6506,13 +6422,6 @@
       "group": "expression-depth"
     },
     {
-      "id": "boolean-arithmetic-equality",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9d88a8756cc41c6ea408a6831cf0859af2055c9bf6f8e71ab452ad4ff3d9ef06",
-      "group": "boolean-values"
-    },
-    {
       "id": "boolean-arithmetic-comparison",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6653,13 +6562,6 @@
       "group": "string-values"
     },
     {
-      "id": "boolean-arithmetic-unsupported-comparison-operand",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "38a12f3fd19919eb2f71a27207919b36a967bbd21c3a1d0a82ee30b9b04160b9",
-      "group": "boolean-values"
-    },
-    {
       "id": "unary-predicate-binding-reject-return",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6679,13 +6581,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "fc3ca2a98e515b26cb56a5260816fd5e4ca7f32df7ecd9c8399bdb2e3a9f97cf",
       "group": "boolean-values"
-    },
-    {
-      "id": "unary-predicate-binding-reject-equality",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7d48cdc934683f58b36cad689ec4e07806fbc2146438408dd5157ba0115cf185",
-      "group": "coercive-equality"
     },
     {
       "id": "unary-predicate-binding-reject-bitwise",
@@ -6812,13 +6707,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "fc3ca2a98e515b26cb56a5260816fd5e4ca7f32df7ecd9c8399bdb2e3a9f97cf",
       "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-equality",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7d48cdc934683f58b36cad689ec4e07806fbc2146438408dd5157ba0115cf185",
-      "group": "coercive-equality"
     },
     {
       "id": "arithmetic-predicate-binding-reject-bitwise",
@@ -6982,13 +6870,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "discarded-predicate-binding-reject-equality",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7d48cdc934683f58b36cad689ec4e07806fbc2146438408dd5157ba0115cf185",
-      "group": "coercive-equality"
-    },
-    {
       "id": "discarded-predicate-binding-reject-bitwise",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7099,20 +6980,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "6752138284293a80851dd3ffbbd07c017ea0f50e1033a73d6b3e8d12f0b749f6",
       "group": "expression-depth"
-    },
-    {
-      "id": "strict-boolean-equality-reject-loose-equal",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "25875a20d3261c9e5eebe5c18cf7896f63fa317044d35ccf6715aacfd08882d5",
-      "group": "coercive-equality"
-    },
-    {
-      "id": "strict-boolean-equality-reject-loose-not-equal",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6b7f637a45819edb0f55054e75626d63994c49cbc9173af22d1eebcb60a20b55",
-      "group": "coercive-equality"
     },
     {
       "id": "strict-boolean-equality-reject-relational",

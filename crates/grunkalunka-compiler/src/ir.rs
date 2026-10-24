@@ -104,6 +104,12 @@ pub(crate) enum Op {
         right: ValueId,
         negated: bool,
     },
+    PrimitiveLooseEqual {
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+        negated: bool,
+    },
     Nullish {
         result: ValueId,
         value: Nullish,
@@ -484,6 +490,12 @@ impl Verifier<'_> {
                     self.define(*result, Type::Number, &mut visible, span)?;
                 }
                 Op::PrimitiveStrictEqual {
+                    result,
+                    left,
+                    right,
+                    ..
+                }
+                | Op::PrimitiveLooseEqual {
                     result,
                     left,
                     right,
@@ -2890,6 +2902,43 @@ mod general_parameter_cell_tests {
                 _ => f.slots[0].ty = Type::General,
             }
             assert!(verify_module_with_entry_type(&m, Type::General).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod primitive_loose_tests {
+    use super::*;
+    fn module() -> Module {
+        crate::lower_source(
+            "export function run(a,b) {return null==undefined?1:0;}",
+            false,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn primitive_loose_equality_requires_visible_general_operands_and_predicate_result() {
+        verify_module(&module()).unwrap();
+        for change in 0..5 {
+            let mut m = module();
+            let f = &mut m.functions[0];
+            let Op::PrimitiveLooseEqual {
+                left,
+                right,
+                result,
+                ..
+            } = &mut f.body.operations[2].kind
+            else {
+                panic!("loose comparison")
+            };
+            match change {
+                0 => *left = ValueId(99),
+                1 => *right = *result,
+                2 => f.values[left.0] = Type::Number,
+                3 => f.values[result.0] = Type::General,
+                _ => f.body.operations.swap(1, 2),
+            };
+            assert!(verify_module(&m).is_err());
         }
     }
 }

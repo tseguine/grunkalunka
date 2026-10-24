@@ -1,3 +1,4 @@
+import { primitiveLooseEquality } from './primitive-loose-equality.mjs';
 import { generalDiscard } from './general-discard.mjs';
 import { generalParameters } from './general-parameters.mjs';
 import { generalToNumber } from './general-tonumber.mjs';
@@ -60,7 +61,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 58;
+export const corpusVersion = 59;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -137,6 +138,7 @@ programs.push(...mutableGeneralLocals);
 programs.push(...generalToNumber);
 programs.push(...generalParameters);
 programs.push(...generalDiscard);
+programs.push(...primitiveLooseEquality);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);
@@ -296,7 +298,6 @@ export const rejected = [
   ['predicate-conditional-numeric-return', 'export function run(a,b) { return a?true:false; }'],
   ['predicate-conditional-numeric-local', 'export function run(a,b) { const x=a?true:false; return x; }', 'js', 'General bindings require a primitive value position'],
   ['predicate-conditional-assignment', 'export function run(a,b) { if(a?(a=true):false) return a; return b; }'],
-  ['predicate-conditional-equality-operand', 'export function run(a,b) { if((a?true:false)==0) return a; return b; }'],
   ['predicate-conditional-depth', `export function run(a,b) { if(${'a?true:'.repeat(129)}false) return a; return b; }`],
   ['not-unselected-call', 'export function run(a,b) { if(true) return a; else if(!Math.random()) return b; return a; }'],
   ['not-depth-limit', `export function run(a,b) { if(${'!'.repeat(129)}a) return a; return b; }`],

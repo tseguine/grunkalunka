@@ -50,8 +50,6 @@ const negatives=[
   ['object','({}); return a;',expression],
   ['global','clock; return a;',reference],
   ['call','Math.random(); return a;',expression],
-  ['comparison-boolean','true==a; return a;',expression],
-  ['nested-comparison','(a<b)==0; return a;',binary],
   ['number-return','return true;',expression],
   ['number-rhs','a=true; return a;','General bindings require a primitive value position'],
   ['number-argument','return Math.abs(true);',expression],

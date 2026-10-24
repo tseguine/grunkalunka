@@ -68,7 +68,6 @@ const negatives=[
   ['return','const flag=true; return flag;',numeric],
   ['argument','const flag=true; return Math.abs(flag);',numeric],
   ['assignment-rhs','const flag=true; a=flag; return a;','General bindings require a primitive value position'],
-  ['comparison-operand','const flag=true; return flag==1?a:b;',numeric],
   ['const-write','const flag=true; flag=a; return a;','assignment to a const binding'],
   ['const-update','const flag=true; flag++; return a;','update to a const binding'],
   ['self','const flag=flag; return a;',reference],

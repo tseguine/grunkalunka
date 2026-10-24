@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 58
-contains 1625 paired programs, 951 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 59
+contains 1660 paired programs, 932 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 951 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 776 open requirements.
+classifies all 932 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 757 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1477,3 +1477,29 @@ exact former guard modules and existing depth/statement/local limits. The origin
 1000-parameter chain that ended in a discarded General assignment now compiles and
 validates without a trailing scalar. It is instantiated/validated in both engines;
 no execution or call-fuel result is claimed for that large witness.
+
+## Loose equality of represented primitives
+
+Loose `==` and `!=` support the four represented primitive kinds: undefined,
+null, Boolean and Number. Both nullish kinds compare equal to each other; neither
+compares equal to a Boolean or Number. Boolean/Number comparisons use the Boolean
+numeric value. NaN remains unequal, and signed zeros compare equal. This follows
+[ECMAScript IsLooselyEqual](https://tc39.es/ecma262/#sec-islooselyequal).
+String, BigInt, Symbol, objects and the optional IsHTMLDDA behavior remain outside
+this domain; the curated string-coercion equality gap remains rejected.
+
+The typed `PrimitiveLooseEqual` operation consumes two General snapshots and
+produces a Predicate. With canonical nullish payloads of +0 and Boolean payloads
+of 0/1, emission compares the nullish/non-nullish partition and the numeric
+payload. This formula depends on the four-kind invariant; adding another kind
+requires revisiting it. Both operands evaluate once, left to right. Existing
+positive Number comparisons and strict equality retain their previous routes.
+
+Corpus 59 promotes 19 exact rejection observations (17 distinct JS sources),
+paired with TypeScript companions, and adds effect and type-wrapper cases:
+1660 pairs, 932 numeric rejections and 36 curated references. The 56 inventory
+groups now contain 757 open requirements, 144 resource restrictions and 31 invalid
+sources. No retained rejection diagnostic changes. Value reporting adds four
+cases, reaching 50 pairs, four selected rejected pairs and 2800 result comparisons;
+twelve numeric origins, six control groups and two termination-only observations
+remain unchanged. These finite cases do not establish complete language support.

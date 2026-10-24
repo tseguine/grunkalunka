@@ -28,18 +28,10 @@ numericEqualityPrograms.push(['equality-typescript-wrappers',
 const expression = 'expression is outside the numeric experiment';
 const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const negatives = [
-  ['equality-boolean-left', 'return true==1?a:b;', expression],
-  ['equality-boolean-right', 'return 1==true?a:b;', expression],
-  ['inequality-boolean-left', 'return true!=1?a:b;', expression],
-  ['inequality-boolean-right', 'return 1!=true?a:b;', expression],
   ['equality-string-left', 'return "4"==a?1:0;', expression],
   ['inequality-string-right', 'return a!="4"?1:0;', expression],
-  ['equality-null-left', 'return null==a?1:0;', expression],
-  ['inequality-null-right', 'return a!=null?1:0;', expression],
   ['equality-object', 'return a==({})?1:0;', expression],
   ['inequality-bigint', 'return a!=1n?1:0;', expression],
-  ['equality-comparison-operand', 'return (a<b)==0?1:0;', binary],
-  ['equality-nested-operand', 'return (a==b)==0?1:0;', binary],
   ['equality-numeric-return', 'return a==b;', binary],
   ['equality-unselected-call', 'return 0?(a==Math.random()?1:0):b;', expression],
   ['equality-asserted-string', 'return ((a==("4" as number)) as boolean)?1:0;', expression, 'ts'],

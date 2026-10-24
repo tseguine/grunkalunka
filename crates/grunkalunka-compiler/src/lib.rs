@@ -341,8 +341,6 @@ mod tests {
     #[test]
     fn strict_boolean_equality_keeps_kind_scope_and_depth_boundaries() {
         for body in [
-            "return true==false?1:0;",
-            "return true!=false?1:0;",
             "return true<false?1:0;",
             "return true===false;",
             "const flag=flag===true; return a;",
@@ -570,7 +568,6 @@ mod tests {
             "return ~(true&&false);",
             "return ~!(0&&Math.random());",
             "return Math.abs(true);",
-            "return ~(true==a);",
         ] {
             assert!(
                 compile(&format!("export function run(a,b) {{ {body} }}"), true).is_err(),
@@ -1130,7 +1127,6 @@ mod tests {
     fn boolean_arithmetic_keeps_other_operand_boundaries() {
         for (body, reason) in [
             ("a+=true; return a;", "expression is outside"),
-            ("return true==a?1:0;", "expression is outside"),
             ("return a&true;", "expression is outside"),
         ] {
             let source = format!("export function run(a,b) {{ {body} }}");

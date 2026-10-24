@@ -232,7 +232,7 @@ const CASES: &[(&str, &str, bool, bool)] = &[
         "loose-boolean",
         "export function run(a,b) { return true==false?1:2; }",
         false,
-        false,
+        true,
     ),
     (
         "return-boolean",
@@ -331,9 +331,6 @@ fn evaluator_control_characterization() {
                     }
                     "shadow" => {
                         "unsupported at bytes 57..61: reference is not an initialized numeric parameter or local"
-                    }
-                    "loose-boolean" => {
-                        "unsupported at bytes 34..38: expression is outside the numeric experiment"
                     }
                     "return-boolean" => {
                         "unsupported at bytes 34..46: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"

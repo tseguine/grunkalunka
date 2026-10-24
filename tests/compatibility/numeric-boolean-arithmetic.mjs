@@ -74,7 +74,6 @@ const binary='only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const numeric='Boolean bindings are not admitted in numeric value positions';
 const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
-  ['equality','return true==a?1:0;',expression],
   ['comparison','return true<a?1:0;',expression],
   ['compound','a+=true; return a;',expression],
   ['compound-remainder','a%=true; return a;',expression],
@@ -95,7 +94,6 @@ const negatives=[
   ['local-limit',`const ${Array.from({length:129},(_,i)=>`x${i}=a+true`).join(',')}; return a;`,'at most 128 source locals'],
   ['statement-limit',`${'true+a;'.repeat(256)}return a;`,'at most 256 statements'],
   ['asserted-string','return ("x" as boolean)+true;',expression,'ts'],
-  ['unsupported-comparison-operand','return (true==a)+1;',expression],
 ];
 export const numericBooleanArithmeticRejected=negatives.map(([id,body,diagnostic,ext='js'])=>[
   `boolean-arithmetic-${id}`,`export function run(a,b) { ${body} }`,ext,diagnostic,

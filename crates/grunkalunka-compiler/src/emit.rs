@@ -247,6 +247,29 @@ impl Emitter<'_> {
                     }
                     self.set(*result);
                 }
+                Op::PrimitiveLooseEqual {
+                    result,
+                    left,
+                    right,
+                    negated,
+                } => {
+                    let left = self.value_offsets[left.0];
+                    let right = self.value_offsets[right.0];
+                    // Only four canonical kinds reach this operation. Nullish payloads
+                    // are +0; Boolean payloads already equal their Number conversion.
+                    writeln!(self.output,"local.get {left}\ni32.const 2\ni32.lt_u\nlocal.get {right}\ni32.const 2\ni32.lt_u\ni32.eq").unwrap();
+                    writeln!(
+                        self.output,
+                        "local.get {}\nlocal.get {}\nf64.eq\ni32.and",
+                        left + 1,
+                        right + 1
+                    )
+                    .unwrap();
+                    if *negated {
+                        self.output.push_str("i32.eqz\n");
+                    }
+                    self.set(*result);
+                }
                 Op::PrimitiveStrictEqual {
                     result,
                     left,

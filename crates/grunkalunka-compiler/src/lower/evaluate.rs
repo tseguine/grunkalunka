@@ -85,11 +85,13 @@ enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
         depth: usize,
+        loose: bool,
         negated: bool,
     },
     PrimitiveCompare {
         node: &'e Expression<'a>,
         left: ValueId,
+        loose: bool,
         negated: bool,
     },
     CompareRight {
@@ -356,12 +358,14 @@ impl Lowering<'_, '_> {
                     node,
                     right,
                     depth,
+                    loose,
                     negated,
                 } => {
                     let left = values.pop().expect("primitive comparison left").general();
                     work.push(Work::PrimitiveCompare {
                         node,
                         left,
+                        loose,
                         negated,
                     });
                     work.push(Work::Eval(right, depth, Mode::General));
@@ -369,20 +373,27 @@ impl Lowering<'_, '_> {
                 Work::PrimitiveCompare {
                     node,
                     left,
+                    loose,
                     negated,
                 } => {
                     let right = values.pop().expect("primitive comparison right").general();
                     let result = self.value(Type::Predicate);
-                    Self::push(
-                        regions.current(),
-                        node,
+                    let operation = if loose {
+                        Op::PrimitiveLooseEqual {
+                            result,
+                            left,
+                            right,
+                            negated,
+                        }
+                    } else {
                         Op::PrimitiveStrictEqual {
                             result,
                             left,
                             right,
                             negated,
-                        },
-                    );
+                        }
+                    };
+                    Self::push(regions.current(), node, operation);
                     values.push(Value::Predicate(result));
                 }
                 Work::CompareRight {
@@ -892,8 +903,13 @@ impl Lowering<'_, '_> {
                                     BinaryOperator::StrictEquality
                                         | BinaryOperator::StrictInequality
                                 );
-                                if strict
-                                    && !booleans
+                                let equality = strict
+                                    || matches!(
+                                        binary.operator,
+                                        BinaryOperator::Equality | BinaryOperator::Inequality
+                                    );
+                                if equality
+                                    && !(strict && booleans)
                                     && !(self.numeric_result_shape(&binary.left, depth + 1)
                                         && self.numeric_result_shape(&binary.right, depth + 1))
                                 {
@@ -901,8 +917,12 @@ impl Lowering<'_, '_> {
                                         node,
                                         right: &binary.right,
                                         depth: depth + 1,
-                                        negated: binary.operator
-                                            == BinaryOperator::StrictInequality,
+                                        loose: !strict,
+                                        negated: matches!(
+                                            binary.operator,
+                                            BinaryOperator::Inequality
+                                                | BinaryOperator::StrictInequality
+                                        ),
                                     });
                                     work.push(Work::Eval(&binary.left, depth + 1, Mode::General));
                                     continue;

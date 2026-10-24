@@ -40,8 +40,6 @@ export const strictBooleanEqualityPromotions=[
 for(const[id,sourceJS,sourceTS]of strictBooleanEqualityPromotions) strictBooleanEquality.push([id,'','',undefined,undefined,{sourceJS,sourceTS}]);
 const expression='expression is outside the numeric experiment',numeric='Boolean bindings are not admitted in numeric value positions',binary='only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted',reference='reference is not an initialized numeric parameter or local';
 const negatives=[
- ['loose-equal','return true==false?1:0;',expression,'coercive-equality'],
- ['loose-not-equal','return true!=false?1:0;',expression,'coercive-equality'],
  ['relational','return true<false?1:0;',expression,'boolean-values'],
  ['direct-return','return true===false;',binary,'boolean-values'],
  ['self','const flag=flag===true; return a;',reference,'binding-errors'],

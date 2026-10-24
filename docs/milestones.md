@@ -36,7 +36,7 @@ be represented internally without changing the public two-number/result-number A
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 58](../tests/compatibility/corpus.mjs): 1625 paired programs, 951 rejection fixtures, five explicit unexecuted feature groups. The [36 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| C1 — executable compatibility matrix | Done | [Corpus version 59](../tests/compatibility/corpus.mjs): 1660 paired programs, 932 rejection fixtures, five explicit unexecuted feature groups. The [36 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 32 adapted runtime cases and zero selected admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -428,3 +428,29 @@ retain their scalar routes. Value reporting reaches 46 pairs/four selected
 rejections/twelve numeric origins, with termination observations still separate.
 The discarded-General sequence gap recorded during ADR 0004 is resolved; other
 operators and write/argument contracts remain separate work.
+
+## Loose equality of represented primitives
+
+Loose `==` and `!=` support the four represented primitive kinds: undefined,
+null, Boolean and Number. Both nullish kinds compare equal to each other; neither
+compares equal to a Boolean or Number. Boolean/Number comparisons use the Boolean
+numeric value. NaN remains unequal, and signed zeros compare equal. This follows
+[ECMAScript IsLooselyEqual](https://tc39.es/ecma262/#sec-islooselyequal).
+String, BigInt, Symbol, objects and the optional IsHTMLDDA behavior remain outside
+this domain; the curated string-coercion equality gap remains rejected.
+
+The typed `PrimitiveLooseEqual` operation consumes two General snapshots and
+produces a Predicate. With canonical nullish payloads of +0 and Boolean payloads
+of 0/1, emission compares the nullish/non-nullish partition and the numeric
+payload. This formula depends on the four-kind invariant; adding another kind
+requires revisiting it. Both operands evaluate once, left to right. Existing
+positive Number comparisons and strict equality retain their previous routes.
+
+Corpus 59 promotes 19 exact rejection observations (17 distinct JS sources),
+paired with TypeScript companions, and adds effect and type-wrapper cases:
+1660 pairs, 932 numeric rejections and 36 curated references. The 56 inventory
+groups now contain 757 open requirements, 144 resource restrictions and 31 invalid
+sources. No retained rejection diagnostic changes. Value reporting adds four
+cases, reaching 50 pairs, four selected rejected pairs and 2800 result comparisons;
+twelve numeric origins, six control groups and two termination-only observations
+remain unchanged. These finite cases do not establish complete language support.

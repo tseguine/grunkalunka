@@ -1,11 +1,11 @@
 # Known lowering gaps
 
-This page and the 951 rejection fixtures below describe the **numeric profile**.
+This page and the 932 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Twelve exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
 counts are profile-specific, not a total number of missing language features.
-The value report has eight selected rejected pairs, not an exhaustive inventory.
+The value report has four selected rejected pairs, not an exhaustive inventory.
 
 The numeric profile admits one exported two-number function with numeric locals and immutable Boolean predicate locals,
 Number/Boolean expression statements, empty statements, assignments, branches, while/for/do loops,
@@ -45,8 +45,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 776 open requirements
-across all 951 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 757 open requirements
+across all 932 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -82,10 +82,9 @@ condition-order, scope, return-coverage and source-budget checks.
 The former numeric `gap-loose-inequality` reference is now
 `inequality-promoted-reference` in
 [`numeric-equality.mjs`](../tests/compatibility/numeric-equality.mjs). Both loose
-equality operators admit numeric operands only. `gap-loose-equality-coercion`
-retains its source, independent result and oracle, and now records rejection of
-the string operand. Coercive Boolean equality remains outside admission; selected
-same-kind strict Boolean equality is covered below.
+equality operators also admit represented undefined/null/Boolean/Number operands.
+`gap-loose-equality-coercion` retains its exact string operand, independent result
+and oracle, and remains rejected. Other unrepresented kinds remain unsupported.
 
 The former `gap-infinity-global` and `gap-nan-global` references are now
 `intrinsic-infinity-promoted-reference` and `intrinsic-nan-promoted-reference` in
@@ -469,7 +468,8 @@ execution within the normal fuel allowance.
 
 Corpus 58 transfers `discarded-null`, `discarded-undefined` and the original
 root-conditional/root-sequence Predicate-binding discard observations to execution.
-All four IDs and exact original JS/TS sources remain in admitted fixtures.
+All four IDs and exact original JS sources remain in admitted fixtures,
+paired with TypeScript companions.
 Sixteen other pairs cover effects, loops, snapshots and type wrappers. Totals are
 1625 pairs, 951 numeric rejections and 36 curated references: 776 open, 144 resource
 and 31 invalid observations across 56 groups. No retained diagnostic advances.
@@ -482,3 +482,29 @@ reporting reaches 46 pairs/four selected rejections/twelve numeric origins and
 2576 comparisons, with prior controls and termination-only observations unchanged.
 Other operators, write families, General arguments, implicit lexical initialization
 and unrepresented kinds remain separate requirements.
+
+## Loose equality of represented primitives
+
+Loose `==` and `!=` support the four represented primitive kinds: undefined,
+null, Boolean and Number. Both nullish kinds compare equal to each other; neither
+compares equal to a Boolean or Number. Boolean/Number comparisons use the Boolean
+numeric value. NaN remains unequal, and signed zeros compare equal. This follows
+[ECMAScript IsLooselyEqual](https://tc39.es/ecma262/#sec-islooselyequal).
+String, BigInt, Symbol, objects and the optional IsHTMLDDA behavior remain outside
+this domain; the curated string-coercion equality gap remains rejected.
+
+The typed `PrimitiveLooseEqual` operation consumes two General snapshots and
+produces a Predicate. With canonical nullish payloads of +0 and Boolean payloads
+of 0/1, emission compares the nullish/non-nullish partition and the numeric
+payload. This formula depends on the four-kind invariant; adding another kind
+requires revisiting it. Both operands evaluate once, left to right. Existing
+positive Number comparisons and strict equality retain their previous routes.
+
+Corpus 59 promotes 19 exact rejection observations (17 distinct JS sources),
+paired with TypeScript companions, and adds effect and type-wrapper cases:
+1660 pairs, 932 numeric rejections and 36 curated references. The 56 inventory
+groups now contain 757 open requirements, 144 resource restrictions and 31 invalid
+sources. No retained rejection diagnostic changes. Value reporting adds four
+cases, reaching 50 pairs, four selected rejected pairs and 2800 result comparisons;
+twelve numeric origins, six control groups and two termination-only observations
+remain unchanged. These finite cases do not establish complete language support.
