@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The primitive Value profile represents Null and Undefined, and strict ===/!== admits both kinds in comparison operands in either result profile. Numeric returns/storage of nullish values, nullish coalescing and general truthiness remain outside admission.",
+      "assessment": "The primitive Value profile represents Null and Undefined, and strict ===/!== admits both kinds in comparison operands in either result profile. Numeric-only returns of nullish values, nullish coalescing and general truthiness remain outside admission. Immutable General const locals and aliases now store admitted primitive expressions and can be read in primitive result/strict-equality positions or discarded as identifiers. Mutable General cells, scalar use of General bindings and General coercion remain outside admission.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean locals admit predicate-position reads, selected unary +, - and ~ conversions, selected binary arithmetic and discarded reads. Strict ===/!== additionally compares admitted Boolean/Number/nullish operands, including General conditional/sequence joins; the separate Value profile can return Boolean. Existing numeric-profile Boolean ABI returns, Boolean arguments, mutable General storage, General logical/truthiness operands and coercion beyond the selected scalar bridges remain outside admission. Root logical/conditional/sequence eligibility outside strict-equality operands and primitive-return positions retains its existing restrictions.",
+      "assessment": "Immutable Boolean locals admit predicate-position reads, selected unary +, - and ~ conversions, selected binary arithmetic and discarded reads. Strict ===/!== additionally compares admitted Boolean/Number/nullish operands, including General conditional/sequence joins; the separate Value profile can return Boolean. Existing numeric-profile Boolean ABI returns, Boolean arguments, mutable General storage, General logical/truthiness operands and coercion beyond the selected scalar bridges remain outside admission. Root logical/conditional/sequence eligibility outside strict-equality operands and primitive-return positions retains its existing restrictions. Immutable General const locals and aliases now store admitted primitive expressions and can be read in primitive result/strict-equality positions or discarded as identifiers. Mutable General cells, scalar use of General bindings and General coercion remain outside admission.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -6413,13 +6413,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "5f81b92eac847c06940c058984aee08b8a4f0ff497659831d3245ca0865bd68c",
       "group": "binding-errors"
-    },
-    {
-      "id": "const-boolean-conditional-initializer",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "384e1d8a041cb1f7ae91b4794bd7643f1ce0b3cadf68f7b3e8d36b8034ff69f8",
-      "group": "boolean-values"
     },
     {
       "id": "const-boolean-logical-initializer",

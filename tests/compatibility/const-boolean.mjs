@@ -80,7 +80,6 @@ const negatives=[
   ['shadow-forward','const flag=true; { const copy=flag; const flag=false; } return a;',reference],
   ['intrinsic-self','const Infinity=Infinity; return a;',reference],
   ['scope-leak','{ const flag=true; } return flag?a:b;',reference],
-  ['conditional-initializer','const flag=a?true:false; return a;',expression],
   ['logical-initializer','const flag=true&&a; return a;',expression],
   ['dead-unsupported','if(false) { const flag=!Math.random(); } return a;',expression],
   ['unselected-unsupported','const flag=!(true?true:Math.random()); return a;',expression],

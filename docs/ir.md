@@ -40,9 +40,9 @@ bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 ## Source cells and computed values
 
-A `SlotId` names a fixed-type scalar cell (`Number` or `Predicate`). Each slot records
+A `SlotId` names a fixed-type cell (`Number`, `Predicate` or `General`). Each slot records
 its type, owning lexical region, mutability, parameter status and source span.
-Source lowering constructs `Number` slots and immutable `Predicate` const slots.
+Source lowering constructs `Number` slots and immutable `Predicate` or `General` const slots.
 Every entry/helper parameter slot remains `Number`.
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.
@@ -57,7 +57,7 @@ shadow from falling back to an outer binding.
 A `ValueId` names one typed definition in the IR: `Number`, `Predicate` or `General`.
 `Call`, `Constant`, `Load`, `Unary`, `Binary`, `Compare`, `Truthy`, `Boolean` and `Not` produce values.
 `Boolean` defines a `Predicate` and emits canonical `i32` zero/one; it never
-produces a numeric source value. Source slots remain scalar; default-profile function returns remain `Number`.
+produces a numeric source value. Default-profile function returns remain `Number`.
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
 first pass through `Truthy`; negation evaluates its operand once.
 `Unary::Abs` consumes a captured Number and defines a Number through `f64.abs`.
@@ -374,7 +374,7 @@ an annotation, and the existing numeric module debug structure stays unchanged.
 `Nullish` defines canonical undefined/null General constants. `Pack` consumes a
 visible Number or Predicate and defines a General snapshot; it rejects General
 inputs, missing/forward inputs and non-General results. General-valued `If` arms
-must each yield a visible General value. Source cells cannot have General type yet.
+must each yield a visible General value. General source cells must be immutable locals; parameters remain Number.
 
 Emission assigns one physical local per scalar snapshot and two per General
 snapshot, computing offsets from logical widths. General loads push tag then
@@ -397,3 +397,17 @@ raw payload equality would not define object or string semantics.
 Existing scalar `Compare` operations stay unchanged. The new operation performs no
 coercion, allocation or capability access; source evaluation retains left-to-right
 snapshots through the explicit pending-work evaluator.
+
+### Immutable General source cells
+
+`Initialize` and `Load` use the existing typed visibility/initialization rules for
+General cells. Mutable or parameter General slots are rejected. Every General cell
+occupies consecutive `(i32,f64)` locals; a separate SlotId-to-offset map accounts for
+this width before assigning computed-value offsets. Scalar-only functions retain
+identical layout and output. Initialization consumes payload then tag; loads capture
+tag then payload into a fresh General ValueId. General aliases preserve kind and
+payload without asserting a more specific runtime type.
+
+Original lexical owners, initialization once per region entry, declaration order,
+source-local counts and const-store restrictions still apply. A General binding
+cannot feed a Number/Predicate operation without an explicit future conversion.

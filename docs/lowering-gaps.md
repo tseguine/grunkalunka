@@ -1,6 +1,6 @@
 # Known lowering gaps
 
-This page and the 987 rejection fixtures below describe the **numeric profile**.
+This page and the 986 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Four exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -45,8 +45,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 812 open requirements
-across all 987 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 811 open requirements
+across all 986 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -362,3 +362,16 @@ Strict equality handles the four represented primitive kinds, including mixed-ki
 inequality and Number NaN/signed-zero behavior. Loose equality, General storage,
 logical operands and coercion remain open. Earlier counts above record their
 respective implementation steps rather than the current frontier.
+
+## Immutable primitive binding increment
+
+Corpus 52 admits `const-boolean-conditional-initializer` with its exact original
+source and adds nine paired storage/use programs. Totals are 1494 pairs, 986 numeric
+rejections and 36 curated references, with 811 open, 144 resource and 31 invalid
+observations in 56 groups. The Value profile also executes the former `general-local`
+rejection with its original JS/TS text; its selected rejection count is now seven.
+
+General const storage and aliases do not imply coercion. Two original numeric
+rejections now reach the explicit General-binding numeric-use guard rather than
+failing at initialization; their source hashes remain unchanged. Mutable General
+cells, general truthiness/logical operands, arguments and helper results stay open.

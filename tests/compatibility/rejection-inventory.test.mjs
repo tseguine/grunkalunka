@@ -1,3 +1,5 @@
+import { valuePrograms, valueRejected } from './primitive-values.mjs';
+import { generalConstBindings, generalConstBindingPromotion } from './general-const-bindings.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rejected } from './corpus.mjs';
@@ -142,7 +144,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 987);
+  assert.equal(inventory.records.size, 986);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -270,4 +272,19 @@ test('primitive strict equality retains both original curated fixed goldens', as
     const mutated=await import(`data:text/javascript,${encodeURIComponent(reference.oracleSource.replace('===','!=='))}`);
     assert.ok(!Object.is(mutated.run(...reference.args),reference.expected));
   }
+});
+
+test('immutable General binding promotion preserves its exact original source',()=>{
+ const [id,js,ts,hash]=generalConstBindingPromotion;
+ const source=programSources(generalConstBindings.find(p=>p[0]===id));
+ assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});
+ assert.equal(createHash('sha256').update(js).digest('hex'),hash);
+ assert.ok(!rejected.some(r=>r[0]===id));
+});
+
+test('Value-profile const promotion retains both original complete sources',()=>{
+ const fixture=valuePrograms.find(p=>p.id==='general-local');
+ assert.equal(fixture.sourceJS,'export function run(a,b) {const x=null; return x;}\n');
+ assert.equal(fixture.sourceTS,'export function run(a:number,b:number):unknown {const x=null; return x;}\n');
+ assert.ok(!valueRejected.some(p=>p.id==='general-local'));
 });

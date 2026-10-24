@@ -445,6 +445,25 @@ impl Lowering<'_, '_> {
         false
     }
 
+    // Only already-published immutable General cells qualify; wrappers retain depth charges.
+    fn general_binding_shape(&self, mut expression: &Expression<'_>, mut depth: usize) -> bool {
+        while depth <= 128 {
+            if let Some(inner) = erased_inner(expression) {
+                expression = inner;
+            } else if let Expression::ParenthesizedExpression(wrapper) = expression {
+                expression = &wrapper.expression;
+            } else if let Expression::Identifier(identifier) = expression {
+                return numeric_binding(identifier, self.semantic, &self.bindings).is_ok_and(
+                    |binding| !binding.mutable && self.slots[binding.slot.0].ty == Type::General,
+                );
+            } else {
+                return false;
+            }
+            depth += 1;
+        }
+        false
+    }
+
     fn declaration(
         &mut self,
         declaration: &VariableDeclaration<'_>,
@@ -481,11 +500,15 @@ impl Lowering<'_, '_> {
             let mutable = declaration.kind == VariableDeclarationKind::Let;
             let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
                 Type::Predicate
+            } else if !mutable && !self.numeric_result_shape(initializer, 0) {
+                Type::General
             } else {
                 Type::Number
             };
             let value = match ty {
-                Type::General => unreachable!("scalar declaration typing"),
+                Type::General => self
+                    .evaluate(initializer, region, 0, evaluate::Mode::General)?
+                    .expect("General initializer"),
                 Type::Predicate => self.predicate(initializer, region, 0)?,
                 Type::Number => self.expression(initializer, region, 0)?,
             };

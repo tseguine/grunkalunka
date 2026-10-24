@@ -5,9 +5,9 @@ pass builds and verifies [typed numeric regions](ir.md), then emits WAT. `wat`
 encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
-Private IR cells have a fixed existing `Number` or `Predicate` type. Source lowering
-creates Number cells and immutable Boolean const cells for predicate and selected
-unary Number reads.
+Private IR cells have a fixed `Number`, `Predicate` or `General` type. Source lowering
+keeps Number and immutable Boolean const cells scalar where admitted; immutable
+General cells hold the represented primitive kinds.
 In the default numeric profile, all entry/helper parameters and returns remain
 Number-only. This adds no dynamic
 type inference or boxing; see the [bounded source contract](#immutable-boolean-predicate-locals).
@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 51
-contains 1484 paired programs, 987 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 52
+contains 1494 paired programs, 986 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 987 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 812 open requirements.
+classifies all 986 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 811 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1190,7 +1190,7 @@ The separate [primitive-return tests](../crates/grunkalunka-runtime/tests/compil
 exercise 27 JS/TS pairs, 54 compiled modules and 14 input pairs: 756 calls per Wasm
 engine (1512 comparisons against original JS). These finite cases do not promote
 numeric-corpus or curated rejection fixtures. At that primitive-return step, corpus 50 retained 1466 pairs and 995
-rejections under the numeric profile. General source cells/parameters, mixed-kind
+rejections under the numeric profile. Mutable General source cells and General parameters, mixed-kind
 operators beyond strict equality, truthiness/coercions, empty/implicit returns, strings/objects/BigInts and
 general heap integration remain open. Logical expressions still use the
 existing scalar operand contracts; this is not general JavaScript expression support.
@@ -1210,8 +1210,8 @@ existing files are never overwritten.
 
 `node scripts/poc.mjs` builds offline and runs both profile reports. The separate
 [primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
-19 JS/TS pairs on 14 input pairs: 1064 comparisons with original JS across Wasmtime
-and Node-Wasm. It checks 8 rejected pairs and five CLI control groups, covering input
+20 JS/TS pairs on 14 input pairs: 1120 comparisons with original JS across Wasmtime
+and Node-Wasm. It checks 7 rejected pairs and five CLI control groups, covering input
 validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
 fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
 compiler/lock hashes, host versions, standard references and invocation results.
@@ -1219,8 +1219,7 @@ compiler/lock hashes, host versions, standard references and invocation results.
 Four exact original numeric rejection sources (`boolean`, `null`, `comparison`,
 `predicate-conditional-numeric-return`) execute successfully in this value profile;
 the report also verifies their continued numeric-profile rejection. This is
-profile-specific support, not removal from the 995 numeric rejections or the 38
-curated numeric references. The eight selected value rejection pairs are not an
+profile-specific support, not removal of those four numeric rejections. The seven selected value rejection pairs are not an
 exhaustive value-profile gap inventory. Numeric and value reports live separately
 under `target/compatibility-runs/` and `target/value-compatibility-runs/`.
 
@@ -1253,3 +1252,33 @@ These finite fixtures do not establish complete language support.
 Loose equality, General logical/truthiness conversion, mutable General cells,
 General helper parameters/results, strings, BigInts and objects remain separate work.
 Strict equality does not coerce operands and adds no heap or host capability.
+
+## Immutable General bindings
+
+Initialized `const` identifiers can hold admitted primitive expressions, including
+null/undefined, mixed-kind conditionals, sequences and aliases of earlier General
+bindings. Existing scalar Number and immutable Predicate initializer paths remain
+specialized. Other immutable initializers use General evaluation, which still rejects
+unsupported source operations and preserves original source depth charges.
+
+Each General cell occupies a tag/payload pair of Wasm locals; scalar cells retain
+one local. Logical SlotIds map to physical offsets independently of snapshot ValueIds.
+Initialization stores both components and a read snapshots both components. This
+applies in helper bodies as well as the entry, in either result profile. Parameters
+and helper results remain Number-only. TS annotations do not select cell kinds.
+
+Bindings become visible only after their initializer. Shadowing, TDZ, const writes,
+lexical region ownership and per-entry loop initialization keep their existing rules.
+General aliases can be returned through the Value profile, used in primitive strict
+equality, or discarded as identifier expressions, including erased wrappers.
+Numeric/Boolean coercion, truthiness, mutable General assignments and implicit
+initialization remain separate work. A numeric return of a General binding is
+rejected explicitly even when its current payload happens to be a Number.
+
+Corpus 52 adds ten paired programs, including one exact original numeric rejection
+promotion, for 1494 pairs, 986 rejections and 36 curated references. Two retained
+rejections now diagnose their unsupported numeric read after successful initialization:
+`annotation-runtime-null` and `predicate-conditional-numeric-local`. Their original
+sources and inventory hashes remain unchanged. The separate Value-profile fixture
+`general-local` transfers from rejection to execution with its original JS/TS sources;
+that finite profile now has 20 pairs and seven selected rejection pairs.

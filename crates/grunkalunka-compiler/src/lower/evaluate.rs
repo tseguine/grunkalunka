@@ -652,7 +652,9 @@ impl Lowering<'_, '_> {
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
                     // Routing owns classification before the selected mode's guard.
-                    let mode = if discarded_boolean_shape(node, depth)
+                    let mode = if self.general_binding_shape(node, depth) {
+                        Mode::General
+                    } else if discarded_boolean_shape(node, depth)
                         || self.operand_boolean_shape(node, depth)
                     {
                         Mode::Predicate
@@ -689,6 +691,17 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if matches!(mode, Mode::General) {
+                        if let Expression::Identifier(identifier) = node
+                            && let Ok(binding) =
+                                numeric_binding(identifier, self.semantic, &self.bindings)
+                            && self.slots[binding.slot.0].ty == Type::General
+                        {
+                            let slot = binding.slot;
+                            let result = self.value(Type::General);
+                            Self::push(regions.current(), node, Op::Load { result, slot });
+                            values.push(Value::General(result));
+                            continue;
+                        }
                         let nullish = match node {
                             Expression::NullLiteral(_) => Some(ir::Nullish::Null),
                             Expression::Identifier(identifier)
@@ -923,10 +936,14 @@ impl Lowering<'_, '_> {
                                 let slot =
                                     numeric_binding(identifier, self.semantic, &self.bindings)?
                                         .slot;
-                                if self.slots[slot.0].ty == Type::Predicate {
+                                if self.slots[slot.0].ty != Type::Number {
                                     return Err(unsupported(
                                         node,
-                                        "Boolean bindings are not admitted in numeric value positions",
+                                        if self.slots[slot.0].ty == Type::General {
+                                            "General bindings require a primitive value position"
+                                        } else {
+                                            "Boolean bindings are not admitted in numeric value positions"
+                                        },
                                     ));
                                 }
                                 Op::Load { result, slot }

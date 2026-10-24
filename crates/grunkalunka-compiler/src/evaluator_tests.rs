@@ -500,11 +500,11 @@ fn left_snapshot_precedes_right_assignment() {
 }
 
 #[test]
-fn characterization_setup_frontiers_keep_their_original_diagnostics() {
+fn characterization_setup_frontiers_report_the_remaining_unsupported_use() {
     for (source, expected) in [
         (
             "export function run(a,b) { const flag=a?(b?true:false):!a; return +flag; }",
-            "unsupported at bytes 43..47: expression is outside the numeric experiment",
+            "unsupported at bytes 67..71: General bindings require a primitive value position",
         ),
         (
             "export function run(a,b) { const flag=true; flag; a; !a; (a=1,flag); a?flag:!b; flag&&true; return a; }",
@@ -631,4 +631,14 @@ fn primitive_strict_equality_uses_one_evaluator_entry() {
         assert_eq!(entries, 1);
         assert!(pending > 1);
     }
+}
+
+#[test]
+fn general_const_initializers_and_alias_reads_do_not_reenter_evaluation() {
+    let source = "export function run(a,b) {const value=a?(b<0?null:true):b; const alias=value; return alias;}";
+    let (result, maximum, entries, pending) = observe(|| crate::compile_value(source, false));
+    result.unwrap();
+    assert_eq!(maximum, 1);
+    assert!(entries >= 3);
+    assert!(pending > 1);
 }

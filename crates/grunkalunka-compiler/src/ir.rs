@@ -705,8 +705,11 @@ fn verify_function(
     }
     let mut initialized = BTreeSet::new();
     for (index, slot) in function.slots.iter().enumerate() {
-        if slot.ty == Type::General {
-            return Err(invalid(slot.span, "General source slots are not admitted"));
+        if slot.ty == Type::General && (slot.mutable || slot.parameter) {
+            return Err(invalid(
+                slot.span,
+                "General source slots must be immutable locals",
+            ));
         }
         if slot.parameter && slot.ty != Type::Number {
             return Err(invalid(slot.span, "parameter slots must be Number"));
@@ -2707,5 +2710,36 @@ mod primitive_strict_equality_tests {
         let mut reordered = module();
         reordered.functions[0].body.operations.swap(1, 2);
         assert!(verify_module_with_entry_type(&reordered, Type::General).is_err());
+    }
+}
+
+#[cfg(test)]
+mod general_const_tests {
+    use super::*;
+    fn module() -> Module {
+        crate::lower_source_with_entry_type(
+            "export function run(a,b) {const value=null; const alias=value; return alias;}",
+            false,
+            Type::General,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn general_source_cells_require_immutable_initialized_local_ownership() {
+        verify_module_with_entry_type(&module(), Type::General).unwrap();
+        for kind in 0..5 {
+            let mut m = module();
+            let f = &mut m.functions[0];
+            match kind {
+                0 => f.slots[2].mutable = true,
+                1 => f.slots[2].parameter = true,
+                2 => f.slots[2].owner = RegionId(99),
+                3 => f.slots[2].ty = Type::Number,
+                _ => {
+                    f.body.operations.remove(1);
+                }
+            }
+            assert!(verify_module_with_entry_type(&m, Type::General).is_err());
+        }
     }
 }

@@ -49,7 +49,7 @@ const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 export const annotationRejected = [
   ...[['string', '"4"'], ['object', '{}'], ['boolean', 'true'], ['null', 'null'], ['call', 'Math.random()']]
-    .map(([id, value]) => [`annotation-runtime-${id}`, source(`const x:number=${value}; return x;`), 'ts', id === 'boolean' ? 'ERROR: unsupported at bytes 79..80: Boolean bindings are not admitted in numeric value positions' : expression]),
+    .map(([id, value]) => [`annotation-runtime-${id}`, source(`const x:number=${value}; return x;`), 'ts', id === 'boolean' ? 'ERROR: unsupported at bytes 79..80: Boolean bindings are not admitted in numeric value positions' : id === 'null' ? 'ERROR: unsupported at bytes 79..80: General bindings require a primitive value position' : expression]),
   ['annotation-self-reference', source('const x:typeof a=x; return x;'), 'ts', reference],
   ['annotation-forward-reference', source('const x:typeof y=y; const y:number=a; return x;'), 'ts', reference],
   ['annotation-const-write', source('const x:unknown=a; x=b; return x;'), 'ts', 'assignment to a const binding'],

@@ -50,6 +50,7 @@ const NUMBER_REMAINDER: &str = r#"(func $number_remainder (param $a f64) (param 
 
 struct Emitter<'a> {
     function: &'a Function,
+    slot_offsets: Vec<usize>,
     value_offsets: Vec<usize>,
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
@@ -152,12 +153,20 @@ impl Emitter<'_> {
                     self.set(*result);
                 }
                 Op::Load { result, slot } => {
-                    writeln!(self.output, "local.get {}", slot.0).unwrap();
+                    let offset = self.slot_offsets[slot.0];
+                    writeln!(self.output, "local.get {offset}").unwrap();
+                    if self.function.slots[slot.0].ty == Type::General {
+                        writeln!(self.output, "local.get {}", offset + 1).unwrap();
+                    }
                     self.set(*result);
                 }
                 Op::Initialize { slot, value } | Op::Store { slot, value } => {
                     self.get(*value);
-                    writeln!(self.output, "local.set {}", slot.0).unwrap();
+                    let offset = self.slot_offsets[slot.0];
+                    if self.function.slots[slot.0].ty == Type::General {
+                        writeln!(self.output, "local.set {}", offset + 1).unwrap();
+                    }
+                    writeln!(self.output, "local.set {offset}").unwrap();
                 }
                 Op::Unary {
                     result,
@@ -390,7 +399,16 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         } else {
             " (result f64)\n"
         });
-        let mut offset = function.slots.len();
+        let mut offset = 0;
+        let slot_offsets = function
+            .slots
+            .iter()
+            .map(|slot| {
+                let current = offset;
+                offset += if slot.ty == Type::General { 2 } else { 1 };
+                current
+            })
+            .collect();
         let value_offsets = function
             .values
             .iter()
@@ -402,6 +420,7 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             .collect();
         let mut emitter = Emitter {
             function,
+            slot_offsets,
             value_offsets,
             loop_label: None,
             needs_remainder: false,
@@ -412,7 +431,7 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             emitter.output.push_str(match slot.ty {
                 Type::Number => "(local f64)\n",
                 Type::Predicate => "(local i32)\n",
-                Type::General => unreachable!("verified scalar source slots"),
+                Type::General => "(local i32 f64)\n",
             });
         }
         for ty in &function.values {

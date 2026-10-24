@@ -49,7 +49,9 @@ import { typeOnlyModuleItems, typeOnlyModuleRejected } from './type-only-module-
 import { genericDeclarations, genericDeclarationsRejected } from './generic-declarations.mjs';
 import { primitiveStrictEquality } from './primitive-strict-equality.mjs';
 
-export const corpusVersion = 51;
+import { generalConstBindings } from './general-const-bindings.mjs';
+
+export const corpusVersion = 52;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -119,6 +121,7 @@ programs.push(...arithmeticPredicateBindings);
 programs.push(...discardedPredicateBindings);
 programs.push(...strictBooleanEquality);
 programs.push(...primitiveStrictEquality);
+programs.push(...generalConstBindings);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);
@@ -276,7 +279,7 @@ export const rejected = [
   ['predicate-conditional-unselected-consequent', 'export function run(a,b) { if(false?Math.random():false) return a; return b; }'],
   ['predicate-conditional-unselected-const', 'export function run(a,b) { const x=a; if(true?true:(x=b)) return a; return b; }'],
   ['predicate-conditional-numeric-return', 'export function run(a,b) { return a?true:false; }'],
-  ['predicate-conditional-numeric-local', 'export function run(a,b) { const x=a?true:false; return x; }'],
+  ['predicate-conditional-numeric-local', 'export function run(a,b) { const x=a?true:false; return x; }', 'js', 'General bindings require a primitive value position'],
   ['predicate-conditional-arithmetic', 'export function run(a,b) { return (a?true:false)+b; }'],
   ['predicate-conditional-assignment', 'export function run(a,b) { if(a?(a=true):false) return a; return b; }'],
   ['predicate-conditional-equality-operand', 'export function run(a,b) { if((a?true:false)==0) return a; return b; }'],

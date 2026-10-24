@@ -930,6 +930,8 @@ mod tests {
             let error = compile(&source, true).err().unwrap();
             let reason = if initializer == "true" {
                 "Boolean bindings are not admitted in numeric value positions"
+            } else if initializer == "null" {
+                "General bindings require a primitive value position"
             } else {
                 "expression is outside"
             };
