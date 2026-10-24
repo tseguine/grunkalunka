@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 61
-contains 1700 paired programs, 928 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 62
+contains 1721 paired programs, 923 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 928 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 753 open requirements.
+classifies all 923 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 748 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1553,3 +1553,34 @@ numeric support. Value reporting reaches 59 pairs and 3304 result comparisons,
 with four selected rejected pairs, six control groups and two termination-only
 observations unchanged. Coverage includes 56 fixed-golden modules, 64 effect/order
 modules, shadowed `undefined`, loop reinitialization and a default-kind mutation.
+
+## Primitive arithmetic compound assignments
+
+The five arithmetic `+=`, `-=`, `*=`, `/=` and `%=` operators now admit represented
+primitive RHS values and mutable Number/General identifier targets. Lowering captures
+the old left value before evaluating the RHS, computes a Number, stores it in the
+original slot and returns that Number snapshot. General slots receive a canonical
+packed Number; Number slots retain scalar storage. This follows
+[compound-assignment evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation).
+
+RHS evaluation uses the existing arithmetic conversion. A captured General left
+value uses the existing NumberFromGeneral operation before the binary operation.
+Conversions are pure for the four represented primitive kinds. Adding object or
+other observable conversion behavior requires revisiting conversion order; this
+unit does not admit those kinds. Existing positive Number operand paths retain
+output. No IR, ABI, dependency or storage-planning change is introduced.
+
+Const/TDZ/property/function targets and source budgets retain their restrictions.
+String/BigInt/object semantics and bitwise, shift, exponent and logical compound
+assignments remain separate requirements. Numeric General-cell return restrictions
+remain; the assignment expression itself has a Number result.
+
+Corpus 62 promotes five exact rejection observations (three distinct original JS
+sources) and adds sixteen other pairs: 1721 pairs, 923 numeric rejections and 36
+curated references. The 56 inventory groups contain 748 open, 144 resource and 31
+invalid observations. No retained rejection diagnostic changes. Value reporting
+adds four cases, reaching 63 pairs/3528 comparisons; thirteen numeric origins,
+four selected rejected pairs, six controls and two termination-only observations
+remain unchanged. Runtime coverage includes 1280 independent-golden modules,
+64 effect/order modules and 26 exact former Rust guard modules across eligible
+JS/TS/profile combinations, plus two semantic mutations.

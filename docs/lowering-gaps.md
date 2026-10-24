@@ -1,6 +1,6 @@
 # Known lowering gaps
 
-This page and the 928 rejection fixtures below describe the **numeric profile**.
+This page and the 923 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Thirteen exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -45,8 +45,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 753 open requirements
-across all 928 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 748 open requirements
+across all 923 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -530,3 +530,14 @@ numeric rejection, advancing to the General-cell return restriction; the same
 original executes in the Value profile as a thirteenth numeric origin. Value
 reporting reaches 59 pairs/3304 comparisons. Definite assertions, var, destructuring
 and numeric General-cell returns remain separate requirements.
+
+## Primitive arithmetic compound assignments
+
+The five arithmetic compound operators now capture the old left value before RHS
+effects, apply represented primitive numeric conversion and store/return a Number.
+Number and General mutable identifier targets are supported. See
+[the compiler contract](compiler.md#primitive-arithmetic-compound-assignments).
+Corpus 62 has 1721 pairs/923 rejections: five exact observations promoted and no
+retained diagnostic changes. All 36 curated references remain. Value reporting
+reaches 63 pairs/3528 comparisons with existing numeric origins and controls intact.
+Other operator families, targets and unrepresented kinds remain separate work.

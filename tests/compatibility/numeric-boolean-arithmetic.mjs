@@ -75,8 +75,6 @@ const numeric='Boolean bindings are not admitted in numeric value positions';
 const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
   ['comparison','return true<a?1:0;',expression],
-  ['compound','a+=true; return a;',expression],
-  ['compound-remainder','a%=true; return a;',expression],
   ['bitwise','return a&true;',expression],
   ['shift','return true<<a;',expression],
   ['string','return a+"1";',expression],

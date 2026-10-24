@@ -469,7 +469,6 @@ mod tests {
             "const flag=true; return Math.abs(flag);",
             "const flag=true; return flag|a;",
             "const flag=true; return flag<<a;",
-            "const flag=true; a+=flag; return a;",
             "const flag=+flag; return a;",
             "return +flag; const flag=true;",
             "{const flag=true;} return +flag;",
@@ -1126,7 +1125,7 @@ mod tests {
     #[test]
     fn boolean_arithmetic_keeps_other_operand_boundaries() {
         for (body, reason) in [
-            ("a+=true; return a;", "expression is outside"),
+            ("a&=true; return a;", "expression is outside"),
             ("return a&true;", "expression is outside"),
         ] {
             let source = format!("export function run(a,b) {{ {body} }}");

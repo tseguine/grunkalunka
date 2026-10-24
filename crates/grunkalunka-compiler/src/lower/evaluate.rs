@@ -494,6 +494,20 @@ impl Lowering<'_, '_> {
                 } => {
                     let mut value = values.pop().expect("assignment right").number();
                     if let (Some(left), Some(operator)) = (previous, operator) {
+                        let left = if self.slots[slot.0].ty == Type::General {
+                            let result = self.value(Type::Number);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::NumberFromGeneral {
+                                    result,
+                                    input: left,
+                                },
+                            );
+                            result
+                        } else {
+                            left
+                        };
                         let result = self.value(Type::Number);
                         Self::push(
                             regions.current(),
@@ -507,7 +521,28 @@ impl Lowering<'_, '_> {
                         );
                         value = result;
                     }
-                    Self::push(regions.current(), node, Op::Store { slot, value });
+                    let stored = if self.slots[slot.0].ty == Type::General {
+                        let result = self.value(Type::General);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::Pack {
+                                result,
+                                input: value,
+                            },
+                        );
+                        result
+                    } else {
+                        value
+                    };
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Store {
+                            slot,
+                            value: stored,
+                        },
+                    );
                     values.push(Value::Number(value));
                 }
                 Work::Call {
@@ -1169,27 +1204,41 @@ impl Lowering<'_, '_> {
                                 ));
                             }
                             let slot = binding.slot;
-                            if self.slots[slot.0].ty == Type::General {
-                                if operator.is_some() {
+                            let general = self.slots[slot.0].ty == Type::General;
+                            let arithmetic = matches!(
+                                operator,
+                                Some(
+                                    Binary::Add
+                                        | Binary::Subtract
+                                        | Binary::Multiply
+                                        | Binary::Divide
+                                        | Binary::Remainder
+                                )
+                            );
+                            if general {
+                                if operator.is_some() && !arithmetic {
                                     return Err(unsupported(
                                         node,
                                         "General compound assignments require numeric coercion support",
                                     ));
                                 }
-                                work.push(Work::StoreGeneral { node, slot });
-                                work.push(Work::Eval(
-                                    &assignment.right,
-                                    depth + 1,
-                                    if matches!(mode, Mode::Number) {
-                                        Mode::Number
-                                    } else {
-                                        Mode::General
-                                    },
-                                ));
-                                continue;
+                                if operator.is_none() {
+                                    work.push(Work::StoreGeneral { node, slot });
+                                    work.push(Work::Eval(
+                                        &assignment.right,
+                                        depth + 1,
+                                        if matches!(mode, Mode::Number) {
+                                            Mode::Number
+                                        } else {
+                                            Mode::General
+                                        },
+                                    ));
+                                    continue;
+                                }
                             }
                             let previous = if operator.is_some() {
-                                let result = self.value(Type::Number);
+                                let result =
+                                    self.value(if general { Type::General } else { Type::Number });
                                 Self::push(regions.current(), node, Op::Load { result, slot });
                                 Some(result)
                             } else {
@@ -1201,7 +1250,15 @@ impl Lowering<'_, '_> {
                                 previous,
                                 operator,
                             });
-                            work.push(Work::Eval(&assignment.right, depth + 1, Mode::Number));
+                            work.push(Work::Eval(
+                                &assignment.right,
+                                depth + 1,
+                                if arithmetic {
+                                    Mode::Arithmetic
+                                } else {
+                                    Mode::Number
+                                },
+                            ));
                         }
                         Expression::UpdateExpression(update) => {
                             let Some(identifier) = target_identifier(&update.argument, depth)?

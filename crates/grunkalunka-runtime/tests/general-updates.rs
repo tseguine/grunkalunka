@@ -299,7 +299,6 @@ fn updates_keep_binding_source_kind_and_return_guards() {
         "let value=1n; value++; return a;",
         "let value=\"0\"; value++; return a;",
         "let value=null; value.x++; return a;",
-        "let value=null; value+=a; return a;",
         "let value=null; value++; return value;",
         "let value=null; if(false) Math.random(); value++; return a;",
     ] {

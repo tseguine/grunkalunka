@@ -57,7 +57,6 @@ const negatives=[
  ['call','const flag=true; return Math.abs(flag);',numeric,'boolean-values'],
  ['assignment','const flag=true; a=flag; return a;','General bindings require a primitive value position','boolean-values'],
  ['assignment-result','const flag=true; (a=flag); return a;','General bindings require a primitive value position','boolean-values'],
- ['compound','const flag=true; a+=flag; return a;',numeric,'boolean-values'],
  ['bitwise','const flag=true; return flag|a;',numeric,'boolean-values'],
  ['shift','const flag=true; return flag<<a;',numeric,'boolean-values'],
  ['self','const flag=flag; flag; return a;',reference,'binding-errors'],

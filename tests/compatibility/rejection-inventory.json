@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, compound/logical assignments, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate. Initialized mutable identifier cells now admit prefix/postfix ++/-- for the four represented primitive kinds: ToNumeric, one arithmetic update, canonical Number store and the appropriate old/new Number result. Other kinds, targets, writes and numeric-return policies remain separate. Bare let identifiers now initialize intrinsic Undefined at declaration evaluation; shadowed undefined names do not change this value. TDZ and source budgets remain in force.",
+      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, logical and other compound assignments, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate. Initialized mutable identifier cells now admit prefix/postfix ++/-- for the four represented primitive kinds: ToNumeric, one arithmetic update, canonical Number store and the appropriate old/new Number result. Other kinds, targets, writes and numeric-return policies remain separate. Bare let identifiers now initialize intrinsic Undefined at declaration evaluation; shadowed undefined names do not change this value. TDZ and source budgets remain in force. The five arithmetic +=, -=, *=, /= and %= operations now admit represented primitive RHS values and Number/General mutable identifier targets. They capture the left value before RHS effects, store a canonical Number and return its Number snapshot. Other compound operators, kinds and targets remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean const cells retain scalar specialization, and General const/let cells can hold represented primitive kinds. ToBoolean, strict equality, &&/|| selection and discarded reads admit represented Booleans. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps false to +0 and true to 1, including General conditional/sequence/assignment results. Numeric-profile Boolean returns, call arguments, compound/logical assignments, relational/loose comparison conversions and further bitwise/shift operands remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate. Initialized mutable identifier cells now admit prefix/postfix ++/-- for the four represented primitive kinds: ToNumeric, one arithmetic update, canonical Number store and the appropriate old/new Number result. Other kinds, targets, writes and numeric-return policies remain separate.",
+      "assessment": "Immutable Boolean const cells retain scalar specialization, and General const/let cells can hold represented primitive kinds. ToBoolean, strict equality, &&/|| selection and discarded reads admit represented Booleans. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps false to +0 and true to 1, including General conditional/sequence/assignment results. Numeric-profile Boolean returns, call arguments, logical and other compound assignments, relational/loose comparison conversions and further bitwise/shift operands remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate. Initialized mutable identifier cells now admit prefix/postfix ++/-- for the four represented primitive kinds: ToNumeric, one arithmetic update, canonical Number store and the appropriate old/new Number result. Other kinds, targets, writes and numeric-return policies remain separate. The five arithmetic +=, -=, *=, /= and %= operations now admit represented primitive RHS values and Number/General mutable identifier targets. They capture the left value before RHS effects, store a canonical Number and return its Number snapshot. Other compound operators, kinds and targets remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -6401,20 +6401,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "boolean-arithmetic-compound",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "7171060f52372ff8b47e8d5fc01e1f27c40ed0f4256a299593b67e675382b664",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-arithmetic-compound-remainder",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2256f91aca94f09288a3a77db1dfb4af4dc4af383093353aa67afeffdfd7cd4b",
-      "group": "boolean-values"
-    },
-    {
       "id": "boolean-arithmetic-bitwise",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6569,13 +6555,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "unary-predicate-binding-reject-compound",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "0d07cc5477cd8440e4582b724a0b1ffab2ce45f98c88ac9d8015ccc9206ff287",
-      "group": "boolean-values"
-    },
-    {
       "id": "unary-predicate-binding-reject-self",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6692,13 +6671,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "4badb35624721e01a2cea4b0e6a897b8e3f4d2edb9114b22ce134463ecd9b216",
-      "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-compound",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "0d07cc5477cd8440e4582b724a0b1ffab2ce45f98c88ac9d8015ccc9206ff287",
       "group": "boolean-values"
     },
     {
@@ -6832,13 +6804,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "4a6c4c6df1805aced1dffd8d6a54b01f3d3b751c83bde82c24027c3c2900a6ad",
-      "group": "boolean-values"
-    },
-    {
-      "id": "discarded-predicate-binding-reject-compound",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "0d07cc5477cd8440e4582b724a0b1ffab2ce45f98c88ac9d8015ccc9206ff287",
       "group": "boolean-values"
     },
     {
