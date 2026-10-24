@@ -133,7 +133,7 @@ corpus, including ordered mutation and returned-value regressions.
 Numeric `&&` and `||` now short-circuit and preserve their selected operand.
 Outside the explicit inline primitive bridges, Boolean operands (including comparison
 results) remain outside numeric value admission. In predicate positions logical operators may combine admitted
-predicates and numeric truthiness, preserving short-circuit effects. Nullish
+predicates and represented primitive truthiness, preserving short-circuit effects. Nullish
 coalescing remains outside admission in both contexts.
 
 Boolean literals and conditional arms are admitted in predicate positions.
@@ -374,4 +374,18 @@ rejection with its original JS/TS text; its selected rejection count is now seve
 General const storage and aliases do not imply coercion. Two original numeric
 rejections now reach the explicit General-binding numeric-use guard rather than
 failing at initialization; their source hashes remain unchanged. Mutable General
-cells, general truthiness/logical operands, arguments and helper results stay open.
+cells, General-valued logical operands, arguments and helper results stay open.
+
+## General truthiness increment
+
+Corpus 53 adds sixteen paired programs for represented primitive conditions,
+negation, predicate short-circuiting, loops, aliases and erased TS assertions.
+The numeric frontier remains 986 rejection fixtures and 36 curated references;
+there are 1510 admitted pairs. No existing numeric negative is counted as promoted.
+All 56 inventory groups remain, with 811 open, 144 resource and 31 invalid records.
+The separate Value profile transfers the original `general-condition` sources to
+execution, reaching 21 pairs and six selected rejections.
+
+ToBoolean covers the four represented primitive kinds. General-valued logical
+results, nullish coalescing, numeric coercions, mutable General cells and heap kinds
+remain open. A successful condition does not imply admission in numeric operands.

@@ -166,6 +166,10 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    GeneralTruthy {
+        result: ValueId,
+        input: ValueId,
+    },
     Block(Region),
     If {
         result: Option<ValueId>,
@@ -512,6 +516,10 @@ impl Verifier<'_> {
                 }
                 Op::Truthy { result, input } => {
                     self.value(*input, Type::Number, &visible, span)?;
+                    self.define(*result, Type::Predicate, &mut visible, span)?;
+                }
+                Op::GeneralTruthy { result, input } => {
+                    self.value(*input, Type::General, &visible, span)?;
                     self.define(*result, Type::Predicate, &mut visible, span)?;
                 }
                 Op::Block(child) => {
@@ -2740,6 +2748,38 @@ mod general_const_tests {
                 }
             }
             assert!(verify_module_with_entry_type(&m, Type::General).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod general_truthiness_tests {
+    use super::*;
+    fn module() -> Module {
+        crate::lower_source(
+            "export function run(a,b) {if(null) return a; return b;}",
+            false,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn general_truthiness_requires_visible_general_input_and_predicate_result() {
+        verify_module(&module()).unwrap();
+        for change in 0..4 {
+            let mut m = module();
+            let f = &mut m.functions[0];
+            let Op::GeneralTruthy { input, result } = &mut f.body.operations[1].kind else {
+                panic!("truthiness")
+            };
+            match change {
+                0 => *input = ValueId(99),
+                1 => f.values[input.0] = Type::Number,
+                2 => f.values[result.0] = Type::General,
+                _ => {
+                    f.body.operations.swap(0, 1);
+                }
+            }
+            assert!(verify_module(&m).is_err());
         }
     }
 }

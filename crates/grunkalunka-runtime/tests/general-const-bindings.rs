@@ -170,7 +170,6 @@ fn general_const_cells_preserve_lexical_and_use_boundaries() {
         for body in [
             "const value=null; return +value;",
             "const value=null; return value<1?1:0;",
-            "const value=null; if(value) return 1; return 0;",
             "const value=null; value=1; return a;",
             "const value=null; if(0) value=1; return a;",
             "const value=null; return value++;",

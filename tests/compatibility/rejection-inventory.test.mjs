@@ -288,3 +288,10 @@ test('Value-profile const promotion retains both original complete sources',()=>
  assert.equal(fixture.sourceTS,'export function run(a:number,b:number):unknown {const x=null; return x;}\n');
  assert.ok(!valueRejected.some(p=>p.id==='general-local'));
 });
+
+test('Value-profile truthiness promotion retains both original complete sources',()=>{
+ const fixture=valuePrograms.find(p=>p.id==='general-condition');
+ assert.equal(fixture.sourceJS,'export function run(a,b) {if(null) return a; return b;}\n');
+ assert.equal(fixture.sourceTS,'export function run(a:number,b:number):unknown {if(null) return a; return b;}\n');
+ assert.ok(!valueRejected.some(p=>p.id==='general-condition'));
+});

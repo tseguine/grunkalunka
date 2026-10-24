@@ -28,6 +28,7 @@ const rows = [
   ['type-wrapper', 'return a?null:b;'],
   ['boolean-choice', 'return a?true:false;'],
   ['general-local', 'const x=null; return x;'],
+  ['general-condition', 'if(null) return a; return b;'],
 ];
 const numericOrigins = {
   true: ['boolean', 'export function run(a,b) { return true; }'],
@@ -41,13 +42,12 @@ export const valuePrograms = rows.map(([id, body]) => ({
   sourceJS: numericOrigins[id]?.[1] ?? (id === 'helper' ? 'function rem(x,y){return x%y;}\n' : '') + wrap(body, false),
   sourceTS: (id === 'helper' ? 'function rem<T>(x:number,y:number):number{return x%y;}\n' : '')
     + wrap(id === 'type-wrapper' ? 'return ((a?null:b) as unknown)!;' : body, true),
-  standards: id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
+  standards: id === 'general-condition' ? [returns, types, conditional, spec + 'abstract-operations.html#sec-toboolean'] : id === 'general-local' ? [returns, types, conditional, spec + 'ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations'] : [returns, types, conditional],
 }));
 const expression = 'expression is outside the numeric experiment';
 export const valueRejected = [
   ['empty-return', 'return;', 'return must have a primitive expression'],
   ['implicit-return', 'if(a) return null;', 'every structural path must return a primitive value'],
-  ['general-condition', 'if(null) return a; return b;', expression],
   ['nullish-operator', 'return null??b;', expression],
   ['coercion', 'return null+1;', expression],
   ['string', 'return "x";', expression],

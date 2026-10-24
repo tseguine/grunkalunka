@@ -642,3 +642,13 @@ fn general_const_initializers_and_alias_reads_do_not_reenter_evaluation() {
     assert!(entries >= 3);
     assert!(pending > 1);
 }
+
+#[test]
+fn general_truthiness_uses_one_pending_evaluator_entry() {
+    let source = "export function run(a,b) {return !(a?null:(b?undefined:false));}";
+    let (result, maximum, entries, pending) = observe(|| crate::compile_value(source, false));
+    result.unwrap();
+    assert_eq!(maximum, 1);
+    assert_eq!(entries, 1);
+    assert!(pending > 1);
+}

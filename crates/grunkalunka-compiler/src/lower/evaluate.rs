@@ -65,6 +65,7 @@ enum Work<'e, 'a> {
     Pack(&'e Expression<'a>),
     Convert(&'e Expression<'a>),
     Truthy(&'e Expression<'a>),
+    GeneralTruthy(&'e Expression<'a>),
     Not(&'e Expression<'a>),
     Unary(&'e Expression<'a>, Unary),
     BinaryRight {
@@ -263,6 +264,12 @@ impl Lowering<'_, '_> {
                     let result = self.value(Type::General);
                     Self::push(regions.current(), node, Op::Pack { result, input });
                     values.push(Value::General(result));
+                }
+                Work::GeneralTruthy(node) => {
+                    let input = values.pop().expect("General truthiness input").general();
+                    let result = self.value(Type::Predicate);
+                    Self::push(regions.current(), node, Op::GeneralTruthy { result, input });
+                    values.push(Value::Predicate(result));
                 }
                 Work::Truthy(node) => {
                     let input = values.pop().expect("truthiness input").number();
@@ -761,6 +768,11 @@ impl Lowering<'_, '_> {
                         }
                     }
                     if matches!(mode, Mode::Predicate) {
+                        if self.general_predicate_leaf(node) {
+                            work.push(Work::GeneralTruthy(node));
+                            work.push(Work::Eval(node, depth, Mode::General));
+                            continue;
+                        }
                         if let Expression::BooleanLiteral(literal) = node {
                             let result = self.value(Type::Predicate);
                             Self::push(

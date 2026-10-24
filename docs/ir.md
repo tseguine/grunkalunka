@@ -410,4 +410,21 @@ payload without asserting a more specific runtime type.
 
 Original lexical owners, initialization once per region entry, declaration order,
 source-local counts and const-store restrictions still apply. A General binding
-cannot feed a Number/Predicate operation without an explicit future conversion.
+feeds Predicate operations through explicit `GeneralTruthy`; Number operations
+still require a future numeric conversion.
+
+### General truthiness conversion
+
+`GeneralTruthy` consumes a visible General input and defines a Predicate. The
+verifier rejects scalar inputs, wrong result types and uses before definition.
+A pending evaluator continuation captures the General result once, then emits
+conversion; it does not recursively enter evaluation or charge an extra source node.
+Positive leaf routing recognizes null, unresolved global undefined, General cells
+and calls whose actual internal result signature is General. Existing scalar
+routing and source wrappers retain their original depth charges.
+
+On the closed canonical four-kind domain, `abs(payload) > 0` implements ToBoolean:
+nullish payloads are +0, Boolean payloads are 0/1, and Number zero/NaN compare false.
+No tag dispatch is needed. New runtime kinds must revisit this operation before
+admission. No heap, import or numeric coercion is introduced; General-valued logical
+selection still requires its own lowering contract.

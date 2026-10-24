@@ -51,7 +51,9 @@ import { primitiveStrictEquality } from './primitive-strict-equality.mjs';
 
 import { generalConstBindings } from './general-const-bindings.mjs';
 
-export const corpusVersion = 52;
+import { generalTruthiness } from './general-truthiness.mjs';
+
+export const corpusVersion = 53;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -122,6 +124,7 @@ programs.push(...discardedPredicateBindings);
 programs.push(...strictBooleanEquality);
 programs.push(...primitiveStrictEquality);
 programs.push(...generalConstBindings);
+programs.push(...generalTruthiness);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);

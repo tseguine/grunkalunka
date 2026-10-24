@@ -464,6 +464,40 @@ impl Lowering<'_, '_> {
         false
     }
 
+    // Wrappers are already stripped by the evaluator with their original depth charges.
+    // This positive classification emits nothing and does not replace source validation.
+    fn general_predicate_leaf(&self, expression: &Expression<'_>) -> bool {
+        match expression {
+            Expression::NullLiteral(_) => true,
+            Expression::Identifier(identifier) => {
+                if let Ok(binding) = numeric_binding(identifier, self.semantic, &self.bindings) {
+                    self.slots[binding.slot.0].ty == Type::General
+                } else {
+                    identifier.name == "undefined"
+                        && identifier.reference_id.get().is_some_and(|reference| {
+                            self.semantic
+                                .scoping()
+                                .get_reference(reference)
+                                .symbol_id()
+                                .is_none()
+                        })
+                }
+            }
+            Expression::CallExpression(call) => {
+                let Expression::Identifier(identifier) = &call.callee else {
+                    return false;
+                };
+                let symbol = identifier.reference_id.get().and_then(|reference| {
+                    self.semantic.scoping().get_reference(reference).symbol_id()
+                });
+                self.functions.iter().any(|function| {
+                    Some(function.symbol) == symbol && function.return_type == Type::General
+                })
+            }
+            _ => false,
+        }
+    }
+
     fn declaration(
         &mut self,
         declaration: &VariableDeclaration<'_>,

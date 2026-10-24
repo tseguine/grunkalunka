@@ -286,6 +286,13 @@ impl Emitter<'_> {
                     });
                     self.set(*result);
                 }
+                Op::GeneralTruthy { result, input } => {
+                    // Canonical nullish payloads are zero, Boolean payloads are 0/1;
+                    // Number payloads keep their value. This implements all four kinds.
+                    writeln!(self.output, "local.get {}", self.value_offsets[input.0] + 1).unwrap();
+                    self.output.push_str("f64.abs\nf64.const 0\nf64.gt\n");
+                    self.set(*result);
+                }
                 Op::Truthy { result, input } => {
                     self.get(*input);
                     // abs(x) > 0 is false exactly for +/-0 and NaN.

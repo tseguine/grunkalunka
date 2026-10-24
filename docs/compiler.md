@@ -55,8 +55,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 52
-contains 1494 paired programs, 986 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 53
+contains 1510 paired programs, 986 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -515,13 +515,15 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   is unchanged: assertions do not prove Boolean kinds, root Boolean logical,
   conditional and comma shapes do not qualify, and `!` itself is not a numeric return.
   Conditions admit Boolean literals, logical negation, numeric
-  `< <= > >= == != === !==` comparisons and primitive-number truthiness. Truthiness
-  evaluates its expression once; ±0 and NaN are false, all other numbers are true.
+  `< <= > >= == != === !==` comparisons and represented primitive truthiness. Truthiness
+  evaluates its expression once; null, undefined, false, ±0 and NaN are false.
+  True and other represented Numbers are true.
   Number equality operands keep their original lowering. On that domain, `==`/`!=` use
   the same comparisons as `===`/`!==`: NaN is unequal to every number and signed
   zeros compare equal. Ordered snapshots preserve operand effects. No coercion
   is introduced by equality itself. Strict `===`/`!==` also accept two proven Boolean
-  operands through the bounded same-kind bridge below; mixed kinds, loose Boolean
+  operands through the bounded same-kind bridge below. The four represented kinds
+  additionally admit mixed-kind strict equality through General operands; loose Boolean
   equality and Boolean relational operands remain outside admission. Results remain
   predicates, and may enter the
   explicit primitive Number bridges; direct ABI results remain Number-only.
@@ -538,7 +540,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Numeric `&&` and `||` evaluate the left operand once and return its original
   snapshot or the selected RHS result. The RHS is fully admitted but executes only
   in the selected branch. In predicate positions `&&` and `||` may also combine
-  comparisons, Boolean literals, negation and numeric truthiness. Their internal
+  comparisons, Boolean literals, negation and represented General truthiness. Their internal
   result is a canonical predicate, with the same evaluation order and selected
   effects. Raw Boolean/comparison operands remain rejected outside the admitted unary
   conversion in numeric value positions;
@@ -1180,8 +1182,8 @@ runtime kinds. An initialized Number binding named `undefined` remains a Number.
 
 The entry has two Number parameters and a General result. Helpers retain Number
 parameters/results, including the existing 1000-source-parameter limit. A direct call
-to the entry can produce a General result; using that result in a numeric operand,
-condition or numeric helper return is rejected until coercion support exists.
+to the entry can produce a General result. Conditions convert it with ToBoolean;
+using it in a numeric operand or numeric helper return remains rejected.
 Original symbol identity, argument snapshots, source budgets and selected-arm effects
 are preserved. Scalar computations retain scalar IR until an explicit `Pack` creates
 a General value; there is no heap allocation or NaN boxing.
@@ -1191,7 +1193,7 @@ exercise 27 JS/TS pairs, 54 compiled modules and 14 input pairs: 756 calls per W
 engine (1512 comparisons against original JS). These finite cases do not promote
 numeric-corpus or curated rejection fixtures. At that primitive-return step, corpus 50 retained 1466 pairs and 995
 rejections under the numeric profile. Mutable General source cells and General parameters, mixed-kind
-operators beyond strict equality, truthiness/coercions, empty/implicit returns, strings/objects/BigInts and
+operators beyond strict equality, numeric coercions, empty/implicit returns, strings/objects/BigInts and
 general heap integration remain open. Logical expressions still use the
 existing scalar operand contracts; this is not general JavaScript expression support.
 
@@ -1210,8 +1212,8 @@ existing files are never overwritten.
 
 `node scripts/poc.mjs` builds offline and runs both profile reports. The separate
 [primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
-20 JS/TS pairs on 14 input pairs: 1120 comparisons with original JS across Wasmtime
-and Node-Wasm. It checks 7 rejected pairs and five CLI control groups, covering input
+21 JS/TS pairs on 14 input pairs: 1176 comparisons with original JS across Wasmtime
+and Node-Wasm. It checks 6 rejected pairs and five CLI control groups, covering input
 validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
 fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
 compiler/lock hashes, host versions, standard references and invocation results.
@@ -1219,7 +1221,7 @@ compiler/lock hashes, host versions, standard references and invocation results.
 Four exact original numeric rejection sources (`boolean`, `null`, `comparison`,
 `predicate-conditional-numeric-return`) execute successfully in this value profile;
 the report also verifies their continued numeric-profile rejection. This is
-profile-specific support, not removal of those four numeric rejections. The seven selected value rejection pairs are not an
+profile-specific support, not removal of those four numeric rejections. The six selected value rejection pairs are not an
 exhaustive value-profile gap inventory. Numeric and value reports live separately
 under `target/compatibility-runs/` and `target/value-compatibility-runs/`.
 
@@ -1249,7 +1251,7 @@ pairs of twelve primitive representatives with both strict operators and both
 profiles: 576 modules executed by Wasmtime and Node against standard-derived results.
 These finite fixtures do not establish complete language support.
 
-Loose equality, General logical/truthiness conversion, mutable General cells,
+Loose equality, General-valued logical selection, mutable General cells,
 General helper parameters/results, strings, BigInts and objects remain separate work.
 Strict equality does not coerce operands and adds no heap or host capability.
 
@@ -1271,7 +1273,7 @@ Bindings become visible only after their initializer. Shadowing, TDZ, const writ
 lexical region ownership and per-entry loop initialization keep their existing rules.
 General aliases can be returned through the Value profile, used in primitive strict
 equality, or discarded as identifier expressions, including erased wrappers.
-Numeric/Boolean coercion, truthiness, mutable General assignments and implicit
+Numeric coercion, mutable General assignments and implicit
 initialization remain separate work. A numeric return of a General binding is
 rejected explicitly even when its current payload happens to be a Number.
 
@@ -1281,4 +1283,30 @@ rejections now diagnose their unsupported numeric read after successful initiali
 `annotation-runtime-null` and `predicate-conditional-numeric-local`. Their original
 sources and inventory hashes remain unchanged. The separate Value-profile fixture
 `general-local` transfers from rejection to execution with its original JS/TS sources;
-that finite profile now has 20 pairs and seven selected rejection pairs.
+that step recorded 20 pairs and seven selected rejection pairs.
+
+## General primitive truthiness
+
+Conditions, logical negation and predicate-position conditional/logical composition
+admit null, unresolved global undefined, immutable General bindings and General entry
+call results. Each operand is captured once. Existing Number and Predicate paths
+remain unchanged. The [ToBoolean rule](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-toboolean)
+makes null, undefined, false, signed zero and NaN false; true and other represented
+Numbers are true. TypeScript assertions never change runtime truthiness.
+
+`GeneralTruthy` converts one visible General snapshot into a Predicate. The current
+canonical representation makes its payload alone sufficient: nullish payloads are
++0, Boolean payloads are 0/1, and Number payloads retain their value. Emission tests
+`abs(payload) > 0`, which also rejects NaN. This proof covers only the four admitted
+kinds; String, BigInt, object and HTMLDDA semantics are not represented.
+
+Existing predicate short-circuit regions preserve skipped effects while still
+validating all source branches. General-valued `&&`/`||`, nullish coalescing, numeric
+coercion, mutable General storage and additional runtime kinds remain separate work.
+
+Corpus 53 adds sixteen paired programs, reaching 1510 pairs, 986 rejections and
+36 curated references. No original numeric rejection transfers in this step.
+The separate Value profile promotes `general-condition` with its exact original
+JS/TS source: 21 pairs, six selected rejection pairs and 1176 engine comparisons.
+The runtime matrix covers 144 modules with standard-derived goldens plus 48
+conditional/loop/effect modules across JS/TS, both profiles and both engines.
