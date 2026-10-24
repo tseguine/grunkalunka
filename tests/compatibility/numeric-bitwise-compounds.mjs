@@ -65,7 +65,7 @@ const negatives = [
   ['compound-predicate-rhs', 'return a|=(a<b);', binary],
   ['compound-depth-limit', `return ${'a&='.repeat(129)}b;`, 'expression nesting exceeds'],
   ['compound-statement-limit', `${'a&=b;'.repeat(256)} return a;`, 'at most 256 statements'],
-  ['compound-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=(a&=b)`).join(',')}; return x128;`, 'at most 128 numeric locals'],
+  ['compound-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=(a&=b)`).join(',')}; return x128;`, 'at most 128 source locals'],
 ];
 export const numericBitwiseCompoundsRejected = negatives.map(([id,body,diagnostic,extension='js'])=>
   [id,`export function run(a,b) { ${body} }`,extension,diagnostic]);

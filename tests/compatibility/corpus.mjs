@@ -37,7 +37,8 @@ import { numericMathUnary, numericMathUnaryRejected } from './numeric-math-unary
 import { numericBooleanComplement } from './numeric-boolean-complement.mjs';
 import { discardedValues, discardedValuesRejected } from './discarded-values.mjs';
 export { benchmarkVectors as additionalVectors } from './benchmarks-game.mjs';
-export const corpusVersion = 41;
+import { constBooleanPrograms, constBooleanRejected } from './const-boolean.mjs';
+export const corpusVersion = 42;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -99,6 +100,7 @@ programs.push(...numericTsWriteTargets);
 programs.push(...numericMathUnary);
 programs.push(...numericBooleanComplement);
 programs.push(...discardedValues);
+programs.push(...constBooleanPrograms);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -197,6 +199,7 @@ export const rejected = [
   ...numericMathAbsRejected,
   ...numericMathUnaryRejected,
   ...discardedValuesRejected,
+  ...constBooleanRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -237,7 +240,6 @@ export const rejected = [
   ['string', 'export function run(a,b) { return a + "1"; }'],
   ['bigint', 'export function run(a,b) { return 1n; }'],
   ['boolean', 'export function run(a,b) { return true; }', 'js', 'expression is outside the numeric experiment'],
-  ['boolean-literal-local', 'export function run(a,b) { const x=true; return x?a:b; }', 'js', 'expression is outside the numeric experiment'],
   ['boolean-literal-arithmetic', 'export function run(a,b) { return true+b; }'],
   ['boolean-literal-unselected-call', 'export function run(a,b) { if(false) return Math.random(); return a; }'],
   ['boolean-literal-while-unselected-call', 'export function run(a,b) { while(false) return Math.random(); return a; }'],
@@ -251,7 +253,6 @@ export const rejected = [
   ['predicate-conditional-equality-operand', 'export function run(a,b) { if((a?true:false)==0) return a; return b; }'],
   ['predicate-conditional-depth', `export function run(a,b) { if(${'a?true:'.repeat(129)}false) return a; return b; }`],
   ['boolean-equality-operands', 'export function run(a,b) { if(true===false) return a; return b; }'],
-  ['not-local', 'export function run(a,b) { const x=!a; return x?a:b; }'],
   ['not-arithmetic', 'export function run(a,b) { return (!a)+b; }'],
   ['not-equality-operand', 'export function run(a,b) { if(!a===!b) return a; return b; }'],
   ['not-unselected-call', 'export function run(a,b) { if(true) return a; else if(!Math.random()) return b; return a; }'],
@@ -327,7 +328,7 @@ export const rejected = [
   ['assignment-forward-statement', 'export function run(a,b) { x=a; let x=b; return x; }'],
   ['var-local', 'export function run(a,b) { var x=a; return x; }'],
   ['statement-limit', `export function run(a,b) { ${'a=b;'.repeat(256)} return a; }`],
-  ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }'],
+  ['boolean-local', 'export function run(a,b) { const x=a<b; return x; }', 'js', 'ERROR: unsupported at bytes 47..48: Boolean bindings are not admitted in numeric value positions'],
   ['boolean-arithmetic', 'export function run(a,b) { return (a<b)+b; }'],
   ['invalid-dead-arm', 'export function run(a,b) { return a===a?a:Math.random(); }'],
   ['unreachable-extra', 'export function run(a,b) { return a; const x=b; return x; }'],

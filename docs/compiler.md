@@ -6,8 +6,9 @@ encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
 Private IR cells have a fixed existing `Number` or `Predicate` type. Source lowering
-still creates only Number cells, and all entry/helper parameters and returns remain
-Number-only. This foundation adds no Boolean source storage, inference or boxing.
+creates Number cells and immutable Boolean const cells for predicate-position reads.
+All entry/helper parameters and returns remain Number-only. This adds no dynamic
+type inference or boxing; see the [bounded source contract](#immutable-boolean-predicate-locals).
 
 ## Replay
 
@@ -35,14 +36,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 41
-contains 964 paired programs, 767 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 42
+contains 1008 paired programs, 797 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 767 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 92 explicit resource restrictions and 649 open requirements.
+classifies all 797 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 99 explicit resource restrictions and 672 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -489,7 +490,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   selects predicate lowering only for Boolean-producing result shapes, including
   mixed logical/conditional results; Number-only trees retain their original path.
   Only the selected branch executes. Type assertions never prove runtime kinds;
-  storage, arguments, assignments, arithmetic and returns remain Number-only.
+  mutable storage, arguments, assignments, arithmetic and returns remain Number-only.
+  Immutable Boolean const locals have the predicate-position boundary described below.
   Numeric `&&` and `||` evaluate the left operand once and return its original
   snapshot or the selected RHS result. The RHS is fully admitted but executes only
   in the selected branch. In predicate positions `&&` and `||` may also combine
@@ -605,7 +607,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - AST grouping is preserved; there is no optimizer, reassociation, constant folding
   or fused multiply-add lowering. Literal values use Oxc's binary64 parse followed
   by round-trippable WAT decimal spelling (explicit `inf` for overflow literals).
-- Source limit 16 KiB; expression nesting limit 128; at most 128 numeric locals
+- Source limit 16 KiB; expression nesting limit 128; at most 128 source locals
   across all functions and lexical scopes and 256 recursively counted statements, including
   module/function directives, explicit type declarations, block/`if`/`while`/`for`/`do`
   nodes, both arms, loop bodies and returns. Each added helper declaration charges
@@ -637,15 +639,15 @@ this development build; neither compiler nor runtime was release-benchmarked.
 The replay observed:
 
 ```text
-PASS 2417712 numeric comparisons; 767 rejected inputs; overwrite preserved
+PASS 2528064 numeric comparisons; 797 rejected inputs; overwrite preserved
 DEMO: affine.ts -> Wasm; run(4, 1) = 3
 PASS all checks (Node v20.10.0)
 ```
 
-964 programs, each written as JS and TS, produce 1928 modules.
+1008 programs, each written as JS and TS, produce 2016 modules.
 Each module is validated and run in Wasmtime and Node-Wasm over 627 argument pairs: the Cartesian
 product of 19 named boundary values plus 256 reproducible raw-bit pairs from seed
-`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,417,712 engine-to-JS
+`4752554e`, plus ten named Mandelbrot orbit pairs. This yields 2,528,064 engine-to-JS
 comparisons. The explicit demo calls in both engines are additional assertions. All JS/TS module pairs emit identical bytes.
 
 The [TypeScript erasure fixtures](../tests/compatibility/typescript-erasure.mjs)
@@ -835,7 +837,7 @@ Each initializer is checked before publishing its own binding, preserving
 self/forward-reference rejection even when a later binding shadows an outer one.
 The admission follows [BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
 
-767 malformed or unsupported programs fail explicitly, each with a unique
+797 malformed or unsupported programs fail explicitly, each with a unique
 absent artifact destination. A separate sentinel verifies refusal to overwrite an
 existing file. A mismatch reports the seed, fixture, vector and input/result bits.
 Formatting, Clippy with warnings denied, both earlier frontend checks, and resolved
@@ -872,3 +874,32 @@ The next frontend question is the tsrs type-query/source-identity experiment. Th
 separate [WIT capability host experiment](capabilities.md) now exercises resource
 profiles and lifecycle checks. Neither is a hidden
 prerequisite for the numeric ABI test, and neither was implemented here.
+
+## Immutable Boolean predicate locals
+
+`const` initializers may be Boolean literals, logical negation, admitted numeric
+comparisons/equalities, or initialized immutable Boolean aliases, through retained
+parentheses and TypeScript expression wrappers. Runtime initializer shape determines
+the fixed `Predicate` slot type; type annotations/assertions do not coerce values.
+The binding becomes visible only after its initializer succeeds. Symbol identity,
+TDZ, lexical scope and once-only initializer effects remain authoritative.
+
+Reads are admitted in existing predicate positions, including conditions, logical
+negation and predicate logical/conditional operands. Mutable Boolean locals, Number
+positions (including returns, call arguments and arithmetic), root logical/conditional
+initializer joins, `~flag`, `+flag`, bare discarded identifiers, comma prefixes,
+for-update reads and discarded `flag && (a=b)` remain outside this bounded unit.
+All source locals share the unchanged cumulative 128 limit across functions/scopes;
+its diagnostic now says “source locals” for both Number and Predicate cells.
+
+Corpus 42 adds 44 pairs, including four original promotions, and 34 boundary
+rejections. Only `gap-boolean-value` leaves the curated frontier: its original
+source, independent oracle, values/L4 metadata, empty prerequisites, inputs `[4,2]`
+and positive-zero result are retained. The other three IDs are
+`boolean-literal-local`, `not-local` and `equality-numeric-local`.
+Two retained return diagnostics advance to an explicit Boolean-in-Number rejection;
+exactly 13 existing local-budget diagnostics change “numeric” to “source”.
+The current totals are 1008 pairs, 2016 modules, 2,528,064 engine-to-JS comparisons,
+797 rejections, 38 curated references and 56 inventory groups: 26 invalid sources,
+99 resource restrictions and 672 open requirements. The Boolean-values group retains
+90 records. Existing Number source/WAT/Wasm artifacts remain unchanged.

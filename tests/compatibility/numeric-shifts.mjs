@@ -69,7 +69,7 @@ const negatives = [
   ['shift-forward-tdz', 'const x=y << a; let y=b; return x;', reference],
   ['shift-depth-limit', `return a${' >>> 0'.repeat(129)};`, 'expression nesting exceeds'],
   ['shift-statement-limit', `${'a >>> b;'.repeat(256)} return a;`, 'at most 256 statements'],
-  ['shift-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=a << b`).join(',')}; return x128;`, 'at most 128 numeric locals'],
+  ['shift-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=a << b`).join(',')}; return x128;`, 'at most 128 source locals'],
 ];
 export const numericShiftsRejected = negatives.map(([id,body,diagnostic,extension='js'])=>
   [id,`export function run(a,b) { ${body} }`,extension,diagnostic]);

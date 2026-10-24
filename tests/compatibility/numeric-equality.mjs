@@ -41,7 +41,6 @@ const negatives = [
   ['equality-comparison-operand', 'return (a<b)==0?1:0;', binary],
   ['equality-nested-operand', 'return (a==b)==0?1:0;', binary],
   ['equality-numeric-return', 'return a==b;', binary],
-  ['equality-numeric-local', 'const x=a==b; return a;', binary],
   ['inequality-arithmetic', 'return (a!=b)+a;', binary],
   ['equality-unselected-call', 'return 0?(a==Math.random()?1:0):b;', expression],
   ['equality-asserted-string', 'return ((a==("4" as number)) as boolean)?1:0;', expression, 'ts'],

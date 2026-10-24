@@ -6,7 +6,9 @@ mutability and Number-only entry/helper parameters. A mixed-order scalar-cell
 emission witness covers snapshots, branch stores and three loop entries in focused
 Node-Wasm/Wasmtime playback. The maintained test checks real IR emission and local
 types; `GRUNKALUNKA_IR_TEST_ARTIFACTS` optionally writes its WAT/Wasm for that replay.
-No tagged-pair representation or Boolean source-binding policy is selected.
+No tagged-pair or general value representation is selected. The bounded
+[immutable Boolean const policy](compiler.md#immutable-boolean-predicate-locals)
+uses the existing Predicate cells for predicate-position reads.
 
 All six reference suites are registered in
 [`suites.json`](../tests/compatibility/suites.json) at immutable upstream revisions.
@@ -42,8 +44,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 767 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 92 resource restrictions and 649 open requirements.
+also covers all 797 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 99 resource restrictions and 672 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -180,3 +182,16 @@ Expected traps use fresh instances and assert `unknown handle index`, host read
 counts and backing liveness before teardown. An unrelated-trap mutation verifies
 the trap-reason assertion; three omission mutations verify the required operations.
 No compiler corpus counts, public runtime policy or existing borrow fixture change.
+
+## Boolean const coverage
+
+`const-boolean.mjs` adds 44 JS/TS pairs, including four exact original promotions,
+and 34 source-bound negatives. Differential cases cover captured comparisons,
+initializer effects, aliases, scope/TDZ, misleading type syntax, per-entry loop
+initialization, original-node depth and cumulative mixed-type local budgets.
+Both retained return frontiers pin their full diagnostic/span; 13 pre-existing
+local-budget diagnostics change only “numeric” to “source”. The curated promotion's
+original source hashes and independent +0 reference are checked directly.
+Current corpus: 1008 pairs, 2016 modules and 2,528,064 comparisons; 797 rejections
+in 56 groups (26 invalid, 99 resource restrictions, 672 open), including 90 Boolean
+frontiers and 38 curated references. Prior admitted source/WAT/Wasm artifacts remain exact.

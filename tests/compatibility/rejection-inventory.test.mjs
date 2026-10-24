@@ -1,17 +1,40 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rejected } from './corpus.mjs';
+import { constBooleanPrograms, promotedBooleanGap } from './const-boolean.mjs';
+import { programSources } from './program-sources.mjs';
+import { createHash } from 'node:crypto';
 import { readRejectionInventory, validateRejectionInventory, rejectionClassification, validateRejectionReport } from './rejection-inventory.mjs';
 
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
 const validate = data => validateRejectionInventory(rejected, data);
 
+test('Boolean storage preserves the promoted curated reference and exact source identities', async () => {
+  assert.deepEqual(promotedBooleanGap, {
+    id: 'gap-boolean-value', category: 'values', milestone: 'L4', prerequisites: [],
+    oracleSource: 'export function run(a,b) { const less = a < b; return less ? 1 : 0; }',
+    args: [4,2], entry: 'run', expected: 0,
+  });
+  for (const [id, hash] of [
+    ['gap-boolean-value','9cfb72a0da82b3c6efa22935d3b24ea419bc56d235ae8291eeadcf069dc3cd7c'],
+    ['boolean-literal-local','e19322e02eb6adec61850c72f58228ceda5eb567c29ce72e8a9ed56c81c60fab'],
+    ['not-local','a26a441ad8f2bef9fa4e0ddfa842e03ef72ed356c2165f2d3af77d899b70a552'],
+    ['equality-numeric-local','9adfc0a17014b149f46269c3f8f3dec00c5731676c7c6e91f643e3dde5064430'],
+  ]) {
+    const source = programSources(constBooleanPrograms.find(p => p[0] === id));
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), hash);
+    assert.ok(!rejected.some(r => r[0] === id));
+  }
+  const { run } = await import(`data:text/javascript,${encodeURIComponent(promotedBooleanGap.oracleSource)}`);
+  assert.ok(Object.is(run(...promotedBooleanGap.args), promotedBooleanGap.expected));
+});
+
 test('every rejection has a source-bound assessment in the selected strict Module mode', () => {
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 767);
+  assert.equal(inventory.records.size, 797);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

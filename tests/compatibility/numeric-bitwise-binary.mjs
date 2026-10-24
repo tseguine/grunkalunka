@@ -69,7 +69,7 @@ const negatives = [
   ['bitwise-forward-tdz', 'const x=y & a; let y=b; return x;', reference],
   ['bitwise-depth-limit', `return a${' & 1'.repeat(129)};`, 'expression nesting exceeds'],
   ['bitwise-statement-limit', `${'a & b;'.repeat(256)} return a;`, 'at most 256 statements'],
-  ['bitwise-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=a & b`).join(',')}; return x128;`, 'at most 128 numeric locals'],
+  ['bitwise-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=a & b`).join(',')}; return x128;`, 'at most 128 source locals'],
 ];
 export const numericBitwiseBinaryRejected = negatives.map(([id,body,diagnostic,extension='js'])=>
   [id,`export function run(a,b) { ${body} }`,extension,diagnostic]);

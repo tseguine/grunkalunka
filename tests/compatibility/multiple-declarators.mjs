@@ -42,8 +42,8 @@ const negatives = [
   ['declarators-for-leak', 'for(let i=0,j=1;0;) {} return j;', reference],
   ['declarators-for-body-step-leak', 'for(let i=0,j=1;i<1;k++) { let k=0; i++; } return a;', reference],
   ['declarators-for-later-const-write', 'for(const i=0,j=(i=1);0;) {} return a;', 'assignment to a const binding is not admitted'],
-  ['declarators-local-limit', `let ${Array.from({length:129},(_,i)=>`x${i}=a`).join(',')}; return a;`, 'at most 128 numeric locals'],
-  ['declarators-cumulative-local-limit', `let ${Array.from({length:128},(_,i)=>`x${i}=a`).join(',')}; { let y=b; } return a;`, 'at most 128 numeric locals'],
+  ['declarators-local-limit', `let ${Array.from({length:129},(_,i)=>`x${i}=a`).join(',')}; return a;`, 'at most 128 source locals'],
+  ['declarators-cumulative-local-limit', `let ${Array.from({length:128},(_,i)=>`x${i}=a`).join(',')}; { let y=b; } return a;`, 'at most 128 source locals'],
   ['declarators-statement-limit', `let x=a,y=b; ${'a;'.repeat(255)} return x+y;`, 'at most 256 statements'],
   ['declarators-header-statement-limit', `for(let i=0,j=0;0;) { ${'a;'.repeat(253)} } return a;`, 'at most 256 statements'],
 ];

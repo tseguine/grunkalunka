@@ -41,8 +41,8 @@ bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 A `SlotId` names a fixed-type scalar cell (`Number` or `Predicate`). Each slot records
 its type, owning lexical region, mutability, parameter status and source span.
-Source lowering constructs only `Number` slots; this private IR foundation does not
-admit Boolean source bindings. Every entry/helper parameter slot remains `Number`.
+Source lowering constructs `Number` slots and immutable `Predicate` const slots.
+Every entry/helper parameter slot remains `Number`.
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.
 A loop body may enter its region repeatedly and initialize those cells on each
@@ -109,15 +109,16 @@ fuel-headroom guarantee. See the standard [Number remainder rule](https://tc39.e
 `NumberFromPredicate { input, result }` requires a visible `Predicate` input and
 uniquely defines a `Number` result. It emits `f64.convert_i32_u` on the existing
 canonical zero/one predicate, implementing Boolean-to-Number only for selected
-numeric `~` operands. `Unary::BitNot` still consumes and returns Number. Source lowering still has
-no Boolean cell, parameter, return or general coercion. A pure bounded AST shape
+numeric `~` operands. `Unary::BitNot` still consumes and returns Number. This bridge
+adds no Boolean parameter, return or general coercion. A pure bounded AST shape
 classifier selects this path; original operand lowering performs effects once and
 counts all retained source wrappers at the original unary argument depth.
 
 `Initialize` and `Store` require an input matching the slot type; `Load` defines
 a result of that type. Nonparameter `Number`/`Predicate` slots emit f64/i32 locals.
 Both occupy one scalar local, preserving all slot/value index arithmetic. Stores
-perform no conversion. Source lowering still initializes/stores only Numbers.
+perform no conversion. Source lowering initializes Number cells and immutable
+Predicate const cells; stores still target mutable Number cells.
 Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
 operation. They allocate no source cell and perform no host lookup. Resolved
 symbols with those names continue through ordinary binding and TDZ checks.
@@ -176,7 +177,7 @@ and logical value expressions join numbers. Logical conditions join predicates:
 the left predicate is evaluated once and the RHS predicate only in its selected
 branch. Source ternaries consumed as conditions also join predicates, converting
 each arm in its own region. Number-value ternaries still require numeric arms;
-Boolean locals and returns remain outside admission. Previously admitted numeric
+Mutable Boolean locals and Boolean returns remain outside admission. Previously admitted numeric
 ternaries in predicate positions may therefore emit different bytes, while their
 results and selected effects must remain equivalent.
 
@@ -285,5 +286,14 @@ initializers/updates may evaluate Numbers or Booleans. The lowerer inspects reta
 result-producing syntax before emitting and preserves original node depths. Boolean
 shapes use existing predicate operations; Number-only trees use unchanged numeric
 lowering. Mixed logical/conditional results may normalize to predicates because the
-value is discarded and Number/Boolean truthiness has no user hooks. Source cells,
+value is discarded and Number/Boolean truthiness has no user hooks. Mutable source cells,
 arguments and returns remain Number-only; no IR or emitter operation is added.
+
+## Boolean source cells
+
+Immutable Boolean initializers now use the existing fixed `Predicate` slots and
+canonical `i32` loads. The source binding is published only after initialization;
+aliases resolve through SymbolId and the slot type. Number slots keep their old
+lowering. No new IR operation, Wasm layout or call signature is introduced.
+See [the predicate-position source contract](compiler.md#immutable-boolean-predicate-locals)
+for the intentionally narrower source reads, initializer forms and shared local budget.

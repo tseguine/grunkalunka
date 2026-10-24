@@ -33,7 +33,6 @@ for (const [id, body, expected, diagnostic] of [
 ]) add(id, 'operators', body, expected, diagnostic);
 
 for (const [id, body, expected, diagnostic] of [
-  ['boolean-value', 'const less = a < b; return less ? 1 : 0;', 0, binary],
   ['string-coercion', 'return a + "2" === "42" ? 1 : 0;', 1, expression],
   ['object-property', 'return ({x:a}).x + b;', 6, expression],
   ['array-value', 'const items = [a,b]; return items[1];', 2, expression],

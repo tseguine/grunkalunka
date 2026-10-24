@@ -63,7 +63,7 @@ const negatives = [
   ['continue-statement-limit', `do { ${';'.repeat(253)} continue; } while(0); return a;`, 'at most 256 statements'],
   ['continue-header-statement-limit', `for(let i=0;0;) { ${';'.repeat(252)} continue; } return a;`, 'at most 256 statements'],
   ['continue-depth-limit', `${'while(false) '.repeat(65)}continue; return a;`, 'statement nesting exceeds 64'],
-  ['continue-local-limit', `for(let i=0;0;) { const ${Array.from({length:128},(_,i)=>`x${i}=a`).join(',')}; continue; } return b;`, 'at most 128 numeric locals'],
+  ['continue-local-limit', `for(let i=0;0;) { const ${Array.from({length:128},(_,i)=>`x${i}=a`).join(',')}; continue; } return b;`, 'at most 128 source locals'],
 ];
 export const numericContinueRejected = negatives.map(([id,body,diagnostic]) =>
   [id, `export function run(a,b) { ${body} }`, 'js', diagnostic]);

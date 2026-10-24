@@ -49,7 +49,7 @@ const expression = 'expression is outside the numeric experiment';
 const reference = 'reference is not an initialized numeric parameter or local';
 export const annotationRejected = [
   ...[['string', '"4"'], ['object', '{}'], ['boolean', 'true'], ['null', 'null'], ['call', 'Math.random()']]
-    .map(([id, value]) => [`annotation-runtime-${id}`, source(`const x:number=${value}; return x;`), 'ts', expression]),
+    .map(([id, value]) => [`annotation-runtime-${id}`, source(`const x:number=${value}; return x;`), 'ts', id === 'boolean' ? 'ERROR: unsupported at bytes 79..80: Boolean bindings are not admitted in numeric value positions' : expression]),
   ['annotation-self-reference', source('const x:typeof a=x; return x;'), 'ts', reference],
   ['annotation-forward-reference', source('const x:typeof y=y; const y:number=a; return x;'), 'ts', reference],
   ['annotation-const-write', source('const x:unknown=a; x=b; return x;'), 'ts', 'assignment to a const binding'],
@@ -69,6 +69,6 @@ export const annotationRejected = [
   ['annotation-expression-limit', source(`return ${'('.repeat(129)}a${')'.repeat(129)};`), 'ts', 'expression nesting exceeds'],
   ['annotation-statement-limit', source(';'.repeat(256) + 'return a;'), 'ts', 'at most 256 statements'],
   ['annotation-local-limit', source(`const ${Array.from({length:129},(_,i)=>`x${i}:unknown=a`).join(',')}; return a;`), 'ts',
-    'at most 128 numeric locals'],
+    'at most 128 source locals'],
   ['annotation-original-byte-overflow', byteLimitSource(1), 'ts', '16 KiB'],
 ];

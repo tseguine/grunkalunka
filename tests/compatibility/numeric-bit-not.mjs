@@ -49,7 +49,7 @@ const negatives = [
   ['bit-not-forward-tdz', 'const x=~y; let y=a; return x;', reference],
   ['bit-not-depth-limit', `return ${'~'.repeat(129)}a;`, 'expression nesting exceeds'],
   ['bit-not-statement-limit', `${'~a;'.repeat(256)} return a;`, 'at most 256 statements'],
-  ['bit-not-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=~a`).join(',')}; return x128;`, 'at most 128 numeric locals'],
+  ['bit-not-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=~a`).join(',')}; return x128;`, 'at most 128 source locals'],
 ];
 export const numericBitNotRejected = negatives.map(([id,body,diagnostic,extension='js']) =>
   [id,`export function run(a,b) { ${body} }`,extension,diagnostic]);

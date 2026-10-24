@@ -652,7 +652,12 @@ mod tests {
                 "export function run(a:any,b:any):number {{ const x:number={initializer}; return x; }}"
             );
             let error = compile(&source, true).err().unwrap();
-            assert!(error.contains("expression is outside"), "{error}");
+            let reason = if initializer == "true" {
+                "Boolean bindings are not admitted in numeric value positions"
+            } else {
+                "expression is outside"
+            };
+            assert!(error.contains(reason), "{error}");
         }
     }
 
@@ -752,6 +757,69 @@ mod tests {
     #[test]
     fn discarded_boolean_statement() {
         compile("export function run(a,b) { true; return a; }", false).unwrap();
+    }
+
+    #[test]
+    fn immutable_boolean_literals_and_comparisons_are_predicate_cells() {
+        for source in [
+            "export function run(a,b) { const flag=true; return flag?a:b; }",
+            "export function run(a,b) { const flag=a<b; const copy=flag; return copy?1:0; }",
+        ] {
+            compile(source, false).unwrap();
+        }
+    }
+
+    #[test]
+    fn boolean_cell_numeric_frontiers_keep_original_source_spans() {
+        for (source, typescript, span) in [
+            (
+                "export function run(a,b) { const x=a<b; return x; }",
+                false,
+                "47..48",
+            ),
+            (
+                "export function run(a:unknown,b:unknown):unknown { const x:number=true; return x; }",
+                true,
+                "79..80",
+            ),
+        ] {
+            assert_eq!(
+                compile(source, typescript).err().unwrap(),
+                format!(
+                    "unsupported at bytes {span}: Boolean bindings are not admitted in numeric value positions"
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn boolean_cells_preserve_tdz_and_numeric_only_uses() {
+        for (source, reason) in [
+            (
+                "const flag=true; { const flag=flag; } return a;",
+                "reference is not an initialized",
+            ),
+            (
+                "const flag=true; { const x=flag; const flag=false; } return a;",
+                "reference is not an initialized",
+            ),
+            (
+                "const flag=true; flag; return a;",
+                "Boolean bindings are not admitted",
+            ),
+            (
+                "const flag=true; return ~flag;",
+                "Boolean bindings are not admitted",
+            ),
+            (
+                "const flag=true; let copy=flag; return a;",
+                "Boolean bindings are not admitted",
+            ),
+            ("const flag=true&&a; return a;", "expression is outside"),
+        ] {
+            let source = format!("export function run(a,b) {{ {source} }}");
+            assert!(compile(&source, false).err().unwrap().contains(reason));
+        }
     }
 
     #[test]

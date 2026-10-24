@@ -362,6 +362,12 @@ impl Lowering<'_, '_> {
                     Op::Constant { result, value }
                 } else {
                     let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
+                    if self.slots[slot.0].ty == Type::Predicate {
+                        return Err(unsupported(
+                            expression,
+                            "Boolean bindings are not admitted in numeric value positions",
+                        ));
+                    }
                     Op::Load { result, slot }
                 }
             }
@@ -674,6 +680,17 @@ impl Lowering<'_, '_> {
             );
             return Ok(result);
         }
+        if let Expression::Identifier(identifier) = expression {
+            let slot = numeric_binding(identifier, self.semantic, &self.bindings);
+            if let Ok(binding) = slot
+                && self.slots[binding.slot.0].ty == Type::Predicate
+            {
+                let slot = binding.slot;
+                let result = self.value(Type::Predicate);
+                Self::push(region, expression, Op::Load { result, slot });
+                return Ok(result);
+            }
+        }
         if let Expression::UnaryExpression(unary) = expression
             && unary.operator == UnaryOperator::LogicalNot
         {
@@ -813,6 +830,26 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
+    // Inspect retained nodes without emitting or trusting type annotations. Only
+    // already-published immutable Predicate bindings can supply an alias.
+    fn const_boolean_initializer(&self, mut expression: &Expression<'_>, mut depth: usize) -> bool {
+        while depth <= 128 {
+            if let Some(inner) = erased_inner(expression) {
+                expression = inner;
+            } else if let Expression::ParenthesizedExpression(wrapper) = expression {
+                expression = &wrapper.expression;
+            } else if let Expression::Identifier(identifier) = expression {
+                return numeric_binding(identifier, self.semantic, &self.bindings).is_ok_and(
+                    |binding| !binding.mutable && self.slots[binding.slot.0].ty == Type::Predicate,
+                );
+            } else {
+                return boolean_shape(expression, depth);
+            }
+            depth += 1;
+        }
+        false
+    }
+
     fn declaration(
         &mut self,
         declaration: &VariableDeclaration<'_>,
@@ -831,10 +868,7 @@ impl Lowering<'_, '_> {
         }
         for local in &declaration.declarations {
             if self.local_count >= 128 {
-                return Err(unsupported(
-                    local,
-                    "at most 128 numeric locals are admitted",
-                ));
+                return Err(unsupported(local, "at most 128 source locals are admitted"));
             }
             if local.definite {
                 return Err(unsupported(
@@ -849,11 +883,19 @@ impl Lowering<'_, '_> {
                 .init
                 .as_ref()
                 .ok_or("numeric local must have an initializer")?;
-            let value = self.expression(initializer, region, 0)?;
-            let slot = SlotId(self.slots.len());
             let mutable = declaration.kind == VariableDeclarationKind::Let;
+            let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
+                Type::Predicate
+            } else {
+                Type::Number
+            };
+            let value = match ty {
+                Type::Predicate => self.predicate(initializer, region, 0)?,
+                Type::Number => self.expression(initializer, region, 0)?,
+            };
+            let slot = SlotId(self.slots.len());
             self.slots.push(Slot {
-                ty: Type::Number,
+                ty,
                 owner: region.id,
                 mutable,
                 parameter: false,

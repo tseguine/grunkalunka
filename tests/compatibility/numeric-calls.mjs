@@ -107,7 +107,7 @@ bad('helper-construct', identity, 'return new identity(a);', expression);
 bad('helper-export', 'export function helper(x) { return x; }', 'return helper(a);', top);
 bad('ambient-helper', 'declare function helper(x:number):number;', 'return helper(a);', top, 'ts');
 bad('statement-limit', `function identity(x) { ${';'.repeat(254)}return x; }`, 'return identity(a);', 'at most 256 statements');
-bad('global-local-limit', `function helper(x) { ${locals('h',65)}return x; }`, `${locals('r',64)}return helper(a);`, 'at most 128 numeric locals');
+bad('global-local-limit', `function helper(x) { ${locals('h',65)}return x; }`, `${locals('r',64)}return helper(a);`, 'at most 128 source locals');
 bad('depth-limit', identity, `return ${'identity('.repeat(129)}a${')'.repeat(129)};`, 'expression nesting exceeds');
 bad('statement-depth-limit', `function identity(x) { ${'{'.repeat(65)}return x;${'}'.repeat(65)} }`, 'return identity(a);', 'statement nesting exceeds');
 reject('1001-parameters', `function many(${parameters(1001)}) { return 0; } export function run(a,b) { return a; }`, 'at most 1000 function parameters');

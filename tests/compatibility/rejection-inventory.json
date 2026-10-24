@@ -219,11 +219,11 @@
     {
       "id": "local-count",
       "kind": "resource-restriction",
-      "assessment": "Numeric value bindings exceed the cumulative source-local budget.",
+      "assessment": "Source value bindings exceed the cumulative source-local budget.",
       "evidence": [
         {
           "source": "docs/compiler.md#experimental-contract",
-          "rule": "128 numeric locals is a resource restriction, not a language validity judgment."
+          "rule": "128 source locals is a resource restriction, not a language validity judgment."
         }
       ],
       "dependencies": [],
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Boolean storage, numeric arguments/results and coercive operations exceed current Number-only value admission; discarded Number/Boolean evaluation is admitted.",
+      "assessment": "Immutable Boolean locals admit predicate-position reads; mutable storage, numeric arguments/results and general coercive operations remain outside admission. Discarded inline Number/Boolean evaluation is admitted, but discarded Boolean identifier reads remain outside admission.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -1158,13 +1158,6 @@
       "group": "instanceof"
     },
     {
-      "id": "gap-boolean-value",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9cfb72a0da82b3c6efa22935d3b24ea419bc56d235ae8291eeadcf069dc3cd7c",
-      "group": "boolean-values"
-    },
-    {
       "id": "gap-string-coercion",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1918,13 +1911,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "314c00184648d6e46bcf62f9eda88f26ad04c195a06c8fc844c8a2f875131e5b",
-      "group": "boolean-values"
-    },
-    {
-      "id": "equality-numeric-local",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9adfc0a17014b149f46269c3f8f3dec00c5731676c7c6e91f643e3dde5064430",
       "group": "boolean-values"
     },
     {
@@ -4434,13 +4420,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "boolean-literal-local",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "e19322e02eb6adec61850c72f58228ceda5eb567c29ce72e8a9ed56c81c60fab",
-      "group": "boolean-values"
-    },
-    {
       "id": "boolean-literal-arithmetic",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -4529,13 +4508,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "a76683e2472b7ba44bce8292a1061a6a8a1bccefef39072661fe3b7fb696546e",
-      "group": "boolean-values"
-    },
-    {
-      "id": "not-local",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a26a441ad8f2bef9fa4e0ddfa842e03ef72ed356c2165f2d3af77d899b70a552",
       "group": "boolean-values"
     },
     {
@@ -6469,6 +6441,244 @@
       "sourceMode": "module-strict",
       "sourceSha256": "97ffc505ba7a4277937befd78d5ddbcc8f7e4406b8895145bfc0f8a66e8ee3d0",
       "group": "expression-depth"
+    },
+    {
+      "id": "const-boolean-let-literal",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3921fb7e6314b7b69081533cb3b898dae58520a2a060f31164c2f0c2583185cb",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-let-alias",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "992b8d05bf3d3781f9916432a2ff745ea37f055896ad040ce9c47727b239a5cf",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "af7f4950684c593128dca8bc5a5447498fd7b73436cf2063eeee1e36dd7745bb",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-statement",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "41cdf1262f1a0f7b30ba299fb241a0d9c9239710c3fd361d075a3ccb7524e1b3",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-comma-prefix",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6704f919e3e4fd74709f1d18023152f813fd9b13959b3022c4a8fa5ee5e29330",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-for-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4a0c87c13b1536b9c873f1a3da6283639a9cffce68df1b38570b64c7e9967e40",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-discarded-logical",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "974e15fd0ecb05bddeab5ab205673d72e37e8f44b0d4d96713a283580165f097",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-complement",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "15bb5a3d49e746839f343f7ff6c1acf81214d1556e1be1524a761426cf61676a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-plus",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ee414b1a2c5e0d24c34277492afbfbbeb9eebe621fd9d4624400943d5f75da17",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-arithmetic",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "53b259230950d900a2ffb7d284ab3f07417cd6a78107ed59f2981753586107fa",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-argument",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-assignment-rhs",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc3ca2a98e515b26cb56a5260816fd5e4ca7f32df7ecd9c8399bdb2e3a9f97cf",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-comparison-operand",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "6b4c1127a8344c7699391b9bd637e15b910cebd8e54f50592919527c1b4e8bd0",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c65d76a9d44f0aa5e532a6e729fa890feddfc294be057878987eaab11ce8cb2c",
+      "group": "const-errors"
+    },
+    {
+      "id": "const-boolean-const-update",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d01d01a49348be5e80e5481863871cd1bb2b9c0abc803d25bbc2c970aa81fb01",
+      "group": "const-errors"
+    },
+    {
+      "id": "const-boolean-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "afd436735947d64a284cdc6d9edda8fa9798b6ba7ff258d1f6b6768324de353c",
+      "group": "binding-errors"
+    },
+    {
+      "id": "const-boolean-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dfe4d6f7a539bd015adf5d6f1f6294d857eaa306d7b96c8a817eeed8e59b9b8d",
+      "group": "binding-errors"
+    },
+    {
+      "id": "const-boolean-shadow-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ff78d7c0cef1f88d70e86ea41bd28aad30b0e675971e349172e6574671abd00c",
+      "group": "binding-errors"
+    },
+    {
+      "id": "const-boolean-shadow-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "961504bb24267c8336ed69734b4234c12f74b0910adf1d70492933ee13a4b16a",
+      "group": "binding-errors"
+    },
+    {
+      "id": "const-boolean-intrinsic-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "572804b233c9c1a4d2a7b179389584d72319b9895c2e53a782404c27acde1a00",
+      "group": "binding-errors"
+    },
+    {
+      "id": "const-boolean-scope-leak",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5f81b92eac847c06940c058984aee08b8a4f0ff497659831d3245ca0865bd68c",
+      "group": "binding-errors"
+    },
+    {
+      "id": "const-boolean-conditional-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "384e1d8a041cb1f7ae91b4794bd7643f1ce0b3cadf68f7b3e8d36b8034ff69f8",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-logical-initializer",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "28c9375a8efe96f02444af120853f065faa039d340a602d630749397fee707ad",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-dead-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "68f7245cd39a5247013eac9ebb88aa3170a73c6dedd79d9d0f3315d16512dca7",
+      "group": "function-calls"
+    },
+    {
+      "id": "const-boolean-unselected-unsupported",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a5ddb52be73df62e3889e87dc13488448ec39fc8216693307bc43152d9afe5de",
+      "group": "function-calls"
+    },
+    {
+      "id": "const-boolean-asserted-string",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c8a998f49d6f128d3f51e8236910a21618852a0dc33076c0cdd260ea13895414",
+      "group": "string-values"
+    },
+    {
+      "id": "const-boolean-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "83c6a19c1d70340390f3a852042f5b75b08b02f82f18bda741d518d0d1b563e8",
+      "group": "expression-depth"
+    },
+    {
+      "id": "const-boolean-not-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1831d8c7539cc006e1f6153e6a958aed94251a6cbcb1c861112845fa76427585",
+      "group": "predicate-depth"
+    },
+    {
+      "id": "const-boolean-ts-depth-limit",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a1fa8ea85b601a45d4d53186cbdd5c124787d69711327b13ebf3480f9d5a4393",
+      "group": "expression-depth"
+    },
+    {
+      "id": "const-boolean-alias-depth-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d4bd53631b5f836ed9d1d3f045cef80190268d0d081ff0cdb262deb072cd78a2",
+      "group": "expression-depth"
+    },
+    {
+      "id": "const-boolean-mixed-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ca1936fb8a9221cda896723caa758c723f4918934ebfa0d1a6881e1ef24fd009",
+      "group": "local-count"
+    },
+    {
+      "id": "const-boolean-statement-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7f685475347fabc831295c6cee855b02d25502f632d8ceb299e9d2663cd46c94",
+      "group": "statement-count"
+    },
+    {
+      "id": "const-boolean-unused-helper",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "af4bf2f8129f2ccfc703d4bb133bc18ab2987999a21b9973ca843043030bed5f",
+      "group": "boolean-values"
+    },
+    {
+      "id": "const-boolean-module-local-limit",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c757354dcea67f160740d07b90da7ba8acdf54f4ba3059ac9b2874ffcc1d05aa",
+      "group": "local-count"
     }
   ]
 }

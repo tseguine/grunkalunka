@@ -45,7 +45,7 @@ const negatives = [
   ['do-after-guaranteed-branches', 'do { if(a<b) return a; else return b; } while(0); a=b;', afterReturn],
   ['do-missing-return', 'do { a=b; } while(0);', 'every structural path must return a numeric value'],
   ['do-statement-limit', `do { ${'a=b;'.repeat(254)} } while(0); return a;`, 'at most 256 statements'],
-  ['do-local-limit', `do { ${Array.from({length:129},(_,i)=>`const x${i}=a;`).join(' ')} } while(0); return a;`, 'at most 128 numeric locals'],
+  ['do-local-limit', `do { ${Array.from({length:129},(_,i)=>`const x${i}=a;`).join(' ')} } while(0); return a;`, 'at most 128 source locals'],
   ['do-source-depth-limit', `${'do '.repeat(65)} {} ${'while(0);'.repeat(65)} return a;`, 'statement nesting exceeds 64'],
   ['do-test-depth-limit', `do {} while(${'('.repeat(129)}0${')'.repeat(129)}); return a;`, 'predicate nesting exceeds'],
 ];

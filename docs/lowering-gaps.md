@@ -1,12 +1,12 @@
 # Known lowering gaps
 
-The current compiler admits one exported two-number function with numeric locals,
+The current compiler admits one exported two-number function with numeric locals and immutable Boolean predicate locals,
 Number/Boolean expression statements, empty statements, assignments, branches, while/for/do loops,
 TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled loop break/continue and returns.
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
-The executable frontier contains 39 curated reference cases in
+The executable frontier contains 38 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -14,7 +14,7 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Area | Exact fixture IDs |
 | --- | --- |
 | Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
-| General JavaScript values | `gap-boolean-value`, `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
+| General JavaScript values | `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
 | Additional control flow | `gap-switch`, `gap-label` |
 | Function values, nested declarations and nested recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
 | Module loading | `gap-module-import` |
@@ -33,9 +33,9 @@ invalid JavaScript. Source-size, depth, statement/local counts, input-batch and 
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
-covers every current negative, beyond these 39 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 92 resource restrictions and 649 open requirements
-across all 767 records. Each pins the exact source, extension and strict Module mode;
+covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
+groups classify 26 invalid sources, 99 resource restrictions and 672 open requirements
+across all 797 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -125,10 +125,11 @@ predicates and numeric truthiness, preserving short-circuit effects. Nullish
 coalescing remains outside admission in both contexts.
 
 Boolean literals and conditional arms are admitted in predicate positions.
-Boolean locals/returns, Boolean-valued arms in numeric ternaries and Boolean
+Mutable Boolean locals/Boolean returns, Boolean-valued arms in numeric ternaries and Boolean
 equality operands remain outside admission.
 Logical negation is admitted in predicate positions, including nested negation and
-negated numeric comparisons; it does not add Boolean locals or numeric coercion.
+negated numeric comparisons. That feature itself adds no storage or numeric
+coercion; immutable Boolean predicate locals are covered by the const policy below.
 
 ## Next steps
 
@@ -253,5 +254,15 @@ root Boolean logical/conditional operands and general coercion remain separate w
 Discarded Number/Boolean evaluation promotes exactly 13 original ordinary fixtures,
 retaining their source bytes, IDs and strict Module dialect. It covers statement,
 comma-prefix and expression-form for-header positions, including mixed selected
-results. No curated reference or inventory group is removed. Boolean storage,
+results. No curated reference or inventory group is removed. Mutable Boolean storage,
 coercive arguments/results and unsupported source in skipped branches remain open.
+
+## Boolean const frontier
+
+Immutable Boolean predicate locals promote exactly `gap-boolean-value`,
+`boolean-literal-local`, `not-local` and `equality-numeric-local`. The former curated
+reference retains its original oracle, values/L4 metadata, inputs `[4,2]` and +0
+result in the admitted fixtures and direct contract test. The frontier now has 38
+references. Mutable Boolean storage, Number uses and binding-aware discarded reads
+remain open; [the bounded contract](compiler.md#immutable-boolean-predicate-locals)
+spells out the initializer and predicate-position restrictions.
