@@ -17,6 +17,8 @@ use crate::ir::{
 use crate::{is_type_declaration, unsupported};
 
 mod evaluate;
+mod storage;
+pub(super) use storage::general_mutable_locals;
 
 pub(super) struct NumericBinding {
     pub symbol: SymbolId,
@@ -205,6 +207,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub return_type: Type,
     pub semantic: &'s Semantic<'a>,
     pub functions: &'s [NumericFunction],
+    pub general_locals: &'s std::collections::BTreeSet<SymbolId>,
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,
@@ -274,98 +277,12 @@ impl Lowering<'_, '_> {
     // A positive classification keeps existing scalar comparison paths unchanged.
     // This scan emits nothing; the evaluator still validates every source operand.
     fn numeric_result_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
-        let mut pending = vec![(expression, depth)];
-        while let Some((node, depth)) = pending.pop() {
-            if depth > 128 {
-                return false;
-            }
-            if let Some(inner) = erased_inner(node) {
-                pending.push((inner, depth + 1));
-                continue;
-            }
-            match node {
-                Expression::ParenthesizedExpression(wrapper) => {
-                    pending.push((&wrapper.expression, depth + 1))
-                }
-                Expression::ConditionalExpression(conditional) => {
-                    pending.push((&conditional.alternate, depth + 1));
-                    pending.push((&conditional.consequent, depth + 1));
-                }
-                Expression::SequenceExpression(sequence) => {
-                    let Some(last) = sequence.expressions.last() else {
-                        return false;
-                    };
-                    pending.push((last, depth + 1));
-                }
-                Expression::LogicalExpression(logical)
-                    if matches!(logical.operator, LogicalOperator::And | LogicalOperator::Or) =>
-                {
-                    pending.push((&logical.right, depth + 1));
-                    pending.push((&logical.left, depth + 1));
-                }
-                Expression::NumericLiteral(_)
-                | Expression::AssignmentExpression(_)
-                | Expression::UpdateExpression(_) => (),
-                Expression::UnaryExpression(unary)
-                    if matches!(
-                        unary.operator,
-                        UnaryOperator::UnaryPlus
-                            | UnaryOperator::UnaryNegation
-                            | UnaryOperator::BitwiseNot
-                    ) => {}
-                Expression::BinaryExpression(binary)
-                    if matches!(
-                        binary.operator,
-                        BinaryOperator::Addition
-                            | BinaryOperator::Subtraction
-                            | BinaryOperator::Multiplication
-                            | BinaryOperator::Division
-                            | BinaryOperator::Remainder
-                            | BinaryOperator::BitwiseAnd
-                            | BinaryOperator::BitwiseOR
-                            | BinaryOperator::BitwiseXOR
-                            | BinaryOperator::ShiftLeft
-                            | BinaryOperator::ShiftRight
-                            | BinaryOperator::ShiftRightZeroFill
-                    ) => {}
-                Expression::Identifier(identifier) => {
-                    if let Ok(binding) = numeric_binding(identifier, self.semantic, &self.bindings)
-                    {
-                        if self.slots[binding.slot.0].ty != Type::Number {
-                            return false;
-                        }
-                    } else {
-                        let unresolved = identifier.reference_id.get().is_some_and(|reference| {
-                            self.semantic
-                                .scoping()
-                                .get_reference(reference)
-                                .symbol_id()
-                                .is_none()
-                        });
-                        if !unresolved || !matches!(identifier.name.as_str(), "Infinity" | "NaN") {
-                            return false;
-                        }
-                    }
-                }
-                Expression::CallExpression(call) => {
-                    if math_unary(call, self.semantic).is_none() {
-                        let Expression::Identifier(identifier) = &call.callee else {
-                            return false;
-                        };
-                        let symbol = identifier.reference_id.get().and_then(|reference| {
-                            self.semantic.scoping().get_reference(reference).symbol_id()
-                        });
-                        if !self.functions.iter().any(|function| {
-                            Some(function.symbol) == symbol && function.return_type == Type::Number
-                        }) {
-                            return false;
-                        }
-                    }
-                }
-                _ => return false,
-            }
-        }
-        true
+        storage::number_result_shape(expression, depth, self.semantic, self.functions, |symbol| {
+            self.bindings
+                .iter()
+                .find(|binding| binding.symbol == symbol)
+                .is_some_and(|binding| self.slots[binding.slot.0].ty == Type::Number)
+        })
     }
 
     fn expression(
@@ -445,7 +362,7 @@ impl Lowering<'_, '_> {
         false
     }
 
-    // Only already-published immutable General cells qualify; wrappers retain depth charges.
+    // Only already-published General cells qualify; wrappers retain depth charges.
     fn general_binding_shape(&self, mut expression: &Expression<'_>, mut depth: usize) -> bool {
         while depth <= 128 {
             if let Some(inner) = erased_inner(expression) {
@@ -453,9 +370,8 @@ impl Lowering<'_, '_> {
             } else if let Expression::ParenthesizedExpression(wrapper) = expression {
                 expression = &wrapper.expression;
             } else if let Expression::Identifier(identifier) = expression {
-                return numeric_binding(identifier, self.semantic, &self.bindings).is_ok_and(
-                    |binding| !binding.mutable && self.slots[binding.slot.0].ty == Type::General,
-                );
+                return numeric_binding(identifier, self.semantic, &self.bindings)
+                    .is_ok_and(|binding| self.slots[binding.slot.0].ty == Type::General);
             } else {
                 return false;
             }
@@ -466,7 +382,7 @@ impl Lowering<'_, '_> {
 
     // Wrappers are already stripped by the evaluator with their original depth charges.
     // This positive classification emits nothing and does not replace source validation.
-    fn general_predicate_leaf(&self, expression: &Expression<'_>) -> bool {
+    fn general_predicate_leaf(&self, expression: &Expression<'_>, depth: usize) -> bool {
         match expression {
             Expression::NullLiteral(_) => true,
             Expression::Identifier(identifier) => {
@@ -494,6 +410,9 @@ impl Lowering<'_, '_> {
                     Some(function.symbol) == symbol && function.return_type == Type::General
                 })
             }
+            Expression::AssignmentExpression(_) => {
+                self.general_assignment_target(expression, depth).is_some()
+            }
             _ => false,
         }
     }
@@ -513,6 +432,36 @@ impl Lowering<'_, '_> {
             depth += 1;
         }
         false
+    }
+
+    fn general_assignment_target(
+        &self,
+        mut expression: &Expression<'_>,
+        mut depth: usize,
+    ) -> Option<SlotId> {
+        while depth <= 128 {
+            if let Some(inner) = erased_inner(expression) {
+                expression = inner;
+            } else if let Expression::ParenthesizedExpression(wrapper) = expression {
+                expression = &wrapper.expression;
+            } else if let Expression::AssignmentExpression(assignment) = expression {
+                if assignment.operator != AssignmentOperator::Assign {
+                    return None;
+                }
+                let identifier = assignment
+                    .left
+                    .as_simple_assignment_target()
+                    .and_then(|target| target_identifier(target, depth).ok().flatten())?;
+                let slot = numeric_binding(identifier, self.semantic, &self.bindings)
+                    .ok()?
+                    .slot;
+                return (self.slots[slot.0].ty == Type::General).then_some(slot);
+            } else {
+                return None;
+            }
+            depth += 1;
+        }
+        None
     }
 
     fn declaration(
@@ -551,7 +500,12 @@ impl Lowering<'_, '_> {
             let mutable = declaration.kind == VariableDeclarationKind::Let;
             let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
                 Type::Predicate
-            } else if !mutable && !self.numeric_result_shape(initializer, 0) {
+            } else if identifier
+                .symbol_id
+                .get()
+                .is_some_and(|symbol| self.general_locals.contains(&symbol))
+                || !self.numeric_result_shape(initializer, 0)
+            {
                 Type::General
             } else {
                 Type::Number

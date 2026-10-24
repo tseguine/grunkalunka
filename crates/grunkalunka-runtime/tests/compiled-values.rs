@@ -283,7 +283,6 @@ console.log('PASS '+cases.length+' programs '+calls+' calls per engine');
 #[test]
 fn value_profile_keeps_scope_and_reports_remaining_gaps() {
     for source in [
-        "export function run(a,b) {let x=undefined; return x;}",
         "export function run(a,b) {return 'string';}",
         "export function run(a,b) {return a ? null : missing;}",
         "export function run(a,b) {return null+1;}",

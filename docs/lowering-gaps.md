@@ -1,6 +1,6 @@
 # Known lowering gaps
 
-This page and the 982 rejection fixtures below describe the **numeric profile**.
+This page and the 974 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Eight exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -45,8 +45,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 807 open requirements
-across all 982 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 799 open requirements
+across all 974 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -387,7 +387,7 @@ The separate Value profile transfers the original `general-condition` sources to
 execution, reaching 21 pairs and six selected rejections.
 
 ToBoolean covers the four represented primitive kinds. Nullish coalescing,
-numeric coercions, mutable General cells and heap kinds
+numeric coercions, General parameter writes and heap kinds
 remain open. A successful condition does not imply admission in numeric operands.
 
 ## General logical selection increment
@@ -406,4 +406,22 @@ The separate Value profile executes four more exact remaining numeric rejection
 sources, reaching 25 pairs, six selected rejections and eight recorded numeric
 origins. That profile-specific support does not remove those eight numeric records.
 General-valued &&/|| now preserve the selected primitive kind; ??, numeric coercion,
-mutable General cells and General logical assignments remain open.
+General parameter writes, compound/update operations and General logical assignments remain open.
+
+## Mutable local storage and plain-write increment
+
+Corpus 55 promotes eight source-bound rejection observations concerning mutable
+Boolean initializers, aliases, discarded reads, strict equality and loop-header
+initialization. All original IDs and sources remain in admitted fixtures. Sixteen
+new paired programs cover later Number-to-null writes, alias snapshots and
+assignment results. Totals are 1554 pairs, 974 numeric rejections and 36 curated
+references; 56 groups retain 799 open, 144 resource and 31 invalid observations.
+
+`unary-predicate-binding-reject-mutable` and
+`arithmetic-predicate-binding-reject-mutable` keep their original source hashes and
+rejections; diagnostics now reach unsupported numeric reads of General cells.
+The Value profile adds four mutable storage cases, reaching 29 pairs, six selected
+rejections and eight exact remaining numeric origins. General parameter writes,
+compound/update/logical assignment, uninitialized let, numeric coercion and ?? remain
+separate requirements. Conservative storage planning does not imply flow-sensitive
+narrowing or that a captured alias follows later writes.

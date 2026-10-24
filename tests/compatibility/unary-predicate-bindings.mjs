@@ -51,7 +51,7 @@ const negatives=[
  ['bitwise','const flag=true; return flag|a;',numeric,'boolean-values'],
  ['shift','const flag=true; return flag<<a;',numeric,'boolean-values'],
  ['compound','const flag=true; a+=flag; return a;',numeric,'boolean-values'],
- ['mutable','let flag=true; return +flag;',expression,'boolean-values'],
+ ['mutable','let flag=true; return +flag;','General bindings require a primitive value position','boolean-values'],
  ['root-logical','const flag=true; return +(flag&&false);',numeric,'boolean-values'],
  ['root-conditional','const flag=true; return +(a?flag:false);',numeric,'boolean-values'],
  ['root-sequence','const flag=true; return +(0,flag);',numeric,'boolean-values'],

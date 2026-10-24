@@ -178,7 +178,6 @@ fn general_const_cells_preserve_lexical_and_use_boundaries() {
             "return value===null?a:b; const value=null;",
             "{const value=null;} return value===null?a:b;",
             "const value=null; {const copy=value; const value=null;} return a;",
-            "let value=null; return a;",
         ] {
             let source = format!("export function run(a,b) {{{body}}}");
             let error = compile_value(&source, ts).err().unwrap();

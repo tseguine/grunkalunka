@@ -84,7 +84,9 @@ fn lower_source_with_entry_type(
     if parsed.fatal_error || !parsed.diagnostics.is_empty() {
         return Err(format!("parse diagnostics: {:?}", parsed.diagnostics));
     }
-    let built = SemanticBuilder::new_compiler().build(&parsed.program);
+    let built = SemanticBuilder::new_compiler()
+        .with_build_nodes(true)
+        .build(&parsed.program);
     if !built.diagnostics.is_empty() {
         return Err(format!("semantic diagnostics: {:?}", built.diagnostics));
     }
@@ -210,6 +212,7 @@ fn lower_source_with_entry_type(
             },
         });
     }
+    let general_locals = lower::general_mutable_locals(&built.semantic, &signatures);
     let mut functions = Vec::new();
     let mut local_count = 0;
     let mut statement_count = 0;
@@ -260,6 +263,7 @@ fn lower_source_with_entry_type(
             },
             semantic: &built.semantic,
             functions: &signatures,
+            general_locals: &general_locals,
             bindings,
             local_count,
             statement_count,
@@ -404,7 +408,6 @@ mod tests {
             "const flag=true; { flag; const flag=false; } return a;",
             "{const flag=true;} flag; return a;",
             "clock; return a;",
-            "let flag=true; flag; return a;",
             "const flag=true; a=flag; return a;",
         ] {
             assert!(
@@ -1078,10 +1081,6 @@ mod tests {
             (
                 "const flag=true; { const x=flag; const flag=false; } return a;",
                 "reference is not an initialized",
-            ),
-            (
-                "const flag=true; let copy=flag; return a;",
-                "Boolean bindings are not admitted",
             ),
         ] {
             let source = format!("export function run(a,b) {{ {source} }}");

@@ -691,3 +691,23 @@ fn general_logical_skipped_region_yields_the_original_left_snapshot() {
         assert!(matches!(skipped.exit,Exit::Yield(id) if id==left));
     }
 }
+
+#[test]
+fn mutable_storage_plans_later_writes_without_reentering_evaluation() {
+    use crate::ir::Type;
+    let source =
+        "export function run(a,b) {let first=a,second=b; first=second; second=null; return first;}";
+    let (module, maximum, _, pending) =
+        observe(|| crate::lower_source_with_entry_type(source, false, Type::General));
+    let module = module.unwrap();
+    assert_eq!(maximum, 1);
+    assert!(pending > 1);
+    assert_eq!(module.functions[0].slots[2].ty, Type::General);
+    assert_eq!(module.functions[0].slots[3].ty, Type::General);
+    let scalar = crate::lower_source(
+        "export function run(a,b) {let value=a; value=b; return value;}",
+        false,
+    )
+    .unwrap();
+    assert_eq!(scalar.functions[0].slots[2].ty, Type::Number);
+}

@@ -713,10 +713,10 @@ fn verify_function(
     }
     let mut initialized = BTreeSet::new();
     for (index, slot) in function.slots.iter().enumerate() {
-        if slot.ty == Type::General && (slot.mutable || slot.parameter) {
+        if slot.ty == Type::General && slot.parameter {
             return Err(invalid(
                 slot.span,
-                "General source slots must be immutable locals",
+                "General source slots cannot be parameters",
             ));
         }
         if slot.parameter && slot.ty != Type::Number {
@@ -2733,13 +2733,19 @@ mod general_const_tests {
         .unwrap()
     }
     #[test]
-    fn general_source_cells_require_immutable_initialized_local_ownership() {
+    fn general_source_cells_require_initialized_local_ownership() {
         verify_module_with_entry_type(&module(), Type::General).unwrap();
         for kind in 0..5 {
             let mut m = module();
             let f = &mut m.functions[0];
             match kind {
-                0 => f.slots[2].mutable = true,
+                0 => f.body.operations.push(Operation {
+                    span: f.body.span,
+                    kind: Op::Store {
+                        slot: SlotId(2),
+                        value: ValueId(0),
+                    },
+                }),
                 1 => f.slots[2].parameter = true,
                 2 => f.slots[2].owner = RegionId(99),
                 3 => f.slots[2].ty = Type::Number,
@@ -2780,6 +2786,42 @@ mod general_truthiness_tests {
                 }
             }
             assert!(verify_module(&m).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod mutable_general_tests {
+    use super::*;
+    fn module() -> Module {
+        crate::lower_source_with_entry_type(
+            "export function run(a,b) {let value=null; value=a; return value;}",
+            false,
+            Type::General,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn mutable_general_store_retains_initialization_type_and_owner_checks() {
+        verify_module_with_entry_type(&module(), Type::General).unwrap();
+        for change in 0..5 {
+            let mut m = module();
+            let f = &mut m.functions[0];
+            match change {
+                0 => f.slots[2].mutable = false,
+                1 => f.slots[2].owner = RegionId(99),
+                2 => {
+                    f.body.operations.remove(1);
+                }
+                3 => {
+                    let Op::Store { value, .. } = &mut f.body.operations[4].kind else {
+                        panic!("store")
+                    };
+                    *value = ValueId(1);
+                }
+                _ => f.slots[2].parameter = true,
+            }
+            assert!(verify_module_with_entry_type(&m, Type::General).is_err());
         }
     }
 }

@@ -55,7 +55,9 @@ import { generalTruthiness } from './general-truthiness.mjs';
 
 import { generalLogical } from './general-logical.mjs';
 
-export const corpusVersion = 54;
+import { mutableGeneralLocals } from './mutable-general-locals.mjs';
+
+export const corpusVersion = 55;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -128,6 +130,7 @@ programs.push(...primitiveStrictEquality);
 programs.push(...generalConstBindings);
 programs.push(...generalTruthiness);
 programs.push(...generalLogical);
+programs.push(...mutableGeneralLocals);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);

@@ -65,8 +65,6 @@ const numeric='Boolean bindings are not admitted in numeric value positions';
 const reference='reference is not an initialized numeric parameter or local';
 const expression='expression is outside the numeric experiment';
 const negatives=[
-  ['let-literal','let flag=true; return a;',expression],
-  ['let-alias','const flag=true; let copy=flag; return a;',numeric],
   ['return','const flag=true; return flag;',numeric],
   ['argument','const flag=true; return Math.abs(flag);',numeric],
   ['assignment-rhs','const flag=true; a=flag; return a;',numeric],

@@ -35,7 +35,6 @@ const negatives = [
   ['declarators-missing-later-init', 'let x=a,y; return x;', 'numeric local must have an initializer'],
   ['declarators-later-destructure', 'let x=a,[y]=b; return x;', 'local destructuring is not admitted'],
   ['declarators-later-string', 'let x=a,y="x"; return x;', expression],
-  ['declarators-later-boolean', 'let x=a,y=true; return x;', expression],
   ['declarators-later-call', 'let x=a,y=Math.random(); return x;', expression],
   ['declarators-later-definite', 'let x:number=a,y!:number; return x;', 'definite-assignment assertions are not admitted', 'ts'],
   ['declarators-for-forward', 'for(let i=j,j=0;0;) {} return a;', reference],

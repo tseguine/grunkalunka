@@ -110,6 +110,10 @@ enum Work<'e, 'a> {
         old: ValueId,
         condition: ValueId,
     },
+    StoreGeneral {
+        node: &'e Expression<'a>,
+        slot: SlotId,
+    },
     Assign {
         node: &'e Expression<'a>,
         slot: SlotId,
@@ -204,6 +208,12 @@ impl Lowering<'_, '_> {
             ));
         }
         let slot = binding.slot;
+        if self.slots[slot.0].ty == Type::General {
+            return Err(unsupported(
+                node,
+                "General logical assignments are not admitted yet",
+            ));
+        }
         let old = self.value(Type::Number);
         Self::push(regions.current(), node, Op::Load { result: old, slot });
         let condition = self.value(Type::Predicate);
@@ -432,6 +442,27 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(Value::Number(result));
+                }
+                Work::StoreGeneral { node, slot } => {
+                    let value = values.pop().expect("General assignment RHS");
+                    let stored = match value {
+                        Value::General(id) => id,
+                        Value::Number(input) => {
+                            let result = self.value(Type::General);
+                            Self::push(regions.current(), node, Op::Pack { result, input });
+                            result
+                        }
+                        Value::Predicate(_) => unreachable!("typed General assignment RHS"),
+                    };
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Store {
+                            slot,
+                            value: stored,
+                        },
+                    );
+                    values.push(value);
                 }
                 Work::Assign {
                     node,
@@ -667,7 +698,9 @@ impl Lowering<'_, '_> {
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
                     // Routing owns classification before the selected mode's guard.
-                    let mode = if self.general_binding_shape(node, depth) {
+                    let mode = if self.general_binding_shape(node, depth)
+                        || self.general_assignment_target(node, depth).is_some()
+                    {
                         Mode::General
                     } else if discarded_boolean_shape(node, depth)
                         || self.operand_boolean_shape(node, depth)
@@ -761,6 +794,7 @@ impl Lowering<'_, '_> {
                             values.push(Value::General(result));
                             continue;
                         } else if !general_call
+                            && self.general_assignment_target(node, depth).is_none()
                             && !self.general_logical_shape(node, depth)
                             && !matches!(
                                 node,
@@ -779,7 +813,7 @@ impl Lowering<'_, '_> {
                         }
                     }
                     if matches!(mode, Mode::Predicate) {
-                        if self.general_predicate_leaf(node) {
+                        if self.general_predicate_leaf(node, depth) {
                             work.push(Work::GeneralTruthy(node));
                             work.push(Work::Eval(node, depth, Mode::General));
                             continue;
@@ -1099,6 +1133,25 @@ impl Lowering<'_, '_> {
                                 ));
                             }
                             let slot = binding.slot;
+                            if self.slots[slot.0].ty == Type::General {
+                                if operator.is_some() {
+                                    return Err(unsupported(
+                                        node,
+                                        "General compound assignments require numeric coercion support",
+                                    ));
+                                }
+                                work.push(Work::StoreGeneral { node, slot });
+                                work.push(Work::Eval(
+                                    &assignment.right,
+                                    depth + 1,
+                                    if matches!(mode, Mode::Number) {
+                                        Mode::Number
+                                    } else {
+                                        Mode::General
+                                    },
+                                ));
+                                continue;
+                            }
                             let previous = if operator.is_some() {
                                 let result = self.value(Type::Number);
                                 Self::push(regions.current(), node, Op::Load { result, slot });
@@ -1131,6 +1184,12 @@ impl Lowering<'_, '_> {
                                 ));
                             }
                             let slot = binding.slot;
+                            if self.slots[slot.0].ty == Type::General {
+                                return Err(unsupported(
+                                    node,
+                                    "General updates require numeric coercion support",
+                                ));
+                            }
                             let previous = self.value(Type::Number);
                             Self::push(
                                 regions.current(),

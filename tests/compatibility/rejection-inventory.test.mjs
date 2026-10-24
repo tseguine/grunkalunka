@@ -1,3 +1,4 @@
+import { mutableGeneralLocals, mutableGeneralPromotions } from './mutable-general-locals.mjs';
 import { generalLogical, generalLogicalPromotions } from './general-logical.mjs';
 import { valuePrograms, valueRejected } from './primitive-values.mjs';
 import { generalConstBindings, generalConstBindingPromotion } from './general-const-bindings.mjs';
@@ -145,7 +146,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 982);
+  assert.equal(inventory.records.size, 974);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -301,6 +302,14 @@ test('General logical promotions retain four observations of three exact sources
  assert.equal(generalLogicalPromotions.length,4);assert.equal(new Set(generalLogicalPromotions.map(p=>p[1])).size,3);
  for(const [id,js,ts,hash] of generalLogicalPromotions){
   const source=programSources(generalLogical.find(p=>p[0]===id));assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});
+  assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(r=>r[0]===id));
+ }
+});
+
+test('mutable General local promotions preserve eight exact original source observations',()=>{
+ assert.equal(mutableGeneralPromotions.length,8);
+ for(const [id,js,ts,hash] of mutableGeneralPromotions){
+  const source=programSources(mutableGeneralLocals.find(p=>p[0]===id));assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});
   assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(r=>r[0]===id));
  }
 });

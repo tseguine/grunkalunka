@@ -42,7 +42,6 @@ const negatives = [
   ['break-unselected-arm', 'while(0) { if(a) break; else Math.random(); } return b;', expression],
   ['break-unselected-step', 'for(;1;Math.random()) { break; } return a;', expression],
   ['break-unselected-do-test', 'do { break; } while(Math.random()); return a;', expression],
-  ['break-initializer-still-numeric', 'for(let i=(true);0;) { break; } return a;', expression],
   ['break-body-scope', 'do { let x=a; break; } while(0); return x;', 'reference is not an initialized'],
   ['break-statement-limit', `do { ${';'.repeat(253)} break; } while(0); return a;`, 'at most 256 statements'],
   ['break-depth-limit', `${'while(false) '.repeat(65)}break; return a;`, 'statement nesting exceeds 64'],

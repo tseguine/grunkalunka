@@ -285,7 +285,6 @@ fn general_logical_entry_calls_and_depth_guards_remain_bounded() {
         "return value||a; const value=null;",
         "return null||'x';",
         "return true&&({});",
-        "let value=null; return value||a;",
     ] {
         let error = compile_value(&format!("export function run(a,b) {{{body}}}"), false)
             .err()

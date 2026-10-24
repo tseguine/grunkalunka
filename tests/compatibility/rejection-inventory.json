@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The primitive Value profile represents Null and Undefined. Immutable General const locals/aliases store admitted primitive expressions; strict ===/!== compares them in either result profile. ToBoolean admits represented kinds in predicate conditions, negation and predicate short-circuit composition. Numeric-only returns, numeric coercion, mutable General storage, nullish coalescing and additional runtime kinds remain outside admission. General-valued &&/|| and newly eligible discarded logical expressions now admit the represented primitive kinds; nullish coalescing, mutable General cells and numeric coercion remain separate.",
+      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, and plain writes may change local kind after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Numeric-only returns/operands of General cells, numeric coercion, General parameter writes, compound/update/logical assignments, implicit initialization and nullish coalescing remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean locals admit predicate-position reads, selected unary +, - and ~ conversions, selected binary arithmetic and discarded reads. Strict ===/!== additionally compares admitted Boolean/Number/nullish operands, including General conditional/sequence joins; the separate Value profile can return Boolean. Existing numeric-profile Boolean ABI returns, Boolean arguments, mutable General storage, General logical assignments and coercion beyond the selected scalar bridges remain outside admission. Root conditional/sequence eligibility outside existing admitted positions retains its restrictions. Immutable General const locals and aliases now store admitted primitive expressions and can be read in primitive result/strict-equality positions or discarded as identifiers. Mutable General cells, scalar use of General bindings and General numeric coercion remain outside admission. ToBoolean now admits General bindings and represented nullish values in predicate positions, including negation and predicate short-circuiting; General logical selection now admits represented primitive operands, preserving the selected kind/payload. General-valued &&/|| and newly eligible discarded logical expressions now admit the represented primitive kinds; nullish coalescing, mutable General cells and numeric coercion remain separate.",
+      "assessment": "Immutable Predicate const locals keep their selected scalar unary/arithmetic bridges. Initialized mutable locals can use General storage planned from initializers and later plain writes, including Boolean/Number/nullish kind changes and alias captures. General cells admit plain assignment, ToBoolean, strict equality and logical selection; the Value profile can return represented primitive kinds. Numeric reads of General cells, compound/update/logical assignments on General storage, General parameters and unrepresented runtime kinds remain outside admission.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -2117,13 +2117,6 @@
       "group": "string-values"
     },
     {
-      "id": "declarators-later-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "0b70bc4c3e757ed13cebda78963466f7ca210b7e1670f3d97afb7ba2298bb156",
-      "group": "boolean-values"
-    },
-    {
       "id": "declarators-later-call",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2509,13 +2502,6 @@
       "group": "function-calls"
     },
     {
-      "id": "break-initializer-still-numeric",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "fccdb260d7c791f3f2b2913fdbcde2cdd78561343a691f79335d7f4a62f4f430",
-      "group": "boolean-values"
-    },
-    {
       "id": "break-body-scope",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2668,13 +2654,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "e6b6741f8da403753f9bbcb94b8815ee8935225d080c54d6a755b3a025d62a01",
       "group": "const-errors"
-    },
-    {
-      "id": "continue-numeric-initializer",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "12675a05174aa36bb5d7095353e8dcabe1706c9b899a24bab085dd7c2d5492e4",
-      "group": "boolean-values"
     },
     {
       "id": "continue-switch-remains",
@@ -6177,13 +6156,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "discarded-number-local",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "352e161b8424eb4a19693e27dbbc966b411e36442b442eb70a33d9b1d10ec348",
-      "group": "boolean-values"
-    },
-    {
       "id": "discarded-number-rhs",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6308,20 +6280,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "97ffc505ba7a4277937befd78d5ddbcc8f7e4406b8895145bfc0f8a66e8ee3d0",
       "group": "expression-depth"
-    },
-    {
-      "id": "const-boolean-let-literal",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "3921fb7e6314b7b69081533cb3b898dae58520a2a060f31164c2f0c2583185cb",
-      "group": "boolean-values"
-    },
-    {
-      "id": "const-boolean-let-alias",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "992b8d05bf3d3781f9916432a2ff745ea37f055896ad040ce9c47727b239a5cf",
-      "group": "boolean-values"
     },
     {
       "id": "const-boolean-return",
@@ -7206,13 +7164,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "discarded-predicate-binding-reject-mutable",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "eca7560dd60d2bfb8766b6bf9bd51d51a5957fdb7f607c6fb8caeea2993df964",
-      "group": "boolean-values"
-    },
-    {
       "id": "discarded-predicate-binding-reject-self",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7336,13 +7287,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "1c01377225b60e14488db48cc0ddfc957fe9af46c610a40c154a9d6faa7432cf",
-      "group": "boolean-values"
-    },
-    {
-      "id": "strict-boolean-equality-reject-mutable",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6d7521be39cfbb6efe199ea11ca087cfa246dcdfc763a607bb686634569cfcd8",
       "group": "boolean-values"
     },
     {

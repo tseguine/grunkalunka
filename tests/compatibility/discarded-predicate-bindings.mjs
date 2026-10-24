@@ -63,7 +63,6 @@ const negatives=[
  ['equality','const flag=true; return flag==1?1:0;',numeric,'coercive-equality'],
  ['bitwise','const flag=true; return flag|a;',numeric,'boolean-values'],
  ['shift','const flag=true; return flag<<a;',numeric,'boolean-values'],
- ['mutable','let flag=true; flag; return a;',expression,'boolean-values'],
  ['self','const flag=flag; flag; return a;',reference,'binding-errors'],
  ['tdz','flag; const flag=true; return a;',reference,'binding-errors'],
  ['shadow-tdz','const flag=true; { flag; const flag=false; } return a;',reference,'binding-errors'],

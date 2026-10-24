@@ -42,7 +42,8 @@ bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 A `SlotId` names a fixed-type cell (`Number`, `Predicate` or `General`). Each slot records
 its type, owning lexical region, mutability, parameter status and source span.
-Source lowering constructs `Number` slots and immutable `Predicate` or `General` const slots.
+Source lowering constructs scalar `Number` slots, immutable `Predicate` const slots,
+and immutable/mutable `General` local slots.
 Every entry/helper parameter slot remains `Number`.
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.
@@ -374,7 +375,7 @@ an annotation, and the existing numeric module debug structure stays unchanged.
 `Nullish` defines canonical undefined/null General constants. `Pack` consumes a
 visible Number or Predicate and defines a General snapshot; it rejects General
 inputs, missing/forward inputs and non-General results. General-valued `If` arms
-must each yield a visible General value. General source cells must be immutable locals; parameters remain Number.
+must each yield a visible General value. General source cells are locals; parameters remain Number.
 
 Emission assigns one physical local per scalar snapshot and two per General
 snapshot, computing offsets from logical widths. General loads push tag then
@@ -400,8 +401,8 @@ snapshots through the explicit pending-work evaluator.
 
 ### Immutable General source cells
 
-`Initialize` and `Load` use the existing typed visibility/initialization rules for
-General cells. Mutable or parameter General slots are rejected. Every General cell
+`Initialize`, `Load` and `Store` use the existing typed visibility/initialization rules
+for General cells. General parameter slots are rejected; stores require mutable cells. Every General cell
 occupies consecutive `(i32,f64)` locals; a separate SlotId-to-offset map accounts for
 this width before assigning computed-value offsets. Scalar-only functions retain
 identical layout and output. Initialization consumes payload then tag; loads capture
@@ -442,3 +443,22 @@ A positive bounded Number-result scan keeps previously admitted Number-only logi
 expressions on their scalar path before Pack. Newly admitted discarded logical
 expressions use General mode only when the original scalar classifiers do not apply.
 Neither conversion nor result selection alters either operand's captured payload.
+
+### Write-aware local cells and plain stores
+
+The readonly storage planner selects General layout for mutable locals whose
+initializer/plain writes cannot stay Number under the shared positive result
+classifier. Its SymbolId fixed point precedes emission; bindings still become
+available to evaluation only after their normal initializer. The source-local cap
+bounds supported inference, and oversized modules retain ordinary lowering checks.
+Oxc's node store is retained explicitly for this pass; no linter/CFG features are
+needed. The planner adds no IR operations or source bindings.
+
+General cells use the same paired physical layout for mutable stores as for
+initialization. A pending StoreGeneral continuation consumes an already captured
+General RHS, emits the typed Store and returns that same snapshot. When the source
+context requires a Number RHS result, it captures a Number, packs a separate General
+value for the Store, then returns the original Number. This is storage packing,
+not ToNumber. The verifier retains type, initialization, mutability and lexical-owner
+checks. Parameters remain Number; unsupported General compound/update/logical
+writes are diagnosed before creating scalar loads.

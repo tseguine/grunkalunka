@@ -6,8 +6,8 @@ encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
 Private IR cells have a fixed `Number`, `Predicate` or `General` type. Source lowering
-keeps Number and immutable Boolean const cells scalar where admitted; immutable
-General cells hold the represented primitive kinds.
+keeps Number and immutable Boolean const cells scalar where admitted;
+General const/let cells hold the represented primitive kinds.
 In the default numeric profile, all entry/helper parameters and returns remain
 Number-only. This adds no dynamic
 type inference or boxing; see the [bounded source contract](#immutable-boolean-predicate-locals).
@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 54
-contains 1530 paired programs, 982 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 55
+contains 1554 paired programs, 974 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 982 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 807 open requirements.
+classifies all 974 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 799 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1192,7 +1192,7 @@ The separate [primitive-return tests](../crates/grunkalunka-runtime/tests/compil
 exercise 27 JS/TS pairs, 54 compiled modules and 14 input pairs: 756 calls per Wasm
 engine (1512 comparisons against original JS). These finite cases do not promote
 numeric-corpus or curated rejection fixtures. At that primitive-return step, corpus 50 retained 1466 pairs and 995
-rejections under the numeric profile. Mutable General source cells and General parameters, mixed-kind
+rejections under the numeric profile. General parameter writes, compound/update/logical assignments, mixed-kind
 operators beyond strict equality, numeric coercions, empty/implicit returns, strings/objects/BigInts and
 general heap integration remain open. Logical expressions still use the
 existing scalar operand contracts; this is not general JavaScript expression support.
@@ -1212,7 +1212,7 @@ existing files are never overwritten.
 
 `node scripts/poc.mjs` builds offline and runs both profile reports. The separate
 [primitive profile runner](../tests/compatibility/primitive-values-check.mjs) executes
-25 JS/TS pairs on 14 input pairs: 1400 comparisons with original JS across Wasmtime
+29 JS/TS pairs on 14 input pairs: 1624 comparisons with original JS across Wasmtime
 and Node-Wasm. It checks 6 rejected pairs and five CLI control groups, covering input
 validation/batch bounds, signature separation, no-overwrite/no-artifact failures and
 fuel exhaustion. Its report records exact sources, artifact/output hashes, input bits,
@@ -1252,7 +1252,7 @@ pairs of twelve primitive representatives with both strict operators and both
 profiles: 576 modules executed by Wasmtime and Node against standard-derived results.
 These finite fixtures do not establish complete language support.
 
-Loose equality, mutable General cells,
+Loose equality, General parameter writes,
 General helper parameters/results, strings, BigInts and objects remain separate work.
 Strict equality does not coerce operands and adds no heap or host capability.
 
@@ -1274,7 +1274,7 @@ Bindings become visible only after their initializer. Shadowing, TDZ, const writ
 lexical region ownership and per-entry loop initialization keep their existing rules.
 General aliases can be returned through the Value profile, used in primitive strict
 equality, or discarded as identifier expressions, including erased wrappers.
-Numeric coercion, mutable General assignments and implicit
+Numeric coercion, General compound/update/logical assignments and implicit
 initialization remain separate work. A numeric return of a General binding is
 rejected explicitly even when its current payload happens to be a Number.
 
@@ -1289,7 +1289,7 @@ that step recorded 20 pairs and seven selected rejection pairs.
 ## General primitive truthiness
 
 Conditions, logical negation and predicate-position conditional/logical composition
-admit null, unresolved global undefined, immutable General bindings and General entry
+admit null, unresolved global undefined, General bindings and General entry
 call results. Each operand is captured once. Existing Number and Predicate paths
 remain unchanged. The [ToBoolean rule](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-toboolean)
 makes null, undefined, false, signed zero and NaN false; true and other represented
@@ -1303,7 +1303,7 @@ kinds; String, BigInt, object and HTMLDDA semantics are not represented.
 
 Existing predicate short-circuit regions preserve skipped effects while still
 validating all source branches. Nullish coalescing, numeric
-coercion, mutable General storage and additional runtime kinds remain separate work.
+coercion, General parameter writes, compound/update/logical assignments and additional runtime kinds remain separate work.
 
 Corpus 53 adds sixteen paired programs, reaching 1510 pairs, 986 rejections and
 36 curated references. No original numeric rejection transfers in this step.
@@ -1342,5 +1342,38 @@ runtime matrix executes 1152 JS/TS modules across both profiles and engines, che
 selected kinds, signed zero, NaN and strict-equality observations; 38 effect modules
 check selected/skipped effects and aliases. Twelve saved prior numeric logical
 Value-profile modules also retain exact WAT/Wasm. These are finite coverage witnesses.
-Nullish coalescing, numeric coercion, mutable General cells and General logical
+Nullish coalescing, numeric coercion, General parameter writes and General logical
 assignments remain separate work.
+
+## Write-aware mutable General locals
+
+Initialized `let` locals can change represented primitive kind through plain `=`
+assignments, including a Number-initialized local later receiving null or Boolean.
+A readonly pass over Oxc's original nodes and SymbolIds classifies storage from
+initializers and plain writes, propagating requirements through aliases. Existing
+Number-only locals keep scalar cells; immutable Predicate const specialization
+also remains. TypeScript annotations never prove a runtime kind. The
+[storage decision](adr/0003-local-storage-planning.md) records the conservative
+fixed point, alternatives and node-index memory tradeoff.
+
+Planning does not publish bindings or create live aliases. An alias captures the
+value at its own initialization; later writes affect only the target cell. Normal
+TDZ, const-write, lexical-owner and per-loop-entry initialization checks remain.
+All source-local/statement/expression budgets retain their existing meaning.
+Parameters retain Number source cells and the existing signature.
+
+Plain assignment captures its RHS once, stores it and returns that snapshot.
+A General result preserves tag/payload. In an admitted Number-result position,
+lowering captures a Number RHS, packs it only for the General store and returns
+the original Number snapshot. Conditions explicitly apply ToBoolean; no implicit
+numeric conversion is introduced. General compound/update/logical assignments,
+General parameter writes and implicit initialization still fail with source errors.
+
+Corpus 55 promotes eight exact original rejection observations and adds sixteen
+other paired programs: 1554 pairs, 974 rejections and 36 curated references. The
+56 groups classify 799 open, 144 resource and 31 invalid observations. Two remaining
+mutable Boolean numeric-read diagnostics advance past initialization without
+changing their source hashes. The separate Value profile adds four mutable cases,
+reaching 29 pairs, six selected rejection pairs and eight exact numeric origins.
+The runtime transition matrix checks 576 JS/TS modules across both profiles and
+engines, with additional alias, assignment-result, scope and budget witnesses.
