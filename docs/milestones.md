@@ -36,7 +36,7 @@ be represented internally without changing the public two-number/result-number A
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 59](../tests/compatibility/corpus.mjs): 1660 paired programs, 932 rejection fixtures, five explicit unexecuted feature groups. The [36 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| C1 — executable compatibility matrix | Done | [Corpus version 60](../tests/compatibility/corpus.mjs): 1680 paired programs, 932 rejection fixtures, five explicit unexecuted feature groups. The [36 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 32 adapted runtime cases and zero selected admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -454,3 +454,13 @@ sources. No retained rejection diagnostic changes. Value reporting adds four
 cases, reaching 50 pairs, four selected rejected pairs and 2800 result comparisons;
 twelve numeric origins, six control groups and two termination-only observations
 remain unchanged. These finite cases do not establish complete language support.
+
+## Primitive numeric updates
+
+Initialized mutable General locals and selected source parameters now support
+prefix/postfix `++`/`--` over the four represented primitive kinds. Postfix returns
+the converted old Number; both forms store the new Number. See
+[the compiler contract](compiler.md#primitive-numeric-updates). Corpus 60 adds
+20 pairs (1680 total); the existing 932 rejection records and all 36 curated
+references remain unchanged. Value reporting reaches 54 pairs/3024 comparisons.
+This expands behavior without claiming an existing inventory gap was closed.

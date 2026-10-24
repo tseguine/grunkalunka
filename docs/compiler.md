@@ -55,8 +55,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 59
-contains 1660 paired programs, 932 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 60
+contains 1680 paired programs, 932 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -1503,3 +1503,28 @@ sources. No retained rejection diagnostic changes. Value reporting adds four
 cases, reaching 50 pairs, four selected rejected pairs and 2800 result comparisons;
 twelve numeric origins, six control groups and two termination-only observations
 remain unchanged. These finite cases do not establish complete language support.
+
+## Primitive numeric updates
+
+Prefix/postfix `++` and `--` now admit initialized mutable identifier bindings
+holding undefined, null, Boolean or Number. Within this represented domain,
+[ToNumeric](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-tonumeric)
+uses the existing numeric conversion. Lowering loads once, converts the old value,
+adds/subtracts one and stores a canonical Number in the original cell. Postfix
+returns the converted old Number; prefix returns the new Number, following
+[update-expression evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-update-expressions).
+Existing Number slots retain their scalar operation sequence. No new IR operation,
+ABI, dependency or storage-planning rule is needed.
+
+Const writes, TDZ, unknown/function/property targets, source budgets and numeric
+return restrictions remain in force. BigInt, String and object update semantics
+remain separate requirements. Compound and logical assignments are separate work.
+
+Corpus 60 adds 20 paired programs, reaching 1680 pairs. The existing rejection
+inventory stays at 932 records and 36 curated references: none of those original
+negative programs is newly admitted by this unit. Three exact former Rust update
+guards are now executed. Value reporting adds four pairs, reaching 54 pairs and
+3024 result comparisons, with four selected rejected pairs, twelve numeric origins,
+six control groups and two termination-only observations unchanged. Finite update
+coverage includes 384 modules with independent numeric goldens and 64 effect/order
+modules across JS/TS, both profiles and Wasmtime/Node.

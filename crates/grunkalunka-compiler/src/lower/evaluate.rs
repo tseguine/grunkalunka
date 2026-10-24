@@ -1220,21 +1220,32 @@ impl Lowering<'_, '_> {
                                 ));
                             }
                             let slot = binding.slot;
-                            if self.slots[slot.0].ty == Type::General {
-                                return Err(unsupported(
-                                    node,
-                                    "General updates require numeric coercion support",
-                                ));
-                            }
-                            let previous = self.value(Type::Number);
+                            let general = self.slots[slot.0].ty == Type::General;
+                            let loaded =
+                                self.value(if general { Type::General } else { Type::Number });
                             Self::push(
                                 regions.current(),
                                 node,
                                 Op::Load {
-                                    result: previous,
+                                    result: loaded,
                                     slot,
                                 },
                             );
+                            // ToNumeric is ToNumber for the four represented primitive kinds.
+                            let previous = if general {
+                                let result = self.value(Type::Number);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::NumberFromGeneral {
+                                        result,
+                                        input: loaded,
+                                    },
+                                );
+                                result
+                            } else {
+                                loaded
+                            };
                             let one = self.value(Type::Number);
                             Self::push(
                                 regions.current(),
@@ -1259,7 +1270,28 @@ impl Lowering<'_, '_> {
                                     right: one,
                                 },
                             );
-                            Self::push(regions.current(), node, Op::Store { slot, value: next });
+                            let stored = if general {
+                                let result = self.value(Type::General);
+                                Self::push(
+                                    regions.current(),
+                                    node,
+                                    Op::Pack {
+                                        result,
+                                        input: next,
+                                    },
+                                );
+                                result
+                            } else {
+                                next
+                            };
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Store {
+                                    slot,
+                                    value: stored,
+                                },
+                            );
                             values.push(Value::Number(if update.prefix { next } else { previous }));
                         }
                         Expression::UnaryExpression(unary) => {

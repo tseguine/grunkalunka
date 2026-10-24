@@ -1,3 +1,4 @@
+import { generalUpdates } from './general-updates.mjs';
 import { primitiveLooseEquality } from './primitive-loose-equality.mjs';
 import { generalDiscard } from './general-discard.mjs';
 import { generalParameters } from './general-parameters.mjs';
@@ -61,7 +62,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 59;
+export const corpusVersion = 60;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -139,6 +140,7 @@ programs.push(...generalToNumber);
 programs.push(...generalParameters);
 programs.push(...generalDiscard);
 programs.push(...primitiveLooseEquality);
+programs.push(...generalUpdates);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);

@@ -324,7 +324,6 @@ fn parameter_cells_keep_argument_and_other_write_contracts() {
     for body in [
         "a=null; return run(a,b);",
         "a=null; a+=1; return +a;",
-        "a=null; a++; return +a;",
         "a=null; a&&=b; return +a;",
         "a=null; {let a=a;} return 1;",
         "a=null; return missing;",

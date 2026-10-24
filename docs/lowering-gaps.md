@@ -508,3 +508,13 @@ sources. No retained rejection diagnostic changes. Value reporting adds four
 cases, reaching 50 pairs, four selected rejected pairs and 2800 result comparisons;
 twelve numeric origins, six control groups and two termination-only observations
 remain unchanged. These finite cases do not establish complete language support.
+
+## Primitive numeric updates
+
+Initialized mutable General locals and selected source parameters now support
+prefix/postfix `++`/`--` over the four represented primitive kinds. Postfix returns
+the converted old Number; both forms store the new Number. See
+[the compiler contract](compiler.md#primitive-numeric-updates). Corpus 60 adds
+20 pairs (1680 total); the existing 932 rejection records and all 36 curated
+references remain unchanged. Value reporting reaches 54 pairs/3024 comparisons.
+This expands behavior without claiming an existing inventory gap was closed.
