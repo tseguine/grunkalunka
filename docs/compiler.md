@@ -37,13 +37,13 @@ retained as useful evidence; no servers, ports or background services are used.
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
 unimplemented surfaces independently of the replay harness. Corpus version 42
-contains 1008 paired programs, 797 rejection fixtures and five unexecuted feature
+contains 1049 paired programs, 815 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 797 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 99 explicit resource restrictions and 672 open requirements.
+classifies all 815 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 104 explicit resource restrictions and 685 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -341,6 +341,19 @@ short-circuit selection and original nesting depth survive discarded results.
 All 737 retained rejection diagnostics remain exact; all 39 curated gap references
 remain. This introduces no Boolean storage, call arguments, ABI results or coercion.
 
+Corpus 42 adds 41 paired primitive-Boolean unary `+`/`-` cases and 18 explicit
+boundary rejections, with no old rejection promoted. The already-whitelisted
+operators reuse the unchanged Boolean-shape classifier and predicate-to-Number
+bridge used by `~`; `+false` is +0 and `-false` is -0. Original operands execute
+once at their original depth. Assertions never establish a Boolean runtime kind;
+raw Boolean identifiers and root Boolean logical/conditional/sequence operands
+remain outside this bridge. Logical `!` alone remains outside the numeric-return
+contract. The post-local baseline contains 797 earlier rejection observations and
+38 curated references; unary plus/minus promotes none.
+The rules follow [unary plus](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-unary-plus-operator),
+[unary minus](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-unary-minus-operator)
+and [ToNumber](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-tonumber).
+
 The ordinary admitted tuple contains JS/TS function bodies and optionally an
 independent JS oracle body. An optional sixth metadata field instead supplies
 complete `sourceJS`/`sourceTS` text; its default oracle is the exact full JS source.
@@ -467,7 +480,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   property access such as `globalThis.Infinity` or `Number.NaN` remain rejected.
   Numeric expressions admit literals, these two intrinsic reads, initialized bindings, parentheses, binary
   `+ - * / % & | ^ << >> >>>`, unary `+ - ~`, and ternaries. Numeric `~`, `&`, `|` and `^` use signed 32-bit wrapping
-  semantics and yield Numbers, without coercing other source value types.
+  semantics and yield Numbers for Number operands.
   Binary bitwise operands both run eagerly, left to right; RHS writes cannot
   replace the captured left value. Results use signed conversion, including positive zero.
   Shifts also capture both Number operands eagerly in source order. The count is
@@ -475,14 +488,21 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   sign-extends; both return signed results. `>>>` zero-fills and alone uses unsigned
   result conversion, so `-1 >>> 0` returns `4294967295`. Shift results are Numbers
   and zero results are positive zero.
+  Unary `+`, `-` and `~` additionally admit Boolean literals, logical negation and
+  numeric comparison/equality through retained TS/parenthesis wrappers. They lower
+  the original operand once to a predicate and explicitly convert false/true to
+  Number +0/1. Unary plus copies that Number; unary minus uses f64 negation, so
+  `-false` retains -0. Number operands keep their existing path. The shape classifier
+  is unchanged: assertions do not prove Boolean kinds, root Boolean logical,
+  conditional and comma shapes do not qualify, and `!` itself is not a numeric return.
   Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= == != === !==` comparisons and primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
   Both equality operands must lower to numbers. On this domain, `==`/`!=` use
   the same comparisons as `===`/`!==`: NaN is unequal to every number and signed
   zeros compare equal. Ordered snapshots preserve operand effects. No coercion
-  is introduced, and equality results remain predicates rather than numeric
-  locals, arithmetic operands or direct ABI results.
+  is introduced between equality operands. Its result remains a predicate until an
+  admitted unary conversion explicitly produces a Number.
   Comma operands execute left to right; non-final Number or Boolean results are
   evaluated and discarded. The final operand retains its surrounding Number or
   predicate contract. Expression statements and expression-form for initializers
@@ -497,7 +517,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   in the selected branch. In predicate positions `&&` and `||` may also combine
   comparisons, Boolean literals, negation and numeric truthiness. Their internal
   result is a canonical predicate, with the same evaluation order and selected
-  effects. Boolean/comparison operands remain rejected in numeric value positions;
+  effects. Raw Boolean/comparison operands remain rejected outside the admitted unary
+  conversion in numeric value positions;
   `??` remains rejected in both contexts.
   Both ternary arms must be admitted. In Number-value positions they yield numbers
   through `if (result f64)`; in predicate positions they yield predicates through
@@ -636,7 +657,7 @@ Oxc 0.155.0; Wasmtime 50.0.0 with Cranelift/runtime/std/anyhow features, default
 wat 1.262.0. Cargo lockfile pins transitives. Dev build, Rust debug info disabled in
 this development build; neither compiler nor runtime was release-benchmarked.
 
-The replay observed:
+The retained corpus-42 replay observed:
 
 ```text
 PASS 2528064 numeric comparisons; 797 rejected inputs; overwrite preserved
@@ -899,7 +920,7 @@ and positive-zero result are retained. The other three IDs are
 `boolean-literal-local`, `not-local` and `equality-numeric-local`.
 Two retained return diagnostics advance to an explicit Boolean-in-Number rejection;
 exactly 13 existing local-budget diagnostics change “numeric” to “source”.
-The current totals are 1008 pairs, 2016 modules, 2,528,064 engine-to-JS comparisons,
+That predicate-local run recorded 1008 pairs, 2016 modules, 2,528,064 engine-to-JS comparisons,
 797 rejections, 38 curated references and 56 inventory groups: 26 invalid sources,
 99 resource restrictions and 672 open requirements. The Boolean-values group retains
 90 records. Existing Number source/WAT/Wasm artifacts remain unchanged.

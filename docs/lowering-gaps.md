@@ -6,6 +6,10 @@ TypeScript expression wrappers, unresolved `Infinity`/`NaN` reads, unlabelled lo
 Source inspection has not established an admitted wrong-result bug. The gaps below are currently rejected language
 features or valid program shapes outside that contract.
 
+Selected primitive-Boolean operands of unary `+`, `-` and `~` explicitly produce
+Numbers. This does not admit general Boolean storage, Boolean ABI returns or other
+primitive coercions; none of the 38 curated gaps is promoted by unary plus/minus.
+
 The executable frontier contains 38 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
@@ -34,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 99 resource restrictions and 672 open requirements
-across all 797 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 104 resource restrictions and 685 open requirements
+across all 815 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ

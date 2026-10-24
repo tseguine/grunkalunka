@@ -6679,6 +6679,132 @@
       "sourceMode": "module-strict",
       "sourceSha256": "c757354dcea67f160740d07b90da7ba8acdf54f4ba3059ac9b2874ffcc1d05aa",
       "group": "local-count"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-root-logical",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "70ce8d976ce1a4b398c180236044bdce107ec4a3f146a05622747bf6cd6bca74",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-root-conditional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ae3bb7cd15229787f394f2cc79ea72010fd1dbf16108435f15f8562a53dd10ee",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-root-sequence",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "13870ed25d5474cee333cc9cd91fd2fc1c7cfa176ea49c3493355676caa2d746",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-identifier",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ee414b1a2c5e0d24c34277492afbfbbeb9eebe621fd9d4624400943d5f75da17",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-bare-not",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c4bb4c41f6f1b6ca9499ba0c78bbe5f12cd6962ca6e3c0e9a27d2a149368c952",
+      "group": "boolean-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7a8d7aa7a1eaf36cb075292b42c90dfbeb09b64e20b8f8965654ebab02dcc075",
+      "group": "string-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-bigint",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3490d20a853afbe6af2bad9baab226712e3fc66848d3448a3db7249f5deb52b5",
+      "group": "bigint-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-object",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "525dd3722283103e171fc6194ef386a863880b17a4291e5c73917bf9bcc3edb7",
+      "group": "object-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-null",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a4c46dfc1802c8a3211ba61bfa4da9dadd0576b0f4e49fd794f32ae8ca035bfc",
+      "group": "nullish-values"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-mixed-equality",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c5e1c0bf1721d9906e01ad1dce4ee33f225de3cc3078b17d5e131e8acd679aaf",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d6e50e0b6413c9a2ac161f0338512ecfc90b2fe6c03c231df77e2f16c1944ee7",
+      "group": "function-calls"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bcc281f1db571cc2fc51f942282071d89e4fd518ca5abd22142d6e6855f3c972",
+      "group": "const-errors"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9b0c0fd03544fbf89e57179e073b51895b685674fe339304801b486510c3d11f",
+      "group": "binding-errors"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-statement257",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5b2a42eca6294c911cc8ab45774250f4b894ba28a29a3ad42736f577b28dff6c",
+      "group": "statement-count"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-depth129-plus",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "148dc73436760332263310baed5bcd46e9bf9398d5bdad07d976fb23bcb2b078",
+      "group": "expression-depth"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-paren-depth129-plus",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "12a74e25d3b3d806e6f3ddcdae5d78e6fc43de3c86e0829e6b0758857f0c324f",
+      "group": "expression-depth"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-depth129-minus",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "befb04ad613c25c8c2887350d46b9f13fa0f215216445ebc12a63f776395ffc6",
+      "group": "expression-depth"
+    },
+    {
+      "id": "boolean-numeric-unary-reject-paren-depth129-minus",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2b16d79945d72a01941c596e21031c2108c99432a1d6b6c5a54b8a0096bdbf58",
+      "group": "expression-depth"
     }
   ]
 }

@@ -271,6 +271,64 @@ mod tests {
     use super::compile;
 
     #[test]
+    fn primitive_boolean_numeric_unary_is_admitted() {
+        for expression in [
+            "+false", "-false", "+true", "-true", "+(a<b)", "-(a===b)", "+!a", "-!!a",
+        ] {
+            compile(
+                &format!("export function run(a,b) {{ return {expression}; }}"),
+                false,
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn primitive_boolean_numeric_unary_keeps_shape_depth_and_bindings() {
+        for body in [
+            "return !a;",
+            "return +(true&&false);",
+            "return -(a?true:false);",
+            "return +(0,true);",
+            "const flag=true; return +flag;",
+            "return +(true===a);",
+            "return +!(0&&Math.random());",
+            "const x=0; return +!(x=1);",
+            "return -!x; const x=0;",
+        ] {
+            assert!(
+                compile(&format!("export function run(a,b) {{ {body} }}"), true).is_err(),
+                "{body}"
+            );
+        }
+        for sign in ["+", "-"] {
+            for (parenthesized, boundary) in [(false, 127), (true, 126)] {
+                for count in [boundary, boundary + 1] {
+                    let argument = format!("true{}", "!".repeat(count));
+                    let argument = if parenthesized {
+                        format!("({argument})")
+                    } else {
+                        argument
+                    };
+                    let source = format!("export function run(a,b) {{ return {sign}{argument}; }}");
+                    assert_eq!(
+                        compile(&source, true).is_ok(),
+                        count == boundary,
+                        "{source}"
+                    );
+                }
+            }
+            for count in [255, 256] {
+                let source = format!(
+                    "export function run(a,b) {{ {}return {sign}true; }}",
+                    "0;".repeat(count)
+                );
+                assert_eq!(compile(&source, false).is_ok(), count == 255);
+            }
+        }
+    }
+
+    #[test]
     fn boolean_bit_not_original_requirements_are_admitted() {
         let outcomes: Vec<_> = [
             ("export function run(a,b) { return ~true; }", false),

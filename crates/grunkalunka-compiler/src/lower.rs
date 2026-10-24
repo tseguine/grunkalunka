@@ -577,9 +577,7 @@ impl Lowering<'_, '_> {
                         ));
                     }
                 };
-                let input = if unary.operator == UnaryOperator::BitwiseNot
-                    && boolean_shape(&unary.argument, depth + 1)
-                {
+                let input = if boolean_shape(&unary.argument, depth + 1) {
                     let predicate = self.predicate(&unary.argument, region, depth + 1)?;
                     let number = self.value(Type::Number);
                     Self::push(

@@ -44,8 +44,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 797 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 99 resource restrictions and 672 open requirements.
+also covers all 815 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 104 resource restrictions and 685 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -164,6 +164,16 @@ Finite mutations invert the conversion, classify arbitrary truthy Numbers as Boo
 duplicate operand evaluation or reset operand depth. Every mutant fails before
 exact source restoration, mtime refresh and rebuilding. No new negative is executed
 as JS; the remaining 750 rejection observations and 39 gap oracles are retained.
+
+Primitive-Boolean unary plus/minus add 41 paired cases and 18 classified boundary
+rejections, with no old promotion. Literal results check all four exact bit patterns,
+including `-false` as -0. Comparisons, negation, once-only effects, captured results,
+helpers, loops, TS wrappers, unchanged Number operands and depth/statement limits
+are covered. Four finite lowerer mutations invert conversion, replace negation with
+`0 - input` (losing -0), evaluate the operand twice or reset its depth. Each fails
+before exact source restoration, mtime refresh and rebuilding. The post-local
+baseline has 797 rejection observations and 38 gap oracles to preserve;
+new negative programs are compiled only and are not executed in Node.
 
 Discarded-value fixtures compare effects, snapshots, selected/skipped logical and
 conditional branches, numeric helpers, TS wrappers and finite loop headers/bodies.

@@ -109,8 +109,10 @@ fuel-headroom guarantee. See the standard [Number remainder rule](https://tc39.e
 `NumberFromPredicate { input, result }` requires a visible `Predicate` input and
 uniquely defines a `Number` result. It emits `f64.convert_i32_u` on the existing
 canonical zero/one predicate, implementing Boolean-to-Number only for selected
-numeric `~` operands. `Unary::BitNot` still consumes and returns Number. This bridge
-adds no Boolean parameter, return or general coercion. A pure bounded AST shape
+primitive-Boolean operands of numeric `+`, `-` and `~`. Their `Unary` operations
+still consume and return Number. Plus copies its Number; minus uses f64 negation
+and preserves the -0 result of `-false`. This bridge adds no Boolean parameter,
+return or general coercion. A pure bounded AST shape
 classifier selects this path; original operand lowering performs effects once and
 counts all retained source wrappers at the original unary argument depth.
 
