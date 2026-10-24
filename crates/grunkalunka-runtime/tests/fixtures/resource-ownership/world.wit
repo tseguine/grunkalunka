@@ -1,0 +1,18 @@
+package grunkalunka:owned-test;
+
+interface cells {
+    resource cell {
+        read: func() -> f64;
+    }
+}
+
+// Private ownership probes, not a public runtime interface.
+world owner {
+    import cells;
+    use cells.{cell};
+    export roundtrip: func(cell: cell) -> cell;
+    export consume: func(cell: cell);
+    export peek: func(cell: borrow<cell>) -> f64;
+    export replay: func() -> f64;
+    export double-drop: func(cell: cell);
+}

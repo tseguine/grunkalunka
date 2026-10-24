@@ -254,3 +254,9 @@ Discarded Number/Boolean evaluation adds 45 paired programs and 30 boundary
 rejections, promoting exactly 13 ordinary sources. It reuses existing typed
 predicate lowering for unobserved results; Boolean locals, arguments and returns
 remain outside the Number ABI. All 39 curated gap references remain.
+
+R1 additionally demonstrates private owned-resource roundtrip and explicit guest
+destruction, repeated borrow control, stale owned-index replay and duplicate guest
+drop. Five finite tests distinguish host backing lifetime from guest handle-table
+entries and destructor calls. The original six borrow/policy tests stay unchanged;
+no public grant API, resource-table policy or post-trap cleanup guarantee follows.

@@ -8,6 +8,7 @@ From the repository root:
 
 ```text
 cargo test -p grunkalunka-runtime --test capabilities --locked --offline
+cargo test -p grunkalunka-runtime --test resource_ownership --locked --offline
 cargo test -p grunkalunka-runtime --test budgets --locked --offline
 cargo test -p grunkalunka-runtime --test host_work --locked --offline
 node scripts/check.mjs
@@ -60,8 +61,9 @@ valid canonical resource handles.
 The fixture explicitly drops each borrowed guest handle on normal return. This
 releases the guest borrow, without destroying the host cell; repeated successful
 calls observe the same backing value. The host destructor rejects owned transfers,
-which this world does not perform. Owned-resource transfer/destruction is not
-demonstrated here. Wasmtime 50's generated calls complete the call protocol;
+which this world does not perform. That borrow fixture does not demonstrate owned
+transfer/destruction; the separate private ownership fixture below does. Wasmtime
+50's generated calls complete the call protocol;
 its manual `post_return` method is a deprecated no-op, separate from guest drops.
 
 ## Deliberate misuse observations
@@ -81,6 +83,45 @@ The six tests pass on Wasmtime 50.0.0 on Windows x86-64. Bypassing the host's pr
 check makes the denied call return 14 and fails the profile test; restoring the
 check returns the suite to green. These observations cover the stated misuse
 cases, not general handle unforgeability or a hardened arbitrary-component service.
+
+## Owned transfer and explicit guest destruction
+
+The independent [ownership test](../crates/grunkalunka-runtime/tests/resource_ownership.rs)
+uses its own [WIT world](../crates/grunkalunka-runtime/tests/fixtures/resource-ownership/world.wit),
+[component](../crates/grunkalunka-runtime/tests/fixtures/resource-ownership/owner.wat)
+and host. One fixed cell has representation 7 and value 9; a small live-ID map,
+read counter and destructor counter record the observations. The original borrow
+host and its destructor-rejection policy are unchanged.
+
+| Probe | Observed result before teardown |
+| --- | --- |
+| Owned roundtrip, then consume | The returned `Resource` is owned, has the same representation and reads 9 with destructor count zero. Passing that actual returned token to `consume` then gives exactly one destructor call and removes the backing cell; reads remain one. |
+| Consume | An explicit guest `canon resource.drop` invokes exactly one host destructor and removes the backing cell. |
+| Three borrowed peeks | Each reads 9 and releases its guest borrow; no destructor runs and the backing cell stays live. |
+| Saved owned index after roundtrip | Lifting the owned result removes its actual guest index. Immediate `replay()` has no resource argument or intervening fresh handle allocation and traps with `unknown handle index` before any host read or destructor; the caller's backing remains live. |
+| Double drop of the same guest index | The first drop runs one destructor; the second traps with `unknown handle index`, without a second destructor or read. |
+
+Each expected-trap probe has an independent fresh instance. Assertions inspect
+host state immediately after the call, without another guest call or a claim about
+post-trap cleanup. Neither dropping a Rust `Resource` nor store teardown is counted
+as canonical destruction. Host-issued `Resource::new_own` supplies the initial
+cell; stale-handle evidence comes from the actual raw guest index saved by the
+component, not a forged Rust representation.
+
+The initial fixture intentionally omitted the consume drop and observed zero
+destructors instead of one. Adding the explicit drop passed. Finite mutations omit
+that drop, omit the second double-drop operation, omit the stale read or replace
+it with an unrelated `unreachable` trap; each fails its corresponding assertion.
+Restored fixture bytes and refreshed mtimes return all five ownership tests and
+the six original capability tests to green on Wasmtime 50.0.0, Windows x86-64.
+
+These observations follow WIT's [owned and borrowed handles](https://github.com/WebAssembly/component-model/blob/main/design/mvp/WIT.md#handles),
+Canonical ABI [owned lifting](https://github.com/WebAssembly/component-model/blob/main/design/mvp/CanonicalABI.md#flat-lifting)
+and [resource drop](https://github.com/WebAssembly/component-model/blob/main/design/mvp/CanonicalABI.md#canon-resourcedrop),
+and the pinned [Wasmtime 50 resource contract](https://github.com/bytecodealliance/wasmtime/blob/v50.0.0/crates/wasmtime/src/runtime/component/resources/host_static.rs).
+No public resource API or `ResourceTable` policy is selected. Revocation, cross-store
+identity, active-borrow/reentry behavior, trap cleanup and authorization remain
+separate questions; this fixture adds no WASI, async, memory or realloc integration.
 
 ## Independent execution budgets
 

@@ -162,3 +162,13 @@ charges. Four finite sensitivity probes detect dropped evaluation, double
 evaluation, eager short-circuit RHS execution and depth reset; exact restoration
 refreshes source mtimes before rebuilding. All retained negative programs are
 compiled only and never executed as arbitrary Node oracles.
+
+The private runtime [ownership tests](../crates/grunkalunka-runtime/tests/resource_ownership.rs)
+are discovered by the existing Cargo workspace test command. Five finite probes
+check owned roundtrip identity/value followed by consuming the actual lifted token,
+exact guest-triggered destructor counts,
+repeated borrowed reads, immediate stale-index replay and duplicate guest drop.
+Expected traps use fresh instances and assert `unknown handle index`, host read
+counts and backing liveness before teardown. An unrelated-trap mutation verifies
+the trap-reason assertion; three omission mutations verify the required operations.
+No compiler corpus counts, public runtime policy or existing borrow fixture change.
