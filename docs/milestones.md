@@ -346,3 +346,9 @@ Generic declaration metadata erasure promotes three ordinary TS sources with unc
 numeric runtime behavior. Corpus 50 records 1466 pairs, 995 rejections and 38 curated
 references (31 invalid sources, 144 resource restrictions, 820 open requirements).
 Explicit type-argument calls and runtime TypeScript constructs remain open.
+
+
+A maintained tagged primitive runtime boundary now distinguishes undefined, null,
+booleans and numbers. Its typed result, import denial and fuel behavior are tested
+independently. Compiler source admission, generic helper transport and heap-backed
+values remain separate requirements; the source compatibility counts do not change.

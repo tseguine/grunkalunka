@@ -1156,3 +1156,14 @@ support; namespaces, enums and ambient forms remain open. Current totals: 1466 p
 995 rejections and 38 curated references; 56 groups classify 31 invalid sources,
 144 resource restrictions and 820 open requirements. These are selected fixtures,
 not an exhaustive language inventory.
+
+
+## Primitive runtime boundary
+
+`grunkalunka-runtime::Value` distinguishes undefined, null, booleans and numbers.
+`ValueInstance` executes import-free `(f64,f64)->(i32,f64)` modules and returns that
+sum type, renewing the same fuel budget as `NumericInstance`. Invalid tags or
+noncanonical non-Number payloads return errors. The numeric ABI remains available.
+See [ADR0002](adr/0002-tagged-primitive-values.md) for the wire contract and alternatives.
+This is runtime groundwork: the maintained compiler and CLI still target numeric
+results. No additional source fixture is counted as supported by this unit.
