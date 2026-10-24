@@ -32,7 +32,6 @@ const negatives = [
   ['declarators-shadow-self', 'let y=a; { let x=a,y=y; return x; }', reference],
   ['declarators-later-write-before-init', 'let x=(y=a),y=b; return x;', reference],
   ['declarators-write-earlier-const', 'const x=a,y=(x=b); return y;', 'assignment to a const binding is not admitted'],
-  ['declarators-missing-later-init', 'let x=a,y; return x;', 'numeric local must have an initializer'],
   ['declarators-later-destructure', 'let x=a,[y]=b; return x;', 'local destructuring is not admitted'],
   ['declarators-later-string', 'let x=a,y="x"; return x;', expression],
   ['declarators-later-call', 'let x=a,y=Math.random(); return x;', expression],

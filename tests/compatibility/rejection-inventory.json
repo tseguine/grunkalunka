@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, compound/logical assignments, implicit initialization, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate. Initialized mutable identifier cells now admit prefix/postfix ++/-- for the four represented primitive kinds: ToNumeric, one arithmetic update, canonical Number store and the appropriate old/new Number result. Other kinds, targets, writes and numeric-return policies remain separate.",
+      "assessment": "The Value profile represents Null and Undefined. Initialized const/let General cells store admitted primitive expressions, including plain writes after Number initialization. ToBoolean, strict equality and &&/|| selection admit represented nullish values. Explicit ToNumber at unary +/minus and binary +, -, *, /, % operands maps undefined to NaN and null to +0. Numeric-only General returns, other conversion positions, compound/logical assignments, nullish coalescing and heap kinds remain separate requirements. Source parameters can now receive represented primitive kinds through plain assignment using selected General cells initialized from Number ABI inputs. General arguments and other parameter write operators remain separate requirements. Discarded represented primitive values, including nullish literals and General-valued sequence/conditional/call results, now preserve GetValue and evaluation effects through General fallback after specialized scalar routes. Loose ==/!= now compare the four represented primitive kinds, including Boolean/Number and null/undefined pairs, while keeping nullish values distinct from non-nullish zero/false. Other source kinds and relational conversion remain separate. Initialized mutable identifier cells now admit prefix/postfix ++/-- for the four represented primitive kinds: ToNumeric, one arithmetic update, canonical Number store and the appropriate old/new Number result. Other kinds, targets, writes and numeric-return policies remain separate. Bare let identifiers now initialize intrinsic Undefined at declaration evaluation; shadowed undefined names do not change this value. TDZ and source budgets remain in force.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -728,7 +728,7 @@
     {
       "id": "uninitialized-bindings",
       "kind": "open-requirement",
-      "assessment": "Uninitialized let and definite-assignment syntax are valid source, outside initialized numeric locals.",
+      "assessment": "Bare let identifier declarations initialize canonical Undefined at declaration evaluation, preserving source order and TDZ. Mutable cells then admit represented reads, assignment, coercion and numeric updates. Numeric-profile General-cell returns remain restricted, including the original curated bare-let reference. TS definite-assignment assertions, var and destructuring remain separate requirements; successful rejection is not support.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations",
@@ -1522,13 +1522,6 @@
       "group": "destructuring"
     },
     {
-      "id": "for-uninitialized",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "576fd857c0c42dfa3bc62f9d02129c40c765673fa415a6ca9da496742a90f002",
-      "group": "uninitialized-bindings"
-    },
-    {
       "id": "for-self-initializer",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -2038,13 +2031,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "0c5d8d8de167e5bebb472dd44583e0393580f1b5cdc344b8c3d9849facda5089",
       "group": "const-errors"
-    },
-    {
-      "id": "declarators-missing-later-init",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "1182f48ab3f0474140a4c9d8a160b0f6c38ea3bd57675652a9f0aba2b1af5435",
-      "group": "uninitialized-bindings"
     },
     {
       "id": "declarators-later-destructure",
@@ -3664,13 +3650,6 @@
       "group": "const-errors"
     },
     {
-      "id": "annotation-missing-initializer",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "743dbff5fe92bce0f0efe95e87cc75128902a4ca01d644ea54ebd81db2d91e54",
-      "group": "uninitialized-bindings"
-    },
-    {
       "id": "annotation-definite",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -4866,13 +4845,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "1a5bf138e69f7ad141d37f5284d3681329c8df3cac61ed3fef84cdf451a5ecb1",
       "group": "destructuring"
-    },
-    {
-      "id": "uninitialized-let",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b1ecd30a1d3facec1b95fe929feba349e69082ef3346a01620acceb26ee70822",
-      "group": "uninitialized-bindings"
     },
     {
       "id": "dead-branch-const-write",

@@ -533,29 +533,42 @@ impl Lowering<'_, '_> {
             let BindingPattern::BindingIdentifier(identifier) = &local.id else {
                 return Err(unsupported(local, "local destructuring is not admitted"));
             };
-            let initializer = local
-                .init
-                .as_ref()
-                .ok_or("numeric local must have an initializer")?;
             let mutable = declaration.kind == VariableDeclarationKind::Let;
-            let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
-                Type::Predicate
-            } else if identifier
-                .symbol_id
-                .get()
-                .is_some_and(|symbol| self.general_bindings.contains(&symbol))
-                || !self.numeric_result_shape(initializer, 0)
-            {
-                Type::General
+            let (ty, value) = if let Some(initializer) = local.init.as_ref() {
+                let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
+                    Type::Predicate
+                } else if identifier
+                    .symbol_id
+                    .get()
+                    .is_some_and(|symbol| self.general_bindings.contains(&symbol))
+                    || !self.numeric_result_shape(initializer, 0)
+                {
+                    Type::General
+                } else {
+                    Type::Number
+                };
+                let value = match ty {
+                    Type::General => self
+                        .evaluate(initializer, region, 0, evaluate::Mode::General)?
+                        .expect("General initializer"),
+                    Type::Predicate => self.predicate(initializer, region, 0)?,
+                    Type::Number => self.expression(initializer, region, 0)?,
+                };
+                (ty, value)
+            } else if mutable {
+                let value = self.value(Type::General);
+                // The implicit value is intrinsic, independent of any binding named undefined.
+                Self::push(
+                    region,
+                    local,
+                    Op::Nullish {
+                        result: value,
+                        value: ir::Nullish::Undefined,
+                    },
+                );
+                (Type::General, value)
             } else {
-                Type::Number
-            };
-            let value = match ty {
-                Type::General => self
-                    .evaluate(initializer, region, 0, evaluate::Mode::General)?
-                    .expect("General initializer"),
-                Type::Predicate => self.predicate(initializer, region, 0)?,
-                Type::Number => self.expression(initializer, region, 0)?,
+                return Err("numeric local must have an initializer".into());
             };
             let slot = SlotId(self.slots.len());
             self.slots.push(Slot {

@@ -1,3 +1,4 @@
+import { implicitLet } from './implicit-let.mjs';
 import { generalUpdates } from './general-updates.mjs';
 import { primitiveLooseEquality } from './primitive-loose-equality.mjs';
 import { generalDiscard } from './general-discard.mjs';
@@ -62,7 +63,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 60;
+export const corpusVersion = 61;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -141,6 +142,7 @@ programs.push(...generalParameters);
 programs.push(...generalDiscard);
 programs.push(...primitiveLooseEquality);
 programs.push(...generalUpdates);
+programs.push(...implicitLet);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);
@@ -366,7 +368,6 @@ export const rejected = [
   ['parenthesized-write-depth', `export function run(a,b) { ${'('.repeat(129)}a=b${')'.repeat(129)}; return a; }`],
   ['property-write', 'export function run(a,b) { return a.x=b; }'],
   ['destructuring-write', 'export function run(a,b) { return [a]=b; }'],
-  ['uninitialized-let', 'export function run(a,b) { let x; return x=a; }'],
   ['dead-branch-const-write', 'export function run(a,b) { const x=a; return a===a?a:(x=b); }'],
   ['dead-branch-forward-write', 'export function run(a,b) { const x=a===a?a:(y=b); let y=a; return x+y; }'],
   ['assignment-forward-statement', 'export function run(a,b) { x=a; let x=b; return x; }'],

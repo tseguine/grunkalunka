@@ -55,7 +55,7 @@ add('module-import', 'modules', '', 7, topLevel, { milestone: 'L3',
 add('var', 'bindings', 'var x=a; return x+b;', 6, declaration);
 add('var-hoisting', 'bindings', 'const before = x === undefined ? 1 : 0; var x=a; return before;', 1, reference,
   { prerequisites: ['undefined values', 'var bindings'] });
-add('uninitialized-let', 'bindings', 'let x; x=a; return x;', 4, 'numeric local must have an initializer');
+add('uninitialized-let', 'bindings', 'let x; x=a; return x;', 4, 'General bindings require a primitive value position');
 add('local-destructure', 'bindings', 'const {x}={x:a}; return x+b;', 6, 'local destructuring is not admitted', { prerequisites: ['object values'] });
 add('destructuring-write', 'bindings', 'let x=a; [x]=[b]; return x;', 2, 'assignment target must be an initialized identifier', { prerequisites: ['array values'] });
 add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators are not admitted',

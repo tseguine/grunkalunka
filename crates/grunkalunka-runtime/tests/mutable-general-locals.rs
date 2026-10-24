@@ -263,7 +263,6 @@ fn mutable_layout_planning_does_not_publish_bindings_or_relax_other_operators() 
         "let value=a; {let value=value;} return a;",
         "{let value=null;} return value;",
         "const value=null; value=a; return b;",
-        "let value; value=null; return value;",
         "let value=null; value+=1; return value;",
         "let value=null; value&&=a; return value;",
         "let value=null; value||=a; return value;",

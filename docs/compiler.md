@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 60
-contains 1680 paired programs, 932 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 61
+contains 1700 paired programs, 928 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 932 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 757 open requirements.
+classifies all 928 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 753 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1528,3 +1528,28 @@ guards are now executed. Value reporting adds four pairs, reaching 54 pairs and
 six control groups and two termination-only observations unchanged. Finite update
 coverage includes 384 modules with independent numeric goldens and 64 effect/order
 modules across JS/TS, both profiles and Wasmtime/Node.
+
+## Implicit let initialization
+
+A bare `let` identifier initializes canonical Undefined when its declaration
+executes, following [lexical BindingEvaluation](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-let-and-const-declarations-runtime-semantics-bindingevaluation).
+It uses a General slot and the existing initialization/publication path. The value
+is intrinsic; a lexical binding named `undefined` cannot change it. Declarators
+execute in source order, and declarations inside loops initialize on each execution.
+Existing explicit-initializer Number/Predicate/General routes retain their operations.
+
+Pre-declaration reads, initializer self-reference, shadowed TDZ references, missing
+const initializers, var, destructuring and TS definite-assignment assertions remain
+outside admission. Scope and local/statement limits are preserved. No IR, ABI,
+capability, dependency or storage-planning change is introduced.
+
+Corpus 61 promotes four exact original sources (three JS, one TS) and adds sixteen
+pairs: 1700 pairs, 928 numeric rejections, 36 curated references. The 56 inventory
+groups classify 753 open, 144 resource and 31 invalid observations. The exact
+`gap-uninitialized-let` source remains rejected in the numeric profile: its diagnostic
+advances to the separate General-cell return restriction. Its original source now
+executes in the Value profile as a thirteenth numeric origin; it is not counted as
+numeric support. Value reporting reaches 59 pairs and 3304 result comparisons,
+with four selected rejected pairs, six control groups and two termination-only
+observations unchanged. Coverage includes 56 fixed-golden modules, 64 effect/order
+modules, shadowed `undefined`, loop reinitialization and a default-kind mutation.

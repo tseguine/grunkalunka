@@ -53,7 +53,6 @@ export const annotationRejected = [
   ['annotation-self-reference', source('const x:typeof a=x; return x;'), 'ts', reference],
   ['annotation-forward-reference', source('const x:typeof y=y; const y:number=a; return x;'), 'ts', reference],
   ['annotation-const-write', source('const x:unknown=a; x=b; return x;'), 'ts', 'assignment to a const binding'],
-  ['annotation-missing-initializer', source('let x:unknown; return a;'), 'ts', 'numeric local must have an initializer'],
   ['annotation-definite', source('let x!:unknown; return a;'), 'ts', 'definite-assignment assertions are not admitted'],
   ['annotation-optional-parameter', 'export function run(a?:unknown,b?:unknown):unknown { return a; }', 'ts',
     'parameter modifiers, defaults and decorators are not admitted'],
