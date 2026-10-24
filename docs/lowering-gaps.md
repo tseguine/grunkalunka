@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 133 resource restrictions and 791 open requirements
-across all 950 records. Each pins the exact source, extension and strict Module mode;
+groups classify 29 invalid sources, 141 resource restrictions and 809 open requirements
+across all 979 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -214,8 +214,11 @@ The former `gap-type-alias`, `annotation-alias-remains` and
 [`type-declarations.mjs`](../tests/compatibility/type-declarations.mjs). Explicit
 aliases/interfaces and their direct named exports, plus default interface exports,
 retain the original AST and emit no runtime code. Each charges one statement;
-type members create no runtime cells or expression work. Imports, export lists,
-ambient values, enums, namespaces and augmentations remain separate gaps.
+type members create no runtime cells or expression work. Declaration-level
+`import type`/`export type` module items now also erase. Runtime imports/exports,
+inline type specifiers, ambient values, enums, namespaces and augmentations remain
+separate gaps. The four ordinary TS module-item promotions transfer no curated
+reference; the type-module group remains open. See [the bounded contract](compiler.md#type-only-module-items).
 
 Direct top-level numeric helper calls, including self/mutual recursion, are covered
 in [`numeric-calls.mjs`](../tests/compatibility/numeric-calls.mjs). They promote no

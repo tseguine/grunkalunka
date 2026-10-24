@@ -349,3 +349,11 @@ child contains neither and yields the captured old Number. The selected child
 yields the stored RHS snapshot. Existing value visibility, slot mutability and
 region verification apply unchanged; no new IR operation, type, emitter layout or
 ABI is introduced. See [the source contract](compiler.md#numeric-logical-assignment).
+
+## Type-only module items
+
+Declaration-level TS type-only module items are source admission and accounting
+only. They emit no value, slot, operation, module import or Wasm instruction.
+The original parser/Semantic pass still precedes filtering; each item charges the
+existing shared source-statement budget. Existing numeric IR, verifier, emitter,
+runtime and ABI remain unchanged. See [the source contract](compiler.md#type-only-module-items).

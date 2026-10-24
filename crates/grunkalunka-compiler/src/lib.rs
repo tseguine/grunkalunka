@@ -11,7 +11,7 @@ use lower::{Lowering, NumericBinding, NumericFunction};
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     BindingPattern, Declaration, ExportDefaultDeclarationKind, FormalParameterKind, FunctionType,
-    Statement,
+    ImportOrExportKind, Statement,
 };
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
@@ -45,6 +45,23 @@ fn is_type_declaration(statement: &Statement<'_>) -> bool {
     }
 }
 
+fn is_type_module_item(statement: &Statement<'_>) -> bool {
+    is_type_declaration(statement)
+        || match statement {
+            Statement::ImportDeclaration(import) => import.import_kind == ImportOrExportKind::Type,
+            Statement::ExportNamedDeclaration(export) => {
+                export.export_kind == ImportOrExportKind::Type
+            }
+            Statement::ExportFromDeclaration(export) => {
+                export.export_kind == ImportOrExportKind::Type
+            }
+            Statement::ExportAllDeclaration(export) => {
+                export.export_kind == ImportOrExportKind::Type
+            }
+            _ => false,
+        }
+}
+
 fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
     if source.len() > 16_384 {
         return Err("source exceeds this experiment's 16 KiB limit".into());
@@ -69,7 +86,7 @@ fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
     let runtime: Vec<_> = program
         .body
         .iter()
-        .filter(|statement| !is_type_declaration(statement))
+        .filter(|statement| !is_type_module_item(statement))
         .collect();
     if runtime.is_empty() {
         return Err(unsupported(
@@ -241,7 +258,7 @@ fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
             for declaration in program
                 .body
                 .iter()
-                .filter(|statement| is_type_declaration(statement))
+                .filter(|statement| is_type_module_item(statement))
             {
                 lowering.charge_statement(declaration)?;
             }
@@ -1101,6 +1118,286 @@ mod tests {
         ] {
             let source = format!("export function run(a,b) {{ {body} }}");
             assert!(compile(&source, false).err().unwrap().contains(reason));
+        }
+    }
+}
+
+#[cfg(test)]
+mod type_only_module_tests {
+    use super::compile;
+
+    fn erases_to(source: &str, javascript: &str) {
+        let expected = compile(javascript, false).unwrap();
+        let actual = compile(source, true).unwrap();
+        assert_eq!(actual.wat, expected.wat);
+        assert_eq!(actual.wasm, expected.wasm);
+    }
+
+    #[test]
+    fn declaration_type_import_erases() {
+        erases_to(
+            "import type { T } from \"missing\";export function run(a,b) { return a; }",
+            "export function run(a,b) { return a; }",
+        );
+    }
+
+    #[test]
+    fn declaration_type_export_list_erases() {
+        erases_to(
+            "type T=number; export type { T };export function run(a,b) { return a; }",
+            "export function run(a,b) { return a; }",
+        );
+    }
+
+    #[test]
+    fn declaration_type_re_export_erases() {
+        erases_to(
+            "export type { T } from \"missing\";export function run(a,b) { return a; }",
+            "export function run(a,b) { return a; }",
+        );
+    }
+
+    #[test]
+    fn declaration_type_export_star_erases() {
+        erases_to(
+            "export type * from \"missing\";export function run(a,b) { return a; }",
+            "export function run(a,b) { return a; }",
+        );
+    }
+    #[test]
+    fn declaration_type_forms_preserve_source_order_and_scalar_artifacts() {
+        for declaration in [
+            "import type T from \"missing\";",
+            "import type * as Types from \"missing\";",
+            "import type { T as Local, U } from \"missing\";",
+            "type T=number; interface U {} export type { T as Alias, U };",
+            "export type {};",
+            "export type { T as Local, U } from \"missing\";",
+            "export type * as Types from \"missing\";",
+        ] {
+            let javascript =
+                "function twice(x) { return x*2; } export function run(a,b) { return twice(a)+b; }";
+            erases_to(&format!("{declaration}{javascript}"), javascript);
+            erases_to(&format!("{javascript}{declaration}"), javascript);
+        }
+    }
+
+    #[test]
+    fn type_only_items_do_not_erase_runtime_module_forms() {
+        for declaration in [
+            "import { T } from \"missing\";",
+            "import \"missing\";",
+            "import {} from \"missing\";",
+            "import { type T } from \"missing\";",
+            "import { type T, value } from \"missing\";",
+            "type T=number; export { type T };",
+            "export {};",
+            "export { T } from \"missing\";",
+            "export { type T } from \"missing\";",
+            "export * from \"missing\";",
+            "import T = require(\"missing\");",
+            "import type T = require(\"missing\");",
+            "declare const value:number;",
+        ] {
+            let source = format!("{declaration}export function run(a,b) {{ return a; }}");
+            let error = compile(&source, true).err().expect(&source);
+            assert!(
+                error.contains("exactly one exported function"),
+                "{source}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn type_only_items_preserve_value_namespace_eligibility() {
+        for (source, javascript) in [
+            (
+                "import type { Math } from \"missing\";export function run(a,b) { return Math.abs(a)+b; }",
+                "export function run(a,b) { return Math.abs(a)+b; }",
+            ),
+            (
+                "import type { Infinity, NaN } from \"missing\";export function run(a,b) { return Infinity+NaN; }",
+                "export function run(a,b) { return Infinity+NaN; }",
+            ),
+            (
+                "import type { Math } from \"missing\";export function run(a,b) { const Math=a; return Math+b; }",
+                "export function run(a,b) { const Math=a; return Math+b; }",
+            ),
+        ] {
+            erases_to(source, javascript);
+        }
+        for source in [
+            "import type { T } from \"missing\";export function run(a,b) { return T; }",
+            "import type { Math } from \"missing\";export function run(a,b) { const Math=a; return Math.abs(a); }",
+            "import type { T } from \"missing\";export function run(a,b) { const T=T; return T; }",
+        ] {
+            assert!(compile(source, true).is_err(), "{source}");
+        }
+    }
+
+    #[test]
+    fn type_only_items_share_existing_statement_and_source_budgets() {
+        for kind in 0..4 {
+            let declarations = |count| {
+                (0..count)
+                    .map(|i| match kind {
+                        0 => format!("import type {{ T as T{i} }} from \"missing\";"),
+                        1 => "export type {};".to_string(),
+                        2 => format!("export type {{ T{i} }} from \"missing\";"),
+                        _ => format!("export type * from \"missing{i}\";"),
+                    })
+                    .collect::<String>()
+            };
+            erases_to(
+                &format!(
+                    "{}export function run(a,b) {{ return a; }}",
+                    declarations(255)
+                ),
+                "export function run(a,b) { return a; }",
+            );
+            let error = compile(
+                &format!(
+                    "{}export function run(a,b) {{ return a; }}",
+                    declarations(256)
+                ),
+                true,
+            )
+            .err()
+            .unwrap();
+            assert!(error.contains("at most 256 statements"), "{error}");
+            let program =
+                "function twice(x) { return x*2; } export function run(a,b) { return twice(a); }";
+            erases_to(&format!("{}{program}", declarations(253)), program);
+            assert!(
+                compile(&format!("{}{program}", declarations(254)), true)
+                    .err()
+                    .unwrap()
+                    .contains("at most 256 statements")
+            );
+            assert!(
+                compile(
+                    &format!(
+                        "\"module hint\";{}export function run(a,b) {{ return a; }}",
+                        declarations(255)
+                    ),
+                    true
+                )
+                .err()
+                .unwrap()
+                .contains("at most 256 statements")
+            );
+        }
+        let prefix = "import type { T } from \"λ";
+        let suffix = "\";export function run(a,b) { return a; }";
+        let mut source = format!(
+            "{prefix}{}{suffix}",
+            "x".repeat(16_384 - prefix.len() - suffix.len())
+        );
+        assert_eq!(source.len(), 16_384);
+        erases_to(&source, "export function run(a,b) { return a; }");
+        source.push(' ');
+        assert!(compile(&source, true).err().unwrap().contains("16 KiB"));
+    }
+
+    #[test]
+    fn type_only_items_keep_original_parse_semantics_and_entry_checks() {
+        for (source, diagnostic) in [
+            (
+                "import type { T } from \"missing\";",
+                "exactly one exported function",
+            ),
+            (
+                "export type * from \"missing\"; function run(a,b) { return a; }",
+                "expected 'export function",
+            ),
+            (
+                "export type { run }; function run(a,b) { return a; }",
+                "expected 'export function",
+            ),
+            (
+                "import type { T from \"missing\";export function run(a,b) { return a; }",
+                "parse diagnostics",
+            ),
+            (
+                "import type { T } from \"missing\"; export function run(a,b) { const x=a; const x=b; return x; }",
+                "semantic diagnostics",
+            ),
+            (
+                "import type { T } from \"missing\"; export function run(a,b) { return import(\"missing\"); }",
+                "expression is outside",
+            ),
+        ] {
+            let error = compile(source, true).err().expect(source);
+            assert!(error.contains(diagnostic), "{source}: {error}");
+        }
+        assert!(
+            compile(
+                "import type { T } from \"missing\";export function run(a,b) { return a; }",
+                false
+            )
+            .err()
+            .unwrap()
+            .contains("parse diagnostics")
+        );
+    }
+    fn rejects_nested_module_item(item: &str) {
+        for source in [
+            format!("export function run(a,b) {{ {item} return a; }}"),
+            format!("export function run(a,b) {{ {{ {item} }} return a; }}"),
+            format!("export function run(a,b) {{ return a; {item} }}"),
+            format!("export function run(a,b) {{ if(false) {{ {item} }} return a; }}"),
+            format!(
+                "function unused(x) {{ {item} return x; }} export function run(a,b) {{ return a; }}"
+            ),
+        ] {
+            assert!(
+                compile(&source, true).is_err(),
+                "nested module item admitted: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_type_import_is_not_a_type_statement() {
+        rejects_nested_module_item("import type { T } from \"missing\";");
+    }
+
+    #[test]
+    fn nested_type_export_list_is_not_a_type_statement() {
+        rejects_nested_module_item("export type {};");
+    }
+
+    #[test]
+    fn nested_type_re_export_is_not_a_type_statement() {
+        rejects_nested_module_item("export type { T } from \"missing\";");
+    }
+
+    #[test]
+    fn nested_type_export_star_is_not_a_type_statement() {
+        rejects_nested_module_item("export type * from \"missing\";");
+    }
+
+    #[test]
+    fn original_type_statements_and_abrupt_diagnostics_are_unchanged() {
+        erases_to(
+            "type Module=number; interface ModuleShape {} export function run(a,b) { if(a) { type T=number; interface I {} return b; } return a; type Tail=number; interface End {} }",
+            "export function run(a,b) { if(a) { return b; } return a; }",
+        );
+        for (source, diagnostic) in [
+            (
+                "export function run(a,b) { return a; type T=number; interface I {} a=b; }",
+                "unsupported at bytes 67..71: statements after a guaranteed return are not admitted",
+            ),
+            (
+                "export function run(a,b) { do { break; type T=number; interface I {} a=b; } while(0); return a; }",
+                "unsupported at bytes 69..73: statements after a guaranteed abrupt completion are not admitted",
+            ),
+            (
+                "export function run(a,b) { for(let i=0;i<1;i++) { continue; type T=number; interface I {} a=b; } return a; }",
+                "unsupported at bytes 90..94: statements after a guaranteed abrupt completion are not admitted",
+            ),
+        ] {
+            assert_eq!(compile(source, true).err().unwrap(), diagnostic);
         }
     }
 }

@@ -54,14 +54,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 48
-contains 1410 paired programs, 950 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 49
+contains 1442 paired programs, 979 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 950 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 133 explicit resource restrictions and 791 open requirements.
+classifies all 979 rejections in 56 groups: 29 invalid sources in their selected
+strict Module dialect, 141 explicit resource restrictions and 809 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -564,8 +564,11 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   retains ordinary statement depth checks. Type members emit no operations and
   consume no runtime locals or expression depth. Module admission selects one
   exported entry and any plain unexported helpers;
-  imports, export/re-export lists, ambient values, enums, namespaces and module/global
-  augmentations remain unsupported. Type names do not create numeric bindings.
+  declaration-level `import type`/`export type` items also erase and charge one
+  statement each. Runtime imports, inline type specifiers, runtime export/re-export
+  lists, ambient values, enums, namespaces and module/global augmentations remain
+  unsupported. Type names do not create numeric bindings. See
+  [type-only module items](#type-only-module-items).
   `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=`
   expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the
@@ -636,7 +639,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Hashbangs emit no IR and consume no statements, locals or nesting depth, while
   every original UTF-8 byte still counts toward the 16 KiB limit. The entry and
   whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
-- Everything else is rejected: extra statements/exports/imports,
+- Everything else is rejected: extra runtime statements/exports/imports,
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
@@ -1101,6 +1104,34 @@ and 28 classified negatives. `unsupported-compound-8` and `unsupported-compound-
 retain their original JS strict Module sources; no curated reference or Rust-only
 guard transfers. The two retained `**=`/`??=` observations change only their honest
 operator-whitelist text. The logical-assignment group remains open with an explicit
-Number-only assessment. Current totals are 1410 pairs, 950 rejections and 38 curated
+Number-only assessment. That step recorded 1410 pairs, 950 rejections and 38 curated
 references; 922 old rejection observations remain, with those two exact diagnostic
 text exceptions. This is bounded source support, not a general assignment policy.
+
+## Type-only module items
+
+Declaration-level TypeScript `import type` and `export type` items erase after the
+original Module parse and Semantic pass. Import declarations, named export lists,
+named re-exports and star/namespace re-exports qualify only when the declaration's
+own Oxc kind is `Type`. Erasure applies only at module top level. Function/block
+statements keep their original type-declaration eligibility and abrupt-tail checks;
+the four newly erased module-item families do not become body statements.
+Specifier-level `type` inside an ordinary import/export is
+not this admission: runtime module edges and module initialization remain unsupported.
+This follows [type-only erasure](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-8.html)
+and the [declaration/specifier distinction](https://www.typescriptlang.org/tsconfig/verbatimModuleSyntax.html).
+
+The same predicate excludes these items from runtime entry selection and charges
+each original item once against the shared 256-statement budget. Original UTF-8
+source bytes, directives, helpers, source order and 16 KiB bound remain intact.
+No module is resolved or loaded. Type-only items cannot manufacture an exported
+entry, numeric binding or runtime value. Existing SymbolId/value eligibility is
+unchanged: unknown type-only names used as values reject; otherwise eligible
+pristine globals and ordinary value shadows keep their existing behavior.
+
+Corpus 49 adds 32 paired programs, including four exact original TS promotions,
+and 33 classified negatives. No curated reference or Rust-only guard transfers,
+retained diagnostic changes, IR/backend/runtime changes, dependency or ABI changes
+are involved. Current totals: 1442 pairs, 979 rejections, 38 curated references;
+56 groups classify 29 invalid sources, 141 resource restrictions and 809 open
+requirements. Ambient declarations/augmentations and runtime module support remain open.

@@ -976,7 +976,7 @@
     {
       "id": "type-module-forms",
       "kind": "open-requirement",
-      "assessment": "Type-only imports/re-export lists, ambient declarations and augmentations need explicit TypeScript module admission.",
+      "assessment": "Declaration-level type-only imports and exports erase without runtime module edges. Ambient value/function declarations and global/module augmentations remain outside this profile.",
       "evidence": [
         {
           "source": "https://www.typescriptlang.org/docs/handbook/2/modules.html",
@@ -3851,34 +3851,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "c2061e25ce35a5df0d903052d2a0e60f8c3c42784ae20090ddef8f2c0aa1aaf6",
       "group": "source-bytes"
-    },
-    {
-      "id": "type-declaration-excluded-import",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "5d80a33a5f8b9b0eae7dbfa4ecc3465e25b72845f302c3e1efbdc2ef5086b68c",
-      "group": "type-module-forms"
-    },
-    {
-      "id": "type-declaration-excluded-export-list",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "9ba6dfc1ef3b88a603367efb91001432f27af95e9bf21fbb4dfdd8079f489a8d",
-      "group": "type-module-forms"
-    },
-    {
-      "id": "type-declaration-excluded-re-export",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b68b6c5112b11abd6ddc235c6dcbb421440f9efdfff8cdccee997ceee5e1b2fc",
-      "group": "type-module-forms"
-    },
-    {
-      "id": "type-declaration-excluded-export-star",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "cfcb48e3373a872b0e6e94f00569090ae3b0c1e907c8cd750d320139e4d9ccb4",
-      "group": "type-module-forms"
     },
     {
       "id": "type-declaration-excluded-ambient-value",
@@ -7749,6 +7721,237 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "4a8cad2462d0adcfaee44896e429fa8be3d19fa945ff69174624edd1c6730e57",
+      "group": "expression-depth"
+    },
+    {
+      "id": "type-only-module-reject-import-value",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0e9689f6c365cb808c6b4dbb67c56b9121f8c8246be083e0c0290aee16706490",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-default",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5025c147488da815520262be8ce557304f768bab28a0542e3ffd8ef34c63b8bd",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-namespace",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "dd35adeaf7b2d4ec5e6bbd4d2b26d518f15b20f7650c8835b35c8b9ec6aa5f78",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-side-effect",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9a822efa6e5bf489ce2e5f28e08e7174e0e35efb3839794d2604719511f61e54",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-empty",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cb25acd9d98527064a483f9ffddea5c7ced5464ff9313be349641bac2fd6a4d5",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-inline",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "8920db8d63a2fee809473c6c8bef71a238cc0b09d2ad54ea852629b0c6f99575",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-mixed",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "78bfff28b993eb17e035f10880b25f45866e5291a97ac8ea70e74a8b6d59e4fe",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-export-empty",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "660fd86cdf972688c11e035dce05d4cee6790fbad268b77662284546615c5ab6",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-export-inline",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d425914b81bb971bb20b08d50780364cbcaa90ea823af7e4a5f953fc27896968",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-export-from",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c80cd68190f44a03e3fa5830ab525d21eda96b1be6a9a15695f08605c6a993ae",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-export-from-inline",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d5a1a3078f4e5d92bbc5269aa973fb6f8036812f9698e6c3531c168c73b9f05d",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-export-all",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7dbefb8d2ef6a97b89b8d32a19082675ea8b1f1dd5cbe639bd3b5c169d761d2c",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-export-namespace",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d96c45d3d56f81a91e5c723365772ce264bc483d0c4d1af8b4016232957520a1",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-equals",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "71d8efe1923a808e42075ffddd92872a6fbd08b3e77f11462790c034745e991b",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-import-type-equals",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2ea052da962d0fcdd26e0c238f1aafd339d27589a1d7b5699cefc54098e48258",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-unknown-type-value",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "08a702436db484dcfb45a6f36181b7d42688a3264b2ebaea9589908322acf4d8",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-type-value-tdz",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "635d1bffe72e9d8911a803df3c256b44d3ca9e8e5b4218bf88bd908b04a79bdb",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-math-value-shadow",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5f5082924f7b5c3bb41d4e54dcbf26afc8ecce6a45e841b32294ab793e8cc634",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-dynamic-import",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "68d58803fe0eddff2870d7c61db64324e1d89bd327c534d0dc0fba45222099b4",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-only-types",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "ea661f2442fd434bf22fefa64fa2d100d97508a1795a36ef09f7ca99d6b873c1",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-bare-entry",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "56bfc92fc2504c2522e47aaece5fdbd6e0e1b309b0af26a3ec48938e749b16df",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-type-export-entry",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9ddd02cd59b048f2d033f24f5274721f300d7a0ce08651a0cd51efb3f34e2d4f",
+      "group": "type-module-forms"
+    },
+    {
+      "id": "type-only-module-reject-js-mode",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "5d80a33a5f8b9b0eae7dbfa4ecc3465e25b72845f302c3e1efbdc2ef5086b68c",
+      "group": "malformed-js"
+    },
+    {
+      "id": "type-only-module-reject-malformed-import",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9bcb0bc714424f565993fc73757433e8f1525ac44cb7a849839423a158f8db8a",
+      "group": "malformed-ts"
+    },
+    {
+      "id": "type-only-module-reject-duplicate-value",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b292de181e8de3d0a388e8568f654cffa8e2ac0bd2ccbd69f27cb7ae37ad93e6",
+      "group": "duplicate-lexical-binding"
+    },
+    {
+      "id": "type-only-module-reject-budget-import",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b37d3414cc21aeb39af31286980bfa2d29d8d0c92056587e44f4b86924fae1ed",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-only-module-reject-budget-list",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c80373f9f7f27b887d98ff7050bec5eb75a3865215a205961210861f27ad3e41",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-only-module-reject-budget-from",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1c043a3326b6e58d5e041b06bc37baff07f4b0af93f841940a2b1a2c47ccae97",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-only-module-reject-budget-all",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "aea4564e7842d30e54c73edc33c5054236875e353e4bf446419c1fba7d6e9e7b",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-only-module-reject-directive-budget",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3b644ca78383e204462131152c5e031458250352af82e36e6e25f05fefe95611",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-only-module-reject-helper-budget",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "24b7c0bc746fc107a3bd494337aa15996759ee8c353ae8f616ac384410d17054",
+      "group": "statement-count"
+    },
+    {
+      "id": "type-only-module-reject-byte-overflow",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4539faaf5f520dc076b5799a4a14028813224290bbfb56fb2568973296b8b102",
+      "group": "source-bytes"
+    },
+    {
+      "id": "type-only-module-reject-depth-overflow",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "39348834348bfb0378748c40062e36bb0de64239b6049fc320e4536c48c816f8",
       "group": "expression-depth"
     }
   ]

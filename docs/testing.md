@@ -67,8 +67,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 950 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 133 resource restrictions and 791 open requirements.
+also covers all 979 negatives, including the curated references. Its 56 groups
+distinguish 29 invalid sources, 141 resource restrictions and 809 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -324,3 +324,15 @@ placement is checked independently of engine results. Selected-result checks use
 the RHS snapshot, including a deliberately stale-old-result sensitivity probe.
 The two ordinary promotions and two remaining whitelist-diagnostic changes are
 pinned individually; no curated reference transfers or broad normalization applies.
+
+The [type-only module-item fixtures](../tests/compatibility/type-only-module-items.mjs)
+retain four complete original TS sources and hand-paired JS oracles. They cover
+all four declaration-kind families, source order around helpers, namespaces and
+value shadows, scalar effects, shared 255/256-statement boundaries, original
+16 KiB UTF-8 source bytes and wrapper depth. Runtime/side-effect/inline/mixed
+imports and runtime exports remain negative. Parser/Semantic precedence and
+exported-entry checks remain independent of erasure. Nested function/block,
+after-return, dead-branch and unused-helper cases retain original body admission.
+Four built sensitivity probes over-erase runtime imports/exports, omit statement
+charging or leak module erasure into the original body predicate; positive
+admission tests independently detect omission of the new erasure.

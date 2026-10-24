@@ -73,8 +73,6 @@ const reference = 'reference is not an initialized numeric parameter or local';
 const abrupt = 'statements after a guaranteed';
 export const typeDeclarationRejected = [
   ...[
-    ['import', 'import type { T } from "missing";'], ['export-list', 'type T=number; export type { T };'],
-    ['re-export', 'export type { T } from "missing";'], ['export-star', 'export type * from "missing";'],
     ['ambient-value', 'declare const x:number;'], ['ambient-function', 'declare function other():number;'],
     ['namespace', 'namespace N { export type T=number; }'], ['ambient-namespace', 'declare namespace N { interface T {} }'],
     ['global-augmentation', 'declare global { interface T {} }'], ['module-augmentation', 'declare module "missing" { interface T {} }'],

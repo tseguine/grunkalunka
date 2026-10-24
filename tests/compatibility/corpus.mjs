@@ -45,7 +45,8 @@ import { arithmeticPredicateBindings, arithmeticPredicateBindingsRejected } from
 import { discardedPredicateBindings, discardedPredicateBindingsRejected } from './discarded-predicate-bindings.mjs';
 import { strictBooleanEquality, strictBooleanEqualityRejected } from './strict-boolean-equality.mjs';
 import { numericLogicalAssignment, numericLogicalAssignmentRejected } from './numeric-logical-assignment.mjs';
-export const corpusVersion = 48;
+import { typeOnlyModuleItems, typeOnlyModuleRejected } from './type-only-module-items.mjs';
+export const corpusVersion = 49;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -115,6 +116,7 @@ programs.push(...arithmeticPredicateBindings);
 programs.push(...discardedPredicateBindings);
 programs.push(...strictBooleanEquality);
 programs.push(...numericLogicalAssignment);
+programs.push(...typeOnlyModuleItems);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -221,6 +223,7 @@ export const rejected = [
   ...discardedPredicateBindingsRejected,
   ...strictBooleanEqualityRejected,
   ...numericLogicalAssignmentRejected,
+  ...typeOnlyModuleRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],

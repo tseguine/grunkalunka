@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rejected } from './corpus.mjs';
 import { numericLogicalAssignment, numericLogicalAssignmentPromotions } from './numeric-logical-assignment.mjs';
+import { typeOnlyModuleItems, typeOnlyModulePromotions } from './type-only-module-items.mjs';
 import { strictBooleanEquality, strictBooleanEqualityPromotions } from './strict-boolean-equality.mjs';
 import { constBooleanPrograms, promotedBooleanGap } from './const-boolean.mjs';
 import { discardedPredicateBindings, discardedPredicatePromotions } from './discarded-predicate-bindings.mjs';
@@ -118,11 +119,28 @@ test('numeric logical assignment retains both exact ordinary promotion sources',
   }
 });
 
+test('type-only module items retain four exact TS sources and complete hand-paired JS oracles', () => {
+  assert.deepEqual(typeOnlyModulePromotions.map(([id,,hash]) => [id, hash]), [
+    ['type-declaration-excluded-import', '5d80a33a5f8b9b0eae7dbfa4ecc3465e25b72845f302c3e1efbdc2ef5086b68c'],
+    ['type-declaration-excluded-export-list', '9ba6dfc1ef3b88a603367efb91001432f27af95e9bf21fbb4dfdd8079f489a8d'],
+    ['type-declaration-excluded-re-export', 'b68b6c5112b11abd6ddc235c6dcbb421440f9efdfff8cdccee997ceee5e1b2fc'],
+    ['type-declaration-excluded-export-star', 'cfcb48e3373a872b0e6e94f00569090ae3b0c1e907c8cd750d320139e4d9ccb4'],
+  ]);
+  for (const [id, ts, hash] of typeOnlyModulePromotions) {
+    const source = programSources(typeOnlyModuleItems.find(p => p[0] === id));
+    assert.equal(source.sourceTS, ts);
+    assert.equal(source.sourceJS, 'export function run(a,b) { return a; }');
+    assert.equal(source.oracleSource, source.sourceJS);
+    assert.equal(createHash('sha256').update(ts).digest('hex'), hash);
+    assert.ok(!rejected.some(r => r[0] === id));
+  }
+});
+
 test('every rejection has a source-bound assessment in the selected strict Module mode', () => {
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 950);
+  assert.equal(inventory.records.size, 979);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
