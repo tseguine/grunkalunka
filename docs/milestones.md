@@ -36,7 +36,7 @@ be represented internally without changing the public two-number/result-number A
 | Milestone | Status | Demonstration / completion evidence |
 | --- | --- | --- |
 | W0 — maintained implementation workspace | Done | Main Cargo workspace at development version `0.0.1`: separate compiler, numeric runtime and CLI crates, with the regression corpus in `tests/compatibility`. Generated Wasm and external dependency resolution are unchanged by promotion. Continue PoC iteration in maintained crates; reserve disposable spikes for unresolved questions. |
-| C1 — executable compatibility matrix | Done | [Corpus version 46](../tests/compatibility/corpus.mjs): 1299 paired programs, 905 rejection fixtures, five explicit unexecuted feature groups. The [38 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
+| C1 — executable compatibility matrix | Done | [Corpus version 47](../tests/compatibility/corpus.mjs): 1346 paired programs, 924 rejection fixtures, five explicit unexecuted feature groups. The [38 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 32 adapted runtime cases and zero selected admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
 | P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
@@ -118,7 +118,7 @@ the same client behaves predictably under different capability profiles.
 - Number-only `==`/`!=` predicates reuse numeric comparisons and ordered snapshots.
   Nineteen paired programs cover boundaries, operand effects and composed
   conditions; 20 boundary rejections preserve numeric result and operand admission.
-  Mixed-type and Boolean equality remain separate work.
+  At that step, mixed-type and Boolean equality remained separate work.
 - Discarded numeric expression statements preserve source-order effects and
   evaluate through the same numeric lowerer as value positions. Twenty paired
   programs include arithmetic, comma, selected branches, whole TypeScript wrappers
@@ -311,3 +311,13 @@ discard classifier. Fifty-three pairs include five exact ordinary promotions;
 One Rust guard transfers positive; all 38 curated references remain. Selected
 counts: 1299 pairs, 905 rejections, 56 groups (26 invalid, 127 resource, 752 open).
 No representation, runtime, ABI, budget or native-liveness policy changes.
+
+## Strict same-kind Boolean equality
+
+Corpus 47 adds 47 pairs and 21 classified negatives for predicate `===`/`!==`.
+Two exact ordinary sources move; no curated reference or Rust-only guard transfers.
+Both proven Boolean operands convert through existing NumberFromPredicate in source
+order, then existing Compare; the Number fallback and classifiers remain unchanged.
+Selected totals are 1346 pairs, 924 rejections and 38 curated references in 56 groups
+(26 invalid, 129 resource restrictions, 769 open requirements). Mixed kinds, loose
+Boolean equality and general Boolean values remain separate work.

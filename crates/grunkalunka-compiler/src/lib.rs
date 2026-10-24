@@ -271,6 +271,51 @@ mod tests {
     use super::compile;
 
     #[test]
+    fn strict_boolean_equality_admits_same_kind_operands() {
+        for source in [
+            "export function run(a,b) { if(true===false) return a; return b; }",
+            "export function run(a,b) { if(!a===!b) return a; return b; }",
+            "export function run(a,b) { const flag=a<b; return flag!==true?1:0; }",
+        ] {
+            compile(source, false).unwrap();
+        }
+    }
+
+    #[test]
+    fn strict_boolean_equality_keeps_kind_scope_and_depth_boundaries() {
+        for body in [
+            "return true==false?1:0;",
+            "return true!=false?1:0;",
+            "return true===a?1:0;",
+            "return a!==false?1:0;",
+            "return true<false?1:0;",
+            "return true===false;",
+            "const flag=true; return (flag&&true)===false?1:0;",
+            "const flag=flag===true; return a;",
+            "const flag=true; { const copy=flag===true; const flag=false; } return a;",
+            "return false?(true===!Math.random()?1:0):a;",
+        ] {
+            assert!(
+                compile(&format!("export function run(a,b) {{ {body} }}"), false).is_err(),
+                "{body}"
+            );
+        }
+        for depth in [126, 127] {
+            let source = format!(
+                "export function run(a,b) {{ return {}true===false{}?a:b; }}",
+                "(".repeat(depth),
+                ")".repeat(depth)
+            );
+            assert_eq!(compile(&source, false).is_ok(), depth == 126);
+            let source = format!(
+                "export function run(a,b) {{ return true{} ===false?a:b; }}",
+                "!".repeat(depth)
+            );
+            assert_eq!(compile(&source, true).is_ok(), depth == 126);
+        }
+    }
+
+    #[test]
     fn discarded_immutable_predicate_bindings_are_admitted() {
         let mut failures = Vec::new();
         for (id, body) in [

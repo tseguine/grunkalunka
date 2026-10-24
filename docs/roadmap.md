@@ -95,7 +95,7 @@ replayable evidence, discarded alternatives, limits, and a next recommendation.
 
 The [numeric PoC](compiler.md) now exercises the pure
 numeric part of question 3 before question 2: its explicit two-number ABI makes it
-independent of the unresolved tsrs bridge. It emits real Wasm from JS/TS and passes
+independent of the unresolved tsrs bridge. Its discarded-binding replay recorded
 3,257,892 engine-to-JS comparisons across Wasmtime and Node-Wasm, plus 905 rejected
 inputs, including numeric locals, comparison-controlled ternaries, numeric
 assignment/update, lexical blocks, statement branches, early returns, numeric truthiness
@@ -388,3 +388,13 @@ Discarded contexts now also admit bare/wrapped initialized immutable Predicate
 identifier reads via existing SymbolId/slot evidence. This changes only the leaf
 selector, preserving the free result-join classifier and all other value/storage
 policies. It does not resolve the separately deferred native frontend-liveness work.
+
+## Strict same-kind Boolean predicates
+
+Selected inline Boolean shapes and initialized immutable Predicate bindings now
+support `===`/`!==` when both original operands qualify. Their captured predicates
+convert once, left before right, through existing Number comparison operations.
+This preserves the original Number path and does not settle mixed-kind equality,
+loose Boolean coercion, relational Boolean operands, dynamic values or a new ABI.
+The selected corpus contains 1346 pairs and 924 rejection fixtures, including the
+unchanged 38 curated gaps. See [the bounded contract](compiler.md#strict-same-kind-boolean-equality).

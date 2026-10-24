@@ -37,14 +37,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 46
-contains 1299 paired programs, 905 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 47
+contains 1346 paired programs, 924 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 905 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 127 explicit resource restrictions and 752 open requirements.
+classifies all 924 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 129 explicit resource restrictions and 769 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -499,10 +499,13 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= == != === !==` comparisons and primitive-number truthiness. Truthiness
   evaluates its expression once; ±0 and NaN are false, all other numbers are true.
-  Both equality operands must lower to numbers. On this domain, `==`/`!=` use
+  Number equality operands keep their original lowering. On that domain, `==`/`!=` use
   the same comparisons as `===`/`!==`: NaN is unequal to every number and signed
   zeros compare equal. Ordered snapshots preserve operand effects. No coercion
-  is introduced by equality itself. Results remain predicates, and may enter the
+  is introduced by equality itself. Strict `===`/`!==` also accept two proven Boolean
+  operands through the bounded same-kind bridge below; mixed kinds, loose Boolean
+  equality and Boolean relational operands remain outside admission. Results remain
+  predicates, and may enter the
   explicit primitive Number bridges; direct ABI results remain Number-only.
   Comma operands execute left to right; non-final Number or Boolean results are
   evaluated and discarded. The final operand retains its surrounding Number or
@@ -969,8 +972,8 @@ The free Boolean-shape classifier, initializer, discarded value and numeric-iden
 admission remain unchanged by that unary step. The later arithmetic bridge below
 extends only five binary operand callers; the later discard selector admits only
 leaf reads in discarded contexts. A bare `flag` still cannot be returned, passed,
-assigned or used in equality/bitwise/
-shift/compound positions. Mutable Boolean storage and root Boolean joins remain
+assigned or used in bitwise/shift/compound positions; strict same-kind equality
+is covered below. Mutable Boolean storage and root Boolean joins remain
 outside admission. The resulting Number may compose through existing numeric paths.
 
 Corpus 44 adds 43 pairs and 25 source-bound negatives. Exactly three ordinary IDs
@@ -990,7 +993,7 @@ wrapper depth supply evidence. Original operands lower once to predicates and th
 NumberFromPredicate; the left result is captured before the right is evaluated.
 Number fallback, the binary dispatcher and the free Boolean classifier are unchanged.
 
-This does not extend bitwise/shift/equality/compound operands, Boolean returns or
+That arithmetic step did not extend bitwise/shift/equality/compound operands, Boolean returns or
 arguments, mutable storage or root Boolean joins. Discarded binding reads are
 covered by the separate leaf-only selector below. The
 native frontend liveness incident on the deferred bitwise candidate is not repaired
@@ -1028,5 +1031,30 @@ move: `const-boolean-statement`, `unary-predicate-binding-reject-discard`,
 `arithmetic-predicate-binding-reject-discard`, `const-boolean-comma-prefix` and
 `const-boolean-for-update`. The first three preserve the same original JS source
 under distinct IDs. One former Rust guard transfers verbatim positive. No curated
-reference moves; all 38 remain. Current totals: 1299 pairs, 905 rejections and 56
+reference moves; all 38 remain. That discarded step recorded 1299 pairs, 905 rejections and 56
 groups (26 invalid, 127 resource, 752 open requirements).
+
+## Strict same-kind Boolean equality
+
+Predicate-position `===` and `!==` accept two operands recognized by the unchanged
+bounded operand eligibility method: selected inline Boolean-producing syntax or
+initialized immutable Predicate bindings, through original TS/parenthesis wrappers.
+Both operands must qualify. Original SymbolId, publication and fixed slot kind
+supply binding evidence; annotations never establish a runtime kind.
+
+The left original operand lowers once as a predicate and converts through existing
+`NumberFromPredicate` before the right does the same. Existing Number Compare and
+`f64.eq/ne` compare the captured canonical zero/one values. The original two Number
+descents remain the fallback. No classifier, binary dispatcher, IR, emitter, ABI,
+runtime, source budget or native stack setting changes.
+
+Mixed Boolean/Number operands, loose Boolean equality, Boolean relational operands,
+mutable storage, root logical/conditional/comma operands and direct Boolean returns
+remain outside this bridge. A valid predicate result may compose through existing
+unary/arithmetic bridges and immutable initializers; no general kind policy follows.
+
+Corpus 47 adds 47 pairs and 21 classified negatives. Exactly two ordinary sources
+move unchanged: `boolean-equality-operands` and `not-equality-operand`, both JS strict
+Modules. No curated reference or Rust-only negative body transfers. Selected totals
+are 1346 pairs, 924 rejections and 38 curated references; all 1299 prior pairs and
+903 other rejection observations remain the baseline.

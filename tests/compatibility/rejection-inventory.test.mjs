@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rejected } from './corpus.mjs';
+import { strictBooleanEquality, strictBooleanEqualityPromotions } from './strict-boolean-equality.mjs';
 import { constBooleanPrograms, promotedBooleanGap } from './const-boolean.mjs';
 import { discardedPredicateBindings, discardedPredicatePromotions } from './discarded-predicate-bindings.mjs';
 import { arithmeticPredicateBindings, arithmeticPredicatePromotions } from './arithmetic-predicate-bindings.mjs';
@@ -92,11 +93,23 @@ test('discarded Predicate promotions retain five IDs and three exact original JS
   }
 });
 
+test('strict Boolean equality retains both exact ordinary promotion sources', () => {
+  assert.equal(strictBooleanEqualityPromotions.length, 2);
+  for (const [id, js, ts, hash] of strictBooleanEqualityPromotions) {
+    const source = programSources(strictBooleanEquality.find(p => p[0] === id));
+    assert.equal(source.sourceJS, js);
+    assert.equal(source.sourceTS, ts);
+    assert.equal(source.oracleSource, js);
+    assert.equal(createHash('sha256').update(js).digest('hex'), hash);
+    assert.ok(!rejected.some(r => r[0] === id));
+  }
+});
+
 test('every rejection has a source-bound assessment in the selected strict Module mode', () => {
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 905);
+  assert.equal(inventory.records.size, 924);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

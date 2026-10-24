@@ -110,7 +110,9 @@ fuel-headroom guarantee. See the standard [Number remainder rule](https://tc39.e
 uniquely defines a `Number` result. It emits `f64.convert_i32_u` on the existing
 canonical zero/one predicate, implementing Boolean-to-Number only for selected
 primitive-Boolean operands of numeric unary `+`, `-`, `~` and binary
-`+`, `-`, `*`, `/`, `%`. Their operations consume and return Number. Unary plus
+`+`, `-`, `*`, `/`, `%`, and two proven Boolean operands of strict predicate equality.
+Numeric operations consume and return Number; equality compares those Numbers and
+defines a Predicate. Unary plus
 copies its Number; unary minus uses f64 negation and preserves the -0 result of
 `-false`. These bridges add no Boolean parameter, return or general coercion.
 A pure bounded AST shape
@@ -328,3 +330,12 @@ operand once with the existing Predicate Load and leaves that value unused, just
 as for other admitted discarded predicates. No NumberFromPredicate conversion,
 new IR operation, verifier/emitter change or source/result type profile is needed.
 The free discard classifier and its logical/conditional/sequence rules are unchanged.
+
+## Strict Boolean predicate comparison
+
+Same-kind source `===`/`!==` converts each proven Boolean operand with the existing
+`NumberFromPredicate` operation, left before right, then uses unchanged Number
+`Compare::Equal`/`NotEqual`. Canonical zero/one conversion preserves Boolean
+identity. The verifier still requires Number comparison operands and a Predicate
+result. Number paths, value capture, IR types, emitter operations and ABI are
+unchanged; this adds no dynamic kind dispatch or mixed-kind equality policy.

@@ -829,8 +829,38 @@ impl Lowering<'_, '_> {
                 _ => None,
             };
             if let Some(operator) = operator {
-                let left = self.expression(&binary.left, region, depth + 1)?;
-                let right = self.expression(&binary.right, region, depth + 1)?;
+                let (left, right) = if matches!(
+                    binary.operator,
+                    BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
+                ) && self.operand_boolean_shape(&binary.left, depth + 1)
+                    && self.operand_boolean_shape(&binary.right, depth + 1)
+                {
+                    let predicate = self.predicate(&binary.left, region, depth + 1)?;
+                    let left = self.value(Type::Number);
+                    Self::push(
+                        region,
+                        &binary.left,
+                        Op::NumberFromPredicate {
+                            result: left,
+                            input: predicate,
+                        },
+                    );
+                    let predicate = self.predicate(&binary.right, region, depth + 1)?;
+                    let right = self.value(Type::Number);
+                    Self::push(
+                        region,
+                        &binary.right,
+                        Op::NumberFromPredicate {
+                            result: right,
+                            input: predicate,
+                        },
+                    );
+                    (left, right)
+                } else {
+                    let left = self.expression(&binary.left, region, depth + 1)?;
+                    let right = self.expression(&binary.right, region, depth + 1)?;
+                    (left, right)
+                };
                 let result = self.value(Type::Predicate);
                 Self::push(
                     region,

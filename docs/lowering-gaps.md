@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 127 resource restrictions and 752 open requirements
-across all 905 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 129 resource restrictions and 769 open requirements
+across all 924 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -77,7 +77,8 @@ The former numeric `gap-loose-inequality` reference is now
 [`numeric-equality.mjs`](../tests/compatibility/numeric-equality.mjs). Both loose
 equality operators admit numeric operands only. `gap-loose-equality-coercion`
 retains its source, independent result and oracle, and now records rejection of
-the string operand. Coercive and Boolean equality remain outside admission.
+the string operand. Coercive Boolean equality remains outside admission; selected
+same-kind strict Boolean equality is covered below.
 
 The former `gap-infinity-global` and `gap-nan-global` references are now
 `intrinsic-infinity-promoted-reference` and `intrinsic-nan-promoted-reference` in
@@ -129,8 +130,9 @@ predicates and numeric truthiness, preserving short-circuit effects. Nullish
 coalescing remains outside admission in both contexts.
 
 Boolean literals and conditional arms are admitted in predicate positions.
-Mutable Boolean locals/Boolean returns, Boolean-valued arms in numeric ternaries and Boolean
-equality operands remain outside admission.
+Mutable Boolean locals/Boolean returns and Boolean-valued arms in numeric ternaries
+remain outside admission. Equality admits the selected same-kind strict operands
+described below; other Boolean equality operands remain outside admission.
 Logical negation is admitted in predicate positions, including nested negation and
 negated numeric comparisons. That feature itself adds no storage or numeric
 coercion; immutable Boolean predicate locals are covered by the const policy below.
@@ -309,3 +311,13 @@ remains open; none of the 38 curated references transfers. Root join classificat
 mutable bindings, Boolean results/arguments and assignment-value policy are unchanged.
 The exact native-liveness incident on deferred bitwise/shift work remains deferred;
 this independent selector is not a repair or a new attempt budget.
+
+## Strict Boolean equality frontier
+
+Exactly `boolean-equality-operands` and `not-equality-operand` graduate unchanged
+into the paired strict-Boolean corpus. The existing bounded eligibility method must
+prove both operands of `===` or `!==`; this includes initialized immutable
+Predicate bindings and selected inline shapes, preserving original depth/effects.
+No curated reference moves. The other 903 rejection observations remain the baseline.
+The Boolean-values assessment explicitly records this extension; loose or mixed-kind
+equality, Boolean relational operands, general storage and ABI values remain open.

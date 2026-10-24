@@ -56,8 +56,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 905 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 127 resource restrictions and 752 open requirements.
+also covers all 924 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 129 resource restrictions and 769 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -285,3 +285,20 @@ at a comma-prefix entry depth of one, and duplicate effectful predicate evaluati
 Restoration refreshes source mtime and rebuilds. Final auditing preserves all 1246
 old pairs, 879 other whole rejection observations and 38 curated oracles, with only
 the exact Boolean assessment update and declared promotions/new fixtures permitted.
+
+## Strict Boolean equality coverage
+
+The paired fixture covers both strict operators/all four Boolean pairs, selected
+inline shapes, immutable aliases, shadowing, misleading annotations, all TS wrapper
+forms, nested comparisons, helpers, finite loops and existing numeric compositions.
+Fixed independent results distinguish order/snapshots (120 versus 110), once-only
+left/right effects (111), and eager RHS evaluation. Exactly two ordinary source
+promotions retain full original JS bytes/hashes; no curated reference transfers.
+
+Before broader focus, the first fresh CLI must preserve the exact 554-byte Number
+depth rejection and all 65 retained nesting observations, then new JS/TS original
+depth128/129 controls. Four built sensitivity probes disable the bridge, widen the
+strict-only gate, reverse order and duplicate a predicate; every probe requires
+exact restoration and a fresh successful build/test. Any native failure stops work.
+Final auditing must preserve all 1299 old pairs, 903 retained rejection observations
+and 38 curated references, with only the explicit Boolean assessment change.

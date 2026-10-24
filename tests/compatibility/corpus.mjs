@@ -43,7 +43,8 @@ import { numericBooleanArithmetic, numericBooleanArithmeticRejected } from './nu
 import { unaryPredicateBindings, unaryPredicateBindingsRejected } from './unary-predicate-bindings.mjs';
 import { arithmeticPredicateBindings, arithmeticPredicateBindingsRejected } from './arithmetic-predicate-bindings.mjs';
 import { discardedPredicateBindings, discardedPredicateBindingsRejected } from './discarded-predicate-bindings.mjs';
-export const corpusVersion = 46;
+import { strictBooleanEquality, strictBooleanEqualityRejected } from './strict-boolean-equality.mjs';
+export const corpusVersion = 47;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -111,6 +112,7 @@ programs.push(...numericBooleanArithmetic);
 programs.push(...unaryPredicateBindings);
 programs.push(...arithmeticPredicateBindings);
 programs.push(...discardedPredicateBindings);
+programs.push(...strictBooleanEquality);
 programs.push(
   ['while-three', 'let i = 0; let x = a; while (i < 3) { const y = b + i; x = x + y; i = i + 1; } return x;',
     'let i: number = 0; let x: number = a; while (i < 3) { const y: number = b + i; x = x + y; i = i + 1; } return x;'],
@@ -215,6 +217,7 @@ export const rejected = [
   ...unaryPredicateBindingsRejected,
   ...arithmeticPredicateBindingsRejected,
   ...discardedPredicateBindingsRejected,
+  ...strictBooleanEqualityRejected,
   ...typescriptRejected,
   ['while-only-return', 'export function run(a,b) { while (1) { return a; } }'],
   ['while-unselected-call', 'export function run(a,b) { while (0) { a=Math.random(); } return a; }'],
@@ -266,8 +269,6 @@ export const rejected = [
   ['predicate-conditional-assignment', 'export function run(a,b) { if(a?(a=true):false) return a; return b; }'],
   ['predicate-conditional-equality-operand', 'export function run(a,b) { if((a?true:false)==0) return a; return b; }'],
   ['predicate-conditional-depth', `export function run(a,b) { if(${'a?true:'.repeat(129)}false) return a; return b; }`],
-  ['boolean-equality-operands', 'export function run(a,b) { if(true===false) return a; return b; }'],
-  ['not-equality-operand', 'export function run(a,b) { if(!a===!b) return a; return b; }'],
   ['not-unselected-call', 'export function run(a,b) { if(true) return a; else if(!Math.random()) return b; return a; }'],
   ['not-depth-limit', `export function run(a,b) { if(${'!'.repeat(129)}a) return a; return b; }`],
   ['predicate-and-unselected-call', 'export function run(a,b) { if(false && Math.random()) return a; return b; }'],
