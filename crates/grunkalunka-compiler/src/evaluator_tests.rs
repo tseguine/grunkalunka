@@ -226,7 +226,7 @@ const CASES: &[(&str, &str, bool, bool)] = &[
         "strict-mixed",
         "export function run(a,b) { return true===a?1:2; }",
         false,
-        false,
+        true,
     ),
     (
         "loose-boolean",
@@ -331,9 +331,6 @@ fn evaluator_control_characterization() {
                     }
                     "shadow" => {
                         "unsupported at bytes 57..61: reference is not an initialized numeric parameter or local"
-                    }
-                    "strict-mixed" => {
-                        "unsupported at bytes 34..38: expression is outside the numeric experiment"
                     }
                     "loose-boolean" => {
                         "unsupported at bytes 34..38: expression is outside the numeric experiment"
@@ -621,4 +618,17 @@ fn general_returns_use_the_same_nonrecursive_evaluator() {
     assert_eq!(maximum, 1);
     assert_eq!(entries, 1);
     assert!(pending > 1);
+}
+
+#[test]
+fn primitive_strict_equality_uses_one_evaluator_entry() {
+    for ts in [false, true] {
+        let source =
+            "export function run(a,b) {return (a ? (b+=1,null) : true)!==(b ? undefined : false);}";
+        let (result, maximum, entries, pending) = observe(|| crate::compile_value(source, ts));
+        result.unwrap();
+        assert_eq!(maximum, 1);
+        assert_eq!(entries, 1);
+        assert!(pending > 1);
+    }
 }

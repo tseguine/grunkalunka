@@ -1,6 +1,6 @@
 # Known lowering gaps
 
-This page and the 995 rejection fixtures below describe the **numeric profile**.
+This page and the 987 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Four exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -17,7 +17,7 @@ Selected primitive-Boolean operands of unary `+`, `-` and `~` explicitly produce
 Numbers. In the numeric profile this does not admit general Boolean storage, Boolean ABI returns or other
 primitive coercions; none of the 38 curated gaps is promoted by unary plus/minus.
 
-The executable frontier contains 38 curated reference cases in
+The executable frontier contains 36 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -25,7 +25,7 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Area | Exact fixture IDs |
 | --- | --- |
 | Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
-| General JavaScript values | `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint`, `gap-null`, `gap-undefined` |
+| General JavaScript values | `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint` |
 | Additional control flow | `gap-switch`, `gap-label` |
 | Function values, nested declarations and nested recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
 | Module loading | `gap-module-import` |
@@ -44,9 +44,9 @@ invalid JavaScript. Source-size, depth, statement/local counts, input-batch and 
 limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
-covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 31 invalid sources, 144 resource restrictions and 820 open requirements
-across all 995 records. Each pins the exact source, extension and strict Module mode;
+covers every current negative, beyond these 36 numeric reference opt-ins. Its 56
+groups classify 31 invalid sources, 144 resource restrictions and 812 open requirements
+across all 987 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -149,7 +149,7 @@ coercion; immutable Boolean predicate locals are covered by the const policy bel
 Promote an implemented case deliberately into the admitted differential corpus,
 then test its supported domain and boundary behavior against both Wasm engines.
 Do not merely remove the diagnostic check, count an expected rejection as support,
-or change the reference result to match a lowering bug. The 38 examples are a
+or change the reference result to match a lowering bug. The 36 remaining examples are a
 concrete starting frontier, not an exhaustive ECMAScript conformance inventory.
 Test262 and the other [external suites](testing.md) provide broader future coverage.
 
@@ -347,3 +347,18 @@ Generic declaration type parameters now erase for otherwise admitted numeric ent
 and helper functions. Three original ordinary TS exclusions promote; explicit generic
 calls, namespaces, enums and ambient functions remain separate gaps. Constraints and
 defaults remain unvalidated metadata, not runtime proofs. See [the contract](compiler.md#generic-declaration-metadata).
+
+## Primitive strict-equality promotions
+
+`gap-null` and `gap-undefined` now execute their exact original sources in both
+profiles, retaining their fixed `(4,2) -> 4` references and explicit JS/TS source
+files. Six ordinary rejection observations also transfer to admitted strict-equality
+programs. Corpus 51 has 1484 pairs, 987 rejections and 36 curated references.
+The inventory keeps every remaining original source hash and classification;
+56 groups still describe 812 open requirements, 144 resource restrictions and
+31 invalid sources. Counts describe fixtures rather than distinct missing features.
+
+Strict equality handles the four represented primitive kinds, including mixed-kind
+inequality and Number NaN/signed-zero behavior. Loose equality, General storage,
+logical operands and coercion remain open. Earlier counts above record their
+respective implementation steps rather than the current frontier.

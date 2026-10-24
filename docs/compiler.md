@@ -55,14 +55,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 50
-contains 1466 paired programs, 995 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 51
+contains 1484 paired programs, 987 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 995 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 820 open requirements.
+classifies all 987 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 812 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1153,7 +1153,7 @@ adds 24 pairs, including three exact original exclusions, and 19 classified nega
 Eleven retained function-shape diagnostics remove only the obsolete `non-generic`
 wording; two belong to unchanged curated reference cases. No curated reference or
 Rust-only guard transfers. One TypeScript runtime-forms assessment records partial
-support; namespaces, enums and ambient forms remain open. Current totals: 1466 pairs,
+support; namespaces, enums and ambient forms remain open. That generic-declaration step recorded 1466 pairs,
 995 rejections and 38 curated references; 56 groups classify 31 invalid sources,
 144 resource restrictions and 820 open requirements. These are selected fixtures,
 not an exhaustive language inventory.
@@ -1189,9 +1189,9 @@ a General value; there is no heap allocation or NaN boxing.
 The separate [primitive-return tests](../crates/grunkalunka-runtime/tests/compiled-values.rs)
 exercise 27 JS/TS pairs, 54 compiled modules and 14 input pairs: 756 calls per Wasm
 engine (1512 comparisons against original JS). These finite cases do not promote
-numeric-corpus or curated rejection fixtures. Corpus 50 remains 1466 pairs and 995
+numeric-corpus or curated rejection fixtures. At that primitive-return step, corpus 50 retained 1466 pairs and 995
 rejections under the numeric profile. General source cells/parameters, mixed-kind
-operators/truthiness/coercions, empty/implicit returns, strings/objects/BigInts and
+operators beyond strict equality, truthiness/coercions, empty/implicit returns, strings/objects/BigInts and
 general heap integration remain open. Logical expressions still use the
 existing scalar operand contracts; this is not general JavaScript expression support.
 
@@ -1223,3 +1223,33 @@ profile-specific support, not removal from the 995 numeric rejections or the 38
 curated numeric references. The eight selected value rejection pairs are not an
 exhaustive value-profile gap inventory. Numeric and value reports live separately
 under `target/compatibility-runs/` and `target/value-compatibility-runs/`.
+
+## Primitive strict equality
+
+Both profiles admit `===` and `!==` between admitted Undefined, Null, Boolean
+and Number expressions in predicate positions. The Value profile can also return
+the Boolean comparison result. Different kinds compare unequal; Numbers retain
+ECMA-262 equality (`NaN` differs from itself, and both signed zeros compare equal).
+Boolean payloads compare by value; null and undefined each equal only their own kind.
+See [IsStrictlyEqual](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-isstrictlyequal).
+
+Operands are evaluated once, left to right, into snapshots before comparison.
+Existing Number/Number and same-kind scalar Boolean comparison paths retain their
+original IR and Wasm. A bounded, non-emitting Number-result shape scan routes those
+paths; actual lowering still validates every operand. Symbol identity determines
+bindings and calls. TypeScript assertions and return annotations never prove runtime kinds.
+Other admitted operand shapes use General tag/payload pairs and produce Predicate IR.
+
+Corpus 51 promotes eight exact original rejection sources, including `gap-null`
+and `gap-undefined`, with their original independent `(4,2) -> 4` curated goldens.
+Ten further paired programs cover conditional/sequence operands, effects, shadowing,
+helpers and contradictory TS annotations. Totals are 1484 pairs, 987 rejections and
+36 curated references; the 56 groups retain 31 invalid sources, 144 resource
+restrictions and 812 open requirements. A separate runtime matrix checks all 144
+pairs of twelve primitive representatives with both strict operators and both
+profiles: 576 modules executed by Wasmtime and Node against standard-derived results.
+These finite fixtures do not establish complete language support.
+
+Loose equality, General logical/truthiness conversion, mutable General cells,
+General helper parameters/results, strings, BigInts and objects remain separate work.
+Strict equality does not coerce operands and adds no heap or host capability.

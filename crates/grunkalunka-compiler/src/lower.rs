@@ -271,6 +271,103 @@ impl Lowering<'_, '_> {
         false
     }
 
+    // A positive classification keeps existing scalar comparison paths unchanged.
+    // This scan emits nothing; the evaluator still validates every source operand.
+    fn numeric_result_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
+        let mut pending = vec![(expression, depth)];
+        while let Some((node, depth)) = pending.pop() {
+            if depth > 128 {
+                return false;
+            }
+            if let Some(inner) = erased_inner(node) {
+                pending.push((inner, depth + 1));
+                continue;
+            }
+            match node {
+                Expression::ParenthesizedExpression(wrapper) => {
+                    pending.push((&wrapper.expression, depth + 1))
+                }
+                Expression::ConditionalExpression(conditional) => {
+                    pending.push((&conditional.alternate, depth + 1));
+                    pending.push((&conditional.consequent, depth + 1));
+                }
+                Expression::SequenceExpression(sequence) => {
+                    let Some(last) = sequence.expressions.last() else {
+                        return false;
+                    };
+                    pending.push((last, depth + 1));
+                }
+                Expression::LogicalExpression(logical)
+                    if matches!(logical.operator, LogicalOperator::And | LogicalOperator::Or) =>
+                {
+                    pending.push((&logical.right, depth + 1));
+                    pending.push((&logical.left, depth + 1));
+                }
+                Expression::NumericLiteral(_)
+                | Expression::AssignmentExpression(_)
+                | Expression::UpdateExpression(_) => (),
+                Expression::UnaryExpression(unary)
+                    if matches!(
+                        unary.operator,
+                        UnaryOperator::UnaryPlus
+                            | UnaryOperator::UnaryNegation
+                            | UnaryOperator::BitwiseNot
+                    ) => {}
+                Expression::BinaryExpression(binary)
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::Addition
+                            | BinaryOperator::Subtraction
+                            | BinaryOperator::Multiplication
+                            | BinaryOperator::Division
+                            | BinaryOperator::Remainder
+                            | BinaryOperator::BitwiseAnd
+                            | BinaryOperator::BitwiseOR
+                            | BinaryOperator::BitwiseXOR
+                            | BinaryOperator::ShiftLeft
+                            | BinaryOperator::ShiftRight
+                            | BinaryOperator::ShiftRightZeroFill
+                    ) => {}
+                Expression::Identifier(identifier) => {
+                    if let Ok(binding) = numeric_binding(identifier, self.semantic, &self.bindings)
+                    {
+                        if self.slots[binding.slot.0].ty != Type::Number {
+                            return false;
+                        }
+                    } else {
+                        let unresolved = identifier.reference_id.get().is_some_and(|reference| {
+                            self.semantic
+                                .scoping()
+                                .get_reference(reference)
+                                .symbol_id()
+                                .is_none()
+                        });
+                        if !unresolved || !matches!(identifier.name.as_str(), "Infinity" | "NaN") {
+                            return false;
+                        }
+                    }
+                }
+                Expression::CallExpression(call) => {
+                    if math_unary(call, self.semantic).is_none() {
+                        let Expression::Identifier(identifier) = &call.callee else {
+                            return false;
+                        };
+                        let symbol = identifier.reference_id.get().and_then(|reference| {
+                            self.semantic.scoping().get_reference(reference).symbol_id()
+                        });
+                        if !self.functions.iter().any(|function| {
+                            Some(function.symbol) == symbol && function.return_type == Type::Number
+                        }) {
+                            return false;
+                        }
+                    }
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+
     fn expression(
         &mut self,
         expression: &Expression<'_>,

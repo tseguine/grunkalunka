@@ -50,7 +50,6 @@ const negatives=[
  ['bigint','return -1n;',expression,'bigint-values'],
  ['object','return +({});',expression,'object-values'],
  ['null','return +null;',expression,'nullish-values'],
- ['mixed-equality','return +(true===a);',expression,'coercive-equality'],
  ['unselected-call','return +!(0&&Math.random());',expression,'function-calls'],
  ['const-write','const x=0; if(0) return +!(x=1); return 0;','assignment to a const binding is not admitted','const-errors'],
  ['tdz','return -!x; const x=0;',reference,'binding-errors'],

@@ -10,6 +10,7 @@ import { discardedPredicateBindings, discardedPredicatePromotions } from './disc
 import { arithmeticPredicateBindings, arithmeticPredicatePromotions } from './arithmetic-predicate-bindings.mjs';
 import { unaryPredicateBindings, unaryPredicatePromotions } from './unary-predicate-bindings.mjs';
 import { numericBooleanArithmetic, booleanArithmeticPromotions } from './numeric-boolean-arithmetic.mjs';
+import { primitiveStrictEquality, primitiveStrictEqualityPromotions, primitiveStrictEqualityCurated } from './primitive-strict-equality.mjs';
 import { programSources } from './program-sources.mjs';
 import { createHash } from 'node:crypto';
 import { readRejectionInventory, validateRejectionInventory, rejectionClassification, validateRejectionReport } from './rejection-inventory.mjs';
@@ -141,7 +142,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 995);
+  assert.equal(inventory.records.size, 987);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -246,5 +247,27 @@ test('generic declarations preserve three original sources and explicit complete
     const source=programSources(genericDeclarations.find(p=>p[0]===id));
     assert.equal(source.sourceTS,ts);assert.equal(source.sourceJS,js);assert.equal(source.oracleSource,js);
     assert.equal(createHash('sha256').update(ts).digest('hex'),hash);assert.ok(!rejected.some(r=>r[0]===id));
+  }
+});
+
+test('primitive strict equality preserves all eight exact promotion sources', () => {
+  assert.equal(primitiveStrictEqualityPromotions.length,8);
+  for(const [id,js,ts,hash] of primitiveStrictEqualityPromotions) {
+    const source=programSources(primitiveStrictEquality.find(p=>p[0]===id));
+    assert.deepEqual(source,{sourceJS:js,sourceTS:ts,oracleSource:js});
+    assert.equal(createHash('sha256').update(js).digest('hex'),hash);
+    assert.ok(!rejected.some(r=>r[0]===id));
+  }
+});
+test('primitive strict equality retains both original curated fixed goldens', async () => {
+  assert.deepEqual(primitiveStrictEqualityCurated.map(({id,...metadata})=>[id,metadata]),[
+    ['gap-null',{category:'values',milestone:'L4',oracleSource:'export function run(a,b) { return null === null ? a : b; }',args:[4,2],entry:'run',expected:4,prerequisites:[]}],
+    ['gap-undefined',{category:'values',milestone:'L4',oracleSource:'export function run(a,b) { return undefined === undefined ? a : b; }',args:[4,2],entry:'run',expected:4,prerequisites:[]}],
+  ]);
+  for(const reference of primitiveStrictEqualityCurated) {
+    const {run}=await import(`data:text/javascript,${encodeURIComponent(reference.oracleSource)}`);
+    assert.ok(Object.is(run(...reference.args),reference.expected));
+    const mutated=await import(`data:text/javascript,${encodeURIComponent(reference.oracleSource.replace('===','!=='))}`);
+    assert.ok(!Object.is(mutated.run(...reference.args),reference.expected));
   }
 });

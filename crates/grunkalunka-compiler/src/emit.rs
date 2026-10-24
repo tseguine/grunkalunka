@@ -238,6 +238,27 @@ impl Emitter<'_> {
                     }
                     self.set(*result);
                 }
+                Op::PrimitiveStrictEqual {
+                    result,
+                    left,
+                    right,
+                    negated,
+                } => {
+                    let left = self.value_offsets[left.0];
+                    let right = self.value_offsets[right.0];
+                    writeln!(self.output, "local.get {left}\nlocal.get {right}\ni32.eq").unwrap();
+                    writeln!(
+                        self.output,
+                        "local.get {}\nlocal.get {}\nf64.eq\ni32.and",
+                        left + 1,
+                        right + 1
+                    )
+                    .unwrap();
+                    if *negated {
+                        self.output.push_str("i32.eqz\n");
+                    }
+                    self.set(*result);
+                }
                 Op::Compare {
                     result,
                     operator,

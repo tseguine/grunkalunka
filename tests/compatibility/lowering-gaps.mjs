@@ -37,8 +37,6 @@ for (const [id, body, expected, diagnostic] of [
   ['object-property', 'return ({x:a}).x + b;', 6, expression],
   ['array-value', 'const items = [a,b]; return items[1];', 2, expression],
   ['bigint', 'return 1n === 1n ? a : b;', 4, expression],
-  ['null', 'return null === null ? a : b;', 4, expression],
-  ['undefined', 'return undefined === undefined ? a : b;', 4, reference],
 ]) add(id, 'values', body, expected, diagnostic);
 
 for (const [id, body, expected] of [

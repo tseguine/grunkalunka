@@ -1,0 +1,1 @@
+export function run(a:number,b:number) { return undefined === undefined ? a : b; }

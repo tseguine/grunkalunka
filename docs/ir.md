@@ -382,3 +382,18 @@ payload, and stores consume payload then tag. General joins and entry returns ha
 Wasm result type `(i32,f64)`. Calls capture Number arguments in source order. No
 heap, imports, boxing allocation or reserved Number bit patterns are introduced.
 The [wire contract](adr/0002-tagged-primitive-values.md) defines the four tags.
+
+### Primitive strict equality
+
+`PrimitiveStrictEqual` consumes two visible `General` values and defines one
+`Predicate`; its `negated` flag selects `!==`. The verifier rejects scalar operands,
+wrong result types, undefined values and uses before definition. With the current
+canonical four-kind representation, emission computes `(left.tag == right.tag) &
+(left.payload == right.payload)` and optionally negates it. Canonical nullish payloads
+are +0, Boolean payloads are 0/1, and Number payload equality supplies NaN/signed-zero
+semantics. This operation must be extended before admitting reference/heap kinds;
+raw payload equality would not define object or string semantics.
+
+Existing scalar `Compare` operations stay unchanged. The new operation performs no
+coercion, allocation or capability access; source evaluation retains left-to-right
+snapshots through the explicit pending-work evaluator.

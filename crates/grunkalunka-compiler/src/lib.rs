@@ -338,8 +338,6 @@ mod tests {
         for body in [
             "return true==false?1:0;",
             "return true!=false?1:0;",
-            "return true===a?1:0;",
-            "return a!==false?1:0;",
             "return true<false?1:0;",
             "return true===false;",
             "const flag=true; return (flag&&true)===false?1:0;",
@@ -516,7 +514,6 @@ mod tests {
             "return +(true&&false);",
             "return -(a?true:false);",
             "return +(0,true);",
-            "return +(true===a);",
             "return +!(0&&Math.random());",
             "const x=0; return +!(x=1);",
             "return -!x; const x=0;",

@@ -24,6 +24,12 @@ impl Value {
             Self::Number(id) | Self::Predicate(id) | Self::General(id) => id,
         }
     }
+    fn general(self) -> ValueId {
+        let Self::General(id) = self else {
+            unreachable!("General continuation")
+        };
+        id
+    }
     fn number(self) -> ValueId {
         let Self::Number(id) = self else {
             unreachable!("Number continuation")
@@ -72,6 +78,17 @@ enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         left: ValueId,
         operator: Binary,
+    },
+    PrimitiveCompareRight {
+        node: &'e Expression<'a>,
+        right: &'e Expression<'a>,
+        depth: usize,
+        negated: bool,
+    },
+    PrimitiveCompare {
+        node: &'e Expression<'a>,
+        left: ValueId,
+        negated: bool,
     },
     CompareRight {
         node: &'e Expression<'a>,
@@ -306,6 +323,39 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(Value::Number(result));
+                }
+                Work::PrimitiveCompareRight {
+                    node,
+                    right,
+                    depth,
+                    negated,
+                } => {
+                    let left = values.pop().expect("primitive comparison left").general();
+                    work.push(Work::PrimitiveCompare {
+                        node,
+                        left,
+                        negated,
+                    });
+                    work.push(Work::Eval(right, depth, Mode::General));
+                }
+                Work::PrimitiveCompare {
+                    node,
+                    left,
+                    negated,
+                } => {
+                    let right = values.pop().expect("primitive comparison right").general();
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::PrimitiveStrictEqual {
+                            result,
+                            left,
+                            right,
+                            negated,
+                        },
+                    );
+                    values.push(Value::Predicate(result));
                 }
                 Work::CompareRight {
                     node,
@@ -751,6 +801,26 @@ impl Lowering<'_, '_> {
                                 ) && self
                                     .operand_boolean_shape(&binary.left, depth + 1)
                                     && self.operand_boolean_shape(&binary.right, depth + 1);
+                                let strict = matches!(
+                                    binary.operator,
+                                    BinaryOperator::StrictEquality
+                                        | BinaryOperator::StrictInequality
+                                );
+                                if strict
+                                    && !booleans
+                                    && !(self.numeric_result_shape(&binary.left, depth + 1)
+                                        && self.numeric_result_shape(&binary.right, depth + 1))
+                                {
+                                    work.push(Work::PrimitiveCompareRight {
+                                        node,
+                                        right: &binary.right,
+                                        depth: depth + 1,
+                                        negated: binary.operator
+                                            == BinaryOperator::StrictInequality,
+                                    });
+                                    work.push(Work::Eval(&binary.left, depth + 1, Mode::General));
+                                    continue;
+                                }
                                 work.push(Work::CompareRight {
                                     node,
                                     right: &binary.right,

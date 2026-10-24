@@ -98,6 +98,12 @@ pub(crate) enum Nullish {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    PrimitiveStrictEqual {
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+        negated: bool,
+    },
     Nullish {
         result: ValueId,
         value: Nullish,
@@ -468,6 +474,16 @@ impl Verifier<'_> {
                 Op::Unary { result, input, .. } => {
                     self.value(*input, Type::Number, &visible, span)?;
                     self.define(*result, Type::Number, &mut visible, span)?;
+                }
+                Op::PrimitiveStrictEqual {
+                    result,
+                    left,
+                    right,
+                    ..
+                } => {
+                    self.value(*left, Type::General, &visible, span)?;
+                    self.value(*right, Type::General, &visible, span)?;
+                    self.define(*result, Type::Predicate, &mut visible, span)?;
                 }
                 Op::Binary {
                     result,
@@ -2639,5 +2655,57 @@ mod primitive_value_tests {
             .unwrap();
         f.values[call.0] = Type::General;
         assert!(verify_module_with_entry_type(&module, Type::General).is_err());
+    }
+}
+
+#[cfg(test)]
+mod primitive_strict_equality_tests {
+    use super::*;
+    fn module() -> Module {
+        crate::lower_source_with_entry_type(
+            "export function run(a,b) {return null===undefined;}",
+            false,
+            Type::General,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn strict_equality_requires_general_operands_and_predicate_result() {
+        let original = module();
+        verify_module_with_entry_type(&original, Type::General).unwrap();
+        let Op::PrimitiveStrictEqual {
+            result,
+            left,
+            right,
+            ..
+        } = original.functions[0].body.operations[2].kind
+        else {
+            panic!("comparison")
+        };
+        for (value, ty) in [
+            (left, Type::Number),
+            (right, Type::Predicate),
+            (result, Type::General),
+        ] {
+            let mut mutated = module();
+            mutated.functions[0].values[value.0] = ty;
+            assert!(verify_module_with_entry_type(&mutated, Type::General).is_err());
+        }
+    }
+    #[test]
+    fn strict_equality_requires_defined_visible_inputs() {
+        for invalid in [ValueId(99), ValueId(3)] {
+            let mut mutated = module();
+            let Op::PrimitiveStrictEqual { left, .. } =
+                &mut mutated.functions[0].body.operations[2].kind
+            else {
+                panic!("comparison")
+            };
+            *left = invalid;
+            assert!(verify_module_with_entry_type(&mutated, Type::General).is_err());
+        }
+        let mut reordered = module();
+        reordered.functions[0].body.operations.swap(1, 2);
+        assert!(verify_module_with_entry_type(&reordered, Type::General).is_err());
     }
 }

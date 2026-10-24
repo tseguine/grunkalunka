@@ -47,7 +47,9 @@ import { strictBooleanEquality, strictBooleanEqualityRejected } from './strict-b
 import { numericLogicalAssignment, numericLogicalAssignmentRejected } from './numeric-logical-assignment.mjs';
 import { typeOnlyModuleItems, typeOnlyModuleRejected } from './type-only-module-items.mjs';
 import { genericDeclarations, genericDeclarationsRejected } from './generic-declarations.mjs';
-export const corpusVersion = 50;
+import { primitiveStrictEquality } from './primitive-strict-equality.mjs';
+
+export const corpusVersion = 51;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -116,6 +118,7 @@ programs.push(...unaryPredicateBindings);
 programs.push(...arithmeticPredicateBindings);
 programs.push(...discardedPredicateBindings);
 programs.push(...strictBooleanEquality);
+programs.push(...primitiveStrictEquality);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);

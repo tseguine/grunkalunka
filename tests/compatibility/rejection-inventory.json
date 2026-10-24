@@ -272,7 +272,7 @@
     {
       "id": "nullish-values",
       "kind": "open-requirement",
-      "assessment": "Null/undefined values and nullish coalescing exceed the current numeric representation.",
+      "assessment": "The primitive Value profile represents Null and Undefined, and strict ===/!== admits both kinds in comparison operands in either result profile. Numeric returns/storage of nullish values, nullish coalescing and general truthiness remain outside admission.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-binary-logical-operators",
@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean locals admit predicate-position reads and unary +, - and ~ and binary arithmetic +, -, *, / and % reads of initialized immutable Predicate bindings. Inline Boolean-producing shapes also convert to Number for binary +, -, *, / and %. Same-kind strict ===/!== predicates also admit two selected inline or initialized immutable Predicate operands through the existing Number bridge. Mutable storage, bare Boolean binding operands outside those unary, arithmetic and strict predicate bridges, Boolean arguments/results and general coercion remain outside admission. Discarded inline Number/Boolean evaluation and bare/wrapped initialized immutable Predicate identifier reads are admitted. This leaf eligibility does not widen root logical/conditional/sequence classification, mutable storage or other value positions.",
+      "assessment": "Immutable Boolean locals admit predicate-position reads, selected unary +, - and ~ conversions, selected binary arithmetic and discarded reads. Strict ===/!== additionally compares admitted Boolean/Number/nullish operands, including General conditional/sequence joins; the separate Value profile can return Boolean. Existing numeric-profile Boolean ABI returns, Boolean arguments, mutable General storage, General logical/truthiness operands and coercion beyond the selected scalar bridges remain outside admission. Root logical/conditional/sequence eligibility outside strict-equality operands and primitive-return positions retains its existing restrictions.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -386,7 +386,7 @@
     {
       "id": "coercive-equality",
       "kind": "open-requirement",
-      "assessment": "Equality involving non-Number values requires the standard coercion algorithms.",
+      "assessment": "Strict equality over the four admitted primitive kinds is supported without coercion. Loose equality involving non-Number values still requires the standard coercion algorithms; String, BigInt and object equality remain outside admission.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-equality-operators",
@@ -1184,20 +1184,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "31c6f32864488366c8b7b5bb2b6061ad647e2c5930bfe6d34e558edb7239959a",
       "group": "bigint-values"
-    },
-    {
-      "id": "gap-null",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "118acccdd3b18a2781b63f60f0af995d5f4193bcb39376b2a8cff7d6dcc1d521",
-      "group": "nullish-values"
-    },
-    {
-      "id": "gap-undefined",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "a31795309b3926250fba5f2ff4123810096bb59b3a8fe9a9176bca777d13897e",
-      "group": "nullish-values"
     },
     {
       "id": "gap-switch",
@@ -6576,13 +6562,6 @@
       "group": "nullish-values"
     },
     {
-      "id": "boolean-numeric-unary-reject-mixed-equality",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c5e1c0bf1721d9906e01ad1dce4ee33f225de3cc3078b17d5e131e8acd679aaf",
-      "group": "coercive-equality"
-    },
-    {
       "id": "boolean-numeric-unary-reject-unselected-call",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7360,27 +7339,6 @@
       "group": "expression-depth"
     },
     {
-      "id": "strict-boolean-equality-reject-mixed-left",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "def697756ae9110f97c1ae2fbab4067fd02233e4093314fa5a98271ed6cf58ae",
-      "group": "boolean-values"
-    },
-    {
-      "id": "strict-boolean-equality-reject-mixed-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d51cef21b40f27ed37cec16821a195ffc809a005d5adb45a9182da1ad51b6ea0",
-      "group": "boolean-values"
-    },
-    {
-      "id": "strict-boolean-equality-reject-binding-mixed",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f036875aff9f17902af7086835602b1d5909c6d3650fe514b1cc7091b004f4d4",
-      "group": "boolean-values"
-    },
-    {
       "id": "strict-boolean-equality-reject-loose-equal",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7413,20 +7371,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "511b126934a43eaa27736f56d0dca00ec805c49c4b69d4604967c70499d84d1c",
-      "group": "boolean-values"
-    },
-    {
-      "id": "strict-boolean-equality-reject-root-conditional",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "40e3b9fee537148675f8831a52f5bcbcd28bde43b3f1702cb7dc972a0b978865",
-      "group": "boolean-values"
-    },
-    {
-      "id": "strict-boolean-equality-reject-root-sequence",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f4fc1c10bca301552be344c86d3fb51d4799825a93856fb10c0db1a48dbc4037",
       "group": "boolean-values"
     },
     {

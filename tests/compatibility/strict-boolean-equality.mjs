@@ -40,16 +40,11 @@ export const strictBooleanEqualityPromotions=[
 for(const[id,sourceJS,sourceTS]of strictBooleanEqualityPromotions) strictBooleanEquality.push([id,'','',undefined,undefined,{sourceJS,sourceTS}]);
 const expression='expression is outside the numeric experiment',numeric='Boolean bindings are not admitted in numeric value positions',binary='only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted',reference='reference is not an initialized numeric parameter or local';
 const negatives=[
- ['mixed-left','return true===a?1:0;',expression,'boolean-values'],
- ['mixed-right','return a!==false?1:0;',expression,'boolean-values'],
- ['binding-mixed','const flag=true; return flag===1?1:0;',numeric,'boolean-values'],
  ['loose-equal','return true==false?1:0;',expression,'coercive-equality'],
  ['loose-not-equal','return true!=false?1:0;',expression,'coercive-equality'],
  ['relational','return true<false?1:0;',expression,'boolean-values'],
  ['direct-return','return true===false;',binary,'boolean-values'],
  ['root-logical','const flag=true; return (flag&&true)===false?1:0;',numeric,'boolean-values'],
- ['root-conditional','const flag=true; return (a?flag:false)===false?1:0;',numeric,'boolean-values'],
- ['root-sequence','return (0,true)===false?1:0;',expression,'boolean-values'],
  ['mutable','let flag=true; return flag===false?1:0;',expression,'boolean-values'],
  ['self','const flag=flag===true; return a;',reference,'binding-errors'],
  ['forward','const first=flag===true; const flag=true; return a;',reference,'binding-errors'],
