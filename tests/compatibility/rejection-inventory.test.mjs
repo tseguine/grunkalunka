@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rejected } from './corpus.mjs';
 import { constBooleanPrograms, promotedBooleanGap } from './const-boolean.mjs';
+import { arithmeticPredicateBindings, arithmeticPredicatePromotions } from './arithmetic-predicate-bindings.mjs';
 import { unaryPredicateBindings, unaryPredicatePromotions } from './unary-predicate-bindings.mjs';
 import { numericBooleanArithmetic, booleanArithmeticPromotions } from './numeric-boolean-arithmetic.mjs';
 import { programSources } from './program-sources.mjs';
@@ -60,11 +61,26 @@ test('unary Predicate promotions retain three IDs and both duplicate-source obse
   }
 });
 
+test('arithmetic Predicate promotions retain four IDs and three duplicate-source observations', () => {
+  assert.deepEqual(arithmeticPredicatePromotions.map(p=>p[0]), [
+    'const-boolean-arithmetic', 'boolean-arithmetic-bare-const',
+    'unary-predicate-binding-reject-arithmetic', 'boolean-arithmetic-bare-const-right',
+  ]);
+  assert.equal(new Set(arithmeticPredicatePromotions.map(p=>p[1])).size, 2);
+  for(const [id,js,hash] of arithmeticPredicatePromotions) {
+    const source=programSources(arithmeticPredicateBindings.find(p=>p[0]===id));
+    assert.equal(source.sourceJS,js);
+    assert.equal(source.oracleSource,js);
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),hash);
+    assert.ok(!rejected.some(r=>r[0]===id));
+  }
+});
+
 test('every rejection has a source-bound assessment in the selected strict Module mode', () => {
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 861);
+  assert.equal(inventory.records.size, 884);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

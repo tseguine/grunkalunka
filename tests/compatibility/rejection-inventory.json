@@ -290,7 +290,7 @@
     {
       "id": "boolean-values",
       "kind": "open-requirement",
-      "assessment": "Immutable Boolean locals admit predicate-position reads and unary +, - and ~ reads of initialized immutable Predicate bindings. Inline Boolean-producing shapes also convert to Number for binary +, -, *, / and %. Mutable storage, bare Boolean binding operands outside those unary bridges, Boolean arguments/results and general coercion remain outside admission. Discarded inline Number/Boolean evaluation is admitted, but discarded Boolean identifier reads remain outside admission.",
+      "assessment": "Immutable Boolean locals admit predicate-position reads and unary +, - and ~ and binary arithmetic +, -, *, / and % reads of initialized immutable Predicate bindings. Inline Boolean-producing shapes also convert to Number for binary +, -, *, / and %. Mutable storage, bare Boolean binding operands outside those unary and arithmetic bridges, Boolean arguments/results and general coercion remain outside admission. Discarded inline Number/Boolean evaluation is admitted, but discarded Boolean identifier reads remain outside admission.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-relational-operators",
@@ -6450,13 +6450,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "const-boolean-arithmetic",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "53b259230950d900a2ffb7d284ab3f07417cd6a78107ed59f2981753586107fa",
-      "group": "boolean-values"
-    },
-    {
       "id": "const-boolean-argument",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6758,20 +6751,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "boolean-arithmetic-bare-const",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "53b259230950d900a2ffb7d284ab3f07417cd6a78107ed59f2981753586107fa",
-      "group": "boolean-values"
-    },
-    {
-      "id": "boolean-arithmetic-bare-const-right",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d7e0407983ce6b01056c2c9de1343657c7bc976382b6b0ccbe66ab55c85059d7",
-      "group": "boolean-values"
-    },
-    {
       "id": "boolean-arithmetic-compound",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6989,13 +6968,6 @@
       "group": "coercive-equality"
     },
     {
-      "id": "unary-predicate-binding-reject-arithmetic",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "53b259230950d900a2ffb7d284ab3f07417cd6a78107ed59f2981753586107fa",
-      "group": "boolean-values"
-    },
-    {
       "id": "unary-predicate-binding-reject-bitwise",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -7126,6 +7098,195 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "1b2c3b300908ca8deeac0cffd1328f0452e91fe5653febd158dabff652e8cdd7",
+      "group": "expression-depth"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-return",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "af7f4950684c593128dca8bc5a5447498fd7b73436cf2063eeee1e36dd7745bb",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-discard",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "41cdf1262f1a0f7b30ba299fb241a0d9c9239710c3fd361d075a3ccb7524e1b3",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-assignment",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "fc3ca2a98e515b26cb56a5260816fd5e4ca7f32df7ecd9c8399bdb2e3a9f97cf",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-equality",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "7d48cdc934683f58b36cad689ec4e07806fbc2146438408dd5157ba0115cf185",
+      "group": "coercive-equality"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-bitwise",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b4a12986c87f4b8f8bb5a45556723d149a791c2de05e77812b9112379438e0e1",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-shift",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4badb35624721e01a2cea4b0e6a897b8e3f4d2edb9114b22ce134463ecd9b216",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-compound",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0d07cc5477cd8440e4582b724a0b1ffab2ce45f98c88ac9d8015ccc9206ff287",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-mutable",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c6452ea50cdeb3a69519b1a8575d1b3b3b8a66d5434e3e29af08e61d1d525bcc",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-root-conditional",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "52e6ef51355561ca46416550f795022e60badc4b6b718982d3f839f0ec012135",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-root-logical",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "e58757eb5a34a9e0c38c0f1d9899ae8d75fa69477ce712e9ffce5c796fe26d1a",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-root-sequence",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "12677d7129d8e022d255bbb89864227e2b8db0597424419d41991e48de0c4d5b",
+      "group": "boolean-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-self",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "80276d5fd13a6166277154da4fc4121120e9e79faf292e2c2c4b08ba9abb0c39",
+      "group": "binding-errors"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-forward",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d26d4c74ddf922b76839b77f4c76366a2d216fe3f6c93fb02dd052717de7801f",
+      "group": "binding-errors"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-tdz",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "4d323842af6c70227d302532d793e7edaf480c3a305d4926fe740aaaead71dfb",
+      "group": "binding-errors"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-outscope",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "310a36243a96ae2fb5b755510a42ac1dad24c00e386dda8693da4b5ecd985cd6",
+      "group": "binding-errors"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-unresolved",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "79c6dafd9c4ec98a799df2757a71a556c61056cc209be585fda99b82152cafeb",
+      "group": "binding-errors"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-const-write",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "af6d6068f71b01193b5cda3647a4a3d5bf58c5fdf0cb67ce57dfe9a49d38483e",
+      "group": "const-errors"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-unselected-call",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b46b679aefd5d549acb586545a8e7e6190aa3d2dc3925b12429b65ac85adf076",
+      "group": "function-calls"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-string",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d2faf2106ace5f51610410420fea84ba2c59432e3dcda3bdc93803f777d921ff",
+      "group": "string-values"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-local129",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "95ad90984cffe6d39c389d0e1c2007b61c6d6631a97da66c671577991c682638",
+      "group": "local-count"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-statement257",
+      "extension": "js",
+      "sourceMode": "module-strict",
+      "sourceSha256": "b0279001de009decba8c291953e78e11ef87bc90e7f5ebb31b9cc790acda7d8f",
+      "group": "statement-count"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-depth129-add",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "1d48891dfa94148e032327323b17dce54edd4497d9b27b818ea83737bfe79d52",
+      "group": "expression-depth"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-depth129-subtract",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "a7a04da4dab9109e6d533031e821899cc71eb595d83c608417bbcc58105fa2f8",
+      "group": "expression-depth"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-depth129-multiply",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3a2ffa805fe1fe10a6ad8e5a4616524e36c9347cd55f875225c281114128c462",
+      "group": "expression-depth"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-depth129-divide",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "bc74efe298ee4c17ff2b915afb10fe0e4750bfb79ef0e3f0d1113b556b6ff373",
+      "group": "expression-depth"
+    },
+    {
+      "id": "arithmetic-predicate-binding-reject-depth129-remainder",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "0cfe9e639bec821135ddc13bbe8e2155afd2dd502a32cdaa8277494dea83b775",
       "group": "expression-depth"
     }
   ]

@@ -251,9 +251,9 @@ impl Lowering<'_, '_> {
         });
     }
 
-    // Unary bridges may read only published immutable Predicate bindings.
+    // Selected numeric bridges may read only published immutable Predicate bindings.
     // Keep original wrapper depth and never infer a runtime kind from type syntax.
-    fn unary_boolean_shape(&self, mut expression: &Expression<'_>, mut depth: usize) -> bool {
+    fn operand_boolean_shape(&self, mut expression: &Expression<'_>, mut depth: usize) -> bool {
         while depth <= 128 {
             if let Some(inner) = erased_inner(expression) {
                 expression = inner;
@@ -597,7 +597,7 @@ impl Lowering<'_, '_> {
                         ));
                     }
                 };
-                let input = if self.unary_boolean_shape(&unary.argument, depth + 1) {
+                let input = if self.operand_boolean_shape(&unary.argument, depth + 1) {
                     let predicate = self.predicate(&unary.argument, region, depth + 1)?;
                     let number = self.value(Type::Number);
                     Self::push(
@@ -690,7 +690,7 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<ValueId, String> {
-        if boolean_shape(expression, depth) {
+        if self.operand_boolean_shape(expression, depth) {
             let input = self.predicate(expression, region, depth)?;
             let result = self.value(Type::Number);
             Self::push(

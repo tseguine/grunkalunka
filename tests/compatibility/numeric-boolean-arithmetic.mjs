@@ -76,8 +76,6 @@ const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
   ['equality','return true==a?1:0;',expression],
   ['comparison','return true<a?1:0;',expression],
-  ['bare-const','const flag=true; return flag+a;',numeric],
-  ['bare-const-right','const flag=true; return a*flag;',numeric],
   ['compound','a+=true; return a;',expression],
   ['compound-remainder','a%=true; return a;',expression],
   ['bitwise','return a&true;',expression],

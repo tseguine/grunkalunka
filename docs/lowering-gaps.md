@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 26 invalid sources, 114 resource restrictions and 721 open requirements
-across all 861 records. Each pins the exact source, extension and strict Module mode;
+groups classify 26 invalid sources, 121 resource restrictions and 737 open requirements
+across all 884 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -276,8 +276,8 @@ spells out the initializer and predicate-position restrictions.
 ## Primitive arithmetic frontier
 
 The explicit inline Boolean bridges now cover binary `+`, `-`, `*`, `/` and `%`.
-Six original ordinary sources graduate; no curated reference changes. Bare Boolean
-binding operands, other operator families and general coercion remain separate
+Six original ordinary sources graduate; no curated reference changes. Other bare Boolean
+binding positions, other operator families and general coercion remain separate
 work. [The source contract](compiler.md#inline-boolean-arithmetic-operands) preserves
 primitive conversion, snapshots, skipped-branch admission and original depth.
 
@@ -287,6 +287,15 @@ Unary `+`, `-` and `~` now accept initialized immutable Predicate bindings using
 semantic identity and original wrapper depth. The three original ordinary
 `const-boolean-complement`, `const-boolean-plus` and
 `boolean-numeric-unary-reject-identifier` IDs retain their source bytes; no curated
-reference changes. Binary arithmetic and the other value-position classifiers do
-not inherit this eligibility. Mutable storage, direct Boolean results/arguments,
-root Boolean joins and bare-binding binary operands remain separate requirements.
+reference changes. The later arithmetic step explicitly shares this eligibility
+only with five operand callers. Mutable storage, direct Boolean results/arguments,
+root Boolean joins and other bare-binding binary operands remain separate requirements.
+
+## Arithmetic Predicate binding frontier
+
+Initialized immutable Predicate bindings now enter binary `+`, `-`, `*`, `/` and
+`%` through the same bounded semantic eligibility used by unary operators. Four
+ordinary IDs retain original source identities, including three duplicate-source
+observations. All 38 curated references remain. The Boolean group stays open for
+other operator/value positions, mutable storage and general coercion; this is not
+closure of that group or the separately deferred frontend-liveness work.

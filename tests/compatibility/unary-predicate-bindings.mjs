@@ -49,7 +49,6 @@ const negatives=[
  ['assignment','const flag=true; a=flag; return a;',numeric,'boolean-values'],
  ['discard','const flag=true; flag; return a;',numeric,'boolean-values'],
  ['equality','const flag=true; return flag==1?1:0;',numeric,'coercive-equality'],
- ['arithmetic','const flag=true; return flag+a;',numeric,'boolean-values'],
  ['bitwise','const flag=true; return flag|a;',numeric,'boolean-values'],
  ['shift','const flag=true; return flag<<a;',numeric,'boolean-values'],
  ['compound','const flag=true; a+=flag; return a;',numeric,'boolean-values'],

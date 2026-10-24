@@ -56,8 +56,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 861 negatives, including the curated references. Its 56 groups
-distinguish 26 invalid sources, 114 resource restrictions and 721 open requirements.
+also covers all 884 negatives, including the curated references. Its 56 groups
+distinguish 26 invalid sources, 121 resource restrictions and 737 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -248,3 +248,21 @@ charging and duplicate effectful predicate evaluation; exact restoration refresh
 source mtime before rebuilding. The 836 retained rejection objects and all old
 Number source/WAT/Wasm artifacts have an explicit baseline audit; negatives are not
 executed as arbitrary Node programs.
+
+## Arithmetic immutable Predicate binding coverage
+
+`arithmetic-predicate-bindings.mjs` covers all five operators with binding operands
+on either/both sides, all Boolean pairs, aliases, initialization/capture, semantic
+shadows, misleading annotations, wrappers, helper calls and finite loops. Fixed
+independent outcomes distinguish left snapshots (1310), evaluation order (102),
+and once-only effectful predicates (201); binary64 comparison preserves signed zero.
+Four exact ordinary promotions retain IDs, hashes and independent full JS sources.
+Boundary negatives preserve all excluded operator/value/storage positions.
+
+Before broader focus, the fresh CLI must retain the exact 554-byte Number depth
+rejection and all 56 retained nesting observations, then original-depth128/129
+Number/inline-Boolean/binding controls. Four built mutants exercise kind evidence,
+conversion, wrapper charging and duplicate predicate effects, followed by exact
+source restoration and fresh builds. Final artifact/whole-object auditing compares
+all 1158 old pairs, 857 retained rejections and 38 curated references; the Boolean
+assessment change is explicit rather than a normalization of old observations.

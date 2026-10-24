@@ -37,14 +37,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 44
-contains 1158 paired programs, 861 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 45
+contains 1246 paired programs, 884 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 861 rejections in 56 groups: 26 invalid sources in their selected
-strict Module dialect, 114 explicit resource restrictions and 721 open requirements.
+classifies all 884 rejections in 56 groups: 26 invalid sources in their selected
+strict Module dialect, 121 explicit resource restrictions and 737 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -512,7 +512,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   mixed logical/conditional results; Number-only trees retain their original path.
   Only the selected branch executes. Type assertions never prove runtime kinds;
   mutable storage, call arguments, assignment RHS values and returns remain Number-only.
-  Binary arithmetic has the bounded inline operand conversions described below.
+  Binary arithmetic has the bounded inline and immutable-Predicate operand conversions described below.
   Immutable Boolean const locals have the predicate-position boundary described below.
   Numeric `&&` and `||` evaluate the left operand once and return its original
   snapshot or the selected RHS result. The RHS is fully admitted but executes only
@@ -620,7 +620,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   defaults/rest/destructuring, async/generator/generic/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`&&=`/`||=`/`??=` assignments,
-  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic outside the explicit inline bridges, Boolean returns and self/forward local references are
+  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic outside the explicit operand bridges, Boolean returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
 - Admission covers the entire AST, including directives/modifiers stored outside
@@ -912,8 +912,8 @@ TDZ, lexical scope and once-only initializer effects remain authoritative.
 Reads are admitted in existing predicate positions, including conditions, logical
 negation and predicate logical/conditional operands. Unary `+`, `-` and `~` also
 read initialized immutable Predicate bindings through the separate unary bridge
-below, producing Numbers without widening other value positions. Mutable Boolean
-locals and other Number positions (including returns, call arguments and arithmetic), root logical/conditional
+below. Binary arithmetic also uses that binding eligibility as described below. Mutable Boolean
+locals and other Number positions (including returns and call arguments), root logical/conditional
 initializer joins, bare discarded identifiers, comma prefixes,
 for-update reads and discarded `flag && (a=b)` remain outside this bounded unit.
 All source locals share the unchanged cumulative 128 limit across functions/scopes;
@@ -942,7 +942,8 @@ right evaluation. Primitive conversion has no object hooks; ordinary Number
 operands keep their original lowering and artifact bytes.
 
 This leaves equality/comparison, bitwise/shift and compound operand dispatch
-unchanged. Bare Boolean const identifiers remain rejected as binary Number operands;
+unchanged. Initialized immutable Predicate bindings now also enter the five arithmetic
+operators through the bounded binding bridge below; other bare-binding binary positions remain rejected;
 `!flag` may use existing predicate-position reads. Root Boolean logical/conditional
 or comma-result operands are not inferred as Boolean shapes, while ordinary Number
 sequence/conditional/logical expressions continue to compose. Strings, objects,
@@ -964,9 +965,10 @@ annotation spelling does not prove a runtime Boolean. The original operand is
 lowered once as a predicate and the existing `NumberFromPredicate` conversion
 feeds the unchanged Number unary operation. Wrappers retain original depth.
 
-The free Boolean-shape classifier and binary arithmetic, initializer, discarded
-value and numeric-identifier admission remain unchanged. A bare `flag` still cannot
-be returned, passed, assigned, discarded or used in arithmetic/equality/bitwise/
+The free Boolean-shape classifier, initializer, discarded value and numeric-identifier
+admission remain unchanged. The later arithmetic bridge below extends only five
+binary operand callers. A bare `flag` still cannot be returned, passed, assigned,
+discarded or used in equality/bitwise/
 shift/compound positions. Mutable Boolean storage and root Boolean joins remain
 outside admission. The resulting Number may compose through existing numeric paths.
 
@@ -977,3 +979,27 @@ same original JS source under distinct IDs. No curated reference transfers.
 Three former Rust guard spellings are positive assertions, with the additional
 `const x=true; return ~x;` body retained as an execution witness. The existing
 1115 admitted pairs and 836 other rejection observations remain the baseline.
+
+## Arithmetic reads of immutable Predicate bindings
+
+The existing bounded eligibility method is shared by unary operands and only the
+five binary arithmetic operators `+`, `-`, `*`, `/` and `%`. Its body is unchanged:
+original SymbolId, initialized immutable binding, fixed Predicate slot, and original
+wrapper depth supply evidence. Original operands lower once to predicates and then
+NumberFromPredicate; the left result is captured before the right is evaluated.
+Number fallback, the binary dispatcher and the free Boolean classifier are unchanged.
+
+This does not extend bitwise/shift/equality/compound operands, Boolean returns or
+arguments, discarded binding reads, mutable storage or root Boolean joins. The
+native frontend liveness incident on the deferred bitwise candidate is not repaired
+or retried here: the retained exact 554-byte Number depth rejection and all other
+retained nesting rejections are checked before expanded focus; any native failure
+stops this independent unit.
+
+Corpus 45 adds 88 pairs and 27 classified negatives. Exactly four ordinary IDs move:
+`const-boolean-arithmetic`, `boolean-arithmetic-bare-const`,
+`unary-predicate-binding-reject-arithmetic` and `boolean-arithmetic-bare-const-right`.
+The first three retain the same original JS bytes under distinct IDs. Two former
+Rust guards transfer verbatim into positive assertions. No curated reference moves.
+Current totals are 1246 pairs, 884 rejections and 38 curated references; all 1158
+prior pairs and 857 other rejection observations remain the baseline.

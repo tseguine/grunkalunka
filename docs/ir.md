@@ -118,7 +118,8 @@ classifier selects this path; original operand lowering performs effects once an
 counts all retained source wrappers at the original operand depth.
 Unary `+`, `-` and `~` additionally select initialized immutable Predicate slots by
 the original reference's SymbolId and fixed slot kind. This separate bounded
-eligibility check preserves wrappers/depth and does not change binary classifiers.
+eligibility check preserves wrappers/depth. The same unchanged method now also
+selects the five arithmetic operand callers, without changing the free classifier.
 The operand still lowers once through predicate `Load` and the same explicit
 conversion; all operators and ABI results remain Number-typed.
 
@@ -309,7 +310,12 @@ for the intentionally narrower source reads, initializer forms and shared local 
 ## Arithmetic operand conversion
 
 The source arithmetic helper reuses `NumberFromPredicate` only for recognized
-inline Boolean operands of binary `+`, `-`, `*`, `/` and `%`. It preserves original
-depth, effects and captured left-before-right values. Number operands use unchanged
-expression lowering. No IR, verifier or emitter operation is added; no binding-aware
-classifier or call/storage type is widened. See [the source boundary](compiler.md#inline-boolean-arithmetic-operands).
+inline Boolean operands and initialized immutable Predicate bindings of binary
+`+`, `-`, `*`, `/` and `%`. It preserves original depth, effects and captured
+left-before-right values. Number operands use unchanged expression lowering. No
+IR, verifier or emitter operation is added; the binding-aware eligibility body is
+unchanged and no call/storage type is widened. See [the source boundary](compiler.md#inline-boolean-arithmetic-operands).
+
+The arithmetic binding extension is source eligibility only: no IR operation,
+slot kind, verifier rule, emitter, call ABI, index layout or conversion changes.
+All Number operand paths and their emitted artifacts remain the baseline.

@@ -271,6 +271,34 @@ mod tests {
     use super::compile;
 
     #[test]
+    fn arithmetic_operators_read_immutable_predicate_bindings() {
+        let mut failures = Vec::new();
+        for (id, body) in [
+            (
+                "const-boolean-arithmetic",
+                "const flag=true; return flag+a;",
+            ),
+            (
+                "boolean-arithmetic-bare-const",
+                "const flag=true; return flag+a;",
+            ),
+            (
+                "unary-predicate-binding-reject-arithmetic",
+                "const flag=true; return flag+a;",
+            ),
+            (
+                "boolean-arithmetic-bare-const-right",
+                "const flag=true; return a*flag;",
+            ),
+        ] {
+            if let Err(error) = compile(&format!("export function run(a,b) {{ {body} }}"), false) {
+                failures.push((id, error));
+            }
+        }
+        assert!(failures.is_empty(), "{failures:?}");
+    }
+
+    #[test]
     fn unary_operators_read_immutable_predicate_bindings() {
         for body in [
             "const flag=true; return +flag;",
@@ -288,7 +316,6 @@ mod tests {
         for body in [
             "const flag=true; return flag;",
             "const flag=true; return Math.abs(flag);",
-            "const flag=true; return flag+a;",
             "const flag=true; return flag|a;",
             "const flag=true; return flag<<a;",
             "const flag=true; a+=flag; return a;",
@@ -949,6 +976,7 @@ mod tests {
             ("return true+1;", true),
             ("return ~((a<b) as number)+true;", true),
             ("return a%true;", false),
+            ("const flag=true; return flag+a;", false),
         ] {
             compile(
                 &format!("export function run(a,b) {{ {body} }}"),
@@ -961,10 +989,6 @@ mod tests {
     #[test]
     fn boolean_arithmetic_keeps_other_operand_boundaries() {
         for (body, reason) in [
-            (
-                "const flag=true; return flag+a;",
-                "Boolean bindings are not admitted",
-            ),
             ("a+=true; return a;", "expression is outside"),
             ("return true==a?1:0;", "expression is outside"),
             ("return a&true;", "expression is outside"),
