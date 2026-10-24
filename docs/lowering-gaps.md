@@ -38,8 +38,8 @@ limits remain separate [resource bounds](compiler.md#experimental-contract).
 
 The [source-bound rejection inventory](../tests/compatibility/rejection-inventory.json)
 covers every current negative, beyond these 38 numeric reference opt-ins. Its 56
-groups classify 29 invalid sources, 141 resource restrictions and 809 open requirements
-across all 979 records. Each pins the exact source, extension and strict Module mode;
+groups classify 31 invalid sources, 144 resource restrictions and 820 open requirements
+across all 995 records. Each pins the exact source, extension and strict Module mode;
 group evidence, descriptive dependencies, harness needs and observable completion
 criteria keep future work visible. Source invalidity is assessed against the named
 language rule, not inferred from the compiler's rejection. Valid const writes, TDZ
@@ -335,3 +335,8 @@ group remains open: `??=`, const assignment admission and general value storage
 are separate requirements. Const early-skip sources remain valid JavaScript outside
 this profile. Retained `unsupported-compound-1`/`10` source/mode/span/classification
 stay exact; only their operator-whitelist diagnostic text advances.
+
+Generic declaration type parameters now erase for otherwise admitted numeric entry
+and helper functions. Three original ordinary TS exclusions promote; explicit generic
+calls, namespaces, enums and ambient functions remain separate gaps. Constraints and
+defaults remain unvalidated metadata, not runtime proofs. See [the contract](compiler.md#generic-declaration-metadata).

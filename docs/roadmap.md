@@ -396,7 +396,7 @@ support `===`/`!==` when both original operands qualify. Their captured predicat
 convert once, left before right, through existing Number comparison operations.
 This preserves the original Number path and does not settle mixed-kind equality,
 loose Boolean coercion, relational Boolean operands, dynamic values or a new ABI.
-The selected corpus contains 1442 pairs and 979 rejection fixtures, including the
+The selected corpus contains 1466 pairs and 995 rejection fixtures, including the
 unchanged 38 curated gaps. See [the bounded contract](compiler.md#strict-same-kind-boolean-equality).
 
 ## Number logical assignment
@@ -418,3 +418,10 @@ entry export. Four ordinary TS sources promote; all 38 curated gaps remain.
 Corpus 49 records 1442 pairs and 979 rejections. Runtime module initialization,
 ambient declarations and augmentations remain separate work. See
 [the bounded contract](compiler.md#type-only-module-items).
+
+## Generic declaration metadata
+
+Entry/helper declaration type parameters erase while preserving runtime numeric
+eligibility and source budgets. Type metadata is retained and unvalidated; this does
+not adopt type inference. Explicit generic calls and runtime TypeScript constructs
+remain separate work. Corpus 50: 1466 pairs, 995 rejections, 38 curated references.

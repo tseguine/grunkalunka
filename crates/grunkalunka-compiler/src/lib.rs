@@ -145,15 +145,14 @@ fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
             || function.r#async
             || function.generator
             || function.declare
-            || function.type_parameters.is_some()
             || function.this_param.is_some()
         {
             return Err(unsupported(
                 *function,
                 if index == 0 {
-                    "expected a plain, synchronous, non-generic function named run"
+                    "expected a plain, synchronous function named run"
                 } else {
-                    "expected a plain, synchronous, non-generic numeric helper"
+                    "expected a plain, synchronous numeric helper"
                 },
             ));
         }
@@ -1399,5 +1398,169 @@ mod type_only_module_tests {
         ] {
             assert_eq!(compile(source, true).err().unwrap(), diagnostic);
         }
+    }
+}
+
+#[cfg(test)]
+mod generic_declaration_tests {
+    use super::compile;
+    fn erased(ts: &str, js: &str) {
+        let actual = compile(ts, true).unwrap();
+        let expected = compile(js, false).unwrap();
+        assert_eq!(actual.wat, expected.wat);
+        assert_eq!(actual.wasm, expected.wasm);
+    }
+    #[test]
+    fn generic_entry_declaration_erases() {
+        erased(
+            "export function run<T>(a:T,b:T):number { return 0; }",
+            "export function run(a,b) { return 0; }",
+        );
+    }
+    #[test]
+    fn generic_helper_declaration_erases() {
+        erased(
+            "function identity<T>(x:T):T { return x; } export function run(a,b) { return identity(a); }",
+            "function identity(x) { return x; } export function run(a,b) { return identity(a); }",
+        );
+    }
+    #[test]
+    fn generic_metadata_variants_preserve_numeric_artifacts() {
+        for parameters in [
+            "<T>",
+            "<T,U>",
+            "<T extends number>",
+            "<T=number>",
+            "<const T>",
+            "<T extends number=number,U=T>",
+        ] {
+            erased(
+                &format!("export function run{parameters}(a:T,b:T):T {{ return a+b; }}"),
+                "export function run(a,b) { return a+b; }",
+            );
+        }
+        erased(
+            "export function run<T=string>(a:T,b:T):T { return a-b; }",
+            "export function run(a,b) { return a-b; }",
+        );
+    }
+    #[test]
+    fn generic_helpers_preserve_calls_and_snapshots() {
+        erased(
+            "export function run<T>(a:T,b:T):T { let x=a; return add(x,x=b)+x; } function add<T,U>(x:T,y:U):T { return x+y; }",
+            "export function run(a,b) { let x=a; return add(x,x=b)+x; } function add(x,y) { return x+y; }",
+        );
+        erased(
+            "function sum<T>(x:T):T { if(x<=0) return 0; return x+sum(x-1); } export function run<T>(a:T,b:T):T { return sum(3)+b; }",
+            "function sum(x) { if(x<=0) return 0; return x+sum(x-1); } export function run(a,b) { return sum(3)+b; }",
+        );
+    }
+    #[test]
+    fn generic_type_names_create_no_runtime_values() {
+        erased(
+            "export function run<Math,T>(a:T,b:T):T { return Math.abs(a)+b; }",
+            "export function run(a,b) { return Math.abs(a)+b; }",
+        );
+        for source in [
+            "export function run<T>(a:T,b:T):T { return T; }",
+            "export function run<T>(a:T,b:T):T { const T=T; return T; }",
+            "export function run<T>(a:T,b:T):T { const x=a; x=b; return x; }",
+            "function helper<T>(x:T):T { if(false) return Math.random(); return x; } export function run(a,b) { return a; }",
+        ] {
+            assert!(compile(source, true).is_err(), "{source}");
+        }
+    }
+    #[test]
+    fn generic_declarations_keep_adjacent_shape_guards() {
+        for (source, expected) in [
+            (
+                "export async function run<T>(a:T,b:T):T { return a; }",
+                "plain, synchronous function",
+            ),
+            (
+                "export function* run<T>(a:T,b:T):T { return a; }",
+                "plain, synchronous function",
+            ),
+            (
+                "export declare function run<T>(a:T,b:T):T;",
+                "plain, synchronous function",
+            ),
+            (
+                "export function run<T>(this:T,a:T,b:T):T { return a; }",
+                "plain, synchronous function",
+            ),
+            (
+                "export function run<T>(a:T):T { return a; }",
+                "exactly two ordinary",
+            ),
+            (
+                "export function run<T>(a:T,b:T=1):T { return a; }",
+                "default",
+            ),
+            (
+                "function helper<T>(x:T):T { return x; } export function run(a,b) { return helper<number>(a); }",
+                "generic calls",
+            ),
+            (
+                "export function run<T>(a:T,b:T):T { return run<T>(a,b); }",
+                "generic calls",
+            ),
+        ] {
+            let error = compile(source, true).err().expect(source);
+            assert!(error.contains(expected), "{source}: {error}");
+        }
+    }
+    #[test]
+    fn generic_metadata_keeps_statement_and_utf8_budgets() {
+        let body = format!("{}return a;", "a=a;".repeat(255));
+        erased(
+            &format!("export function run<T>(a:T,b:T):T {{ {body} }}"),
+            &format!("export function run(a,b) {{ {body} }}"),
+        );
+        assert!(
+            compile(
+                &format!("export function run<T>(a:T,b:T):T {{ a=a;{body} }}"),
+                true
+            )
+            .err()
+            .unwrap()
+            .contains("256 statements")
+        );
+        let prefix = "export function run<T extends \"λ";
+        let suffix = "\">(a:T,b:T):T { return a; }";
+        let mut source = format!(
+            "{prefix}{}{suffix}",
+            "x".repeat(16_384 - prefix.len() - suffix.len())
+        );
+        erased(&source, "export function run(a,b) { return a; }");
+        source.push(' ');
+        assert!(compile(&source, true).err().unwrap().contains("16 KiB"));
+    }
+    #[test]
+    fn generic_metadata_preserves_parse_and_semantic_precedence() {
+        assert!(
+            compile(
+                "export function run<T extends >(a:T,b:T) { return a; }",
+                true
+            )
+            .err()
+            .unwrap()
+            .contains("parse diagnostics")
+        );
+        assert!(
+            compile(
+                "export function run<T>(a:T,b:T) { const x=a;const x=b;return x; }",
+                true
+            )
+            .err()
+            .unwrap()
+            .contains("semantic diagnostics")
+        );
+        assert!(
+            compile("export function run<T>(a:T,b:T) { return a; }", false)
+                .err()
+                .unwrap()
+                .contains("parse diagnostics")
+        );
     }
 }

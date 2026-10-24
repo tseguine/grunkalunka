@@ -99,7 +99,6 @@ bad('helper-rest', 'function helper(...x) { return 1; }', 'return helper(a);', '
 bad('helper-destructure', 'function helper({x}) { return 1; }', 'return helper(a);', 'destructured parameters');
 bad('helper-optional', 'function helper(x?:number) { return x; }', 'return helper(a);', 'parameter modifiers', 'ts');
 bad('helper-this', 'function helper(this:number,x:number) { return x; }', 'return helper(a);', 'plain, synchronous', 'ts');
-bad('helper-generic', 'function helper<T>(x:T) { return x; }', 'return helper(a);', 'plain, synchronous', 'ts');
 bad('helper-async', 'async function helper(x) { return x; }', 'return helper(a);', 'plain, synchronous');
 bad('helper-generator', 'function* helper(x) { return x; }', 'return helper(a);', 'plain, synchronous');
 bad('helper-arguments', 'function helper(x) { return arguments[0]; }', 'return helper(a);', expression);

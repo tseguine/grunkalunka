@@ -67,8 +67,8 @@ must still reject each with the recorded diagnostic and create no artifact. Thes
 are executable requirements for later work, not upstream suite or lowering passes.
 
 The [complete rejection inventory](../tests/compatibility/rejection-inventory.json)
-also covers all 979 negatives, including the curated references. Its 56 groups
-distinguish 29 invalid sources, 141 resource restrictions and 809 open requirements.
+also covers all 995 negatives, including the curated references. Its 56 groups
+distinguish 31 invalid sources, 144 resource restrictions and 820 open requirements.
 Records pin original source hashes, JS/TS extensions and the actual strict Module
 goal. Tests reject missing, stale, duplicate or changed records and invalid group,
 evidence, phase, harness or completion metadata before fixture execution. Feature
@@ -336,3 +336,11 @@ after-return, dead-branch and unused-helper cases retain original body admission
 Four built sensitivity probes over-erase runtime imports/exports, omit statement
 charging or leak module erasure into the original body predicate; positive
 admission tests independently detect omission of the new erasure.
+
+[Generic declaration fixtures](../tests/compatibility/generic-declarations.mjs) preserve
+three exact promotion sources and complete handwritten JS oracles. They cover entry
+and helper metadata, constraints/defaults/const parameters, type/value namespaces,
+ordered argument effects, finite recursion and source budgets. Adjacent shape guards,
+explicit type-argument calls and unsupported bodies remain negative. Two built guard
+mutants independently reintroduce the entry or helper restriction; original artifact
+and diagnostic audits retain eleven exact wording-only exceptions.

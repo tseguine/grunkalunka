@@ -995,7 +995,7 @@
     {
       "id": "typescript-runtime-forms",
       "kind": "open-requirement",
-      "assessment": "Namespaces, enums and runtime generic/ambient function forms require their separate emission or admission decisions.",
+      "assessment": "Generic type parameters on otherwise admitted numeric function declarations erase as unvalidated metadata. Namespaces, enums and ambient function forms remain outside this profile.",
       "evidence": [
         {
           "source": "https://www.typescriptlang.org/docs/handbook/enums.html",
@@ -3797,13 +3797,6 @@
       "group": "parameters"
     },
     {
-      "id": "annotation-generic-function",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "165496aea0ed234ff49210bd53f782c61b9ffa92ef98c1490e27c651d44f0a9b",
-      "group": "typescript-runtime-forms"
-    },
-    {
       "id": "annotation-malformed-type",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -4763,13 +4756,6 @@
       "group": "return-policy"
     },
     {
-      "id": "type-param",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f6843951571f95863861cc61504b8885dee49fd0b48a02507551e76fa8a4e758",
-      "group": "typescript-runtime-forms"
-    },
-    {
       "id": "this-param",
       "extension": "ts",
       "sourceMode": "module-strict",
@@ -5321,13 +5307,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "ec44d4f02357682c491b61972ed3715b7928271a0b04af267a8f3d3bb063c5a4",
       "group": "parameters"
-    },
-    {
-      "id": "direct-call-helper-generic",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6553c86bb3829759bf1bae932e2cdfe1d446c40e85128ae89d79997222931035",
-      "group": "typescript-runtime-forms"
     },
     {
       "id": "direct-call-helper-async",
@@ -7952,6 +7931,139 @@
       "extension": "ts",
       "sourceMode": "module-strict",
       "sourceSha256": "39348834348bfb0378748c40062e36bb0de64239b6049fc320e4536c48c816f8",
+      "group": "expression-depth"
+    },
+    {
+      "id": "generic-declaration-reject-async",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "91f9cc610e021456f11e5cd1978daf17435183c03d3f3ee1cedc5fb0dd33d690",
+      "group": "async-functions"
+    },
+    {
+      "id": "generic-declaration-reject-generator",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "adf8d8758d5e289c6138e5296bf018aa50819147135dd90ad338e0e44a35c271",
+      "group": "generators"
+    },
+    {
+      "id": "generic-declaration-reject-declare",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9b9ec95ba938e9859aa90c305e64c691d2c5cdacb5d5086c16a7c7f6a69c5e1c",
+      "group": "typescript-runtime-forms"
+    },
+    {
+      "id": "generic-declaration-reject-this",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "99f332ee3c5179238953c007de6e249319cd593a489216e6891f6be61556ef68",
+      "group": "parameters"
+    },
+    {
+      "id": "generic-declaration-reject-arity",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "41dc0433ca3bd56c84b2855218af751b659451b099d3a7d87c7ea82909310b8d",
+      "group": "parameters"
+    },
+    {
+      "id": "generic-declaration-reject-default",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d14277f1b58b697825337cfce0a3e0b86b2e1e3499536442fa768503869bfea6",
+      "group": "parameters"
+    },
+    {
+      "id": "generic-declaration-reject-optional",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2e416cdf03bbe8b193da433edf296984af39e4ac3e4b2b166ea410b9c6cc7403",
+      "group": "parameters"
+    },
+    {
+      "id": "generic-declaration-reject-rest",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "41d9ef97d114135e321ff5da59f9337fac27de5570b7184373f0095ffeb44055",
+      "group": "parameters"
+    },
+    {
+      "id": "generic-declaration-reject-helper-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "649b59120cb27cae425677b907cd64b073163fc06b7bae008d054513ea3a032e",
+      "group": "function-calls"
+    },
+    {
+      "id": "generic-declaration-reject-entry-call",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "89b7388026f2ea042682a0e41aa9fd90c16c1b447ab166992091ae3522cf24f3",
+      "group": "function-calls"
+    },
+    {
+      "id": "generic-declaration-reject-type-value",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "9e40ee3fa2e40bb5375636453d233c26b97feca5bd6b49f0ecd0040ea39cec8e",
+      "group": "binding-errors"
+    },
+    {
+      "id": "generic-declaration-reject-type-tdz",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c3bca9dce53fa42a9fd08e67a70fc4dea144b4ba7aca9154a8e2396f7538badf",
+      "group": "binding-errors"
+    },
+    {
+      "id": "generic-declaration-reject-const-write",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "265565f587b006d7d877a8ffcc01e28be7331f9602e02a1359804081a306383e",
+      "group": "const-errors"
+    },
+    {
+      "id": "generic-declaration-reject-unused-helper",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "93db8c0eddd3a4c541852982502f0b2dc900ef9c89943187662afaab9912bcab",
+      "group": "function-calls"
+    },
+    {
+      "id": "generic-declaration-reject-parse",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "2cb9cf581987a50b65845efe4cb129cb955882ccd2983fd0a7a3d3b749b66961",
+      "group": "malformed-ts"
+    },
+    {
+      "id": "generic-declaration-reject-duplicate",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "d5019eaed9e3c569c4537c2a025795667a8f2df1d2465ceb7b0534f838103ac1",
+      "group": "duplicate-lexical-binding"
+    },
+    {
+      "id": "generic-declaration-reject-statements",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "cc3a6d31f2a51a06fea0a881f691bf0c83a9806aa4ce407e0b0fe581f4debc75",
+      "group": "statement-count"
+    },
+    {
+      "id": "generic-declaration-reject-bytes",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "3e6172717b7253a9f97d6ae1e79a370978a06a175b4dfdbcc4137d3901ea5429",
+      "group": "source-bytes"
+    },
+    {
+      "id": "generic-declaration-reject-depth",
+      "extension": "ts",
+      "sourceMode": "module-strict",
+      "sourceSha256": "c6eddebe3840462664f1969d7a5bd66c610b1fbc4a95635acc2246482f04bb7a",
       "group": "expression-depth"
     }
   ]

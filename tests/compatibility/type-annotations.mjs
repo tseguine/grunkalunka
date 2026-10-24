@@ -62,7 +62,6 @@ export const annotationRejected = [
   ['annotation-rest-parameter', 'export function run(a:unknown,...b:unknown[]):unknown { return a; }', 'ts',
     'exactly two ordinary numeric parameters'],
   ['annotation-arity', 'export function run(a:unknown):unknown { return a; }', 'ts', 'exactly two ordinary numeric parameters'],
-  ['annotation-generic-function', 'export function run<T>(a:T,b:T):T { return a; }', 'ts', 'expected a plain'],
   ['annotation-malformed-type', 'export function run(a:number|,b:unknown):unknown { return a; }', 'ts', 'parse diagnostics'],
   ['annotation-duplicate-parameter', 'export function run(a:unknown,a:unknown):unknown { return a; }', 'ts'],
   ['annotation-unselected-call', source('if(false) { const x:number=Math.random(); } return a;'), 'ts', expression],

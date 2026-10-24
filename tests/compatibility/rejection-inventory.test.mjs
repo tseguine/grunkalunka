@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rejected } from './corpus.mjs';
+import { genericDeclarations, genericDeclarationPromotions } from './generic-declarations.mjs';
 import { numericLogicalAssignment, numericLogicalAssignmentPromotions } from './numeric-logical-assignment.mjs';
 import { typeOnlyModuleItems, typeOnlyModulePromotions } from './type-only-module-items.mjs';
 import { strictBooleanEquality, strictBooleanEqualityPromotions } from './strict-boolean-equality.mjs';
@@ -140,7 +141,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 979);
+  assert.equal(inventory.records.size, 995);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -233,4 +234,17 @@ test('report-only catalog changes cannot alter the validated comparison snapshot
   const report = completedReport(inventory);
   report.rejectionInventory.groups[0].assessment = 'changed after input validation';
   assert.throws(() => validateRejectionReport(report, inventory), /report inventory/);
+});
+
+test('generic declarations preserve three original sources and explicit complete JS oracles', () => {
+  assert.deepEqual(genericDeclarationPromotions.map(([id,,,hash])=>[id,hash]), [
+    ['annotation-generic-function','165496aea0ed234ff49210bd53f782c61b9ffa92ef98c1490e27c651d44f0a9b'],
+    ['direct-call-helper-generic','6553c86bb3829759bf1bae932e2cdfe1d446c40e85128ae89d79997222931035'],
+    ['type-param','f6843951571f95863861cc61504b8885dee49fd0b48a02507551e76fa8a4e758'],
+  ]);
+  for(const [id,js,ts,hash] of genericDeclarationPromotions){
+    const source=programSources(genericDeclarations.find(p=>p[0]===id));
+    assert.equal(source.sourceTS,ts);assert.equal(source.sourceJS,js);assert.equal(source.oracleSource,js);
+    assert.equal(createHash('sha256').update(ts).digest('hex'),hash);assert.ok(!rejected.some(r=>r[0]===id));
+  }
 });

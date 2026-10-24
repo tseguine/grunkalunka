@@ -54,14 +54,14 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 49
-contains 1442 paired programs, 979 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 50
+contains 1466 paired programs, 995 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 979 rejections in 56 groups: 29 invalid sources in their selected
-strict Module dialect, 141 explicit resource restrictions and 809 open requirements.
+classifies all 995 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 820 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -640,7 +640,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   every original UTF-8 byte still counts toward the 16 KiB limit. The entry and
   whole-body admission rules remain unchanged. See [Hashbang Comments](https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-hashbang-comments).
 - Everything else is rejected: extra runtime statements/exports/imports,
-  defaults/rest/destructuring, async/generator/generic/declare functions,
+  defaults/rest/destructuring, async/generator/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
   `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic outside the explicit operand bridges, Boolean returns and self/forward local references are
@@ -1132,6 +1132,27 @@ pristine globals and ordinary value shadows keep their existing behavior.
 Corpus 49 adds 32 paired programs, including four exact original TS promotions,
 and 33 classified negatives. No curated reference or Rust-only guard transfers,
 retained diagnostic changes, IR/backend/runtime changes, dependency or ABI changes
-are involved. Current totals: 1442 pairs, 979 rejections, 38 curated references;
+are involved. That step recorded 1442 pairs, 979 rejections, 38 curated references;
 56 groups classify 29 invalid sources, 141 resource restrictions and 809 open
 requirements. Ambient declarations/augmentations and runtime module support remain open.
+
+## Generic declaration metadata
+
+Type parameters on otherwise admitted entry and helper function declarations erase
+as unvalidated metadata. The original TypeScript Module AST and Semantic pass remain;
+constraints, defaults and `const` type parameters do not create runtime bindings,
+change numeric parameter eligibility or establish inferred runtime types. This follows
+the declaration syntax in the [TypeScript generics handbook](https://www.typescriptlang.org/docs/handbook/2/generics.html).
+Explicit type arguments on calls remain unsupported. Async/generator/ambient functions,
+`this` parameters and other parameter-shape restrictions retain their existing guards.
+
+Original source bytes, statement/depth budgets, SymbolIds, ordered argument snapshots,
+helper signatures, const-write checks and numeric IR/Wasm remain unchanged. Corpus 50
+adds 24 pairs, including three exact original exclusions, and 19 classified negatives.
+Eleven retained function-shape diagnostics remove only the obsolete `non-generic`
+wording; two belong to unchanged curated reference cases. No curated reference or
+Rust-only guard transfers. One TypeScript runtime-forms assessment records partial
+support; namespaces, enums and ambient forms remain open. Current totals: 1466 pairs,
+995 rejections and 38 curated references; 56 groups classify 31 invalid sources,
+144 resource restrictions and 820 open requirements. These are selected fixtures,
+not an exhaustive language inventory.

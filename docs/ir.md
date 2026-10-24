@@ -357,3 +357,7 @@ only. They emit no value, slot, operation, module import or Wasm instruction.
 The original parser/Semantic pass still precedes filtering; each item charges the
 existing shared source-statement budget. Existing numeric IR, verifier, emitter,
 runtime and ABI remain unchanged. See [the source contract](compiler.md#type-only-module-items).
+
+Generic function declaration type parameters are frontend metadata only. They add no
+IR fields, values, instructions, Wasm parameters or runtime type proofs. Entry/helper
+signatures and ordered calls keep the existing numeric contract. See [the source contract](compiler.md#generic-declaration-metadata).

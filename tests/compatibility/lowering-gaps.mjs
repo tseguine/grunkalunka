@@ -8,7 +8,7 @@ const reference = 'reference is not an initialized numeric parameter or local';
 const topLevel = 'exactly one exported function is admitted';
 const declaration = 'initialized const or let identifiers are required';
 const ordinaryParameters = 'exactly two ordinary numeric parameters are admitted';
-const plainFunction = 'expected a plain, synchronous, non-generic function named run';
+const plainFunction = 'expected a plain, synchronous function named run';
 
 export const loweringGaps = [];
 function add(id, category, body, expected, diagnostic, options = {}) {
