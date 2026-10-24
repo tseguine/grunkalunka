@@ -134,3 +134,52 @@ pub fn summarize(source: &str) -> Summary {
     }
     summary
 }
+
+/// An inert code block projected by the pinned parser.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CodeBlock {
+    /// Concatenated parser text, without additional normalization.
+    pub text: String,
+    /// None for indented blocks; Some("") for an empty fenced info string.
+    /// Otherwise contains the whole parser-normalized info string, not just a language.
+    pub info: Option<String>,
+    /// Exact parser Start range as half-open original UTF-8 byte offsets.
+    /// This need not include first-line indentation or a closing fence's newline.
+    pub span: Range<usize>,
+}
+
+/// Inspect code blocks as inert data, separately from the document summary.
+///
+/// Uses the pinned parser's CommonMark defaults without extensions. Text is the
+/// concatenation of its Text events, with no extra trimming or normalization.
+/// Inline code and raw HTML blocks are excluded. Empty fenced blocks are retained.
+/// Info and body text are never executed, rendered or resolved as resources.
+/// Ranges refer to the unchanged input, not a body-only or lossless editing span.
+pub fn code_blocks(source: &str) -> Vec<CodeBlock> {
+    let mut blocks = Vec::new();
+    let mut active: Option<usize> = None;
+    for (event, span) in Parser::new_ext(source, Options::empty()).into_offset_iter() {
+        match event {
+            Event::Start(Tag::CodeBlock(kind)) => {
+                let info = match kind {
+                    pulldown_cmark::CodeBlockKind::Indented => None,
+                    pulldown_cmark::CodeBlockKind::Fenced(info) => Some(info.into_string()),
+                };
+                active = Some(blocks.len());
+                blocks.push(CodeBlock {
+                    text: String::new(),
+                    info,
+                    span,
+                });
+            }
+            Event::Text(text) => {
+                if let Some(index) = active {
+                    blocks[index].text.push_str(&text);
+                }
+            }
+            Event::End(TagEnd::CodeBlock) => active = None,
+            _ => {}
+        }
+    }
+    blocks
+}
