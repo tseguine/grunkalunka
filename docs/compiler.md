@@ -5,6 +5,10 @@ pass builds and verifies [typed numeric regions](ir.md), then emits WAT. `wat`
 encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
+Private IR cells have a fixed existing `Number` or `Predicate` type. Source lowering
+still creates only Number cells, and all entry/helper parameters and returns remain
+Number-only. This foundation adds no Boolean source storage, inference or boxing.
+
 ## Replay
 
 From the repository root, with current Rust stable and Node available:

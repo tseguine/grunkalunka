@@ -1,5 +1,13 @@
 # External tests and benchmarks
 
+Compiler IR tests exercise fixed Number/Predicate cells independently of source
+admission: initialization/load/store types, lexical visibility, initialization,
+mutability and Number-only entry/helper parameters. A mixed-order scalar-cell
+emission witness covers snapshots, branch stores and three loop entries in focused
+Node-Wasm/Wasmtime playback. The maintained test checks real IR emission and local
+types; `GRUNKALUNKA_IR_TEST_ARTIFACTS` optionally writes its WAT/Wasm for that replay.
+No tagged-pair representation or Boolean source-binding policy is selected.
+
 All six reference suites are registered in
 [`suites.json`](../tests/compatibility/suites.json) at immutable upstream revisions.
 The registry records source and root-license hashes observed during public source

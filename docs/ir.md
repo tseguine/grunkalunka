@@ -39,9 +39,12 @@ bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 ## Source cells and computed values
 
-A `SlotId` names a numeric source binding. Each slot records its owning lexical
-region, mutability, parameter status and source span. Parameters begin initialized;
-local declarations initialize their own region's slots once per lexical entry.
+A `SlotId` names a fixed-type scalar cell (`Number` or `Predicate`). Each slot records
+its type, owning lexical region, mutability, parameter status and source span.
+Source lowering constructs only `Number` slots; this private IR foundation does not
+admit Boolean source bindings. Every entry/helper parameter slot remains `Number`.
+Parameters begin initialized; local declarations initialize their own region's
+slots once per lexical entry.
 A loop body may enter its region repeatedly and initialize those cells on each
 entry. Stores require an initialized, mutable cell.
 
@@ -53,7 +56,7 @@ shadow from falling back to an outer binding.
 A `ValueId` names one typed definition in the IR: `Number` or `Predicate`.
 `Call`, `Constant`, `Load`, `Unary`, `Binary`, `Compare`, `Truthy`, `Boolean` and `Not` produce values.
 `Boolean` defines a `Predicate` and emits canonical `i32` zero/one; it never
-produces a numeric source value. Source slots and function returns remain `Number`.
+produces a numeric source value. Source-lowered slots and function returns remain `Number`.
 `Not` consumes and produces a `Predicate`, emitting `i32.eqz`. Numeric inputs
 first pass through `Truthy`; negation evaluates its operand once.
 `Unary::Abs` consumes a captured Number and defines a Number through `f64.abs`.
@@ -106,12 +109,15 @@ fuel-headroom guarantee. See the standard [Number remainder rule](https://tc39.e
 `NumberFromPredicate { input, result }` requires a visible `Predicate` input and
 uniquely defines a `Number` result. It emits `f64.convert_i32_u` on the existing
 canonical zero/one predicate, implementing Boolean-to-Number only for selected
-numeric `~` operands. `Unary::BitNot` still consumes and returns Number. There is
+numeric `~` operands. `Unary::BitNot` still consumes and returns Number. Source lowering still has
 no Boolean cell, parameter, return or general coercion. A pure bounded AST shape
 classifier selects this path; original operand lowering performs effects once and
 counts all retained source wrappers at the original unary argument depth.
 
-`Initialize` and `Store` consume numeric values and change source cells.
+`Initialize` and `Store` require an input matching the slot type; `Load` defines
+a result of that type. Nonparameter `Number`/`Predicate` slots emit f64/i32 locals.
+Both occupy one scalar local, preserving all slot/value index arithmetic. Stores
+perform no conversion. Source lowering still initializes/stores only Numbers.
 Unresolved `Infinity` and `NaN` reads use the existing numeric `Constant`
 operation. They allocate no source cell and perform no host lookup. Resolved
 symbols with those names continue through ordinary binding and TDZ checks.

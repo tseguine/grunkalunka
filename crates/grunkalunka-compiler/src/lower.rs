@@ -853,6 +853,7 @@ impl Lowering<'_, '_> {
             let slot = SlotId(self.slots.len());
             let mutable = declaration.kind == VariableDeclarationKind::Let;
             self.slots.push(Slot {
+                ty: Type::Number,
                 owner: region.id,
                 mutable,
                 parameter: false,

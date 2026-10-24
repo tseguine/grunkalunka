@@ -54,6 +54,7 @@ pub(crate) enum Compare {
 
 #[derive(Debug)]
 pub(crate) struct Slot {
+    pub ty: Type,
     pub owner: RegionId,
     pub mutable: bool,
     pub parameter: bool,
@@ -398,15 +399,15 @@ impl Verifier<'_> {
                     self.define(*result, Type::Number, &mut visible, span)?
                 }
                 Op::Load { result, slot } => {
-                    self.slot(*slot, ancestors, span)?;
+                    let ty = self.slot(*slot, ancestors, span)?.ty;
                     if !initialized.contains(slot) {
                         return Err(invalid(span, "slot is not initialized"));
                     }
-                    self.define(*result, Type::Number, &mut visible, span)?;
+                    self.define(*result, ty, &mut visible, span)?;
                 }
                 Op::Initialize { slot, value } => {
-                    self.value(*value, Type::Number, &visible, span)?;
                     let cell = self.slot(*slot, ancestors, span)?;
+                    self.value(*value, cell.ty, &visible, span)?;
                     if cell.owner != region.id || cell.parameter {
                         return Err(invalid(
                             span,
@@ -418,8 +419,8 @@ impl Verifier<'_> {
                     }
                 }
                 Op::Store { slot, value } => {
-                    self.value(*value, Type::Number, &visible, span)?;
                     let cell = self.slot(*slot, ancestors, span)?;
+                    self.value(*value, cell.ty, &visible, span)?;
                     if !cell.mutable {
                         return Err(invalid(span, "store to immutable source cell"));
                     }
@@ -629,6 +630,9 @@ fn verify_function(function: &Function, signatures: &[usize]) -> Result<(), Stri
     }
     let mut initialized = BTreeSet::new();
     for (index, slot) in function.slots.iter().enumerate() {
+        if slot.parameter && slot.ty != Type::Number {
+            return Err(invalid(slot.span, "parameter slots must be Number"));
+        }
         if slot.parameter != (index < function.parameter_count)
             || (slot.parameter && (slot.owner != function.body.id || !slot.mutable))
         {
@@ -1290,6 +1294,7 @@ mod tests {
             parameter_count: 2,
             slots: (0..2)
                 .map(|_| Slot {
+                    ty: Type::Number,
                     owner: RegionId(0),
                     mutable: true,
                     parameter: true,
@@ -1472,6 +1477,7 @@ mod tests {
                 (condition, body, ValueId(2))
             };
             f.slots.push(Slot {
+                ty: Type::Number,
                 owner: source.id,
                 mutable: true,
                 parameter: false,
@@ -1553,6 +1559,7 @@ mod tests {
             },
         });
         f.slots.push(Slot {
+            ty: Type::Number,
             owner: body.id,
             mutable: true,
             parameter: false,
@@ -1624,6 +1631,7 @@ mod tests {
             Exit::Return(ValueId(0)),
         );
         f.slots.push(Slot {
+            ty: Type::Number,
             owner: RegionId(0),
             mutable: true,
             parameter: false,
@@ -1832,6 +1840,7 @@ mod tests {
             Exit::Return(ValueId(0)),
         );
         f.slots.push(Slot {
+            ty: Type::Number,
             owner: RegionId(0),
             mutable: false,
             parameter: false,
@@ -1882,6 +1891,7 @@ mod tests {
             Exit::Return(ValueId(0)),
         );
         f.slots.push(Slot {
+            ty: Type::Number,
             owner: RegionId(0),
             mutable: false,
             parameter: false,
@@ -2038,6 +2048,7 @@ mod tests {
         assert!(verify(&f).unwrap_err().contains("not visible"));
         let mut f = value_if();
         f.slots.push(Slot {
+            ty: Type::Number,
             owner: RegionId(1),
             mutable: true,
             parameter: false,
@@ -2062,5 +2073,414 @@ mod tests {
             },
         });
         assert!(verify(&f).unwrap_err().contains("owner"));
+    }
+
+    #[test]
+    fn predicate_slots_verify_init_load_store() {
+        let mut f = function(
+            vec![
+                Op::Boolean {
+                    result: ValueId(0),
+                    value: true,
+                },
+                Op::Initialize {
+                    slot: SlotId(2),
+                    value: ValueId(0),
+                },
+                Op::Load {
+                    result: ValueId(1),
+                    slot: SlotId(2),
+                },
+                Op::Boolean {
+                    result: ValueId(2),
+                    value: false,
+                },
+                Op::Store {
+                    slot: SlotId(2),
+                    value: ValueId(2),
+                },
+                Op::NumberFromPredicate {
+                    result: ValueId(3),
+                    input: ValueId(1),
+                },
+            ],
+            Exit::Return(ValueId(3)),
+        );
+        f.values = vec![
+            Type::Predicate,
+            Type::Predicate,
+            Type::Predicate,
+            Type::Number,
+        ];
+        f.slots.push(Slot {
+            ty: Type::Predicate,
+            owner: RegionId(0),
+            mutable: true,
+            parameter: false,
+            span: Span::new(0, 1),
+        });
+        verify(&f).unwrap();
+    }
+
+    #[test]
+    fn scalar_slots_reject_each_type_mismatch_and_preserve_cell_guards() {
+        for ty in [Type::Number, Type::Predicate] {
+            for operation in ["initialize", "load", "store"] {
+                let correct = ValueId(usize::from(ty == Type::Predicate));
+                let wrong = ValueId(1 - correct.0);
+                let mut f = function(
+                    vec![
+                        Op::Constant {
+                            result: ValueId(0),
+                            value: 1.0,
+                        },
+                        Op::Boolean {
+                            result: ValueId(1),
+                            value: true,
+                        },
+                        Op::Initialize {
+                            slot: SlotId(2),
+                            value: correct,
+                        },
+                    ],
+                    Exit::Return(ValueId(0)),
+                );
+                f.slots.push(Slot {
+                    ty,
+                    owner: RegionId(0),
+                    mutable: true,
+                    parameter: false,
+                    span: Span::new(0, 1),
+                });
+                f.values = vec![Type::Number, Type::Predicate];
+                if operation == "load" {
+                    f.values.push(if ty == Type::Number {
+                        Type::Predicate
+                    } else {
+                        Type::Number
+                    });
+                }
+                match operation {
+                    "initialize" => {
+                        f.body.operations[2].kind = Op::Initialize {
+                            slot: SlotId(2),
+                            value: wrong,
+                        }
+                    }
+                    "load" => f.body.operations.push(Operation {
+                        span: f.body.span,
+                        kind: Op::Load {
+                            result: ValueId(2),
+                            slot: SlotId(2),
+                        },
+                    }),
+                    _ => f.body.operations.push(Operation {
+                        span: f.body.span,
+                        kind: Op::Store {
+                            slot: SlotId(2),
+                            value: wrong,
+                        },
+                    }),
+                }
+                assert!(
+                    verify(&f).unwrap_err().contains("type"),
+                    "{ty:?} {operation}"
+                );
+            }
+        }
+        for (case, expected) in [
+            ("load-before-init", "initialized"),
+            ("store-before-init", "initialized"),
+            ("double-init", "twice"),
+            ("const-store", "immutable"),
+            ("invalid-slot", "slot"),
+            ("invalid-value", "value"),
+            ("invisible-slot", "slot owner is outside the lexical region"),
+            ("wrong-entry-init", "lexical entry"),
+            ("invalid-owner", "owner"),
+            ("invisible-value", "not visible"),
+            ("duplicate-value", "defined twice"),
+        ] {
+            let mut f = function(
+                vec![
+                    Op::Boolean {
+                        result: ValueId(0),
+                        value: true,
+                    },
+                    Op::NumberFromPredicate {
+                        result: ValueId(1),
+                        input: ValueId(0),
+                    },
+                    Op::Initialize {
+                        slot: SlotId(2),
+                        value: ValueId(0),
+                    },
+                    Op::Load {
+                        result: ValueId(2),
+                        slot: SlotId(2),
+                    },
+                ],
+                Exit::Return(ValueId(1)),
+            );
+            f.values = vec![Type::Predicate, Type::Number, Type::Predicate];
+            f.slots.push(Slot {
+                ty: Type::Predicate,
+                owner: RegionId(0),
+                mutable: true,
+                parameter: false,
+                span: Span::new(0, 1),
+            });
+            let initialize = || Op::Initialize {
+                slot: SlotId(2),
+                value: ValueId(0),
+            };
+            let store = |value| Op::Store {
+                slot: SlotId(2),
+                value,
+            };
+            let extra = match case {
+                "load-before-init" => {
+                    f.body.operations.remove(2);
+                    None
+                }
+                "store-before-init" => {
+                    f.body.operations[2].kind = store(ValueId(0));
+                    None
+                }
+                "double-init" => Some(initialize()),
+                "const-store" => {
+                    f.slots[2].mutable = false;
+                    Some(store(ValueId(0)))
+                }
+                "invalid-slot" => Some(Op::Load {
+                    result: ValueId(2),
+                    slot: SlotId(99),
+                }),
+                "invalid-value" => Some(store(ValueId(99))),
+                "invisible-slot" => {
+                    let mut child = region(vec![initialize()], Exit::Fallthrough);
+                    child.id = RegionId(1);
+                    f.slots[2].owner = child.id;
+                    f.body.operations[2].kind = Op::Block(child);
+                    None
+                }
+                "wrong-entry-init" => {
+                    let mut child = region(vec![initialize()], Exit::Fallthrough);
+                    child.id = RegionId(1);
+                    f.body.operations[2].kind = Op::Block(child);
+                    None
+                }
+                "invalid-owner" => {
+                    f.slots[2].owner = RegionId(99);
+                    f.body.operations.truncate(2);
+                    f.values.pop();
+                    None
+                }
+                "invisible-value" => {
+                    let mut child = region(
+                        vec![Op::Boolean {
+                            result: ValueId(3),
+                            value: false,
+                        }],
+                        Exit::Fallthrough,
+                    );
+                    child.id = RegionId(1);
+                    f.values.push(Type::Predicate);
+                    f.body.operations.insert(
+                        2,
+                        Operation {
+                            span: f.body.span,
+                            kind: Op::Block(child),
+                        },
+                    );
+                    f.body.operations[3].kind = Op::Initialize {
+                        slot: SlotId(2),
+                        value: ValueId(3),
+                    };
+                    None
+                }
+                _ => Some(Op::Load {
+                    result: ValueId(0),
+                    slot: SlotId(2),
+                }),
+            };
+            if let Some(kind) = extra {
+                f.body.operations.push(Operation {
+                    span: f.body.span,
+                    kind,
+                });
+            }
+            assert!(verify(&f).unwrap_err().contains(expected), "{case}");
+        }
+    }
+
+    #[test]
+    fn entry_and_helper_parameters_stay_number_even_if_unused() {
+        for function_index in 0..2 {
+            for slot_index in 0..2 {
+                let constant = || {
+                    function(
+                        vec![Op::Constant {
+                            result: ValueId(0),
+                            value: 1.0,
+                        }],
+                        Exit::Return(ValueId(0)),
+                    )
+                };
+                let mut module = Module {
+                    functions: vec![constant(), constant()],
+                };
+                verify_module(&module).unwrap();
+                module.functions[function_index].slots[slot_index].ty = Type::Predicate;
+                assert!(
+                    verify_module(&module)
+                        .unwrap_err()
+                        .contains("parameter slots must be Number")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn mixed_scalar_slot_emission_preserves_snapshots_branches_and_loop_entry() {
+        let load = |result, slot| Op::Load {
+            result: ValueId(result),
+            slot: SlotId(slot),
+        };
+        let store = |slot, value| Op::Store {
+            slot: SlotId(slot),
+            value: ValueId(value),
+        };
+        let binary = |result, operator, left, right| Op::Binary {
+            result: ValueId(result),
+            operator,
+            left: ValueId(left),
+            right: ValueId(right),
+        };
+        let mut condition = region(
+            vec![
+                load(1, 0),
+                Op::Truthy {
+                    result: ValueId(2),
+                    input: ValueId(1),
+                },
+            ],
+            Exit::Yield(ValueId(2)),
+        );
+        condition.id = RegionId(1);
+        let mut consequent = region(vec![store(2, 8)], Exit::Fallthrough);
+        consequent.id = RegionId(3);
+        let mut alternate = region(vec![store(2, 3)], Exit::Fallthrough);
+        alternate.id = RegionId(4);
+        let mut body = region(
+            vec![
+                Op::Boolean {
+                    result: ValueId(3),
+                    value: true,
+                },
+                Op::Initialize {
+                    slot: SlotId(2),
+                    value: ValueId(3),
+                },
+                load(4, 2),
+                Op::Constant {
+                    result: ValueId(5),
+                    value: 1.0,
+                },
+                load(6, 0),
+                Op::Compare {
+                    result: ValueId(7),
+                    operator: Compare::Greater,
+                    left: ValueId(6),
+                    right: ValueId(5),
+                },
+                Op::Boolean {
+                    result: ValueId(8),
+                    value: false,
+                },
+                Op::If {
+                    condition: ValueId(7),
+                    consequent,
+                    alternate,
+                    result: None,
+                },
+                load(9, 2),
+                Op::NumberFromPredicate {
+                    result: ValueId(10),
+                    input: ValueId(4),
+                },
+                Op::NumberFromPredicate {
+                    result: ValueId(11),
+                    input: ValueId(9),
+                },
+                binary(12, Binary::Add, 10, 11),
+                load(13, 3),
+                binary(14, Binary::Add, 13, 12),
+                store(3, 14),
+                binary(15, Binary::Subtract, 6, 5),
+                store(0, 15),
+            ],
+            Exit::Fallthrough,
+        );
+        body.id = RegionId(2);
+        let mut f = function(
+            vec![
+                Op::Constant {
+                    result: ValueId(0),
+                    value: 0.0,
+                },
+                Op::Initialize {
+                    slot: SlotId(3),
+                    value: ValueId(0),
+                },
+                Op::While {
+                    condition,
+                    body,
+                    step: None,
+                },
+                load(16, 3),
+            ],
+            Exit::Return(ValueId(16)),
+        );
+        f.values = (0..17)
+            .map(|i| {
+                if [2, 3, 4, 7, 8, 9].contains(&i) {
+                    Type::Predicate
+                } else {
+                    Type::Number
+                }
+            })
+            .collect();
+        for (ty, owner) in [(Type::Predicate, RegionId(2)), (Type::Number, RegionId(0))] {
+            f.slots.push(Slot {
+                ty,
+                owner,
+                mutable: true,
+                parameter: false,
+                span: Span::new(0, 1),
+            });
+        }
+        let wat = crate::emit::emit(&Module { functions: vec![f] }).unwrap();
+        assert_eq!(
+            wat.lines()
+                .filter(|line| line.starts_with("(local"))
+                .take(2)
+                .collect::<Vec<_>>(),
+            ["(local i32)", "(local f64)"]
+        );
+        let wasm = wat::parse_str(&wat).unwrap();
+        if let Some(directory) = std::env::var_os("GRUNKALUNKA_IR_TEST_ARTIFACTS") {
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory).join("scalar-slots.wat"),
+                wat,
+            )
+            .unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory).join("scalar-slots.wasm"),
+                wasm,
+            )
+            .unwrap();
+        }
     }
 }

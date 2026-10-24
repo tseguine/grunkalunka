@@ -213,6 +213,7 @@ pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {
                 mutable: true,
             });
             slots.push(ir::Slot {
+                ty: ir::Type::Number,
                 owner: ir::RegionId(0),
                 mutable: true,
                 parameter: true,

@@ -345,8 +345,11 @@ pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
             output: header,
         };
         // Source cells and typed value snapshots occupy disjoint physical locals.
-        for _ in function.slots.iter().skip(function.parameter_count) {
-            emitter.output.push_str("(local f64)\n");
+        for slot in function.slots.iter().skip(function.parameter_count) {
+            emitter.output.push_str(match slot.ty {
+                Type::Number => "(local f64)\n",
+                Type::Predicate => "(local i32)\n",
+            });
         }
         for ty in &function.values {
             emitter.output.push_str(match ty {
