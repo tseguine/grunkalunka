@@ -1653,7 +1653,7 @@ mutations detect a missing selected Store and reversed branch selection.
 
 ## Local arrow calls and shared captures
 
-Synchronous expression-bodied arrows can be bound to `const`, aliased by another
+Synchronous arrows with expression or block bodies can be bound to `const`, aliased by another
 `const`, or called immediately. Calls require exactly the declared number of
 numeric arguments and a numeric body result. Parentheses and erased TypeScript
 wrappers preserve the underlying function; annotations do not coerce values.
@@ -1666,15 +1666,28 @@ right before entering the body, with fresh parameter slots per expansion; caller
 bindings are restored after lowering the body. Unused arrow bodies are checked in
 a scratch lowering context without emitting their effects into the caller.
 
+Block bodies can use the admitted statements, local declarations, branches and
+loops, and must return a Number on every structural path. A typed `InlineCall`
+region gives the body its own return boundary: an early return ends the closure
+call, then the caller continues. Captured writes remain visible to the caller.
+Fresh locals and nested closure metadata belong to that specialization. The body
+has its own loop-control and return-type context, including in primitive or async
+callers; it cannot break the caller's loop or settle the caller's async result.
+
 The original source limits still count source locals/statements. Generated arrow
 parameter slots do not consume the source-local quota. Separate generation limits
 allow at most 256 arrow-call expansions per function and at most 128 nested
-expression regions while expanding an arrow. Source nesting inside each concise
-body is checked independently. These limits bound specialization, not JavaScript
+expression regions while expanding a concise arrow. Block calls additionally allow
+eight active block-body expansions and 128 aggregate nested regions across their
+statement/expression callers. This bounds the statement lowerer's native recursion;
+the eight-call case is exercised on a 2 MiB thread stack. Source nesting inside each
+body is checked independently. Body statements and locals are charged once at the
+definition, including unused bodies; aliases and specialization do not recharge them.
+These limits bound specialization, not JavaScript
 language validity or runtime termination; the existing runtime fuel is unchanged.
 
 Captures must already be initialized when the arrow is defined. Escaping function
-values, mutable function bindings, recursive arrows, block bodies, defaults/rest,
+values, mutable function bindings, recursive arrows, implicit undefined returns, defaults/rest,
 optional/generic calls, lexical `this`/`arguments` and async arrows remain outside
 this slice. General closure environments remain subsequent work; numeric suspension
 is available in the separate [async profile](async.md).

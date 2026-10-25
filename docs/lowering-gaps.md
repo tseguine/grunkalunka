@@ -573,5 +573,7 @@ kinds remain separate requirements.
 Local non-escaping concise arrows now admit the exact original `gap-call` and
 `gap-closure-capture` programs. Those examples are retained in `local-arrows.mjs`,
 including source hashes. Escaping and recursive closures, later-initialized
-captures, block bodies and async arrows remain known work despite these two promotions.
+captures and async arrows remain known work despite these two promotions. Numeric
+block-arrow bodies now have scoped early returns, statements and loops, tested in
+both synchronous and async callers; this does not add escaping function values.
 See [the bounded contract](compiler.md#local-arrow-calls-and-shared-captures).

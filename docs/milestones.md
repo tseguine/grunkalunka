@@ -501,8 +501,11 @@ additional unchanged numeric origins. `??` and `??=` remain separate units. See
 [the contract and exclusions](compiler.md#general-logical-assignment).
 
 
-Local arrow calls now specialize into existing typed regions with shared captured
+Local arrow calls now specialize into typed regions with shared captured
 cells, ordered argument snapshots and fresh parameter slots. Corpus 65 admits the
 two original curated arrow/capture sources and twenty additional paired cases;
 1781 pairs, 919 rejections and 34 curated gaps remain. L5 has this demonstrated
 capture slice; escaping/recursive closures and async still require further work.
+Numeric block-arrow bodies now support statements, loops and early returns through
+a scoped call region, including in primitive and async callers. This extends L5's
+local slice; function-value lifetime and general Promise semantics remain open.

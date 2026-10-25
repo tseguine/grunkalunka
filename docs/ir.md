@@ -534,3 +534,18 @@ the awaited value before following the continuation. Internal graph edges create
 no host jobs. Each invocation retains its cells and snapshots in a separate Wasm
 instance, with a stored state index and terminal completion marker. This is a
 conservative coroutine frame, without general Promise values or live-only spilling.
+
+### Scoped inline calls
+
+`InlineCall` owns a statement body and defines a Number result in its caller.
+Its child inherits initialized captured cells and argument snapshots, but has its
+own Number-return and loop-control scope. The verifier requires a return on every
+structural path, consumes those completions and then defines the call result.
+Child locals and snapshots do not escape the region. This remains true when the
+containing function returns a General value.
+
+Synchronous emission branches body returns to a result block, preserving the
+caller's suffix. The async splitter instead copies the returned Number to the
+call result and follows the caller continuation. Neither path turns a closure
+return into a return from the containing function. Calls retain original capture
+slots, fresh parameter/body locals and separately bounded generated expansion.

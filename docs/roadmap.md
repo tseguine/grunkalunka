@@ -483,8 +483,10 @@ General source arrays/objects, parsed-result transport, callbacks, exceptions an
 shared typed-region integration remain open; this is not general JSON lowering.
 
 
-Local non-escaping concise arrows now share captured variable cells through
+Local non-escaping arrows now share captured variable cells through
 specialized typed-region calls. The original arrow-call and mutable-capture gap
 sources execute in both engines. This begins closure support;
 escaping environments, recursive closures and general Promise interoperability remain open.
 See [the contract](compiler.md#local-arrow-calls-and-shared-captures).
+Block bodies add a scoped numeric return boundary, preserving caller suffixes,
+captured writes, locals and loop control. Escaping environments still require work.

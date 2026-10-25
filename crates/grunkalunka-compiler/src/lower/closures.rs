@@ -1,7 +1,10 @@
 //! Local, non-escaping closures are specialized into their caller. Captures name
 //! existing slots, so copying this metadata never snapshots captured values.
 use super::*;
-use oxc_ast::{AstKind, ast::ArrowFunctionExpression};
+use oxc_ast::{
+    AstKind,
+    ast::{ArrowFunctionBody, ArrowFunctionExpression},
+};
 use oxc_syntax::node::NodeId;
 
 #[derive(Clone)]
@@ -63,10 +66,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
     }
 
     pub(super) fn check_arrow(&self, arrow: &ArrowFunctionExpression<'_>) -> Result<(), String> {
-        if arrow.r#async || arrow.get_expression().is_none() {
+        if arrow.r#async {
             return Err(unsupported(
                 arrow,
-                "only synchronous expression-bodied local arrows are admitted",
+                "only synchronous local arrows are admitted",
             ));
         }
         if arrow.params.rest.is_some() || arrow.params.items.len() > 1000 {
@@ -142,7 +145,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         Ok(())
     }
 
-    pub(super) fn check_local_closure(&self, closure: &LocalClosure) -> Result<(), String> {
+    pub(super) fn check_local_closure(&mut self, closure: &LocalClosure) -> Result<(), String> {
         let arrow = self.arrow(closure.arrow);
         self.check_arrow(arrow)?;
         // Validate unused bodies too, without running effects or publishing their
@@ -164,12 +167,72 @@ impl<'s, 'a> Lowering<'s, 'a> {
             arguments.push(value);
         }
         check.bind_arrow_parameters(arrow, arguments, &mut region)?;
-        check.evaluate(
-            arrow.get_expression().expect("checked concise body"),
-            &mut region,
-            0,
-            evaluate::Mode::Number,
-        )?;
+        if let Some(expression) = arrow.get_expression() {
+            check.evaluate(expression, &mut region, 0, evaluate::Mode::Number)?;
+        } else {
+            check.arrow_block(arrow, 0)?;
+        }
+        // Source body costs are paid at its definition (including unused bodies),
+        // never once per generated specialization.
+        self.local_count = check.local_count;
+        self.statement_count = check.statement_count;
         Ok(())
+    }
+
+    pub(super) fn arrow_block(
+        &mut self,
+        arrow: &ArrowFunctionExpression<'_>,
+        parent_depth: usize,
+    ) -> Result<Region, String> {
+        // Statement lowering can reenter the expression cursor. Bound this native
+        // recursion separately from concise-arrow's explicit continuation stack.
+        if self.active_block_calls >= 8 {
+            return Err(unsupported(
+                arrow,
+                "at most 8 nested block-arrow calls are admitted",
+            ));
+        }
+        self.active_block_calls += 1;
+        let outer = (
+            self.return_type,
+            self.in_loop_body,
+            self.allow_await,
+            self.inline_depth,
+            self.statement_depth,
+        );
+        let bindings = self.bindings.len();
+        let closures = self.closures.len();
+        self.return_type = Type::Number;
+        self.in_loop_body = false;
+        self.allow_await = false;
+        self.inline_depth = parent_depth;
+        self.statement_depth = 0;
+        let lowered = (|| {
+            let ArrowFunctionBody::FunctionBody(body) = &arrow.body else {
+                unreachable!("block arrow body")
+            };
+            let mut region = self.region(body.as_ref());
+            for directive in &body.directives {
+                self.charge_statement(directive)?;
+            }
+            if self.sequence(&body.statements, &mut region, 0)? != Completion::RETURN {
+                return Err(unsupported(
+                    arrow,
+                    "block arrows must return a Number on every structural path",
+                ));
+            }
+            Ok(region)
+        })();
+        (
+            self.return_type,
+            self.in_loop_body,
+            self.allow_await,
+            self.inline_depth,
+            self.statement_depth,
+        ) = outer;
+        self.bindings.truncate(bindings);
+        self.closures.truncate(closures);
+        self.active_block_calls -= 1;
+        lowered
     }
 }

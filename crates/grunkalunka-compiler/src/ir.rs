@@ -98,6 +98,10 @@ pub(crate) enum Nullish {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    InlineCall {
+        result: ValueId,
+        body: Region,
+    },
     Await {
         result: ValueId,
         input: ValueId,
@@ -388,6 +392,21 @@ impl Verifier<'_> {
             }
             let mut next = Completion::NORMAL;
             match &operation.kind {
+                Op::InlineCall { result, body } => {
+                    let outer_return = self.return_type;
+                    self.return_type = Type::Number;
+                    let checked = self.region(
+                        body,
+                        Contract::Function,
+                        &visible,
+                        &initialized,
+                        ancestors,
+                        false,
+                    );
+                    self.return_type = outer_return;
+                    checked?;
+                    self.define(*result, Type::Number, &mut visible, span)?;
+                }
                 Op::Await { result, input, .. } => {
                     self.value(*input, Type::Number, &visible, span)?;
                     self.define(*result, Type::Number, &mut visible, span)?;
@@ -2948,6 +2967,35 @@ mod primitive_loose_tests {
                 _ => f.body.operations.swap(1, 2),
             };
             assert!(verify_module(&m).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod inline_call_tests {
+    use super::*;
+    #[test]
+    fn inline_returns_are_numeric_complete_and_lexically_scoped() {
+        let source = "export function run(a,b){const f=()=>{return a;};return f();}";
+        for change in 0..5 {
+            let mut module = crate::lower_source(source, false).unwrap();
+            verify_module(&module).unwrap();
+            let function = &mut module.functions[0];
+            let Op::InlineCall { result, body } = &mut function.body.operations[0].kind else {
+                panic!("inline call")
+            };
+            let result = *result;
+            let Exit::Return(child) = body.exit else {
+                panic!("body return")
+            };
+            match change {
+                0 => body.exit = Exit::Fallthrough,
+                1 => body.exit = Exit::Return(result),
+                2 => body.exit = Exit::Break,
+                3 => function.values[result.0] = Type::General,
+                _ => function.body.exit = Exit::Return(child),
+            }
+            assert!(verify_module(&module).is_err(), "mutation {change}");
         }
     }
 }

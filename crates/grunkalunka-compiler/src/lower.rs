@@ -221,6 +221,10 @@ pub(super) struct Lowering<'s, 'a> {
     pub closures: Vec<closures::LocalClosure>,
     pub closure_expansions: usize,
     pub active_local_calls: usize,
+    pub active_block_calls: usize,
+    pub source_charging: bool,
+    pub inline_depth: usize,
+    pub statement_depth: usize,
     pub allow_await: bool,
 }
 
@@ -396,6 +400,9 @@ impl Lowering<'_, '_> {
     }
 
     pub(super) fn charge_statement(&mut self, statement: &impl GetSpan) -> Result<(), String> {
+        if !self.source_charging {
+            return Ok(());
+        }
         if self.statement_count >= 256 {
             return Err(unsupported(
                 statement,
@@ -550,8 +557,11 @@ impl Lowering<'_, '_> {
             ));
         }
         for local in &declaration.declarations {
-            if self.local_count >= 128 {
+            if self.source_charging && self.local_count >= 128 {
                 return Err(unsupported(local, "at most 128 source locals are admitted"));
+            }
+            if self.source_charging {
+                self.local_count += 1;
             }
             if local.definite {
                 return Err(unsupported(
@@ -569,7 +579,10 @@ impl Lowering<'_, '_> {
                     .as_ref()
                     .and_then(|initializer| self.closure_target(initializer, 0))
             {
-                self.check_local_closure(&closure)?;
+                // An alias reuses an already validated source body and its cost.
+                if closure.symbol.is_none() {
+                    self.check_local_closure(&closure)?;
+                }
                 closure.symbol = Some(
                     identifier
                         .symbol_id
@@ -577,7 +590,6 @@ impl Lowering<'_, '_> {
                         .ok_or("missing closure binding")?,
                 );
                 self.closures.push(closure);
-                self.local_count += 1;
                 continue;
             }
             let (ty, value) = if let Some(initializer) = local.init.as_ref() {
@@ -624,7 +636,6 @@ impl Lowering<'_, '_> {
                 parameter: false,
                 span: local.span(),
             });
-            self.local_count += 1;
             Self::push(region, local, Op::Initialize { slot, value });
             self.bindings.push(NumericBinding {
                 symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
@@ -654,6 +665,24 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
+        let outer = std::mem::replace(&mut self.statement_depth, depth);
+        let result = self.statement_inner(statement, region, depth);
+        self.statement_depth = outer;
+        result
+    }
+
+    fn statement_inner(
+        &mut self,
+        statement: &Statement<'_>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<Completion, String> {
+        if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
+            return Err(unsupported(
+                statement,
+                "block-arrow expansion exceeds 128 nested regions",
+            ));
+        }
         if depth > 64 {
             return Err(unsupported(statement, "statement nesting exceeds 64"));
         }

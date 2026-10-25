@@ -72,6 +72,9 @@ Parentheses and erased operand wrappers retain depth charges. Numeric blocks,
 including loop conditions and updates. Early returns and unlabelled break/continue
 preserve their existing structured semantics. Previously admitted local arrow
 calls remain available.
+Local block-arrow calls run synchronously with a separate return boundary. Await
+can surround their numeric result; returning from the closure continues the caller,
+including when the body returns from inside a loop. Async arrows remain excluded.
 
 Source helper calls, async arrows, arbitrary Promise/thenable values, objects, callbacks,
 try/catch/finally and Promise interoperability remain open. Rejected Number reasons

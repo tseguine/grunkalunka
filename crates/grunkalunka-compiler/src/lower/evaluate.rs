@@ -140,7 +140,7 @@ enum Work<'e, 'a> {
         arguments: Vec<ValueId>,
         depth: usize,
     },
-    RestoreBindings(Vec<NumericBinding>),
+    RestoreBindings(Vec<NumericBinding>, bool),
     Sequence {
         remaining: &'e [Expression<'a>],
         last: &'e Expression<'a>,
@@ -294,8 +294,9 @@ impl Lowering<'_, '_> {
                     );
                     values.push(Value::Number(result));
                 }
-                Work::RestoreBindings(bindings) => {
+                Work::RestoreBindings(bindings, source_charging) => {
                     self.bindings = bindings;
+                    self.source_charging = source_charging;
                     self.active_local_calls -= 1;
                 }
                 Work::LocalCall {
@@ -334,12 +335,20 @@ impl Lowering<'_, '_> {
                         let arrow = self.arrow(closure.arrow);
                         let previous = std::mem::replace(&mut self.bindings, closure.captures);
                         self.bind_arrow_parameters(arrow, arguments, regions.current())?;
-                        work.push(Work::RestoreBindings(previous));
-                        work.push(Work::Eval(
-                            arrow.get_expression().expect("checked concise arrow"),
-                            0,
-                            Mode::Number,
-                        ));
+                        let charging = std::mem::replace(&mut self.source_charging, false);
+                        work.push(Work::RestoreBindings(previous, charging));
+                        if let Some(expression) = arrow.get_expression() {
+                            work.push(Work::Eval(expression, 0, Mode::Number));
+                        } else {
+                            let depth = self.inline_depth
+                                + self.statement_depth
+                                + regions.children.len()
+                                + 1;
+                            let body = self.arrow_block(arrow, depth)?;
+                            let result = self.value(Type::Number);
+                            Self::push(regions.current(), node, Op::InlineCall { result, body });
+                            values.push(Value::Number(result));
+                        }
                     }
                 }
                 Work::Forget => {
@@ -892,6 +901,14 @@ impl Lowering<'_, '_> {
                     }
                 }
                 Work::Eval(node, depth, mode) => {
+                    if self.active_block_calls != 0
+                        && self.inline_depth + self.statement_depth + regions.children.len() > 128
+                    {
+                        return Err(unsupported(
+                            node,
+                            "block-arrow expansion exceeds 128 nested regions",
+                        ));
+                    }
                     if self.active_local_calls != 0 && regions.children.len() > 128 {
                         return Err(unsupported(
                             node,
@@ -921,6 +938,9 @@ impl Lowering<'_, '_> {
                     {
                         let arrow = self.arrow(closure.arrow);
                         self.check_arrow(arrow)?;
+                        if closure.symbol.is_none() {
+                            self.check_local_closure(&closure)?;
+                        }
                         if call.optional || call.type_arguments.is_some() {
                             return Err(unsupported(
                                 node,

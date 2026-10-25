@@ -1,5 +1,13 @@
 # External tests and benchmarks
 
+Local block-arrow checks live in `grunkalunka-runtime/tests/local-arrows.rs`:
+Node and Wasmtime compare shared captures, fresh locals, early/loop returns,
+caller continuation and argument order with native JS. Additional checks cover
+the primitive return tag, TypeScript metadata, unused-body/source-budget charging,
+aliases, repeated specialization and bounded nesting on a 2 MiB thread stack.
+`async-suspension.rs` checks awaited block-call results through the same async
+job-order oracle. The numeric corpus's 919 rejection sources remain unchanged.
+
 The normal check command also builds the owned JSON guest offline for
 `wasm32-unknown-unknown` and checks the same module in Node and Wasmtime. Install
 that Rust target during setup; verification does not download it. Replay this

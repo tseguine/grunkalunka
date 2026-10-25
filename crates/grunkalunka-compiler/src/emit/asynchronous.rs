@@ -49,6 +49,7 @@ struct State<'a> {
 struct Splitter<'a> {
     states: Vec<State<'a>>,
     awaits: usize,
+    return_to: Option<(ValueId, usize)>,
 }
 
 impl<'a> Splitter<'a> {
@@ -85,7 +86,14 @@ impl<'a> Splitter<'a> {
     ) -> Result<usize, String> {
         let mut next = match region.exit {
             Exit::Fallthrough => normal,
-            Exit::Return(value) => self.terminal(End::Return(value))?,
+            Exit::Return(input) => self.terminal(match self.return_to {
+                Some((result, next)) => End::Copy {
+                    input,
+                    result,
+                    next,
+                },
+                None => End::Return(input),
+            })?,
             Exit::Break => loops.ok_or("async break lacks a loop target")?.exit,
             Exit::Continue => loops.ok_or("async continue lacks a loop target")?.next,
             Exit::Yield(input) => {
@@ -107,6 +115,12 @@ impl<'a> Splitter<'a> {
         while end > 0 {
             let operation = &region.operations[end - 1];
             next = match &operation.kind {
+                Op::InlineCall { result, body } => {
+                    let outer = self.return_to.replace((*result, next));
+                    let entry = self.region(body, next, None, None);
+                    self.return_to = outer;
+                    entry?
+                }
                 Op::Await {
                     result,
                     input,
@@ -217,6 +231,7 @@ fn atomic(op: &Op) -> bool {
     !matches!(
         op,
         Op::Await { .. }
+            | Op::InlineCall { .. }
             | Op::Block(_)
             | Op::If { .. }
             | Op::While { .. }
@@ -261,6 +276,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         value_offsets: offsets[function.slots.len()..].to_vec(),
         output: String::new(),
         loop_label: None,
+        inline_return: None,
         needs_remainder: false,
     };
     let mut output = String::from("(module\n");

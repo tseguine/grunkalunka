@@ -76,6 +76,9 @@ fn suspended_control_flow_matches_native_results_and_job_order() {
         "let x=a;for(let i=await 0;i<2;i++){x+=await b;}return x;",
         "do{return await a;}while(await b);",
         "if((await a)?await b:await a)return a;return b;",
+        "const f=()=>{if(a)return b;return a;};return (await f())+a;",
+        "const f=x=>{const g=()=>{if(x)return x;return b;};return g()+1;};let x=await a;return f(x)+f(b);",
+        "const f=()=>{for(let i=0;i<3;i++){if(i===1)return a;}return b;};return (await f())+b;",
     ];
     compare_promises(
         &bodies,

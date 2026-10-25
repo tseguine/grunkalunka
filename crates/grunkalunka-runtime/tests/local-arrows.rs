@@ -7,7 +7,7 @@ use std::{
 
 #[test]
 fn local_arrows_share_cells_and_preserve_call_semantics_in_both_engines() {
-    let cases: [(&str, f64); 18] = [
+    let cases: &[(&str, f64)] = &[
         ("const read=()=>a; a=b; return read();", 2.0),
         (
             "let x=a; const read=()=>x; const add=()=>x+=b; add(); return read();",
@@ -50,9 +50,65 @@ fn local_arrows_share_cells_and_preserve_call_semantics_in_both_engines() {
             "let x=a; const read=()=>+x; const set=()=>+(x=true); set(); return read();",
             1.0,
         ),
+        ("const f=()=>{if(a)return b;return a;};return f()+a;", 6.0),
+        ("const f=()=>{a++;return b;};return f()+a;", 7.0),
+        (
+            "const f=()=>{for(let i=0;i<3;i++){if(i===1)return a;}return b;};return f()+b;",
+            6.0,
+        ),
+        (
+            "const f=x=>{const read=()=>x;x+=b;return read();};return f(a)+f(b);",
+            10.0,
+        ),
+        (
+            "const f=x=>{const g=y=>{if(y)return x+y;return a;};return g(b);};return f(a)+f(b);",
+            10.0,
+        ),
+        (
+            "const f=()=>{let x=0;for(let i=0;i<4;i++){if(i===1)continue;if(i===3)break;x+=i;}return x;};return f()+a;",
+            6.0,
+        ),
+        (
+            "const f=()=>{let i=0;while(i<2){a+=b;i++;}return a;};return f()+a;",
+            16.0,
+        ),
+        (
+            "const f=x=>{let y=x;{let x=b;y+=x;}return y;};return f(a)+a;",
+            10.0,
+        ),
+        (
+            "const f=x=>{const g=()=>{return x+1;};return g()+1;};return f(a)+b;",
+            8.0,
+        ),
+        ("const f=()=>{a=b;return a;};return a;", 4.0),
+        ("const f=()=>{a=b;return a;};return f()+a;", 4.0),
+        ("return (x=>{if(x)return x+b;return a;})(a)+a;", 10.0),
+        ("const f=()=>{'use strict';return a;};return f()+b;", 6.0),
+        (
+            "let x=0;const f=()=>{for(let i=0;i<2;i++){if(i)break;}return b;};for(let j=0;j<2;j++){x+=f();}return x;",
+            4.0,
+        ),
+        ("const f=()=>{let x=0;x++;return x;};return f()+f()+a;", 6.0),
+        (
+            "const f=x=>{if(x)return a;return b;};let x=f(a);a=b;return x+f(0);",
+            6.0,
+        ),
+        ("const f=()=>{return -0;};return f();", -0.0),
+        (
+            "let x=a;const f=()=>{x=true;return +x;};f();return +x;",
+            1.0,
+        ),
+        (
+            "const pack=(x,y)=>{return x*10+y+a;};return pack(a++,a++);",
+            51.0,
+        ),
+        (
+            "let x=a;const f=()=>{x+=b;return x;};const g=f;g();return f();",
+            8.0,
+        ),
     ];
     let mut script = String::from("const assert=require('node:assert/strict');\n");
-    for (body, expected) in cases {
+    for &(body, expected) in cases {
         for typescript in [false, true] {
             let parameters = if typescript {
                 "a:number,b:number"
@@ -100,7 +156,9 @@ fn unsupported_closure_lifetimes_and_call_shapes_remain_explicit() {
         "const f=()=>a; return f;",
         "let f=()=>a; return f();",
         "const f=async()=>a; return f();",
-        "const f=()=>{return a;}; return f();",
+        "const f=()=>{if(a)return b;}; return f();",
+        "const f=()=>{}; return a;",
+        "const f=()=>{return true;}; return a;",
         "const f=(x=1)=>x; return f();",
         "const f=(...x)=>a; return f();",
         "const f=x=>x; return f();",
@@ -156,5 +214,132 @@ fn numeric_local_closure_results_keep_the_primitive_host_tag() {
     assert!(matches!(host.run(4.0,2.0).unwrap(), Value::Number(value) if value==2.0));
     assert!(
         matches!(host.run(4.0,-0.0).unwrap(), Value::Number(value) if value.to_bits()==(-0.0f64).to_bits())
+    );
+    let source = "export function run(a,b){const f=()=>{if(a)return b;return a;};return f()+a;}";
+    let artifact = compile_value(source, false).unwrap();
+    let mut host = ValueInstance::new(&artifact.wasm).unwrap();
+    assert!(matches!(host.run(4.0, 2.0).unwrap(), Value::Number(6.0)));
+    assert!(
+        compile_value(
+            "export function run(a,b){const f=()=>{return true;};return f();}",
+            false
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn block_arrow_source_costs_are_independent_of_specialization() {
+    let locals = (0..20).map(|i| format!("let x{i}=a;")).collect::<String>();
+    let calls = ["f()"; 8].join(",");
+    let source = format!(
+        "export function run(a,b){{const f=()=>{{{locals}return x19;}};return ({calls});}}"
+    );
+    let artifact = compile(&source, false).unwrap();
+    assert_eq!(
+        NumericInstance::new(&artifact.wasm)
+            .unwrap()
+            .run(4.0, 2.0)
+            .unwrap(),
+        4.0
+    );
+    for (count, admitted) in [(126, true), (127, false)] {
+        let locals = (0..count)
+            .map(|i| format!("let x{i}=a;"))
+            .collect::<String>();
+        let source = format!(
+            "export function run(a,b){{let outer=a;const f=()=>{{{locals}return a;}};return f();}}"
+        );
+        assert_eq!(compile(&source, false).is_ok(), admitted);
+    }
+    for called in [false, true] {
+        for (count, admitted) in [(253, true), (254, false)] {
+            let source = format!(
+                "export function run(a,b){{const f=()=>{{{}return a;}};return {};}}",
+                "a=a;".repeat(count),
+                if called { "f()" } else { "a" }
+            );
+            assert_eq!(compile(&source, false).is_ok(), admitted, "{source}");
+        }
+    }
+    let locals = (0..126).map(|i| format!("let x{i}=a;")).collect::<String>();
+    let source = format!(
+        "export function run(a,b){{const f=()=>{{{locals}return a;}};const alias=f;return alias();}}"
+    );
+    compile(&source, false).expect("alias must not charge the same body twice");
+    for (count, admitted) in [(252, true), (253, false)] {
+        let source = format!(
+            "export function run(a,b){{const f=()=>{{{}return a;}};const alias=f;return alias();}}",
+            "a=a;".repeat(count)
+        );
+        assert_eq!(compile(&source, false).is_ok(), admitted);
+    }
+    let source = "export function run(a,b){const f=(x:never):string=>{let y:Missing=x;return y+a;};return f(b);}";
+    let artifact = compile(source, true).unwrap();
+    assert_eq!(
+        NumericInstance::new(&artifact.wasm)
+            .unwrap()
+            .run(4.0, 2.0)
+            .unwrap(),
+        6.0
+    );
+}
+
+#[test]
+fn nested_block_calls_have_an_observed_stack_bound() {
+    for (depth, admitted) in [(8, true), (9, false)] {
+        let mut source = String::from("export function run(a,b){");
+        for i in 0..depth {
+            source.push_str(&format!(
+                "const f{i}=()=>{{{}return {};{}}};",
+                "{".repeat(10),
+                if i == 0 {
+                    "a".into()
+                } else {
+                    format!("f{}()", i - 1)
+                },
+                "}".repeat(10)
+            ));
+        }
+        source.push_str(&format!("return f{}();}}", depth - 1));
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted);
+        if admitted {
+            let artifact = result.unwrap();
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        } else {
+            assert!(result.err().unwrap().contains("8 nested block-arrow calls"));
+        }
+    }
+    let mut source = String::from("export function run(a,b){");
+    for i in 0..8 {
+        source.push_str(&format!(
+            "const f{i}=()=>{{{}return {};{}}};",
+            "{".repeat(20),
+            if i == 0 {
+                "a".into()
+            } else {
+                format!("f{}()", i - 1)
+            },
+            "}".repeat(20)
+        ));
+    }
+    source.push_str("return f7();}");
+    assert!(
+        compile(&source, false)
+            .err()
+            .unwrap()
+            .contains("128 nested regions")
     );
 }

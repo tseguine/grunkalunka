@@ -58,6 +58,7 @@ struct Emitter<'a> {
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
     loop_label: Option<usize>,
+    inline_return: Option<usize>,
     needs_remainder: bool,
 }
 
@@ -89,6 +90,14 @@ impl Emitter<'_> {
     fn operations(&mut self, operations: &[ir::Operation]) {
         for operation in operations {
             match &operation.kind {
+                Op::InlineCall { result, body } => {
+                    let outer = self.inline_return.replace(body.id.0);
+                    writeln!(self.output, "block $call{} (result f64)", body.id.0).unwrap();
+                    self.region(body);
+                    self.output.push_str("unreachable\nend\n");
+                    self.inline_return = outer;
+                    self.set(*result);
+                }
                 Op::Await { .. } => unreachable!("await uses the async emitter"),
                 Op::Nullish { result, value } => {
                     let tag = match value {
@@ -407,7 +416,11 @@ impl Emitter<'_> {
             Exit::Yield(value) => self.get(value),
             Exit::Return(value) => {
                 self.get(value);
-                self.output.push_str("return\n");
+                if let Some(label) = self.inline_return {
+                    writeln!(self.output, "br $call{label}").unwrap();
+                } else {
+                    self.output.push_str("return\n");
+                }
             }
         }
     }
@@ -478,6 +491,7 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             slot_offsets,
             value_offsets,
             loop_label: None,
+            inline_return: None,
             needs_remainder: false,
             output: header,
         };
@@ -517,6 +531,7 @@ fn region_has_await(region: &Region) -> bool {
         .iter()
         .any(|operation| match &operation.kind {
             Op::Await { .. } => true,
+            Op::InlineCall { body, .. } => region_has_await(body),
             Op::Block(child) => region_has_await(child),
             Op::If {
                 consequent,
