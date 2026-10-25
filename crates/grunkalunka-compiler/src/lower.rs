@@ -87,7 +87,7 @@ fn math_unary(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Una
 
 // One wrapper at a time keeps each erased source node in the nesting budget.
 // These type-only forms do not convert or validate their runtime operand.
-fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression<'a>> {
+pub(super) fn erased_inner<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e Expression<'a>> {
     match expression {
         Expression::TSAsExpression(wrapper) => Some(&wrapper.expression),
         Expression::TSTypeAssertion(wrapper) => Some(&wrapper.expression),

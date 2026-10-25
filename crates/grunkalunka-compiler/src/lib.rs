@@ -3,6 +3,7 @@
 mod emit;
 #[cfg(test)]
 mod evaluator_tests;
+mod heap;
 mod ir;
 mod lower;
 
@@ -321,6 +322,11 @@ pub fn compile_value(source: &str, typescript: bool) -> Result<Artifact, String>
     let wat = emit::emit_with_entry_type(&module, ir::Type::General)?;
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })
+}
+
+/// Compile the experimental literal-only heap-return profile.
+pub fn compile_heap_value(source: &str, typescript: bool) -> Result<Artifact, String> {
+    heap::compile(source, typescript)
 }
 
 #[cfg(test)]
