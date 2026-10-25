@@ -80,8 +80,17 @@ JSON data transport, not compiler admission or a JavaScript heap. See
 [ADR 0007](adr/0007-bounded-json-guest-transport.md) for the protocol, quotas,
 host obligations, status codes and alternatives.
 
-Remaining units include source-generated runtime composition and compiler
-admission for strings, arrays, objects and the builtins.
+`grunkalunka-wasm-link` can now combine that guest with generated core-Wasm
+functions into one import-free module. It resolves internal runtime calls and
+remaps function/type/data indices; passive UTF16 literals copy into checked guest
+buffers. `node scripts/check-json-composition.mjs` checks the same composed bytes
+in both engines, including the retained guest oracle. These generated fixtures
+are handwritten Wasm, not source-lowered JS/TS. See
+[ADR 0008](adr/0008-strict-core-wasm-composition.md) for the strict profile,
+metadata policy, quotas and memory-sharing trust boundary.
+
+Remaining units include compiler-generated runtime calls and admission for
+strings, arrays, objects and the builtins.
 Existing truthiness, equality, conversion and
 addition operations need heap-kind semantics before admission. Reviver/replacer
 callbacks, `space`, `toJSON`, property access, aliases, cycles, exceptions and

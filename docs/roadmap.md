@@ -449,3 +449,8 @@ input/output, owned root IDs and explicit release. The same artifact is checked
 in Node and Wasmtime. Compiler source admission and a JavaScript heap remain
 separate work; no source-lowering gap closes here. See
 [the boundary](json.md) and [ADR 0007](adr/0007-bounded-json-guest-transport.md).
+
+The strict Wasm composer now connects generated functions and passive literals to
+the actual guest in one import-free module, verified in both engines. This proves
+the maintained composition boundary; compiler-generated calls and heap-kind source
+semantics remain next. See [ADR 0008](adr/0008-strict-core-wasm-composition.md).

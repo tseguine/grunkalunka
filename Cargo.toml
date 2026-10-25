@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/grunkalunka-compiler", "crates/grunkalunka-runtime", "crates/grunkalunka-cli", "crates/grunkalunka-markdown", "crates/grunkalunka-json", "crates/grunkalunka-json-guest", "spikes/003-lossless-string-literals"]
+members = ["crates/grunkalunka-compiler", "crates/grunkalunka-runtime", "crates/grunkalunka-cli", "crates/grunkalunka-markdown", "crates/grunkalunka-json", "crates/grunkalunka-json-guest", "crates/grunkalunka-wasm-link", "spikes/003-lossless-string-literals"]
 exclude = ["spikes/001-frontend-semantics"]
 resolver = "3"
 
@@ -11,6 +11,8 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+wasm-encoder = { version = "=0.262.0", default-features = false, features = ["std", "wasmparser"] }
+wasmparser = { version = "=0.262.0", default-features = false, features = ["std", "validate", "features", "simd"] }
 ryu-js = { version = "=1.0.3", default-features = false }
 pulldown-cmark = { version = "=0.13.5", default-features = false }
 oxc_allocator = "=0.155.0"

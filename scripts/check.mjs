@@ -26,7 +26,7 @@ for (const spike of ['001-frontend-semantics']) {
 run('cargo', ['fmt', '--all', '--check']);
 run('cargo', ['clippy', '--workspace', '--all-targets', '--locked', '--offline', '-j', '4', '--', '-D', 'warnings']);
 run('cargo', ['test', '--workspace', '--locked', '--offline', '-j', '4']);
-run(process.execPath, ['scripts/check-json-guest.mjs']);
+run(process.execPath, ['scripts/check-json-composition.mjs']);
 run('cargo', ['run', '--locked', '--offline', '--manifest-path', 'spikes/001-frontend-semantics/Cargo.toml']);
 run(process.execPath, ['spikes/001-frontend-semantics/oracle.mjs']);
 run(process.execPath, ['scripts/poc.mjs']);

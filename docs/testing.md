@@ -9,6 +9,14 @@ artifact and hash receipt are retained in the selected Cargo target directory's
 quotas, stale IDs, release, repeats and separate instances. This does not execute
 source-lowered `JSON.parse`/`JSON.stringify`; those remain unadmitted.
 
+`node scripts/check-json-composition.mjs` first runs that guest check, then links
+the actual guest with generated Wasm fixtures and executes the same combined
+artifact in both engines. It covers function/type/data index remapping, passive
+literals, internal helpers, numeric and primitive-pair calls, repeats and separate
+instances. Retained runtime exports also pass the original transport oracle.
+The normal check calls this combined runner once. Evidence is in the selected
+Cargo target directory's `wasm-composition/`; fixture Wasm is not JS source lowering.
+
 Compiler IR tests exercise fixed Number/Predicate cells independently of source
 admission: initialization/load/store types, lexical visibility, initialization,
 mutability and Number-only entry/helper parameters. A mixed-order scalar-cell
