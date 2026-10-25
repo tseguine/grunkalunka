@@ -10,6 +10,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 // Legacy slash alternatives were checked against their bundled license files.
 const choices = new Map([
   ['MIT', 'MIT'], ['MIT OR Apache-2.0', 'MIT'], ['Apache-2.0 OR MIT', 'MIT'],
+  ['Apache-2.0 OR BSL-1.0', 'Apache-2.0'], // ryu-js's bundled Apache license
   ['MIT/Apache-2.0', 'MIT'], ['Apache-2.0/MIT', 'MIT'], ['Apache-2.0 / MIT', 'MIT'],
   ['Apache-2.0 WITH LLVM-exception', 'Apache-2.0 WITH LLVM-exception'],
   ['Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT', 'MIT'],

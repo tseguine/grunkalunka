@@ -11,6 +11,7 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+ryu-js = { version = "=1.0.3", default-features = false }
 pulldown-cmark = { version = "=0.13.5", default-features = false }
 oxc_allocator = "=0.155.0"
 oxc_ast = "=0.155.0"

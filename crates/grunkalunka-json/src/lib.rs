@@ -1,7 +1,10 @@
-//! Bounded JSON parsing with lossless ECMAScript UTF-16 strings.
+//! Bounded JSON parsing and compact serialization with lossless UTF-16 strings.
 //!
 //! This is an owned data tree, not a JavaScript heap or a source-lowering API.
 //! See `docs/json.md` for the resource accounting and integration boundary.
+
+mod stringify;
+pub use stringify::{StringifyError, StringifyLimit, StringifyLimits, stringify};
 
 /// Parsed JSON data. Strings and keys retain every UTF-16 code unit.
 ///

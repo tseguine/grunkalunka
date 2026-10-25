@@ -83,7 +83,8 @@ Sources: [Node subprocess API](https://nodejs.org/api/child_process.html) and
 
 The immediate lowering priority is now JSON-compatible values plus `JSON.parse`
 and `JSON.stringify`. The [JSON implementation notes](json.md) track the verified
-native parser and the remaining serializer, guest runtime and source-lowering work.
+native parser/compact serializer and remaining builtin, guest runtime and
+source-lowering work.
 The compiler still admits only the four existing immediate General kinds; a native
 data parser does not close a source-lowering gap.
 
