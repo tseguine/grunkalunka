@@ -350,9 +350,9 @@ pub fn compile_heap_value(source: &str, typescript: bool) -> Result<Artifact, St
     heap::compile(source, typescript)
 }
 
-/// Compile a numeric async entry into a per-invocation start/resume protocol.
+/// Compile a primitive-returning async entry into a tagged start/resume protocol.
 pub fn compile_async(source: &str, typescript: bool) -> Result<Artifact, String> {
-    let module = lower_source_profile(source, typescript, ir::Type::Number, true)?;
+    let module = lower_source_profile(source, typescript, ir::Type::General, true)?;
     let wat = emit::emit_async(&module)?;
     let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
     Ok(Artifact { wat, wasm })

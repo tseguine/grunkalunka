@@ -1,7 +1,8 @@
-# Experimental numeric async profile
+# Experimental primitive async profile
 
 `grunkalunka_compiler::compile_async(source, typescript)` accepts one exported
-`async function run(a,b)` with Number inputs, Number results and up to 32 await
+`async function run(a,b)` with Number inputs and undefined/null/Boolean/Number
+fulfillment values or rejection reasons, and up to 32 await
 sites across its structured regions. It preserves the original AST, semantic
 binding identities and shared source limits. TypeScript annotations/wrappers do
 not coerce values. Existing numeric, primitive and heap entry points keep their
@@ -19,7 +20,13 @@ not deletion of a numeric-profile gap or general Promise support.
 
 ## Suspension and host jobs
 
-The compiler lowers await to a Number operation in the typed IR. The async emitter
+The compiler lowers await to a Number or General operation in the typed IR.
+Known Number operands retain scalar specialization; other represented primitive
+values retain their tag and payload across suspension. Await does not coerce a
+value: `await true` stays Boolean, `(await true) === 1` is false and `+(await true)`
+is 1 through the existing arithmetic conversion. Storage planning and lowering
+share operand inspection, including unshadowed Promise intrinsics and wrappers.
+The async emitter
 partitions the verified regions into continuations and stores source cells and evaluated
 snapshots in private mutable Wasm globals. One instance represents one invocation,
 preserving values across separate jobs. In `a + await Promise.resolve(a=b)`, the
@@ -38,13 +45,27 @@ This follows the frame/state-index approach described by
 It does not depend on LLVM. The frame conservatively retains every typed cell and
 snapshot; spilling only values live across suspension is a later optimization.
 
-The import-free module exports `start(f64,f64)` and `resume(f64)`, each returning
-`(i32,f64)`: status 0 is fulfillment; status 1 suspends on a fulfilled Number;
-status 2 suspends on a rejected Number. The synchronous prefix runs in `start`.
+The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
+`(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
+status 1 suspends on a fulfilled primitive; status 2 suspends on a rejected
+primitive. The synchronous prefix runs in `start`.
 For statuses 1/2 the host must enqueue one FIFO microtask, including when the
 operand is already settled. That job resumes status 1 or rejects the outer Promise
 for status 2. A rejected await never executes following source operations.
 Repeated start and resume after completion/rejection trap.
+
+| Tag | Kind | Payload |
+| --- | --- | --- |
+| 0 | undefined | positive zero |
+| 1 | null | positive zero |
+| 2 | Boolean | positive zero or 1 |
+| 3 | Number | binary64, including signed zero, NaN and infinities |
+
+Resume receives the validated tag/payload pair unchanged. Both host adapters
+reject noncanonical primitive encodings; Rust shares the primitive decoder with
+`ValueInstance`. `AsyncState::Fulfilled(Value)` and `Rejected(Value)` expose the
+same four runtime kinds. This replaces the earlier Number-only experimental async
+ABI; rebuild compiler, adapters and generated modules together.
 
 The maintained [JS adapter](../crates/grunkalunka-runtime/js/async.mjs) supplies
 real Promises and `queueMicrotask`, creating a fresh instance per invocation.
@@ -64,8 +85,8 @@ are cooperating generated-module adapters, not arbitrary-module execution servic
 
 ## Admission and remaining work
 
-Await operands can be Numbers or direct one-argument calls to unshadowed
-`Promise.resolve`/`Promise.reject` over a Number expression. Implicit await uses
+Await operands can be the four represented primitive kinds or direct one-argument
+calls to unshadowed `Promise.resolve`/`Promise.reject` over such expressions. Implicit await uses
 intrinsic Promise behavior even if a local variable is named `Promise`.
 Parentheses and erased operand wrappers retain depth charges. Numeric blocks,
 `if`, conditional/logical expressions, `while`, `for` and `do...while` can suspend,
@@ -76,8 +97,10 @@ Local block-arrow calls run synchronously with a separate return boundary. Await
 can surround their numeric result; returning from the closure continues the caller,
 including when the body returns from inside a loop. Async arrows remain excluded.
 
-Source helper calls, async arrows, arbitrary Promise/thenable values, objects, callbacks,
-try/catch/finally and Promise interoperability remain open. Rejected Number reasons
+Source helper calls, async arrows, arbitrary Promise/thenable values, Strings,
+Symbols, BigInts, objects, callbacks, try/catch/finally and Promise interoperability
+remain open. Local arrows retain their Number argument/result contract and existing
+operator admission limits still apply. Rejected primitive reasons
 propagate uncaught; host resource/protocol errors are not mapped to JS exceptions.
 The per-invocation globals are provisional activation storage, not a final shared
 heap or escaping closure design.
@@ -93,7 +116,9 @@ conditional Number/Predicate/General yields, short-circuiting, loop conditions a
 updates, nearest-loop control, early exits, lexical re-entry and the 32-await boundary.
 Tests separately check 33-site rejection, intrinsic shadows, unsupported calls,
 typed wrappers, malformed statuses, terminal traps, graph size, fuel and the 32/33
-runtime-job boundary using one repeated await site.
+runtime-job boundary using one repeated await site. Primitive cases check retained
+kinds, strict/loose equality, numeric conversion, typed metadata, shared cells and
+canonical-tag rejection at both initialization and continuation boundaries.
 
 The state machine follows [ECMAScript Await](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#await).
 Finite tests establish this slice; they do not establish full async conformance.

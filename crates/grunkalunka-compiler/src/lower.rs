@@ -16,6 +16,7 @@ use crate::ir::{
 };
 use crate::{is_type_declaration, unsupported};
 
+mod awaited;
 mod closures;
 mod evaluate;
 mod storage;

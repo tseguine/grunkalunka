@@ -62,7 +62,7 @@ impl Regions<'_> {
 enum Work<'e, 'a> {
     Eval(&'e Expression<'a>, usize, Mode),
     Forget,
-    Await(&'e Expression<'a>, bool),
+    Await(&'e Expression<'a>, bool, Type),
     Pack(&'e Expression<'a>),
     Convert(&'e Expression<'a>),
     Truthy(&'e Expression<'a>),
@@ -280,9 +280,9 @@ impl Lowering<'_, '_> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
-                Work::Await(node, rejected) => {
-                    let input = values.pop().expect("await operand").number();
-                    let result = self.value(Type::Number);
+                Work::Await(node, rejected, ty) => {
+                    let input = values.pop().expect("await operand").id();
+                    let result = self.value(ty);
                     Self::push(
                         regions.current(),
                         node,
@@ -292,7 +292,11 @@ impl Lowering<'_, '_> {
                             rejected,
                         },
                     );
-                    values.push(Value::Number(result));
+                    values.push(if ty == Type::General {
+                        Value::General(result)
+                    } else {
+                        Value::Number(result)
+                    });
                 }
                 Work::RestoreBindings(bindings, source_charging) => {
                     self.bindings = bindings;
@@ -933,6 +937,34 @@ impl Lowering<'_, '_> {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
                     }
+                    if let Expression::AwaitExpression(awaited) = node {
+                        if !self.allow_await {
+                            return Err(unsupported(node, "await requires the async profile"));
+                        }
+                        if matches!(mode, Mode::Predicate) {
+                            work.push(Work::GeneralTruthy(node));
+                            work.push(Work::Eval(node, depth, Mode::General));
+                            continue;
+                        }
+                        let mode = if matches!(mode, Mode::General)
+                            && self.numeric_result_shape(node, depth)
+                        {
+                            work.push(Work::Pack(node));
+                            Mode::Number
+                        } else {
+                            mode
+                        };
+                        let (argument, argument_depth, rejected) =
+                            awaited::operand(awaited, depth, self.semantic)?;
+                        let ty = if matches!(mode, Mode::General) {
+                            Type::General
+                        } else {
+                            Type::Number
+                        };
+                        work.push(Work::Await(node, rejected, ty));
+                        work.push(Work::Eval(argument, argument_depth, mode));
+                        continue;
+                    }
                     if let Expression::CallExpression(call) = node
                         && let Some(closure) = self.closure_target(&call.callee, depth + 1)
                     {
@@ -1253,66 +1285,6 @@ impl Lowering<'_, '_> {
                             };
                             Self::push(regions.current(), node, kind);
                             values.push(Value::Number(result));
-                        }
-                        Expression::AwaitExpression(awaited) => {
-                            if !self.allow_await {
-                                return Err(unsupported(node, "await requires the async profile"));
-                            }
-                            let mut argument = &awaited.argument;
-                            let mut argument_depth = depth + 1;
-                            while let Some(inner) = erased_inner(argument).or_else(|| {
-                                if let Expression::ParenthesizedExpression(wrapper) = argument {
-                                    Some(&wrapper.expression)
-                                } else {
-                                    None
-                                }
-                            }) {
-                                argument = inner;
-                                argument_depth += 1;
-                                if argument_depth > 128 {
-                                    return Err(unsupported(
-                                        node,
-                                        "await operand nesting exceeds 128",
-                                    ));
-                                }
-                            }
-                            let mut rejected = false;
-                            if let Expression::CallExpression(call) = argument
-                                && let Expression::StaticMemberExpression(member) = &call.callee
-                                && let Expression::Identifier(object) = &member.object
-                                && object.name == "Promise"
-                            {
-                                let unresolved =
-                                    object.reference_id.get().is_some_and(|reference| {
-                                        self.semantic
-                                            .scoping()
-                                            .get_reference(reference)
-                                            .symbol_id()
-                                            .is_none()
-                                    });
-                                if !unresolved
-                                    || call.optional
-                                    || member.optional
-                                    || call.type_arguments.is_some()
-                                    || call.arguments.len() != 1
-                                    || !matches!(
-                                        member.property.name.as_str(),
-                                        "resolve" | "reject"
-                                    )
-                                {
-                                    return Err(unsupported(
-                                        node,
-                                        "await Promise calls require one argument and the unshadowed resolve/reject intrinsic",
-                                    ));
-                                }
-                                rejected = member.property.name == "reject";
-                                argument = call.arguments[0].as_expression().ok_or_else(|| {
-                                    unsupported(node, "spread await arguments are not admitted")
-                                })?;
-                                argument_depth += 1;
-                            }
-                            work.push(Work::Await(node, rejected));
-                            work.push(Work::Eval(argument, argument_depth, Mode::Number));
                         }
                         Expression::CallExpression(call) => {
                             if let Some((operator, method)) = math_unary(call, self.semantic) {

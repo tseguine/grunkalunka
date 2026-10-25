@@ -521,10 +521,12 @@ No operation, signature or source-budget change is required. See
 
 ### Async suspension and continuation splitting
 
-The separate [numeric async profile](async.md) adds `Await` with a Number operand,
-Number result and a fulfilled/rejected flag for the admitted intrinsic forms.
-The verifier checks the operand and defines the result in the original region's
+The separate [primitive async profile](async.md) adds `Await` with a Number or
+General operand/result pair and a fulfilled/rejected flag for admitted intrinsic
+forms. The verifier requires matching Number or General types and defines the result in the original region's
 lexical/value scope. Synchronous emission explicitly rejects any Await IR.
+General await retains its kind; it does not apply ToNumber. Known-Number operand
+planning follows the inspected operand rather than classifying every await as Number.
 
 The async emitter splits verified regions into a bounded continuation graph.
 Branches choose child entries, yields copy typed snapshots to their parent result,

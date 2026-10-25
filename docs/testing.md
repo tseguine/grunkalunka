@@ -7,6 +7,8 @@ the primitive return tag, TypeScript metadata, unused-body/source-budget chargin
 aliases, repeated specialization and bounded nesting on a 2 MiB thread stack.
 `async-suspension.rs` checks awaited block-call results through the same async
 job-order oracle. The numeric corpus's 919 rejection sources remain unchanged.
+Async tests also compare retained primitive kinds, rejection reasons, strict versus
+loose comparisons, numeric coercion and malformed tags at start/resume boundaries.
 
 The normal check command also builds the owned JSON guest offline for
 `wasm32-unknown-unknown` and checks the same module in Node and Wasmtime. Install

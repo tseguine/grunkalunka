@@ -1,5 +1,5 @@
 use grunkalunka_compiler::compile_async;
-use grunkalunka_runtime::{AsyncInstance, AsyncState};
+use grunkalunka_runtime::{AsyncInstance, AsyncState, Value};
 use std::{
     io::Write,
     process::{Command, Stdio},
@@ -12,6 +12,94 @@ fn source_for(body: &str) -> String {
         ORIGINAL.into()
     } else {
         format!("export async function run(a,b){{{body}}}")
+    }
+}
+
+fn primitive_bits(value: Value) -> String {
+    match value {
+        Value::Undefined => "undefined".into(),
+        Value::Null => "null".into(),
+        Value::Boolean(value) => format!("boolean:{value}"),
+        Value::Number(value) if value.is_nan() => "nan".into(),
+        Value::Number(value) => format!("{:x}", value.to_bits()),
+    }
+}
+
+#[test]
+fn primitive_awaits_keep_kind_reasons_and_job_order() {
+    let bodies = [
+        "return await true;",
+        "return await false;",
+        "return await null;",
+        "return await undefined;",
+        "return true;",
+        "return null;",
+        "return undefined;",
+        "return await Promise.resolve(true);",
+        "return await Promise.reject(null);",
+        "return await Promise.reject(undefined);",
+        "return await Promise.reject(false);",
+        "return +(await true === 1);",
+        "return +(await null === 0);",
+        "return +(await true == 1);",
+        "return +(await null == undefined);",
+        "return +(await false === 0);",
+        "return (await true)?a:b;",
+        "let x=await false;if(!x)x=await null;return x;",
+        "let x=await undefined;x=await a;return x;",
+        "let x=await a;x=await true;return x;",
+        "const x=await false;return x||(await true);",
+        "return (await null)&&a;",
+        "return (await undefined)||(await true);",
+        "return (await true)+a;",
+        "return (await null)+b;",
+        "return +(await undefined);",
+        "return await Promise.reject(await false);",
+        "return await(a?true:null);",
+        "const Promise=a;return await null;",
+        "const undefined=a;return await undefined;",
+        "let x=null;const f=()=>{x=true;return +a;};await f();return x;",
+        "let x=await null;const f=()=>{return +x;};return await f();",
+        "let x=a;for(let i=0;i<3;i++){x=(await true)?x+b:x;}return x;",
+        "let x=true;for(let i=0;i<32;i++)x=await x;return x;",
+    ];
+    compare_promises(
+        &bodies,
+        &[
+            (4.0, 2.0),
+            (-0.0, 0.0),
+            (f64::NAN, f64::INFINITY),
+            (f64::from_bits(1), f64::MAX),
+        ],
+    );
+    for (body, kind, expected) in [
+        ("return await true;", "fulfilled", "boolean:true"),
+        ("return await null;", "fulfilled", "null"),
+        ("return await undefined;", "fulfilled", "undefined"),
+        (
+            "return await Promise.reject(false);",
+            "rejected",
+            "boolean:false",
+        ),
+        ("return await Promise.reject(null);", "rejected", "null"),
+        (
+            "return await Promise.reject(undefined);",
+            "rejected",
+            "undefined",
+        ),
+    ] {
+        let wasm = compile_async(&source_for(body), false).unwrap().wasm;
+        let mut call = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
+        assert!(matches!(call.state().unwrap(), AsyncState::Pending));
+        assert!(call.run_one_job().unwrap());
+        let (actual, value) = match call.state().unwrap() {
+            AsyncState::Fulfilled(value) => ("fulfilled", value),
+            AsyncState::Rejected(value) => ("rejected", value),
+            _ => panic!("not settled"),
+        };
+        assert_eq!(actual, kind);
+        assert_eq!(primitive_bits(value), expected);
+        assert!(!call.run_one_job().unwrap());
     }
 }
 
@@ -104,7 +192,7 @@ import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 const {createAsyncFunction}=await import(pathToFileURL(process.argv[2]));
 const buffer=new ArrayBuffer(8), view=new DataView(buffer);
-function bits(value){assert.equal(typeof value,'number');if(Number.isNaN(value))return 'nan';view.setFloat64(0,value);return view.getBigUint64(0).toString(16);}
+function bits(value){if(value===undefined)return 'undefined';if(value===null)return 'null';if(typeof value==='boolean')return 'boolean:'+value;assert.equal(typeof value,'number');if(Number.isNaN(value))return 'nan';view.setFloat64(0,value);return view.getBigUint64(0).toString(16);}
 async function observe(run,a,b){
  const trace=[];const promise=run(a,b);assert(promise instanceof Promise);trace.push('returned');
  const done=promise.then(value=>{trace.push('fulfilled:'+bits(value));},reason=>{trace.push('rejected:'+bits(reason));});
@@ -146,11 +234,7 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
                     AsyncState::Rejected(value) => ("rejected", value),
                     _ => unreachable!(),
                 };
-                let bits = if value.is_nan() {
-                    "nan".into()
-                } else {
-                    format!("{:x}", value.to_bits())
-                };
+                let bits = primitive_bits(value);
                 rust.push(format!("{{outcome:'{kind}:{bits}',jobs:{jobs}}}"));
             }
             script.push_str(&format!("{{const native=({});const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].jobs,expected.jobs);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await Promise.allSettled([wasm(a,b),wasm(c,d)]),await Promise.allSettled([native(a,b),native(c,d)]));}}\n",source.trim_start_matches("export "),artifact.wasm,rust.join(","),source));
@@ -192,7 +276,9 @@ fn profile_boundaries_and_ordinary_async_rejections_remain_explicit() {
         "export async function run(a,b){return await Promise.resolve(...a);}",
         "export async function run(a,b){return await Promise.all(a);}",
         "export async function run(a,b){return await run(a,b);}",
-        "export async function run(a,b){return await true;}",
+        "export async function run(a,b){return await 'string';}",
+        "export async function run(a,b){return await {};}",
+        "export async function run(a,b){const Promise=a;return await Promise.resolve(true);}",
     ] {
         assert!(compile_async(source, false).is_err(), "{source}");
     }
@@ -203,7 +289,26 @@ fn profile_boundaries_and_ordinary_async_rejections_remain_explicit() {
     let artifact = compile_async(typed, true).unwrap();
     let mut call = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
     call.run_one_job().unwrap();
-    assert!(matches!(call.state().unwrap(), AsyncState::Fulfilled(6.0)));
+    assert!(matches!(
+        call.state().unwrap(),
+        AsyncState::Fulfilled(Value::Number(6.0))
+    ));
+    let typed = "export async function run(a:number,b:never):number{const x:number=await(null as unknown as number);return x;}";
+    let artifact = compile_async(typed, true).unwrap();
+    let mut call = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+    call.run_one_job().unwrap();
+    assert!(matches!(
+        call.state().unwrap(),
+        AsyncState::Fulfilled(Value::Null)
+    ));
+    run_node(&format!(
+        r#"
+import assert from 'node:assert/strict';import {{pathToFileURL}} from 'node:url';
+const {{createAsyncFunction}}=await import(pathToFileURL(process.argv[2]));
+assert.equal(await createAsyncFunction(new Uint8Array({:?}))(4,2),null);
+"#,
+        artifact.wasm
+    ));
     for (count, admitted) in [(32, true), (33, false)] {
         let source = format!(
             "export async function run(a,b){{let x=a;{}return x;}}",
@@ -285,7 +390,7 @@ fn async_values_are_saved_until_a_separate_continuation_job() {
                 );
                 assert!(call.run_one_job().unwrap());
             }
-            let AsyncState::Fulfilled(actual) = call.state().unwrap() else {
+            let AsyncState::Fulfilled(Value::Number(actual)) = call.state().unwrap() else {
                 panic!("{source}: not fulfilled");
             };
             assert_eq!(actual.to_bits(), expected.to_bits(), "{source}");
@@ -308,7 +413,7 @@ fn source_loop_budgets_and_continuation_graph_size_are_bounded() {
                 assert!(activation.run_one_job().unwrap());
                 assert!(matches!(
                     activation.state().unwrap(),
-                    AsyncState::Fulfilled(36.0)
+                    AsyncState::Fulfilled(Value::Number(36.0))
                 ));
                 assert!(!activation.run_one_job().unwrap());
             } else {
@@ -372,21 +477,21 @@ fn rejection_and_signed_zero_survive_the_job_boundary() {
     assert!(matches!(call.state().unwrap(), AsyncState::Pending));
     call.run_one_job().unwrap();
     assert!(
-        matches!(call.state().unwrap(),AsyncState::Rejected(value) if value.to_bits()==(-0.0f64).to_bits())
+        matches!(call.state().unwrap(),AsyncState::Rejected(Value::Number(value)) if value.to_bits()==(-0.0f64).to_bits())
     );
     assert!(!call.run_one_job().unwrap());
 }
 
 #[test]
 fn malformed_protocol_traps_and_excess_jobs_are_terminal() {
-    let invalid=wat::parse_str("(module(func(export \"start\")(param f64 f64)(result i32 f64)i32.const 99 f64.const 0)(func(export \"resume\")(param f64)(result i32 f64)unreachable))").unwrap();
+    let invalid=wat::parse_str("(module(func(export \"start\")(param f64 f64)(result i32 i32 f64)i32.const 99 i32.const 3 f64.const 0)(func(export \"resume\")(param i32 f64)(result i32 i32 f64)unreachable))").unwrap();
     assert!(AsyncInstance::new(&invalid, 1.0, 2.0).is_err());
     for body in [
         "unreachable",
-        "i32.const 1 f64.const 1",
+        "i32.const 1 i32.const 3 f64.const 1",
         "(loop $forever br $forever) unreachable",
     ] {
-        let wasm=wat::parse_str(format!("(module(func(export \"start\")(param f64 f64)(result i32 f64)i32.const 1 f64.const 1)(func(export \"resume\")(param f64)(result i32 f64){body}))")).unwrap();
+        let wasm=wat::parse_str(format!("(module(func(export \"start\")(param f64 f64)(result i32 i32 f64)i32.const 1 i32.const 3 f64.const 1)(func(export \"resume\")(param i32 f64)(result i32 i32 f64){body}))")).unwrap();
         let mut call = AsyncInstance::new(&wasm, 1.0, 2.0).unwrap();
         if body.starts_with("i32") {
             for _ in 0..31 {
@@ -397,4 +502,31 @@ fn malformed_protocol_traps_and_excess_jobs_are_terminal() {
         assert!(call.state().is_err());
         assert!(call.run_one_job().is_err());
     }
+}
+
+#[test]
+fn noncanonical_primitive_tags_fail_at_both_async_boundaries() {
+    let mut script = String::from(
+        "import assert from 'node:assert/strict';import {pathToFileURL} from 'node:url';const {createAsyncFunction}=await import(pathToFileURL(process.argv[2]));\n",
+    );
+    for (tag, payload) in [(0, "-0"), (1, "1"), (2, "2"), (2, "-0"), (4, "0")] {
+        for status in [0, 1, 2] {
+            let wasm=wat::parse_str(format!(r#"(module
+(func(export "start")(param f64 f64)(result i32 i32 f64)i32.const {status} i32.const {tag} f64.const {payload})
+(func(export "resume")(param i32 f64)(result i32 i32 f64)unreachable))"#)).unwrap();
+            assert!(AsyncInstance::new(&wasm, 4.0, 2.0).is_err());
+            script.push_str(&format!("await assert.rejects(createAsyncFunction(new Uint8Array({wasm:?}))(4,2),TypeError);\n"));
+        }
+        let wasm=wat::parse_str(format!(r#"(module
+(func(export "start")(param f64 f64)(result i32 i32 f64)i32.const 1 i32.const 2 f64.const 1)
+(func(export "resume")(param i32 f64)(result i32 i32 f64)i32.const 0 i32.const {tag} f64.const {payload}))"#)).unwrap();
+        let mut call = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
+        assert!(call.run_one_job().is_err());
+        assert!(call.state().is_err());
+        assert!(call.run_one_job().is_err());
+        script.push_str(&format!(
+            "await assert.rejects(createAsyncFunction(new Uint8Array({wasm:?}))(4,2),TypeError);\n"
+        ));
+    }
+    run_node(&script);
 }

@@ -408,8 +408,17 @@ impl Verifier<'_> {
                     self.define(*result, Type::Number, &mut visible, span)?;
                 }
                 Op::Await { result, input, .. } => {
-                    self.value(*input, Type::Number, &visible, span)?;
-                    self.define(*result, Type::Number, &mut visible, span)?;
+                    let ty = self
+                        .function
+                        .values
+                        .get(result.0)
+                        .copied()
+                        .ok_or_else(|| invalid(span, "invalid await result"))?;
+                    if ty == Type::Predicate {
+                        return Err(invalid(span, "await requires Number or General values"));
+                    }
+                    self.value(*input, ty, &visible, span)?;
+                    self.define(*result, ty, &mut visible, span)?;
                 }
                 Op::Nullish { result, .. } => {
                     self.define(*result, Type::General, &mut visible, span)?;
@@ -2996,6 +3005,37 @@ mod inline_call_tests {
                 _ => function.body.exit = Exit::Return(child),
             }
             assert!(verify_module(&module).is_err(), "mutation {change}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod await_value_tests {
+    use super::*;
+    #[test]
+    fn await_requires_matching_number_or_general_operand_and_result() {
+        let source = "export async function run(a,b){return await true;}";
+        for change in 0..3 {
+            let mut module =
+                crate::lower_source_profile(source, false, Type::General, true).unwrap();
+            verify_module_with_entry_type(&module, Type::General).unwrap();
+            let f = &mut module.functions[0];
+            let Op::Await { input, result, .. } = f
+                .body
+                .operations
+                .iter_mut()
+                .find(|operation| matches!(operation.kind, Op::Await { .. }))
+                .map(|operation| &mut operation.kind)
+                .unwrap()
+            else {
+                unreachable!()
+            };
+            match change {
+                0 => *input = *result,
+                1 => f.values[result.0] = Type::Number,
+                _ => f.values[result.0] = Type::Predicate,
+            }
+            assert!(verify_module_with_entry_type(&module, Type::General).is_err());
         }
     }
 }

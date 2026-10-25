@@ -1,7 +1,8 @@
 # Research roadmap
 
-The [experimental numeric async profile](async.md) now provides saved activation
-state and host Promise jobs across numeric branches and loops. General Promise
+The [experimental primitive async profile](async.md) now provides saved activation
+state and host Promise jobs across numeric branches and loops, preserving the four
+represented primitive kinds and uncaught rejection reasons. General Promise
 values, exception handlers and escaping environments remain open.
 
 The project's direction is clear; implementation choices should earn their place

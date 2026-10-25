@@ -245,7 +245,7 @@ fn jump(output: &mut String, target: usize) {
 }
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
-    ir::verify_module(module)?;
+    ir::verify_module_with_entry_type(module, Type::General)?;
     let [function] = module.functions.as_slice() else {
         return Err("async profile currently requires a single entry function".into());
     };
@@ -283,7 +283,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     for ty in types {
         writeln!(output, "(global (mut {ty}) ({ty}.const 0))").unwrap();
     }
-    output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited f64) (result i32 f64)\nblock $invalid\nloop $dispatch\n");
+    output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\nblock $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
     for id in 0..split.states.len() {
         writeln!(output, "block $state{id}").unwrap();
@@ -296,10 +296,19 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     for state in split.states.iter().rev() {
         output.push_str("end\n");
         if let Some(value) = state.resumed {
+            if function.values[value.0] == Type::General {
+                writeln!(
+                    output,
+                    "local.get $awaited_tag\nglobal.set {}",
+                    emitter.value_offsets[value.0]
+                )
+                .unwrap();
+            }
             writeln!(
                 output,
                 "local.get $awaited\nglobal.set {}",
                 emitter.value_offsets[value.0]
+                    + usize::from(function.values[value.0] == Type::General)
             )
             .unwrap();
         }
@@ -346,34 +355,32 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             } => {
                 writeln!(
                     output,
-                    "i32.const {}\nglobal.set $pc\ni32.const {}\nglobal.get {}\nreturn",
+                    "i32.const {}\nglobal.set $pc\ni32.const {}",
                     if rejected { -1 } else { resume as i32 },
-                    if rejected { 2 } else { 1 },
-                    emitter.value_offsets[input.0]
+                    if rejected { 2 } else { 1 }
                 )
                 .unwrap();
+                primitive(&mut output, &emitter, input);
+                output.push_str("return\n");
             }
             End::Return(value) => {
-                writeln!(
-                    output,
-                    "i32.const -1\nglobal.set $pc\ni32.const 0\nglobal.get {}\nreturn",
-                    emitter.value_offsets[value.0]
-                )
-                .unwrap();
+                output.push_str("i32.const -1\nglobal.set $pc\ni32.const 0\n");
+                primitive(&mut output, &emitter, value);
+                output.push_str("return\n");
             }
             End::Trap => output.push_str("unreachable\n"),
         }
     }
     output.push_str("end\nend\nunreachable\n)\n");
     output.push_str(
-        r#"(func (export "start") (param f64 f64) (result i32 f64)
+        r#"(func (export "start") (param f64 f64) (result i32 i32 f64)
       global.get $pc if unreachable end
       local.get 0 global.set 0
       local.get 1 global.set 1
-      f64.const 0 call $advance)
-      (func (export "resume") (param f64) (result i32 f64)
+      i32.const 3 f64.const 0 call $advance)
+      (func (export "resume") (param i32 f64) (result i32 i32 f64)
       global.get $pc i32.const 0 i32.le_s if unreachable end
-      local.get 0 call $advance)
+      local.get 0 local.get 1 call $advance)
     "#,
     );
     if emitter.needs_remainder {
@@ -381,4 +388,13 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     }
     output.push_str(")\n");
     Ok(output)
+}
+
+fn primitive(output: &mut String, emitter: &Emitter<'_>, value: ValueId) {
+    let offset = emitter.value_offsets[value.0];
+    if emitter.function.values[value.0] == Type::General {
+        writeln!(output, "global.get {offset}\nglobal.get {}", offset + 1).unwrap();
+    } else {
+        writeln!(output, "i32.const 3\nglobal.get {offset}").unwrap();
+    }
 }

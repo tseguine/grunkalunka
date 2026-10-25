@@ -1,0 +1,57 @@
+//! Shared await-operand inspection for storage planning and actual lowering.
+use super::*;
+use oxc_ast::ast::AwaitExpression;
+
+pub(super) fn operand<'e, 'a>(
+    awaited: &'e AwaitExpression<'a>,
+    depth: usize,
+    semantic: &Semantic<'_>,
+) -> Result<(&'e Expression<'a>, usize, bool), String> {
+    let mut argument = &awaited.argument;
+    let mut argument_depth = depth + 1;
+    while let Some(inner) = erased_inner(argument).or_else(|| {
+        if let Expression::ParenthesizedExpression(wrapper) = argument {
+            Some(&wrapper.expression)
+        } else {
+            None
+        }
+    }) {
+        argument = inner;
+        argument_depth += 1;
+        if argument_depth > 128 {
+            return Err(unsupported(awaited, "await operand nesting exceeds 128"));
+        }
+    }
+    let mut rejected = false;
+    if let Expression::CallExpression(call) = argument
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && let Expression::Identifier(object) = &member.object
+        && object.name == "Promise"
+    {
+        let unresolved = object.reference_id.get().is_some_and(|reference| {
+            semantic
+                .scoping()
+                .get_reference(reference)
+                .symbol_id()
+                .is_none()
+        });
+        if !unresolved
+            || call.optional
+            || member.optional
+            || call.type_arguments.is_some()
+            || call.arguments.len() != 1
+            || !matches!(member.property.name.as_str(), "resolve" | "reject")
+        {
+            return Err(unsupported(
+                awaited,
+                "await Promise calls require one argument and the unshadowed resolve/reject intrinsic",
+            ));
+        }
+        rejected = member.property.name == "reject";
+        argument = call.arguments[0]
+            .as_expression()
+            .ok_or_else(|| unsupported(awaited, "spread await arguments are not admitted"))?;
+        argument_depth += 1;
+    }
+    Ok((argument, argument_depth, rejected))
+}

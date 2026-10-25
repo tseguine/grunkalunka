@@ -75,14 +75,18 @@ impl ValueInstance {
     pub fn run(&mut self, a: f64, b: f64) -> wasmtime::Result<Value> {
         self.store.set_fuel(FUEL_PER_CALL)?;
         let (tag, payload) = self.run.call(&mut self.store, (a, b))?;
-        match tag {
-            0 if payload.to_bits() == 0 => Ok(Value::Undefined),
-            1 if payload.to_bits() == 0 => Ok(Value::Null),
-            2 if [0, 1.0_f64.to_bits()].contains(&payload.to_bits()) => {
-                Ok(Value::Boolean(payload == 1.0))
-            }
-            3 => Ok(Value::Number(payload)),
-            _ => wasmtime::bail!("invalid primitive value tag or payload"),
+        decode_primitive(tag, payload)
+    }
+}
+
+fn decode_primitive(tag: i32, payload: f64) -> wasmtime::Result<Value> {
+    match tag {
+        0 if payload.to_bits() == 0 => Ok(Value::Undefined),
+        1 if payload.to_bits() == 0 => Ok(Value::Null),
+        2 if [0, 1.0_f64.to_bits()].contains(&payload.to_bits()) => {
+            Ok(Value::Boolean(payload == 1.0))
         }
+        3 => Ok(Value::Number(payload)),
+        _ => wasmtime::bail!("invalid primitive value tag or payload"),
     }
 }

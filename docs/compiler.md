@@ -1,7 +1,7 @@
 # Numeric compiler and runtime
 
-The separate [experimental async profile](async.md) now lowers numeric await
-continuations with saved state and host Promise jobs. It does not change this
+The separate [experimental async profile](async.md) now preserves undefined/null/
+Boolean/Number through await continuations with saved state and host Promise jobs. It does not change this
 numeric profile's synchronous return contract or its rejection inventory.
 
 **Maintained implementation at development version 0.0.1:** Oxc parses JS/TS, a custom lowering

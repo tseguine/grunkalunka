@@ -1,9 +1,11 @@
 # Known lowering gaps
 
 The exact `gap-async-await` source now executes in the separate
-[numeric async profile](async.md), including its Promise job boundary. It remains
+[primitive async profile](async.md), including its Promise job boundary. It remains
 a numeric-profile rejection; general Promise values and exception handlers are
 still known requirements. Numeric structured control flow can now suspend.
+Undefined/null/Boolean/Number values and uncaught rejection reasons survive that
+suspension; Strings, objects and arbitrary Promise values remain outside this slice.
 
 This page and the 919 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
