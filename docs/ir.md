@@ -518,3 +518,19 @@ includes possible logical RHS writes in its existing dependency analysis, allowi
 Number-initialized source locals/parameters to use General cells when needed.
 No operation, signature or source-budget change is required. See
 [the source contract](compiler.md#general-logical-assignment).
+
+### Async suspension and continuation splitting
+
+The separate [numeric async profile](async.md) adds `Await` with a Number operand,
+Number result and a fulfilled/rejected flag for the admitted intrinsic forms.
+The verifier checks the operand and defines the result in the original region's
+lexical/value scope. Synchronous emission explicitly rejects any Await IR.
+
+The async emitter splits verified regions into a bounded continuation graph.
+Branches choose child entries, yields copy typed snapshots to their parent result,
+loops retain separate condition/body/update targets and early exits bypass the
+suffix. Await records a resume state and returns to the host; resumption stores
+the awaited value before following the continuation. Internal graph edges create
+no host jobs. Each invocation retains its cells and snapshots in a separate Wasm
+instance, with a stored state index and terminal completion marker. This is a
+conservative coroutine frame, without general Promise values or live-only spilling.

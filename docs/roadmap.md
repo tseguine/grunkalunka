@@ -1,8 +1,8 @@
 # Research roadmap
 
 The [experimental numeric async profile](async.md) now provides saved activation
-state and host Promise jobs for straight-line awaits. General Promise values,
-escaping environments and suspended control flow remain open.
+state and host Promise jobs across numeric branches and loops. General Promise
+values, exception handlers and escaping environments remain open.
 
 The project's direction is clear; implementation choices should earn their place
 through small experiments. This is a sequence of questions and exit criteria, not
@@ -486,5 +486,5 @@ shared typed-region integration remain open; this is not general JSON lowering.
 Local non-escaping concise arrows now share captured variable cells through
 specialized typed-region calls. The original arrow-call and mutable-capture gap
 sources execute in both engines. This begins closure support;
-escaping environments, recursive closures and asynchronous suspension remain open.
+escaping environments, recursive closures and general Promise interoperability remain open.
 See [the contract](compiler.md#local-arrow-calls-and-shared-captures).

@@ -2,8 +2,8 @@
 
 The exact `gap-async-await` source now executes in the separate
 [numeric async profile](async.md), including its Promise job boundary. It remains
-a numeric-profile rejection; general Promise values and suspended control flow
-are still known requirements.
+a numeric-profile rejection; general Promise values and exception handlers are
+still known requirements. Numeric structured control flow can now suspend.
 
 This page and the 919 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
@@ -573,5 +573,5 @@ kinds remain separate requirements.
 Local non-escaping concise arrows now admit the exact original `gap-call` and
 `gap-closure-capture` programs. Those examples are retained in `local-arrows.mjs`,
 including source hashes. Escaping and recursive closures, later-initialized
-captures, block bodies and async remain known work despite these two promotions.
+captures, block bodies and async arrows remain known work despite these two promotions.
 See [the bounded contract](compiler.md#local-arrow-calls-and-shared-captures).

@@ -35,6 +35,65 @@ fn real_promises_match_js_results_and_fifo_job_order() {
         "return await (a?b:a);",
         maximum.as_str(),
     ];
+    compare_promises(
+        &bodies,
+        &[
+            (4.0, 2.0),
+            (-0.0, 0.0),
+            (f64::NAN, f64::INFINITY),
+            (f64::from_bits(1), f64::MAX),
+        ],
+    );
+}
+
+#[test]
+fn suspended_control_flow_matches_native_results_and_job_order() {
+    let bodies = [
+        "return a ? await b : a;",
+        "if(a)return b;return await a;",
+        "if(await a){return await b;}else{return await a;}",
+        "{let x=await a; a=await b; return x+a;}",
+        "let x=a; if(b){x=await b;}else{x=await a;}return x;",
+        "let x=0;for(let i=0;i<3;i++){x+=await(a+i);}return x;",
+        "let x=0;for(let i=0;i<3;i=await(i+1)){if(i===1)continue;x+=a;}return x;",
+        "let x=a;let i=0;while(await(i++<3?1:0)){x+=b;}return x;",
+        "let x=a;let i=0;do{i++;if(i<3)continue;x+=b;}while(await(i<3?1:0));return x;",
+        "let x=a;for(let i=0;i<3;i++){if(i===1)break;x+=await b;}return x;",
+        "let x=a;for(let i=0;i<2;i++){for(let j=0;j<3;j++){if(j===1)continue;if(j===2)break;x+=await b;}x+=1;}return x;",
+        "let x=a;for(let i=0;i<3;i++){if(i===1)return x;x+=await b;}return b;",
+        "return a && await b;",
+        "return a || await b;",
+        "let x=a;{let x=await b;x+=1;}return x;",
+        "for(let i=0;i<3;i++){let x=await i;const f=()=>x;a+=f();}return a;",
+        "let x=a;for(let i=0;i<3;i++){if(i===1)return await Promise.reject(b);x+=await 1;}return x;",
+        "let x=a?await b:await a;return +x;",
+        "const x=a?!(await b):!(await a);if(x)return a;return b;",
+        "let x=a?(await b,true):null;return +x;",
+        "return a+(b?await(a=b):await(a+1));",
+        "return await(a?await b:await a);",
+        "if(a)return b;else return a;",
+        "let x=a;for(let i=0;i<3;i++){if(i<2){await b;continue;}x+=1;}return x;",
+        "let x=a;for(let i=await 0;i<2;i++){x+=await b;}return x;",
+        "do{return await a;}while(await b);",
+        "if((await a)?await b:await a)return a;return b;",
+    ];
+    compare_promises(
+        &bodies,
+        &[
+            (4.0, 2.0),
+            (-0.0, 0.0),
+            (f64::NAN, f64::INFINITY),
+            (f64::from_bits(1), f64::MAX),
+        ],
+    );
+    // The exact previously rejected loop terminates for these inputs.
+    compare_promises(
+        &["while(a){a=await b;}return a;"],
+        &[(4.0, 0.0), (-0.0, 0.0), (f64::NAN, 0.0)],
+    );
+}
+
+fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
     let mut script = String::from(
         r#"
 import assert from 'node:assert/strict';
@@ -50,22 +109,28 @@ async function observe(run,a,b){
  await Promise.all([done,markers]);const outcome=trace.find(entry=>entry.startsWith('fulfilled:')||entry.startsWith('rejected:'));
  return {trace,outcome,jobs:trace.slice(0,trace.indexOf(outcome)).filter(entry=>entry.startsWith('tick')).length};
 }
-const vectors=[[4,2],[-0,0],[NaN,Infinity],[Number.MIN_VALUE,Number.MAX_VALUE]];
+function fromBits(hex){view.setBigUint64(0,BigInt('0x'+hex));return view.getFloat64(0);}
 assert.equal(createHash('sha256').update('export async function run(a,b) { return a + await Promise.resolve(b); }').digest('hex'),'735913a592f91c980a71bac74f112102d572af6f6dc989f6b571ef11877e786e');
 "#,
     );
+    let inputs: Vec<_> = vectors
+        .iter()
+        .map(|(a, b)| {
+            format!(
+                "[fromBits('{:x}'),fromBits('{:x}')]",
+                a.to_bits(),
+                b.to_bits()
+            )
+        })
+        .collect();
+    script.push_str(&format!("const vectors=[{}];\n", inputs.join(",")));
     for body in bodies {
         let source = source_for(body);
         for typescript in [false, true] {
             let artifact = compile_async(&source, typescript)
                 .unwrap_or_else(|error| panic!("{source}: {error}"));
             let mut rust = Vec::new();
-            for (a, b) in [
-                (4.0, 2.0),
-                (-0.0, 0.0),
-                (f64::NAN, f64::INFINITY),
-                (f64::from_bits(1), f64::MAX),
-            ] {
+            for &(a, b) in vectors {
                 let mut activation = AsyncInstance::new(&artifact.wasm, a, b).unwrap();
                 let mut jobs = 0;
                 while matches!(activation.state().unwrap(), AsyncState::Pending) {
@@ -85,9 +150,13 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
                 };
                 rust.push(format!("{{outcome:'{kind}:{bits}',jobs:{jobs}}}"));
             }
-            script.push_str(&format!("{{const native=({});const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].jobs,expected.jobs);i++;}}assert.deepEqual(await Promise.allSettled([wasm(4,2),wasm(7,3)]),await Promise.allSettled([native(4,2),native(7,3)]));}}\n",source.trim_start_matches("export "),artifact.wasm,rust.join(","),source));
+            script.push_str(&format!("{{const native=({});const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].jobs,expected.jobs);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await Promise.allSettled([wasm(a,b),wasm(c,d)]),await Promise.allSettled([native(a,b),native(c,d)]));}}\n",source.trim_start_matches("export "),artifact.wasm,rust.join(","),source));
         }
     }
+    run_node(&script);
+}
+
+fn run_node(script: &str) {
     let adapter = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("js/async.mjs");
     let mut child = Command::new("node")
         .args(["--input-type=module", "-"])
@@ -119,9 +188,6 @@ fn profile_boundaries_and_ordinary_async_rejections_remain_explicit() {
         "export async function run(a,b){return await Promise.resolve(b,a);}",
         "export async function run(a,b){return await Promise.resolve(...a);}",
         "export async function run(a,b){return await Promise.all(a);}",
-        "export async function run(a,b){return a ? await b : a;}",
-        "export async function run(a,b){while(a){a=await b;}return a;}",
-        "export async function run(a,b){if(a)return b;return await a;}",
         "export async function run(a,b){return await run(a,b);}",
         "export async function run(a,b){return await true;}",
     ] {
@@ -142,6 +208,12 @@ fn profile_boundaries_and_ordinary_async_rejections_remain_explicit() {
         );
         assert_eq!(compile_async(&source, false).is_ok(), admitted);
     }
+    for (per_branch, admitted) in [(16, true), (17, false)] {
+        let branch = "a=await a;".repeat(per_branch);
+        let source =
+            format!("export async function run(a,b){{if(b){{{branch}}}else{{{branch}}}return a;}}");
+        assert_eq!(compile_async(&source, false).is_ok(), admitted);
+    }
 }
 
 #[test]
@@ -158,6 +230,45 @@ fn async_values_are_saved_until_a_separate_continuation_job() {
         ),
         ("return (await a) % b;", 1, 0.0),
         ("return a+b;", 0, 6.0),
+        (
+            "let x=0;for(let i=0;i<3;i=await(i+1)){if(i===1)continue;x+=a;}return x;",
+            3,
+            8.0,
+        ),
+        (
+            "let x=a;let i=0;do{i++;if(i<3)continue;x+=b;}while(await(i<3?1:0));return x;",
+            3,
+            6.0,
+        ),
+        (
+            "let x=a;for(let i=0;i<3;i++){if(i===1)break;x+=await b;}return x;",
+            1,
+            6.0,
+        ),
+        (
+            "let x=a;for(let i=0;i<2;i++){for(let j=0;j<3;j++){if(j===1)continue;if(j===2)break;x+=await b;}x+=1;}return x;",
+            2,
+            10.0,
+        ),
+        (
+            "let x=a;for(let i=0;i<3;i++){if(i===1)return x;x+=await b;}return b;",
+            1,
+            6.0,
+        ),
+        ("return a || await b;", 0, 4.0),
+        ("return a && await b;", 1, 2.0),
+        (
+            "let x=a;let i=0;while(await(i++<3?1:0)){x+=b;}return x;",
+            4,
+            10.0,
+        ),
+        ("let x=a?(await b,true):null;return +x;", 1, 1.0),
+        (
+            "const x=a?!(await b):!(await a);if(x)return a;return b;",
+            1,
+            2.0,
+        ),
+        ("do{return await a;}while(await b);", 1, 4.0),
     ] {
         for typescript in [false, true] {
             let source = format!("export async function run(a,b){{{body}}}");
@@ -178,6 +289,76 @@ fn async_values_are_saved_until_a_separate_continuation_job() {
             assert!(!call.run_one_job().unwrap());
         }
     }
+}
+
+#[test]
+fn source_loop_budgets_and_continuation_graph_size_are_bounded() {
+    let source = "export async function run(a,b){for(let i=0;i<b;i++)a=await(a+1);return a;}";
+    for typescript in [false, true] {
+        let artifact = compile_async(source, typescript).unwrap();
+        for count in [32, 33] {
+            let mut activation = AsyncInstance::new(&artifact.wasm, 4.0, count as f64).unwrap();
+            for _ in 0..31 {
+                assert!(activation.run_one_job().unwrap());
+            }
+            if count == 32 {
+                assert!(activation.run_one_job().unwrap());
+                assert!(matches!(
+                    activation.state().unwrap(),
+                    AsyncState::Fulfilled(36.0)
+                ));
+                assert!(!activation.run_one_job().unwrap());
+            } else {
+                assert!(activation.run_one_job().is_err());
+                assert!(activation.state().is_err());
+            }
+        }
+        run_node(&format!(
+            r#"
+import assert from 'node:assert/strict';
+import {{pathToFileURL}} from 'node:url';
+const {{createAsyncFunction}}=await import(pathToFileURL(process.argv[2]));
+const run=createAsyncFunction(new Uint8Array({:?}));
+assert.equal(await run(4,32),36);
+await assert.rejects(run(4,33),RangeError);
+assert.equal(await run(7,1),8);
+"#,
+            artifact.wasm
+        ));
+        let source =
+            "export async function run(a,b){a=await a;for(let i=0;i<10000;i++)a+=b;return a;}";
+        let wasm = compile_async(source, typescript).unwrap().wasm;
+        let mut activation = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
+        assert!(activation.run_one_job().is_err());
+        assert!(activation.state().is_err());
+        assert!(activation.run_one_job().is_err());
+    }
+    let mut expression = String::from("x");
+    for _ in 0..20 {
+        expression = format!("x?x:({expression})");
+    }
+    let source = format!(
+        "export async function run(a,b){{const f=x=>{expression};{}return a;}}",
+        "a=f(a);".repeat(80)
+    );
+    for typescript in [false, true] {
+        let error = compile_async(&source, typescript)
+            .err()
+            .expect("graph must be bounded");
+        assert!(
+            error.contains("continuation graph exceeds 4096 states"),
+            "{error}"
+        );
+    }
+    let body = format!(
+        "const f=x=>{expression};{}return await a;",
+        "a=f(a);".repeat(32)
+    );
+    for typescript in [false, true] {
+        let artifact = compile_async(&source_for(&body), typescript).unwrap();
+        assert!(artifact.wat.matches("block $state").count() > 3000);
+    }
+    compare_promises(&[&body], &[(4.0, 2.0)]);
 }
 
 #[test]

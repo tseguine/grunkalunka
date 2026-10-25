@@ -1676,7 +1676,8 @@ language validity or runtime termination; the existing runtime fuel is unchanged
 Captures must already be initialized when the arrow is defined. Escaping function
 values, mutable function bindings, recursive arrows, block bodies, defaults/rest,
 optional/generic calls, lexical `this`/`arguments` and async arrows remain outside
-this slice. General closure environments and async suspension are subsequent work.
+this slice. General closure environments remain subsequent work; numeric suspension
+is available in the separate [async profile](async.md).
 
 Corpus 65 adds 22 pairs, including the two exact original `gap-call` and
 `gap-closure-capture` sources retained with their hashes. It has 1781 pairs,
