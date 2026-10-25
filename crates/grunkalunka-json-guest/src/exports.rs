@@ -47,6 +47,24 @@ fn with_state<T>(f: impl FnOnce(&mut State) -> T) -> T {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_parse(frame: u32, text: u32) -> u32 {
+    with_state(|state| {
+        let result = state.guest.heap_parse(frame, text);
+        state.record(result.as_ref().err());
+        result.unwrap_or(0)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_stringify(frame: u32, value: u32) -> u32 {
+    with_state(|state| {
+        let result = state.guest.heap_stringify(frame, value);
+        state.record(result.as_ref().err());
+        result.unwrap_or(0)
+    })
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn gk_heap_enter() -> u32 {
     with_state(|state| {
         let result = state.guest.heap_enter();

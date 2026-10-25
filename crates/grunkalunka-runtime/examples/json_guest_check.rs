@@ -334,6 +334,104 @@ fn check_strings(engine: &Engine, module: &Module, oracle: &Path) -> Result<usiz
     Ok(count)
 }
 
+fn check_heap_json(engine: &Engine, module: &Module, oracles: &Path) -> Result<usize> {
+    let mut guest = Guest::new(engine, module)?;
+    assert_eq!(guest.call2("gk_heap_parse", 0, 0)?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 11);
+    assert_eq!(guest.call2("gk_heap_stringify", 0, 0)?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 11);
+    let mut count = 0;
+    for row in fs::read_to_string(oracles)?.lines() {
+        let fields = row.split('\t').collect::<Vec<_>>();
+        if fields.len() != 3 {
+            return Err("invalid heap JSON oracle".into());
+        }
+        let input = unhex(fields[1])?;
+        let frame = guest.call0("gk_heap_enter")?;
+        assert_ne!(frame, 0);
+        guest.prepare(&input)?;
+        let text = guest.call1("gk_heap_string", frame)?;
+        assert_ne!(text, 0);
+        let parsed = guest.call2("gk_heap_parse", frame, text)?;
+        match fields[0] {
+            "invalid" | "parse-limit" => {
+                assert_eq!(parsed, 0);
+                assert_eq!(guest.call0("gk_json_status")?, fields[2].parse::<u32>()?);
+                assert!(guest.call0("gk_json_error_offset")? as usize <= input.len());
+                guest.raw(text, &input)?;
+                guest.mutation("gk_heap_abort", &[], 0)?;
+            }
+            "valid" | "output-limit" => {
+                assert_ne!(parsed, 0);
+                let result = guest.call2("gk_heap_stringify", frame, parsed)?;
+                if fields[0] == "valid" {
+                    assert_ne!(result, 0);
+                    assert!(guest.output()?.is_empty());
+                    guest.mutation("gk_heap_leave", &[frame, result], 0)?;
+                    guest.raw(result, &unhex(fields[2])?)?;
+                    guest.mutation("gk_json_release", &[result], 0)?;
+                } else {
+                    assert_eq!(result, 0);
+                    assert_eq!(guest.call0("gk_json_status")?, 7);
+                    guest.mutation("gk_json_stringify", &[parsed], 7)?;
+                    guest.mutation("gk_heap_abort", &[], 0)?;
+                }
+            }
+            _ => return Err("unknown heap JSON oracle".into()),
+        }
+        count += 1;
+    }
+    let frame = guest.call0("gk_heap_enter")?;
+    let sample: Vec<u16> = "[1,true,null]".encode_utf16().collect();
+    for _ in 0..500 {
+        guest.prepare(&sample)?;
+        let text = guest.call1("gk_heap_string", frame)?;
+        let parsed = guest.call2("gk_heap_parse", frame, text)?;
+        let result = guest.call2("gk_heap_stringify", frame, parsed)?;
+        assert!(text > 0 && parsed > text && result > parsed);
+        guest.raw(result, &sample)?;
+    }
+    guest.mutation("gk_heap_abort", &[], 0)?;
+    let outer = guest.call0("gk_heap_enter")?;
+    guest.prepare(&[110, 117, 108, 108])?;
+    let text = guest.call1("gk_heap_string", outer)?;
+    guest.mutation("gk_heap_pin", &[outer, text], 0)?;
+    let inner = guest.call0("gk_heap_enter")?;
+    assert_eq!(guest.call2("gk_heap_parse", outer, text)?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 11);
+    let parsed = guest.call2("gk_heap_parse", inner, text)?;
+    assert_ne!(parsed, 0);
+    assert_eq!(guest.call2("gk_heap_parse", inner, parsed)?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 9);
+    let result = guest.call2("gk_heap_stringify", inner, parsed)?;
+    assert_ne!(result, 0);
+    guest.mutation("gk_heap_leave", &[inner, result], 0)?;
+    guest.mutation("gk_heap_leave", &[outer, result], 0)?;
+    guest.raw(result, &[110, 117, 108, 108])?;
+    guest.mutation("gk_json_release", &[result], 0)?;
+    guest.prepare(&[110, 117, 108, 108])?;
+    let mut owners = Vec::new();
+    for _ in 0..64 {
+        let id = guest.call0("gk_json_string_from_input")?;
+        assert_ne!(id, 0);
+        owners.push(id);
+    }
+    let full = guest.call0("gk_heap_enter")?;
+    assert_eq!(guest.call2("gk_heap_parse", full, owners[0])?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 2);
+    assert_eq!(guest.call2("gk_heap_stringify", full, owners[0])?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 2);
+    guest.mutation("gk_json_release", &[owners[1]], 0)?;
+    assert_ne!(guest.call2("gk_heap_parse", full, owners[0])?, 0);
+    guest.mutation("gk_heap_leave", &[full, 0], 0)?;
+    for (i, id) in owners.into_iter().enumerate() {
+        if i != 1 {
+            guest.mutation("gk_json_release", &[id], 0)?;
+        }
+    }
+    Ok(count)
+}
+
 fn main() -> Result<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     if args.len() != 2 {
@@ -434,6 +532,7 @@ fn main() -> Result<()> {
     assert_eq!(guest.call1("gk_json_stringify", own_id)?, 0);
     assert_eq!(guest.output()?, "false".encode_utf16().collect::<Vec<_>>());
     assert_eq!(saved, expected);
+    let heap_json_count = check_heap_json(&engine, &module, Path::new(&args[1]))?;
     check_frames(&engine, &module)?;
     let string_count = check_strings(
         &engine,
@@ -441,7 +540,7 @@ fn main() -> Result<()> {
         &Path::new(&args[1]).with_file_name("string-cases.tsv"),
     )?;
     println!(
-        "PASS Wasmtime JSON guest: {count} original UTF16 oracle records, {string_count} raw String cases/all65536units/500Stringcycles, 500JSONrepeats, quotas/release/stale IDs/instances/snapshots; {} bytes, zero imports",
+        "PASS Wasmtime JSON guest: {count} original UTF16 oracle records, {heap_json_count} heap JSON records/500cycles, {string_count} raw String cases/all65536units/500Stringcycles, 500JSONrepeats, quotas/release/stale IDs/instances/snapshots; {} bytes, zero imports",
         bytes.len()
     );
     Ok(())

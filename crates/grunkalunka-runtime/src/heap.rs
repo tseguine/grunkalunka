@@ -39,7 +39,7 @@ impl HeapInstance {
         })
     }
 
-    /// Copy at most 32,768 raw UTF-16 units, then release the guest root.
+    /// Copy at most 65,536 raw UTF-16 units, then release the guest root.
     /// The one-million-fuel call budget includes readback and release. Every error
     /// makes this instance permanently unusable; interrupting Rust may strand its lock.
     pub fn run(&mut self, a: f64, b: f64) -> wasmtime::Result<Vec<u16>> {
@@ -71,7 +71,7 @@ impl HeapInstance {
         }
         let pointer = self.output_ptr.call(&mut self.store, ())?;
         let length = self.output_len.call(&mut self.store, ())?;
-        if length > 32_768 || !pointer.is_multiple_of(2) {
+        if length > 65_536 || !pointer.is_multiple_of(2) {
             wasmtime::bail!("invalid String output bounds");
         }
         let mut bytes = vec![0; length as usize * 2];

@@ -86,6 +86,10 @@ fn malformed_buffers_and_guest_errors_do_not_produce_host_values() {
         ),
         (
             "gk_json_output_len\") (result i32) i32.const 1",
+            "gk_json_output_len\") (result i32) i32.const 65537",
+        ),
+        (
+            "gk_json_output_len\") (result i32) i32.const 1",
             "gk_json_output_len\") (result i32) i32.const -1",
         ),
         (
@@ -129,6 +133,19 @@ fn maximum_string_copy_is_owned_before_release_changes_memory() {
     let actual = host.run(0.0, 0.0).unwrap();
     drop(host);
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn serialized_strings_can_exceed_the_input_buffer_quota() {
+    for length in [32_769, 65_536] {
+        let expected = vec![0xffff; length];
+        let source = fixture_wat("i32.const 4 f64.const 1", &expected).replace(
+            "(memory (export \"memory\") 1)",
+            "(memory (export \"memory\") 2)",
+        );
+        let mut host = HeapInstance::new(&wat::parse_str(source).unwrap()).unwrap();
+        assert_eq!(host.run(0.0, 0.0).unwrap(), expected);
+    }
 }
 
 #[test]

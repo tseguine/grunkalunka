@@ -28,7 +28,9 @@ results being mistaken for plain Strings. These tests also run in the normal
 check command.
 
 The String-only host checks tag 4, a nonzero integer u32 root, readback/release
-statuses, UTF16 alignment and bounded memory access. Initialization has one million
+statuses, UTF16 alignment and bounded memory access, copying up to 65,536 units.
+The larger bound accommodates frame-owned JSON serialization; raw literal input
+construction remains limited to 32,768 units. Initialization has one million
 fuel units; each call receives a fresh one million for execution, output queries
 and release together. These are engineering budgets, not a guarantee that every
 String within the size quota finishes. A trap or protocol error makes the host
@@ -37,10 +39,12 @@ guest lock. Numeric and primitive hosts retain their existing budgets and behavi
 This is a cooperating local-module host, not an arbitrary-module execution service.
 
 Focused host tests also cover malformed results, terminal traps, initialization
-fuel, uncomposed imports and a full 32,768-unit copy before release overwrites
-guest memory. The full-size check uses a small protocol fixture; the actual-guest
-source playback currently covers the six small literal examples above.
+fuel, uncomposed imports, a 32,768-unit copy before release overwrites guest memory,
+and 32,769/65,536-unit copies. The full-size host checks use small protocol
+fixtures; the actual-guest source playback currently covers the six small literal
+examples above.
 
-Source storage, control flow, String operations and JSON source values/parse/stringify
-remain subsequent work. Passing these examples does not close the String or JSON
+The guest now has frame-owned JSON parse/stringify operations as a dependency for
+source calls. Source storage, control flow, String operations and JSON source
+values/parse/stringify remain subsequent work. Passing these examples does not close the String or JSON
 milestone, or finish the shared frontend validation described above.

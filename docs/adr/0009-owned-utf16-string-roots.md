@@ -31,10 +31,15 @@ ID is `InvalidHandle`, while a live non-String root is `NotString`.
 Both new operations clear output before work. Failure preserves all roots and
 the input. Successful construction also preserves input, allowing repeated use.
 Readback leaves the root unchanged. Host copies remain independent of later guest
-mutations. Strings cannot exceed 32,768 units because both constructors use the
-existing input bound; raw readback therefore fits the 65,536-unit output bound.
+mutations. Strings made by these input constructors cannot exceed 32,768 units
+because they use the input bound; raw readback fits the 65,536-unit output bound.
 JSON quoting may still exceed its output quota; raw readback of that root remains
 valid after such a failure.
+
+The subsequent frame-owned JSON operations in [ADR 0010](0010-bounded-internal-root-frames.md)
+also create String roots directly from serialization, up to 65,536 units. The
+separate heap host copies that larger output bound. Input preparation and parsing
+remain bounded at 32,768 units; this extension does not enlarge those inputs.
 
 | New export | Signature | Result |
 | --- | --- | --- |

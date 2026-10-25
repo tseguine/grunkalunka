@@ -4,6 +4,9 @@
 use grunkalunka_json::{JsonValue, Limits, StringifyLimits, parse, stringify};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+mod heap_json_tests;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum GuestError {
     InputLimit,
@@ -54,6 +57,53 @@ impl Default for JsonGuest {
 }
 
 impl JsonGuest {
+    /// Parse a live String root into a temporary owned JSON tree.
+    pub fn heap_parse(&mut self, frame: u32, text: u32) -> Result<u32, GuestError> {
+        let id = self.heap_allocation_id(frame)?;
+        let value = self.roots.get(&text).ok_or(GuestError::InvalidHandle)?;
+        let JsonValue::String(units) = value else {
+            return Err(GuestError::NotString);
+        };
+        let value = parse(
+            units,
+            Limits {
+                max_input_units: MAX_INPUT_UNITS,
+                max_depth: 128,
+                max_values: 4096,
+                max_work: 1_048_576,
+            },
+        )
+        .map_err(GuestError::Parse)?;
+        self.heap_insert(id, value)
+    }
+
+    /// Serialize a live JSON root into a temporary raw String root.
+    pub fn heap_stringify(&mut self, frame: u32, value: u32) -> Result<u32, GuestError> {
+        let id = self.heap_allocation_id(frame)?;
+        self.stringify(value)?;
+        let units = std::mem::take(&mut self.output);
+        self.heap_insert(id, JsonValue::String(units))
+    }
+
+    fn heap_allocation_id(&mut self, frame: u32) -> Result<u32, GuestError> {
+        self.output.clear();
+        if self.frames.last().is_none_or(|top| top.id != frame) {
+            return Err(GuestError::InvalidFrame);
+        }
+        self.next_id.ok_or(GuestError::HandleExhausted)
+    }
+
+    fn heap_insert(&mut self, id: u32, value: JsonValue) -> Result<u32, GuestError> {
+        self.collect_internal_roots();
+        if self.roots.len() >= MAX_ROOTS {
+            return Err(GuestError::RootLimit);
+        }
+        self.roots.insert(id, value);
+        self.internal_roots.insert(id);
+        self.next_id = id.checked_add(1);
+        Ok(id)
+    }
+
     /// Finish the current frame, transferring an optional internal result.
     pub fn heap_leave(&mut self, frame: u32, returned: Option<u32>) -> Result<(), GuestError> {
         self.output.clear();

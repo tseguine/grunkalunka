@@ -92,8 +92,17 @@ and collection preserves every external JSON owner. Leaving transfers an interna
 result to the parent or outer host; abort discards internal ownership. The shared
 64-root quota is unchanged. Invalid tokens and ownership return checked statuses,
 not guest assertions. See [ADR 0010](adr/0010-bounded-internal-root-frames.md).
-This protocol does not admit source Strings or recover an instance interrupted
-inside Rust guest code; compiler rooting and the heap host remain separate work.
+It also provides `gk_heap_parse(frame,text)` and `gk_heap_stringify(frame,value)`.
+They return temporary JSON and serialized String roots, respectively, borrowing
+live operands and preserving them on error. Successful allocation can reclaim
+unpinned internal operands. Serialization results can use the full 65,536-unit
+output bound; parsing and raw input construction keep the 32,768-unit input bound.
+The actual Node and Wasmtime checks replay all 1,130 existing JSON records through
+these operations, standalone and composed, plus 500 allocation cycles and failures.
+These are guest operations; compiler admission of source JSON calls remains open.
+The [experimental literal profile and owned String host](heap-literals.md) now use
+the frame protocol. The host disables reuse after errors; arbitrary interruption
+inside Rust guest code can strand its lock. Broader compiler rooting remains open.
 
 `grunkalunka-wasm-link` can now combine that guest with generated core-Wasm
 functions into one import-free module. It resolves internal runtime calls and
@@ -104,8 +113,8 @@ are handwritten Wasm, not source-lowered JS/TS. See
 [ADR 0008](adr/0008-strict-core-wasm-composition.md) for the strict profile,
 metadata policy, quotas and memory-sharing trust boundary.
 
-Remaining units include compiler-generated runtime calls and admission for
-strings, arrays, objects and the builtins.
+Remaining units include broader String source handling and admission for arrays,
+objects and the builtins.
 Existing truthiness, equality, conversion and
 addition operations need heap-kind semantics before admission. Reviver/replacer
 callbacks, `space`, `toJSON`, property access, aliases, cycles, exceptions and

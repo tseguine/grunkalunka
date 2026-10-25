@@ -6,6 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {checkHeapFrames} from '../tests/compatibility/heap-frames.mjs';
+import {checkHeapJson} from '../tests/compatibility/heap-json.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const run=(command,args)=>{
   const r=spawnSync(command,args,{cwd:root,stdio:'inherit',shell:false});
@@ -96,6 +97,7 @@ for(const [kind,text,want] of cases) {
   }
   assert.equal(guest.gk_json_output_len(),0);
 }
+const heapJson=checkHeapJson(new WebAssembly.Instance(module).exports,cases);
 const sample='{"s":"\\ud800","n":-0}';
 prepare(guest,sample);const keep=guest.gk_json_parse()>>>0;
 assert.equal(guest.gk_json_stringify(keep),0);const snapshot=read(guest);
@@ -196,6 +198,6 @@ assert.equal(crypto.createHash('sha256').update(fs.readFileSync(modulePath)).dig
 const receipt={sha256,bytes:wasm.length,imports:0,node:process.version,wasmtime:'50.0.0',
   sameArtifact:true,cases:cases.length,validCount,allUtf16Units:65536,repeatsPerEngine:500,
   liveRoots:64,releasedIdsNeverReused:true,instanceIsolation:true,ownedSnapshots:true,
-  rawStringCases:stringCases.length,rawStringAllUtf16Units:65536,rawStringRepeatsPerEngine:500,heapFrames};
+  rawStringCases:stringCases.length,rawStringAllUtf16Units:65536,rawStringRepeatsPerEngine:500,heapFrames,heapJson};
 fs.writeFileSync(path.join(outDir,'receipt.json'),JSON.stringify(receipt,null,2)+'\n');
 console.log('PASS JSON guest '+JSON.stringify(receipt));

@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {checkHeapFrames} from '../tests/compatibility/heap-frames.mjs';
+import {checkHeapJson} from '../tests/compatibility/heap-json.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const run=(command,args)=>{
   const r=spawnSync(command,args,{cwd:root,stdio:'inherit',shell:false});
@@ -50,6 +51,11 @@ run('cargo',['run','--offline','--locked','-j','2','-p','grunkalunka-wasm-link',
   path.join(target,'json-guest/module.wasm'),generated,linked,oracle]);
 const bytes=fs.readFileSync(linked), module=new WebAssembly.Module(bytes);
 const heapFrames=checkHeapFrames(new WebAssembly.Instance(module).exports);
+const unhex=text=>(text.match(/.{4}/g)??[]).map(unit=>String.fromCharCode(parseInt(unit,16))).join('');
+const jsonCases=fs.readFileSync(path.join(target,'json-guest/cases.tsv'),'utf8').trimEnd().split('\n').map(row=>{
+  const [kind,text,want]=row.split('\t');return [kind,unhex(text),kind==='valid'?unhex(want):want];
+});
+const heapJson=checkHeapJson(new WebAssembly.Instance(module).exports,jsonCases);
 assert.deepEqual(WebAssembly.Module.imports(module),[]);
 const a=new WebAssembly.Instance(module).exports,b=new WebAssembly.Instance(module).exports;
 assert(a.memory.buffer instanceof ArrayBuffer);
@@ -75,6 +81,6 @@ run('cargo',['run','--offline','--locked','-j','2','-p','grunkalunka-runtime','-
 assert.equal(crypto.createHash('sha256').update(fs.readFileSync(linked)).digest('hex'),sha256);
 const receipt={sha256,bytes:bytes.length,imports:0,sameArtifact:true,engines:[process.version,'Wasmtime50'],
   generatedLiteralSegments:2,repeatsPerEngine:500,numericCases:5,primitivePair:true,instanceIsolation:true,
-  retainedRuntimeOracleRecords:1130,sourceLowering:false,heapFrames};
+  retainedRuntimeOracleRecords:1130,sourceLowering:false,heapFrames,heapJson};
 fs.writeFileSync(path.join(out,'receipt.json'),JSON.stringify(receipt,null,2)+'\n');
 console.log('PASS JSON composition '+JSON.stringify(receipt));

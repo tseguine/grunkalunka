@@ -31,6 +31,22 @@ roots are always retained. Clearing a frame removes its pins but does not collec
 the caller can safely clear then repin all live values before allocating again.
 Pinning accepts only live internal roots and changes only the current frame.
 
+The frame protocol also owns JSON parse and serialization results. `heap_parse`
+accepts a live String root and creates an owned JSON tree; `heap_stringify` accepts
+a live JSON root and creates a raw String containing its compact serialization.
+Both accept internal or external operands. They check the current frame and
+terminal root-ID exhaustion, then validate and evaluate the operand before
+collection. Thus invalid operands, parse errors and serialization failures cannot
+collect existing temporary roots. Successful allocation may collect an unpinned
+internal operand; callers pin it when it must survive. External owners always survive.
+
+Parsing retains the 32,768-unit input, depth-128, 4,096-value and 1,048,576-work
+bounds. Serialization retains its 65,536-unit output and corresponding existing
+depth/value/work bounds. Serialization-created String roots and the heap host's
+copy limit use that larger output bound. Raw input constructors remain at 32,768.
+New operations leave the input unchanged and output empty, including on failure;
+their result is a root ID. They reuse existing status codes and the shared root quota.
+
 Leaving validates the token and optional returned internal root before mutation.
 The returned root is protected by the parent frame, or becomes externally owned
 when the outer frame leaves. Other unprotected internal roots are collected.
@@ -52,6 +68,8 @@ Native methods and matching Wasm exports follow the same checked semantics.
 | gk_heap_clear | (frame:i32) -> i32 | Status; clear current pins without collection |
 | gk_heap_pin | (frame:i32,root:i32) -> i32 | Status; protect a live internal root |
 | gk_heap_string | (frame:i32) -> i32 | Nonzero internal String root, or zero with status |
+| gk_heap_parse | (frame:i32,text:i32) -> i32 | Nonzero internal JSON root, or zero with status |
+| gk_heap_stringify | (frame:i32,value:i32) -> i32 | Nonzero internal serialized String root, or zero with status |
 | gk_heap_leave | (frame:i32,returned:i32) -> i32 | Status; zero returned ID means no result |
 | gk_heap_abort | () -> i32 | Success status; remove temporary ownership |
 
@@ -63,16 +81,17 @@ The checked factory then applies the shared live-root quota.
 
 ## Scope and non-goals
 
-Only raw String construction is available internally in this unit. There is no
-source admission, object graph tracing, String operator dispatch, exception mapping,
-General helper ABI, parameter-object layout or compiler liveness implementation.
+Raw String construction and JSON operations are available internally. Source
+builtin admission, object graph tracing, String operator dispatch, exception mapping,
+General helper ABI, parameter-object layout and compiler liveness remain outside
+this guest operation bridge.
 The 128-frame limit is an engineering bound for this new profile; existing numeric
 and primitive source limits do not change.
 
 Abort is cleanup after a normally returned guest error and subsequent generated
 trap. It is not recovery from arbitrary engine interruption inside Rust guest code.
-Such interruption can strand the guest state lock; a future heap host must discard
-the instance and invalidate its handles instead of trying to reuse it.
+Such interruption can strand the guest state lock. The separate `HeapInstance`
+permanently disables further calls after any error; dropping it discards its store.
 
 ## Alternatives considered
 
@@ -102,4 +121,8 @@ and four-kind primitive profiles remain separate.
 Native TDD and actual Wasm checks cover token order, nested transfer, outer ownership,
 collection, aliases, external roots, quotas, stale tokens, failures and exhaustion.
 The existing JSON/String oracle and composed-guest checks must remain green.
-Full workspace checks and complete diff review precede integration.
+The original frame unit passed full workspace checks. Bounded extensions use
+focused surrounding checks and complete diff review, with broader canonical checks
+at batch boundaries. The JSON extension replays all 1,130 records through the new
+operations in Node and Wasmtime, standalone and composed, plus 500 allocation
+cycles, quota/error/ownership controls and exact-output boundary cases.
