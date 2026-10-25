@@ -31,6 +31,10 @@ impl State {
             Some(GuestError::Stringify(grunkalunka_json::StringifyError::Limit(_))) => 7,
             Some(GuestError::Stringify(_)) => 8,
             Some(GuestError::NotString) => 9,
+            Some(GuestError::FrameLimit) => 10,
+            Some(GuestError::InvalidFrame) => 11,
+            Some(GuestError::NotInternal) => 12,
+            Some(GuestError::FrameExhausted) => 13,
         };
     }
 }
@@ -40,6 +44,62 @@ static STATE: Mutex<Option<State>> = Mutex::new(None);
 fn with_state<T>(f: impl FnOnce(&mut State) -> T) -> T {
     let mut guard = STATE.lock().expect("JSON guest lock poisoned");
     f(guard.get_or_insert_with(State::default))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_enter() -> u32 {
+    with_state(|state| {
+        let result = state.guest.heap_enter();
+        state.record(result.as_ref().err());
+        result.unwrap_or(0)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_clear(frame: u32) -> u32 {
+    with_state(|state| {
+        let result = state.guest.heap_clear(frame);
+        state.record(result.as_ref().err());
+        state.status
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_pin(frame: u32, id: u32) -> u32 {
+    with_state(|state| {
+        let result = state.guest.heap_pin(frame, id);
+        state.record(result.as_ref().err());
+        state.status
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_string(frame: u32) -> u32 {
+    with_state(|state| {
+        let result = state.guest.heap_string_from_input(frame);
+        state.record(result.as_ref().err());
+        result.unwrap_or(0)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_leave(frame: u32, returned: u32) -> u32 {
+    with_state(|state| {
+        let result = state
+            .guest
+            .heap_leave(frame, (returned != 0).then_some(returned));
+        state.record(result.as_ref().err());
+        state.status
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_heap_abort() -> u32 {
+    with_state(|state| {
+        state.guest.heap_abort();
+        state.record(None);
+        state.status
+    })
 }
 
 #[unsafe(no_mangle)]

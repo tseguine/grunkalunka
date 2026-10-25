@@ -86,6 +86,15 @@ back without JSON quoting: `gk_json_string_from_input` returns an owned ID and
 Strings too, shares the existing root quota and release rules, and reports status 9
 for a live non-String root. See [ADR 0009](adr/0009-owned-utf16-string-roots.md).
 
+The guest also provides checked temporary-root frames for generated code. Up to
+128 frames use nonreused tokens; current-frame pins protect internal String roots,
+and collection preserves every external JSON owner. Leaving transfers an internal
+result to the parent or outer host; abort discards internal ownership. The shared
+64-root quota is unchanged. Invalid tokens and ownership return checked statuses,
+not guest assertions. See [ADR 0010](adr/0010-bounded-internal-root-frames.md).
+This protocol does not admit source Strings or recover an instance interrupted
+inside Rust guest code; compiler rooting and the heap host remain separate work.
+
 `grunkalunka-wasm-link` can now combine that guest with generated core-Wasm
 functions into one import-free module. It resolves internal runtime calls and
 remaps function/type/data indices; passive UTF16 literals copy into checked guest

@@ -32,6 +32,34 @@ impl Guest {
             .call(&mut self.store, n)?)
     }
 
+    fn call2(&mut self, name: &str, a: u32, b: u32) -> Result<u32> {
+        self.store.set_fuel(100_000_000)?;
+        Ok(self
+            .instance
+            .get_typed_func::<(u32, u32), u32>(&mut self.store, name)?
+            .call(&mut self.store, (a, b))?)
+    }
+
+    fn mutation(&mut self, name: &str, args: &[u32], expected: u32) -> Result<()> {
+        let actual = match args {
+            [] => self.call0(name)?,
+            [n] => self.call1(name, *n)?,
+            [a, b] => self.call2(name, *a, *b)?,
+            _ => return Err("invalid check arity".into()),
+        };
+        assert_eq!(actual, expected, "{name}");
+        assert_eq!(self.call0("gk_json_status")?, expected, "{name}");
+        assert_eq!(self.call0("gk_json_error_offset")?, 0, "{name}");
+        assert!(self.output()?.is_empty(), "{name}");
+        Ok(())
+    }
+
+    fn raw(&mut self, id: u32, expected: &[u16]) -> Result<()> {
+        assert_eq!(self.call1("gk_json_string_units", id)?, 0);
+        assert_eq!(self.output()?, expected);
+        Ok(())
+    }
+
     fn prepare(&mut self, units: &[u16]) -> Result<()> {
         let ptr = self.call1("gk_json_input_resize", units.len().try_into()?)?;
         assert_ne!(ptr, 0);
@@ -81,6 +109,106 @@ fn unhex(text: &str) -> Result<Vec<u16>> {
         .step_by(4)
         .map(|i| u16::from_str_radix(&text[i..i + 4], 16).map_err(Into::into))
         .collect()
+}
+
+fn check_frames(engine: &Engine, module: &Module) -> Result<()> {
+    let mut g = Guest::new(engine, module)?;
+    g.mutation("gk_heap_clear", &[0], 11)?;
+    g.mutation("gk_heap_pin", &[0, 0], 11)?;
+    g.mutation("gk_heap_leave", &[0, 0], 11)?;
+    assert_eq!(g.call1("gk_heap_string", 0)?, 0);
+    assert_eq!(g.call0("gk_json_status")?, 11);
+    g.mutation("gk_heap_abort", &[], 0)?;
+    g.prepare(&[72])?;
+    let host = g.call0("gk_json_string_from_input")?;
+    assert_ne!(host, 0);
+    let outer = g.call0("gk_heap_enter")?;
+    assert_ne!(outer, 0);
+    g.prepare(&[0xd800, 0, 0xdc00])?;
+    let parent = g.call1("gk_heap_string", outer)?;
+    assert!(parent > host);
+    g.mutation("gk_heap_pin", &[outer, parent], 0)?;
+    let inner = g.call0("gk_heap_enter")?;
+    assert!(inner > outer);
+    g.mutation("gk_heap_clear", &[outer], 11)?;
+    g.mutation("gk_heap_pin", &[inner, host], 12)?;
+    g.mutation("gk_heap_pin", &[inner, 0], 4)?;
+    g.prepare(&[0xffff, 0xdfff, 0])?;
+    let returned = g.call1("gk_heap_string", inner)?;
+    assert!(returned > parent);
+    g.mutation("gk_heap_leave", &[inner, host], 12)?;
+    g.raw(returned, &[0xffff, 0xdfff, 0])?;
+    g.mutation("gk_heap_leave", &[inner, u32::MAX], 4)?;
+    g.mutation("gk_heap_leave", &[outer, 0], 11)?;
+    g.mutation("gk_heap_leave", &[inner, returned], 0)?;
+    for n in 0..500 {
+        g.prepare(&[n, 0xd800, 0, 0xdc00])?;
+        let temporary = g.call1("gk_heap_string", outer)?;
+        assert!(temporary > returned);
+        g.mutation("gk_heap_clear", &[outer], 0)?;
+        g.mutation("gk_heap_pin", &[outer, parent], 0)?;
+        g.mutation("gk_heap_pin", &[outer, returned], 0)?;
+        g.mutation("gk_heap_pin", &[outer, temporary], 0)?;
+        g.raw(temporary, &[n, 0xd800, 0, 0xdc00])?;
+        g.mutation("gk_json_release", &[temporary], 0)?;
+        g.raw(parent, &[0xd800, 0, 0xdc00])?;
+        g.raw(returned, &[0xffff, 0xdfff, 0])?;
+    }
+    g.mutation("gk_heap_leave", &[outer, returned], 0)?;
+    g.mutation("gk_json_string_units", &[parent], 4)?;
+    let after = g.call0("gk_heap_enter")?;
+    assert!(after > inner);
+    let garbage = g.call1("gk_heap_string", after)?;
+    assert!(garbage > returned);
+    g.mutation("gk_heap_abort", &[], 0)?;
+    g.mutation("gk_json_string_units", &[garbage], 4)?;
+    g.mutation("gk_heap_clear", &[after], 11)?;
+    g.raw(returned, &[0xffff, 0xdfff, 0])?;
+    g.raw(host, &[72])?;
+    g.mutation("gk_json_release", &[returned], 0)?;
+    g.mutation("gk_json_release", &[host], 0)?;
+    g.mutation("gk_heap_abort", &[], 0)?;
+    let mut last = after;
+    for _ in 0..128 {
+        let next = g.call0("gk_heap_enter")?;
+        assert!(next > last);
+        last = next;
+    }
+    assert_eq!(g.call0("gk_heap_enter")?, 0);
+    assert_eq!(g.call0("gk_json_status")?, 10);
+    g.mutation("gk_heap_clear", &[last], 0)?;
+    g.mutation("gk_heap_abort", &[], 0)?;
+    let frame = g.call0("gk_heap_enter")?;
+    assert!(frame > last);
+    g.prepare(&[48])?;
+    let mut owners = Vec::new();
+    for _ in 0..63 {
+        let id = g.call0("gk_json_parse")?;
+        assert_ne!(id, 0);
+        assert!(!owners.contains(&id));
+        owners.push(id);
+    }
+    let held = g.call1("gk_heap_string", frame)?;
+    assert!(held > *owners.last().ok_or("no owners")?);
+    g.mutation("gk_heap_pin", &[frame, held], 0)?;
+    assert_eq!(g.call1("gk_heap_string", frame)?, 0);
+    assert_eq!(g.call0("gk_json_status")?, 2);
+    assert!(g.output()?.is_empty());
+    g.raw(held, &[48])?;
+    g.mutation("gk_heap_clear", &[frame], 0)?;
+    let replacement = g.call1("gk_heap_string", frame)?;
+    assert!(replacement > held);
+    g.mutation("gk_json_string_units", &[held], 4)?;
+    g.mutation("gk_heap_leave", &[frame, replacement], 0)?;
+    g.mutation("gk_heap_abort", &[], 0)?;
+    g.raw(replacement, &[48])?;
+    g.mutation("gk_json_release", &[replacement], 0)?;
+    for id in owners {
+        assert_eq!(g.call1("gk_json_stringify", id)?, 0);
+        assert_eq!(g.output()?, [48]);
+        g.mutation("gk_json_release", &[id], 0)?;
+    }
+    Ok(())
 }
 
 fn check_strings(engine: &Engine, module: &Module, oracle: &Path) -> Result<usize> {
@@ -306,6 +434,7 @@ fn main() -> Result<()> {
     assert_eq!(guest.call1("gk_json_stringify", own_id)?, 0);
     assert_eq!(guest.output()?, "false".encode_utf16().collect::<Vec<_>>());
     assert_eq!(saved, expected);
+    check_frames(&engine, &module)?;
     let string_count = check_strings(
         &engine,
         &module,

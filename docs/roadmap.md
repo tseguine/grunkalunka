@@ -463,3 +463,10 @@ Owned raw UTF16 String construction/readback now reuses the JSON guest root tabl
 and checked buffers, verified in both engines. Source String values still require
 an explicit heap-capable profile and generic-operation audit; the existing
 primitive ABI remains four-kind. See [ADR 0009](adr/0009-owned-utf16-string-roots.md).
+
+Checked internal-root frames now provide bounded pinning, collection and result
+ownership transfer while preserving external JSON roots and the 64-root quota.
+The native and actual standalone/composed guest checks cover the protocol.
+Source rooting, heap-profile admission and a terminal-trap host remain separate;
+this closes no source-lowering requirement. See
+[ADR 0010](adr/0010-bounded-internal-root-frames.md).

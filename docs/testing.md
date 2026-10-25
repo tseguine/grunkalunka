@@ -22,6 +22,13 @@ including all 65,536 UTF16 units in bounded chunks, with Node JSON quoting oracl
 Both engines check direct construction/readback, 500 String lifecycles, parsed String
 compatibility, wrong-kind status 9, mixed root quotas and independent snapshots.
 
+The standalone and composed guest checks also exercise the same temporary-root
+protocol in Node and Wasmtime: checked current tokens, parent/host result transfer,
+500 temporary allocation cycles, clear/repin, abort, 128-frame and 64-root bounds.
+Native tests additionally reach terminal frame/root IDs and check that release
+does not accumulate stale pins. These tests do not execute a source heap profile
+or claim recovery after arbitrary engine interruptions.
+
 Compiler IR tests exercise fixed Number/Predicate cells independently of source
 admission: initialization/load/store types, lexical visibility, initialization,
 mutability and Number-only entry/helper parameters. A mixed-order scalar-cell

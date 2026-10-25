@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import {checkHeapFrames} from '../tests/compatibility/heap-frames.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const run=(command,args)=>{
   const r=spawnSync(command,args,{cwd:root,stdio:'inherit',shell:false});
@@ -15,6 +16,7 @@ run('cargo',['build','--locked','--offline','-j','2','-p','grunkalunka-json-gues
 const target=path.resolve(root,process.env.CARGO_TARGET_DIR??'target');
 const wasm=fs.readFileSync(path.join(target,'wasm32-unknown-unknown/release/grunkalunka_json_guest.wasm'));
 const module=new WebAssembly.Module(wasm);
+const heapFrames=checkHeapFrames(new WebAssembly.Instance(module).exports);
 assert.deepEqual(WebAssembly.Module.imports(module),[]);
 const guest=new WebAssembly.Instance(module).exports;
 assert(guest.memory.buffer instanceof ArrayBuffer, 'guest memory must be nonshared');
@@ -194,6 +196,6 @@ assert.equal(crypto.createHash('sha256').update(fs.readFileSync(modulePath)).dig
 const receipt={sha256,bytes:wasm.length,imports:0,node:process.version,wasmtime:'50.0.0',
   sameArtifact:true,cases:cases.length,validCount,allUtf16Units:65536,repeatsPerEngine:500,
   liveRoots:64,releasedIdsNeverReused:true,instanceIsolation:true,ownedSnapshots:true,
-  rawStringCases:stringCases.length,rawStringAllUtf16Units:65536,rawStringRepeatsPerEngine:500};
+  rawStringCases:stringCases.length,rawStringAllUtf16Units:65536,rawStringRepeatsPerEngine:500,heapFrames};
 fs.writeFileSync(path.join(outDir,'receipt.json'),JSON.stringify(receipt,null,2)+'\n');
 console.log('PASS JSON guest '+JSON.stringify(receipt));

@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {checkHeapFrames} from '../tests/compatibility/heap-frames.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const run=(command,args)=>{
   const r=spawnSync(command,args,{cwd:root,stdio:'inherit',shell:false});
@@ -48,6 +49,7 @@ fs.writeFileSync(generated,wat);fs.writeFileSync(oracle,expected.map(hex).join('
 run('cargo',['run','--offline','--locked','-j','2','-p','grunkalunka-wasm-link','--example','json_composition','--',
   path.join(target,'json-guest/module.wasm'),generated,linked,oracle]);
 const bytes=fs.readFileSync(linked), module=new WebAssembly.Module(bytes);
+const heapFrames=checkHeapFrames(new WebAssembly.Instance(module).exports);
 assert.deepEqual(WebAssembly.Module.imports(module),[]);
 const a=new WebAssembly.Instance(module).exports,b=new WebAssembly.Instance(module).exports;
 assert(a.memory.buffer instanceof ArrayBuffer);
@@ -73,6 +75,6 @@ run('cargo',['run','--offline','--locked','-j','2','-p','grunkalunka-runtime','-
 assert.equal(crypto.createHash('sha256').update(fs.readFileSync(linked)).digest('hex'),sha256);
 const receipt={sha256,bytes:bytes.length,imports:0,sameArtifact:true,engines:[process.version,'Wasmtime50'],
   generatedLiteralSegments:2,repeatsPerEngine:500,numericCases:5,primitivePair:true,instanceIsolation:true,
-  retainedRuntimeOracleRecords:1130,sourceLowering:false};
+  retainedRuntimeOracleRecords:1130,sourceLowering:false,heapFrames};
 fs.writeFileSync(path.join(out,'receipt.json'),JSON.stringify(receipt,null,2)+'\n');
 console.log('PASS JSON composition '+JSON.stringify(receipt));
