@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/grunkalunka-compiler", "crates/grunkalunka-runtime", "crates/grunkalunka-cli", "crates/grunkalunka-markdown", "crates/grunkalunka-json"]
+members = ["crates/grunkalunka-compiler", "crates/grunkalunka-runtime", "crates/grunkalunka-cli", "crates/grunkalunka-markdown", "crates/grunkalunka-json", "crates/grunkalunka-json-guest"]
 exclude = ["spikes/001-frontend-semantics"]
 resolver = "3"
 

@@ -1,5 +1,14 @@
 # External tests and benchmarks
 
+The normal check command also builds the owned JSON guest offline for
+`wasm32-unknown-unknown` and checks the same module in Node and Wasmtime. Install
+that Rust target during setup; verification does not download it. Replay this
+boundary alone with `node scripts/check-json-guest.mjs`. Its UTF16 oracle records,
+artifact and hash receipt are retained in the selected Cargo target directory's
+`json-guest/`. Tests cover all code units, finite-number samples, object ordering,
+quotas, stale IDs, release, repeats and separate instances. This does not execute
+source-lowered `JSON.parse`/`JSON.stringify`; those remain unadmitted.
+
 Compiler IR tests exercise fixed Number/Predicate cells independently of source
 admission: initialization/load/store types, lexical visibility, initialization,
 mutability and Number-only entry/helper parameters. A mixed-order scalar-cell

@@ -533,6 +533,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "grunkalunka-json-guest"
+version = "0.0.1"
+dependencies = [
+ "grunkalunka-json",
+]
+
+[[package]]
 name = "grunkalunka-markdown"
 version = "0.0.1"
 dependencies = [

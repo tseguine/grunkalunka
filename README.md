@@ -17,10 +17,11 @@ runtime compatibility.
 
 ## Build and run
 
-Install current Rust stable and Node.js 20 or newer. Acquire the locked dependencies
-once, then build and verify offline:
+Install current Rust stable and Node.js 20 or newer. Install the core-Wasm target
+and acquire the locked dependencies once, then build and verify offline:
 
 ```sh
+rustup target add wasm32-unknown-unknown
 cargo fetch --locked
 cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
 cargo build --workspace --locked --offline
@@ -28,8 +29,10 @@ node scripts/check.mjs
 ```
 
 The complete check includes formatting, Clippy, workspace tests, dependency
-screening, the historical frontend observations and the differential regression
-corpus. To replay only the compiler/runtime demonstration:
+screening, the historical frontend observations, the JSON guest on Node and
+Wasmtime, and the differential regression corpus. The JSON guest is a data
+transport foundation; JSON source values and builtins are not yet lowerable.
+To replay only the compiler/runtime demonstration:
 
 ```sh
 node scripts/poc.mjs

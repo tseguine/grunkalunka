@@ -71,8 +71,17 @@ Serializer oracles compare actual output code units with pristine Node
 all 65,536 code units, nesting and index boundaries. These deterministic finite
 comparisons are regression evidence, not exhaustive language conformance.
 
-Remaining units include an import-free guest runtime and checked heap transport,
-then compiler admission for strings, arrays, objects and the builtins.
+`grunkalunka-json-guest` now executes this library in an import-free core-Wasm
+module with bounded UTF16 buffers, at most 64 live owned roots, nonreused instance
+IDs and explicit release. `node scripts/check-json-guest.mjs` builds it offline
+and runs the identical artifact in Node and Wasmtime; normal checks include it.
+The Rust `wasm32-unknown-unknown` target must already be installed. This is owned
+JSON data transport, not compiler admission or a JavaScript heap. See
+[ADR 0007](adr/0007-bounded-json-guest-transport.md) for the protocol, quotas,
+host obligations, status codes and alternatives.
+
+Remaining units include source-generated runtime composition and compiler
+admission for strings, arrays, objects and the builtins.
 Existing truthiness, equality, conversion and
 addition operations need heap-kind semantics before admission. Reviver/replacer
 callbacks, `space`, `toJSON`, property access, aliases, cycles, exceptions and

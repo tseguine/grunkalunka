@@ -441,3 +441,11 @@ values, exact selected results and skipped effects use existing typed operations
 Corpus 64 has 1759 numeric pairs and 921 rejections; Value reporting has 73 pairs
 and fifteen exact numeric origins. Binary `??`, then `??=`, remain separate work.
 See [the contract and exclusions](compiler.md#general-logical-assignment).
+
+## JSON guest foundation
+
+The UTF16 JSON library now runs in an import-free core-Wasm guest with bounded
+input/output, owned root IDs and explicit release. The same artifact is checked
+in Node and Wasmtime. Compiler source admission and a JavaScript heap remain
+separate work; no source-lowering gap closes here. See
+[the boundary](json.md) and [ADR 0007](adr/0007-bounded-json-guest-transport.md).
