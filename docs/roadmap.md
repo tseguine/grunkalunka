@@ -425,3 +425,12 @@ Entry/helper declaration type parameters erase while preserving runtime numeric
 eligibility and source budgets. Type metadata is retained and unvalidated; this does
 not adopt type inference. Explicit generic calls and runtime TypeScript constructs
 remain separate work. Corpus 50: 1466 pairs, 995 rejections, 38 curated references.
+
+## General logical assignment
+
+Mutable identifiers now admit `&&=`/`||=` across represented primitive kinds,
+including Number-initialized locals/parameters that can change kind. Captured old
+values, exact selected results and skipped effects use existing typed operations.
+Corpus 64 has 1759 numeric pairs and 921 rejections; Value reporting has 73 pairs
+and fifteen exact numeric origins. Binary `??`, then `??=`, remain separate work.
+See [the contract and exclusions](compiler.md#general-logical-assignment).

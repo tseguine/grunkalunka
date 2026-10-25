@@ -55,8 +55,8 @@ retained as useful evidence; no servers, ports or background services are used.
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 63
-contains 1739 paired programs, 921 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 64
+contains 1759 paired programs, 921 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
@@ -1084,6 +1084,9 @@ Modules. No curated reference or Rust-only negative body transfers. That step re
 
 ## Numeric logical assignment
 
+This records the original Number-only step; [General logical assignment](#general-logical-assignment)
+below extends the represented value domain while retaining these scalar paths.
+
 Initialized mutable Number parameters and `let` identifiers admit `&&=` and `||=`.
 The original target is validated and loaded once before RHS effects. Number
 truthiness selects the RHS for `&&=` on truthy values and `||=` on falsy values;
@@ -1611,3 +1614,33 @@ control groups and two termination-only observations remain unchanged. Coverage
 includes 1024 independent-golden modules, 64 effect/order modules, twelve exact
 former Rust guard modules and an operand-order mutation, across JS/TS and both
 profiles. Predicate-depth, local and statement limits retain their guards.
+
+## General logical assignment
+
+Initialized mutable identifier cells admit `&&=` and `||=` for represented
+Undefined, Null, Boolean and Number values. Following
+[logical-assignment evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation),
+lowering captures the old value once, tests its truthiness and evaluates/stores the
+RHS only when selected. The result is the exact selected RHS or skipped old
+snapshot, preserving kind, signed zero and NaN class. Later writes cannot change it.
+The complete RHS must still be admitted when runtime selection would skip it.
+
+Read-only storage planning includes possible logical RHS writes and propagates
+kind changes through alias dependencies. Number-initialized locals and source
+parameters can therefore use existing General cells; physical Number parameters
+and Number-only paths remain unchanged. Existing General `Load`, `GeneralTruthy`,
+typed `If` and selected-child `Store` operations suffice, without new IR or ABI.
+Numeric results use an explicit admitted conversion such as `+(value ||= true)`;
+a General assignment result is still rejected in a Number-only return position.
+Const/TDZ/property/global targets, `??=`, unrepresented kinds and source budgets
+retain their restrictions.
+
+Corpus 64 adds twenty numeric pairs, reaching 1759 pairs and 921 rejections with
+all 36 curated references retained. Eight individually pinned diagnostics advance
+to the General-result restriction; no numeric rejection is promoted. The Value
+profile adds six pairs, including two unchanged numeric rejection sources, reaching
+73 pairs/4088 comparisons and fifteen numeric origins. Four selected rejected
+pairs, six controls and two termination-only observations remain. Runtime tests
+cover 1600 independent-golden modules, 64 effect/order modules and sixteen exact
+former Rust guard modules across eligible JS/TS/profile combinations. Two semantic
+mutations detect a missing selected Store and reversed branch selection.

@@ -263,8 +263,6 @@ fn mutable_layout_planning_does_not_publish_bindings_or_relax_other_operators() 
         "let value=a; {let value=value;} return a;",
         "{let value=null;} return value;",
         "const value=null; value=a; return b;",
-        "let value=null; value&&=a; return value;",
-        "let value=null; value||=a; return value;",
     ] {
         let source = format!("export function run(a,b) {{{body}}}");
         let error = compile_value(&source, false).err().unwrap();

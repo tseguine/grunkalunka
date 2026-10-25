@@ -485,7 +485,12 @@ impl Lowering<'_, '_> {
             } else if let Expression::ParenthesizedExpression(wrapper) = expression {
                 expression = &wrapper.expression;
             } else if let Expression::AssignmentExpression(assignment) = expression {
-                if assignment.operator != AssignmentOperator::Assign {
+                if !matches!(
+                    assignment.operator,
+                    AssignmentOperator::Assign
+                        | AssignmentOperator::LogicalAnd
+                        | AssignmentOperator::LogicalOr
+                ) {
                     return None;
                 }
                 let identifier = assignment

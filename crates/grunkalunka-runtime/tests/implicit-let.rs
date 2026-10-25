@@ -287,7 +287,6 @@ fn implicit_let_keeps_tdz_const_and_source_contracts() {
         "export function run(a,b) {let {x}; return a;}",
         "export function run(a,b) {let x!:number; return a;}",
         "export function run(a,b) {let x; x=\"bad\"; return a;}",
-        "export function run(a,b) {let x; x&&=a; return a;}",
     ] {
         let error = compile_value(source, true).err().unwrap();
         assert!(!error.contains("internal IR"), "{source}: {error}");

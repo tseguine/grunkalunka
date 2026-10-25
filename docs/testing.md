@@ -344,3 +344,14 @@ ordered argument effects, finite recursion and source budgets. Adjacent shape gu
 explicit type-argument calls and unsupported bodies remain negative. Two built guard
 mutants independently reintroduce the entry or helper restriction; original artifact
 and diagnostic audits retain eleven exact wording-only exceptions.
+
+The [General logical-assignment fixtures](../tests/compatibility/general-logical-assignment.mjs)
+cover exact primitive results, selected/skipped RHS effects, same-target writes,
+saved snapshots, aliases, parameters, wrappers, loops and finite recursion.
+Runtime tests compare 1600 modules against independent four-kind goldens and
+original JavaScript in both Wasm engines, plus 64 effect/order modules and sixteen
+exact former guard modules. Depth, local, statement, parameter and unsupported
+operand/target boundaries remain checked. Two built mutations omit the selected
+Store or invert branch selection. Compatibility accounting retains eight exact
+diagnostic advances and two unchanged numeric rejection sources as Value origins;
+neither diagnostic movement nor Value execution is counted as numeric promotion.

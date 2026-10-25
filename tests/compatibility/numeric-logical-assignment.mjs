@@ -51,10 +51,10 @@ for (const [op, name] of [['&&=', 'and'], ['||=', 'or']]) {
   negative(`${name}-forward`, `let x=(y ${op} b); let y=a; return x;`, 'reference is not an initialized numeric parameter or local', 'binding-errors');
   negative(`${name}-shadow-tdz`, `let x=a; { let y=(x ${op} b); let x=b; } return a;`, 'reference is not an initialized numeric parameter or local', 'binding-errors');
   negative(`${name}-scope`, `{let x=a;} return x ${op} b;`, 'reference is not an initialized numeric parameter or local', 'binding-errors');
-  negative(`${name}-unselected-call`, `let x=${name==='and'?0:1}; return x ${op} Math.random();`, 'expression is outside the numeric experiment', 'function-calls');
-  negative(`${name}-boolean-rhs`, `return a ${op} true;`, 'expression is outside the numeric experiment', 'boolean-values');
-  negative(`${name}-string-rhs`, `return a ${op} "x";`, 'expression is outside the numeric experiment', 'string-values');
-  negative(`${name}-bigint-rhs`, `return a ${op} 1n;`, 'expression is outside the numeric experiment', 'bigint-values');
+  negative(`${name}-unselected-call`, `let x=${name==='and'?0:1}; return x ${op} Math.random();`, 'General logical assignments require a primitive value position', 'function-calls');
+  negative(`${name}-boolean-rhs`, `return a ${op} true;`, 'General logical assignments require a primitive value position', 'boolean-values');
+  negative(`${name}-string-rhs`, `return a ${op} "x";`, 'General logical assignments require a primitive value position', 'string-values');
+  negative(`${name}-bigint-rhs`, `return a ${op} 1n;`, 'General logical assignments require a primitive value position', 'bigint-values');
   negative(`${name}-js-depth129`, `return a ${op} ${'('.repeat(128)}b${')'.repeat(128)};`, 'expression nesting exceeds', 'expression-depth');
   negative(`${name}-ts-depth129`, `return a ${op} b${'!'.repeat(128)};`, 'expression nesting exceeds', 'expression-depth', 'ts');
 }

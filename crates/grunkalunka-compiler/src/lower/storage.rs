@@ -163,7 +163,12 @@ pub(crate) fn general_mutable_bindings(
     let mut writes: BTreeMap<SymbolId, Vec<&Expression<'_>>> = BTreeMap::new();
     for node in semantic.nodes().iter() {
         if let AstKind::AssignmentExpression(assignment) = node.kind()
-            && assignment.operator == AssignmentOperator::Assign
+            && matches!(
+                assignment.operator,
+                AssignmentOperator::Assign
+                    | AssignmentOperator::LogicalAnd
+                    | AssignmentOperator::LogicalOr
+            )
             && let Some(identifier) = assignment
                 .left
                 .as_simple_assignment_target()
@@ -177,7 +182,7 @@ pub(crate) fn general_mutable_bindings(
             writes.entry(symbol).or_default().push(&assignment.right);
         }
     }
-    // A candidate stays Number exactly when its initial value and every plain write
+    // A candidate stays Number exactly when its initial value and every plain/logical RHS write
     // have Number shape and all symbol dependencies stay Number. Start with the
     // greatest candidate set, then propagate removals through reverse edges once.
     let candidates = definitions

@@ -169,8 +169,8 @@ for (const {id,sourceJS,sourceTS,standards} of valueFuelCases) {
 }
 assert.equal(report.terminationCases.length,2);
 report.controls.push('admitted recursive General numeric result exhausts fuel');
-assert.equal(report.pairedPrograms, 67); assert.equal(report.numericOriginCases,13); assert.equal(report.rejections.length, 8);
-assert.equal(report.comparisons, 3752);
+assert.equal(report.pairedPrograms, 73); assert.equal(report.numericOriginCases,15); assert.equal(report.rejections.length, 8);
+assert.equal(report.comparisons, 4088);
 report.artifacts = fs.readdirSync(run).sort().map(name => {const bytes=fs.readFileSync(path.join(run,name)); return {path:name,bytes:bytes.length,sha256:sha(bytes)};});
 save('report.json', JSON.stringify(report, null, 2) + '\n');
 console.log(`PASS primitive-return-v1: ${report.pairedPrograms} pairs, ${report.rejectedPairs} rejected pairs, ${report.comparisons} comparisons, ${report.controls.length} CLI controls`);

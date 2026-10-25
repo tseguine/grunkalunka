@@ -507,3 +507,14 @@ while retaining once-only evaluation, lexical validation, selected-branch effect
 and original source-budget charges. Every previously admitted expression keeps its
 original specialized route. Discarding a value does not waive admission of its
 source operands or make General arguments/unsupported operators valid.
+
+### General logical assignment
+
+General `&&=`/`||=` captures one typed `Load`, applies `GeneralTruthy` and builds a
+General-result `If`. Only the selected child evaluates the RHS and stores its
+captured result; the empty skipped child yields the original captured value. The
+existing Number route keeps its scalar operations. Read-only storage planning now
+includes possible logical RHS writes in its existing dependency analysis, allowing
+Number-initialized source locals/parameters to use General cells when needed.
+No operation, signature or source-budget change is required. See
+[the source contract](compiler.md#general-logical-assignment).

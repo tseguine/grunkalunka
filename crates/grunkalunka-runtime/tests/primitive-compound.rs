@@ -312,7 +312,6 @@ fn arithmetic_compounds_keep_other_operator_kind_and_binding_boundaries() {
         "a&=true; return a;",
         "a>>>=false; return a;",
         "let value=null; value**=a; return a;",
-        "let value=null; value&&=a; return a;",
         "const value=null; value+=a; return a;",
         "value+=a; let value=null; return a;",
         "let value=(value+=a); return a;",

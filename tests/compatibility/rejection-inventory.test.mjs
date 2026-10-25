@@ -1,3 +1,4 @@
+import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
 import { primitiveRelational, primitiveRelationalPromotions } from './primitive-relational.mjs';
 import { primitiveCompound, primitiveCompoundPromotions } from './primitive-compound.mjs';
 import { implicitLet, implicitLetPromotions } from './implicit-let.mjs';
@@ -378,4 +379,10 @@ test('primitive arithmetic compounds retain five exact numeric promotion observa
 test('primitive relational conversions retain two exact numeric promotion sources',()=>{
  assert.equal(primitiveRelationalPromotions.length,2);
  for(const [id,js,ts,hash] of primitiveRelationalPromotions){const sources=programSources(primitiveRelational.find(p=>p[0]===id));assert.deepEqual(sources,{sourceJS:js,sourceTS:ts,oracleSource:js});assert.equal(createHash('sha256').update(js).digest('hex'),hash);assert.ok(!rejected.some(p=>p[0]===id));}
+});
+
+
+test('General logical assignments retain two exact numeric rejection sources in the Value profile',()=>{
+ assert.equal(generalLogicalAssignment.length,20);assert.equal(generalLogicalAssignmentNumericOrigins.length,2);
+ for(const [id,origin,source,hash] of generalLogicalAssignmentNumericOrigins){const value=valuePrograms.find(p=>p.id===id);const negative=rejected.find(p=>p[0]===origin);assert.equal(value.numericOrigin,origin);assert.equal(value.sourceJS,source);assert.equal(negative[1],source);assert.equal(negative[3],'General logical assignments require a primitive value position');assert.equal(createHash('sha256').update(source).digest('hex'),hash);}
 });

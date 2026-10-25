@@ -1,3 +1,4 @@
+import { generalLogicalAssignment } from './general-logical-assignment.mjs';
 import { primitiveRelational } from './primitive-relational.mjs';
 import { primitiveCompound } from './primitive-compound.mjs';
 import { implicitLet } from './implicit-let.mjs';
@@ -65,7 +66,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 63;
+export const corpusVersion = 64;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -147,6 +148,7 @@ programs.push(...generalUpdates);
 programs.push(...implicitLet);
 programs.push(...primitiveCompound);
 programs.push(...primitiveRelational);
+programs.push(...generalLogicalAssignment);
 programs.push(...numericLogicalAssignment);
 programs.push(...typeOnlyModuleItems);
 programs.push(...genericDeclarations);

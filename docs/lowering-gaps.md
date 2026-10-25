@@ -551,3 +551,16 @@ See [the contract](compiler.md#primitive-relational-comparisons). Corpus 63 has
 and remaining diagnostics unchanged. Value reporting reaches 67 pairs/3752
 comparisons. String, BigInt, Symbol, object and observable conversion semantics
 remain separate requirements; equality semantics are unchanged.
+
+## General logical assignment
+
+`&&=`/`||=` now select, store and return represented primitive values with exact
+old-value capture and skipped RHS effects. Number-initialized locals/parameters
+participate through existing General storage planning. See
+[the contract](compiler.md#general-logical-assignment). Corpus 64 adds twenty
+pairs (1759 total) while retaining 921 numeric rejections and 36 curated references.
+Eight exact diagnostics advance to the separate numeric General-result restriction;
+none is a numeric promotion. Two original Boolean-RHS sources execute unchanged
+in the Value profile, which reaches 73 pairs/4088 comparisons and fifteen numeric
+origins. `??`, `??=`, const assignment admission, other targets and unrepresented
+kinds remain separate requirements.

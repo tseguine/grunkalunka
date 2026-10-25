@@ -183,11 +183,12 @@ fn predicate_number<'e, 'a>(work: &mut Vec<Work<'e, 'a>>, node: &'e Expression<'
 impl Lowering<'_, '_> {
     // Logical assignment validates and captures the target before entering its RHS.
     // All RHS work stays in the selected owned child; no old assignment route changes.
-    fn schedule_numeric_logical_assignment<'e, 'a>(
+    fn schedule_logical_assignment<'e, 'a>(
         &mut self,
         node: &'e Expression<'a>,
         assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
         depth: usize,
+        mode: Mode,
         regions: &mut Regions<'_>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
@@ -211,23 +212,29 @@ impl Lowering<'_, '_> {
             ));
         }
         let slot = binding.slot;
-        if self.slots[slot.0].ty == Type::General {
+        let ty = self.slots[slot.0].ty;
+        let general = ty == Type::General;
+        if general && !matches!(mode, Mode::General) {
             return Err(unsupported(
                 node,
-                "General logical assignments are not admitted yet",
+                "General logical assignments require a primitive value position",
             ));
         }
-        let old = self.value(Type::Number);
+        let old = self.value(ty);
         Self::push(regions.current(), node, Op::Load { result: old, slot });
         let condition = self.value(Type::Predicate);
-        Self::push(
-            regions.current(),
-            node,
+        let truthy = if general {
+            Op::GeneralTruthy {
+                result: condition,
+                input: old,
+            }
+        } else {
             Op::Truthy {
                 result: condition,
                 input: old,
-            },
-        );
+            }
+        };
+        Self::push(regions.current(), node, truthy);
         regions.children.push(self.region(&assignment.right));
         work.push(Work::LogicalAssign {
             node,
@@ -236,7 +243,11 @@ impl Lowering<'_, '_> {
             old,
             condition,
         });
-        work.push(Work::Eval(&assignment.right, depth + 1, Mode::Number));
+        work.push(Work::Eval(
+            &assignment.right,
+            depth + 1,
+            if general { Mode::General } else { Mode::Number },
+        ));
         Ok(())
     }
 
@@ -455,7 +466,14 @@ impl Lowering<'_, '_> {
                     old,
                     condition,
                 } => {
-                    let value = values.pop().expect("logical assignment RHS").number();
+                    let ty = self.slots[slot.0].ty;
+                    let general = ty == Type::General;
+                    let value = values.pop().expect("logical assignment RHS");
+                    let value = if general {
+                        value.general()
+                    } else {
+                        value.number()
+                    };
                     let mut selected = regions.finish(value);
                     Self::push(&mut selected, node, Op::Store { slot, value });
                     let mut skipped = self.region(&assignment.left);
@@ -466,7 +484,7 @@ impl Lowering<'_, '_> {
                         } else {
                             (skipped, selected)
                         };
-                    let result = self.value(Type::Number);
+                    let result = self.value(ty);
                     Self::push(
                         regions.current(),
                         node,
@@ -477,7 +495,11 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    values.push(Value::Number(result));
+                    values.push(if general {
+                        Value::General(result)
+                    } else {
+                        Value::Number(result)
+                    });
                 }
                 Work::StoreGeneral { node, slot } => {
                     let value = values.pop().expect("General assignment RHS");
@@ -1174,10 +1196,11 @@ impl Lowering<'_, '_> {
                                 assignment.operator,
                                 AssignmentOperator::LogicalAnd | AssignmentOperator::LogicalOr
                             ) {
-                                self.schedule_numeric_logical_assignment(
+                                self.schedule_logical_assignment(
                                     node,
                                     assignment,
                                     depth,
+                                    mode,
                                     &mut regions,
                                     &mut work,
                                 )?;
