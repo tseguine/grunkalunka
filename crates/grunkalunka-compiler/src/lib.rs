@@ -324,7 +324,7 @@ pub fn compile_value(source: &str, typescript: bool) -> Result<Artifact, String>
     Ok(Artifact { wat, wasm })
 }
 
-/// Compile the experimental literal-only heap-return profile.
+/// Compile the experimental String/JSON-expression heap-return profile.
 pub fn compile_heap_value(source: &str, typescript: bool) -> Result<Artifact, String> {
     heap::compile(source, typescript)
 }

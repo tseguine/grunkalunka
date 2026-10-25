@@ -1,31 +1,51 @@
-# Experimental source String returns
+# Experimental source String and JSON calls
 
 The new compiler entry point [compile_heap_value](../crates/grunkalunka-compiler/src/heap.rs)
-turns a direct String-literal return into a checked guest allocation. The generated
+turns a direct String expression return into checked guest operations. The generated
 function takes two Numbers and returns tag 4 plus an instance-local root ID.
 Its caller copies raw UTF16 units and releases that root.
 
-This is a TDD spike profile. It currently parses one exported synchronous,
-non-generator function whose body is one literal return. Parentheses and erased
-TypeScript wrappers preserve the runtime String, including lone surrogates and NUL.
+This is a provisional spike profile. It parses one exported synchronous,
+non-generator function named `run` with two ordinary parameters and one return.
+An expression starts with a String literal and may apply single-argument
+`JSON.parse` and `JSON.stringify` calls, including nested calls. Only an unresolved
+global `JSON` with direct `.parse`/`.stringify` access is admitted; parameter
+shadows, optional calls, computed properties, spreads, callbacks and extra arguments
+are rejected. This profile supplies pristine intrinsics.
+Parentheses and erased TypeScript wrappers preserve runtime values, including
+String lone surrogates and NUL.
 The implementation uses a small AST path rather than the shared typed-region
-lowerer; shared semantic, entry and source-limit validation is unfinished.
+lowerer. It checks original Module semantics, entry shape and parameter effects,
+with a 16,384-byte source limit and 128 expression nodes along the operand path,
+including parentheses, erased wrappers and JSON calls. This is not yet shared
+frontend/IR validation.
 Numeric and four-kind primitive compilation keep their existing paths.
+
+`JSON.parse` requires a statically known String operand; its result is an arbitrary
+JSON value. `JSON.stringify` accepts either kind and produces a String. The outer
+result must be a String for the current host: for example,
+`JSON.stringify(JSON.parse('{"x":[1,true,null]}'))` is admitted, whereas returning
+`JSON.parse(...)` directly awaits a host supporting other heap results. Each call
+passes the checked frame and previous root to the actual guest operation. This
+unary expression path has no competing live operands to pin. Parse/resource
+failures trap; mapping these to JavaScript exceptions remains open.
 
 Run:
 
     node scripts/check-heap-literals.mjs
 
-The current six JS/TS examples execute 3,000 direct-import calls in Node, then
-3,000 calls in each engine against identical composed, import-free modules.
+The current 28 JS/TS examples execute 14,000 direct-import calls in Node, then
+14,000 calls in each engine against identical composed, import-free modules.
 Each returned root is read and released. The Wasmtime path uses the experimental
 `grunkalunka_runtime::HeapInstance`, returning an owned `Vec<u16>` rather than a
 lossy Rust String or a borrowed guest pointer. The playback retains every result
 through later calls and destruction of the host instance. Receipts record the
 guest and composed module hashes.
-The two compiler tests check the explicit heap imports and reject async/generator
-results being mistaken for plain Strings. These tests also run in the normal
-check command.
+Cases include raw String quoting, parsed scalars/arrays/objects, duplicate and
+integer-like keys, overflow and lone surrogates. A chain of 35 parse/stringify
+pairs crosses the 64-root quota in cumulative allocations per invocation, checking
+temporary reclamation. Compiler tests also check intrinsic identity, admission
+limits and rejected calls/entry effects. These checks run in the normal command.
 
 The String-only host checks tag 4, a nonzero integer u32 root, readback/release
 statuses, UTF16 alignment and bounded memory access, copying up to 65,536 units.
@@ -41,10 +61,9 @@ This is a cooperating local-module host, not an arbitrary-module execution servi
 Focused host tests also cover malformed results, terminal traps, initialization
 fuel, uncomposed imports, a 32,768-unit copy before release overwrites guest memory,
 and 32,769/65,536-unit copies. The full-size host checks use small protocol
-fixtures; the actual-guest source playback currently covers the six small literal
-examples above.
+fixtures; the actual-guest source playback covers the small examples above.
 
-The guest now has frame-owned JSON parse/stringify operations as a dependency for
-source calls. Source storage, control flow, String operations and JSON source
-values/parse/stringify remain subsequent work. Passing these examples does not close the String or JSON
-milestone, or finish the shared frontend validation described above.
+Source storage, control flow, general String operations, direct array/object
+construction, arbitrary parsed-result transport, coercion, callbacks and exception
+mapping remain subsequent work. Passing these examples does not close the String
+or JSON milestone or finish shared frontend/IR integration.

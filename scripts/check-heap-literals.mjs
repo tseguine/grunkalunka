@@ -32,7 +32,22 @@ const cases=[
   ['empty','return "";'],
   ['raw','return "A\\ud800\\0";'],
   ['wrapped','return ("wrapped");','return ("wrapped" as unknown as number);'],
+  ['json-string','return JSON.stringify("");'],
+  ['json-raw-string','return JSON.stringify("A\\ud800\\0");'],
+  ['json-wrapped','return JSON.stringify(("wrapped"));',
+    'return (JSON.stringify(("wrapped" as unknown as number)) as unknown as number);'],
 ];
+for(const [name,text] of [
+  ['null','null'],['boolean','true'],['number','-0'],['overflow','1e400'],
+  ['array','[1,true,null,"text",[2]]'],
+  ['object','{"z":1,"10":2,"2":3,"z":4,"__proto__":{"x":5}}'],
+  ['unicode','"\\ud800\\u0000\\udfff"'],
+]){
+  cases.push(['json-'+name,'return JSON.stringify(JSON.parse('+JSON.stringify(text)+'));']);
+}
+let repeated=JSON.stringify('null');
+for(let i=0;i<35;i++)repeated='JSON.stringify(JSON.parse('+repeated+'))';
+cases.push(['json-chain','return '+repeated+';']);
 for(const [name,body,tsBody=body] of cases)for(const language of ['js','ts']){
   const parameters=language==='js'?'a,b':'a:number,b:number';
   fs.writeFileSync(path.join(out,name+'.'+language),'export function run('+parameters+'){'+(language==='ts'?tsBody:body)+'}');

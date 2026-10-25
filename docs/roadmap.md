@@ -470,3 +470,10 @@ The native and actual standalone/composed guest checks cover the protocol.
 Source rooting, heap-profile admission and a terminal-trap host remain separate;
 this closes no source-lowering requirement. See
 [ADR 0010](adr/0010-bounded-internal-root-frames.md).
+
+The subsequent [experimental String expression profile](heap-literals.md) now
+returns owned Strings through a terminal-error host and lowers single-argument
+source JSON calls, including nested parse/stringify rooted in a String literal.
+It uses checked frames and rejects shadowed intrinsics and unsupported operands.
+General source arrays/objects, parsed-result transport, callbacks, exceptions and
+shared typed-region integration remain open; this is not general JSON lowering.

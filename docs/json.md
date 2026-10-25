@@ -99,10 +99,13 @@ unpinned internal operands. Serialization results can use the full 65,536-unit
 output bound; parsing and raw input construction keep the 32,768-unit input bound.
 The actual Node and Wasmtime checks replay all 1,130 existing JSON records through
 these operations, standalone and composed, plus 500 allocation cycles and failures.
-These are guest operations; compiler admission of source JSON calls remains open.
-The [experimental literal profile and owned String host](heap-literals.md) now use
-the frame protocol. The host disables reuse after errors; arbitrary interruption
-inside Rust guest code can strand its lock. Broader compiler rooting remains open.
+The [experimental String expression profile and owned String host](heap-literals.md)
+now lower direct single-argument source JSON calls rooted in a String literal,
+including nested parse/stringify, using the frame protocol. Its outer result must
+be a String; general parsed-result transport, source arrays/objects, callbacks,
+coercion and exception mapping remain open. The host disables reuse after errors;
+arbitrary interruption inside Rust guest code can strand its lock. Broader compiler
+rooting remains open.
 
 `grunkalunka-wasm-link` can now combine that guest with generated core-Wasm
 functions into one import-free module. It resolves internal runtime calls and
