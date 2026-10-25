@@ -172,7 +172,11 @@ grant lifecycle and specific handle misuse, with independent fuel, linear-memory
 and expired-epoch observations. A finite guest also traps after a host callback
 advances the epoch during its invocation. A separate finite host algorithm enforces
 an item-processing quota and reports typed exhaustion before an unfunded item.
-The tsrs type-query experiment has not been executed.
+The first tsrs type-query probe associates Oxc byte spans with tsrs binary-expression
+nodes and compares type results with a fixture-specific tsrs-only AST traversal.
+It does not compare symbol identities, declaration merging or value/type namespace
+behavior, so T1 remains a research gate. See the
+[probe playback](../spikes/004-tsrs-type-query/README.md).
 These results do not claim that arbitrary JS objects, exceptions, promises or
 module graphs already map to component types, or that the JS compiler emits
 components yet.
