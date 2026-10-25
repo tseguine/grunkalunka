@@ -1,5 +1,5 @@
 //! Check the actual import-free JSON guest against UTF16 oracles from the Node runner.
-use std::{error::Error, fs};
+use std::{error::Error, fs, path::Path};
 use wasmtime::{Config, Engine, Instance, Module, Store};
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -81,6 +81,129 @@ fn unhex(text: &str) -> Result<Vec<u16>> {
         .step_by(4)
         .map(|i| u16::from_str_radix(&text[i..i + 4], 16).map_err(Into::into))
         .collect()
+}
+
+fn check_strings(engine: &Engine, module: &Module, oracle: &Path) -> Result<usize> {
+    let mut guest = Guest::new(engine, module)?;
+    let mut count = 0;
+    let mut seen = vec![false; 65536];
+    for line in fs::read_to_string(oracle)?.lines() {
+        let (raw, quoted) = line
+            .split_once('\t')
+            .ok_or("invalid String oracle record")?;
+        let raw = unhex(raw)?;
+        for &u in &raw {
+            seen[u as usize] = true;
+        }
+        guest.prepare(&raw)?;
+        let id = guest.call0("gk_json_string_from_input")?;
+        assert_ne!(id, 0);
+        assert_eq!(guest.call0("gk_json_status")?, 0);
+        assert_eq!(guest.call0("gk_json_error_offset")?, 0);
+        assert_eq!(guest.call1("gk_json_string_units", id)?, 0);
+        assert_eq!(guest.output()?, raw);
+        let copy = guest.output()?;
+        guest.prepare(&[88])?;
+        assert_eq!(guest.call1("gk_json_string_units", id)?, 0);
+        assert_eq!(guest.output()?, copy);
+        assert_eq!(guest.call1("gk_json_stringify", id)?, 0);
+        assert_eq!(guest.output()?, unhex(quoted)?);
+        assert_eq!(guest.call1("gk_json_release", id)?, 0);
+        assert_eq!(guest.call1("gk_json_string_units", id)?, 4);
+        assert!(guest.output()?.is_empty());
+        assert_eq!(copy, raw);
+        count += 1;
+    }
+    assert_eq!(count, 7);
+    assert!(seen.into_iter().all(|x| x));
+    guest.prepare(&r#""\ud800""#.encode_utf16().collect::<Vec<_>>())?;
+    let parsed = guest.call0("gk_json_parse")?;
+    assert_ne!(parsed, 0);
+    assert_eq!(guest.call1("gk_json_string_units", parsed)?, 0);
+    assert_eq!(guest.output()?, [0xd800]);
+    assert_eq!(guest.call1("gk_json_release", parsed)?, 0);
+    let raw = [91, 114, 97, 119, 0xd800, 93];
+    guest.prepare(&raw)?;
+    let keep = guest.call0("gk_json_string_from_input")?;
+    assert_ne!(keep, 0);
+    assert_eq!(guest.call1("gk_json_string_units", keep)?, 0);
+    let saved = guest.output()?;
+    guest.prepare(&[110, 117, 108, 108])?;
+    let null = guest.call0("gk_json_parse")?;
+    assert_ne!(null, 0);
+    assert_eq!(guest.call1("gk_json_string_units", keep)?, 0);
+    assert_eq!(guest.call1("gk_json_string_units", null)?, 9);
+    assert!(guest.output()?.is_empty());
+    assert_eq!(guest.call0("gk_json_error_offset")?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 9);
+    for id in [0, u32::MAX] {
+        assert_eq!(guest.call1("gk_json_string_units", id)?, 4);
+    }
+    assert_eq!(guest.call1("gk_json_release", null)?, 0);
+    for _ in 0..500 {
+        guest.prepare(&raw)?;
+        let id = guest.call0("gk_json_string_from_input")?;
+        assert_ne!(id, 0);
+        assert_ne!(id, keep);
+        assert_eq!(guest.call1("gk_json_string_units", id)?, 0);
+        assert_eq!(guest.output()?, saved);
+        assert_eq!(guest.call1("gk_json_release", id)?, 0);
+    }
+    for n in [32769, u32::MAX] {
+        assert_eq!(guest.call1("gk_json_input_resize", n)?, 0);
+        assert_eq!(guest.call0("gk_json_status")?, 1);
+        let empty = guest.call0("gk_json_string_from_input")?;
+        assert_ne!(empty, 0);
+        assert_eq!(guest.call0("gk_json_status")?, 0);
+        assert_eq!(guest.call0("gk_json_error_offset")?, 0);
+        assert_eq!(guest.call1("gk_json_string_units", empty)?, 0);
+        assert!(guest.output()?.is_empty());
+        assert_eq!(guest.call1("gk_json_release", empty)?, 0);
+    }
+    guest.prepare(&vec![0xd800; 12000])?;
+    let expanding = guest.call0("gk_json_string_from_input")?;
+    assert_ne!(expanding, 0);
+    assert_eq!(guest.call1("gk_json_stringify", expanding)?, 7);
+    assert!(guest.output()?.is_empty());
+    assert_eq!(guest.call1("gk_json_string_units", expanding)?, 0);
+    assert_eq!(guest.output()?, vec![0xd800; 12000]);
+    assert_eq!(guest.call1("gk_json_release", expanding)?, 0);
+    let mut other = Guest::new(engine, module)?;
+    other.prepare(&[0xdfff])?;
+    let other_id = other.call0("gk_json_string_from_input")?;
+    assert_ne!(other_id, 0);
+    assert_eq!(other.call1("gk_json_string_units", other_id)?, 0);
+    assert_eq!(other.output()?, [0xdfff]);
+    assert_eq!(guest.call1("gk_json_string_units", keep)?, 0);
+    assert_eq!(guest.output()?, saved);
+    assert_eq!(saved, raw);
+    assert_eq!(other.call1("gk_json_release", other_id)?, 0);
+    assert_eq!(guest.call1("gk_json_release", keep)?, 0);
+    guest.prepare(&[48])?;
+    let mut ids = Vec::new();
+    for i in 0..64 {
+        let id = guest.call0(if i % 2 == 0 {
+            "gk_json_string_from_input"
+        } else {
+            "gk_json_parse"
+        })?;
+        assert_ne!(id, 0);
+        ids.push(id);
+    }
+    assert_eq!(guest.call1("gk_json_string_units", ids[0])?, 0);
+    assert_eq!(guest.call0("gk_json_string_from_input")?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 2);
+    assert!(guest.output()?.is_empty());
+    assert_eq!(guest.call0("gk_json_parse")?, 0);
+    assert_eq!(guest.call0("gk_json_status")?, 2);
+    assert_eq!(guest.call1("gk_json_release", ids[0])?, 0);
+    let next = guest.call0("gk_json_string_from_input")?;
+    assert!(next > *ids.iter().max().ok_or("no root IDs")?);
+    assert_eq!(guest.call1("gk_json_string_units", ids[0])?, 4);
+    for id in ids[1..].iter().copied().chain([next]) {
+        assert_eq!(guest.call1("gk_json_release", id)?, 0);
+    }
+    Ok(count)
 }
 
 fn main() -> Result<()> {
@@ -183,8 +306,13 @@ fn main() -> Result<()> {
     assert_eq!(guest.call1("gk_json_stringify", own_id)?, 0);
     assert_eq!(guest.output()?, "false".encode_utf16().collect::<Vec<_>>());
     assert_eq!(saved, expected);
+    let string_count = check_strings(
+        &engine,
+        &module,
+        &Path::new(&args[1]).with_file_name("string-cases.tsv"),
+    )?;
     println!(
-        "PASS Wasmtime JSON guest: {count} original UTF16 oracle records, 500 repeats, quotas/release/stale IDs/instances/snapshots; {} bytes, zero imports",
+        "PASS Wasmtime JSON guest: {count} original UTF16 oracle records, {string_count} raw String cases/all65536units/500Stringcycles, 500JSONrepeats, quotas/release/stale IDs/instances/snapshots; {} bytes, zero imports",
         bytes.len()
     );
     Ok(())

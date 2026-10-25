@@ -80,6 +80,12 @@ JSON data transport, not compiler admission or a JavaScript heap. See
 [ADR 0007](adr/0007-bounded-json-guest-transport.md) for the protocol, quotas,
 host obligations, status codes and alternatives.
 
+Raw String roots can also be created directly from prepared UTF16 input and read
+back without JSON quoting: `gk_json_string_from_input` returns an owned ID and
+`gk_json_string_units` copies a live String root into output. This works for parsed
+Strings too, shares the existing root quota and release rules, and reports status 9
+for a live non-String root. See [ADR 0009](adr/0009-owned-utf16-string-roots.md).
+
 `grunkalunka-wasm-link` can now combine that guest with generated core-Wasm
 functions into one import-free module. It resolves internal runtime calls and
 remaps function/type/data indices; passive UTF16 literals copy into checked guest

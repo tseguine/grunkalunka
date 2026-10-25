@@ -30,6 +30,7 @@ impl State {
             }
             Some(GuestError::Stringify(grunkalunka_json::StringifyError::Limit(_))) => 7,
             Some(GuestError::Stringify(_)) => 8,
+            Some(GuestError::NotString) => 9,
         };
     }
 }
@@ -63,6 +64,15 @@ pub extern "C" fn gk_json_parse() -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn gk_json_string_from_input() -> u32 {
+    with_state(|state| {
+        let result = state.guest.string_from_input();
+        state.record(result.as_ref().err());
+        result.unwrap_or(0)
+    })
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn gk_json_status() -> u32 {
     with_state(|state| state.status)
 }
@@ -81,6 +91,15 @@ pub extern "C" fn gk_json_input_len() -> u32 {
 pub extern "C" fn gk_json_stringify(id: u32) -> u32 {
     with_state(|state| {
         let result = state.guest.stringify(id).map(|_| ());
+        state.record(result.as_ref().err());
+        state.status
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gk_json_string_units(id: u32) -> u32 {
+    with_state(|state| {
+        let result = state.guest.string_units(id).map(|_| ());
         state.record(result.as_ref().err());
         state.status
     })

@@ -121,6 +121,71 @@ prepare(guest,'false');const ownId=guest.gk_json_parse()>>>0;
 assert.equal(other.gk_json_stringify(otherId),0);assert.deepEqual(read(other),units('true'));
 assert.equal(guest.gk_json_stringify(ownId),0);assert.deepEqual(read(guest),units('false'));
 assert.deepEqual(snapshot,units(JSON.stringify(JSON.parse(sample))));
+// Raw String transport is distinct from parsing JSON text; retain the original oracle above.
+const stringCases=['','\ud800','\udc00','\ud800\udc00','\0"\\\n\ud800\0\udfff'];
+for(let start=0;start<65536;start+=32768) {
+  stringCases.push(Array.from({length:32768},(_,i)=>String.fromCharCode(start+i)).join(''));
+}
+assert.equal(stringCases.length,7);
+const seen=new Uint8Array(65536), strings=new WebAssembly.Instance(module).exports;
+for(const text of stringCases) {
+  for(const u of units(text))seen[u]=1;
+  prepare(strings,text);const id=strings.gk_json_string_from_input()>>>0;
+  assert.notEqual(id,0);assert.equal(strings.gk_json_status(),0);assert.equal(strings.gk_json_error_offset(),0);
+  assert.equal(strings.gk_json_string_units(id),0);assert.deepEqual(read(strings),units(text));
+  const copy=read(strings);prepare(strings,'overwrite');
+  assert.equal(strings.gk_json_string_units(id),0);assert.deepEqual(read(strings),copy);
+  assert.equal(strings.gk_json_stringify(id),0);assert.deepEqual(read(strings),units(JSON.stringify(text)));
+  assert.equal(strings.gk_json_release(id),0);assert.equal(strings.gk_json_string_units(id),4);
+  assert.deepEqual(read(strings),[]);assert.deepEqual(copy,units(text));
+}
+assert(seen.every(x=>x===1));
+prepare(strings,'"\\ud800"');const parsedString=strings.gk_json_parse()>>>0;
+assert.notEqual(parsedString,0);assert.equal(strings.gk_json_string_units(parsedString),0);
+assert.deepEqual(read(strings),[0xd800]);assert.equal(strings.gk_json_release(parsedString),0);
+prepare(strings,'[raw\ud800]');const stringKeep=strings.gk_json_string_from_input()>>>0;
+assert.notEqual(stringKeep,0);assert.equal(strings.gk_json_string_units(stringKeep),0);
+const stringCopy=read(strings);
+prepare(strings,'null');const nonString=strings.gk_json_parse()>>>0;assert.notEqual(nonString,0);
+assert.equal(strings.gk_json_string_units(stringKeep),0);
+assert.equal(strings.gk_json_string_units(nonString),9);assert.deepEqual(read(strings),[]);
+assert.equal(strings.gk_json_error_offset(),0);assert.equal(strings.gk_json_status(),9);
+assert.equal(strings.gk_json_string_units(0),4);assert.equal(strings.gk_json_error_offset(),0);
+assert.equal(strings.gk_json_string_units(0xffffffff),4);assert.equal(strings.gk_json_release(nonString),0);
+for(let i=0;i<500;i++) {
+  prepare(strings,'[raw\ud800]');const id=strings.gk_json_string_from_input()>>>0;
+  assert.notEqual(id,0);assert.notEqual(id,stringKeep);assert.equal(strings.gk_json_string_units(id),0);
+  assert.deepEqual(read(strings),stringCopy);assert.equal(strings.gk_json_release(id),0);
+}
+for(const n of [32769,0xffffffff]) {
+  assert.equal(strings.gk_json_input_resize(n),0);assert.equal(strings.gk_json_status(),1);
+  const empty=strings.gk_json_string_from_input()>>>0;assert.notEqual(empty,0);
+  assert.equal(strings.gk_json_status(),0);assert.equal(strings.gk_json_error_offset(),0);
+  assert.equal(strings.gk_json_string_units(empty),0);assert.deepEqual(read(strings),[]);
+  assert.equal(strings.gk_json_release(empty),0);
+}
+prepare(strings,'\ud800'.repeat(12000));const expanding=strings.gk_json_string_from_input()>>>0;
+assert.notEqual(expanding,0);assert.equal(strings.gk_json_stringify(expanding),7);assert.deepEqual(read(strings),[]);
+assert.equal(strings.gk_json_string_units(expanding),0);assert.deepEqual(read(strings),units('\ud800'.repeat(12000)));
+assert.equal(strings.gk_json_release(expanding),0);
+const stringOther=new WebAssembly.Instance(module).exports;
+prepare(stringOther,'\udfff');const stringOtherId=stringOther.gk_json_string_from_input()>>>0;
+assert.notEqual(stringOtherId,0);assert.equal(stringOther.gk_json_string_units(stringOtherId),0);
+assert.deepEqual(read(stringOther),[0xdfff]);assert.equal(strings.gk_json_string_units(stringKeep),0);
+assert.deepEqual(read(strings),stringCopy);assert.equal(strings.gk_json_release(stringKeep),0);
+assert.equal(stringOther.gk_json_release(stringOtherId),0);
+prepare(strings,'0');const mixedIds=Array.from({length:64},(_,i)=>
+  (i%2===0?strings.gk_json_string_from_input():strings.gk_json_parse())>>>0);
+assert(mixedIds.every(id=>id!==0));assert.equal(new Set(mixedIds).size,64);
+assert.equal(strings.gk_json_string_units(mixedIds[0]),0);
+assert.equal(strings.gk_json_string_from_input(),0);assert.equal(strings.gk_json_status(),2);
+assert.deepEqual(read(strings),[]);assert.equal(strings.gk_json_parse(),0);assert.equal(strings.gk_json_status(),2);
+assert.equal(strings.gk_json_release(mixedIds[0]),0);
+const mixedNext=strings.gk_json_string_from_input()>>>0;assert(mixedNext>Math.max(...mixedIds));
+assert.equal(strings.gk_json_string_units(mixedIds[0]),4);
+for(const id of [...mixedIds.slice(1),mixedNext])assert.equal(strings.gk_json_release(id),0);
+const stringOraclePath=path.join(outDir,'string-cases.tsv');
+fs.writeFileSync(stringOraclePath,stringCases.map(text=>`${hex(text)}\t${hex(JSON.stringify(text))}`).join('\n')+'\n');
 const oraclePath=path.join(outDir,'cases.tsv');
 fs.writeFileSync(oraclePath,cases.map(([kind,text,want])=>`${kind}\t${hex(text)}\t${kind==='valid'?hex(want):want}`).join('\n')+'\n');
 const sha256=crypto.createHash('sha256').update(wasm).digest('hex');
@@ -128,6 +193,7 @@ run('cargo',['run','--locked','--offline','-j','2','-p','grunkalunka-runtime','-
 assert.equal(crypto.createHash('sha256').update(fs.readFileSync(modulePath)).digest('hex'),sha256);
 const receipt={sha256,bytes:wasm.length,imports:0,node:process.version,wasmtime:'50.0.0',
   sameArtifact:true,cases:cases.length,validCount,allUtf16Units:65536,repeatsPerEngine:500,
-  liveRoots:64,releasedIdsNeverReused:true,instanceIsolation:true,ownedSnapshots:true};
+  liveRoots:64,releasedIdsNeverReused:true,instanceIsolation:true,ownedSnapshots:true,
+  rawStringCases:stringCases.length,rawStringAllUtf16Units:65536,rawStringRepeatsPerEngine:500};
 fs.writeFileSync(path.join(outDir,'receipt.json'),JSON.stringify(receipt,null,2)+'\n');
 console.log('PASS JSON guest '+JSON.stringify(receipt));

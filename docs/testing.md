@@ -17,6 +17,11 @@ instances. Retained runtime exports also pass the original transport oracle.
 The normal check calls this combined runner once. Evidence is in the selected
 Cargo target directory's `wasm-composition/`; fixture Wasm is not JS source lowering.
 
+The guest check also writes `json-guest/string-cases.tsv`: seven raw String records,
+including all 65,536 UTF16 units in bounded chunks, with Node JSON quoting oracles.
+Both engines check direct construction/readback, 500 String lifecycles, parsed String
+compatibility, wrong-kind status 9, mixed root quotas and independent snapshots.
+
 Compiler IR tests exercise fixed Number/Predicate cells independently of source
 admission: initialization/load/store types, lexical visibility, initialization,
 mutability and Number-only entry/helper parameters. A mixed-order scalar-cell

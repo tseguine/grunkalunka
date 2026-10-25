@@ -56,6 +56,8 @@ Release IDs explicitly. Pointers are memory32 offsets, not native addresses.
 Status codes: 0 success, 1 input quota, 2 live-root quota, 3 exhausted IDs,
 4 invalid/released ID, 5 JSON syntax, 6 parser quota, 7 serializer quota,
 8 internal data/config invariant. These are transport statuses, not JS exceptions.
+ADR0009 extends this transport with raw String construction/readback and status 9
+for a live non-String root; the original statuses and operations retain their meaning.
 
 Wasm exports use a per-instance `Mutex<Option<State>>`; native tests run the safe
 state directly. This module is nonshared, synchronous and import-free, so there is

@@ -454,3 +454,8 @@ The strict Wasm composer now connects generated functions and passive literals t
 the actual guest in one import-free module, verified in both engines. This proves
 the maintained composition boundary; compiler-generated calls and heap-kind source
 semantics remain next. See [ADR 0008](adr/0008-strict-core-wasm-composition.md).
+
+Owned raw UTF16 String construction/readback now reuses the JSON guest root table
+and checked buffers, verified in both engines. Source String values still require
+an explicit heap-capable profile and generic-operation audit; the existing
+primitive ABI remains four-kind. See [ADR 0009](adr/0009-owned-utf16-string-roots.md).

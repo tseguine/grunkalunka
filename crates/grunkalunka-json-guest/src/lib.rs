@@ -10,6 +10,7 @@ pub enum GuestError {
     RootLimit,
     HandleExhausted,
     InvalidHandle,
+    NotString,
     Parse(grunkalunka_json::ParseError),
     Stringify(grunkalunka_json::StringifyError),
 }
@@ -50,6 +51,29 @@ impl JsonGuest {
 
     pub fn output(&self) -> &[u16] {
         &self.output
+    }
+
+    /// Create an independent owned String root from the current raw UTF16 input.
+    pub fn string_from_input(&mut self) -> Result<u32, GuestError> {
+        self.output.clear();
+        if self.roots.len() >= MAX_ROOTS {
+            return Err(GuestError::RootLimit);
+        }
+        let id = self.next_id.ok_or(GuestError::HandleExhausted)?;
+        self.roots.insert(id, JsonValue::String(self.input.clone()));
+        self.next_id = id.checked_add(1);
+        Ok(id)
+    }
+
+    /// Copy the raw units of a live String root into the output buffer.
+    pub fn string_units(&mut self, id: u32) -> Result<&[u16], GuestError> {
+        self.output.clear();
+        let value = self.roots.get(&id).ok_or(GuestError::InvalidHandle)?;
+        let JsonValue::String(units) = value else {
+            return Err(GuestError::NotString);
+        };
+        self.output.extend_from_slice(units);
+        Ok(&self.output)
     }
 
     /// Parse the current input into an independent owned root with a nonreused ID.
@@ -120,6 +144,27 @@ mod tests {
         guest.release(last).unwrap();
         assert_eq!(guest.parse_input(), Err(GuestError::HandleExhausted));
         assert_eq!(guest.stringify(last), Err(GuestError::InvalidHandle));
+    }
+
+    #[test]
+    fn strings_and_parsed_values_share_terminal_id_exhaustion() {
+        let mut guest = JsonGuest {
+            next_id: Some(u32::MAX - 1),
+            ..JsonGuest::default()
+        };
+        guest.input_buffer(1).unwrap()[0] = 48;
+        let string = guest.string_from_input().unwrap();
+        let number = guest.parse_input().unwrap();
+        assert_eq!((string, number), (u32::MAX - 1, u32::MAX));
+        assert_eq!(guest.string_from_input(), Err(GuestError::HandleExhausted));
+        assert!(guest.output().is_empty());
+        assert_eq!(guest.string_units(string).unwrap(), [48]);
+        assert_eq!(guest.string_units(number), Err(GuestError::NotString));
+        guest.release(string).unwrap();
+        assert_eq!(guest.string_from_input(), Err(GuestError::HandleExhausted));
+        assert_eq!(guest.parse_input(), Err(GuestError::HandleExhausted));
+        assert_eq!(guest.string_units(string), Err(GuestError::InvalidHandle));
+        assert_eq!(guest.stringify(number).unwrap(), [48]);
     }
 }
 
