@@ -98,6 +98,11 @@ pub(crate) enum Nullish {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    Await {
+        result: ValueId,
+        input: ValueId,
+        rejected: bool,
+    },
     PrimitiveStrictEqual {
         result: ValueId,
         left: ValueId,
@@ -383,6 +388,10 @@ impl Verifier<'_> {
             }
             let mut next = Completion::NORMAL;
             match &operation.kind {
+                Op::Await { result, input, .. } => {
+                    self.value(*input, Type::Number, &visible, span)?;
+                    self.define(*result, Type::Number, &mut visible, span)?;
+                }
                 Op::Nullish { result, .. } => {
                     self.define(*result, Type::General, &mut visible, span)?;
                 }

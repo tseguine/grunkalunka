@@ -1,5 +1,9 @@
 # Numeric compiler and runtime
 
+The separate [experimental async profile](async.md) now lowers numeric await
+continuations with saved state and host Promise jobs. It does not change this
+numeric profile's synchronous return contract or its rejection inventory.
+
 **Maintained implementation at development version 0.0.1:** Oxc parses JS/TS, a custom lowering
 pass builds and verifies [typed numeric regions](ir.md), then emits WAT. `wat`
 encodes it into real Wasm bytes, and Wasmtime executes them.

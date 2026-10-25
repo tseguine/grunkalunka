@@ -83,9 +83,10 @@ impl Emitter<'_> {
         );
     }
 
-    fn region(&mut self, region: &Region) {
-        for operation in &region.operations {
+    fn operations(&mut self, operations: &[ir::Operation]) {
+        for operation in operations {
             match &operation.kind {
+                Op::Await { .. } => unreachable!("await uses the async emitter"),
                 Op::Nullish { result, value } => {
                     let tag = match value {
                         ir::Nullish::Undefined => 0,
@@ -378,6 +379,10 @@ impl Emitter<'_> {
                 }
             }
         }
+    }
+
+    fn region(&mut self, region: &Region) {
+        self.operations(&region.operations);
         match region.exit {
             Exit::Fallthrough => {}
             Exit::Break => {
@@ -419,6 +424,13 @@ pub(crate) fn emit_with_entry_type(
 }
 
 fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String> {
+    if module
+        .functions
+        .iter()
+        .any(|function| region_has_await(&function.body))
+    {
+        return Err("await IR requires the async emitter".into());
+    }
     let mut output = String::from("(module ");
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
@@ -490,6 +502,177 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
     }
     if needs_remainder {
         output.push('\n');
+        output.push_str(NUMBER_REMAINDER);
+    }
+    output.push_str(")\n");
+    Ok(output)
+}
+
+fn region_has_await(region: &Region) -> bool {
+    region
+        .operations
+        .iter()
+        .any(|operation| match &operation.kind {
+            Op::Await { .. } => true,
+            Op::Block(child) => region_has_await(child),
+            Op::If {
+                consequent,
+                alternate,
+                ..
+            } => region_has_await(consequent) || region_has_await(alternate),
+            Op::While {
+                condition,
+                body,
+                step,
+            } => {
+                region_has_await(condition)
+                    || region_has_await(body)
+                    || step.as_ref().is_some_and(region_has_await)
+            }
+            Op::DoWhile { body, condition } => {
+                region_has_await(body) || region_has_await(condition)
+            }
+            _ => false,
+        })
+}
+
+fn check_async_region(region: &Region, root: bool) -> Result<(), String> {
+    if !root && matches!(region.exit, Exit::Return(_)) {
+        return Err("async returns inside control flow are not yet admitted".into());
+    }
+    for operation in &region.operations {
+        match &operation.kind {
+            Op::Await { .. } if !root => {
+                return Err("await inside control flow is not yet admitted".into());
+            }
+            Op::Call { .. } => {
+                return Err("async profile does not yet admit source function calls".into());
+            }
+            Op::Block(child) => check_async_region(child, false)?,
+            Op::If {
+                consequent,
+                alternate,
+                ..
+            } => {
+                check_async_region(consequent, false)?;
+                check_async_region(alternate, false)?;
+            }
+            Op::While {
+                condition,
+                body,
+                step,
+            } => {
+                check_async_region(condition, false)?;
+                check_async_region(body, false)?;
+                if let Some(step) = step {
+                    check_async_region(step, false)?;
+                }
+            }
+            Op::DoWhile { body, condition } => {
+                check_async_region(body, false)?;
+                check_async_region(condition, false)?;
+            }
+            _ => (),
+        }
+    }
+    Ok(())
+}
+
+/// One module instance is one activation. Mutable globals hold source cells and
+/// evaluated snapshots; the host owns Promise objects and schedules continuations.
+pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
+    ir::verify_module(module)?;
+    let [function] = module.functions.as_slice() else {
+        return Err("async profile currently requires a single entry function".into());
+    };
+    check_async_region(&function.body, true)?;
+    let awaits = function
+        .body
+        .operations
+        .iter()
+        .filter(|op| matches!(op.kind, Op::Await { .. }))
+        .count();
+    if awaits > 32 {
+        return Err("async profile admits at most 32 awaits".into());
+    }
+    let Exit::Return(returned) = function.body.exit else {
+        return Err("async profile requires a final return".into());
+    };
+    let mut types = Vec::new();
+    let mut offsets = Vec::new();
+    for ty in function
+        .slots
+        .iter()
+        .map(|slot| slot.ty)
+        .chain(function.values.iter().copied())
+    {
+        offsets.push(types.len());
+        match ty {
+            Type::Number => types.push("f64"),
+            Type::Predicate => types.push("i32"),
+            Type::General => types.extend(["i32", "f64"]),
+        }
+    }
+    let mut emitter = Emitter {
+        function,
+        slot_offsets: offsets[..function.slots.len()].to_vec(),
+        value_offsets: offsets[function.slots.len()..].to_vec(),
+        output: String::new(),
+        loop_label: None,
+        needs_remainder: false,
+    };
+    let mut output = String::from("(module\n");
+    for ty in types {
+        writeln!(output, "(global (mut {ty}) ({ty}.const 0))").unwrap();
+    }
+    output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited f64) (result i32 f64)\n");
+    output.push_str("global.get $pc\ni32.const 0\ni32.eq\nif\n");
+    let mut phase = 0;
+    for operation in &function.body.operations {
+        if let Op::Await {
+            result,
+            input,
+            rejected,
+        } = operation.kind
+        {
+            output.push_str(
+                &emitter
+                    .output
+                    .replace("local.get ", "global.get ")
+                    .replace("local.set ", "global.set "),
+            );
+            emitter.output.clear();
+            phase += 1;
+            writeln!(output,"i32.const {}\nglobal.set $pc\ni32.const {}\nglobal.get {}\nreturn\nend\nglobal.get $pc\ni32.const {phase}\ni32.eq\nif\nlocal.get $awaited\nglobal.set {}",
+                if rejected {-1}else{phase},if rejected{2}else{1},emitter.value_offsets[input.0],emitter.value_offsets[result.0]).unwrap();
+        } else {
+            emitter.operations(std::slice::from_ref(operation));
+        }
+    }
+    output.push_str(
+        &emitter
+            .output
+            .replace("local.get ", "global.get ")
+            .replace("local.set ", "global.set "),
+    );
+    writeln!(
+        output,
+        "i32.const -1\nglobal.set $pc\ni32.const 0\nglobal.get {}\nreturn\nend\nunreachable\n)",
+        emitter.value_offsets[returned.0]
+    )
+    .unwrap();
+    output.push_str(
+        r#"(func (export "start") (param f64 f64) (result i32 f64)
+      global.get $pc if unreachable end
+      local.get 0 global.set 0
+      local.get 1 global.set 1
+      f64.const 0 call $advance)
+      (func (export "resume") (param f64) (result i32 f64)
+      global.get $pc i32.const 0 i32.le_s if unreachable end
+      local.get 0 call $advance)
+    "#,
+    );
+    if emitter.needs_remainder {
         output.push_str(NUMBER_REMAINDER);
     }
     output.push_str(")\n");

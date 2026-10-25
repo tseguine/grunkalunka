@@ -1,5 +1,9 @@
 # Research roadmap
 
+The [experimental numeric async profile](async.md) now provides saved activation
+state and host Promise jobs for straight-line awaits. General Promise values,
+escaping environments and suspended control flow remain open.
+
 The project's direction is clear; implementation choices should earn their place
 through small experiments. This is a sequence of questions and exit criteria, not
 a promise that any prototype will become the architecture.

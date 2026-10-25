@@ -72,6 +72,15 @@ fn lower_source_with_entry_type(
     typescript: bool,
     entry_type: ir::Type,
 ) -> Result<ir::Module, String> {
+    lower_source_profile(source, typescript, entry_type, false)
+}
+
+fn lower_source_profile(
+    source: &str,
+    typescript: bool,
+    entry_type: ir::Type,
+    async_entry: bool,
+) -> Result<ir::Module, String> {
     if source.len() > 16_384 {
         return Err("source exceeds this experiment's 16 KiB limit".into());
     }
@@ -153,7 +162,7 @@ fn lower_source_with_entry_type(
                     .id
                     .as_ref()
                     .is_none_or(|id| id.name.as_str() != "run"))
-            || function.r#async
+            || function.r#async != (index == 0 && async_entry)
             || function.generator
             || function.declare
             || function.this_param.is_some()
@@ -161,7 +170,11 @@ fn lower_source_with_entry_type(
             return Err(unsupported(
                 *function,
                 if index == 0 {
-                    "expected a plain, synchronous function named run"
+                    if async_entry {
+                        "expected a plain async function named run"
+                    } else {
+                        "expected a plain, synchronous function named run"
+                    }
                 } else {
                     "expected a plain, synchronous numeric helper"
                 },
@@ -272,6 +285,7 @@ fn lower_source_with_entry_type(
             closures: Vec::new(),
             closure_expansions: 0,
             active_local_calls: 0,
+            allow_await: index == 0 && async_entry,
             slots,
             values: Vec::new(),
             next_region: 0,
@@ -330,6 +344,14 @@ pub fn compile_value(source: &str, typescript: bool) -> Result<Artifact, String>
 /// Compile the experimental String/JSON-expression heap-return profile.
 pub fn compile_heap_value(source: &str, typescript: bool) -> Result<Artifact, String> {
     heap::compile(source, typescript)
+}
+
+/// Compile a numeric async entry into a per-invocation start/resume protocol.
+pub fn compile_async(source: &str, typescript: bool) -> Result<Artifact, String> {
+    let module = lower_source_profile(source, typescript, ir::Type::Number, true)?;
+    let wat = emit::emit_async(&module)?;
+    let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
+    Ok(Artifact { wat, wasm })
 }
 
 #[cfg(test)]

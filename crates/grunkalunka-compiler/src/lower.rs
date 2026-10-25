@@ -221,6 +221,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub closures: Vec<closures::LocalClosure>,
     pub closure_expansions: usize,
     pub active_local_calls: usize,
+    pub allow_await: bool,
 }
 
 impl Lowering<'_, '_> {

@@ -52,7 +52,9 @@ pub(super) fn number_result_shape(
                 pending.push((&logical.right, depth + 1));
                 pending.push((&logical.left, depth + 1));
             }
-            Expression::NumericLiteral(_) | Expression::UpdateExpression(_) => (),
+            Expression::NumericLiteral(_)
+            | Expression::UpdateExpression(_)
+            | Expression::AwaitExpression(_) => (),
             Expression::AssignmentExpression(assignment) => match assignment.operator {
                 AssignmentOperator::Assign => pending.push((&assignment.right, depth + 1)),
                 AssignmentOperator::LogicalAnd

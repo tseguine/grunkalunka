@@ -1,5 +1,10 @@
 # Known lowering gaps
 
+The exact `gap-async-await` source now executes in the separate
+[numeric async profile](async.md), including its Promise job boundary. It remains
+a numeric-profile rejection; general Promise values and suspended control flow
+are still known requirements.
+
 This page and the 919 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Thirteen exact original numeric rejection
