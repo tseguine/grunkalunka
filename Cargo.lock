@@ -551,6 +551,7 @@ name = "grunkalunka-runtime"
 version = "0.0.1"
 dependencies = [
  "grunkalunka-compiler",
+ "grunkalunka-wasm-link",
  "wasmtime",
  "wat",
 ]

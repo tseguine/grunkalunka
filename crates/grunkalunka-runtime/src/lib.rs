@@ -1,12 +1,16 @@
-//! Execution of locally generated numeric and primitive modules; no ambient imports are linked.
+//! Execution of locally generated numeric, primitive and experimental heap modules.
+//! No ambient imports are linked.
 //! This is not a hardened arbitrary-module execution service.
 
 use wasmtime::{Config, Engine, Instance, Module, Store, TypedFunc};
 
+mod heap;
+pub use heap::HeapInstance;
+
 /// Current execution budget, renewed before each call.
 pub const FUEL_PER_CALL: u64 = 10_000;
 
-fn instantiate(wasm: &[u8]) -> wasmtime::Result<(Store<()>, Instance)> {
+fn instantiate(wasm: &[u8], fuel: u64) -> wasmtime::Result<(Store<()>, Instance)> {
     let mut config = Config::new();
     config.consume_fuel(true);
     let engine = Engine::new(&config)?;
@@ -15,7 +19,7 @@ fn instantiate(wasm: &[u8]) -> wasmtime::Result<(Store<()>, Instance)> {
         wasmtime::bail!("this experiment admits no module imports");
     }
     let mut store = Store::new(&engine, ());
-    store.set_fuel(FUEL_PER_CALL)?;
+    store.set_fuel(fuel)?;
     let instance = Instance::new(&mut store, &module, &[])?;
     Ok((store, instance))
 }
@@ -29,7 +33,7 @@ pub struct NumericInstance {
 impl NumericInstance {
     /// Validate and instantiate a locally generated, import-free module.
     pub fn new(wasm: &[u8]) -> wasmtime::Result<Self> {
-        let (mut store, instance) = instantiate(wasm)?;
+        let (mut store, instance) = instantiate(wasm, FUEL_PER_CALL)?;
         let run = instance.get_typed_func::<(f64, f64), f64>(&mut store, "run")?;
         Ok(Self { store, run })
     }
@@ -60,7 +64,7 @@ pub struct ValueInstance {
 impl ValueInstance {
     /// Validate the primitive signature and instantiate in its own fuel-limited store.
     pub fn new(wasm: &[u8]) -> wasmtime::Result<Self> {
-        let (mut store, instance) = instantiate(wasm)?;
+        let (mut store, instance) = instantiate(wasm, FUEL_PER_CALL)?;
         let run = instance.get_typed_func::<(f64, f64), (i32, f64)>(&mut store, "run")?;
         Ok(Self { store, run })
     }
