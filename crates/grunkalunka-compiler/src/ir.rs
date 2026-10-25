@@ -53,7 +53,7 @@ pub(crate) enum Compare {
     NotEqual,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Slot {
     pub ty: Type,
     pub owner: RegionId,

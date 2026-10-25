@@ -10,6 +10,7 @@ pub(super) fn number_result_shape(
     depth: usize,
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
+    numeric_closures: &BTreeSet<SymbolId>,
     mut is_number_symbol: impl FnMut(SymbolId) -> bool,
 ) -> bool {
     let mut identifier_number = |identifier: &IdentifierReference<'_>| {
@@ -99,6 +100,22 @@ pub(super) fn number_result_shape(
                 }
             }
             Expression::CallExpression(call) => {
+                if let Some(callee) = closures::unwrapped(&call.callee, depth + 1) {
+                    if matches!(callee, Expression::ArrowFunctionExpression(_)) {
+                        continue;
+                    }
+                    if let Expression::Identifier(identifier) = callee
+                        && identifier
+                            .reference_id
+                            .get()
+                            .and_then(|reference| {
+                                semantic.scoping().get_reference(reference).symbol_id()
+                            })
+                            .is_some_and(|symbol| numeric_closures.contains(&symbol))
+                    {
+                        continue;
+                    }
+                }
                 if math_unary(call, semantic).is_none() {
                     let Expression::Identifier(identifier) = &call.callee else {
                         return false;
@@ -126,6 +143,10 @@ pub(crate) fn general_mutable_bindings(
     let mut definitions = BTreeMap::new();
     let mut mutable = BTreeSet::new();
     let mut parameters = BTreeSet::new();
+    // Every admitted local arrow has a checked Number result. This is only a
+    // storage-planning hint; declaration/call lowering still validates its body.
+    let mut numeric_closures = BTreeSet::new();
+    let mut closure_aliases = Vec::new();
     for node in semantic.nodes().iter() {
         match node.kind() {
             AstKind::VariableDeclaration(declaration)
@@ -139,6 +160,28 @@ pub(crate) fn general_mutable_bindings(
                         && let Some(symbol) = identifier.symbol_id.get()
                     {
                         definitions.insert(symbol, local.init.as_ref());
+                        if declaration.kind == VariableDeclarationKind::Const
+                            && let Some(initializer) = local
+                                .init
+                                .as_ref()
+                                .and_then(|init| closures::unwrapped(init, 0))
+                        {
+                            match initializer {
+                                Expression::ArrowFunctionExpression(_) => {
+                                    numeric_closures.insert(symbol);
+                                }
+                                Expression::Identifier(identifier) => {
+                                    if let Some(target) =
+                                        identifier.reference_id.get().and_then(|reference| {
+                                            semantic.scoping().get_reference(reference).symbol_id()
+                                        })
+                                    {
+                                        closure_aliases.push((symbol, target));
+                                    }
+                                }
+                                _ => (),
+                            }
+                        }
                         if declaration.kind == VariableDeclarationKind::Let {
                             mutable.insert(symbol);
                         }
@@ -159,6 +202,17 @@ pub(crate) fn general_mutable_bindings(
     if mutable.is_empty() || definitions.len() > 128 {
         // Invalid oversized modules retain ordinary lowering's source-local diagnostics.
         return BTreeSet::new();
+    }
+    loop {
+        let before = numeric_closures.len();
+        for &(alias, target) in &closure_aliases {
+            if numeric_closures.contains(&target) {
+                numeric_closures.insert(alias);
+            }
+        }
+        if numeric_closures.len() == before {
+            break;
+        }
     }
     let mut writes: BTreeMap<SymbolId, Vec<&Expression<'_>>> = BTreeMap::new();
     for node in semantic.nodes().iter() {
@@ -195,10 +249,17 @@ pub(crate) fn general_mutable_bindings(
     for symbol in &candidates {
         let mut required = BTreeSet::new();
         let mut shape = |expression| {
-            number_result_shape(expression, 0, semantic, functions, |input| {
-                required.insert(input);
-                true
-            })
+            number_result_shape(
+                expression,
+                0,
+                semantic,
+                functions,
+                &numeric_closures,
+                |input| {
+                    required.insert(input);
+                    true
+                },
+            )
         };
         let initialized_number = parameters.contains(symbol)
             || definitions

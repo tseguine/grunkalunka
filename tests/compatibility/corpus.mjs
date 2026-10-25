@@ -1,3 +1,4 @@
+import { localArrows } from './local-arrows.mjs';
 import { generalLogicalAssignment } from './general-logical-assignment.mjs';
 import { primitiveRelational } from './primitive-relational.mjs';
 import { primitiveCompound } from './primitive-compound.mjs';
@@ -66,7 +67,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 64;
+export const corpusVersion = 65;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -92,6 +93,7 @@ const expressions = [
   ['truthy-infinity', '1e999 ? a : b'],
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
+programs.push(...localArrows);
 programs.push(...typescriptPrograms);
 programs.push(...test262Programs);
 programs.push(...benchmarkPrograms);

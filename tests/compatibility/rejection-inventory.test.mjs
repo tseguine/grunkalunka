@@ -1,3 +1,4 @@
+import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
 import { primitiveRelational, primitiveRelationalPromotions } from './primitive-relational.mjs';
 import { primitiveCompound, primitiveCompoundPromotions } from './primitive-compound.mjs';
@@ -153,9 +154,24 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 921);
+  assert.equal(inventory.records.size, 919);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('local arrows execute the two exact original curated capture/call sources', () => {
+  assert.equal(localArrowNumericOrigins.length,2);
+  const pinned = new Map([
+    ['gap-call','08843f1268bfccd6f0b591612d941aa21453d75125a6707cc73f8cf4dca3a91d'],
+    ['gap-closure-capture','8805be1d8c56acc24526b4e518a2a83cf798e1dd6cb644e94bf25ba922660b60'],
+  ]);
+  for(const [id,origin,source,hash] of localArrowNumericOrigins){
+    assert.equal(hash,pinned.get(origin));
+    assert.equal(createHash('sha256').update(source).digest('hex'),hash);
+    const actual=programSources(localArrows.find(program=>program[0]===id));
+    assert.equal(actual.sourceJS,source);assert.equal(actual.sourceTS,source);assert.equal(actual.oracleSource,source);
+    assert(!rejected.some(row=>row[0]===origin));
+  }
 });
 
 test('missing, stale and duplicate fixture records fail before execution', () => {

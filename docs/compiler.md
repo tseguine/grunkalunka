@@ -49,20 +49,21 @@ the verified path. Bun and other platforms have not been exercised.
 
 The harness prints a new root `target/compatibility-runs/run-*` directory containing every input,
 emitted `.wat` and `.wasm`, rejection fixture, and `report.json`. Keep the printed
-directory for inspection. Build outputs and replay directories are ignored and
-retained as useful evidence; no servers, ports or background services are used.
+directory for inspection while diagnosing a run. Replay directories are disposable:
+capture useful findings in tests or concise notes, then remove obsolete runs.
+No servers, ports or background services are used.
 
 ### Compatibility corpus and report
 
 [corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 64
-contains 1759 paired programs, 921 rejection fixtures and five unexecuted feature
+unimplemented surfaces independently of the replay harness. Corpus version 65
+contains 1781 paired programs, 919 rejection fixtures and five unexecuted feature
 groups linked to milestone IDs. These are selected evidence and gaps, not an
 inventory of the entire language or a compatibility percentage.
 
 The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 921 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 746 open requirements.
+classifies all 919 rejections in 56 groups: 31 invalid sources in their selected
+strict Module dialect, 144 explicit resource restrictions and 744 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -1644,3 +1645,39 @@ pairs, six controls and two termination-only observations remain. Runtime tests
 cover 1600 independent-golden modules, 64 effect/order modules and sixteen exact
 former Rust guard modules across eligible JS/TS/profile combinations. Two semantic
 mutations detect a missing selected Store and reversed branch selection.
+
+
+## Local arrow calls and shared captures
+
+Synchronous expression-bodied arrows can be bound to `const`, aliased by another
+`const`, or called immediately. Calls require exactly the declared number of
+numeric arguments and a numeric body result. Parentheses and erased TypeScript
+wrappers preserve the underlying function; annotations do not coerce values.
+
+The compiler specializes these non-escaping calls into the caller's typed regions.
+Capture metadata records lexical SymbolIds and original variable slots. A call
+reads the current contents of those slots, and writes from sibling closures share
+the same cells. Capturing a value does not snapshot it. Arguments evaluate left to
+right before entering the body, with fresh parameter slots per expansion; caller
+bindings are restored after lowering the body. Unused arrow bodies are checked in
+a scratch lowering context without emitting their effects into the caller.
+
+The original source limits still count source locals/statements. Generated arrow
+parameter slots do not consume the source-local quota. Separate generation limits
+allow at most 256 arrow-call expansions per function and at most 128 nested
+expression regions while expanding an arrow. Source nesting inside each concise
+body is checked independently. These limits bound specialization, not JavaScript
+language validity or runtime termination; the existing runtime fuel is unchanged.
+
+Captures must already be initialized when the arrow is defined. Escaping function
+values, mutable function bindings, recursive arrows, block bodies, defaults/rest,
+optional/generic calls, lexical `this`/`arguments` and async arrows remain outside
+this slice. General closure environments and async suspension are subsequent work.
+
+Corpus 65 adds 22 pairs, including the two exact original `gap-call` and
+`gap-closure-capture` sources retained with their hashes. It has 1781 pairs,
+919 rejections and 34 curated references; 744 observations remain open requirements,
+144 resource restrictions and 31 invalid sources. The other 919 original rejection
+sources retain their diagnostics. This is a demonstrated closure slice, not full
+closure or async support. See the
+[arrow creation semantics](https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-runtime-semantics-instantiatearrowfunctionexpression).

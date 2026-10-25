@@ -16,10 +16,12 @@ use crate::ir::{
 };
 use crate::{is_type_declaration, unsupported};
 
+mod closures;
 mod evaluate;
 mod storage;
 pub(super) use storage::general_mutable_bindings;
 
+#[derive(Clone)]
 pub(super) struct NumericBinding {
     pub symbol: SymbolId,
     pub slot: SlotId,
@@ -203,6 +205,7 @@ fn target_identifier<'e, 'a>(
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Lowering<'s, 'a> {
     pub return_type: Type,
     pub semantic: &'s Semantic<'a>,
@@ -215,6 +218,9 @@ pub(super) struct Lowering<'s, 'a> {
     pub local_count: usize,
     pub statement_count: usize,
     pub in_loop_body: bool,
+    pub closures: Vec<closures::LocalClosure>,
+    pub closure_expansions: usize,
+    pub active_local_calls: usize,
 }
 
 impl Lowering<'_, '_> {
@@ -317,12 +323,29 @@ impl Lowering<'_, '_> {
     // A positive classification keeps existing scalar comparison paths unchanged.
     // This scan emits nothing; the evaluator still validates every source operand.
     fn numeric_result_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
-        storage::number_result_shape(expression, depth, self.semantic, self.functions, |symbol| {
-            self.bindings
-                .iter()
-                .find(|binding| binding.symbol == symbol)
-                .is_some_and(|binding| self.slots[binding.slot.0].ty == Type::Number)
-        })
+        if let Expression::CallExpression(call) = expression
+            && self.closure_target(&call.callee, depth + 1).is_some()
+        {
+            return true;
+        }
+        let closures = self
+            .closures
+            .iter()
+            .filter_map(|closure| closure.symbol)
+            .collect();
+        storage::number_result_shape(
+            expression,
+            depth,
+            self.semantic,
+            self.functions,
+            &closures,
+            |symbol| {
+                self.bindings
+                    .iter()
+                    .find(|binding| binding.symbol == symbol)
+                    .is_some_and(|binding| self.slots[binding.slot.0].ty == Type::Number)
+            },
+        )
     }
 
     fn expression(
@@ -539,6 +562,23 @@ impl Lowering<'_, '_> {
                 return Err(unsupported(local, "local destructuring is not admitted"));
             };
             let mutable = declaration.kind == VariableDeclarationKind::Let;
+            if !mutable
+                && let Some(mut closure) = local
+                    .init
+                    .as_ref()
+                    .and_then(|initializer| self.closure_target(initializer, 0))
+            {
+                self.check_local_closure(&closure)?;
+                closure.symbol = Some(
+                    identifier
+                        .symbol_id
+                        .get()
+                        .ok_or("missing closure binding")?,
+                );
+                self.closures.push(closure);
+                self.local_count += 1;
+                continue;
+            }
             let (ty, value) = if let Some(initializer) = local.init.as_ref() {
                 let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
                     Type::Predicate

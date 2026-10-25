@@ -540,7 +540,7 @@
     {
       "id": "closures",
       "kind": "open-requirement",
-      "assessment": "Captured bindings and nested function declarations need function/environment lifetime support.",
+      "assessment": "Local non-escaping concise arrows share captured cells; nested declarations and escaping/recursive closure environments remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",
@@ -1200,13 +1200,6 @@
       "group": "labels"
     },
     {
-      "id": "gap-call",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "08843f1268bfccd6f0b591612d941aa21453d75125a6707cc73f8cf4dca3a91d",
-      "group": "closures"
-    },
-    {
       "id": "gap-nested-function",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -1275,13 +1268,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "d66bca8a6c83f0ca28b4b433da842da4ef8ef0f0adf68da28d24ea738624a6f3",
       "group": "parameters"
-    },
-    {
-      "id": "gap-closure-capture",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "8805be1d8c56acc24526b4e518a2a83cf798e1dd6cb644e94bf25ba922660b60",
-      "group": "closures"
     },
     {
       "id": "gap-catch",

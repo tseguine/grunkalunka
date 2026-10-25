@@ -44,7 +44,6 @@ for (const [id, body, expected] of [
   ['label', 'outer: while(1) { a=a+b; break outer; } return a;', 6],
 ]) add(id, 'control-flow', body, expected, statement, { milestone: 'L2' });
 
-add('call', 'functions', 'return (x => x + b)(a);', 6, expression, { milestone: 'L3', prerequisites: ['arrow function values'] });
 add('nested-function', 'functions', 'function inc(x) { return x+1; } return inc(a)+b;', 7, statement, { milestone: 'L3', prerequisites: ['function calls'] });
 add('recursion', 'functions', 'function fact(n) { return n<=1 ? 1 : n*fact(n-1); } return fact(a);', 24, statement,
   { milestone: 'L3', prerequisites: ['nested function declarations', 'calls'] });
@@ -63,8 +62,6 @@ add('defaults', 'bindings', '', 6, 'parameter modifiers, defaults and decorators
 add('rest', 'bindings', '', 6, ordinaryParameters,
   { source: 'export function run(a,...rest) { return a+rest[0]; }', prerequisites: ['array values'] });
 
-add('closure-capture', 'closures', 'const read=()=>a; a=b; return read();', 2, expression,
-  { milestone: 'L5', prerequisites: ['function values', 'calls'] });
 add('catch', 'exceptions', 'try { throw a; } catch (e) { return e+b; }', 6, statement, { milestone: 'L5' });
 add('finally-return', 'exceptions', 'try { return a; } finally { return b; }', 2, statement, { milestone: 'L5' });
 add('class-instance', 'classes', 'class Box { constructor(x) { this.x=x; } get() { return this.x; } } const box=new Box(a); return box.get()+b;', 6, statement,

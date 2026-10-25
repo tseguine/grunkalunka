@@ -1,6 +1,6 @@
 # Known lowering gaps
 
-This page and the 921 rejection fixtures below describe the **numeric profile**.
+This page and the 919 rejection fixtures below describe the **numeric profile**.
 The separate [primitive-return profile](compiler.md#primitive-runtime-boundary)
 supports undefined/null/Boolean/Number returns. Thirteen exact original numeric rejection
 sources now execute in that profile; its CLI report records both outcomes. These
@@ -17,7 +17,7 @@ Selected primitive-Boolean operands of unary `+`, `-` and `~` explicitly produce
 Numbers. In the numeric profile this does not admit general Boolean storage, Boolean ABI returns or other
 primitive coercions; none of the 38 curated gaps is promoted by unary plus/minus.
 
-The executable frontier contains 36 curated reference cases in
+The executable frontier contains 34 curated reference cases in
 `tests/compatibility/lowering-gaps.mjs`. Each has an independent expected numeric
 result in JavaScript and a required current compiler diagnostic. The source is
 retained in the compatibility run alongside its hash and the separate oracle source.
@@ -27,10 +27,9 @@ retained in the compatibility run alongside its hash and the separate oracle sou
 | Operators and coercive equality | `gap-power`, `gap-loose-equality-coercion`, `gap-nullish`, `gap-typeof`, `gap-void`, `gap-delete`, `gap-property-in`, `gap-instanceof` |
 | General JavaScript values | `gap-string-coercion`, `gap-object-property`, `gap-array-value`, `gap-bigint` |
 | Additional control flow | `gap-switch`, `gap-label` |
-| Function values, nested declarations and nested recursion | `gap-call`, `gap-nested-function`, `gap-recursion` |
+| Nested declarations and nested recursion | `gap-nested-function`, `gap-recursion` |
 | Module loading | `gap-module-import` |
 | Bindings and parameter forms | `gap-var`, `gap-var-hoisting`, `gap-uninitialized-let`, `gap-local-destructure`, `gap-destructuring-write`, `gap-defaults`, `gap-rest` |
-| Closures | `gap-closure-capture` |
 | Exceptions and completion | `gap-catch`, `gap-finally-return` |
 | Classes and instances | `gap-class-instance` |
 | Generators and async | `gap-generator`, `gap-async-await` |
@@ -564,3 +563,10 @@ none is a numeric promotion. Two original Boolean-RHS sources execute unchanged
 in the Value profile, which reaches 73 pairs/4088 comparisons and fifteen numeric
 origins. `??`, `??=`, const assignment admission, other targets and unrepresented
 kinds remain separate requirements.
+
+
+Local non-escaping concise arrows now admit the exact original `gap-call` and
+`gap-closure-capture` programs. Those examples are retained in `local-arrows.mjs`,
+including source hashes. Escaping and recursive closures, later-initialized
+captures, block bodies and async remain known work despite these two promotions.
+See [the bounded contract](compiler.md#local-arrow-calls-and-shared-captures).

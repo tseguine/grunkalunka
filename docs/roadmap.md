@@ -477,3 +477,10 @@ source JSON calls, including nested parse/stringify rooted in a String literal.
 It uses checked frames and rejects shadowed intrinsics and unsupported operands.
 General source arrays/objects, parsed-result transport, callbacks, exceptions and
 shared typed-region integration remain open; this is not general JSON lowering.
+
+
+Local non-escaping concise arrows now share captured variable cells through
+specialized typed-region calls. The original arrow-call and mutable-capture gap
+sources execute in both engines. This begins closure support;
+escaping environments, recursive closures and asynchronous suspension remain open.
+See [the contract](compiler.md#local-arrow-calls-and-shared-captures).

@@ -131,6 +131,15 @@ enum Work<'e, 'a> {
         arguments: Vec<ValueId>,
         depth: usize,
     },
+    LocalCall {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        closure: closures::LocalClosure,
+        index: usize,
+        arguments: Vec<ValueId>,
+        depth: usize,
+    },
+    RestoreBindings(Vec<NumericBinding>),
     Sequence {
         remaining: &'e [Expression<'a>],
         last: &'e Expression<'a>,
@@ -270,6 +279,54 @@ impl Lowering<'_, '_> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
+                Work::RestoreBindings(bindings) => {
+                    self.bindings = bindings;
+                    self.active_local_calls -= 1;
+                }
+                Work::LocalCall {
+                    node,
+                    call,
+                    closure,
+                    index,
+                    mut arguments,
+                    depth,
+                } => {
+                    if index != 0 {
+                        arguments.push(values.pop().expect("local call argument").number());
+                    }
+                    if index < call.arguments.len() {
+                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
+                            unsupported(node, "spread call arguments are not admitted")
+                        })?;
+                        work.push(Work::LocalCall {
+                            node,
+                            call,
+                            closure,
+                            index: index + 1,
+                            arguments,
+                            depth,
+                        });
+                        work.push(Work::Eval(argument, depth, Mode::Number));
+                    } else {
+                        if self.closure_expansions >= 256 {
+                            return Err(unsupported(
+                                node,
+                                "at most 256 local arrow call expansions are admitted",
+                            ));
+                        }
+                        self.closure_expansions += 1;
+                        self.active_local_calls += 1;
+                        let arrow = self.arrow(closure.arrow);
+                        let previous = std::mem::replace(&mut self.bindings, closure.captures);
+                        self.bind_arrow_parameters(arrow, arguments, regions.current())?;
+                        work.push(Work::RestoreBindings(previous));
+                        work.push(Work::Eval(
+                            arrow.get_expression().expect("checked concise arrow"),
+                            0,
+                            Mode::Number,
+                        ));
+                    }
+                }
                 Work::Forget => {
                     values.pop().expect("discarded result");
                 }
@@ -820,6 +877,12 @@ impl Lowering<'_, '_> {
                     }
                 }
                 Work::Eval(node, depth, mode) => {
+                    if self.active_local_calls != 0 && regions.children.len() > 128 {
+                        return Err(unsupported(
+                            node,
+                            "local arrow expansion exceeds 128 nested expression regions",
+                        ));
+                    }
                     if depth > 128 {
                         return Err(unsupported(
                             node,
@@ -836,6 +899,39 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if let Expression::CallExpression(call) = node
+                        && let Some(closure) = self.closure_target(&call.callee, depth + 1)
+                    {
+                        let arrow = self.arrow(closure.arrow);
+                        self.check_arrow(arrow)?;
+                        if call.optional || call.type_arguments.is_some() {
+                            return Err(unsupported(
+                                node,
+                                "optional and generic local calls are not admitted",
+                            ));
+                        }
+                        if call.arguments.len() != arrow.params.items.len() {
+                            return Err(unsupported(
+                                node,
+                                "local call requires exactly the declared number of arguments",
+                            ));
+                        }
+                        match mode {
+                            Mode::General => work.push(Work::Pack(node)),
+                            Mode::Predicate => work.push(Work::Truthy(node)),
+                            Mode::Number => (),
+                            _ => unreachable!("discard/arithmetic routed above"),
+                        }
+                        work.push(Work::LocalCall {
+                            node,
+                            call,
+                            closure,
+                            index: 0,
+                            arguments: Vec::new(),
+                            depth: depth + 1,
+                        });
                         continue;
                     }
                     if matches!(mode, Mode::General) {
