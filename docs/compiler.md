@@ -1795,8 +1795,8 @@ through specialization and runtime calls. For example,
 `const f=()=>{if(a)return null;return false;}; return f();` preserves the selected
 kind. Returns inside nested blocks and loops follow the existing structural
 completion rules. A nested arrow's returns belong only to that nested arrow.
-Every structural path must explicitly return a represented expression; bare and
-implicit returns remain separate requirements.
+That initial slice required an explicit represented return on every structural
+path; local bare and implicit returns are described below.
 
 The existing typed `InlineCall` result now accepts General. The verifier checks
 each return against the result type; existing backend layouts carry `(i32,f64)`
@@ -1806,7 +1806,28 @@ rules. Captured cells, argument/callee snapshots, early returns and loop effects
 are preserved. Async callers retain primitive values across jobs and match native
 fulfillment, rejection and catch ordering.
 
-Eight additional maintained primitive corpus pairs bring that profile to 99 pairs
-and 5544 comparisons. Implicit completion, bare returns, async arrow bodies,
+Eight additional maintained primitive corpus pairs brought that profile to 99 pairs
+and 5544 comparisons. Async arrow bodies,
 arbitrary primitive arguments, mixed function/primitive returns and expanded
 runtime factories remain separate work.
+
+## Local bare returns and normal completion
+
+Synchronous local primitive closures now yield Undefined for a bare `return;`
+or normal completion. A partial return such as `()=>{if(a)return b;}` retains
+Number on its returning branch and Undefined on the other path. Empty bodies,
+early returns, nested blocks and loop exits follow the same rule. The synthesized
+value is intrinsic: a source binding named `undefined` cannot change it.
+
+A read-only completion query uses the existing completion algebra to retain
+Number specialization only when every structural path returns a Number. Lowering
+then validates the body and adds the Undefined return only to normal paths.
+Bare returns are admitted inside local primitive block lowering; existing entry
+and named-helper completion contracts remain unchanged. Function/primitive mixed
+returns still require a broader value domain. No IR operation, emitter path,
+dependency or host ABI was added.
+
+JS/TS tests compare native JavaScript, Node Wasm and Wasmtime for kinds, bit
+patterns, captures, callee/argument snapshots and effects. Async callers also
+match fulfillment/rejection and reaction-job order. Ten additional maintained
+primitive corpus pairs bring that profile to 109 pairs and 6104 comparisons.

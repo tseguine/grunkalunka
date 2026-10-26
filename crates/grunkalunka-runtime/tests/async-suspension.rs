@@ -1280,3 +1280,27 @@ fn primitive_block_results_preserve_async_values_and_job_order() {
         ],
     );
 }
+
+#[test]
+fn implicit_local_returns_preserve_async_kinds_effects_and_job_order() {
+    compare_promises(
+        &[
+            "const f=()=>{};return await f();",
+            "const f=()=>{return;};return await f();",
+            "const f=()=>{if(a)return b;};return await f();",
+            "const f=()=>{if(a)return b;};return f()??await b;",
+            "let x=0;const f=()=>{x++;return;};const old=f();await b;return old??x;",
+            "const f=x=>{if(x)return;};const g=x=>false;let h=f;const old=h((h=g,await a));await b;return old;",
+            "const f=()=>{};try{throw f();}catch(reason){await b;return reason;}",
+            "const f=()=>{};try{await Promise.reject(f());}catch(reason){return reason;}return null;",
+            "const make=()=>()=>{};const f=make();await b;return f();",
+            "const f=()=>{};let x=a;x=f();await b;return x;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

@@ -66,8 +66,71 @@ fn block_closure_returns_null() {
 }
 
 #[test]
+fn empty_local_closure_returns_undefined() {
+    let artifact = compile_value(
+        "export function run(a,b){const f=()=>{};return f();}",
+        false,
+    )
+    .unwrap();
+    let result = ValueInstance::new(&artifact.wasm)
+        .unwrap()
+        .run(4.0, 2.0)
+        .unwrap();
+    assert!(matches!(result, Value::Undefined));
+}
+
+#[test]
+fn numeric_branch_and_implicit_undefined_keep_distinct_result_kinds() {
+    let source = "export function run(a,b){const f=()=>{if(a)return b;};return f();}";
+    let artifact = compile_value(source, false).unwrap();
+    let mut instance = ValueInstance::new(&artifact.wasm).unwrap();
+    assert!(matches!(
+        instance.run(4.0, 2.0).unwrap(),
+        Value::Number(2.0)
+    ));
+    assert!(matches!(instance.run(0.0, 2.0).unwrap(), Value::Undefined));
+}
+
+#[test]
+fn local_undefined_completion_keeps_entry_and_function_value_boundaries() {
+    for source in [
+        "export function run(a,b){}",
+        "export function run(a,b){return;}",
+        "export function run(a,b){{return;}}",
+        "export function run(a,b){if(a)return null;}",
+        "function helper(){return;}export function run(a,b){return helper();}",
+        "export function run(a,b){const f=()=>{if(a)return ()=>b;};return a;}",
+        "export function run(a,b){const f=()=>{return;a++;};return a;}",
+    ] {
+        assert!(compile_value(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
 fn primitive_closure_results_match_javascript_and_node_wasm() {
     let bodies = [
+        "const f=()=>{};return f();",
+        "const f=()=>{};return f?a:b;",
+        "const f=()=>{}; return a;",
+        "const f=()=>{return;};return f();",
+        "const f=()=>{return;};return a;",
+        "const f=()=>{if(a)return null;};return a;",
+        "const pick=()=>{return;};return a;",
+        "const f=()=>{if(a)return b;};return f();",
+        "const f=()=>{if(a)return;return b;};return f();",
+        "const f=()=>{let x=b;if(a){return x;}x=a;};return f();",
+        "const f=()=>{if(a){if(b)return true;}else{return null;}};return f();",
+        "const f=()=>{let i=0;while(i<3){i++;if(a)return b;}};return f();",
+        "const f=()=>{for(let i=0;i<3;i++){if(a)continue;if(b)break;return null;}};return f();",
+        "const f=()=>{let i=0;do{i++;if(a)return false;}while(i<3);};return f();",
+        "const f=()=>{const g=()=>null;};return f();",
+        "const f=()=>{};const g=()=>{return false;};let h=a?f:g;return h();",
+        "const f=()=>{if(a)return b;};const g=()=>undefined;let h=a?f:g;return h();",
+        "let x=0;const f=()=>{x++;return;};const g=()=>{x+=10;};let h=a?f:g;const old=h();return old??x;",
+        "const undefined=b;const f=()=>{return;};return f();",
+        "const undefined=b;const f=()=>{};return f();",
+        "const make=x=>()=>{if(x)return b;};const f=make(a);return f();",
+        "const f=()=>{};let x=a;x=f();return x;",
         "const f=()=>{return undefined;};return f();",
         "const f=()=>{return null;};return f();",
         "const f=()=>{return false;};return f();",
@@ -170,6 +233,13 @@ fn primitive_closure_coercions_and_predicates() {
         "const f=()=>null;const g=()=>false;let h=a?f:g;return +h();",
         "const f=()=>null;return f()===null?1:0;",
         "return +(()=>null)();",
+        "const f=()=>{};return +f();",
+        "const f=()=>{return;};if(f())return a;return b;",
+        "const f=()=>{if(a)return b;};return +f();",
+        "const f=x=>{if(x)return a;else return b;};return f(a);",
+        "const f=()=>{do{return a;}while(b);};return f();",
+        "const f=()=>{}; return a;",
+        "const pick=()=>{return;};return a;",
         "const f=()=>{return null;};return +f();",
         "const f=()=>{return false;};if(f())return a;return b;",
         "const f=()=>{const g=()=>a;return g();};let x=f();x=f();return x;",
@@ -192,9 +262,6 @@ fn primitive_closure_coercions_and_predicates() {
 #[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
-        "const f=()=>{};return a;",
-        "const f=()=>{return;};return a;",
-        "const f=()=>{if(a)return null;};return a;",
         "const f=()=>{if(a)return ()=>b;return null;};return a;",
         "const f=()=>{return '';};return a;",
         "const f=()=>{return {};};return a;",

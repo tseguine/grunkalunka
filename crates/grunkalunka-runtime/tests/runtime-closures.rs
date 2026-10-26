@@ -1199,7 +1199,6 @@ fn block_function_results_keep_return_kind_and_export_boundaries() {
         "const pick=flag=>{if(flag)return ()=>a;return b;};return a;",
         "const pick=flag=>{if(flag)return ()=>a;return x=>x;};return a;",
         "const pick=flag=>{if(flag)return ()=>a;};return a;",
-        "const pick=()=>{return;};return a;",
         "const pick=()=>{return async()=>a;};const f=pick();return f();",
         "const pick=()=>{return ()=>a;};const f=pick(a);return f();",
         "const pick=()=>{return ()=>a;};const f=pick?.();return f();",

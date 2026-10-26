@@ -3,6 +3,39 @@ use super::*;
 use oxc_ast::AstKind;
 use std::collections::{BTreeMap, BTreeSet};
 
+// The same completion algebra as statement lowering, without evaluating source
+// expressions or looking inside nested functions. Unsupported statements are
+// still rejected by lowering; this query only proves complete Number returns.
+fn completion_shape(statement: &Statement<'_>, depth: usize) -> Completion {
+    if depth > 128 {
+        return Completion::NORMAL;
+    }
+    match statement {
+        Statement::ReturnStatement(_) => Completion::RETURN,
+        Statement::ThrowStatement(_) => Completion::THROW,
+        Statement::BreakStatement(_) => Completion::BREAK,
+        Statement::ContinueStatement(_) => Completion::CONTINUE,
+        Statement::BlockStatement(block) => block
+            .body
+            .iter()
+            .fold(Completion::NORMAL, |completion, statement| {
+                completion.then(completion_shape(statement, depth + 1))
+            }),
+        Statement::IfStatement(branch) => completion_shape(&branch.consequent, depth + 1).union(
+            branch
+                .alternate
+                .as_ref()
+                .map_or(Completion::NORMAL, |statement| {
+                    completion_shape(statement, depth + 1)
+                }),
+        ),
+        Statement::WhileStatement(loop_) => completion_shape(&loop_.body, depth + 1).pretest_loop(),
+        Statement::ForStatement(loop_) => completion_shape(&loop_.body, depth + 1).pretest_loop(),
+        Statement::DoWhileStatement(loop_) => completion_shape(&loop_.body, depth + 1).do_loop(),
+        _ => Completion::NORMAL,
+    }
+}
+
 pub(super) fn arrow_number_result_shape(
     arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
     semantic: &Semantic<'_>,
@@ -13,6 +46,19 @@ pub(super) fn arrow_number_result_shape(
     let expressions = if let Some(body) = arrow.get_expression() {
         vec![Some(body)]
     } else {
+        let oxc_ast::ast::ArrowFunctionBody::FunctionBody(body) = &arrow.body else {
+            unreachable!("block arrow body")
+        };
+        if body
+            .statements
+            .iter()
+            .fold(Completion::NORMAL, |completion, statement| {
+                completion.then(completion_shape(statement, 0))
+            })
+            != Completion::RETURN
+        {
+            return false;
+        }
         block_results::return_statements(semantic, arrow.node_id.get())
             .into_iter()
             .map(|statement| statement.argument.as_ref())

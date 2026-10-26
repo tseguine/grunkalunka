@@ -1009,6 +1009,22 @@ impl Lowering<'_, '_> {
                 Ok(Completion::THROW)
             }
             Statement::ReturnStatement(statement) => {
+                if statement.argument.is_none()
+                    && self.return_type == Type::General
+                    && self.active_block_calls != 0
+                {
+                    let value = self.value(Type::General);
+                    Self::push(
+                        region,
+                        statement.as_ref(),
+                        Op::Nullish {
+                            result: value,
+                            value: ir::Nullish::Undefined,
+                        },
+                    );
+                    region.exit = Exit::Return(value);
+                    return Ok(Completion::RETURN);
+                }
                 let expression =
                     statement
                         .argument

@@ -420,7 +420,24 @@ impl<'s, 'a> Lowering<'s, 'a> {
             for directive in &body.directives {
                 self.charge_statement(directive)?;
             }
-            if self.sequence(&body.statements, &mut region, 0)? != Completion::RETURN {
+            let completion = self.sequence(&body.statements, &mut region, 0)?;
+            if result_type == Type::General
+                && completion.normal
+                && !completion.breaks
+                && !completion.continues
+                && !completion.throws
+            {
+                let value = self.value(Type::General);
+                Self::push(
+                    &mut region,
+                    arrow,
+                    Op::Nullish {
+                        result: value,
+                        value: ir::Nullish::Undefined,
+                    },
+                );
+                region.exit = Exit::Return(value);
+            } else if completion != Completion::RETURN {
                 return Err(unsupported(
                     arrow,
                     if matches!(result_type, Type::Closure(_)) {

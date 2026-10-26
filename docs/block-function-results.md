@@ -53,9 +53,9 @@ Function-valued results remain internal. Exported Number/primitive signatures st
 unchanged. [Concise runtime factories](runtime-function-results.md) additionally
 return numeric-leaf pairs through typed indirect calls; ordinary leaf closures
 also support [primitive results](runtime-closures.md) from concise bodies and
-explicit block returns. Bare and implicit returns remain separate work. This does not add
-function-valued host results, function coercion/equality, mixed return
-kinds or logical signatures, async local arrows, optional/spread local calls, or arbitrary
+block returns and Undefined normal completion. This does not add
+function-valued host results, function coercion/equality, mixed function/primitive
+returns or incompatible logical signatures, async local arrows, optional/spread local calls, or arbitrary
 runtime functions returning functions. TypeScript annotations remain erased.
 
 Focused coverage lives in `grunkalunka-runtime`'s `runtime-closures`, `local-arrows`

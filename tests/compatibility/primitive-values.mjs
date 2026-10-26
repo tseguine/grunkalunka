@@ -8,6 +8,16 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['implicit-closure-empty', 'const f=()=>{};return f();'],
+  ['implicit-closure-bare', 'const f=()=>{return;};return f();'],
+  ['implicit-closure-number', 'const f=()=>{if(a)return b;};return f();'],
+  ['implicit-closure-boolean', 'const f=()=>{if(a)return false;};return f();'],
+  ['implicit-closure-selected', 'const f=()=>{if(a)return b;};const g=()=>{};let h=a?f:g;return h();'],
+  ['implicit-closure-effects', 'let x=0;const f=()=>{x++;};const result=f();return result??x;'],
+  ['implicit-closure-stored', 'const f=()=>{};let x=a;x=f();return x;'],
+  ['implicit-closure-shadow', 'const undefined=b;const f=()=>{return;};return f();'],
+  ['implicit-closure-loop', 'const f=()=>{let i=0;while(i<3){i++;if(a)return b;}};return f();'],
+  ['implicit-closure-creator', 'const make=x=>()=>{if(x)return b;};const f=make(a);return f();'],
   ['block-closure-null', 'const f=()=>{return null;};return f();'],
   ['block-closure-undefined', 'const f=()=>{return undefined;};return f();'],
   ['block-closure-boolean', 'const f=()=>{return false;};return f();'],

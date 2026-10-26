@@ -10,8 +10,9 @@ the resulting identifier or alias use an exact logical signature with Number and
 numeric-leaf callback arguments. Concise synchronous bodies can return Number,
 Undefined, Null or Boolean, retaining the selected kind and payload. Runtime
 factories still return numeric-leaf function pairs. Leaf arrows may have concise
-or block bodies. Block bodies require an explicit primitive return expression on
-every structural path; early returns and loops retain their existing completion rules.
+or block bodies. Bare returns and normal completion of local primitive block
+bodies produce Undefined. Early returns and loops retain their existing completion
+rules; complete Number-returning bodies keep their Number specialization.
 
 ```js
 export function run(a, b) {

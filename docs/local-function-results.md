@@ -51,7 +51,7 @@ existing IR operation; its verifier requires matching complete function signatur
 
 These finite cases establish this slice. Factories returning factories,
 incompatible logical signatures, heap leaf results, async callback bodies and host function transport remain separate
-work. Primitive-result closures, including explicit block returns, pass through these existing local
+work. Primitive-result closures, including block bodies, pass through these existing local
 forwarding and function-return paths; see [runtime closures](runtime-closures.md).
 [Numeric-leaf higher-order callback signatures](higher-order-callbacks.md)
 now pass through concise and block identity, selection and known-factory paths too;
