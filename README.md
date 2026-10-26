@@ -1,5 +1,7 @@
 # Grunkalunka
 
+[![CI (master)](https://github.com/tseguine/grunkalunka/actions/workflows/ci.yml/badge.svg?branch=master&event=push)](https://github.com/tseguine/grunkalunka/actions/workflows/ci.yml?query=branch%3Amaster%20event%3Apush)
+
 **Gimme damn damn WASM!**
 
 A web application framework with familiar JS/TS authoring, portable deployment,
