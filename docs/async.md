@@ -15,6 +15,13 @@ the end adds no reaction job, and a binding named `undefined` cannot change the
 implicit result. Ordinary numeric/primitive entries and named helpers retain
 their explicit completion requirements.
 
+Plain module-level synchronous Number helpers can be called before or after
+suspension, inside local closures and from known async bodies. They retain their
+existing exact arity (up to 1,000 parameters), Number results and ordinary local
+activations; calling a helper adds no reaction job. Helpers still require explicit
+Number completion and cannot suspend or throw. The async `run` entry cannot be
+called as an ordinary source helper, including from another helper or closure.
+
 The exact current `gap-async-await` source runs in this profile:
 
 ```js
@@ -175,7 +182,7 @@ return, throw or fulfill Undefined through normal completion. Throws inside a
 known async callee settle that callee; observing them through the caller's await
 still requires its reaction job.
 
-Source helper calls, general async function values, arbitrary Promise/thenable values, Strings,
+General async function values, arbitrary Promise/thenable values, Strings,
 Symbols, BigInts, objects, Promise callbacks, synchronous/lifted throw, finally, catch
 destructuring and Promise interoperability remain open. Runtime-selected functions
 accept Number and numeric-leaf callback parameters and return Number or a

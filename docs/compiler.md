@@ -1869,3 +1869,13 @@ completion. Lowering adds that result only to normal paths, preserving existing
 return/throw alternatives and await/catch reaction jobs. Numeric and primitive
 entries and named helpers keep their explicit completion rules. Source bindings
 and TypeScript return claims cannot replace the synthesized result.
+
+Existing synchronous Number source helpers are also available in async programs.
+Calls remain synchronous and preserve ordered argument snapshots around waits;
+helpers keep ordinary local activations, existing arity limits and Number
+completion rules. The async emitter retains verified logical function IDs by
+placing `$advance` at ID zero and helper/lifted definitions before the exported
+protocol wrappers. Closure table entries still name their lifted bodies. Helpers
+with captured cells request the shared cell arena even without a function table.
+Calls back to the async source entry remain forbidden throughout the module, and
+helper traps stay terminal rather than entering JavaScript catches.

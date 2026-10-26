@@ -723,6 +723,14 @@ fn suspended_control_flow_matches_native_results_and_job_order() {
 }
 
 fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
+    let sources = bodies
+        .iter()
+        .map(|body| source_for(body))
+        .collect::<Vec<_>>();
+    compare_async_sources(&sources, vectors);
+}
+
+fn compare_async_sources(sources: &[String], vectors: &[(f64, f64)]) {
     let mut script = String::from(
         r#"
 import assert from 'node:assert/strict';
@@ -753,10 +761,9 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
         })
         .collect();
     script.push_str(&format!("const vectors=[{}];\n", inputs.join(",")));
-    for body in bodies {
-        let source = source_for(body);
+    for source in sources {
         for typescript in [false, true] {
-            let artifact = compile_async(&source, typescript)
+            let artifact = compile_async(source, typescript)
                 .unwrap_or_else(|error| panic!("{source}: {error}"));
             let mut rust = Vec::new();
             for &(a, b) in vectors {
@@ -775,7 +782,7 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
                 let bits = primitive_bits(value);
                 rust.push(format!("{{outcome:'{kind}:{bits}',jobs:{jobs}}}"));
             }
-            script.push_str(&format!("{{const native=({});const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].jobs,expected.jobs);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await Promise.allSettled([wasm(a,b),wasm(c,d)]),await Promise.allSettled([native(a,b),native(c,d)]));}}\n",source.trim_start_matches("export "),artifact.wasm,rust.join(","),source));
+            script.push_str(&format!("{{const native=(()=>{{{};return run;}})();const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].jobs,expected.jobs);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await Promise.allSettled([wasm(a,b),wasm(c,d)]),await Promise.allSettled([native(a,b),native(c,d)]));}}\n",source.replacen("export async function run", "async function run", 1),artifact.wasm,rust.join(","),source));
         }
     }
     run_node(&script);
@@ -1678,5 +1685,86 @@ fn awaited_callee_type_claims_do_not_coerce_rejection_or_fulfillment() {
     assert_eq!(
         compile_async(js, false).unwrap().wasm,
         compile_async(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn synchronous_number_helpers_preserve_async_values_and_jobs() {
+    let programs = [
+        "function helper(a){return a;}export async function run(a,b){return await b;}",
+        "function helper(x){return x;}export async function run(a,b){return helper(a);}",
+        "function helper(x){return x;}export async function run(a,b){return await helper(a);}",
+        "function helper(x){return x;}export async function run(a,b){return helper(await a);}",
+        "function helper(x){return x;}export async function run(a,b){await b;return helper(a);}",
+        "function helper(x,y){return x-y;}export async function run(a,b){return helper(a,await(a=b));}",
+        "function zero(){return -0;}function one(x){return x;}function two(x,y){return x+y;}export async function run(a,b){return two(zero(),await one(a));}",
+        "export async function run(a,b){return helper(await a,b);}function helper(x,y){return x-y;}",
+        "function first(x){return second(x)+1;}function second(x){return x*2;}export async function run(a,b){return first(await a);}",
+        "function factorial(x){if(x<=1)return 1;return x*factorial(x-1);}export async function run(a,b){await b;return factorial(4);}",
+        "function rem(x,y){return x%y;}export async function run(a,b){return rem(await a,b);}",
+        "function helper(x){const f=()=>++x;return f()+f();}export async function run(a,b){return helper(a)+await helper(b);}",
+        "function helper(x){const f=y=>x+y;const g=y=>x-y;let h=x?f:g;return h(x);}export async function run(a,b){await b;return helper(a);}",
+        "function helper(x){return x*2;}export async function run(a,b){const f=()=>helper(a);const g=()=>helper(b)+1;let h=a?f:g;await null;return h();}",
+        "function helper(x){return x*2;}export async function run(a,b){const f=async()=>{const old=helper(a);await b;return old;};return await f();}",
+        "function helper(x){return x*2;}export async function run(a,b){const f=async()=>{throw helper(await a);};try{return await f();}catch(reason){return helper(+reason);}}",
+        "function helper(x){return x;}export async function run(a,b){try{return await Promise.reject(helper(a));}catch(reason){await b;return helper(+reason);}}",
+        "function helper(x){return x;}export async function run(a,b){let x=a;for(let i=0;i<3;i++){x=helper(x)+await b;}return x;}",
+        "function helper(x){return x;}export async function run(a,b){const f=()=>helper(a);await b;return helper(f());}",
+    ].map(String::from);
+    compare_async_sources(
+        &programs,
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn helper_resource_traps_remain_terminal_outside_js_catches() {
+    for delayed in [false, true] {
+        let source = format!(
+            "function helper(x){{for(let i=0;i<70000;i++){{const y=x;const f=()=>y;x=f();}}return x;}}export async function run(a,b){{{}try{{return helper(a);}}catch(reason){{return 0;}}}}",
+            if delayed { "await b;" } else { "" }
+        );
+        let artifact = compile_async(&source, false).unwrap();
+        if delayed {
+            let mut call = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+            assert!(call.run_one_job().is_err());
+            assert!(call.state().is_err());
+        } else {
+            assert!(AsyncInstance::new(&artifact.wasm, 4.0, 2.0).is_err());
+        }
+        run_node(&format!(
+            "import assert from 'node:assert/strict';import {{pathToFileURL}} from 'node:url';const {{createAsyncFunction}}=await import(pathToFileURL(process.argv[2]));const run=createAsyncFunction(new Uint8Array({:?}));await assert.rejects(run(4,2),Error);",
+            artifact.wasm
+        ));
+    }
+}
+
+#[test]
+fn synchronous_helper_arity_limit_keeps_its_ordinary_call_abi() {
+    let params = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let args = std::iter::once("await a")
+        .chain(std::iter::repeat_n("b", 999))
+        .collect::<Vec<_>>()
+        .join(",");
+    let source = format!(
+        "function wide({params}){{return p0+p999;}}export async function run(a,b){{return wide({args});}}"
+    );
+    compare_async_sources(&[source], &[(4.0, 2.0)]);
+    let source = format!(
+        "function wide({params},extra){{return p0;}}export async function run(a,b){{return a;}}"
+    );
+    assert!(
+        compile_async(&source, false)
+            .err()
+            .unwrap()
+            .contains("1000 function parameters")
     );
 }
