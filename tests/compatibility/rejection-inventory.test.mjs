@@ -1,4 +1,5 @@
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
+import { voidPrograms, promotedVoidGap } from './void.mjs';
 import { primitiveNullish, primitiveNullishPromotions } from './primitive-nullish.mjs';
 import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
 import { primitiveRelational, primitiveRelationalPromotions } from './primitive-relational.mjs';
@@ -31,6 +32,20 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
 const validate = data => validateRejectionInventory(rejected, data);
+
+test('void promotes its exact original source and unchanged Number golden',()=>{
+  const source=programSources(voidPrograms.find(row=>row[0]==='gap-void'));
+  assert.equal(source.sourceJS,promotedVoidGap.sourceJS);
+  assert.equal(source.sourceTS,promotedVoidGap.sourceTS);
+  assert.equal(source.oracleSource,promotedVoidGap.oracleSource);
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),promotedVoidGap.sourceSha256);
+  assert.equal(promotedVoidGap.sourceSha256,'66d77e4e765a76f62ed187251314ec8608540d6b80cf2648f89d2fe9135250e1');
+  assert.deepEqual([promotedVoidGap.args,promotedVoidGap.entry,promotedVoidGap.expected],[[4,2],'run',1]);
+  assert.ok(!rejected.some(row=>row[0]==='gap-void'));
+  assert.ok(!catalog.records.some(row=>row.id==='gap-void'));
+  const run=Function('"use strict";'+source.oracleSource.replace('export function','function')+';return run;')();
+  assert.equal(run(...promotedVoidGap.args),promotedVoidGap.expected);
+});
 
 test('binary coalescing promotes three exact numeric sources and the original primitive rejection', () => {
   assert.equal(primitiveNullishPromotions.length, 3);
@@ -178,7 +193,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 916);
+  assert.equal(inventory.records.size, 915);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

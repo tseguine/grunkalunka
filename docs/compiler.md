@@ -1766,7 +1766,8 @@ pairs, 16 exact numeric origins, 6 rejection observations and 4592 comparisons.
 Function-only `??` still requires matching complete signatures. The constructor-free
 `(x,y)=>x??y` selector now passes preliminary Number checking and specializes from
 its actual function arguments. General function/primitive joins, String/BigInt/object
-operands, `??=` and `void` remain separate requirements. No dependency or host ABI changes.
+operands and `??=` remain separate requirements. Void is described below.
+No dependency or host ABI changes.
 
 ## Primitive results from concise closures
 
@@ -1879,3 +1880,20 @@ protocol wrappers. Closure table entries still name their lifted bodies. Helpers
 with captured cells request the shared cell arena even without a function table.
 Calls back to the async source entry remain forbidden throughout the module, and
 helper traps stay terminal rather than entering JavaScript catches.
+
+## Void expressions
+
+`void operand` evaluates an admitted operand completely, including its GetValue,
+effects and abrupt completion, then yields intrinsic Undefined. Its result is
+false in predicates and becomes NaN through the existing explicit numeric
+conversion paths. Discarding a void expression still evaluates the operand.
+Closures preserve that result kind; async operands retain their reactions and
+rejections. A source binding named `undefined` cannot change the result.
+
+The expression cursor uses existing General values and the Undefined IR operation;
+no emitter, IR schema or host ABI was added. Numeric bare-Undefined returns,
+unsupported operand kinds/calls and source/resource limits retain their contracts.
+The original `gap-void` Number-comparison source and fixed golden are now executed
+unchanged. Corpus 67 has 1,799 numeric pairs and 915 rejections; six additional
+primitive pairs bring that profile to 115 pairs. See the
+[ECMAScript void semantics](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-void-operator).

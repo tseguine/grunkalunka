@@ -68,6 +68,11 @@ Ordered arguments complete outside the boundary, so their failures cannot enter
 callee catches. The return and rejection alternatives share one logical await
 site under the existing 32-site limit. No Promise-object or host ABI was added.
 
+`void` preserves operand suspension and rejection before producing intrinsic
+Undefined. `void(await f())` retains the callee/caller jobs; it cannot turn a
+rejection into fulfillment. An unawaited async call remains outside admission
+even when its result is discarded with `void`.
+
 The compiler lowers await to a Number or General operation in the typed IR.
 Known Number operands retain scalar specialization; other represented primitive
 values retain their tag and payload across suspension. Await does not coerce a

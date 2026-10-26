@@ -88,6 +88,7 @@ enum Work<'e, 'a> {
     Forget,
     Await(&'e Expression<'a>, bool, Type),
     FinishAwaitCall(&'e Expression<'a>, Type),
+    VoidResult(&'e Expression<'a>),
     Pack(&'e Expression<'a>),
     Convert(&'e Expression<'a>),
     Truthy(&'e Expression<'a>),
@@ -369,6 +370,18 @@ impl Lowering<'_, '_> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
+                Work::VoidResult(node) => {
+                    let result = self.value(Type::General);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Nullish {
+                            result,
+                            value: ir::Nullish::Undefined,
+                        },
+                    );
+                    values.push(Value::General(result));
+                }
                 Work::FinishAwaitCall(node, ty) => {
                     let mut value = values.pop().expect("async body result").id();
                     let mut body = regions.children.pop().expect("owned async body");
@@ -1300,6 +1313,24 @@ impl Lowering<'_, '_> {
                             },
                         );
                         values.push(Value::Predicate(result));
+                        continue;
+                    }
+                    if let Expression::UnaryExpression(unary) = node
+                        && unary.operator == UnaryOperator::Void
+                    {
+                        if matches!(mode, Mode::Predicate) {
+                            work.push(Work::GeneralTruthy(node));
+                            work.push(Work::Eval(node, depth, Mode::General));
+                            continue;
+                        }
+                        if !matches!(mode, Mode::General) {
+                            return Err(unsupported(
+                                node,
+                                "void result requires a primitive value or coercion position",
+                            ));
+                        }
+                        work.push(Work::VoidResult(node));
+                        work.push(Work::Eval(&unary.argument, depth + 1, Mode::Discard));
                         continue;
                     }
                     if let Expression::AwaitExpression(awaited) = node {

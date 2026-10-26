@@ -1768,3 +1768,42 @@ fn synchronous_helper_arity_limit_keeps_its_ordinary_call_abi() {
             .contains("1000 function parameters")
     );
 }
+
+#[test]
+fn void_preserves_async_jobs_effects_and_rejection() {
+    compare_promises(
+        &[
+            "return void(await a);",
+            "return await(void a);",
+            "return void await Promise.reject(a);",
+            "try{return void await Promise.reject(null);}catch(reason){return reason;}",
+            "let x=a;const f=async()=>{x=b;return await false;};const out=void await f();return out??x;",
+            "return (void await a)&&await b;",
+            "return (void await a)??await b;",
+            "const f=()=>void a;return await f();",
+            "const f=async()=>void(await a);return await f();",
+            "const f=async()=>{throw a;};return void await f();",
+            "const f=async()=>{throw a;};try{return void await f();}catch(reason){return void(await reason);}",
+            "if(void(await a))return a;return b;",
+            "let x=0;for(let i=0;i<3;i++){void(await(x++));}return x;",
+            "const f=()=>a;return void(a?f:()=>b);",
+            "let x=a;const f=()=>{x=b;return ()=>x;};void f();await null;return x;",
+            "let undefined=a;return void await b;",
+            "const f=async x=>void(await x);return await f(await a);",
+            "void(await a);return b;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    for body in [
+        "const f=async()=>a;return void f();",
+        "const f=async()=>a;return void f;",
+        "const f=async()=>Promise.reject(a);return void await f();",
+    ] {
+        assert!(compile_async(&source_for(body), false).is_err(), "{body}");
+    }
+}
