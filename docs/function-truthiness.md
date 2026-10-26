@@ -29,11 +29,12 @@ Function tag, numeric conversion, IR operation or runtime ABI is introduced.
 its existing explicit bridge, for example `+!f`, to obtain Number zero.
 
 The rule applies only when the underlying function value expression is admitted.
-It does not extend function-valued logical results, numeric coercion, equality,
-reflection, host function transport, function-valued awaits, unsupported function
-result kinds or async callback bodies. A Boolean context such as `if(f && g)` can
-normalize both selected operands to predicates without transporting a function as
-a primitive or claiming general logical-result support.
+Numeric coercion, equality, reflection, host function transport, function-valued
+awaits, unsupported function result kinds and async callback bodies remain outside
+this rule. The follow-on [runtime function selection](runtime-closures.md) supports
+same-signature function-valued `&&`/`||`, including Boolean uses such as `if(f && g)`.
+Other previously admitted Boolean-position operand combinations remain available;
+none transport a function as a primitive or imply mixed-kind logical results.
 
 Existing source, lifting, cursor, expansion, arena and fuel bounds remain in force.
 Predicate-to-function crossings carry the caller's generated region context; nested

@@ -1426,6 +1426,134 @@ fn runtime_factory_pairs_keep_primitive_tags_and_recover_after_fuel_failure() {
 }
 
 #[test]
+fn logical_function_results_keep_the_selected_code_and_capture() {
+    compare_functions(&[
+        "const f=()=>a;const g=()=>b;const h=f&&g;return h();",
+        "const f=()=>a;const g=()=>b;const h=f||g;return h();",
+        "const f=()=>a;const g=()=>b;return (f&&g)()+(f||g)();",
+        "let calls=0;const f=()=>++calls;const g=()=>--calls;const h=(calls+=10,f)||(calls+=100,g);return h()*1000+calls;",
+        "let calls=0;const f=()=>++calls;const g=()=>--calls;const h=(calls+=10,f)&&(calls*=2,g);return h()*1000+calls;",
+        "let f=()=>a;const old=f;const h=f||(f=()=>b);f=()=>b;return h()*100+old()*10+f();",
+        "let f=()=>a;const h=f&&(f=()=>b);return h()*10+f();",
+        "const make=x=>()=>x;let n=0;const h=make((n++,a))&&make((n++,b));return h()+n*100;",
+        "const make=x=>()=>x;let n=0;const h=make((n++,a))||make((n++,b));return h()+n*100;",
+        "const f=()=>a;const g=()=>b;const h=a?(f&&g):(g||f);return h();",
+        "const f=()=>a;const g=()=>b;let h=()=>0;const read=()=>h();h=(f&&g)||f;return read();",
+        "const f=()=>a;const g=()=>b;const h=(f||g)&&g;return (h?1:2)+h();",
+        "const f=x=>x+b;const g=x=>x-b;const h=f&&g;let s=0;for(let i=0;i<16;i++)s=h(s);return s+a;",
+        "const f=x=>x+b;const g=x=>x-b;const h=f||g;let s=0;for(let i=0;i<16;i++)s=h(s);return s+a;",
+    ]);
+}
+
+#[test]
+fn logical_function_results_preserve_higher_order_and_returned_signatures() {
+    compare_functions(&[
+        "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=apply&&twice;return h(x=>x+b,a);",
+        "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=apply||twice;return h(x=>x+b,a);",
+        "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=apply&&twice;const relay=(g,x)=>h(g,x);return relay(x=>x+b,a);",
+        "const make=()=>{return ((fn,x)=>fn(x))||((fn,x)=>fn(fn(x)));};const h=make();const relay=(g,x)=>h(g,x);return relay(x=>x+b,a);",
+        "const pick=(f,g)=>f&&g;const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=pick(apply,twice);return h(x=>x+b,a);",
+        "const pick=(f,g)=>{return f||g;};const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));return pick(apply,twice)(x=>x+b,a);",
+        "const make=()=>{return ((fn,x)=>fn(x))||((fn,x)=>fn(fn(x)));};return make()(x=>x+b,a);",
+        "const f=()=>()=>a;const g=()=>()=>b;const h=f&&g;return h()();",
+    ]);
+}
+
+#[test]
+fn logical_function_results_keep_primitive_tags_and_erase_type_claims() {
+    for operator in ["&&", "||"] {
+        let plain = format!(
+            "export function run(a,b){{const f=()=>a;const g=()=>b;const h=f{operator}g;return h();}}"
+        );
+        let typed = format!(
+            "export function run(a:never,b:Missing):Wrong {{const f=()=>a;const g=()=>b;const h=((f as Missing){operator}(g satisfies Wrong)) as never;return (h as number)();}}"
+        );
+        let artifact = compile_value(&plain, false).unwrap();
+        assert_eq!(artifact.wasm, compile_value(&typed, true).unwrap().wasm);
+        let mut host = ValueInstance::new(&artifact.wasm).unwrap();
+        for (a, b) in [(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)] {
+            let expected = if operator == "&&" { b } else { a };
+            let Value::Number(actual) = host.run(a, b).unwrap() else {
+                panic!("selected numeric function result must keep its host tag");
+            };
+            assert_eq!(bits(actual), bits(expected));
+        }
+        node(&format!(
+            "const assert=require('node:assert/strict');const e=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({:?}))).exports;assert.deepEqual(e.run(4,2),[3,{}]);",
+            artifact.wasm,
+            if operator == "&&" { 2 } else { 4 }
+        ));
+    }
+}
+
+#[test]
+fn logical_function_results_keep_source_depth_limits_on_a_small_stack() {
+    for operator in ["&&", "||"] {
+        for (depth, admitted) in [(32, true), (128, false)] {
+            let mut expression = String::from("f");
+            for _ in 0..depth {
+                expression = format!("({expression}{operator}f)");
+            }
+            let source = format!(
+                "export function run(a,b){{const f=()=>a;const h={expression};return h();}}"
+            );
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || compile(&source, false))
+                .unwrap()
+                .join()
+                .unwrap();
+            assert_eq!(result.is_ok(), admitted, "{operator} depth {depth}");
+            if let Ok(artifact) = result {
+                assert_eq!(
+                    NumericInstance::new(&artifact.wasm)
+                        .unwrap()
+                        .run(4.0, 2.0)
+                        .unwrap(),
+                    4.0
+                );
+            } else if let Err(error) = result {
+                assert!(
+                    error.contains("nesting") || error.contains("depth"),
+                    "{error}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn logical_function_results_reject_mixed_signatures_kinds_and_host_transport() {
+    for operator in ["&&", "||"] {
+        for body in [
+            format!("const f=()=>a;const g=x=>x;const h=f{operator}g;return h();"),
+            format!(
+                "const f=(fn,x)=>fn(x);const g=(fn,x)=>fn+x;const h=f{operator}g;return h(y=>y,b);"
+            ),
+            format!("const f=fn=>fn();const g=fn=>fn(a);const h=f{operator}g;return h(()=>b);"),
+            format!("const f=()=>a;const h=f{operator}b;return h();"),
+            format!("const f=()=>a;const h=b{operator}f;return h();"),
+            format!("const f=()=>a;const g=()=>b;return f{operator}g;"),
+            format!("const f=()=>a;const g=()=>b;return +(f{operator}g);"),
+            format!("const f=()=>a;const g=()=>b;return (f{operator}g)===f;"),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for typescript in [false, true] {
+                assert!(compile(&source, typescript).is_err(), "{source}");
+                assert!(compile_value(&source, typescript).is_err(), "{source}");
+            }
+        }
+    }
+    assert!(
+        compile(
+            "export function run(a,b){const f=()=>a;const g=()=>b;return (f??g)();}",
+            false
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn function_values_are_truthy_without_invoking_their_bodies() {
     compare_function_programs(
         &[

@@ -59,7 +59,8 @@ including the existing small-stack and aggregate-region boundaries.
 Swapping consequent and alternate in the shared selection scheduler deliberately
 broke the existing function-selection oracle (Number two instead of four).
 Restoring the original file made it pass again; restored strict workspace Clippy
-and formatting passed. Function-valued logical results still fail admission.
+and formatting passed. Function-valued logical results still failed admission in
+that refactor (`7c711e9`); the follow-on extension below is a separate change.
 
 A release compiler-only comparison covers the combined layout/cursor changes
 against `f278074`, using identical helper source and 13 fixed programs. Seven
@@ -87,6 +88,29 @@ was not executed or adopted here, and no research dependencies were fetched.
 The source change removes a separate function Work/Regions implementation and
 shares actual evaluation control, rather than adapting an old IR to a new shell.
 It does not make arbitrary new value kinds automatic or prove lower compiler
-cost. The preselected function-valued logical extension remains a separate unit
-to test whether this boundary makes feature work more local. See the
+cost. The preselected function-valued logical extension is a separate unit below
+that tests whether this boundary makes feature work more local. See the
 [course-correction evidence](../ir-course-correction.md) for the remaining gates.
+
+## Follow-on feature
+
+The next bounded change implements same-signature function-valued `&&` and `||`.
+It extends the effect-free signature query, routes logical selection through the
+shared scheduler, and supplies function truthiness to the existing logical
+continuations. Callback-origin queries follow both operands conservatively so
+higher-order relays retain their checking types. Storage planning also needs the
+same traversal in its closure hint; without it, a loop assigning a numeric call
+result to an accumulator rejects the new selection as General storage. That
+hint does not replace actual signature/call validation. Actual operand evaluation
+remains ordered and conditional. There is no new IR operation, layout, emitter rule,
+runtime ABI or dependency.
+
+Maintained JS/TS oracles cover selected code/captures, once-only effects, snapshots,
+returned/higher-order functions, primitive result tags, erased type claims and
+async fulfillment/rejection job counts. Mixed signatures and primitive joins,
+host function transport and function-valued coalescing remain rejected. A 2 MiB
+stack check admits bounded chains and rejects over-depth chains. Inverting the
+new function truthiness branch makes the selection oracle return four instead
+of two; restoring exact source bytes makes the full closure/async suites pass.
+This is evidence for incremental extension of the existing structured IR, not
+approval of a broader architecture migration.

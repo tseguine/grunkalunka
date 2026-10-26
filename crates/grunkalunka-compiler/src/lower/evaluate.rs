@@ -234,6 +234,17 @@ fn schedule_selection<'e, 'a>(
             });
             work.push(Work::Eval(&conditional.test, depth + 1, Mode::Predicate));
         }
+        Expression::LogicalExpression(logical) if logical.operator != LogicalOperator::Coalesce => {
+            work.push(Work::LogicalLeft {
+                node,
+                left: &logical.left,
+                right: &logical.right,
+                operator: logical.operator,
+                depth: depth + 1,
+                mode,
+            });
+            work.push(Work::Eval(&logical.left, depth + 1, mode));
+        }
         _ => return Ok(false),
     }
     Ok(true)
@@ -968,7 +979,16 @@ impl Lowering<'_, '_> {
                             result
                         }
                         Value::Function(_) => {
-                            unreachable!("function logical results are not admitted")
+                            let result = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Boolean {
+                                    result,
+                                    value: true,
+                                },
+                            );
+                            result
                         }
                     };
                     regions.children.push(self.region(right));
@@ -1505,21 +1525,11 @@ impl Lowering<'_, '_> {
                     }
                     match node {
                         Expression::LogicalExpression(logical) => {
-                            if logical.operator == LogicalOperator::Coalesce {
-                                return Err(unsupported(
-                                    node,
-                                    "expression is outside the numeric experiment",
-                                ));
-                            }
-                            work.push(Work::LogicalLeft {
+                            debug_assert_eq!(logical.operator, LogicalOperator::Coalesce);
+                            return Err(unsupported(
                                 node,
-                                left: &logical.left,
-                                right: &logical.right,
-                                operator: logical.operator,
-                                depth: depth + 1,
-                                mode,
-                            });
-                            work.push(Work::Eval(&logical.left, depth + 1, mode));
+                                "expression is outside the numeric experiment",
+                            ));
                         }
                         Expression::NumericLiteral(literal) => {
                             let result = self.value(Type::Number);

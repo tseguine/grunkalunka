@@ -57,6 +57,15 @@ impl ReturnOrigins<'_, '_, '_> {
                 result.1.extend(other.1);
                 result
             }
+            Expression::LogicalExpression(logical)
+                if logical.operator != LogicalOperator::Coalesce =>
+            {
+                let mut result = self.expression(&logical.left, bindings, depth + 1, calls);
+                let other = self.expression(&logical.right, bindings, depth + 1, calls);
+                result.0.extend(other.0);
+                result.1.extend(other.1);
+                result
+            }
             Expression::CallExpression(call) => {
                 if calls >= 8 {
                     return Origins::default();
@@ -136,6 +145,12 @@ fn origins(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Origins {
             Expression::ConditionalExpression(conditional) => {
                 pending.push((&conditional.consequent, depth + 1));
                 pending.push((&conditional.alternate, depth + 1));
+            }
+            Expression::LogicalExpression(logical)
+                if logical.operator != LogicalOperator::Coalesce =>
+            {
+                pending.push((&logical.left, depth + 1));
+                pending.push((&logical.right, depth + 1));
             }
             Expression::SequenceExpression(sequence) => {
                 if let Some(last) = sequence.expressions.last() {

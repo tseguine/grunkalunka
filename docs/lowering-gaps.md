@@ -650,5 +650,8 @@ callback/result signatures, nonnumeric leaf results and async bodies remain open
 Represented synchronous function values now support Boolean contexts: conditions,
 negation, loops and Boolean-position short-circuit expressions. Existing higher-order
 pairs and returned/assigned functions retain expression effects without invoking
-the tested body. Numeric coercion, function logical-result transport and host function
-values remain open; see [function truthiness](function-truthiness.md).
+the tested body. Same-signature function-valued `&&`/`||` now retain the selected
+code/environment snapshot, including callback relays and skipped async jobs; see
+[runtime function selection](runtime-closures.md). Mixed primitive/function logical
+results, numeric coercion and host function values remain open; see
+[function truthiness](function-truthiness.md).

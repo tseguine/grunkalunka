@@ -28,6 +28,12 @@ fn closure_hint(
                 pending.push((&conditional.consequent, depth + 1));
                 pending.push((&conditional.alternate, depth + 1));
             }
+            Expression::LogicalExpression(logical)
+                if logical.operator != LogicalOperator::Coalesce =>
+            {
+                pending.push((&logical.left, depth + 1));
+                pending.push((&logical.right, depth + 1));
+            }
             Expression::SequenceExpression(sequence) => {
                 let Some(last) = sequence.expressions.last() else {
                     return false;

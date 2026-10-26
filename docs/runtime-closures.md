@@ -2,7 +2,8 @@
 
 The Number, primitive-return and primitive async profiles support initialized local
 function values selected at runtime. Constructors include same-signature conditional
-branches, arrows, known factory results and existing local closure aliases.
+branches, logical `&&`/`||` selections, arrows, known factory results and existing
+local closure aliases.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
 the resulting identifier or alias use an exact logical signature with Number and
@@ -23,6 +24,16 @@ constructor executes. Aliases retain the same code and environment. Captured
 variables remain shared cells, including captures of another runtime function
 value. Numeric call results can initialize or update existing scalar bindings;
 later primitive writes still select General storage where required.
+
+Logical selection requires matching complete function signatures, including callback
+parameter kinds and the result kind. A represented function is truthy: `f && g`
+evaluates `f` once and selects `g`; `f || g` keeps the captured value of `f` and skips
+`g`. Evaluating an operand can construct a function, update a binding or suspend;
+testing its truthiness does not invoke its body. Skipped effects, awaits and
+rejections stay skipped. Both operands are still checked against the supported
+source profile. This also works for higher-order functions and function-returning
+factories. Mixed primitive/function joins, function-valued `??`, function identity
+and exporting a function through the primitive host ABI remain unsupported.
 
 `let` function bindings retain their initializer's logical signature and support
 plain `=` assignment from the same constructors. Conditional/chained assignments

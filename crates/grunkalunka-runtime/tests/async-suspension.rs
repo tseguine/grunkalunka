@@ -1139,6 +1139,28 @@ fn runtime_factory_results_keep_cells_and_snapshots_across_async_jobs() {
 }
 
 #[test]
+fn logical_function_results_preserve_effects_snapshots_and_skipped_jobs() {
+    compare_promises(
+        &[
+            "const f=()=>a;const g=()=>b;const h=f||(await null,g);return h();",
+            "const f=()=>a;const g=()=>b;const h=f&&(await null,g);return h();",
+            "const f=()=>a;const g=()=>b;const h=f||(await Promise.reject(b),g);return h();",
+            "const f=()=>a;const g=()=>b;try{const h=f&&(await Promise.reject(b),g);return h();}catch(reason){await null;return +reason;}",
+            "let f=()=>a;const old=f;const h=(await null,f)||(f=()=>b);f=()=>b;await null;return h()*10+old()+f();",
+            "let calls=0;const f=()=>++calls;const g=()=>--calls;const h=(calls+=10,f)&&(await null,calls*=2,g);return h()*1000+calls;",
+            "const f=()=>a;const g=()=>b;const h=(f||(await null,g))&&(await null,g);return h();",
+            "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=apply&&(await null,twice);return h(x=>x+b,a);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn function_truthiness_preserves_async_conditions_effects_and_catches() {
     compare_promises(
         &[

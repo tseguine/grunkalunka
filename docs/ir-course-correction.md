@@ -125,10 +125,61 @@ The combined two steps passed the calibrated release-compiler screen against
 primitive-join screen flagged 1.312; longer batches report 1.048 without production
 changes. Both observations are retained, not a claim of universally unchanged
 compilation cost. [ADR 0016](adr/0016-shared-function-selection-cursor.md) records
-the method and limits. Function-valued logical results remain the separate chosen
-extension rather than an implicit consequence of this refactor.
+the method and limits. Function-valued logical results were the separate chosen
+extension, implemented below rather than implicitly admitted by the refactor.
 
 The same gates passed after upstream `7a96a16` added checker-hint research and
 proposed ADR 0015. The cursor decision is now ADR 0016; this import does not adopt
 a checker. Production/test blobs stayed unchanged and release-cost replay passed
 the same thresholds. The isolated research suite was not run as part of this work.
+
+## Function-valued logical extension
+
+The chosen extension now handles same-signature function-valued `&&` and `||`
+through the real frontend, shared evaluator, existing typed IR and Wasm emitters.
+Changes stay in four lowerer files: signature queries, shared selection control,
+callback-origin propagation and the storage planner's closure hint. No IR
+operation, layout, emitter, runtime ABI or dependency changes. The planner update
+was required by a failing numeric-accumulator loop test; sharing the evaluator
+does not yet unify all function-fact queries.
+
+Maintained JS/TS tests execute selected code/captures, effects, aliases, callback
+relays, returned functions, primitive tags and async jobs in Node-Wasm/Wasmtime
+against native JS. Rejection checks retain complete-signature, primitive/function,
+coercion, host-transport and coalescing boundaries. A deliberately false function
+truthiness branch fails the selection oracle; restored source passes. Existing
+small-stack checks and additional logical-chain limits remain in place.
+
+For new-feature execution cost, four explicit-selection/logical source pairs cover
+simple `&&`, `||`, a 16-call loop and a higher-order callback. Six correctness
+vectors precede timing; 100 warmups, adaptive common batches of at least 50 ms and
+seven alternating pairs include the export boundary. Against the old compiler's
+conditional **runtime-function** selections, new/old medians are 0.925–1.176 in
+Node 20.10/V8 11.3 and 0.874–1.086 in Wasmtime 50 on Windows x64. All pass the
+predeclared 1.20 screen. Wasm byte pairs are 581/555, 581/555, 728/706 and 746/720.
+Wasmtime uses the existing dev-built host library with fuel renewal and an
+optimized measurement helper; no release Wasmtime performance claim follows.
+Startup observations distinguish Node instantiation of an already compiled module
+from Wasmtime Engine/Module/Instance creation; they are not comparable engine costs.
+
+The first comparison instead used simple aliases for three baselines. Those are
+inlined by the old compiler, while logical values currently use runtime closure
+calls. Node ratios were 1.48–1.63, outside the same 1.20 screen; the loop already
+used a runtime conditional and passed. Preserve this failed observation. Matching
+the runtime-function path makes the second comparison useful, but does not remove
+the missed specialization or establish universally equal cost. Both comparisons
+recorded exact source pairs and samples during review; their configurations,
+results and limits are preserved here while disposable runs can be cleaned up.
+A separate old-baseline rejection of a
+static-alias accumulator initialized from `a` also remains outside this feature.
+
+The result supports keeping the bounded backend layout and shared evaluator, then
+extending the current structured IR as concrete features demand. It does not
+justify a new CFG, universal value dispatcher or wholesale migration. Function
+fact-query duplication and avoidable runtime materialization are concrete future
+improvements, rather than prerequisites for further PoC feature work.
+
+The final extension also passes the unchanged 13-source calibrated release-compiler
+screen against `f278074`: compile-time ratios 0.951–1.070, kernel peak-working-set
+ratios 0.989–1.021, and the same helper-ready-time threshold. This remains bounded
+compiler evidence, not a universal compilation or runtime speed claim.
