@@ -170,8 +170,10 @@ the runtime-function path makes the second comparison useful, but does not remov
 the missed specialization or establish universally equal cost. Both comparisons
 recorded exact source pairs and samples during review; their configurations,
 results and limits are preserved here while disposable runs can be cleaned up.
-A separate old-baseline rejection of a
-static-alias accumulator initialized from `a` also remains outside this feature.
+Rechecking the recorded standalone static-alias accumulator example on `d8419a7`
+accepts all six alias/conditional/logical and `a`/zero-initializer variants. The
+earlier benchmark diagnostic is not evidence that this recorded source is a current
+lowering gap; no speculative storage repair was made from that stale entry.
 
 The result supports keeping the bounded backend layout and shared evaluator, then
 extending the current structured IR as concrete features demand. It does not
@@ -183,3 +185,11 @@ The final extension also passes the unchanged 13-source calibrated release-compi
 screen against `f278074`: compile-time ratios 0.951–1.070, kernel peak-working-set
 ratios 0.989–1.021, and the same helper-ready-time threshold. This remains bounded
 compiler evidence, not a universal compilation or runtime speed claim.
+
+The next small extension admits same-signature function-valued `??` in the same
+four lowering files, retaining the left pair and skipping RHS effects/jobs. Its
+original rejected source becomes a differential JS/TS positive. Generic
+constructor-free selectors still encounter the separate missing primitive
+coalescing operation during numeric-placeholder body checking; the exact failed
+example remains recorded for that next unit. No new IR operation, emitter, runtime
+ABI, dependency or broad architecture decision is needed for the function-only slice.

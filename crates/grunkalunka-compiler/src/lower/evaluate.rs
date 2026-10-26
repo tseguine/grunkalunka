@@ -234,7 +234,10 @@ fn schedule_selection<'e, 'a>(
             });
             work.push(Work::Eval(&conditional.test, depth + 1, Mode::Predicate));
         }
-        Expression::LogicalExpression(logical) if logical.operator != LogicalOperator::Coalesce => {
+        Expression::LogicalExpression(logical)
+            if logical.operator != LogicalOperator::Coalesce
+                || matches!(mode, Mode::Function(_)) =>
+        {
             work.push(Work::LogicalLeft {
                 node,
                 left: &logical.left,
@@ -979,6 +982,8 @@ impl Lowering<'_, '_> {
                             result
                         }
                         Value::Function(_) => {
+                            // Functions are truthy and non-nullish, so || and ??
+                            // both keep this already evaluated left snapshot.
                             let result = self.value(Type::Predicate);
                             Self::push(
                                 regions.current(),

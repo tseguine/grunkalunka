@@ -1139,6 +1139,26 @@ fn runtime_factory_results_keep_cells_and_snapshots_across_async_jobs() {
 }
 
 #[test]
+fn nullish_function_results_skip_rhs_jobs_and_keep_left_failures_and_snapshots() {
+    compare_promises(
+        &[
+            "const f=()=>a;const g=()=>b;const h=f??(await null,g);return h();",
+            "const f=()=>a;const g=()=>b;const h=f??(await Promise.reject(b),g);return h();",
+            "const f=()=>a;const g=()=>b;const h=(await null,f)??(await Promise.reject(b),g);return h();",
+            "const f=()=>a;const g=()=>b;try{const h=(await Promise.reject(b),f)??g;return h();}catch(reason){await null;return +reason;}",
+            "let f=()=>a;const g=()=>b;const h=(await null,f)??(f=g);f=g;await null;return h()*10+f();",
+            "const f=(fn,x)=>fn(x);const g=(fn,x)=>fn(fn(x));const h=f??(await null,g);const relay=(cb,x)=>h(cb,x);return relay(x=>x+b,a);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn logical_function_results_preserve_effects_snapshots_and_skipped_jobs() {
     compare_promises(
         &[

@@ -650,8 +650,14 @@ callback/result signatures, nonnumeric leaf results and async bodies remain open
 Represented synchronous function values now support Boolean contexts: conditions,
 negation, loops and Boolean-position short-circuit expressions. Existing higher-order
 pairs and returned/assigned functions retain expression effects without invoking
-the tested body. Same-signature function-valued `&&`/`||` now retain the selected
+the tested body. Same-signature function-valued `&&`/`||`/`??` now retain the selected
 code/environment snapshot, including callback relays and skipped async jobs; see
 [runtime function selection](runtime-closures.md). Mixed primitive/function logical
 results, numeric coercion and host function values remain open; see
 [function truthiness](function-truthiness.md).
+
+Function-valued `??` skips RHS construction, writes, awaits and rejections while
+retaining left-side effects and failures. The represented function kinds must be
+established; constructor-free `(x,y)=>x??y` still fails preliminary numeric-formal
+checking until primitive coalescing is supported. The exact failed example is kept
+in the runtime closure tests for that follow-up; annotations remain erased.

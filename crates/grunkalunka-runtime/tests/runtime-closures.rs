@@ -1426,6 +1426,36 @@ fn runtime_factory_pairs_keep_primitive_tags_and_recover_after_fuel_failure() {
 }
 
 #[test]
+fn nullish_function_results_keep_the_left_code_capture_and_effects() {
+    compare_functions(&[
+        "const f=()=>a;const g=()=>b;return (f??g)();",
+        "let calls=0;const make=x=>(calls++,()=>x);const h=make(a++)??make(b++);return h()+calls*100+a*10+b;",
+        "let f=()=>a;const g=()=>b;const h=f??(f=g);f=g;return h()*10+f();",
+        "const make=x=>()=>++x;const h=make(a)??make(b);const alias=h;return h()*10+alias();",
+        "const f=()=>a;const g=()=>b;const h=(a?f:g)??(a?g:f);return h();",
+        "const f=()=>a;const g=()=>b;const pick=(x,y)=>{if(a)return x??y;return ()=>b;};return pick(f,g)();",
+        "const f=()=>()=>a;const g=()=>()=>b;const h=f??g;return h()();",
+        "const f=()=>a;const g=()=>b;const h=(f??g)||g;return h();",
+        "const f=()=>a;const g=()=>b;const h=f??(f&&g);return h();",
+    ]);
+}
+
+#[test]
+fn nullish_function_results_preserve_callback_signatures() {
+    compare_functions(&[
+        "const f=(fn,x)=>fn(x);const g=(fn,x)=>fn(fn(x));const h=f??g;const relay=(cb,x)=>h(cb,x);return relay(x=>x+b,a);",
+        "const make=()=>{return ((fn,x)=>fn(x))??((fn,x)=>fn(fn(x)));};const h=make();const relay=(cb,x)=>h(cb,x);return relay(x=>x+b,a);",
+    ]);
+}
+
+#[test]
+fn nullish_function_results_work_in_numeric_accumulators() {
+    compare_functions(&[
+        "const f=x=>x+b;const g=x=>x-b;const h=f??g;let s=a;for(let i=0;i<16;i++)s=h(s);return s;",
+    ]);
+}
+
+#[test]
 fn logical_function_results_keep_the_selected_code_and_capture() {
     compare_functions(&[
         "const f=()=>a;const g=()=>b;const h=f&&g;return h();",
@@ -1461,7 +1491,7 @@ fn logical_function_results_preserve_higher_order_and_returned_signatures() {
 
 #[test]
 fn logical_function_results_keep_primitive_tags_and_erase_type_claims() {
-    for operator in ["&&", "||"] {
+    for operator in ["&&", "||", "??"] {
         let plain = format!(
             "export function run(a,b){{const f=()=>a;const g=()=>b;const h=f{operator}g;return h();}}"
         );
@@ -1488,7 +1518,7 @@ fn logical_function_results_keep_primitive_tags_and_erase_type_claims() {
 
 #[test]
 fn logical_function_results_keep_source_depth_limits_on_a_small_stack() {
-    for operator in ["&&", "||"] {
+    for operator in ["&&", "||", "??"] {
         for (depth, admitted) in [(32, true), (128, false)] {
             let mut expression = String::from("f");
             for _ in 0..depth {
@@ -1513,10 +1543,19 @@ fn logical_function_results_keep_source_depth_limits_on_a_small_stack() {
                     4.0
                 );
             } else if let Err(error) = result {
-                assert!(
-                    error.contains("nesting") || error.contains("depth"),
-                    "{error}"
-                );
+                if operator == "??" {
+                    // The bounded function query no longer establishes a kind;
+                    // numeric coalescing is still outside this profile.
+                    assert!(
+                        error.contains("expression is outside the numeric experiment"),
+                        "{error}"
+                    );
+                } else {
+                    assert!(
+                        error.contains("nesting") || error.contains("depth"),
+                        "{error}"
+                    );
+                }
             }
         }
     }
@@ -1524,7 +1563,7 @@ fn logical_function_results_keep_source_depth_limits_on_a_small_stack() {
 
 #[test]
 fn logical_function_results_reject_mixed_signatures_kinds_and_host_transport() {
-    for operator in ["&&", "||"] {
+    for operator in ["&&", "||", "??"] {
         for body in [
             format!("const f=()=>a;const g=x=>x;const h=f{operator}g;return h();"),
             format!(
@@ -1544,13 +1583,22 @@ fn logical_function_results_reject_mixed_signatures_kinds_and_host_transport() {
             }
         }
     }
-    assert!(
-        compile(
-            "export function run(a,b){const f=()=>a;const g=()=>b;return (f??g)();}",
-            false
-        )
-        .is_err()
-    );
+}
+
+#[test]
+fn nullish_selection_with_numeric_placeholder_formals_is_still_a_separate_gap() {
+    // Keep the exact failed feature example until primitive coalescing permits
+    // checking this constructor-free selector's default numeric formal types.
+    let source = "export function run(a,b){const f=()=>a;const g=()=>b;const pick=(x,y)=>x??y;return pick(f,g)();}";
+    for typescript in [false, true] {
+        let error = compile(source, typescript)
+            .err()
+            .expect("numeric placeholder coalescing remains outside this function-only unit");
+        assert!(
+            error.contains("expression is outside the numeric experiment"),
+            "{error}"
+        );
+    }
 }
 
 #[test]
@@ -1570,6 +1618,7 @@ fn function_values_are_truthy_without_invoking_their_bodies() {
             "let calls=0;const f=()=>++calls;if(0&&(calls++,f))return 99;return calls;",
             "let calls=0;const f=()=>++calls;if(f&&(calls++,0))return 99;return calls;",
             "const f=()=>a;return (a?f:0)?b:a;",
+            "let calls=0;const f=()=>++calls;const g=()=>--calls;return ((f??g)?10:20)+calls;",
             "const f=()=>a;return (a?f:(x=>x))?b:a;",
             "let calls=0;const make=x=>{calls++;return ()=>++calls;};return (make(a++)?1:2)*100+calls*10+a;",
             "let f=()=>0;let calls=0;return (f=(calls++,()=>++calls))?calls:99;",

@@ -2,7 +2,7 @@
 
 The Number, primitive-return and primitive async profiles support initialized local
 function values selected at runtime. Constructors include same-signature conditional
-branches, logical `&&`/`||` selections, arrows, known factory results and existing
+branches, logical `&&`/`||`/`??` selections, arrows, known factory results and existing
 local closure aliases.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
@@ -28,12 +28,19 @@ later primitive writes still select General storage where required.
 Logical selection requires matching complete function signatures, including callback
 parameter kinds and the result kind. A represented function is truthy: `f && g`
 evaluates `f` once and selects `g`; `f || g` keeps the captured value of `f` and skips
-`g`. Evaluating an operand can construct a function, update a binding or suspend;
+`g`. Functions are also non-nullish, so `f ?? g` keeps the same left snapshot and
+skips the right operand. Evaluating an operand can construct a function, update a
+binding or suspend;
 testing its truthiness does not invoke its body. Skipped effects, awaits and
 rejections stay skipped. Both operands are still checked against the supported
 source profile. This also works for higher-order functions and function-returning
-factories. Mixed primitive/function joins, function-valued `??`, function identity
+factories. Mixed primitive/function joins, function identity
 and exporting a function through the primitive host ABI remain unsupported.
+
+This function-only coalescing requires established function kinds. A constructor-free
+selector such as `(x,y)=>x??y` still fails its preliminary check with default numeric
+formal parameters; primitive coalescing is a separate gap. A known return constructor
+can establish function kinds for selector formals. TypeScript assertions do not do so.
 
 `let` function bindings retain their initializer's logical signature and support
 plain `=` assignment from the same constructors. Conditional/chained assignments

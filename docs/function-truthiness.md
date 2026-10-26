@@ -32,7 +32,8 @@ The rule applies only when the underlying function value expression is admitted.
 Numeric coercion, equality, reflection, host function transport, function-valued
 awaits, unsupported function result kinds and async callback bodies remain outside
 this rule. The follow-on [runtime function selection](runtime-closures.md) supports
-same-signature function-valued `&&`/`||`, including Boolean uses such as `if(f && g)`.
+same-signature function-valued `&&`/`||` and non-nullish `??` selection, including
+Boolean uses such as `if(f && g)`.
 Other previously admitted Boolean-position operand combinations remain available;
 none transport a function as a primitive or imply mixed-kind logical results.
 

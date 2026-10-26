@@ -114,3 +114,21 @@ new function truthiness branch makes the selection oracle return four instead
 of two; restoring exact source bytes makes the full closure/async suites pass.
 This is evidence for incremental extension of the existing structured IR, not
 approval of a broader architecture migration.
+
+A following feature also admits same-signature function-valued `??`: represented
+functions are non-nullish, so the existing function selection can retain the left
+snapshot and skip RHS effects/jobs. Signature, callback-origin and storage queries
+now traverse coalescing operands. Mixed-kind joins and primitive coalescing remain
+separate; a constructor-free selector's default numeric-formal check still rejects
+`x??y`. This does not infer function kinds from TypeScript claims or introduce new
+IR, backend, runtime or dependency machinery.
+
+The function-only slice passes the full check (504 native tests, two doctests,
+76 Node contracts, 4,466,748 numeric comparisons and the primitive/JSON suites).
+A frozen pre-change CLI reproduces identical WAT/Wasm for 3,562 numeric and 146
+primitive variants, plus all 919 original rejection sources and diagnostics.
+Sixteen JS/TS numeric/primitive/async coalescing variants also have identical
+WAT/Wasm to their already supported function-valued `||` equivalents. This
+supports unchanged execution cost for those artifacts, without a new compiler
+or engine timing claim. A coalescing-branch mutation fails the new source oracle;
+restored code passes the complete closure and async suites.

@@ -57,9 +57,7 @@ impl ReturnOrigins<'_, '_, '_> {
                 result.1.extend(other.1);
                 result
             }
-            Expression::LogicalExpression(logical)
-                if logical.operator != LogicalOperator::Coalesce =>
-            {
+            Expression::LogicalExpression(logical) => {
                 let mut result = self.expression(&logical.left, bindings, depth + 1, calls);
                 let other = self.expression(&logical.right, bindings, depth + 1, calls);
                 result.0.extend(other.0);
@@ -146,9 +144,7 @@ fn origins(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Origins {
                 pending.push((&conditional.consequent, depth + 1));
                 pending.push((&conditional.alternate, depth + 1));
             }
-            Expression::LogicalExpression(logical)
-                if logical.operator != LogicalOperator::Coalesce =>
-            {
+            Expression::LogicalExpression(logical) => {
                 pending.push((&logical.left, depth + 1));
                 pending.push((&logical.right, depth + 1));
             }

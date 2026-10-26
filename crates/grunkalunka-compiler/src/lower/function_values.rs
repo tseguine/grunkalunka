@@ -142,9 +142,7 @@ impl Lowering<'_, '_> {
                     pending.push((&conditional.consequent, depth + 1));
                     continue;
                 }
-                Expression::LogicalExpression(logical)
-                    if logical.operator != LogicalOperator::Coalesce =>
-                {
+                Expression::LogicalExpression(logical) => {
                     pending.push((&logical.right, depth + 1));
                     pending.push((&logical.left, depth + 1));
                     continue;
