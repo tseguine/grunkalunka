@@ -1760,10 +1760,30 @@ The Value profile also executes its original `nullish-operator` rejection and th
 unchanged curated `gap-nullish` source. Although that source always selects a Number,
 the compiler conservatively retains a General join and still rejects its numeric-only
 return. This is a missing narrowing proof, not a possible null result. The primitive
-report has 82 JS/TS
+report at that step had 82 JS/TS
 pairs, 16 exact numeric origins, 6 rejection observations and 4592 comparisons.
 
 Function-only `??` still requires matching complete signatures. The constructor-free
 `(x,y)=>x??y` selector now passes preliminary Number checking and specializes from
 its actual function arguments. General function/primitive joins, String/BigInt/object
 operands, `??=` and `void` remain separate requirements. No dependency or host ABI changes.
+
+## Primitive results from concise closures
+
+Concise synchronous local arrows now return represented Undefined, Null, Boolean
+and Number values through direct specialization and runtime closure calls. For
+example, `const f=()=>null; const g=()=>false; let h=a?f:g; return h();`
+retains the selected primitive kind. General results use the existing `(i32,f64)`
+layout and a matching private table signature. Number-only bodies keep their
+Number result specialization. Signature checks include the result kind.
+
+Calls preserve callee and argument snapshots, captured cells, effects, and async
+caller job order. Primitive results may initialize or update General cells and
+enter predicates or explicit numeric coercions. Existing local function-return
+paths can forward these closures; this includes the two former maintained
+rejections `id(()=>true)` and a block returning `()=>true`. A dormant factory
+containing `()=>true` is also valid when the entry returns a Number. Runtime factories
+retain their numeric-leaf result restriction. Arbitrary primitive arguments,
+primitive-result block bodies, async arrow bodies and exported function values
+remain separate requirements. All 916 numeric rejection sources and diagnostics
+are unchanged. Nine maintained primitive corpus pairs exercise these results.

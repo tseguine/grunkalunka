@@ -349,19 +349,33 @@ impl Lowering<'_, '_> {
         if let Expression::CallExpression(call) = expression
             && self
                 .closure_target(&call.callee, depth + 1)
-                .is_some_and(|closure| !closure.factory)
+                .is_some_and(|closure| {
+                    if closure.checked {
+                        !closure.factory && closure.result == Type::Number
+                    } else {
+                        self.arrow_signature(self.arrow(closure.arrow))
+                            .is_some_and(|id| {
+                                self.closure_signatures.borrow().result(id) == Some(Type::Number)
+                            })
+                    }
+                })
         {
             return true;
         }
-        let closures = self
+        let closures: std::collections::BTreeSet<_> = self
             .closures
             .iter()
-            .filter(|closure| !closure.factory)
+            .filter(|closure| !closure.factory && closure.result == Type::Number)
             .filter_map(|closure| closure.symbol)
             .chain(
                 self.bindings
                     .iter()
-                    .filter(|binding| matches!(self.slots[binding.slot.0].ty, Type::Closure(_)))
+                    .filter(|binding| match self.slots[binding.slot.0].ty {
+                        Type::Closure(id) => {
+                            self.closure_signatures.borrow().result(id) == Some(Type::Number)
+                        }
+                        _ => false,
+                    })
                     .map(|binding| binding.symbol),
             )
             .collect();
@@ -370,7 +384,7 @@ impl Lowering<'_, '_> {
             depth,
             self.semantic,
             self.functions,
-            &closures,
+            |symbol| closures.contains(&symbol),
             |symbol| {
                 self.bindings
                     .iter()

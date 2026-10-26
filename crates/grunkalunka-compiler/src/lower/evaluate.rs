@@ -50,6 +50,28 @@ struct Regions<'r> {
     root: &'r mut Region,
     children: Vec<Region>,
 }
+
+fn call_result<'e, 'a>(
+    work: &mut Vec<Work<'e, 'a>>,
+    node: &'e Expression<'a>,
+    mode: Mode,
+    ty: Type,
+) -> Result<(), String> {
+    match (ty, mode) {
+        (Type::Number, Mode::General) => work.push(Work::Pack(node)),
+        (Type::Number, Mode::Predicate) => work.push(Work::Truthy(node)),
+        (Type::General, Mode::Predicate) => work.push(Work::GeneralTruthy(node)),
+        (Type::General, Mode::Number) => {
+            return Err(unsupported(
+                node,
+                "primitive closure result requires a value or coercion position",
+            ));
+        }
+        (Type::Number, Mode::Number) | (Type::General, Mode::General) => (),
+        _ => unreachable!("scalar call result after mode routing"),
+    }
+    Ok(())
+}
 impl Regions<'_> {
     fn current(&mut self) -> &mut Region {
         self.children.last_mut().unwrap_or(self.root)
@@ -417,7 +439,15 @@ impl Lowering<'_, '_> {
                         let charging = std::mem::replace(&mut self.source_charging, false);
                         work.push(Work::RestoreBindings(previous, charging));
                         if let Some(expression) = arrow.get_expression() {
-                            work.push(Work::Eval(expression, 0, Mode::Number));
+                            work.push(Work::Eval(
+                                expression,
+                                0,
+                                if closure.result == Type::General {
+                                    Mode::General
+                                } else {
+                                    Mode::Number
+                                },
+                            ));
                         } else {
                             let depth = self.inline_depth
                                 + self.statement_depth
@@ -483,7 +513,15 @@ impl Lowering<'_, '_> {
                         }
                     } else {
                         self.charge_closure_expansion(node)?;
-                        let result = self.value(Type::Number);
+                        let Type::Closure(signature) = self.values[callee.0] else {
+                            unreachable!()
+                        };
+                        let ty = self
+                            .closure_signatures
+                            .borrow()
+                            .result(signature)
+                            .expect("checked signature");
+                        let result = self.value(ty);
                         Self::push(
                             regions.current(),
                             node,
@@ -493,7 +531,11 @@ impl Lowering<'_, '_> {
                                 arguments,
                             },
                         );
-                        values.push(Value::Number(result));
+                        values.push(if ty == Type::General {
+                            Value::General(result)
+                        } else {
+                            Value::Number(result)
+                        });
                     }
                 }
                 Work::Forget => {
@@ -1281,7 +1323,12 @@ impl Lowering<'_, '_> {
                                 "runtime closure call requires exactly the declared number of arguments",
                             ));
                         }
-                        if self.closure_signatures.borrow().result(arity) != Some(Type::Number) {
+                        let result_type = self
+                            .closure_signatures
+                            .borrow()
+                            .result(arity)
+                            .expect("checked signature");
+                        if !matches!(result_type, Type::Number | Type::General) {
                             return Err(unsupported(
                                 node,
                                 "function-valued runtime calls require a function position",
@@ -1314,12 +1361,7 @@ impl Lowering<'_, '_> {
                             self.function_result_depth = outer;
                             value?
                         };
-                        match mode {
-                            Mode::General => work.push(Work::Pack(node)),
-                            Mode::Predicate => work.push(Work::Truthy(node)),
-                            Mode::Number => (),
-                            _ => unreachable!("discard/arithmetic routed above"),
-                        }
+                        call_result(&mut work, node, mode, result_type)?;
                         work.push(Work::ClosureCall {
                             node,
                             call,
@@ -1346,12 +1388,7 @@ impl Lowering<'_, '_> {
                                 "function-valued local calls require an immutable closure binding",
                             ));
                         }
-                        match mode {
-                            Mode::General => work.push(Work::Pack(node)),
-                            Mode::Predicate => work.push(Work::Truthy(node)),
-                            Mode::Number => (),
-                            _ => unreachable!("discard/arithmetic routed above"),
-                        }
+                        call_result(&mut work, node, mode, closure.result)?;
                         work.push(Work::LocalCall {
                             node,
                             call,

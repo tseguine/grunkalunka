@@ -50,8 +50,10 @@ selection under actual argument-kind scopes. Typed inline-call results extend th
 existing IR operation; its verifier requires matching complete function signatures.
 
 These finite cases establish this slice. Factories returning factories,
-incompatible logical signatures, primitive/heap leaf results, async callback bodies and host function transport remain separate
-work. [Numeric-leaf higher-order callback signatures](higher-order-callbacks.md)
+incompatible logical signatures, heap leaf results, async callback bodies and host function transport remain separate
+work. Concise primitive-result closures now pass through these existing local
+forwarding and function-return paths; see [runtime closures](runtime-closures.md).
+[Numeric-leaf higher-order callback signatures](higher-order-callbacks.md)
 now pass through concise and block identity, selection and known-factory paths too;
 selected and assigned function values must share their complete signatures.
 

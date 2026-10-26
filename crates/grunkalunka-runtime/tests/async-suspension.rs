@@ -1230,3 +1230,29 @@ fn function_truthiness_preserves_async_conditions_effects_and_catches() {
         ],
     );
 }
+
+#[test]
+fn primitive_closure_results_preserve_async_values_and_job_order() {
+    compare_promises(
+        &[
+            "const f=()=>null;return await f();",
+            "const f=()=>undefined;return await f();",
+            "const f=()=>false;return await f();",
+            "const f=()=>a?null:false;return await f();",
+            "const f=()=>null;const g=()=>false;let h=a?f:g;return await h();",
+            "const f=()=>null;return f()??await b;",
+            "const f=()=>false;return f()??await b;",
+            "let x=a?null:false;const f=()=>x;const g=()=>undefined;let h=a?f:g;const old=h();await b;x=true;return old;",
+            "const f=()=>null;try{throw f();}catch(reason){await b;return reason;}",
+            "const f=()=>undefined;try{await Promise.reject(f());}catch(reason){return reason;}return null;",
+            "let x=0;const f=y=>((x+=y),false);const g=y=>null;let h=f;const old=h((h=g,await a));await b;return old||x;",
+            "const f=()=>null;let x=a;x=f();await b;return x;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

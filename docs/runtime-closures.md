@@ -7,8 +7,10 @@ local closure aliases.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
 the resulting identifier or alias use an exact logical signature with Number and
-numeric-leaf callback arguments, and return Number or a numeric-leaf function
-pair from a concise factory. Leaf arrows may have concise or numeric block bodies.
+numeric-leaf callback arguments. Concise synchronous bodies can return Number,
+Undefined, Null or Boolean, retaining the selected kind and payload. Runtime
+factories still return numeric-leaf function pairs. Leaf arrows may have concise
+or numeric block bodies; primitive-result block bodies remain a gap.
 
 ```js
 export function run(a, b) {
@@ -84,7 +86,8 @@ Ordinary `Call` cannot invoke a lifted body; the exported entry cannot use the
 closure ABI. Function values cannot be packed as primitives or awaited in the current protocol.
 
 The private Wasm table uses `(environment: i32, arguments: i32) -> f64` for
-Number results and adds `(environment: i32, arguments: i32) -> (i32, i32)` for
+Number results, `(environment: i32, arguments: i32) -> (i32, f64)` for primitive
+results, and `(environment: i32, arguments: i32) -> (i32, i32)` for
 [runtime factory results](runtime-function-results.md). A packed argument frame contains the
 ordered eight-byte snapshots: binary64 Numbers or two i32 callback fields. The
 body copies its typed logical parameters before execution. This supports zero

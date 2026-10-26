@@ -34,6 +34,16 @@ pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
         )
         .unwrap();
     }
+    if module.functions.iter().any(|function| {
+        function.return_type == Type::General && ir::closure_environment(function).is_some()
+    }) {
+        writeln!(
+            output,
+            "(type $closure_general (func (param i32 i32) (result {})))",
+            layout::value(Type::General).wat
+        )
+        .unwrap();
+    }
     for (i, function) in module.functions.iter().enumerate() {
         if ir::closure_environment(function).is_some() {
             let target = if outlined {
@@ -126,10 +136,10 @@ impl Emitter<'_> {
             let offset = index * 8;
             self.store_memory(temp, local, self.function.values[value.0], offset, true);
         }
-        let signature = if matches!(self.function.values[result.0], Type::Closure(_)) {
-            "$closure_pair"
-        } else {
-            "$closure"
+        let signature = match self.function.values[result.0] {
+            Type::Closure(_) => "$closure_pair",
+            Type::General => "$closure_general",
+            _ => "$closure",
         };
         let callee = self.value_offsets[callee.0];
         writeln!(

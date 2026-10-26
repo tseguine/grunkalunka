@@ -14,6 +14,7 @@ pub(crate) struct LocalClosure {
     pub captures: Vec<NumericBinding>,
     pub checked: bool,
     pub factory: bool,
+    pub result: Type,
 }
 
 pub(super) fn unwrapped<'e, 'a>(
@@ -60,6 +61,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 captures: self.bindings.clone(),
                 checked: false,
                 factory: false,
+                result: Type::Number,
             }),
             Expression::Identifier(identifier) => {
                 let symbol = self
@@ -233,7 +235,21 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else if let Some(arity) = check.function_arity(expression, 0) {
                 check.function_value(expression, &mut region, arity, 0)?;
             } else {
-                check.evaluate(expression, &mut region, 0, evaluate::Mode::Number)?;
+                closure.result = if check.numeric_result_shape(expression, 0) {
+                    Type::Number
+                } else {
+                    Type::General
+                };
+                check.evaluate(
+                    expression,
+                    &mut region,
+                    0,
+                    if closure.result == Type::General {
+                        evaluate::Mode::General
+                    } else {
+                        evaluate::Mode::Number
+                    },
+                )?;
             }
         } else if let Some(arity) = check.block_function_arity(arrow, 0) {
             region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;

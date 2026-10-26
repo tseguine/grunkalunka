@@ -224,7 +224,6 @@ fn unsupported_closure_lifetimes_and_call_shapes_remain_explicit() {
         "const make=x=>()=>++x;const f=make();return f();",
         "const make=x=>()=>++x;const f=make(...a);return f();",
         "const make=x=>()=>++x;const f=make?.(a);return f();",
-        "const make=x=>()=>true;return a;",
         "const make=x=>()=>later;const f=make(a);const later=b;return f();",
         "const f=async()=>a; return f();",
         "const f=()=>{if(a)return b;}; return f();",

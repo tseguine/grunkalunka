@@ -1238,7 +1238,10 @@ pub(crate) fn verify_module_with_entry_type(
                 .parameters
                 .iter()
                 .any(|ty| !matches!(ty, Type::Number | Type::Closure(0..=1000)))
-            || !matches!(signature.result, Type::Number | Type::Closure(_))
+            || !matches!(
+                signature.result,
+                Type::Number | Type::General | Type::Closure(_)
+            )
             || matches!(signature.result, Type::Closure(id) if id > 1000 && id >= 1001 + index)
             || module.closure_signatures.higher[..index].contains(signature)
         {
@@ -1264,10 +1267,13 @@ pub(crate) fn verify_module_with_entry_type(
     let functions: Vec<_> = module.functions.iter().collect();
     for (index, function) in module.functions.iter().enumerate() {
         let result = if closure_environment(function).is_some() {
-            if !matches!(function.return_type, Type::Number | Type::Closure(0..=1000)) {
+            if !matches!(
+                function.return_type,
+                Type::Number | Type::General | Type::Closure(0..=1000)
+            ) {
                 return Err(invalid(
                     function.body.span,
-                    "runtime closure results require Number or numeric-leaf function",
+                    "runtime closure results require Number, General or numeric-leaf function",
                 ));
             }
             function.return_type
@@ -3578,6 +3584,45 @@ mod primitive_loose_tests {
                 _ => f.body.operations.swap(1, 2),
             };
             assert!(verify_module(&m).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod primitive_closure_result_tests {
+    use super::*;
+
+    #[test]
+    fn general_closure_results_keep_signature_and_call_contracts() {
+        let source =
+            "export function run(a,b){const f=x=>null;const g=x=>false;let h=a?f:g;return h(b);}";
+        for change in 0..5 {
+            let mut module =
+                crate::lower_source_with_entry_type(source, false, Type::General).unwrap();
+            verify_module_with_entry_type(&module, Type::General).unwrap();
+            match change {
+                0 => module.closure_signatures.higher[0].parameters[0] = Type::General,
+                1 => module.closure_signatures.higher[0].result = Type::Predicate,
+                2 => {
+                    let f = &mut module.functions[0];
+                    let result = f
+                        .body
+                        .operations
+                        .iter()
+                        .find_map(|operation| match operation.kind {
+                            Op::ClosureCall { result, .. } => Some(result),
+                            _ => None,
+                        })
+                        .unwrap();
+                    f.values[result.0] = Type::Number;
+                }
+                3 => module.functions[1].return_type = Type::Number,
+                _ => module.functions[0].return_type = Type::Number,
+            }
+            assert!(
+                verify_module_with_entry_type(&module, Type::General).is_err(),
+                "mutation {change}"
+            );
         }
     }
 }

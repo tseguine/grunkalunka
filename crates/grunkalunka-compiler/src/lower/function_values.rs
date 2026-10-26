@@ -8,13 +8,14 @@ impl Lowering<'_, '_> {
         &self,
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
     ) -> Option<usize> {
-        self.arrow_signature_at(arrow, 0)
+        self.arrow_signature_at(arrow, 0, &BTreeMap::new())
     }
 
     fn arrow_signature_at(
         &self,
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
         calls: usize,
+        outer: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Option<usize> {
         if calls >= 8 {
             return None;
@@ -33,6 +34,9 @@ impl Lowering<'_, '_> {
                 )
             })
             .collect();
+        for (symbol, signature) in outer {
+            bindings.entry(*symbol).or_insert(*signature);
+        }
         for (parameter, ty) in arrow.params.items.iter().zip(&parameters) {
             if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern {
                 bindings.insert(
@@ -47,12 +51,73 @@ impl Lowering<'_, '_> {
         let result = arrow
             .get_expression()
             .and_then(|body| self.function_arity_in(body, 0, &bindings, calls + 1))
-            .map_or(Type::Number, Type::Closure);
+            .map_or_else(|| self.arrow_scalar_result(arrow, &bindings), Type::Closure);
         Some(
             self.closure_signatures
                 .borrow_mut()
                 .intern(parameters, result),
         )
+    }
+
+    // Block bodies retain their existing Number/function contract. Concise
+    // results use the same positive Number proof as storage planning; otherwise
+    // the body checker must validate the represented primitive domain.
+    fn arrow_scalar_result(
+        &self,
+        arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+        bindings: &BTreeMap<SymbolId, Option<usize>>,
+    ) -> Type {
+        let Some(body) = arrow.get_expression() else {
+            return Type::Number;
+        };
+        let mut numeric_calls: std::collections::BTreeSet<_> = self
+            .closures
+            .iter()
+            .filter(|closure| !closure.factory && closure.result == Type::Number)
+            .filter_map(|closure| closure.symbol)
+            .collect();
+        for (symbol, signature) in self
+            .callback_parameters
+            .values()
+            .flat_map(|parameters| parameters.iter())
+        {
+            if self.closure_signatures.borrow().result(*signature) == Some(Type::Number) {
+                numeric_calls.insert(*symbol);
+            }
+        }
+        for (symbol, signature) in bindings {
+            if signature
+                .is_some_and(|id| self.closure_signatures.borrow().result(id) == Some(Type::Number))
+            {
+                numeric_calls.insert(*symbol);
+            }
+        }
+        let number = storage::number_result_shape(
+            body,
+            0,
+            self.semantic,
+            self.functions,
+            |symbol| numeric_calls.contains(&symbol),
+            |symbol| {
+                if let Some(binding) = self
+                    .bindings
+                    .iter()
+                    .find(|binding| binding.symbol == symbol)
+                {
+                    return self.slots[binding.slot.0].ty == Type::Number;
+                }
+                // A not-yet-bound parameter or captured local can still have a
+                // static Number proof, including all later writes. Function
+                // parameters remain function pairs, never scalar Numbers.
+                !self.general_bindings.contains(&symbol)
+                    && !bindings.get(&symbol).is_some_and(Option::is_some)
+                    && !self
+                        .callback_parameters
+                        .values()
+                        .any(|parameters| parameters.contains_key(&symbol))
+            },
+        );
+        if number { Type::Number } else { Type::General }
     }
 
     pub(super) fn callback_argument(
@@ -200,7 +265,7 @@ impl Lowering<'_, '_> {
                         && let Some(body) = body
                         && let Some(returned) = self.closure_target(body, 0)
                     {
-                        self.arrow_signature_at(self.arrow(returned.arrow), calls)?
+                        self.arrow_signature_at(self.arrow(returned.arrow), calls, bindings)?
                     } else {
                         if calls >= 8 || arrow.params.items.len() != call.arguments.len() {
                             return None;
@@ -254,6 +319,7 @@ impl Lowering<'_, '_> {
                         self.arrow_signature_at(
                             self.arrow(self.closure_target(node, depth)?.arrow),
                             calls,
+                            bindings,
                         )?
                     }
                 }
@@ -497,7 +563,10 @@ impl Lowering<'_, '_> {
             .borrow()
             .result(arity)
             .expect("checked signature");
-        if !matches!(return_type, Type::Number | Type::Closure(0..=1000)) {
+        if !matches!(
+            return_type,
+            Type::Number | Type::General | Type::Closure(0..=1000)
+        ) {
             return Err(unsupported(
                 node,
                 "runtime factories return only numeric-leaf functions",
@@ -593,6 +662,10 @@ impl Lowering<'_, '_> {
         let returned = if let Some(expression) = arrow.get_expression() {
             if let Type::Closure(signature) = return_type {
                 child.function_value(expression, &mut body, signature, 0)?
+            } else if return_type == Type::General {
+                child
+                    .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
+                    .expect("General result")
             } else {
                 child.expression(expression, &mut body, 0)?
             }

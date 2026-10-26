@@ -8,17 +8,17 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) type Parameters = BTreeMap<NodeId, BTreeMap<SymbolId, usize>>;
 type Origins = (BTreeSet<SymbolId>, BTreeSet<NodeId>);
 
-struct ReturnOrigins<'s, 'n, 'a> {
-    semantic: &'s Semantic<'a>,
-    targets: &'s BTreeMap<SymbolId, BTreeSet<NodeId>>,
-    arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
+pub(super) struct ReturnOrigins<'s, 'n, 'a> {
+    pub semantic: &'s Semantic<'a>,
+    pub targets: &'s BTreeMap<SymbolId, BTreeSet<NodeId>>,
+    pub arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
 }
 
 impl ReturnOrigins<'_, '_, '_> {
     // Follow source-known concise and block results. Actual argument origins are
     // computed before shadowing formals; no call effects or argument bindings
     // escape this read-only query. The same eight-call bound limits recursion.
-    fn expression(
+    pub(super) fn expression(
         &self,
         expression: &Expression<'_>,
         bindings: &BTreeMap<SymbolId, Origins>,
