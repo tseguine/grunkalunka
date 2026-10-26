@@ -77,3 +77,29 @@ frontends: this probe demonstrates a narrow span-based handoff, not shared ident
 Before adopting it, test symbol/declaration association and type/value namespace
 cases, then compare behavior on broader fixtures. Do not merge the package into the
 main workspace or treat its type results as a JS behavior guarantee.
+
+## Checker-hint boundary follow-up
+
+With Node available, run the focused tests after fetching this manifest's locked
+dependencies:
+
+```sh
+cargo test --manifest-path spikes/004-tsrs-type-query/Cargo.toml --locked --offline -j 2 -- --test-threads=1
+```
+
+[The tests](tests/checker-hints.rs) reuse the private executable probe, retain its
+original playback, and exercise UTF8/CRLF offsets and duplicate-text ambiguity.
+Three paired TS/JS witnesses compare a real checker query with native JS runtime
+kinds: an assertion mismatch, mutable aliasing without `any` or assertions, and a
+primitive snapshot taken before the same mutation. Missing Node fails the tests.
+They do not compile those object examples to Wasm or expand supported source.
+
+[Type-query research](../../.github/workflows/type-query.yml) runs these checks on
+Linux for changes to this spike, its workflow or the repository toolchain. It is
+separate from canonical CI, with locked dependency setup and offline execution,
+no artifact uploads, deployment or cancellation policy changes. Do not require
+this path-filtered research check on unrelated PRs. Its dependency graph remains
+outside the main license-screening command; no production adoption is implied.
+[Proposed ADR 0015](../../docs/adr/0015-checker-hints-and-runtime-facts.md) defines
+the intended consumer contract. These witnesses do not implement that contract,
+a general identity validator, or a profitable specialization.
