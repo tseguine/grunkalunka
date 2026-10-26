@@ -36,4 +36,5 @@ run('cargo', ['run', '--locked', '--offline', '--manifest-path', 'spikes/001-fro
 run(process.execPath, ['spikes/001-frontend-semantics/oracle.mjs']);
 run(process.execPath, ['scripts/poc.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/remainder-kernel.test.mjs']);
+run(process.execPath, ['--test', 'tests/build/benchmark.test.mjs', 'tests/build/benchmark-integration.test.mjs']);
 console.log(`PASS all checks (${process.versions.bun ? `Bun ${process.versions.bun}` : `Node ${process.version}`})`);
