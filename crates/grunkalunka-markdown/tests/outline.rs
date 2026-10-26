@@ -52,7 +52,10 @@ fn gaps_siblings_and_roots_have_explicit_parents_and_section_ends() {
     assert_eq!(entries[0].heading.level, 2);
     assert_eq!(entries[1].heading.level, 4);
     assert_eq!(entries[5].heading.level, 6);
-    assert_eq!(&source[entries[1].section_span.clone()], "#### Deep\ntext\n\n");
+    assert_eq!(
+        &source[entries[1].section_span.clone()],
+        "#### Deep\ntext\n\n"
+    );
 }
 
 #[test]
@@ -88,7 +91,10 @@ fn unicode_crlf_and_eof_use_original_byte_offsets() {
     let child = source.find("## café").unwrap();
     assert_eq!(entries[0].section_span, root..source.len());
     assert_eq!(entries[1].section_span, child..source.len());
-    assert_eq!(&source[entries[1].section_span.clone()], "## café\r\nlast 🦀");
+    assert_eq!(
+        &source[entries[1].section_span.clone()],
+        "## café\r\nlast 🦀"
+    );
     assert_eq!(entries[1].parent, Some(0));
     for entry in &entries {
         for span in [&entry.heading.span, &entry.section_span] {
@@ -143,7 +149,10 @@ fn every_four_heading_level_sequence_matches_independent_searches() {
         for index in 0..4 {
             let level = code % 6 + 1;
             code /= 6;
-            source.push_str(&format!("{} h{index}\n\nbody {index}\n\n", "#".repeat(level)));
+            source.push_str(&format!(
+                "{} h{index}\n\nbody {index}\n\n",
+                "#".repeat(level)
+            ));
         }
         let headings = summarize(&source).headings;
         let entries = outline(&source);
@@ -157,7 +166,11 @@ fn every_four_heading_level_sequence_matches_independent_searches() {
                 .find(|next| next.level <= entry.heading.level)
                 .map_or(source.len(), |next| next.span.start);
             assert_eq!(entry.parent, parent, "{source}");
-            assert_eq!(entry.section_span, entry.heading.span.start..end, "{source}");
+            assert_eq!(
+                entry.section_span,
+                entry.heading.span.start..end,
+                "{source}"
+            );
             if let Some(parent) = entry.parent {
                 assert!(parent < index);
                 assert!(entries[parent].section_span.start <= entry.section_span.start);
@@ -176,6 +189,9 @@ fn many_duplicate_siblings_stay_distinct_and_flat() {
     for (index, entry) in entries.iter().enumerate() {
         assert_eq!(entry.parent, None);
         assert_eq!(entry.heading.text, "Same");
-        assert_eq!(entry.section_span, index * line.len()..(index + 1) * line.len());
+        assert_eq!(
+            entry.section_span,
+            index * line.len()..(index + 1) * line.len()
+        );
     }
 }
