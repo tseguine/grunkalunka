@@ -16,6 +16,13 @@ metadata interface is introduced. Type-guided optimization remains separate work
 `src/ir.rs` defines the representation and verifier. `src/emit.rs` emits structured
 Wasm. These files live in `crates/grunkalunka-compiler/`.
 
+The verifier keeps pending regions, lexical visibility and child-completion
+continuations on an explicit stack. Its checks retain source order without native
+recursion through region nesting. CLI regressions exercise the default executable
+stack at the 64-statement limit, including a body with 128 nested expressions;
+65 statements retain their depth diagnostic. This does not remove recursion from
+parsing, source classification, emission or destruction.
+
 ## Modules and direct numeric calls
 
 A module holds an entry-first list of functions, indexed by `FunctionId`. Each
