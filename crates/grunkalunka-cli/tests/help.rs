@@ -10,7 +10,7 @@ fn invoke(arguments: &[&str]) -> Output {
 
 fn success(arguments: &[&str]) -> String {
     let result = invoke(arguments);
-    assert!(result.status.success(), "{:?}", result);
+    assert!(result.status.success(), "{result:?}");
     assert!(result.stderr.is_empty());
     String::from_utf8(result.stdout).expect("UTF-8 help")
 }
@@ -43,7 +43,7 @@ fn version_and_short_alias_use_the_package_version() {
 }
 
 #[test]
-fn_missing_unknown_and_extra_arguments_still_fail_with_usage() {
+fn missing_unknown_and_extra_arguments_still_fail_with_usage() {
     let cases: &[&[&str]] = &[
         &[],
         &["unknown"],
