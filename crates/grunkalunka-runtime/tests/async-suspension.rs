@@ -1304,3 +1304,88 @@ fn implicit_local_returns_preserve_async_kinds_effects_and_job_order() {
         ],
     );
 }
+
+#[test]
+fn known_async_arrows_fulfill_primitives_without_extra_jobs() {
+    compare_promises(
+        &[
+            "const f=async()=>a;return await f();",
+            "const f=async()=>-0;return await f();",
+            "const f=async()=>NaN;return await f();",
+            "const f=async()=>null;return await f();",
+            "const f=async()=>false;return await f();",
+            "const f=async()=>undefined;return await f();",
+            "const f=async()=>{};return await f();",
+            "const f=async()=>{return;};return await f();",
+            "const f=async()=>{if(a)return b;};return await f();",
+            "const f=async x=>x?null:false;return await f(a);",
+            "const f=async()=>a;const alias=f;return await alias();",
+            "return await (async x=>x+a)(b);",
+            "const f=async()=>a;return await Promise.resolve(f());",
+            "const f=async()=>a;return await Promise.resolve(((f())));",
+            "const f=async x=>a;return await f(await b);",
+            "const f=async x=>x;return await f(await a);",
+            "const f=async(fn,x)=>fn(x);return await f(x=>x+a,b);",
+            "const f=async()=>a;const g=async()=>b;const x=await f();return x+await g();",
+            "let count=0;const f=async(x,y)=>{count+=10;return x+y;};const out=await f((count++,a),(count+=2,b));return out+count;",
+            "let value=a;const f=async()=>value;const old=await f();value=b;return old;",
+            "const f=async x=>a;return await f((a=b,a));",
+            "const f=async()=>a?null:false;if(a)return await f();return b;",
+            "const f=async()=>a?null:false;try{await Promise.reject(await f());}catch(reason){await null;return reason;}return b;",
+            "const f=async()=>a;return a?await f():await f();",
+            "const f=async()=>a;return b;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn known_async_arrows_keep_promise_object_and_body_boundaries() {
+    for body in [
+        "const f=async()=>a;return f();",
+        "const f=async()=>a;f();return a;",
+        "const f=async()=>a;return f;",
+        "const f=a?async()=>a:async()=>b;return await f();",
+        "let f=async()=>a;return await f();",
+        "const f=async()=>await a;return await f();",
+        "const f=async()=>{throw b;};return await f();",
+        "const f=async()=>Promise.reject(b);return await f();",
+        "const f=async()=>()=>a;return await f();",
+        "const f=async()=>{return ()=>a;};return await f();",
+        "const f=async()=>'';return await f();",
+        "const f=async()=>({});return await f();",
+        "const f=async x=>x;return await f(null);",
+        "const f=async()=>a;return await f?.();",
+        "const f=async()=>a;return await f(...a);",
+    ] {
+        let source = source_for(body);
+        assert!(compile_async(&source, false).is_err(), "{source}");
+    }
+    let source = source_for(
+        "const f=async()=>a;try{await Promise.reject(f());}catch(reason){return reason;}return b;",
+    );
+    assert!(
+        compile_async(&source, false)
+            .err()
+            .unwrap()
+            .contains("Promise-valued reason")
+    );
+    let source = "export function run(a,b){const f=async()=>a;return a;}";
+    assert!(grunkalunka_compiler::compile(source, false).is_err());
+    assert!(grunkalunka_compiler::compile_value(source, false).is_err());
+}
+
+#[test]
+fn known_async_arrow_type_claims_do_not_override_runtime_primitives() {
+    let js = "export async function run(a,b){const f=async x=>x?null:false;return await f(a);}";
+    let ts = "export async function run(a:number,b:number):Promise<unknown>{const f=async(x:number):Promise<number>=>(x?null:false) as unknown as number;return await f(a);}";
+    assert_eq!(
+        compile_async(js, false).unwrap().wasm,
+        compile_async(ts, true).unwrap().wasm
+    );
+}

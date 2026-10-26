@@ -4,6 +4,8 @@ The Number, primitive-return and primitive async profiles support initialized lo
 function values selected at runtime. Constructors include same-signature conditional
 branches, logical `&&`/`||`/`??` selections, arrows, known factory results and existing
 local closure aliases.
+Known primitive async arrows have a separate [directly awaited call slice](async.md#suspension-and-host-jobs);
+they are not ordinary runtime closure values.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
 the resulting identifier or alias use an exact logical signature with Number and

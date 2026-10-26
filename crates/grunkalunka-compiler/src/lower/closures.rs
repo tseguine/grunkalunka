@@ -24,7 +24,7 @@ pub(super) fn unwrapped<'e, 'a>(
     unwrapped_at(expression, depth).map(|(expression, _)| expression)
 }
 
-fn unwrapped_at<'e, 'a>(
+pub(super) fn unwrapped_at<'e, 'a>(
     mut expression: &'e Expression<'a>,
     mut depth: usize,
 ) -> Option<(&'e Expression<'a>, usize)> {
@@ -79,7 +79,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
     }
 
     pub(super) fn check_arrow(&self, arrow: &ArrowFunctionExpression<'_>) -> Result<(), String> {
-        if arrow.r#async {
+        self.check_arrow_kind(arrow, false)
+    }
+
+    fn check_arrow_kind(
+        &self,
+        arrow: &ArrowFunctionExpression<'_>,
+        allow_async: bool,
+    ) -> Result<(), String> {
+        if arrow.r#async && !allow_async {
             return Err(unsupported(
                 arrow,
                 "only synchronous local arrows are admitted",
@@ -188,10 +196,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 "at most 8 nested factory results are admitted",
             ));
         }
-        self.check_arrow(arrow)?;
+        self.check_arrow_kind(arrow, self.allow_await && factory_depth == 0)?;
         // Validate unused bodies too, without running effects or publishing their
         // scratch values/slots in the real function's verified IR.
         let mut check = self.clone();
+        if arrow.r#async {
+            // This slice only admits synchronously fulfilled primitive bodies.
+            // They execute before the caller's existing await reaction job.
+            check.allow_await = false;
+        }
         check.function_result_depth = 0;
         check.bindings = closure.captures.clone();
         let mut region = check.region(arrow);
@@ -226,6 +239,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
         check.bind_arrow_parameters(arrow, arguments, &mut region)?;
         if let Some(expression) = arrow.get_expression() {
+            if arrow.r#async
+                && (check.closure_target(expression, 0).is_some()
+                    || check.function_arity(expression, 0).is_some())
+            {
+                return Err(unsupported(
+                    expression,
+                    "awaited async arrows require primitive results",
+                ));
+            }
             if let Some(mut returned) = check.closure_target(expression, 0) {
                 if !returned.checked {
                     check.check_closure_at(&mut returned, factory_depth + 1)?;
@@ -252,6 +274,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 )?;
             }
         } else if let Some(arity) = check.block_function_arity(arrow, 0) {
+            if arrow.r#async {
+                return Err(unsupported(
+                    arrow,
+                    "awaited async arrows require primitive results",
+                ));
+            }
             region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
             closure.factory = true;
         } else {

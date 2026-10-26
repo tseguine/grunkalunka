@@ -1784,7 +1784,7 @@ paths can forward these closures; this includes the two former maintained
 rejections `id(()=>true)` and a block returning `()=>true`. A dormant factory
 containing `()=>true` is also valid when the entry returns a Number. Runtime factories
 retain their numeric-leaf result restriction. Arbitrary primitive arguments,
-async arrow bodies and exported function values remain separate requirements.
+suspending async arrow bodies and exported function values remain separate requirements.
 Primitive block returns are described below. All 916 numeric rejection sources and diagnostics
 are unchanged. Nine maintained primitive corpus pairs exercise these results.
 
@@ -1807,7 +1807,7 @@ are preserved. Async callers retain primitive values across jobs and match nativ
 fulfillment, rejection and catch ordering.
 
 Eight additional maintained primitive corpus pairs brought that profile to 99 pairs
-and 5544 comparisons. Async arrow bodies,
+and 5544 comparisons. Suspending async arrow bodies,
 arbitrary primitive arguments, mixed function/primitive returns and expanded
 runtime factories remain separate work.
 
@@ -1831,3 +1831,21 @@ JS/TS tests compare native JavaScript, Node Wasm and Wasmtime for kinds, bit
 patterns, captures, callee/argument snapshots and effects. Async callers also
 match fulfillment/rejection and reaction-job order. Ten additional maintained
 primitive corpus pairs bring that profile to 109 pairs and 6104 comparisons.
+
+## Directly awaited known async arrows
+
+The async entry profile now admits directly awaited calls to known const, alias
+and direct async arrows whose bodies produce represented primitives without
+awaiting or throwing. The synchronous body and ordered arguments execute before
+the existing caller `Await`; its fulfillment reaction preserves native promise
+job order. Concise, explicit block, bare and implicit primitive returns reuse
+the existing local evaluation paths. TypeScript type claims do not replace the
+actual result kind.
+
+These async arrows have no ordinary scalar closure signature. Calls in other
+positions and dynamic/mutable async function values remain rejected, as do
+Promise/function-valued outcomes and bodies that suspend or throw. Pristine
+`Promise.resolve` wrapping is supported. A rejected async-call result would be a
+Promise-valued reason and is rejected; awaiting the call first yields a supported
+primitive reason. No IR operation, emitter path, dependency or Promise-object ABI
+was added. See [the async profile](async.md#suspension-and-host-jobs).

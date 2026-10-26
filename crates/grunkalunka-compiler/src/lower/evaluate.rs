@@ -1302,6 +1302,34 @@ impl Lowering<'_, '_> {
                             Type::Number
                         };
                         work.push(Work::Await(node, rejected, ty));
+                        if let Some((Expression::CallExpression(call), call_depth)) =
+                            closures::unwrapped_at(argument, argument_depth)
+                            && let Some(mut closure) =
+                                self.closure_target(&call.callee, call_depth + 1)
+                            && self.arrow(closure.arrow).r#async
+                        {
+                            if rejected {
+                                return Err(unsupported(
+                                    node,
+                                    "a rejected async-call result would require a Promise-valued reason",
+                                ));
+                            }
+                            if !closure.checked {
+                                self.check_local_closure(&mut closure)?;
+                                self.capture_cells(&closure, regions.current());
+                            }
+                            self.check_local_call(call, &closure)?;
+                            call_result(&mut work, node, mode, closure.result)?;
+                            work.push(Work::LocalCall {
+                                node: argument,
+                                call,
+                                closure,
+                                index: 0,
+                                arguments: Vec::new(),
+                                depth: call_depth + 1,
+                            });
+                            continue;
+                        }
                         work.push(Work::Eval(argument, argument_depth, mode));
                         continue;
                     }

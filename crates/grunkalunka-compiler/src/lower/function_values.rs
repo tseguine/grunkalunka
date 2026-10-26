@@ -17,7 +17,9 @@ impl Lowering<'_, '_> {
         calls: usize,
         outer: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Option<usize> {
-        if calls >= 8 {
+        // Awaited known async calls are handled before function-value lowering;
+        // their Promise results are not ordinary scalar closure signatures.
+        if calls >= 8 || arrow.r#async {
             return None;
         }
         let parameters = callbacks::parameter_types(arrow, self.callback_parameters);
