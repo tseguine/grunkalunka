@@ -1,0 +1,50 @@
+name: Type-query research
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'spikes/004-tsrs-type-query/**'
+      - '.github/workflows/type-query.yml'
+      - 'rust-toolchain.toml'
+  push:
+    branches: [master]
+    paths:
+      - 'spikes/004-tsrs-type-query/**'
+      - '.github/workflows/type-query.yml'
+      - 'rust-toolchain.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  query:
+    name: Pinned checker witnesses (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      RUST_BACKTRACE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Prepare the repository toolchain and locked research dependencies
+        shell: bash
+        run: |
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt
+          rustc --version --verbose
+          node --version
+          cargo fetch --locked --manifest-path spikes/004-tsrs-type-query/Cargo.toml
+      - name: Check formatting and run the real checker with the Node oracle
+        shell: bash
+        run: |
+          cargo fmt --manifest-path spikes/004-tsrs-type-query/Cargo.toml --check
+          cargo test --manifest-path spikes/004-tsrs-type-query/Cargo.toml --locked --offline -j 2 -- --test-threads=1
