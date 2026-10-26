@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { access, chmod, copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { compile, CompilerError } from '../../tools/build/compile.mjs';
+import { compile, compileSource, CompilerError } from '../../tools/build/compile.mjs';
 
 const binary = fileURLToPath(new URL(
   `../../target/debug/grunkalunka${process.platform === 'win32' ? '.exe' : ''}`, import.meta.url,
@@ -80,4 +80,36 @@ test('independent concurrent compilations return their own outputs', async t => 
     compile({ compiler: binary, source: 'in.js', destination, cwd })));
   assert.notEqual(results[0].destination, results[1].destination);
   for (const result of results) assert.equal((await instantiate(result.destination)).run(4, 1), 3);
+});
+
+test('source-text builds return executable owned bytes for JS/TS and both profiles', async t => {
+  const cwd = await setup(t);
+  for (const language of ['js', 'ts']) {
+    const text = '// café 🦀\r\n' + (language === 'ts'
+      ? source.replace('run(a,b)', 'run(a: number,b: number): number') : source);
+    for (const profile of ['numeric', 'primitive']) {
+      const result = await compileSource({
+        compiler: relative(cwd, binary), source: text, language, profile, cwd, tempDirectory: cwd,
+      });
+      assert.deepEqual(await readdir(cwd), []);
+      assert.ok(Buffer.isBuffer(result.wasm));
+      assert.match(result.stdout, /^COMPILED /);
+      assert.equal(result.stderr, '');
+      const { instance } = await WebAssembly.instantiate(result.wasm);
+      assert.deepEqual(instance.exports.run(4, 1), profile === 'numeric' ? 3 : [3, 3]);
+    }
+  }
+});
+
+test('source-text admission failures keep compiler diagnostics and remove scratch files', async t => {
+  const cwd = await setup(t);
+  await assert.rejects(compileSource({
+    compiler: binary, source: 'export function run( {', language: 'ts', tempDirectory: cwd,
+  }), error => {
+    assert.ok(error instanceof CompilerError);
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /ERROR:/);
+    return true;
+  });
+  assert.deepEqual(await readdir(cwd), []);
 });

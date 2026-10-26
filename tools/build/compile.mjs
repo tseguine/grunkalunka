@@ -1,4 +1,6 @@
-import { resolve } from 'node:path';
+import fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { invoke } from './process.mjs';
 
 export { CompilerError } from './process.mjs';
@@ -43,4 +45,52 @@ export async function compile({
     resolve(root, source), output,
   ], { cwd: root, signal, timeout, maxBuffer });
   return { destination: output, ...result };
+}
+
+/**
+ * Compile source text and return { wasm: Buffer, stdout, stderr }.
+ * Uses temporary files, not an in-process compiler. The owned directory is
+ * removed before settling; caller files and the temporary parent are retained.
+ * @param {{compiler: string, source: string, language: 'js'|'ts',
+ *   profile?: 'numeric'|'primitive', cwd?: string, tempDirectory?: string,
+ *   signal?: AbortSignal, timeout?: number, maxBuffer?: number}} options
+ */
+export async function compileSource({
+  source, language, cwd = process.cwd(), tempDirectory = tmpdir(), ...options
+}) {
+  if (typeof source !== 'string' || /[\uD800-\uDFFF]/u.test(source)) {
+    throw new TypeError('source must be a string without unpaired UTF-16 surrogates');
+  }
+  if (language !== 'js' && language !== 'ts') {
+    throw new TypeError('language must be js or ts');
+  }
+  pathString(cwd, 'cwd');
+  pathString(tempDirectory, 'tempDirectory');
+  const root = resolve(cwd);
+  const directory = await fs.mkdtemp(join(resolve(root, tempDirectory), 'grunkalunka-source-'));
+  let failure;
+  try {
+    const input = join(directory, `input.${language}`);
+    const output = join(directory, 'output.wasm');
+    await fs.writeFile(input, source, 'utf8');
+    const { stdout, stderr } = await compile({
+      ...options, cwd: root, source: input, destination: output,
+    });
+    const wasm = await fs.readFile(output);
+    return { wasm, stdout, stderr };
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
+    try {
+      await fs.rm(directory, { recursive: true, force: true });
+    } catch (cleanupError) {
+      if (failure !== undefined) {
+        throw new AggregateError([failure, cleanupError], 'Compilation and temporary cleanup failed', {
+          cause: failure,
+        });
+      }
+      throw cleanupError;
+    }
+  }
 }
