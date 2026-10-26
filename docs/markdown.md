@@ -33,6 +33,10 @@ wikilinks, heading attributes, strikethrough, tables and task-list syntax are no
 enabled. Unresolved references stay text. Standalone reference definitions,
 literal code and raw HTML blocks add no summary records; HTML links/images are not parsed.
 
+`outline(&str)` adds parent indices and section ranges to the same heading
+projection for document navigation. See [heading outlines](markdown-outline.md)
+for level-jump, duplicate-label, container and original-byte-range policies.
+
 `code_blocks(&str) -> Vec<CodeBlock>` is additive and leaves `Summary` and
 `summarize` unchanged. Each owned record contains `text: String`,
 `info: Option<String>` and `span: Range<usize>`. Records follow source order,

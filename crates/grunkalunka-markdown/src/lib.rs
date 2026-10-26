@@ -183,3 +183,60 @@ pub fn code_blocks(source: &str) -> Vec<CodeBlock> {
     }
     blocks
 }
+
+/// One entry in a source-ordered, heading-level navigation outline.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutlineEntry {
+    /// The unchanged heading projection returned by `summarize`.
+    pub heading: Heading,
+    /// Index of the nearest preceding lower-level heading, or None for a root.
+    /// Indices refer only to the original returned vector, not a filtered copy.
+    pub parent: Option<usize>,
+    /// From this heading's start to the next equal-or-lower-level heading's start,
+    /// or EOF. Half-open original UTF-8 byte offsets, including child sections.
+    pub section_span: Range<usize>,
+}
+
+/// Build a navigation outline without generating anchors or rendering content.
+///
+/// Reuses `summarize` and preserves every heading, including empty and duplicate
+/// labels. Skipped levels create no synthetic entries. Text before the first
+/// heading is not a section; a document without headings has an empty outline.
+///
+/// This groups headings by level in source order, including headings in lists
+/// and block quotes. It is not an HTML outline or a Markdown container tree.
+/// Section boundaries use parser heading starts, which may exclude container
+/// prefixes; the ranges are navigation slices, not safe deletion/editing ranges.
+/// Keep the original source with them. Parent indices are local to this result.
+///
+/// ```
+/// let source = "# Notes\n\n## Detail\nText\n\n# Next\n";
+/// let entries = grunkalunka_markdown::outline(source);
+/// assert_eq!(entries[1].parent, Some(0));
+/// assert_eq!(entries[2].parent, None);
+/// assert_eq!(&source[entries[1].section_span.clone()], "## Detail\nText\n\n");
+/// ```
+pub fn outline(source: &str) -> Vec<OutlineEntry> {
+    let mut entries: Vec<OutlineEntry> = Vec::new();
+    // Strictly increasing levels: at most six ancestors, regardless of width.
+    let mut ancestors: Vec<usize> = Vec::new();
+    for heading in summarize(source).headings {
+        while let Some(&previous) = ancestors.last() {
+            if entries[previous].heading.level < heading.level {
+                break;
+            }
+            entries[previous].section_span.end = heading.span.start;
+            ancestors.pop();
+        }
+        let parent = ancestors.last().copied();
+        let section_span = heading.span.start..source.len();
+        let index = entries.len();
+        entries.push(OutlineEntry {
+            heading,
+            parent,
+            section_span,
+        });
+        ancestors.push(index);
+    }
+    entries
+}
