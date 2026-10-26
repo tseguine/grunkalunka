@@ -510,6 +510,65 @@ struct Verifier<'a> {
     regions: BTreeSet<RegionId>,
 }
 
+#[derive(Clone, Copy)]
+enum PendingRegion {
+    Start,
+    Block,
+    Inline(Type),
+    IfConsequent(Contract),
+    IfAlternate(Contract, Completion),
+    TryBody,
+    TryHandler(Completion),
+    DoBody,
+    DoCondition(Completion),
+    WhileCondition,
+    WhileBody,
+    WhileStep(Completion),
+}
+
+struct RegionFrame<'a> {
+    region: &'a Region,
+    contract: Contract,
+    visible: BTreeSet<ValueId>,
+    initialized: BTreeSet<SlotId>,
+    ancestors: Vec<RegionId>,
+    allow_loop_control: bool,
+    return_type: Type,
+    entered: bool,
+    index: usize,
+    completion: Completion,
+    pending: PendingRegion,
+}
+
+impl<'a> RegionFrame<'a> {
+    fn child(
+        &self,
+        region: &'a Region,
+        contract: Contract,
+        allow_loop_control: bool,
+        return_type: Type,
+    ) -> Self {
+        Self {
+            region,
+            contract,
+            visible: self.visible.clone(),
+            initialized: self.initialized.clone(),
+            ancestors: self.ancestors.iter().copied().chain([region.id]).collect(),
+            allow_loop_control,
+            return_type,
+            entered: false,
+            index: 0,
+            completion: Completion::NORMAL,
+            pending: PendingRegion::Start,
+        }
+    }
+}
+
+enum RegionCheck<'a> {
+    Child(RegionFrame<'a>),
+    Complete(Completion),
+}
+
 impl Verifier<'_> {
     fn value(
         &self,
@@ -559,6 +618,279 @@ impl Verifier<'_> {
         Ok(slot)
     }
 
+    // Leaf operations share the same operand and lexical-scope checks while
+    // region continuations keep pending control flow on the explicit stack.
+    fn operation(
+        &mut self,
+        operation: &Operation,
+        region_id: RegionId,
+        operation_index: usize,
+        visible: &mut BTreeSet<ValueId>,
+        initialized: &mut BTreeSet<SlotId>,
+        ancestors: &[RegionId],
+    ) -> Result<(), String> {
+        let span = operation.span;
+        match &operation.kind {
+            Op::ClosureEntry { captures } => {
+                if region_id != self.function.body.id || operation_index != 0 {
+                    return Err(invalid(
+                        span,
+                        "closure entry must be first in the function root",
+                    ));
+                }
+                for slot in captures {
+                    let cell = self.slot(*slot, ancestors, span)?;
+                    if cell.owner != region_id || cell.parameter || !initialized.insert(*slot) {
+                        return Err(invalid(
+                            span,
+                            "closure imports require distinct nonparameter root cells",
+                        ));
+                    }
+                }
+            }
+            Op::MakeClosure {
+                result,
+                function,
+                captures,
+            } => {
+                let target = self
+                    .functions
+                    .get(function.0)
+                    .ok_or_else(|| invalid(span, "invalid closure function ID"))?;
+                let imported = closure_environment(target)
+                    .ok_or_else(|| invalid(span, "closure target lacks an environment entry"))?;
+                if captures.len() != imported.len() {
+                    return Err(invalid(span, "closure environment size mismatch"));
+                }
+                for (source, destination) in captures.iter().zip(imported) {
+                    let cell = self.slot(*source, ancestors, span)?;
+                    if !initialized.contains(source)
+                        || target
+                            .slots
+                            .get(destination.0)
+                            .is_none_or(|slot| slot.ty != cell.ty || slot.mutable != cell.mutable)
+                    {
+                        return Err(invalid(
+                            span,
+                            "closure capture must be initialized with the environment's type",
+                        ));
+                    }
+                }
+                let parameters: Vec<_> = target
+                    .slots
+                    .iter()
+                    .take(target.parameter_count)
+                    .map(|slot| slot.ty)
+                    .collect();
+                let signature = self
+                    .closure_signatures
+                    .id(&parameters, target.return_type)
+                    .ok_or_else(|| invalid(span, "unknown closure signature"))?;
+                self.define(*result, Type::Closure(signature), visible, span)?;
+            }
+            Op::ClosureCall {
+                result,
+                callee,
+                arguments,
+            } => {
+                let Some(Type::Closure(signature)) = self.function.values.get(callee.0).copied()
+                else {
+                    return Err(invalid(span, "closure call requires a function value"));
+                };
+                self.value(*callee, Type::Closure(signature), visible, span)?;
+                let parameter_count = self
+                    .closure_signatures
+                    .parameter_count(signature)
+                    .ok_or_else(|| invalid(span, "unknown closure signature"))?;
+                if parameter_count != arguments.len() {
+                    return Err(invalid(
+                        span,
+                        "closure argument count does not match signature",
+                    ));
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    let ty = self
+                        .closure_signatures
+                        .parameter(signature, index)
+                        .expect("checked argument count");
+                    self.value(*argument, ty, visible, span)?;
+                }
+                let result_type = self
+                    .closure_signatures
+                    .result(signature)
+                    .expect("checked signature");
+                self.define(*result, result_type, visible, span)?;
+            }
+            Op::CaptureCells { cells } => {
+                for slot in cells {
+                    self.slot(*slot, ancestors, span)?;
+                    if !initialized.contains(slot) {
+                        return Err(invalid(span, "captured slot is not initialized"));
+                    }
+                }
+            }
+            Op::Await { result, input, .. } => {
+                let ty = self
+                    .function
+                    .values
+                    .get(result.0)
+                    .copied()
+                    .ok_or_else(|| invalid(span, "invalid await result"))?;
+                if !matches!(ty, Type::Number | Type::General) {
+                    return Err(invalid(span, "await requires Number or General values"));
+                }
+                self.value(*input, ty, visible, span)?;
+                self.define(*result, ty, visible, span)?;
+            }
+            Op::Nullish { result, .. } => {
+                self.define(*result, Type::General, visible, span)?;
+            }
+            Op::Call {
+                result,
+                function,
+                arguments,
+            } => {
+                let target = self
+                    .functions
+                    .get(function.0)
+                    .ok_or_else(|| invalid(span, "invalid callee function ID"))?;
+                if closure_environment(target).is_some() {
+                    return Err(invalid(
+                        span,
+                        "lifted closures require the closure call ABI",
+                    ));
+                }
+                if arguments.len() != target.parameter_count {
+                    return Err(invalid(
+                        span,
+                        "call argument count does not match signature",
+                    ));
+                }
+                for argument in arguments {
+                    self.value(*argument, Type::Number, visible, span)?;
+                }
+                let ty = if function.0 == 0 {
+                    self.entry_type
+                } else {
+                    Type::Number
+                };
+                self.define(*result, ty, visible, span)?;
+            }
+            Op::Pack { result, input } => {
+                let ty = *self
+                    .function
+                    .values
+                    .get(input.0)
+                    .ok_or_else(|| invalid(span, "invalid pack input"))?;
+                if !matches!(ty, Type::Number | Type::Predicate) {
+                    return Err(invalid(span, "pack requires a scalar input"));
+                }
+                self.value(*input, ty, visible, span)?;
+                self.define(*result, Type::General, visible, span)?;
+            }
+            Op::Not { result, input } => {
+                self.value(*input, Type::Predicate, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::Boolean { result, .. } => self.define(*result, Type::Predicate, visible, span)?,
+            Op::Constant { result, .. } => self.define(*result, Type::Number, visible, span)?,
+            Op::Load { result, slot } => {
+                let ty = self.slot(*slot, ancestors, span)?.ty;
+                if !initialized.contains(slot) {
+                    return Err(invalid(span, "slot is not initialized"));
+                }
+                self.define(*result, ty, visible, span)?;
+            }
+            Op::Initialize { slot, value } => {
+                let cell = self.slot(*slot, ancestors, span)?;
+                self.value(*value, cell.ty, visible, span)?;
+                if cell.owner != region_id || cell.parameter {
+                    return Err(invalid(
+                        span,
+                        "initialization must be in the slot owner's lexical entry",
+                    ));
+                }
+                if !initialized.insert(*slot) {
+                    return Err(invalid(span, "slot initialized twice per lexical entry"));
+                }
+            }
+            Op::Store { slot, value } => {
+                let cell = self.slot(*slot, ancestors, span)?;
+                self.value(*value, cell.ty, visible, span)?;
+                if !cell.mutable {
+                    return Err(invalid(span, "store to immutable source cell"));
+                }
+                if !initialized.contains(slot) {
+                    return Err(invalid(span, "slot is not initialized"));
+                }
+            }
+            Op::Unary { result, input, .. } => {
+                self.value(*input, Type::Number, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::PrimitiveStrictEqual {
+                result,
+                left,
+                right,
+                ..
+            }
+            | Op::PrimitiveLooseEqual {
+                result,
+                left,
+                right,
+                ..
+            } => {
+                self.value(*left, Type::General, visible, span)?;
+                self.value(*right, Type::General, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::Binary {
+                result,
+                left,
+                right,
+                ..
+            }
+            | Op::Compare {
+                result,
+                left,
+                right,
+                ..
+            } => {
+                self.value(*left, Type::Number, visible, span)?;
+                self.value(*right, Type::Number, visible, span)?;
+                let ty = if matches!(operation.kind, Op::Compare { .. }) {
+                    Type::Predicate
+                } else {
+                    Type::Number
+                };
+                self.define(*result, ty, visible, span)?;
+            }
+            Op::NumberFromPredicate { result, input } => {
+                self.value(*input, Type::Predicate, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::Truthy { result, input } => {
+                self.value(*input, Type::Number, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::GeneralTruthy { result, input } => {
+                self.value(*input, Type::General, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::NumberFromGeneral { result, input } => {
+                self.value(*input, Type::General, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::InlineCall { .. }
+            | Op::TryCatch { .. }
+            | Op::DoWhile { .. }
+            | Op::Block(_)
+            | Op::If { .. }
+            | Op::While { .. } => unreachable!("control operations are verified by region"),
+        }
+        Ok(())
+    }
+
     // Child regions inherit snapshots and initialized outer source cells. Their
     // new values and cells never become visible to siblings or their parent.
     fn region(
@@ -567,130 +899,60 @@ impl Verifier<'_> {
         contract: Contract,
         outer_values: &BTreeSet<ValueId>,
         outer_cells: &BTreeSet<SlotId>,
-        ancestors: &mut Vec<RegionId>,
+        ancestors: &[RegionId],
         allow_loop_control: bool,
     ) -> Result<Completion, String> {
-        if !self.regions.insert(region.id) {
-            return Err(invalid(region.span, "region ID is not unique"));
+        let mut frames = vec![RegionFrame {
+            region,
+            contract,
+            visible: outer_values.clone(),
+            initialized: outer_cells.clone(),
+            ancestors: ancestors.iter().copied().chain([region.id]).collect(),
+            allow_loop_control,
+            return_type: self.return_type,
+            entered: false,
+            index: 0,
+            completion: Completion::NORMAL,
+            pending: PendingRegion::Start,
+        }];
+        let mut completed = None;
+        while let Some(frame) = frames.last_mut() {
+            match self.advance_region(frame, completed.take())? {
+                RegionCheck::Child(child) => frames.push(child),
+                RegionCheck::Complete(completion) => {
+                    frames.pop();
+                    completed = Some(completion);
+                }
+            }
         }
-        ancestors.push(region.id);
-        let mut visible = outer_values.clone();
-        let mut initialized = outer_cells.clone();
-        let mut completion = Completion::NORMAL;
-        for (operation_index, operation) in region.operations.iter().enumerate() {
+        Ok(completed.expect("completed root region"))
+    }
+
+    fn advance_region<'a>(
+        &mut self,
+        frame: &mut RegionFrame<'a>,
+        mut completed: Option<Completion>,
+    ) -> Result<RegionCheck<'a>, String> {
+        if !frame.entered {
+            if !self.regions.insert(frame.region.id) {
+                return Err(invalid(frame.region.span, "region ID is not unique"));
+            }
+            frame.entered = true;
+        }
+        while let Some(operation) = frame.region.operations.get(frame.index) {
             let span = operation.span;
-            if !completion.normal {
+            if !frame.completion.normal {
                 return Err(invalid(
                     span,
-                    if completion == Completion::RETURN {
+                    if frame.completion == Completion::RETURN {
                         "operation after guaranteed return"
                     } else {
                         "operation after guaranteed abrupt completion"
                     },
                 ));
             }
-            let mut next = Completion::NORMAL;
-            match &operation.kind {
-                Op::ClosureEntry { captures } => {
-                    if region.id != self.function.body.id || operation_index != 0 {
-                        return Err(invalid(
-                            span,
-                            "closure entry must be first in the function root",
-                        ));
-                    }
-                    for slot in captures {
-                        let cell = self.slot(*slot, ancestors, span)?;
-                        if cell.owner != region.id || cell.parameter || !initialized.insert(*slot) {
-                            return Err(invalid(
-                                span,
-                                "closure imports require distinct nonparameter root cells",
-                            ));
-                        }
-                    }
-                }
-                Op::MakeClosure {
-                    result,
-                    function,
-                    captures,
-                } => {
-                    let target = self
-                        .functions
-                        .get(function.0)
-                        .ok_or_else(|| invalid(span, "invalid closure function ID"))?;
-                    let imported = closure_environment(target).ok_or_else(|| {
-                        invalid(span, "closure target lacks an environment entry")
-                    })?;
-                    if captures.len() != imported.len() {
-                        return Err(invalid(span, "closure environment size mismatch"));
-                    }
-                    for (source, destination) in captures.iter().zip(imported) {
-                        let cell = self.slot(*source, ancestors, span)?;
-                        if !initialized.contains(source)
-                            || target.slots.get(destination.0).is_none_or(|slot| {
-                                slot.ty != cell.ty || slot.mutable != cell.mutable
-                            })
-                        {
-                            return Err(invalid(
-                                span,
-                                "closure capture must be initialized with the environment's type",
-                            ));
-                        }
-                    }
-                    let parameters: Vec<_> = target
-                        .slots
-                        .iter()
-                        .take(target.parameter_count)
-                        .map(|slot| slot.ty)
-                        .collect();
-                    let signature = self
-                        .closure_signatures
-                        .id(&parameters, target.return_type)
-                        .ok_or_else(|| invalid(span, "unknown closure signature"))?;
-                    self.define(*result, Type::Closure(signature), &mut visible, span)?;
-                }
-                Op::ClosureCall {
-                    result,
-                    callee,
-                    arguments,
-                } => {
-                    let Some(Type::Closure(signature)) =
-                        self.function.values.get(callee.0).copied()
-                    else {
-                        return Err(invalid(span, "closure call requires a function value"));
-                    };
-                    self.value(*callee, Type::Closure(signature), &visible, span)?;
-                    let parameter_count = self
-                        .closure_signatures
-                        .parameter_count(signature)
-                        .ok_or_else(|| invalid(span, "unknown closure signature"))?;
-                    if parameter_count != arguments.len() {
-                        return Err(invalid(
-                            span,
-                            "closure argument count does not match signature",
-                        ));
-                    }
-                    for (index, argument) in arguments.iter().enumerate() {
-                        let ty = self
-                            .closure_signatures
-                            .parameter(signature, index)
-                            .expect("checked argument count");
-                        self.value(*argument, ty, &visible, span)?;
-                    }
-                    let result_type = self
-                        .closure_signatures
-                        .result(signature)
-                        .expect("checked signature");
-                    self.define(*result, result_type, &mut visible, span)?;
-                }
-                Op::CaptureCells { cells } => {
-                    for slot in cells {
-                        self.slot(*slot, ancestors, span)?;
-                        if !initialized.contains(slot) {
-                            return Err(invalid(span, "captured slot is not initialized"));
-                        }
-                    }
-                }
-                Op::InlineCall { result, body } => {
+            let next = match (&operation.kind, frame.pending) {
+                (Op::InlineCall { result, body }, PendingRegion::Start) => {
                     let ty = self
                         .function
                         .values
@@ -703,362 +965,254 @@ impl Verifier<'_> {
                             "inline calls require Number or function results",
                         ));
                     }
-                    let outer_return = self.return_type;
-                    self.return_type = ty;
-                    let checked = self.region(
+                    frame.pending = PendingRegion::Inline(ty);
+                    return Ok(RegionCheck::Child(frame.child(
                         body,
                         Contract::Function,
-                        &visible,
-                        &initialized,
-                        ancestors,
                         false,
-                    );
-                    self.return_type = outer_return;
-                    checked?;
-                    self.define(*result, ty, &mut visible, span)?;
+                        ty,
+                    )));
                 }
-                Op::TryCatch {
-                    body,
-                    reason,
-                    handler,
-                } => {
-                    let body_completion = self.region(
-                        body,
-                        Contract::Statement,
-                        &visible,
-                        &initialized,
-                        ancestors,
-                        allow_loop_control,
-                    )?;
-                    let mut caught = visible.clone();
-                    self.define(*reason, Type::General, &mut caught, span)?;
-                    let handler_completion = self.region(
-                        handler,
-                        Contract::Statement,
-                        &caught,
-                        &initialized,
-                        ancestors,
-                        allow_loop_control,
-                    )?;
-                    next = body_completion.caught_by(handler_completion);
+                (Op::InlineCall { result, .. }, PendingRegion::Inline(ty)) => {
+                    completed.take().expect("checked inline body");
+                    self.define(*result, ty, &mut frame.visible, span)?;
+                    Completion::NORMAL
                 }
-                Op::Await { result, input, .. } => {
-                    let ty = self
-                        .function
-                        .values
-                        .get(result.0)
-                        .copied()
-                        .ok_or_else(|| invalid(span, "invalid await result"))?;
-                    if !matches!(ty, Type::Number | Type::General) {
-                        return Err(invalid(span, "await requires Number or General values"));
-                    }
-                    self.value(*input, ty, &visible, span)?;
-                    self.define(*result, ty, &mut visible, span)?;
-                }
-                Op::Nullish { result, .. } => {
-                    self.define(*result, Type::General, &mut visible, span)?;
-                }
-                Op::Call {
-                    result,
-                    function,
-                    arguments,
-                } => {
-                    let target = self
-                        .functions
-                        .get(function.0)
-                        .ok_or_else(|| invalid(span, "invalid callee function ID"))?;
-                    if closure_environment(target).is_some() {
-                        return Err(invalid(
-                            span,
-                            "lifted closures require the closure call ABI",
-                        ));
-                    }
-                    if arguments.len() != target.parameter_count {
-                        return Err(invalid(
-                            span,
-                            "call argument count does not match signature",
-                        ));
-                    }
-                    for argument in arguments {
-                        self.value(*argument, Type::Number, &visible, span)?;
-                    }
-                    let ty = if function.0 == 0 {
-                        self.entry_type
-                    } else {
-                        Type::Number
-                    };
-                    self.define(*result, ty, &mut visible, span)?;
-                }
-                Op::Pack { result, input } => {
-                    let ty = *self
-                        .function
-                        .values
-                        .get(input.0)
-                        .ok_or_else(|| invalid(span, "invalid pack input"))?;
-                    if !matches!(ty, Type::Number | Type::Predicate) {
-                        return Err(invalid(span, "pack requires a scalar input"));
-                    }
-                    self.value(*input, ty, &visible, span)?;
-                    self.define(*result, Type::General, &mut visible, span)?;
-                }
-                Op::Not { result, input } => {
-                    self.value(*input, Type::Predicate, &visible, span)?;
-                    self.define(*result, Type::Predicate, &mut visible, span)?;
-                }
-                Op::Boolean { result, .. } => {
-                    self.define(*result, Type::Predicate, &mut visible, span)?
-                }
-                Op::DoWhile { body, condition } => {
-                    next = self
-                        .region(
-                            body,
-                            Contract::Statement,
-                            &visible,
-                            &initialized,
-                            ancestors,
-                            true,
-                        )?
-                        .do_loop();
-                    // The condition is a sibling and is checked even when the
-                    // first body entry guarantees a function return.
-                    self.region(
-                        condition,
-                        Contract::Yield(Type::Predicate),
-                        &visible,
-                        &initialized,
-                        ancestors,
-                        false,
-                    )?;
-                }
-                Op::Constant { result, .. } => {
-                    self.define(*result, Type::Number, &mut visible, span)?
-                }
-                Op::Load { result, slot } => {
-                    let ty = self.slot(*slot, ancestors, span)?.ty;
-                    if !initialized.contains(slot) {
-                        return Err(invalid(span, "slot is not initialized"));
-                    }
-                    self.define(*result, ty, &mut visible, span)?;
-                }
-                Op::Initialize { slot, value } => {
-                    let cell = self.slot(*slot, ancestors, span)?;
-                    self.value(*value, cell.ty, &visible, span)?;
-                    if cell.owner != region.id || cell.parameter {
-                        return Err(invalid(
-                            span,
-                            "initialization must be in the slot owner's lexical entry",
-                        ));
-                    }
-                    if !initialized.insert(*slot) {
-                        return Err(invalid(span, "slot initialized twice per lexical entry"));
-                    }
-                }
-                Op::Store { slot, value } => {
-                    let cell = self.slot(*slot, ancestors, span)?;
-                    self.value(*value, cell.ty, &visible, span)?;
-                    if !cell.mutable {
-                        return Err(invalid(span, "store to immutable source cell"));
-                    }
-                    if !initialized.contains(slot) {
-                        return Err(invalid(span, "slot is not initialized"));
-                    }
-                }
-                Op::Unary { result, input, .. } => {
-                    self.value(*input, Type::Number, &visible, span)?;
-                    self.define(*result, Type::Number, &mut visible, span)?;
-                }
-                Op::PrimitiveStrictEqual {
-                    result,
-                    left,
-                    right,
-                    ..
-                }
-                | Op::PrimitiveLooseEqual {
-                    result,
-                    left,
-                    right,
-                    ..
-                } => {
-                    self.value(*left, Type::General, &visible, span)?;
-                    self.value(*right, Type::General, &visible, span)?;
-                    self.define(*result, Type::Predicate, &mut visible, span)?;
-                }
-                Op::Binary {
-                    result,
-                    left,
-                    right,
-                    ..
-                }
-                | Op::Compare {
-                    result,
-                    left,
-                    right,
-                    ..
-                } => {
-                    self.value(*left, Type::Number, &visible, span)?;
-                    self.value(*right, Type::Number, &visible, span)?;
-                    let ty = if matches!(operation.kind, Op::Compare { .. }) {
-                        Type::Predicate
-                    } else {
-                        Type::Number
-                    };
-                    self.define(*result, ty, &mut visible, span)?;
-                }
-                Op::NumberFromPredicate { result, input } => {
-                    self.value(*input, Type::Predicate, &visible, span)?;
-                    self.define(*result, Type::Number, &mut visible, span)?;
-                }
-                Op::Truthy { result, input } => {
-                    self.value(*input, Type::Number, &visible, span)?;
-                    self.define(*result, Type::Predicate, &mut visible, span)?;
-                }
-                Op::GeneralTruthy { result, input } => {
-                    self.value(*input, Type::General, &visible, span)?;
-                    self.define(*result, Type::Predicate, &mut visible, span)?;
-                }
-                Op::NumberFromGeneral { result, input } => {
-                    self.value(*input, Type::General, &visible, span)?;
-                    self.define(*result, Type::Number, &mut visible, span)?;
-                }
-                Op::Block(child) => {
-                    next = self.region(
+                (Op::Block(child), PendingRegion::Start) => {
+                    frame.pending = PendingRegion::Block;
+                    return Ok(RegionCheck::Child(frame.child(
                         child,
                         Contract::Statement,
-                        &visible,
-                        &initialized,
-                        ancestors,
-                        allow_loop_control,
-                    )?;
+                        frame.allow_loop_control,
+                        frame.return_type,
+                    )));
                 }
-                Op::If {
-                    result,
-                    condition,
-                    consequent,
-                    alternate,
-                } => {
-                    self.value(*condition, Type::Predicate, &visible, span)?;
+                (Op::Block(_), PendingRegion::Block) => completed.take().expect("checked block"),
+                (
+                    Op::If {
+                        result,
+                        condition,
+                        consequent,
+                        ..
+                    },
+                    PendingRegion::Start,
+                ) => {
+                    self.value(*condition, Type::Predicate, &frame.visible, span)?;
                     let contract = if let Some(result) = result {
-                        let ty = self
-                            .function
-                            .values
-                            .get(result.0)
-                            .copied()
-                            .ok_or_else(|| invalid(span, "invalid if result value ID"))?;
-                        Contract::Yield(ty)
+                        Contract::Yield(
+                            self.function
+                                .values
+                                .get(result.0)
+                                .copied()
+                                .ok_or_else(|| invalid(span, "invalid if result value ID"))?,
+                        )
                     } else {
                         Contract::Statement
                     };
-                    let left = self.region(
+                    frame.pending = PendingRegion::IfConsequent(contract);
+                    return Ok(RegionCheck::Child(frame.child(
                         consequent,
                         contract,
-                        &visible,
-                        &initialized,
-                        ancestors,
-                        allow_loop_control && result.is_none(),
-                    )?;
-                    let right = self.region(
+                        frame.allow_loop_control && result.is_none(),
+                        frame.return_type,
+                    )));
+                }
+                (
+                    Op::If {
+                        result, alternate, ..
+                    },
+                    PendingRegion::IfConsequent(contract),
+                ) => {
+                    let left = completed.take().expect("checked consequent");
+                    frame.pending = PendingRegion::IfAlternate(contract, left);
+                    return Ok(RegionCheck::Child(frame.child(
                         alternate,
                         contract,
-                        &visible,
-                        &initialized,
-                        ancestors,
-                        allow_loop_control && result.is_none(),
-                    )?;
+                        frame.allow_loop_control && result.is_none(),
+                        frame.return_type,
+                    )));
+                }
+                (Op::If { result, .. }, PendingRegion::IfAlternate(contract, left)) => {
+                    let right = completed.take().expect("checked alternate");
                     if let Some(result) = result {
                         let Contract::Yield(ty) = contract else {
-                            unreachable!()
+                            unreachable!("result contract")
                         };
-                        self.define(*result, ty, &mut visible, span)?;
+                        self.define(*result, ty, &mut frame.visible, span)?;
                     }
-                    next = left.union(right);
+                    left.union(right)
                 }
-                Op::While {
-                    condition,
-                    body,
-                    step,
-                } => {
-                    self.region(
+                (Op::TryCatch { body, .. }, PendingRegion::Start) => {
+                    frame.pending = PendingRegion::TryBody;
+                    return Ok(RegionCheck::Child(frame.child(
+                        body,
+                        Contract::Statement,
+                        frame.allow_loop_control,
+                        frame.return_type,
+                    )));
+                }
+                (
+                    Op::TryCatch {
+                        reason, handler, ..
+                    },
+                    PendingRegion::TryBody,
+                ) => {
+                    let body = completed.take().expect("checked protected body");
+                    let mut child = frame.child(
+                        handler,
+                        Contract::Statement,
+                        frame.allow_loop_control,
+                        frame.return_type,
+                    );
+                    self.define(*reason, Type::General, &mut child.visible, span)?;
+                    frame.pending = PendingRegion::TryHandler(body);
+                    return Ok(RegionCheck::Child(child));
+                }
+                (Op::TryCatch { .. }, PendingRegion::TryHandler(body)) => {
+                    body.caught_by(completed.take().expect("checked handler"))
+                }
+                (Op::DoWhile { body, .. }, PendingRegion::Start) => {
+                    frame.pending = PendingRegion::DoBody;
+                    return Ok(RegionCheck::Child(frame.child(
+                        body,
+                        Contract::Statement,
+                        true,
+                        frame.return_type,
+                    )));
+                }
+                (Op::DoWhile { condition, .. }, PendingRegion::DoBody) => {
+                    frame.pending = PendingRegion::DoCondition(
+                        completed.take().expect("checked do body").do_loop(),
+                    );
+                    return Ok(RegionCheck::Child(frame.child(
                         condition,
                         Contract::Yield(Type::Predicate),
-                        &visible,
-                        &initialized,
-                        ancestors,
                         false,
-                    )?;
-                    next = self
-                        .region(
-                            body,
-                            Contract::Statement,
-                            &visible,
-                            &initialized,
-                            ancestors,
-                            true,
-                        )?
-                        .pretest_loop();
-                    // Verify the sibling step even when every body path returns.
+                        frame.return_type,
+                    )));
+                }
+                (Op::DoWhile { .. }, PendingRegion::DoCondition(body)) => {
+                    completed.take().expect("checked do condition");
+                    body
+                }
+                (Op::While { condition, .. }, PendingRegion::Start) => {
+                    frame.pending = PendingRegion::WhileCondition;
+                    return Ok(RegionCheck::Child(frame.child(
+                        condition,
+                        Contract::Yield(Type::Predicate),
+                        false,
+                        frame.return_type,
+                    )));
+                }
+                (Op::While { body, .. }, PendingRegion::WhileCondition) => {
+                    completed.take().expect("checked while condition");
+                    frame.pending = PendingRegion::WhileBody;
+                    return Ok(RegionCheck::Child(frame.child(
+                        body,
+                        Contract::Statement,
+                        true,
+                        frame.return_type,
+                    )));
+                }
+                (Op::While { step, .. }, PendingRegion::WhileBody) => {
+                    let body = completed.take().expect("checked while body").pretest_loop();
                     if let Some(step) = step {
-                        let step_completion = self.region(
+                        frame.pending = PendingRegion::WhileStep(body);
+                        return Ok(RegionCheck::Child(frame.child(
                             step,
                             Contract::Statement,
-                            &visible,
-                            &initialized,
-                            ancestors,
                             false,
-                        )?;
-                        if step_completion != Completion::NORMAL {
-                            return Err(invalid(step.span, "loop step must complete normally"));
-                        }
+                            frame.return_type,
+                        )));
                     }
-                    // Pretest loops do not prove return coverage. This remains
-                    // conservative for a source for loop with an omitted test.
+                    body
                 }
-            }
-            completion = completion.then(next);
+                (Op::While { step, .. }, PendingRegion::WhileStep(body)) => {
+                    if completed.take().expect("checked loop step") != Completion::NORMAL {
+                        return Err(invalid(
+                            step.as_ref().expect("pending loop step").span,
+                            "loop step must complete normally",
+                        ));
+                    }
+                    body
+                }
+                (
+                    Op::InlineCall { .. }
+                    | Op::Block(_)
+                    | Op::If { .. }
+                    | Op::TryCatch { .. }
+                    | Op::DoWhile { .. }
+                    | Op::While { .. },
+                    _,
+                ) => unreachable!("matching region continuation"),
+                (_, PendingRegion::Start) => {
+                    self.operation(
+                        operation,
+                        frame.region.id,
+                        frame.index,
+                        &mut frame.visible,
+                        &mut frame.initialized,
+                        &frame.ancestors,
+                    )?;
+                    Completion::NORMAL
+                }
+                _ => unreachable!("leaf operation has no child continuation"),
+            };
+            frame.completion = frame.completion.then(next);
+            frame.index += 1;
+            frame.pending = PendingRegion::Start;
         }
+        Ok(RegionCheck::Complete(self.finish_region(frame)?))
+    }
+
+    fn finish_region(&self, frame: &RegionFrame<'_>) -> Result<Completion, String> {
+        let region = frame.region;
+        let mut completion = frame.completion;
         for (index, slot) in self.function.slots.iter().enumerate() {
-            if slot.owner == region.id && !initialized.contains(&SlotId(index)) {
+            if slot.owner == region.id && !frame.initialized.contains(&SlotId(index)) {
                 return Err(invalid(
                     slot.span,
                     "owned slot is not initialized on its lexical entry",
                 ));
             }
         }
-        match (contract, region.exit) {
+        match (frame.contract, region.exit) {
             (Contract::Yield(ty), Exit::Yield(value)) if completion == Completion::NORMAL => {
-                self.value(value, ty, &visible, region.span)?
+                self.value(value, ty, &frame.visible, region.span)?
             }
             (Contract::Statement | Contract::Function, Exit::Return(value))
                 if completion.normal =>
             {
-                self.value(value, self.return_type, &visible, region.span)?;
+                self.value(value, frame.return_type, &frame.visible, region.span)?;
                 completion = completion.then(Completion::RETURN);
             }
             (Contract::Statement | Contract::Function, Exit::Throw(value))
-                if completion.normal && self.return_type == Type::General =>
+                if completion.normal && frame.return_type == Type::General =>
             {
-                self.value(value, Type::General, &visible, region.span)?;
+                self.value(value, Type::General, &frame.visible, region.span)?;
                 completion = completion.then(Completion::THROW);
             }
-            (Contract::Statement, Exit::Break) if completion.normal && allow_loop_control => {
-                completion = completion.then(Completion::BREAK);
+            (Contract::Statement, Exit::Break) if completion.normal && frame.allow_loop_control => {
+                completion = completion.then(Completion::BREAK)
             }
-            (Contract::Statement, Exit::Continue) if completion.normal && allow_loop_control => {
-                completion = completion.then(Completion::CONTINUE);
+            (Contract::Statement, Exit::Continue)
+                if completion.normal && frame.allow_loop_control =>
+            {
+                completion = completion.then(Completion::CONTINUE)
             }
             (Contract::Statement | Contract::Function, Exit::Fallthrough) => {}
             _ => return Err(invalid(region.span, "invalid region exit contract")),
         }
-        if matches!(contract, Contract::Function) && !completion.returns_or_throws() {
+        if matches!(frame.contract, Contract::Function) && !completion.returns_or_throws() {
             return Err(invalid(
                 region.span,
-                if self.return_type == Type::General {
+                if frame.return_type == Type::General {
                     "function must return a primitive or throw on every structural path"
                 } else {
                     "function must return a number on every structural path"
                 },
             ));
         }
-        ancestors.pop();
         Ok(completion)
     }
 }
@@ -1215,7 +1369,7 @@ fn verify_function(
         Contract::Function,
         &BTreeSet::new(),
         &initialized,
-        &mut Vec::new(),
+        &[],
         false,
     )?;
     for slot in &function.slots {
