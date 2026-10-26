@@ -62,6 +62,11 @@ fn primitive_awaits_keep_kind_reasons_and_job_order() {
         "let x=await null;const f=()=>{return +x;};return await f();",
         "let x=a;for(let i=0;i<3;i++){x=(await true)?x+b:x;}return x;",
         "let x=true;for(let i=0;i<32;i++)x=await x;return x;",
+        "let x=a;const read=()=>+x;const set=()=>+(x=true);await null;set();await false;return read();",
+        "const flag=a<b;const f=()=>flag?a:b;await true;return f();",
+        "const f=x=>{const g=()=>x;return g();};const x=f(a);await null;return x+f(b);",
+        "let x=await null;const f=()=>+x;x=await true;return f();",
+        "const f=()=>+a;await null;a=await true;return f();",
     ];
     compare_promises(
         &bodies,

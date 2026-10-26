@@ -1674,6 +1674,13 @@ Fresh locals and nested closure metadata belong to that specialization. The body
 has its own loop-control and return-type context, including in primitive or async
 callers; it cannot break the caller's loop or settle the caller's async result.
 
+Actually referenced captures now use stable typed cells in a bounded private
+guest-memory arena. Helpers can return while their cells remain intact; external
+invocations reset the arena and internal recursion preserves it. The async frame
+retains cell pointers across jobs. This adds a storage lifetime prerequisite,
+without admitting returned function values. See [captured cells](captured-cells.md)
+for layout, the 1 MiB bound, reclamation and remaining environment work.
+
 The original source limits still count source locals/statements. Generated arrow
 parameter slots do not consume the source-local quota. Separate generation limits
 allow at most 256 arrow-call expansions per function and at most 128 nested

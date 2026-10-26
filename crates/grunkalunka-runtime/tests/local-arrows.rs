@@ -8,6 +8,12 @@ use std::{
 #[test]
 fn local_arrows_share_cells_and_preserve_call_semantics_in_both_engines() {
     let cases: &[(&str, f64)] = &[
+        ("const flag=a<b;const f=()=>flag?a:b;return f();", 2.0),
+        ("const f=()=>+a;a=true;return f();", 1.0),
+        (
+            "const f=()=>{const unused=()=>a;a=b;return a;};return f()+a;",
+            4.0,
+        ),
         ("const read=()=>a; a=b; return read();", 2.0),
         (
             "let x=a; const read=()=>x; const add=()=>x+=b; add(); return read();",
@@ -154,6 +160,7 @@ fn local_arrows_share_cells_and_preserve_call_semantics_in_both_engines() {
 fn unsupported_closure_lifetimes_and_call_shapes_remain_explicit() {
     for body in [
         "const f=()=>a; return f;",
+        "const make=x=>()=>++x;const f=make(a),g=make(b);return f()*100+f()*10+g();",
         "let f=()=>a; return f();",
         "const f=async()=>a; return f();",
         "const f=()=>{if(a)return b;}; return f();",

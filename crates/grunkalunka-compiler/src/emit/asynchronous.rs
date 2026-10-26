@@ -1,6 +1,7 @@
 //! Split verified regions into a switched-resume coroutine. The frame currently
-//! conservatively keeps every source cell and value snapshot in instance globals.
-use super::{Emitter, NUMBER_REMAINDER};
+//! conservatively keeps source locals, captured-cell pointers and snapshots in
+//! instance globals; captured cell contents live in the invocation's guest arena.
+use super::{Emitter, NUMBER_REMAINDER, cells};
 use crate::ir::{self, Exit, Op, Region, Type, ValueId};
 use std::fmt::Write;
 
@@ -270,10 +271,15 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             Type::General => types.extend(["i32", "f64"]),
         }
     }
+    let mut offset = types.len();
+    let cell_offsets = cells::offsets(function, &mut offset);
+    let has_cells = offset != types.len();
+    types.resize(offset, "i32");
     let mut emitter = Emitter {
         function,
         slot_offsets: offsets[..function.slots.len()].to_vec(),
         value_offsets: offsets[function.slots.len()..].to_vec(),
+        cell_offsets,
         output: String::new(),
         loop_label: None,
         inline_return: None,
@@ -282,6 +288,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     let mut output = String::from("(module\n");
     for ty in types {
         writeln!(output, "(global (mut {ty}) ({ty}.const 0))").unwrap();
+    }
+    if has_cells {
+        output.push_str(cells::MEMORY);
     }
     output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\nblock $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
@@ -293,7 +302,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         write!(output, " $state{id}").unwrap();
     }
     output.push_str(" $invalid\n");
-    for state in split.states.iter().rev() {
+    for (id, state) in split.states.iter().enumerate().rev() {
         output.push_str("end\n");
         if let Some(value) = state.resumed {
             if function.values[value.0] == Type::General {
@@ -311,6 +320,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                     + usize::from(function.values[value.0] == Type::General)
             )
             .unwrap();
+        }
+        if id == fresh {
+            emitter.init_cell_parameters();
         }
         emitter.operations(state.operations);
         // Atomic emission only reads/writes numeric-indexed locals. Private
@@ -385,6 +397,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     );
     if emitter.needs_remainder {
         output.push_str(NUMBER_REMAINDER);
+    }
+    if has_cells {
+        output.push_str(cells::ALLOCATOR);
     }
     output.push_str(")\n");
     Ok(output)

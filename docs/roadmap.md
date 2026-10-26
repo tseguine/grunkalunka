@@ -491,3 +491,6 @@ escaping environments, recursive closures and general Promise interoperability r
 See [the contract](compiler.md#local-arrow-calls-and-shared-captures).
 Block bodies add a scoped numeric return boundary, preserving caller suffixes,
 captured writes, locals and loop control. Escaping environments still require work.
+Stable captured-cell addresses now survive helper return and suspension within
+one invocation. Function records, lifted bodies, indirect calls and escaping
+per-iteration environments remain subsequent work; see [storage](captured-cells.md).

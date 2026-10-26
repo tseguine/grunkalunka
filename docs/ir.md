@@ -35,7 +35,7 @@ be written; shadowed references use semantic identity rather than spelling.
 
 Module-wide statement/local budgets survive lowering each function. Added helper
 declarations and every body/directive count once; generated calls/regions do not
-add source statements. Single-function modules retain their original artifact
+add source statements. Single-function modules without captures retain their original artifact
 bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 ## Source cells and computed values
@@ -49,6 +49,12 @@ Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.
 A loop body may enter its region repeatedly and initialize those cells on each
 entry. Stores require an initialized, mutable cell.
+
+`CaptureCells` marks initialized, lexically visible slots that need stable
+addresses. It produces no value and executes no source effect. The emitter boxes
+those slots at their existing initialization points; the marker itself emits no
+instruction. See [captured cell storage](captured-cells.md). Source function zero
+retains its internal call index; modules with captures export a reset wrapper.
 
 A declaration may initialize several numeric bindings. Lowering appends each
 initializer and its `Initialize` in source order, exposing that binding only after

@@ -582,7 +582,8 @@ impl Lowering<'_, '_> {
             {
                 // An alias reuses an already validated source body and its cost.
                 if closure.symbol.is_none() {
-                    self.check_local_closure(&closure)?;
+                    self.check_local_closure(&mut closure)?;
+                    self.capture_cells(&closure, region);
                 }
                 closure.symbol = Some(
                     identifier

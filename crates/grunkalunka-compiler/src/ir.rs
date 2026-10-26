@@ -96,8 +96,67 @@ pub(crate) enum Nullish {
     Null,
 }
 
+pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
+    for operation in &region.operations {
+        visit(&operation.kind);
+        match &operation.kind {
+            Op::InlineCall { body, .. } | Op::Block(body) => visit_operations(body, visit),
+            Op::If {
+                consequent,
+                alternate,
+                ..
+            } => {
+                visit_operations(consequent, visit);
+                visit_operations(alternate, visit);
+            }
+            Op::While {
+                condition,
+                body,
+                step,
+            } => {
+                visit_operations(condition, visit);
+                visit_operations(body, visit);
+                if let Some(step) = step {
+                    visit_operations(step, visit);
+                }
+            }
+            Op::DoWhile { body, condition } => {
+                visit_operations(body, visit);
+                visit_operations(condition, visit);
+            }
+            _ => (),
+        }
+    }
+}
+
+pub(crate) fn captured_cells(region: &Region) -> BTreeSet<SlotId> {
+    let mut cells = BTreeSet::new();
+    visit_operations(region, &mut |op| {
+        if let Op::CaptureCells { cells: captured } = op {
+            cells.extend(captured);
+        }
+    });
+    cells
+}
+
+pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
+    let mut cells = BTreeSet::new();
+    visit_operations(region, &mut |op| match op {
+        Op::Load { slot, .. } | Op::Store { slot, .. } => {
+            cells.insert(*slot);
+        }
+        Op::CaptureCells { cells: captured } => cells.extend(captured),
+        _ => (),
+    });
+    cells
+}
+
 #[derive(Debug)]
 pub(crate) enum Op {
+    // Storage metadata: these initialized lexical cells need stable addresses.
+    CaptureCells {
+        cells: Vec<SlotId>,
+    },
     InlineCall {
         result: ValueId,
         body: Region,
@@ -392,6 +451,14 @@ impl Verifier<'_> {
             }
             let mut next = Completion::NORMAL;
             match &operation.kind {
+                Op::CaptureCells { cells } => {
+                    for slot in cells {
+                        self.slot(*slot, ancestors, span)?;
+                        if !initialized.contains(slot) {
+                            return Err(invalid(span, "captured slot is not initialized"));
+                        }
+                    }
+                }
                 Op::InlineCall { result, body } => {
                     let outer_return = self.return_type;
                     self.return_type = Type::Number;
@@ -2990,7 +3057,14 @@ mod inline_call_tests {
             let mut module = crate::lower_source(source, false).unwrap();
             verify_module(&module).unwrap();
             let function = &mut module.functions[0];
-            let Op::InlineCall { result, body } = &mut function.body.operations[0].kind else {
+            let Op::InlineCall { result, body } = &mut function
+                .body
+                .operations
+                .iter_mut()
+                .find(|operation| matches!(operation.kind, Op::InlineCall { .. }))
+                .unwrap()
+                .kind
+            else {
                 panic!("inline call")
             };
             let result = *result;
@@ -3036,6 +3110,37 @@ mod await_value_tests {
                 _ => f.values[result.0] = Type::Predicate,
             }
             assert!(verify_module_with_entry_type(&module, Type::General).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod capture_cell_tests {
+    use super::*;
+
+    #[test]
+    fn capture_metadata_requires_initialized_lexically_visible_slots() {
+        let source = "export function run(a,b){let x=a;const f=()=>x;return f();}";
+        for change in 0..3 {
+            let mut module = crate::lower_source(source, false).unwrap();
+            verify_module(&module).unwrap();
+            let function = &mut module.functions[0];
+            let index = function
+                .body
+                .operations
+                .iter()
+                .position(|op| matches!(op.kind, Op::CaptureCells { .. }))
+                .unwrap();
+            let Op::CaptureCells { cells } = &mut function.body.operations[index].kind else {
+                unreachable!()
+            };
+            let slot = cells[0];
+            match change {
+                0 => cells[0] = SlotId(usize::MAX),
+                1 => function.slots[slot.0].owner = RegionId(usize::MAX),
+                _ => function.body.operations.swap(0, index),
+            }
+            assert!(verify_module(&module).is_err(), "mutation {change}");
         }
     }
 }

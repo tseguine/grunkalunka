@@ -966,12 +966,13 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
-                        && let Some(closure) = self.closure_target(&call.callee, depth + 1)
+                        && let Some(mut closure) = self.closure_target(&call.callee, depth + 1)
                     {
                         let arrow = self.arrow(closure.arrow);
                         self.check_arrow(arrow)?;
                         if closure.symbol.is_none() {
-                            self.check_local_closure(&closure)?;
+                            self.check_local_closure(&mut closure)?;
+                            self.capture_cells(&closure, regions.current());
                         }
                         if call.optional || call.type_arguments.is_some() {
                             return Err(unsupported(

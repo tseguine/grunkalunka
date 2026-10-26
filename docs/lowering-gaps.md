@@ -579,3 +579,9 @@ captures and async arrows remain known work despite these two promotions. Numeri
 block-arrow bodies now have scoped early returns, statements and loops, tested in
 both synchronous and async callers; this does not add escaping function values.
 See [the bounded contract](compiler.md#local-arrow-calls-and-shared-captures).
+
+Captured bindings now have stable addresses in a bounded per-invocation arena,
+including across helper return and async suspension. This storage prerequisite
+does not promote any additional rejection source or admit escaping function
+records/calls. Their lifetime and source-level admission remain open; see
+[captured cells](captured-cells.md).

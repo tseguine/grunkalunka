@@ -145,7 +145,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         Ok(())
     }
 
-    pub(super) fn check_local_closure(&mut self, closure: &LocalClosure) -> Result<(), String> {
+    pub(super) fn check_local_closure(&mut self, closure: &mut LocalClosure) -> Result<(), String> {
         let arrow = self.arrow(closure.arrow);
         self.check_arrow(arrow)?;
         // Validate unused bodies too, without running effects or publishing their
@@ -170,13 +170,35 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if let Some(expression) = arrow.get_expression() {
             check.evaluate(expression, &mut region, 0, evaluate::Mode::Number)?;
         } else {
-            check.arrow_block(arrow, 0)?;
+            region = check.arrow_block(arrow, 0)?;
         }
+        // Include transitive references recorded by nested (even unused) arrows,
+        // but exclude unrelated bindings and erased type-only references.
+        let referenced = crate::ir::referenced_cells(&region);
+        closure
+            .captures
+            .retain(|binding| referenced.contains(&binding.slot));
         // Source body costs are paid at its definition (including unused bodies),
         // never once per generated specialization.
         self.local_count = check.local_count;
         self.statement_count = check.statement_count;
         Ok(())
+    }
+
+    pub(super) fn capture_cells(&self, closure: &LocalClosure, region: &mut Region) {
+        if !closure.captures.is_empty() {
+            Self::push(
+                region,
+                self.arrow(closure.arrow),
+                Op::CaptureCells {
+                    cells: closure
+                        .captures
+                        .iter()
+                        .map(|binding| binding.slot)
+                        .collect(),
+                },
+            );
+        }
     }
 
     pub(super) fn arrow_block(

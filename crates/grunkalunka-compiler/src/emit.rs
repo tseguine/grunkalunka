@@ -3,6 +3,7 @@
 use std::fmt::Write;
 
 mod asynchronous;
+mod cells;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -55,6 +56,7 @@ struct Emitter<'a> {
     function: &'a Function,
     slot_offsets: Vec<usize>,
     value_offsets: Vec<usize>,
+    cell_offsets: Vec<Option<usize>>,
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
     loop_label: Option<usize>,
@@ -90,6 +92,7 @@ impl Emitter<'_> {
     fn operations(&mut self, operations: &[ir::Operation]) {
         for operation in operations {
             match &operation.kind {
+                Op::CaptureCells { .. } => (),
                 Op::InlineCall { result, body } => {
                     let outer = self.inline_return.replace(body.id.0);
                     writeln!(self.output, "block $call{} (result f64)", body.id.0).unwrap();
@@ -166,6 +169,11 @@ impl Emitter<'_> {
                     self.set(*result);
                 }
                 Op::Load { result, slot } => {
+                    if let Some(pointer) = self.cell_offsets[slot.0] {
+                        self.load_cell(*slot, pointer);
+                        self.set(*result);
+                        continue;
+                    }
                     let offset = self.slot_offsets[slot.0];
                     writeln!(self.output, "local.get {offset}").unwrap();
                     if self.function.slots[slot.0].ty == Type::General {
@@ -174,6 +182,15 @@ impl Emitter<'_> {
                     self.set(*result);
                 }
                 Op::Initialize { slot, value } | Op::Store { slot, value } => {
+                    if let Some(pointer) = self.cell_offsets[slot.0] {
+                        self.store_cell(
+                            *slot,
+                            *value,
+                            pointer,
+                            matches!(operation.kind, Op::Initialize { .. }),
+                        );
+                        continue;
+                    }
                     self.get(*value);
                     let offset = self.slot_offsets[slot.0];
                     if self.function.slots[slot.0].ty == Type::General {
@@ -448,9 +465,16 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         return Err("await IR requires the async emitter".into());
     }
     let mut output = String::from("(module ");
+    let has_cells = module
+        .functions
+        .iter()
+        .any(|f| !ir::captured_cells(&f.body).is_empty());
+    if has_cells {
+        output.push_str(cells::MEMORY);
+    }
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
-        let mut header = if index == 0 {
+        let mut header = if index == 0 && !has_cells {
             String::from("(func (export \"run\")")
         } else {
             String::from("(func")
@@ -486,10 +510,12 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
                 current
             })
             .collect();
+        let cell_offsets = cells::offsets(function, &mut offset);
         let mut emitter = Emitter {
             function,
             slot_offsets,
             value_offsets,
+            cell_offsets,
             loop_label: None,
             inline_return: None,
             needs_remainder: false,
@@ -510,6 +536,10 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
                 Type::General => "(local i32 f64)\n",
             });
         }
+        for _ in emitter.cell_offsets.iter().flatten() {
+            emitter.output.push_str("(local i32)\n");
+        }
+        emitter.init_cell_parameters();
         emitter.region(&function.body);
         needs_remainder |= emitter.needs_remainder;
         // The verifier proved return coverage. This only helps Wasm validation after
@@ -520,6 +550,16 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
     if needs_remainder {
         output.push('\n');
         output.push_str(NUMBER_REMAINDER);
+    }
+    if has_cells {
+        output.push_str(cells::ALLOCATOR);
+        output.push_str("(func (export \"run\") (param f64 f64)");
+        output.push_str(if entry_type == Type::General {
+            " (result i32 f64)\n"
+        } else {
+            " (result f64)\n"
+        });
+        output.push_str("i32.const 0 global.set $cell_top\nlocal.get 0 local.get 1 call 0)\n");
     }
     output.push_str(")\n");
     Ok(output)

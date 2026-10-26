@@ -509,3 +509,7 @@ capture slice; escaping/recursive closures and async still require further work.
 Numeric block-arrow bodies now support statements, loops and early returns through
 a scoped call region, including in primitive and async callers. This extends L5's
 local slice; function-value lifetime and general Promise semantics remain open.
+Captured bindings now use a bounded guest-memory arena with stable addresses
+across helper return and async suspension. This is an L5 storage prerequisite;
+returnable function records and their invocation remain open. Corpus counts are
+unchanged. See [captured cells](captured-cells.md).

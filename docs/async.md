@@ -45,6 +45,10 @@ This follows the frame/state-index approach described by
 It does not depend on LLVM. The frame conservatively retains every typed cell and
 snapshot; spilling only values live across suspension is a later optimization.
 
+Captured bindings additionally use [addressable guest cells](captured-cells.md).
+The frame retains their pointers across jobs; parameter cells initialize only
+on the fresh state. Each instance owns its arena for the invocation's lifetime.
+
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
 status 1 suspends on a fulfilled primitive; status 2 suspends on a rejected
