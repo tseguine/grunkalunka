@@ -1,41 +1,7 @@
-//! A separate explicit cursor for function-value constructors and assignments. Numeric
-//! conditions/arguments finish in their cursor before construction continues.
+//! Effect-free function signature queries and constructor/call leaves for the
+//! shared typed evaluator. Queries never execute source arguments or conditions.
 use super::*;
 use std::collections::BTreeMap;
-
-enum Work<'e, 'a> {
-    Eval(&'e Expression<'a>, usize),
-    Consequent {
-        node: &'e Expression<'a>,
-        condition: ValueId,
-        alternate: &'e Expression<'a>,
-        depth: usize,
-    },
-    Alternate {
-        node: &'e Expression<'a>,
-        condition: ValueId,
-        consequent: Region,
-    },
-    Store {
-        node: &'e Expression<'a>,
-        slot: SlotId,
-    },
-}
-
-struct Regions<'r> {
-    root: &'r mut Region,
-    children: Vec<Region>,
-}
-impl Regions<'_> {
-    fn current(&mut self) -> &mut Region {
-        self.children.last_mut().unwrap_or(self.root)
-    }
-    fn finish(&mut self, value: ValueId) -> Region {
-        let mut region = self.children.pop().expect("function child region");
-        region.exit = Exit::Yield(value);
-        region
-    }
-}
 
 impl Lowering<'_, '_> {
     pub(super) fn arrow_signature(
@@ -107,7 +73,7 @@ impl Lowering<'_, '_> {
         self.function_value(expression, region, arity, depth)
     }
 
-    fn function_assignment_target(
+    pub(super) fn function_assignment_target(
         &self,
         assignment: &oxc_ast::ast::AssignmentExpression<'_>,
         depth: usize,
@@ -311,215 +277,44 @@ impl Lowering<'_, '_> {
             ));
         }
         self.active_function_values += 1;
-        let result = self.function_value_inner(expression, region, arity, depth);
+        let result = self
+            .evaluate(expression, region, depth, evaluate::Mode::Function(arity))
+            .map(|value| value.expect("function evaluation result"));
         self.active_function_values -= 1;
         result
     }
 
-    fn function_value_inner(
+    pub(super) fn function_value_leaf(
         &mut self,
-        expression: &Expression<'_>,
+        node: &Expression<'_>,
         region: &mut Region,
         arity: usize,
         depth: usize,
     ) -> Result<ValueId, String> {
-        let mut regions = Regions {
-            root: region,
-            children: Vec::new(),
-        };
-        let mut work = vec![Work::Eval(expression, depth)];
-        let mut values = Vec::new();
-        while let Some(task) = work.pop() {
-            match task {
-                Work::Eval(node, depth) => {
-                    let context =
-                        (self.inline_depth + self.statement_depth).max(self.function_result_depth);
-                    let nesting = context + regions.children.len();
-                    if nesting > 128 {
-                        return Err(unsupported(
-                            node,
-                            "function-value expansion exceeds 128 aggregate nested regions",
-                        ));
-                    }
-                    if depth > 128 {
-                        return Err(unsupported(
-                            node,
-                            "expression nesting exceeds this experiment's limit",
-                        ));
-                    }
-                    if let Some(inner) = erased_inner(node) {
-                        work.push(Work::Eval(inner, depth + 1));
-                        continue;
-                    }
-                    match node {
-                        Expression::ParenthesizedExpression(wrapper) => {
-                            work.push(Work::Eval(&wrapper.expression, depth + 1))
-                        }
-                        Expression::ConditionalExpression(conditional) => {
-                            let outer = self.function_result_depth;
-                            self.function_result_depth = nesting;
-                            let condition =
-                                self.predicate(&conditional.test, regions.current(), depth + 1);
-                            self.function_result_depth = outer;
-                            let condition = condition?;
-                            work.push(Work::Consequent {
-                                node,
-                                condition,
-                                alternate: &conditional.alternate,
-                                depth: depth + 1,
-                            });
-                            regions.children.push(self.region(&conditional.consequent));
-                            work.push(Work::Eval(&conditional.consequent, depth + 1));
-                        }
-                        Expression::SequenceExpression(sequence) => {
-                            let (last, preceding) = sequence
-                                .expressions
-                                .split_last()
-                                .ok_or("empty function sequence")?;
-                            for item in preceding {
-                                let outer = self.function_result_depth;
-                                self.function_result_depth = nesting;
-                                let discarded = self.discarded(item, regions.current(), depth + 1);
-                                self.function_result_depth = outer;
-                                discarded?;
-                            }
-                            work.push(Work::Eval(last, depth + 1));
-                        }
-                        Expression::AssignmentExpression(assignment) => {
-                            let (binding, actual) = self.function_assignment_target(assignment, depth)
-                                .ok_or_else(|| unsupported(node, "function assignment requires an initialized function binding"))?;
-                            if !binding.mutable {
-                                return Err(unsupported(
-                                    node,
-                                    "assignment to a const binding is not admitted",
-                                ));
-                            }
-                            if assignment.operator != AssignmentOperator::Assign || actual != arity
-                            {
-                                return Err(unsupported(
-                                    node,
-                                    "function assignment requires plain = with unchanged arity",
-                                ));
-                            }
-                            work.push(Work::Store {
-                                node,
-                                slot: binding.slot,
-                            });
-                            work.push(Work::Eval(&assignment.right, depth + 1));
-                        }
-                        Expression::CallExpression(call) => {
-                            let outer = self.function_result_depth;
-                            self.function_result_depth = nesting;
-                            let result = (|| {
-                                if self.closure_target(&call.callee, depth + 1).is_none() {
-                                    self.runtime_function_result(
-                                        call,
-                                        regions.current(),
-                                        arity,
-                                        depth,
-                                    )
-                                } else if let Some(closure) =
-                                    self.factory_result(node, regions.current(), depth)?
-                                {
-                                    self.materialize_closure(
-                                        closure,
-                                        regions.current(),
-                                        node,
-                                        arity,
-                                    )
-                                } else {
-                                    self.local_function_result(
-                                        call,
-                                        regions.current(),
-                                        arity,
-                                        depth,
-                                    )
-                                }
-                            })();
-                            self.function_result_depth = outer;
-                            values.push(result?);
-                        }
-                        _ => {
-                            if let Some((slot, actual)) = self.runtime_closure_callee(node, depth) {
-                                if actual != arity {
-                                    return Err(unsupported(node, "function value arity mismatch"));
-                                }
-                                let result = self.value(Type::Closure(arity));
-                                Self::push(regions.current(), node, Op::Load { result, slot });
-                                values.push(result);
-                            } else {
-                                let closure = match self.closure_target(node, depth) {
-                                    Some(closure) => closure,
-                                    None => self
-                                        .factory_result(node, regions.current(), depth)?
-                                        .ok_or_else(|| {
-                                            unsupported(
-                                                node,
-                                                "expected a known function constructor",
-                                            )
-                                        })?,
-                                };
-                                values.push(self.materialize_closure(
-                                    closure,
-                                    regions.current(),
-                                    node,
-                                    arity,
-                                )?);
-                            }
-                        }
-                    }
-                }
-                Work::Consequent {
-                    node,
-                    condition,
-                    alternate,
-                    depth,
-                } => {
-                    let consequent = regions.finish(values.pop().expect("function consequent"));
-                    work.push(Work::Alternate {
-                        node,
-                        condition,
-                        consequent,
-                    });
-                    regions.children.push(self.region(alternate));
-                    work.push(Work::Eval(alternate, depth));
-                }
-                Work::Alternate {
-                    node,
-                    condition,
-                    consequent,
-                } => {
-                    let alternate = regions.finish(values.pop().expect("function alternate"));
-                    let result = self.value(Type::Closure(arity));
-                    Self::push(
-                        regions.current(),
-                        node,
-                        Op::If {
-                            result: Some(result),
-                            condition,
-                            consequent,
-                            alternate,
-                        },
-                    );
-                    values.push(result);
-                }
-                Work::Store { node, slot } => {
-                    // Store the RHS snapshot, then retain it as the assignment's
-                    // result; a subsequent write cannot change an existing alias.
-                    Self::push(
-                        regions.current(),
-                        node,
-                        Op::Store {
-                            slot,
-                            value: *values.last().expect("function assignment RHS"),
-                        },
-                    );
-                }
+        if let Expression::CallExpression(call) = node {
+            if self.closure_target(&call.callee, depth + 1).is_none() {
+                self.runtime_function_result(call, region, arity, depth)
+            } else if let Some(closure) = self.factory_result(node, region, depth)? {
+                self.materialize_closure(closure, region, node, arity)
+            } else {
+                self.local_function_result(call, region, arity, depth)
             }
+        } else if let Some((slot, actual)) = self.runtime_closure_callee(node, depth) {
+            if actual != arity {
+                return Err(unsupported(node, "function value arity mismatch"));
+            }
+            let result = self.value(Type::Closure(arity));
+            Self::push(region, node, Op::Load { result, slot });
+            Ok(result)
+        } else {
+            let closure = match self.closure_target(node, depth) {
+                Some(closure) => closure,
+                None => self
+                    .factory_result(node, region, depth)?
+                    .ok_or_else(|| unsupported(node, "expected a known function constructor"))?,
+            };
+            self.materialize_closure(closure, region, node, arity)
         }
-        assert!(regions.children.is_empty());
-        assert_eq!(values.len(), 1);
-        Ok(values.pop().unwrap())
     }
 
     fn runtime_function_result(

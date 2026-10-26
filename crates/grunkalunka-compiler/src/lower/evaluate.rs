@@ -1,4 +1,4 @@
-//! Explicit control for the complete Number/Predicate/Discard/operand component.
+//! Explicit control for Number/Predicate/General/Function/Discard evaluation.
 //! Requests borrow original AST nodes. Only this cursor owns unfinished regions;
 //! continuations own completed children until their parent operation is emitted.
 use super::*;
@@ -10,6 +10,7 @@ pub(super) enum Mode {
     Discard,
     Arithmetic,
     General,
+    Function(usize),
 }
 
 #[derive(Clone, Copy)]
@@ -17,11 +18,12 @@ enum Value {
     Number(ValueId),
     Predicate(ValueId),
     General(ValueId),
+    Function(ValueId),
 }
 impl Value {
     fn id(self) -> ValueId {
         match self {
-            Self::Number(id) | Self::Predicate(id) | Self::General(id) => id,
+            Self::Number(id) | Self::Predicate(id) | Self::General(id) | Self::Function(id) => id,
         }
     }
     fn general(self) -> ValueId {
@@ -118,6 +120,10 @@ enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         slot: SlotId,
     },
+    StoreFunction {
+        node: &'e Expression<'a>,
+        slot: SlotId,
+    },
     Assign {
         node: &'e Expression<'a>,
         slot: SlotId,
@@ -196,6 +202,41 @@ enum Work<'e, 'a> {
 fn predicate_number<'e, 'a>(work: &mut Vec<Work<'e, 'a>>, node: &'e Expression<'a>, depth: usize) {
     work.push(Work::Convert(node));
     work.push(Work::Eval(node, depth, Mode::Predicate));
+}
+
+// Selection has one traversal and one set of region-owning continuations for
+// every admitted result kind. Constructor/call semantics remain typed leaves.
+fn schedule_selection<'e, 'a>(
+    work: &mut Vec<Work<'e, 'a>>,
+    node: &'e Expression<'a>,
+    depth: usize,
+    mode: Mode,
+) -> Result<bool, String> {
+    match node {
+        Expression::SequenceExpression(sequence) => {
+            let (last, preceding) = sequence.expressions.split_last().ok_or_else(|| {
+                unsupported(sequence.as_ref(), "comma expression must have an operand")
+            })?;
+            work.push(Work::Sequence {
+                remaining: preceding,
+                last,
+                depth: depth + 1,
+                mode,
+            });
+        }
+        Expression::ConditionalExpression(conditional) => {
+            work.push(Work::Condition {
+                node,
+                consequent: &conditional.consequent,
+                alternate: &conditional.alternate,
+                depth: depth + 1,
+                mode,
+            });
+            work.push(Work::Eval(&conditional.test, depth + 1, Mode::Predicate));
+        }
+        _ => return Ok(false),
+    }
+    Ok(true)
 }
 
 impl Lowering<'_, '_> {
@@ -675,6 +716,16 @@ impl Lowering<'_, '_> {
                         Value::Number(result)
                     });
                 }
+                Work::StoreFunction { node, slot } => {
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Store {
+                            slot,
+                            value: values.last().expect("function assignment RHS").id(),
+                        },
+                    );
+                }
                 Work::StoreGeneral { node, slot } => {
                     let value = values.pop().expect("General assignment RHS");
                     let stored = match value {
@@ -684,7 +735,9 @@ impl Lowering<'_, '_> {
                             Self::push(regions.current(), node, Op::Pack { result, input });
                             result
                         }
-                        Value::Predicate(_) => unreachable!("typed General assignment RHS"),
+                        Value::Predicate(_) | Value::Function(_) => {
+                            unreachable!("typed General assignment RHS")
+                        }
                     };
                     Self::push(
                         regions.current(),
@@ -868,6 +921,7 @@ impl Lowering<'_, '_> {
                     let ty = match mode {
                         Mode::General => Type::General,
                         Mode::Predicate => Type::Predicate,
+                        Mode::Function(signature) => Type::Closure(signature),
                         _ => Type::Number,
                     };
                     let result = self.value(ty);
@@ -885,7 +939,7 @@ impl Lowering<'_, '_> {
                         Type::General => Value::General(result),
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
-                        Type::Closure(_) => unreachable!("function values use their own cursor"),
+                        Type::Closure(_) => Value::Function(result),
                     });
                 }
                 Work::LogicalLeft {
@@ -912,6 +966,9 @@ impl Lowering<'_, '_> {
                             let result = self.value(Type::Predicate);
                             Self::push(regions.current(), node, Op::Truthy { result, input });
                             result
+                        }
+                        Value::Function(_) => {
+                            unreachable!("function logical results are not admitted")
                         }
                     };
                     regions.children.push(self.region(right));
@@ -945,6 +1002,7 @@ impl Lowering<'_, '_> {
                     let ty = match mode {
                         Mode::General => Type::General,
                         Mode::Predicate => Type::Predicate,
+                        Mode::Function(signature) => Type::Closure(signature),
                         _ => Type::Number,
                     };
                     let result = self.value(ty);
@@ -962,7 +1020,7 @@ impl Lowering<'_, '_> {
                         Type::General => Value::General(result),
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
-                        Type::Closure(_) => unreachable!("function values use their own cursor"),
+                        Type::Closure(_) => Value::Function(result),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
@@ -1006,7 +1064,9 @@ impl Lowering<'_, '_> {
                     }
                 }
                 Work::Eval(node, depth, mode) => {
-                    if (self.active_block_calls != 0 || self.function_result_depth != 0)
+                    if (self.active_block_calls != 0
+                        || self.function_result_depth != 0
+                        || self.active_function_values != 0)
                         && (self.inline_depth + self.statement_depth)
                             .max(self.function_result_depth)
                             + regions.children.len()
@@ -1014,7 +1074,11 @@ impl Lowering<'_, '_> {
                     {
                         return Err(unsupported(
                             node,
-                            if self.function_result_depth != 0 {
+                            if matches!(mode, Mode::Function(_)) {
+                                "function-value expansion exceeds 128 aggregate nested regions"
+                            } else if self.function_result_depth != 0
+                                || self.active_function_values != 0
+                            {
                                 "local function-value expansion exceeds 128 nested regions"
                             } else {
                                 "block-arrow expansion exceeds 128 nested regions"
@@ -1043,6 +1107,46 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if let Mode::Function(signature) = mode {
+                        if schedule_selection(&mut work, node, depth, mode)? {
+                            continue;
+                        }
+                        if let Expression::AssignmentExpression(assignment) = node {
+                            let (binding, actual) = self.function_assignment_target(assignment, depth)
+                                .ok_or_else(|| unsupported(node, "function assignment requires an initialized function binding"))?;
+                            if !binding.mutable {
+                                return Err(unsupported(
+                                    node,
+                                    "assignment to a const binding is not admitted",
+                                ));
+                            }
+                            if assignment.operator != AssignmentOperator::Assign
+                                || actual != signature
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "function assignment requires plain = with unchanged arity",
+                                ));
+                            }
+                            work.push(Work::StoreFunction {
+                                node,
+                                slot: binding.slot,
+                            });
+                            work.push(Work::Eval(&assignment.right, depth + 1, mode));
+                            continue;
+                        }
+                        let outer = self.function_result_depth;
+                        if matches!(node, Expression::CallExpression(_)) {
+                            self.function_result_depth = (self.inline_depth + self.statement_depth)
+                                .max(outer)
+                                + regions.children.len();
+                        }
+                        let result =
+                            self.function_value_leaf(node, regions.current(), signature, depth);
+                        self.function_result_depth = outer;
+                        values.push(Value::Function(result?));
                         continue;
                     }
                     if matches!(mode, Mode::Predicate)
@@ -1396,6 +1500,9 @@ impl Lowering<'_, '_> {
                             continue;
                         }
                     }
+                    if schedule_selection(&mut work, node, depth, mode)? {
+                        continue;
+                    }
                     match node {
                         Expression::LogicalExpression(logical) => {
                             if logical.operator == LogicalOperator::Coalesce {
@@ -1413,31 +1520,6 @@ impl Lowering<'_, '_> {
                                 mode,
                             });
                             work.push(Work::Eval(&logical.left, depth + 1, mode));
-                        }
-                        Expression::SequenceExpression(sequence) => {
-                            let (last, preceding) =
-                                sequence.expressions.split_last().ok_or_else(|| {
-                                    unsupported(
-                                        sequence.as_ref(),
-                                        "comma expression must have an operand",
-                                    )
-                                })?;
-                            work.push(Work::Sequence {
-                                remaining: preceding,
-                                last,
-                                depth: depth + 1,
-                                mode,
-                            });
-                        }
-                        Expression::ConditionalExpression(conditional) => {
-                            work.push(Work::Condition {
-                                node,
-                                consequent: &conditional.consequent,
-                                alternate: &conditional.alternate,
-                                depth: depth + 1,
-                                mode,
-                            });
-                            work.push(Work::Eval(&conditional.test, depth + 1, Mode::Predicate));
                         }
                         Expression::NumericLiteral(literal) => {
                             let result = self.value(Type::Number);

@@ -106,3 +106,29 @@ median new/old ratios 0.888–1.060 against a predeclared 1.20 regression thresh
 Process startup is excluded. Release compilation cost, peak memory and the cost
 of a new semantic extension remain unmeasured. Runtime benchmarks were not rerun
 as evidence of a speedup from byte-identical Wasm.
+
+## Shared selection pilot
+
+The next bounded candidate adds Function(signature) to the existing evaluator
+and removes the separate function-value Work/Regions implementation. Conditional
+and comma selection use the same scheduler and continuations as other value
+kinds; signature facts and constructor/call leaves remain distinct. Full checks
+passed on the badge revision and again on CI revision `57dc490`. Numeric variants,
+primitive artifacts, 919 rejected sources/diagnostics and the 26 focused examples
+retain the same artifact identities as above. A branch-swap mutation broke the
+existing function-selection oracle and restored code passed it again.
+
+The combined two steps passed the calibrated release-compiler screen against
+`f278074`: 13 sources, seven alternating pairs at a common old/new count targeting
+200 ms from the old median; compile-time ratios 0.956–1.104, peak-working-set ratios
+0.985–1.016 against unchanged 1.20 thresholds. The original five-millisecond
+primitive-join screen flagged 1.312; longer batches report 1.048 without production
+changes. Both observations are retained, not a claim of universally unchanged
+compilation cost. [ADR 0016](adr/0016-shared-function-selection-cursor.md) records
+the method and limits. Function-valued logical results remain the separate chosen
+extension rather than an implicit consequence of this refactor.
+
+The same gates passed after upstream `7a96a16` added checker-hint research and
+proposed ADR 0015. The cursor decision is now ADR 0016; this import does not adopt
+a checker. Production/test blobs stayed unchanged and release-cost replay passed
+the same thresholds. The isolated research suite was not run as part of this work.
