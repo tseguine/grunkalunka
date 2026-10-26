@@ -44,12 +44,15 @@ A `SlotId` names a fixed-type cell (`Number`, `Predicate`, `General` or `Closure
 its type, owning lexical region, mutability, parameter status and source span.
 Source lowering constructs scalar `Number` slots, immutable `Predicate` const slots,
 and immutable/mutable `General` local slots.
-Immutable runtime function bindings additionally use `Closure(arity)` slots and
+Initialized runtime function bindings additionally use `Closure(arity)` slots and
 values. `ClosureEntry` imports captured cells, `MakeClosure` constructs a typed
 code/environment pair and `ClosureCall` invokes it through the private table ABI.
 The verifier checks initialized capture type/mutability, arity and calling
 convention. See [runtime closures](runtime-closures.md). Logical lifted parameters
 remain Number slots; emission copies them from a packed argument frame.
+Mutable function slots use the existing typed `Store` operation, which checks
+mutability and exact arity. Assignment expressions preserve the RHS `ValueId`
+snapshot; capture imports preserve the source slot's mutability.
 Every entry/helper parameter slot remains `Number`.
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.

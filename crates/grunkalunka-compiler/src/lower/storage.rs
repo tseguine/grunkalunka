@@ -34,6 +34,11 @@ fn closure_hint(
                 };
                 pending.push((last, depth + 1));
             }
+            Expression::AssignmentExpression(assignment)
+                if assignment.operator == AssignmentOperator::Assign =>
+            {
+                pending.push((&assignment.right, depth + 1));
+            }
             Expression::ArrowFunctionExpression(_) => (),
             Expression::CallExpression(call) => pending.push((&call.callee, depth + 1)),
             Expression::Identifier(identifier) => {
@@ -199,8 +204,8 @@ pub(crate) fn general_mutable_bindings(
     let mut mutable = BTreeSet::new();
     let mut parameters = BTreeSet::new();
     // Local arrow calls tentatively seed Number storage. This is only a planning
-    // hint: factory results become closure metadata, and call lowering rejects
-    // them in scalar value positions before any module is published.
+    // hint: actual lowering fixes the function arity and validates every write;
+    // factories/scalar values still cannot become callable via this hint.
     let mut numeric_closures = BTreeSet::new();
     let mut closure_aliases = Vec::new();
     for node in semantic.nodes().iter() {
@@ -216,11 +221,10 @@ pub(crate) fn general_mutable_bindings(
                         && let Some(symbol) = identifier.symbol_id.get()
                     {
                         definitions.insert(symbol, local.init.as_ref());
-                        if declaration.kind == VariableDeclarationKind::Const
-                            && let Some(initializer) = local
-                                .init
-                                .as_ref()
-                                .and_then(|init| closures::unwrapped(init, 0))
+                        if let Some(initializer) = local
+                            .init
+                            .as_ref()
+                            .and_then(|init| closures::unwrapped(init, 0))
                         {
                             match initializer {
                                 Expression::ArrowFunctionExpression(_) => {
@@ -262,9 +266,8 @@ pub(crate) fn general_mutable_bindings(
     loop {
         let before = numeric_closures.len();
         for (symbol, initializer) in &definitions {
-            if !mutable.contains(symbol)
-                && initializer
-                    .is_some_and(|expression| closure_hint(expression, semantic, &numeric_closures))
+            if initializer
+                .is_some_and(|expression| closure_hint(expression, semantic, &numeric_closures))
             {
                 numeric_closures.insert(*symbol);
             }

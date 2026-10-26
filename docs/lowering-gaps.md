@@ -594,6 +594,9 @@ environment records and indirect numeric calls, including packed frames for up t
 original source. No canonical rejection source used this form, so the 919-entry
 accounting is unchanged. Runtime-selected synchronous closures also survive
 suspension in the primitive async profile; their pairs and captures belong to the
-activation frame. Async closure bodies, mutable bindings, function
+activation frame. Initialized mutable function bindings now support same-arity
+plain assignments, capture sharing, alias/call snapshots and recursive rebinding.
+Three original focused mutable-binding guards now execute their unchanged bodies.
+Canonical rejection counts remain unchanged. Async closure bodies, function
 arguments/results, identity/properties and general return kinds remain open; see
 [runtime closures](runtime-closures.md).

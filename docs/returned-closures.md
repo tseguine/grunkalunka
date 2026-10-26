@@ -44,12 +44,12 @@ Tests compare original native JS with Node Wasm and Wasmtime, check independent
 goldens, repeated calls, aliases, argument effects, nested factories, all three
 captured slot kinds, signed zero, erased annotations and source/generation limits.
 
-An [internal runtime-value slice](runtime-closures.md) now handles immutable local
+An [internal runtime-value slice](runtime-closures.md) now handles initialized local
 selection and indirect numeric calls in the Number/primitive profiles, including
 the primitive async activation frame.
-Mutable function bindings, function
-arguments, function identity comparisons, async closure bodies, block-bodied
-factory returns, top-level helpers returning functions, recursion, function-valued
+Same-arity mutable bindings use typed pair assignments and retain call snapshots.
+Function arguments, function identity comparisons, async closure bodies, block-bodied
+factory returns, top-level helpers returning functions, recursive initialization, function-valued
 host results and escaping per-iteration environments remain open. This is a
 source-level returned-closure slice with statically known targets, not completion
 of the closure milestone. No existing 919-entry rejection source used this arrow

@@ -231,6 +231,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub lifted: Vec<std::rc::Rc<ir::Function>>,
     pub lifted_base: usize,
     pub lifting_depth: usize,
+    pub active_function_values: usize,
 }
 
 impl Lowering<'_, '_> {
@@ -612,16 +613,15 @@ impl Lowering<'_, '_> {
                 self.closures.push(closure);
                 continue;
             }
-            if !mutable
-                && let Some(initializer) = local.init.as_ref()
+            if let Some(initializer) = local.init.as_ref()
                 && let Some(arity) = self.function_arity(initializer, 0)
             {
-                let value = self.function_value(initializer, region, arity)?;
+                let value = self.function_value(initializer, region, arity, 0)?;
                 let slot = SlotId(self.slots.len());
                 self.slots.push(Slot {
                     ty: Type::Closure(arity),
                     owner: region.id,
-                    mutable: false,
+                    mutable,
                     parameter: false,
                     span: local.span(),
                 });
@@ -632,7 +632,7 @@ impl Lowering<'_, '_> {
                         .get()
                         .ok_or("missing function binding")?,
                     slot,
-                    mutable: false,
+                    mutable,
                 });
                 continue;
             }

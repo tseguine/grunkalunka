@@ -1,4 +1,4 @@
-//! A separate explicit cursor for immutable function-value constructors. Numeric
+//! A separate explicit cursor for function-value constructors and assignments. Numeric
 //! conditions/arguments finish in their cursor before construction continues.
 use super::*;
 use std::collections::BTreeMap;
@@ -15,6 +15,10 @@ enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         condition: ValueId,
         consequent: Region,
+    },
+    Store {
+        node: &'e Expression<'a>,
+        slot: SlotId,
     },
 }
 
@@ -34,6 +38,20 @@ impl Regions<'_> {
 }
 
 impl Lowering<'_, '_> {
+    fn function_assignment_target(
+        &self,
+        assignment: &oxc_ast::ast::AssignmentExpression<'_>,
+        depth: usize,
+    ) -> Option<(NumericBinding, usize)> {
+        let identifier =
+            target_identifier(assignment.left.as_simple_assignment_target()?, depth).ok()??;
+        let binding = numeric_binding(identifier, self.semantic, &self.bindings).ok()?;
+        let Type::Closure(arity) = self.slots[binding.slot.0].ty else {
+            return None;
+        };
+        Some((binding.clone(), arity))
+    }
+
     pub(super) fn runtime_closure_callee(
         &self,
         node: &Expression<'_>,
@@ -80,6 +98,17 @@ impl Lowering<'_, '_> {
                     pending.push((sequence.expressions.last()?, depth + 1));
                     continue;
                 }
+                Expression::AssignmentExpression(assignment)
+                    if assignment.operator == AssignmentOperator::Assign =>
+                {
+                    let (_, target_arity) = self.function_assignment_target(assignment, depth)?;
+                    if arity.is_some_and(|expected| expected != target_arity) {
+                        return None;
+                    }
+                    arity = Some(target_arity);
+                    pending.push((&assignment.right, depth + 1));
+                    continue;
+                }
                 Expression::CallExpression(call) => {
                     let factory = self.closure_target(&call.callee, depth + 1)?;
                     if factory.checked && !factory.factory {
@@ -113,12 +142,34 @@ impl Lowering<'_, '_> {
         expression: &Expression<'_>,
         region: &mut Region,
         arity: usize,
+        depth: usize,
+    ) -> Result<ValueId, String> {
+        // Constructors can run scalar comma prefixes, which can construct another
+        // function. Bound that cursor crossing independently of AST/lift limits.
+        if self.active_function_values >= 16 {
+            return Err(unsupported(
+                expression,
+                "at most 16 active function-value cursors are admitted",
+            ));
+        }
+        self.active_function_values += 1;
+        let result = self.function_value_inner(expression, region, arity, depth);
+        self.active_function_values -= 1;
+        result
+    }
+
+    fn function_value_inner(
+        &mut self,
+        expression: &Expression<'_>,
+        region: &mut Region,
+        arity: usize,
+        depth: usize,
     ) -> Result<ValueId, String> {
         let mut regions = Regions {
             root: region,
             children: Vec::new(),
         };
-        let mut work = vec![Work::Eval(expression, 0)];
+        let mut work = vec![Work::Eval(expression, depth)];
         let mut values = Vec::new();
         while let Some(task) = work.pop() {
             match task {
@@ -158,6 +209,28 @@ impl Lowering<'_, '_> {
                                 self.discarded(item, regions.current(), depth + 1)?;
                             }
                             work.push(Work::Eval(last, depth + 1));
+                        }
+                        Expression::AssignmentExpression(assignment) => {
+                            let (binding, actual) = self.function_assignment_target(assignment, depth)
+                                .ok_or_else(|| unsupported(node, "function assignment requires an initialized function binding"))?;
+                            if !binding.mutable {
+                                return Err(unsupported(
+                                    node,
+                                    "assignment to a const binding is not admitted",
+                                ));
+                            }
+                            if assignment.operator != AssignmentOperator::Assign || actual != arity
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "function assignment requires plain = with unchanged arity",
+                                ));
+                            }
+                            work.push(Work::Store {
+                                node,
+                                slot: binding.slot,
+                            });
+                            work.push(Work::Eval(&assignment.right, depth + 1));
                         }
                         _ => {
                             if let Some((slot, actual)) = self.runtime_closure_callee(node, depth) {
@@ -222,6 +295,18 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(result);
+                }
+                Work::Store { node, slot } => {
+                    // Store the RHS snapshot, then retain it as the assignment's
+                    // result; a subsequent write cannot change an existing alias.
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Store {
+                            slot,
+                            value: *values.last().expect("function assignment RHS"),
+                        },
+                    );
                 }
             }
         }

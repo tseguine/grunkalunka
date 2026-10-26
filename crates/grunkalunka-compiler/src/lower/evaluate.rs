@@ -231,6 +231,12 @@ impl Lowering<'_, '_> {
         }
         let slot = binding.slot;
         let ty = self.slots[slot.0].ty;
+        if matches!(ty, Type::Closure(_)) {
+            return Err(unsupported(
+                node,
+                "function bindings support only plain = assignment",
+            ));
+        }
         let general = ty == Type::General;
         if general && !matches!(mode, Mode::General) {
             return Err(unsupported(
@@ -918,6 +924,10 @@ impl Lowering<'_, '_> {
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
+                    if let Some(arity) = self.function_arity(node, depth) {
+                        self.function_value(node, regions.current(), arity, depth)?;
+                        continue;
+                    }
                     // Routing owns classification before the selected mode's guard.
                     let mode = if self.general_binding_shape(node, depth)
                         || self.general_assignment_target(node, depth).is_some()
@@ -1492,6 +1502,12 @@ impl Lowering<'_, '_> {
                                 ));
                             }
                             let slot = binding.slot;
+                            if matches!(self.slots[slot.0].ty, Type::Closure(_)) {
+                                return Err(unsupported(
+                                    node,
+                                    "function assignments require a function-valued or discarded position",
+                                ));
+                            }
                             let general = self.slots[slot.0].ty == Type::General;
                             let arithmetic = matches!(
                                 operator,
@@ -1565,6 +1581,12 @@ impl Lowering<'_, '_> {
                                 ));
                             }
                             let slot = binding.slot;
+                            if matches!(self.slots[slot.0].ty, Type::Closure(_)) {
+                                return Err(unsupported(
+                                    node,
+                                    "function bindings do not support numeric updates",
+                                ));
+                            }
                             let general = self.slots[slot.0].ty == Type::General;
                             let loaded =
                                 self.value(if general { Type::General } else { Type::Number });

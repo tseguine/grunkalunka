@@ -64,6 +64,43 @@ fn runtime_closures_survive_suspension_and_keep_native_job_order() {
 }
 
 #[test]
+fn mutable_function_writes_preserve_snapshots_across_jobs() {
+    compare_promises(
+        &[
+            "let f=()=>a;await null;f=()=>b;return f();",
+            "let f=()=>a;const alias=f;await false;f=()=>b;await true;return f()*10+alias();",
+            "let f=x=>a+x;return f((await(f=x=>b-x,3)));",
+            "let f=(x,y)=>a+x+y;return f(a++,await(f=(x,y)=>b-x-y,a++));",
+            "let f=()=>a;f=(await a)?()=>a+b:()=>a-b;return f();",
+            "let f=()=>a;let g=()=>b;const alias=(f=g=(await a)?()=>a+b:()=>a-b);await null;f=()=>b;return alias()+g()+f();",
+            "let f=()=>a;const read=a?()=>f():()=>f()+1;await false;f=()=>b;return read();",
+            "let f=()=>a;const set=()=>{f=()=>b;return f();};await false;set();await true;return f();",
+            "const make=x=>()=>++x;let f=make(a);const alias=f;f=a?make(await b):make(await a);await null;return f()*100+alias()*10+f();",
+            "const make=x=>()=>++x;let f=make(a);f=make(await f());return f();",
+            "let f=()=>a;let x=f();await null;f=()=>b;x=f();return x;",
+            "let f=()=>a;let x=f();await null;x=true;f=()=>+x;return f();",
+            "let f=()=>a;for(let i=0;i<3;i++){let x=await i;f=()=>x;}return f();",
+            "let f=()=>a;f=(await null,()=>b);return await f();",
+            "let f=()=>a;await Promise.reject(null);f=()=>b;return f();",
+            "let f=()=>a;f=()=>b;return await Promise.reject(f());",
+            "let f=x=>x;f=x=>{if(x<=0)return b;return x+f(x-1);};await null;return f(4);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){let f=x=>x+a;await null;return f((f=x=>x-b,a));}";
+    let typed = "export async function run(a:never,b:Missing):Wrong {let f:(x:unknown)=>string=(x=>x+a) as unknown as ((x:number)=>number);await (null as never);return (f as any)((f=((x:number)=>x-b) as any,a));}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn async_closure_frames_keep_wide_calls_and_activation_ownership() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))

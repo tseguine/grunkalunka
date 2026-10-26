@@ -110,6 +110,9 @@ Immutable runtime-selected functions can be constructed before or after await,
 including awaited conditions and factory arguments. Calls may use awaited Number
 arguments or have their Number result awaited. Awaiting a function value itself
 remains outside the primitive protocol.
+Initialized `let` function bindings can also be reassigned with plain `=` at the
+same arity. A callee snapshot survives suspension while an argument changes the
+binding. Captured function cells share those writes; aliases retain their pairs.
 Local block-arrow calls run synchronously with a separate return boundary. Await
 can surround their numeric result; returning from the closure continues the caller,
 including when the body returns from inside a loop. Async arrows remain excluded.

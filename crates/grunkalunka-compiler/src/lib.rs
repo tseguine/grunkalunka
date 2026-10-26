@@ -294,6 +294,7 @@ fn lower_source_profile(
             lifted: Vec::new(),
             lifted_base: signatures.len() + lifted.len(),
             lifting_depth: 0,
+            active_function_values: 0,
             slots,
             values: Vec::new(),
             next_region: 0,

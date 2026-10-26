@@ -1664,12 +1664,16 @@ existing returned aliases keep their cells. Leaf calls retain the numeric contra
 See [returned closures](returned-closures.md)
 for specialization, the shared generation budget and remaining function-value gaps.
 
-Immutable local function values can also be selected at runtime and called through
+Initialized local function values can also be selected at runtime and called through
 an identifier or alias in the Number, primitive and primitive async profiles. Internal code/environment
 pairs and table calls retain typed captures; packed argument frames handle up to
 1,000 Number arguments with a fixed physical signature. The exported ABI is
 unchanged. See [runtime closures](runtime-closures.md) for the bounded source forms,
 environment verifier, allocation, async frame retention and remaining general-value exclusions.
+`let` function slots support same-arity plain assignment and constructor aliases.
+An indirect call captures its callee pair before argument side effects or await;
+assignment cannot retroactively change that snapshot. Captured mutable function
+slots can be rebound and can form recursive calls through initialized cells.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call
@@ -1707,7 +1711,7 @@ These limits bound specialization, not JavaScript
 language validity or runtime termination; the existing runtime fuel is unchanged.
 
 Captures must already be initialized when the arrow is defined. General first-class
-function values, mutable function bindings, recursive arrows, implicit undefined returns, defaults/rest,
+function values, recursive initialization, implicit undefined returns, defaults/rest,
 optional/generic calls, lexical `this`/`arguments` and async arrows remain outside
 this slice. General closure environments remain subsequent work; numeric suspension
 is available in the separate [async profile](async.md).

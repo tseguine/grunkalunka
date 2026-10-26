@@ -1,6 +1,6 @@
 # Runtime local function values
 
-The Number, primitive-return and primitive async profiles support immutable local
+The Number, primitive-return and primitive async profiles support initialized local
 function values selected at runtime. Constructors include same-arity conditional
 branches, arrows, known factory results and existing local closure aliases.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
@@ -22,6 +22,29 @@ constructor executes. Aliases retain the same code and environment. Captured
 variables remain shared cells, including captures of another runtime function
 value. Numeric call results can initialize or update existing scalar bindings;
 later primitive writes still select General storage where required.
+
+`let` function bindings retain their initializer's arity and support plain `=`
+assignment from the same constructors. Conditional/chained assignments return the
+RHS function snapshot, so another local can retain it. Discarded function values
+and assignments may occur in comma prefixes. Calls snapshot both callee fields
+before evaluating Number arguments, including when an argument reassigns the
+binding or suspends. For example, with `a=4, b=2` this returns 695:
+
+```js
+export function run(a,b) {
+  let f = x => a+x;
+  const old = f;
+  const before = f((f = x => b-x, 3));
+  return before*100 + f(3)*10 + old(1);
+}
+```
+
+Capturing a mutable function binding shares its cell; copying its value into an
+alias snapshots the pair. Rebinding an already initialized function can form
+self/mutual recursive calls through those cells, bounded by runtime fuel and the
+arena. An initializer cannot capture its own unpublished binding. Mixed scalar/
+function storage, arity changes, function compound/logical assignments and numeric
+updates remain rejected. Assignment results cannot enter primitive/coercion positions.
 
 A `Closure(arity)` IR value is an `i32` code index plus an `i32` environment
 address. It is separate from the four-primitive General domain and is never
@@ -61,7 +84,10 @@ the 256 generated-expansion limit per function; at most 256 lifted bodies are
 admitted per module, with capacity rechecked after nested construction. Eight
 combined active closure/block lowering frames bound native recursion. A 2 MiB
 stack probe accepts six nested block wrappers around the leaf and rejects seven;
-source nesting, fuel and arena limits remain additional restrictions.
+source nesting, fuel and arena limits remain additional restrictions. Crossings
+between function constructors and scalar comma-prefix evaluation have a separate
+16-active-cursor guard; a 2 MiB stack probe accepts 15 nested assignment prefixes
+and rejects 16. These crossings carry the caller's original AST depth.
 
 Tests compare original JS with Node Wasm and Wasmtime, including multiple captures,
 aliases, nested runtime/static callbacks, helper indices, argument effects, all
@@ -77,8 +103,7 @@ only the source entry has resume states. Awaited conditions and factory/call
 arguments preserve their original evaluation order. `await f()` can suspend on a
 Number result; `await f` remains rejected because functions are not primitives.
 Existing static closure specialization across await remains available.
-Mutable function bindings,
-passing functions as arguments, general function-valued results, nonnumeric leaf
-return kinds, function truthiness/coercions, identity and properties, recursive function-value bindings
+Passing functions as arguments, general function-valued results, nonnumeric leaf
+return kinds, function truthiness/coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.

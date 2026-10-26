@@ -61,6 +61,47 @@ fn selected_functions_keep_code_captures_and_aliases_in_both_engines() {
         "const flag=a<b;const f=a?()=>flag?b:a:()=>flag?a:b;return f();",
         "let x=null;const f=a?()=>+(x=true):()=>+x;f();return +x;",
     ];
+    compare_functions(&bodies);
+}
+
+#[test]
+fn mutable_functions_keep_alias_snapshots_and_shared_function_cells() {
+    compare_functions(&[
+        "let f=()=>a; return f();",
+        "let f=a?()=>a:()=>b;return f();",
+        "const make=x=>()=>++x;let f=make(a);return f();",
+        "let f=()=>a;f=()=>b;return f();",
+        "let f=a?()=>a:()=>b;const alias=f;f=()=>b;return f()*10+alias();",
+        "let f=x=>x+a;return f((f=x=>x-b,a));",
+        "let f=(x,y)=>a+x+y;return f((f=(x,y)=>b-x-y,a++),a++);",
+        "let f=()=>a;let g=()=>b;f=g=()=>a+b;return f()*10+g();",
+        "let f=()=>a;const g=(f=()=>b);f=()=>a;return g()*10+f();",
+        "let f=()=>a;a?(f=()=>b):(f=()=>a+b);return f();",
+        "let f=()=>a;f=a?()=>a+b:()=>a-b;return f();",
+        "let f=()=>a;const g=a?(f=()=>a+b):(f=()=>a-b);return f()+g();",
+        "let f=()=>a;f=(a++,f=()=>b,()=>a);return f();",
+        "let f=()=>a;const read=()=>f();const set=()=>{f=()=>b;return 1;};read();set();return read();",
+        "let f=()=>a;const read=a?()=>f():()=>f()+1;f=()=>b;return read();",
+        "let f=()=>a;const set=a?()=>{f=()=>b;return f();}:()=>{f=()=>a+b;return f();};set();return f();",
+        "const make=x=>()=>++x;let f=make(a);const alias=f;f=make(b);return f()*100+alias()*10+f();",
+        "let f=()=>a;for(let i=0;i<3;i++){let x=i;f=()=>x; a+=f();}return a+f();",
+        "let f=()=>a;let x=f();f=()=>b;x=f();return x;",
+        "let f=()=>a;let x=f();x=true;f=()=>+x;return f();",
+        "let f=()=>a;{let f=()=>b;f=()=>a+b;a+=f();}return f();",
+        "let f=()=>a;const alias=f;f=alias;return f();",
+        "let f=x=>x;const mutate=()=>{f=x=>x+b;return a;};return f(mutate())+f(a);",
+        "let f=()=>a;const g=(f=()=>b);let x=g();x|=1;return x;",
+        "let f=x=>x;f=x=>{if(x<=0)return b;return x+f(x-1);};return f(4);",
+        "let f=x=>x;let g=x=>x;f=x=>{if(x<=0)return b;return x+g(x-1);};g=x=>{if(x<=0)return a;return x+f(x-1);};return f(4);",
+    ]);
+    let source = "export function run(a,b){let f=x=>a+x;const old=f;const before=f((f=x=>b-x,3));return before*100+f(3)*10+old(1);}";
+    let artifact = compile(source, false).unwrap();
+    let mut host = NumericInstance::new(&artifact.wasm).unwrap();
+    assert_eq!(host.run(4.0, 2.0).unwrap(), 695.0);
+    assert_eq!(host.run(0.0, 2.0).unwrap(), 291.0);
+}
+
+fn compare_functions(bodies: &[&str]) {
     let inputs = [
         (4.0, 2.0),
         (0.0, 2.0),
@@ -70,7 +111,7 @@ fn selected_functions_keep_code_captures_and_aliases_in_both_engines() {
     let mut script = String::from(
         "const assert=require('node:assert/strict');function bits(x){if(Number.isNaN(x))return 'nan';const v=new DataView(new ArrayBuffer(8));v.setFloat64(0,x,true);return v.getBigUint64(0,true).toString(16).padStart(16,'0');}\n",
     );
-    for body in bodies {
+    for &body in bodies {
         for typescript in [false, true] {
             let parameters = if typescript {
                 "a:number,b:number"
@@ -178,7 +219,6 @@ fn one_thousand_numeric_arguments_use_a_fixed_two_pointer_call_signature() {
 #[test]
 fn unsupported_runtime_function_kinds_and_profiles_remain_explicit() {
     for body in [
-        "let f=a?()=>a:()=>b;return f();",
         "const f=a?()=>a:()=>b;return f;",
         "const f=a?()=>a:()=>b;return +f;",
         "const f=a?()=>a:()=>b;return f===f;",
@@ -208,6 +248,163 @@ fn unsupported_runtime_function_kinds_and_profiles_remain_explicit() {
     ] {
         let source = format!("export async function run(a,b){{{body}}}");
         assert!(compile_async(&source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn mutable_function_slots_require_function_initializers_same_arity_and_plain_writes() {
+    for body in [
+        "let f;f=()=>a;return f();",
+        "let f=a;f=()=>b;return f();",
+        "let f=()=>a;f=b;return a;",
+        "let f=()=>a;f=null;return a;",
+        "let f=()=>a;f=true;return a;",
+        "let f=()=>a;f=x=>x;return a;",
+        "let f=x=>x;let g=()=>a;f=g;return a;",
+        "let f=()=>a;f=()=>true;return a;",
+        "let f=()=>a;f+=()=>b;return a;",
+        "let f=()=>a;f&&=()=>b;return a;",
+        "let f=()=>a;f||=()=>b;return a;",
+        "let f=()=>a;f??=()=>b;return a;",
+        "let f=()=>a;++f;return a;",
+        "let f=()=>a;f--;return a;",
+        "const f=a?()=>a:()=>b;f=()=>b;return a;",
+        "let f=()=>a;return +(f=()=>b);",
+        "let f=()=>a;return f=()=>b;",
+        "let f=()=>f();return a;",
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+            let asynchronous = source.replace("export function", "export async function");
+            assert!(
+                compile_async(&asynchronous, typescript).is_err(),
+                "{asynchronous}"
+            );
+        }
+    }
+}
+
+#[test]
+fn recursive_function_rebinding_respects_fuel_and_next_invocation_reset() {
+    let source = "export function run(a,b){let f=()=>b;if(a)f=()=>f();return f();}";
+    let artifact = compile(source, false).unwrap();
+    let mut host = NumericInstance::new(&artifact.wasm).unwrap();
+    let error = host.run(1.0, 2.0).unwrap_err();
+    assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::OutOfFuel));
+    assert_eq!(host.run(0.0, 2.0).unwrap(), 2.0);
+    assert_eq!(host.run(0.0, 3.0).unwrap(), 3.0);
+}
+
+#[test]
+fn function_assignment_cursor_crossings_are_bounded_on_a_small_native_stack() {
+    let mut outcomes = Vec::new();
+    for depth in [0, 1, 6, 12, 15, 16, 30] {
+        let mut value = String::from("()=>a");
+        for _ in 0..depth {
+            value = format!("(f={value},()=>b)");
+        }
+        let source = format!("export function run(a,b){{let f=()=>a;f={value};return f();}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        outcomes.push(result.is_ok());
+        if depth <= 15 {
+            let artifact = result.unwrap_or_else(|error| panic!("depth{depth}: {error}"));
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                if depth == 0 { 4.0 } else { 2.0 }
+            );
+        } else {
+            assert!(
+                result
+                    .err()
+                    .unwrap()
+                    .contains("16 active function-value cursors")
+            );
+        }
+    }
+    println!("function assignment cursor admission on 2MiB stack: {outcomes:?}");
+}
+
+#[test]
+fn function_assignment_keeps_source_depth_body_costs_and_generation_budgets() {
+    for (wrappers, admitted) in [(127, true), (128, false)] {
+        let source = format!(
+            "export function run(a,b){{let f=()=>a;f={}()=>b{};return f();}}",
+            "(".repeat(wrappers),
+            ")".repeat(wrappers)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{wrappers} assignment wrappers"
+        );
+    }
+    for (wrappers, admitted) in [(124, true), (125, false)] {
+        let source = format!(
+            "export function run(a,b){{let f=x=>x;return f((f={}x=>x+b{},a));}}",
+            "(".repeat(wrappers),
+            ")".repeat(wrappers)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{wrappers} nested argument wrappers"
+        );
+    }
+    for (assignments, admitted) in [(128, true), (129, false)] {
+        let source = format!(
+            "export function run(a,b){{let f=()=>a;{}()=>b;return f();}}",
+            "f=".repeat(assignments)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{assignments} assignment chain"
+        );
+    }
+    for (locals, admitted) in [(127, true), (128, false)] {
+        let declarations = (0..locals)
+            .map(|i| format!("let v{i}=a;"))
+            .collect::<String>();
+        let source = format!(
+            "export function run(a,b){{let f=()=>a;f=()=>{{{declarations}return a;}};return f();}}"
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{locals} body locals"
+        );
+    }
+    for (statements, admitted) in [(252, true), (253, false)] {
+        let source = format!(
+            "export function run(a,b){{let f=()=>a;f=()=>{{{}return a;}};return f();}}",
+            "a=a;".repeat(statements)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{statements} body statements"
+        );
+    }
+    for (calls, admitted) in [(254, true), (255, false)] {
+        let source = format!(
+            "export function run(a,b){{let f=()=>a;f=()=>b;return({});}}",
+            vec!["f()"; calls].join(",")
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{calls} generated calls"
+        );
     }
 }
 

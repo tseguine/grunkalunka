@@ -504,3 +504,7 @@ runtime selection and indirect numeric calls. Argument frames preserve the sourc
 retains those function pairs/captures across jobs and emits lifted bodies separately.
 General function values and async closure bodies remain subsequent work;
 see [runtime closures](runtime-closures.md).
+Initialized mutable function slots now support same-arity plain assignment,
+including chained results, shared captured writes and callee snapshots across
+await. Rebinding can form recursive calls through initialized cells; recursive
+initialization, mixed scalar/function storage and general function arguments/results remain open.
