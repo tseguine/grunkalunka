@@ -517,3 +517,8 @@ L5 now includes known concise local factories returning closures into immutable
 bindings, with fresh creator captures for new arrows and shared alias writes.
 Calls specialize known targets; general function records and indirect invocation
 remain open. See [returned closures](returned-closures.md).
+L5 now includes an immutable synchronous runtime-function slice: typed
+code/environment values, lifted bodies, selected targets, shared captures and
+indirect numeric calls. Packed frames support the existing 1,000-argument bound.
+Dynamic async values and remaining first-class function semantics stay open;
+see [runtime closures](runtime-closures.md).

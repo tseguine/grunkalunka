@@ -50,6 +50,9 @@ The frame retains their pointers across jobs; parameter cells initialize only
 on the fresh state. Each instance owns its arena for the invocation's lifetime.
 Known [returned local closures](returned-closures.md) retain those cells across
 jobs, including when an awaited argument initializes a factory parameter.
+The new [runtime-selected function-value profile](runtime-closures.md) currently
+requires synchronous compilation, including when nested inside a local arrow;
+lifting those bodies alongside the async dispatcher remains separate work.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;

@@ -4,6 +4,7 @@ use std::fmt::Write;
 
 mod asynchronous;
 mod cells;
+mod closures;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -57,6 +58,7 @@ struct Emitter<'a> {
     slot_offsets: Vec<usize>,
     value_offsets: Vec<usize>,
     cell_offsets: Vec<Option<usize>>,
+    arena_temp: Option<usize>,
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
     loop_label: Option<usize>,
@@ -67,12 +69,12 @@ struct Emitter<'a> {
 impl Emitter<'_> {
     fn get(&mut self, value: ValueId) {
         writeln!(self.output, "local.get {}", self.value_offsets[value.0]).unwrap();
-        if self.function.values[value.0] == Type::General {
+        if self.function.values[value.0].width() == 2 {
             writeln!(self.output, "local.get {}", self.value_offsets[value.0] + 1).unwrap();
         }
     }
     fn set(&mut self, value: ValueId) {
-        if self.function.values[value.0] == Type::General {
+        if self.function.values[value.0].width() == 2 {
             writeln!(self.output, "local.set {}", self.value_offsets[value.0] + 1).unwrap();
         }
         writeln!(self.output, "local.set {}", self.value_offsets[value.0]).unwrap();
@@ -93,6 +95,17 @@ impl Emitter<'_> {
         for operation in operations {
             match &operation.kind {
                 Op::CaptureCells { .. } => (),
+                Op::ClosureEntry { .. } => (),
+                Op::MakeClosure {
+                    result,
+                    function,
+                    captures,
+                } => self.make_closure(*result, *function, captures),
+                Op::ClosureCall {
+                    result,
+                    callee,
+                    arguments,
+                } => self.call_closure(*result, *callee, arguments),
                 Op::InlineCall { result, body } => {
                     let outer = self.inline_return.replace(body.id.0);
                     writeln!(self.output, "block $call{} (result f64)", body.id.0).unwrap();
@@ -176,7 +189,7 @@ impl Emitter<'_> {
                     }
                     let offset = self.slot_offsets[slot.0];
                     writeln!(self.output, "local.get {offset}").unwrap();
-                    if self.function.slots[slot.0].ty == Type::General {
+                    if self.function.slots[slot.0].ty.width() == 2 {
                         writeln!(self.output, "local.get {}", offset + 1).unwrap();
                     }
                     self.set(*result);
@@ -193,7 +206,7 @@ impl Emitter<'_> {
                     }
                     self.get(*value);
                     let offset = self.slot_offsets[slot.0];
-                    if self.function.slots[slot.0].ty == Type::General {
+                    if self.function.slots[slot.0].ty.width() == 2 {
                         writeln!(self.output, "local.set {}", offset + 1).unwrap();
                     }
                     writeln!(self.output, "local.set {offset}").unwrap();
@@ -375,6 +388,7 @@ impl Emitter<'_> {
                             Some(Type::Number) => "if (result f64)\n",
                             Some(Type::Predicate) => "if (result i32)\n",
                             Some(Type::General) => "if (result i32 f64)\n",
+                            Some(Type::Closure(_)) => "if (result i32 i32)\n",
                             None => "if\n",
                         });
                     self.region(consequent);
@@ -465,21 +479,32 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         return Err("await IR requires the async emitter".into());
     }
     let mut output = String::from("(module ");
-    let has_cells = module
+    let has_closures = module
         .functions
         .iter()
-        .any(|f| !ir::captured_cells(&f.body).is_empty());
+        .any(|function| ir::closure_environment(function).is_some());
+    let has_cells = has_closures
+        || module
+            .functions
+            .iter()
+            .any(|f| !ir::captured_cells(&f.body).is_empty());
     if has_cells {
         output.push_str(cells::MEMORY);
     }
+    if has_closures {
+        output.push_str(&closures::table(module));
+    }
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
+        let environment = ir::closure_environment(function);
         let mut header = if index == 0 && !has_cells {
             String::from("(func (export \"run\")")
         } else {
             String::from("(func")
         };
-        if function.parameter_count > 0 {
+        if environment.is_some() {
+            header.push_str(" (param i32 i32)");
+        } else if function.parameter_count > 0 {
             header.push_str(" (param");
             for _ in 0..function.parameter_count {
                 header.push_str(" f64");
@@ -491,13 +516,13 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         } else {
             " (result f64)\n"
         });
-        let mut offset = 0;
+        let mut offset = if environment.is_some() { 2 } else { 0 };
         let slot_offsets = function
             .slots
             .iter()
             .map(|slot| {
                 let current = offset;
-                offset += if slot.ty == Type::General { 2 } else { 1 };
+                offset += slot.ty.width();
                 current
             })
             .collect();
@@ -506,27 +531,34 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             .iter()
             .map(|ty| {
                 let current = offset;
-                offset += if *ty == Type::General { 2 } else { 1 };
+                offset += ty.width();
                 current
             })
             .collect();
         let cell_offsets = cells::offsets(function, &mut offset);
+        let arena_temp = closures::temporary(function, offset);
         let mut emitter = Emitter {
             function,
             slot_offsets,
             value_offsets,
             cell_offsets,
+            arena_temp,
             loop_label: None,
             inline_return: None,
             needs_remainder: false,
             output: header,
         };
         // Source cells and typed value snapshots occupy disjoint physical locals.
-        for slot in function.slots.iter().skip(function.parameter_count) {
+        for slot in function.slots.iter().skip(if environment.is_some() {
+            0
+        } else {
+            function.parameter_count
+        }) {
             emitter.output.push_str(match slot.ty {
                 Type::Number => "(local f64)\n",
                 Type::Predicate => "(local i32)\n",
                 Type::General => "(local i32 f64)\n",
+                Type::Closure(_) => "(local i32 i32)\n",
             });
         }
         for ty in &function.values {
@@ -534,11 +566,16 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
                 Type::Number => "(local f64)\n",
                 Type::Predicate => "(local i32)\n",
                 Type::General => "(local i32 f64)\n",
+                Type::Closure(_) => "(local i32 i32)\n",
             });
         }
         for _ in emitter.cell_offsets.iter().flatten() {
             emitter.output.push_str("(local i32)\n");
         }
+        if arena_temp.is_some() {
+            emitter.output.push_str("(local i32)\n");
+        }
+        emitter.init_environment();
         emitter.init_cell_parameters();
         emitter.region(&function.body);
         needs_remainder |= emitter.needs_remainder;
@@ -560,6 +597,9 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             " (result f64)\n"
         });
         output.push_str("i32.const 0 global.set $cell_top\nlocal.get 0 local.get 1 call 0)\n");
+    }
+    if has_closures {
+        output.push_str(closures::FRAME_ALLOCATOR);
     }
     output.push_str(")\n");
     Ok(output)

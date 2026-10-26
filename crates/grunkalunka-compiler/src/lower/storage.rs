@@ -3,6 +3,55 @@ use super::*;
 use oxc_ast::AstKind;
 use std::collections::{BTreeMap, BTreeSet};
 
+// Only a call-result storage hint: all admitted local function calls currently
+// return Number. Actual lowering validates constructors, factories and callees.
+// A scalar result tentatively included here still cannot become a callable value.
+fn closure_hint(
+    expression: &Expression<'_>,
+    semantic: &Semantic<'_>,
+    known: &BTreeSet<SymbolId>,
+) -> bool {
+    let mut pending = vec![(expression, 0)];
+    while let Some((node, depth)) = pending.pop() {
+        if depth > 128 {
+            return false;
+        }
+        if let Some(inner) = erased_inner(node) {
+            pending.push((inner, depth + 1));
+            continue;
+        }
+        match node {
+            Expression::ParenthesizedExpression(wrapper) => {
+                pending.push((&wrapper.expression, depth + 1))
+            }
+            Expression::ConditionalExpression(conditional) => {
+                pending.push((&conditional.consequent, depth + 1));
+                pending.push((&conditional.alternate, depth + 1));
+            }
+            Expression::SequenceExpression(sequence) => {
+                let Some(last) = sequence.expressions.last() else {
+                    return false;
+                };
+                pending.push((last, depth + 1));
+            }
+            Expression::ArrowFunctionExpression(_) => (),
+            Expression::CallExpression(call) => pending.push((&call.callee, depth + 1)),
+            Expression::Identifier(identifier) => {
+                if !identifier
+                    .reference_id
+                    .get()
+                    .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
+                    .is_some_and(|symbol| known.contains(&symbol))
+                {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
 // Positive Number-result classification for the represented source domain. Actual lowering
 // still validates every operand, target, call, scope and source budget.
 pub(super) fn number_result_shape(
@@ -212,6 +261,14 @@ pub(crate) fn general_mutable_bindings(
     }
     loop {
         let before = numeric_closures.len();
+        for (symbol, initializer) in &definitions {
+            if !mutable.contains(symbol)
+                && initializer
+                    .is_some_and(|expression| closure_hint(expression, semantic, &numeric_closures))
+            {
+                numeric_closures.insert(*symbol);
+            }
+        }
         for &(alias, target) in &closure_aliases {
             if numeric_closures.contains(&target) {
                 numeric_closures.insert(alias);

@@ -2,6 +2,9 @@
 use oxc_span::Span;
 use std::collections::BTreeSet;
 
+#[cfg(test)]
+mod runtime_closure_tests;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct ValueId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -16,6 +19,16 @@ pub(crate) enum Type {
     Number,
     Predicate,
     General,
+    Closure(usize),
+}
+
+impl Type {
+    pub(crate) fn width(self) -> usize {
+        match self {
+            Self::General | Self::Closure(_) => 2,
+            _ => 1,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -131,10 +144,13 @@ pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
 
 pub(crate) fn captured_cells(region: &Region) -> BTreeSet<SlotId> {
     let mut cells = BTreeSet::new();
-    visit_operations(region, &mut |op| {
-        if let Op::CaptureCells { cells: captured } = op {
-            cells.extend(captured);
-        }
+    visit_operations(region, &mut |op| match op {
+        Op::CaptureCells { cells: captured }
+        | Op::ClosureEntry { captures: captured }
+        | Op::MakeClosure {
+            captures: captured, ..
+        } => cells.extend(captured),
+        _ => (),
     });
     cells
 }
@@ -145,7 +161,10 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
         Op::Load { slot, .. } | Op::Store { slot, .. } => {
             cells.insert(*slot);
         }
-        Op::CaptureCells { cells: captured } => cells.extend(captured),
+        Op::CaptureCells { cells: captured }
+        | Op::MakeClosure {
+            captures: captured, ..
+        } => cells.extend(captured),
         _ => (),
     });
     cells
@@ -153,6 +172,20 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    // First operation of a lifted function only. Imported cells become initialized.
+    ClosureEntry {
+        captures: Vec<SlotId>,
+    },
+    MakeClosure {
+        result: ValueId,
+        function: FunctionId,
+        captures: Vec<SlotId>,
+    },
+    ClosureCall {
+        result: ValueId,
+        callee: ValueId,
+        arguments: Vec<ValueId>,
+    },
     // Storage metadata: these initialized lexical cells need stable addresses.
     CaptureCells {
         cells: Vec<SlotId>,
@@ -363,7 +396,7 @@ enum Contract {
 
 struct Verifier<'a> {
     function: &'a Function,
-    signatures: &'a [usize],
+    functions: &'a [&'a Function],
     return_type: Type,
     entry_type: Type,
     defined: BTreeSet<ValueId>,
@@ -437,7 +470,7 @@ impl Verifier<'_> {
         let mut visible = outer_values.clone();
         let mut initialized = outer_cells.clone();
         let mut completion = Completion::NORMAL;
-        for operation in &region.operations {
+        for (operation_index, operation) in region.operations.iter().enumerate() {
             let span = operation.span;
             if !completion.normal {
                 return Err(invalid(
@@ -451,6 +484,69 @@ impl Verifier<'_> {
             }
             let mut next = Completion::NORMAL;
             match &operation.kind {
+                Op::ClosureEntry { captures } => {
+                    if region.id != self.function.body.id || operation_index != 0 {
+                        return Err(invalid(
+                            span,
+                            "closure entry must be first in the function root",
+                        ));
+                    }
+                    for slot in captures {
+                        let cell = self.slot(*slot, ancestors, span)?;
+                        if cell.owner != region.id || cell.parameter || !initialized.insert(*slot) {
+                            return Err(invalid(
+                                span,
+                                "closure imports require distinct nonparameter root cells",
+                            ));
+                        }
+                    }
+                }
+                Op::MakeClosure {
+                    result,
+                    function,
+                    captures,
+                } => {
+                    let target = self
+                        .functions
+                        .get(function.0)
+                        .ok_or_else(|| invalid(span, "invalid closure function ID"))?;
+                    let imported = closure_environment(target).ok_or_else(|| {
+                        invalid(span, "closure target lacks an environment entry")
+                    })?;
+                    if captures.len() != imported.len() {
+                        return Err(invalid(span, "closure environment size mismatch"));
+                    }
+                    for (source, destination) in captures.iter().zip(imported) {
+                        let cell = self.slot(*source, ancestors, span)?;
+                        if !initialized.contains(source)
+                            || target.slots.get(destination.0).is_none_or(|slot| {
+                                slot.ty != cell.ty || slot.mutable != cell.mutable
+                            })
+                        {
+                            return Err(invalid(
+                                span,
+                                "closure capture must be initialized with the environment's type",
+                            ));
+                        }
+                    }
+                    self.define(
+                        *result,
+                        Type::Closure(target.parameter_count),
+                        &mut visible,
+                        span,
+                    )?;
+                }
+                Op::ClosureCall {
+                    result,
+                    callee,
+                    arguments,
+                } => {
+                    self.value(*callee, Type::Closure(arguments.len()), &visible, span)?;
+                    for argument in arguments {
+                        self.value(*argument, Type::Number, &visible, span)?;
+                    }
+                    self.define(*result, Type::Number, &mut visible, span)?;
+                }
                 Op::CaptureCells { cells } => {
                     for slot in cells {
                         self.slot(*slot, ancestors, span)?;
@@ -481,7 +577,7 @@ impl Verifier<'_> {
                         .get(result.0)
                         .copied()
                         .ok_or_else(|| invalid(span, "invalid await result"))?;
-                    if ty == Type::Predicate {
+                    if !matches!(ty, Type::Number | Type::General) {
                         return Err(invalid(span, "await requires Number or General values"));
                     }
                     self.value(*input, ty, &visible, span)?;
@@ -495,11 +591,17 @@ impl Verifier<'_> {
                     function,
                     arguments,
                 } => {
-                    let count = self
-                        .signatures
+                    let target = self
+                        .functions
                         .get(function.0)
                         .ok_or_else(|| invalid(span, "invalid callee function ID"))?;
-                    if arguments.len() != *count {
+                    if closure_environment(target).is_some() {
+                        return Err(invalid(
+                            span,
+                            "lifted closures require the closure call ABI",
+                        ));
+                    }
+                    if arguments.len() != target.parameter_count {
                         return Err(invalid(
                             span,
                             "call argument count does not match signature",
@@ -521,7 +623,7 @@ impl Verifier<'_> {
                         .values
                         .get(input.0)
                         .ok_or_else(|| invalid(span, "invalid pack input"))?;
-                    if ty == Type::General {
+                    if !matches!(ty, Type::Number | Type::Predicate) {
                         return Err(invalid(span, "pack requires a scalar input"));
                     }
                     self.value(*input, ty, &visible, span)?;
@@ -783,6 +885,13 @@ pub(crate) fn verify_module(module: &Module) -> Result<(), String> {
     verify_module_with_entry_type(module, Type::Number)
 }
 
+pub(crate) fn closure_environment(function: &Function) -> Option<&[SlotId]> {
+    match &function.body.operations.first()?.kind {
+        Op::ClosureEntry { captures } => Some(captures),
+        _ => None,
+    }
+}
+
 pub(crate) fn verify_module_with_entry_type(
     module: &Module,
     entry_type: Type,
@@ -797,15 +906,17 @@ pub(crate) fn verify_module_with_entry_type(
             "entry must have two numeric parameters",
         ));
     }
-    let signatures: Vec<_> = module
-        .functions
-        .iter()
-        .map(|function| function.parameter_count)
-        .collect();
+    if closure_environment(entry).is_some() {
+        return Err(invalid(
+            entry.body.span,
+            "exported entry cannot use the closure ABI",
+        ));
+    }
+    let functions: Vec<_> = module.functions.iter().collect();
     for (index, function) in module.functions.iter().enumerate() {
         verify_function(
             function,
-            &signatures,
+            &functions,
             if index == 0 { entry_type } else { Type::Number },
             entry_type,
         )?;
@@ -815,17 +926,12 @@ pub(crate) fn verify_module_with_entry_type(
 
 #[cfg(test)]
 fn verify(function: &Function) -> Result<(), String> {
-    verify_function(
-        function,
-        &[function.parameter_count],
-        Type::Number,
-        Type::Number,
-    )
+    verify_function(function, &[function], Type::Number, Type::Number)
 }
 
 fn verify_function(
     function: &Function,
-    signatures: &[usize],
+    functions: &[&Function],
     return_type: Type,
     entry_type: Type,
 ) -> Result<(), String> {
@@ -866,7 +972,7 @@ fn verify_function(
     }
     let mut verifier = Verifier {
         function,
-        signatures,
+        functions,
         return_type,
         entry_type,
         defined: BTreeSet::new(),

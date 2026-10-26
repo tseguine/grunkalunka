@@ -44,8 +44,10 @@ Tests compare original native JS with Node Wasm and Wasmtime, check independent
 goldens, repeated calls, aliases, argument effects, nested factories, all three
 captured slot kinds, signed zero, erased annotations and source/generation limits.
 
-General function records, indirect calls, mutable function bindings, function
-arguments, function identity comparisons, dynamic function selection, block-bodied
+An [internal runtime-value slice](runtime-closures.md) now handles immutable local
+selection and indirect numeric calls in the synchronous profiles.
+Mutable function bindings, function
+arguments, function identity comparisons, dynamic async function values, block-bodied
 factory returns, top-level helpers returning functions, recursion, function-valued
 host results and escaping per-iteration environments remain open. This is a
 source-level returned-closure slice with statically known targets, not completion

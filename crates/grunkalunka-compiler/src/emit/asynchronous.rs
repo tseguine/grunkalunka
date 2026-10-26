@@ -269,6 +269,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             Type::Number => types.push("f64"),
             Type::Predicate => types.push("i32"),
             Type::General => types.extend(["i32", "f64"]),
+            Type::Closure(_) => {
+                return Err(
+                    "runtime closure values currently require the synchronous profile".into(),
+                );
+            }
         }
     }
     let mut offset = types.len();
@@ -280,6 +285,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         slot_offsets: offsets[..function.slots.len()].to_vec(),
         value_offsets: offsets[function.slots.len()..].to_vec(),
         cell_offsets,
+        arena_temp: None,
         output: String::new(),
         loop_label: None,
         inline_return: None,

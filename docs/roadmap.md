@@ -498,3 +498,7 @@ Known concise local factories now return arrows into immutable bindings through
 specialization with fresh captured cells. The two-counter example executes in
 both engines and across suspension. General dynamic function values remain open;
 see [returned closures](returned-closures.md).
+An internal code/environment pair and private table now support immutable local
+runtime selection and indirect numeric calls. Argument frames preserve the source
+1,000-parameter bound with a fixed Wasm signature. General and async function-value
+integration remain subsequent work; see [runtime closures](runtime-closures.md).

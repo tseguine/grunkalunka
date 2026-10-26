@@ -1,6 +1,6 @@
 # Captured cell storage
 
-Local arrows still specialize into typed regions. Their actually referenced
+Statically known local arrow calls still specialize into typed regions. Their actually referenced
 bindings now have stable addresses in a private guest-memory arena, rather than
 depending on the creating helper's Wasm locals. Sibling arrows address the same
 cell; already computed `ValueId` snapshots remain separate. This is a storage
@@ -20,6 +20,8 @@ aligned bytes: Number uses `f64` at offset 0, Predicate uses `i32` at offset 0,
 and General uses its primitive tag at offset 0 and `f64` payload at offset 8.
 Tag/payload stores are separate; no numeric conversion or new primitive tag is
 introduced. Uncaptured slots retain their previous local/global representation.
+Runtime function cells store their two `i32` code/environment fields at offsets
+0 and 4, separately from the General primitive tags.
 
 The arena starts at one 64 KiB Wasm page and can grow to sixteen pages (1 MiB,
 65,536 cells). Allocation checks the inclusive limit before advancing its cursor,
@@ -41,8 +43,9 @@ indices retain their existing layout, and the allocator retains its own locals.
 
 This bulk lifetime is sufficient for the current Number/four-primitive exported
 results: no cell or function reference escapes an invocation. A future exported
-function-value ABI must revisit reclamation. Function records, lifted bodies,
-indirect calls, recursive closures, later-initialized captures, per-iteration
+function-value ABI must revisit reclamation. An [internal runtime-value slice](runtime-closures.md)
+now uses lifted bodies, environments and indirect calls for synchronous local
+selection. General function values, recursive closures, later-initialized captures, per-iteration
 escaping `let` environments, collection and general Promise interoperability
 remain open. The native-JS factory below produces 563 for inputs 4 and 2; it is
 now admitted through [known factory specialization](returned-closures.md):

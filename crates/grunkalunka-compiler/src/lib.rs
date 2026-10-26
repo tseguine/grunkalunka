@@ -228,6 +228,7 @@ fn lower_source_profile(
     }
     let general_bindings = lower::general_mutable_bindings(&built.semantic, &signatures);
     let mut functions = Vec::new();
+    let mut lifted = Vec::new();
     let mut local_count = 0;
     let mut statement_count = 0;
     for (index, function) in declarations.iter().enumerate() {
@@ -290,6 +291,10 @@ fn lower_source_profile(
             inline_depth: 0,
             statement_depth: 0,
             allow_await: index == 0 && async_entry,
+            async_profile: async_entry,
+            lifted: Vec::new(),
+            lifted_base: signatures.len() + lifted.len(),
+            lifting_depth: 0,
             slots,
             values: Vec::new(),
             next_region: 0,
@@ -325,8 +330,13 @@ fn lower_source_profile(
         }
         local_count = lowering.local_count;
         statement_count = lowering.statement_count;
+        lifted.append(&mut lowering.lifted);
         functions.push(lowering.finish(region, function.params.items.len()));
     }
+    functions.extend(lifted.into_iter().map(|function| {
+        std::rc::Rc::try_unwrap(function)
+            .expect("completed lifted body has no remaining lowering owner")
+    }));
     Ok(ir::Module { functions })
 }
 

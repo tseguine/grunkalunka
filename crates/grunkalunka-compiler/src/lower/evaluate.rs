@@ -140,6 +140,14 @@ enum Work<'e, 'a> {
         arguments: Vec<ValueId>,
         depth: usize,
     },
+    ClosureCall {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        callee: ValueId,
+        index: usize,
+        arguments: Vec<ValueId>,
+        depth: usize,
+    },
     RestoreBindings(Vec<NumericBinding>, bool),
     Sequence {
         remaining: &'e [Expression<'a>],
@@ -347,6 +355,45 @@ impl Lowering<'_, '_> {
                             Self::push(regions.current(), node, Op::InlineCall { result, body });
                             values.push(Value::Number(result));
                         }
+                    }
+                }
+                Work::ClosureCall {
+                    node,
+                    call,
+                    callee,
+                    index,
+                    mut arguments,
+                    depth,
+                } => {
+                    if index != 0 {
+                        arguments.push(values.pop().expect("runtime closure argument").number());
+                    }
+                    if index < call.arguments.len() {
+                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
+                            unsupported(node, "spread call arguments are not admitted")
+                        })?;
+                        work.push(Work::ClosureCall {
+                            node,
+                            call,
+                            callee,
+                            index: index + 1,
+                            arguments,
+                            depth,
+                        });
+                        work.push(Work::Eval(argument, depth, Mode::Number));
+                    } else {
+                        self.charge_closure_expansion(node)?;
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::ClosureCall {
+                                result,
+                                callee,
+                                arguments,
+                            },
+                        );
+                        values.push(Value::Number(result));
                     }
                 }
                 Work::Forget => {
@@ -790,6 +837,7 @@ impl Lowering<'_, '_> {
                         Type::General => Value::General(result),
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
+                        Type::Closure(_) => unreachable!("function values use their own cursor"),
                     });
                 }
                 Work::LogicalLeft {
@@ -866,6 +914,7 @@ impl Lowering<'_, '_> {
                         Type::General => Value::General(result),
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
+                        Type::Closure(_) => unreachable!("function values use their own cursor"),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
@@ -957,6 +1006,47 @@ impl Lowering<'_, '_> {
                         };
                         work.push(Work::Await(node, rejected, ty));
                         work.push(Work::Eval(argument, argument_depth, mode));
+                        continue;
+                    }
+                    if let Expression::CallExpression(call) = node
+                        && let Some((slot, arity)) =
+                            self.runtime_closure_callee(&call.callee, depth + 1)
+                    {
+                        if call.optional || call.type_arguments.is_some() {
+                            return Err(unsupported(
+                                node,
+                                "optional and generic runtime closure calls are not admitted",
+                            ));
+                        }
+                        if call.arguments.len() != arity {
+                            return Err(unsupported(
+                                node,
+                                "runtime closure call requires exactly the declared number of arguments",
+                            ));
+                        }
+                        let callee = self.value(Type::Closure(arity));
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::Load {
+                                result: callee,
+                                slot,
+                            },
+                        );
+                        match mode {
+                            Mode::General => work.push(Work::Pack(node)),
+                            Mode::Predicate => work.push(Work::Truthy(node)),
+                            Mode::Number => (),
+                            _ => unreachable!("discard/arithmetic routed above"),
+                        }
+                        work.push(Work::ClosureCall {
+                            node,
+                            call,
+                            callee,
+                            index: 0,
+                            arguments: Vec::new(),
+                            depth: depth + 1,
+                        });
                         continue;
                     }
                     if let Expression::CallExpression(call) = node

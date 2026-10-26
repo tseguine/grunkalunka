@@ -49,6 +49,11 @@ impl Emitter<'_> {
         match self.function.slots[slot.0].ty {
             Type::Number => writeln!(self.output, "local.get {pointer}\nf64.load").unwrap(),
             Type::Predicate => writeln!(self.output, "local.get {pointer}\ni32.load").unwrap(),
+            Type::Closure(_) => writeln!(
+                self.output,
+                "local.get {pointer}\ni32.load\nlocal.get {pointer}\ni32.load offset=4"
+            )
+            .unwrap(),
             Type::General => writeln!(
                 self.output,
                 "local.get {pointer}\ni32.load\nlocal.get {pointer}\nf64.load offset=8"
@@ -71,6 +76,7 @@ impl Emitter<'_> {
         match self.function.slots[slot.0].ty {
             Type::Number => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\nf64.store").unwrap(),
             Type::Predicate => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\ni32.store").unwrap(),
+            Type::Closure(_) => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\ni32.store\nlocal.get {pointer}\nlocal.get {}\ni32.store offset=4", offset+1).unwrap(),
             Type::General => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\ni32.store\nlocal.get {pointer}\nlocal.get {}\nf64.store offset=8", offset+1).unwrap(),
         }
     }

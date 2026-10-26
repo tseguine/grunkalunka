@@ -587,3 +587,11 @@ records/calls. Their general lifetime and source-level admission remain open; se
 [captured cells](captured-cells.md). Known concise factories now return arrows into
 immutable local bindings, with fresh capture cells and statically specialized
 leaf calls. This adds no general function-value ABI; see [returned closures](returned-closures.md).
+
+The synchronous profiles now add immutable runtime-selected function values,
+environment records and indirect numeric calls, including packed frames for up to
+1,000 parameters. The focused prior factory-selection rejection now executes its
+original source. No canonical rejection source used this form, so the 919-entry
+accounting is unchanged. Dynamic async function values, mutable bindings, function
+arguments/results, identity/properties and general return kinds remain open; see
+[runtime closures](runtime-closures.md).

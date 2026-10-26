@@ -19,6 +19,7 @@ use crate::{is_type_declaration, unsupported};
 mod awaited;
 mod closures;
 mod evaluate;
+mod function_values;
 mod storage;
 pub(super) use storage::general_mutable_bindings;
 
@@ -227,6 +228,10 @@ pub(super) struct Lowering<'s, 'a> {
     pub inline_depth: usize,
     pub statement_depth: usize,
     pub allow_await: bool,
+    pub async_profile: bool,
+    pub lifted: Vec<std::rc::Rc<ir::Function>>,
+    pub lifted_base: usize,
+    pub lifting_depth: usize,
 }
 
 impl Lowering<'_, '_> {
@@ -341,6 +346,12 @@ impl Lowering<'_, '_> {
             .iter()
             .filter(|closure| !closure.factory)
             .filter_map(|closure| closure.symbol)
+            .chain(
+                self.bindings
+                    .iter()
+                    .filter(|binding| matches!(self.slots[binding.slot.0].ty, Type::Closure(_)))
+                    .map(|binding| binding.symbol),
+            )
             .collect();
         storage::number_result_shape(
             expression,
@@ -580,7 +591,7 @@ impl Lowering<'_, '_> {
             let closure = if !mutable && let Some(initializer) = local.init.as_ref() {
                 match self.closure_target(initializer, 0) {
                     Some(closure) => Some(closure),
-                    None => self.factory_result(initializer, region)?,
+                    None => self.factory_result(initializer, region, 0)?,
                 }
             } else {
                 None
@@ -602,6 +613,36 @@ impl Lowering<'_, '_> {
                 self.closures.push(closure);
                 continue;
             }
+            if !mutable
+                && let Some(initializer) = local.init.as_ref()
+                && let Some(arity) = self.function_arity(initializer, 0)
+            {
+                if self.async_profile {
+                    return Err(unsupported(
+                        local,
+                        "runtime closure values currently require the synchronous profile",
+                    ));
+                }
+                let value = self.function_value(initializer, region, arity)?;
+                let slot = SlotId(self.slots.len());
+                self.slots.push(Slot {
+                    ty: Type::Closure(arity),
+                    owner: region.id,
+                    mutable: false,
+                    parameter: false,
+                    span: local.span(),
+                });
+                Self::push(region, local, Op::Initialize { slot, value });
+                self.bindings.push(NumericBinding {
+                    symbol: identifier
+                        .symbol_id
+                        .get()
+                        .ok_or("missing function binding")?,
+                    slot,
+                    mutable: false,
+                });
+                continue;
+            }
             let (ty, value) = if let Some(initializer) = local.init.as_ref() {
                 let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
                     Type::Predicate
@@ -621,6 +662,7 @@ impl Lowering<'_, '_> {
                         .expect("General initializer"),
                     Type::Predicate => self.predicate(initializer, region, 0)?,
                     Type::Number => self.expression(initializer, region, 0)?,
+                    Type::Closure(_) => unreachable!("function values use their own cursor"),
                 };
                 (ty, value)
             } else if mutable {

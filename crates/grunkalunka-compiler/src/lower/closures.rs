@@ -254,8 +254,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
         &mut self,
         expression: &Expression<'_>,
         region: &mut Region,
+        depth: usize,
     ) -> Result<Option<LocalClosure>, String> {
-        let Some((Expression::CallExpression(call), call_depth)) = unwrapped_at(expression, 0)
+        let Some((Expression::CallExpression(call), call_depth)) = unwrapped_at(expression, depth)
         else {
             return Ok(None);
         };

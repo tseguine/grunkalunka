@@ -29,7 +29,7 @@ The primitive return profile below changes only the entry result signature.
 module verifier collects signatures before checking bodies, then verifies callee IDs,
 exact arity and visible Number arguments before defining the result. Emission
 loads captured arguments in order, emits a direct numeric-index Wasm call, then
-materializes its result. No table, closure, new value type or host import is used.
+materializes its result. This operation uses no table, closure, new value type or host import.
 Forward/self/mutual calls use the same operation. Source function bindings cannot
 be written; shadowed references use semantic identity rather than spelling.
 
@@ -40,10 +40,16 @@ bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 ## Source cells and computed values
 
-A `SlotId` names a fixed-type cell (`Number`, `Predicate` or `General`). Each slot records
+A `SlotId` names a fixed-type cell (`Number`, `Predicate`, `General` or `Closure(arity)`). Each slot records
 its type, owning lexical region, mutability, parameter status and source span.
 Source lowering constructs scalar `Number` slots, immutable `Predicate` const slots,
 and immutable/mutable `General` local slots.
+Immutable runtime function bindings additionally use `Closure(arity)` slots and
+values. `ClosureEntry` imports captured cells, `MakeClosure` constructs a typed
+code/environment pair and `ClosureCall` invokes it through the private table ABI.
+The verifier checks initialized capture type/mutability, arity and calling
+convention. See [runtime closures](runtime-closures.md). Logical lifted parameters
+remain Number slots; emission copies them from a packed argument frame.
 Every entry/helper parameter slot remains `Number`.
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.
