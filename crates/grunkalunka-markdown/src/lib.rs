@@ -5,6 +5,9 @@
 
 #![forbid(unsafe_code)]
 
+mod prose;
+pub use prose::prose_text;
+
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
