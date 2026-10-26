@@ -235,6 +235,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else {
                 check.evaluate(expression, &mut region, 0, evaluate::Mode::Number)?;
             }
+        } else if let Some(arity) = check.block_function_arity(arrow, 0) {
+            region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
+            closure.factory = true;
         } else {
             region = check.arrow_block(arrow, 0)?;
         }
@@ -310,7 +313,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             self.check_local_closure(&mut factory)?;
             self.capture_cells(&factory, region);
         }
-        if !factory.factory {
+        if !factory.factory || self.arrow(factory.arrow).get_expression().is_none() {
             return Ok(None);
         }
         self.check_local_call(call, &factory)?;
@@ -368,6 +371,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
         arrow: &ArrowFunctionExpression<'_>,
         parent_depth: usize,
     ) -> Result<Region, String> {
+        self.arrow_block_result(arrow, parent_depth, Type::Number)
+    }
+
+    pub(super) fn arrow_block_result(
+        &mut self,
+        arrow: &ArrowFunctionExpression<'_>,
+        parent_depth: usize,
+        result_type: Type,
+    ) -> Result<Region, String> {
         // Statement lowering can reenter the expression cursor. Bound this native
         // recursion separately from concise-arrow's explicit continuation stack.
         if self.active_block_calls >= 8 {
@@ -386,7 +398,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         );
         let bindings = self.bindings.len();
         let closures = self.closures.len();
-        self.return_type = Type::Number;
+        self.return_type = result_type;
         self.in_loop_body = false;
         self.allow_await = false;
         self.inline_depth = parent_depth;
@@ -402,7 +414,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
             if self.sequence(&body.statements, &mut region, 0)? != Completion::RETURN {
                 return Err(unsupported(
                     arrow,
-                    "block arrows must return a Number on every structural path",
+                    if matches!(result_type, Type::Closure(_)) {
+                        "block arrows must return a function on every structural path"
+                    } else {
+                        "block arrows must return a Number on every structural path"
+                    },
                 ));
             }
             Ok(region)

@@ -967,3 +967,23 @@ fn selected_higher_order_calls_preserve_pairs_across_await() {
         ],
     );
 }
+
+#[test]
+fn block_function_results_survive_async_suspension() {
+    compare_promises(
+        &[
+            "const pick=flag=>{if(flag)return (fn,x)=>fn(x);return (fn,x)=>fn(fn(x));};const h=pick(a);try{await Promise.reject(b);}catch(reason){await null;return h(x=>x+ +reason,a);}return 0;",
+            "try{await Promise.reject(a);}catch(reason){const make=()=>{return (fn,x)=>fn(x)+ +reason;};const h=make();await null;return h(x=>x+b,b);}return 0;",
+            "const pick=flag=>{if(flag)return x=>x+a;return x=>x-b;};const f=pick(a);await null;return f(b);",
+            "const pick=x=>{let value=x;return ()=>++value;};const f=pick(await a);const g=pick(await b);return f()*100+g()*10+f();",
+            "let current=a?()=>a:()=>b;const pick=()=>{return current;};const f=pick();await false;current=()=>b*10;return f()+current();",
+            "const pick=flag=>{for(let i=0;i<3;i++){if(flag&&i===1)return ()=>i+b;}return ()=>a;};const f=pick(a);await true;return await f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

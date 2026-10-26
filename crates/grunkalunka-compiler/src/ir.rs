@@ -638,8 +638,20 @@ impl Verifier<'_> {
                     }
                 }
                 Op::InlineCall { result, body } => {
+                    let ty = self
+                        .function
+                        .values
+                        .get(result.0)
+                        .copied()
+                        .ok_or_else(|| invalid(span, "invalid inline-call result"))?;
+                    if !matches!(ty, Type::Number | Type::Closure(_)) {
+                        return Err(invalid(
+                            span,
+                            "inline calls require Number or function results",
+                        ));
+                    }
                     let outer_return = self.return_type;
-                    self.return_type = Type::Number;
+                    self.return_type = ty;
                     let checked = self.region(
                         body,
                         Contract::Function,
@@ -650,7 +662,7 @@ impl Verifier<'_> {
                     );
                     self.return_type = outer_return;
                     checked?;
-                    self.define(*result, Type::Number, &mut visible, span)?;
+                    self.define(*result, ty, &mut visible, span)?;
                 }
                 Op::TryCatch {
                     body,
@@ -3433,6 +3445,40 @@ mod catch_value_tests {
                 verify_module_with_entry_type(&module, Type::General).is_err(),
                 "mutation {change}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod block_function_result_tests {
+    use super::*;
+
+    #[test]
+    fn inline_function_returns_require_matching_arity_and_complete_paths() {
+        let source =
+            "export function run(a,b){const pick=()=>{return ()=>a;};const f=pick();return f();}";
+        for change in 0..5 {
+            let mut module = crate::lower_source(source, false).unwrap();
+            verify_module(&module).unwrap();
+            let function = &mut module.functions[0];
+            let Op::InlineCall { result, body } = &mut function
+                .body
+                .operations
+                .iter_mut()
+                .find(|operation| matches!(operation.kind, Op::InlineCall { .. }))
+                .unwrap()
+                .kind
+            else {
+                panic!("inline function result");
+            };
+            match change {
+                0 => function.values[result.0] = Type::Closure(1),
+                1 => function.values[result.0] = Type::General,
+                2 => *result = ValueId(usize::MAX),
+                3 => body.exit = Exit::Fallthrough,
+                _ => body.exit = Exit::Return(*result),
+            }
+            assert!(verify_module(&module).is_err(), "mutation {change}");
         }
     }
 }

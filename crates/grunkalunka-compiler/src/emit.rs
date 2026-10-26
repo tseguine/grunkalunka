@@ -108,7 +108,17 @@ impl Emitter<'_> {
                 } => self.call_closure(*result, *callee, arguments),
                 Op::InlineCall { result, body } => {
                     let outer = self.inline_return.replace(body.id.0);
-                    writeln!(self.output, "block $call{} (result f64)", body.id.0).unwrap();
+                    let result_types = match self.function.values[result.0] {
+                        Type::Number => "f64",
+                        Type::Closure(_) => "i32 i32",
+                        _ => unreachable!("verified inline result type"),
+                    };
+                    writeln!(
+                        self.output,
+                        "block $call{} (result {result_types})",
+                        body.id.0
+                    )
+                    .unwrap();
                     self.region(body);
                     self.output.push_str("unreachable\nend\n");
                     self.inline_return = outer;

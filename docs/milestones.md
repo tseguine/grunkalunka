@@ -549,3 +549,10 @@ including nested handlers, later awaits and retained catch bindings, with native
 JS reaction-order comparisons. Source throw, finally and general Promise/exception
 semantics remain open; this closes no numeric-profile rejection. See
 [async catch](async-catch.md).
+
+L5 also includes compatible-signature function results from known block-bodied
+local calls,
+with typed early returns through branches/loops, callback identity/selection,
+retained captures and async caller suspension. Runtime function-returning signatures
+and exported function values remain separate requirements. See
+[block function results](block-function-results.md).

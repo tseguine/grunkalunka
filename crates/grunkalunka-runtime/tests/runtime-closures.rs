@@ -179,7 +179,6 @@ fn function_results_do_not_cross_unsupported_kinds_or_runtime_signatures() {
         "const id=fn=>fn;const f=id(async()=>a);return f();",
         "const id=fn=>fn;const f=id?.(()=>a);return f();",
         "const id=fn=>fn;const f=id(...a);return f();",
-        "const id=fn=>{return fn;};const f=id(()=>a);return f();",
         "const get=()=>a?()=>a:()=>b;let f=get;return f()();",
         "let current=()=>a;let get=()=>current;return get()();",
         "const id=fn=>fn;const f=id(()=>a);return f?.();",
@@ -1157,5 +1156,126 @@ fn runtime_callback_arguments_keep_the_parent_generated_region_budget() {
                 .unwrap();
             assert!(error.contains("128"), "{error}");
         }
+    }
+}
+
+#[test]
+fn block_local_results_return_selected_functions_and_captured_cells() {
+    compare_functions(&[
+        "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const pick=flag=>{if(flag)return apply;return twice;};const h=pick(a);return h(x=>x+b,a);",
+        "const make=flag=>{if(flag)return (fn,x)=>fn(x);return (fn,x)=>fn(fn(x));};const h=make(a);return h(x=>x+b,a);",
+        "const id=fn=>{return fn;};const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=id(a?apply:twice);return h(x=>x+b,a);",
+        "const choose=(flag,fn)=>{if(flag)return fn;return ()=>b;};const f=choose(a,()=>a);return f();",
+        "const id=fn=>{return fn;};const f=id(()=>a);return f();",
+        "const get=()=>{return ()=>b;};const replace=fn=>{fn=get();return fn;};const f=replace(()=>a);return f();",
+        "const identity=fn=>{return fn;};const saved=identity(a?()=>a:()=>b);const number=identity(a);return saved()+number;",
+        "const choose=(flag,left,right)=>{if(flag)return left;return right;};const f=choose(a,x=>x+a,x=>x-b);return f(b);",
+        "const forward=fn=>{const alias=fn;return alias;};const f=forward(a?()=>a:()=>b);return f();",
+        "const wrap=fn=>{return ()=>fn(b);};const f=wrap(a?x=>x+a:x=>x-b);return f();",
+        "const make=()=>{return ()=>a;};return make()();",
+        "const make=x=>{return ()=>++x;};const f=make(a);return f();",
+        "const pick=flag=>{if(flag)return x=>x+a;return x=>x-b;};const f=pick(a);return f(b);",
+        "const pick=flag=>{const left=x=>x+a;const right=x=>x-b;if(flag)return left;return right;};const f=pick(a);return f(b);",
+        "const pick=flag=>{let selected=flag?()=>a:()=>b;return selected;};const f=pick(a);return f();",
+        "const pick=flag=>{let value=a;if(flag){if(b)return ()=>++value;return ()=>--value;}return ()=>value+b;};const f=pick(a);return f()+f();",
+        "const pick=flag=>{for(let i=0;i<3;i++){if(flag&&i===1)return ()=>i+b;}return ()=>a;};const f=pick(a);return f();",
+        "const pick=flag=>{let i=0;while(i<3){i++;if(flag)return ()=>i+b;}return ()=>i;};const f=pick(a);return f();",
+        "const pick=flag=>{do{if(flag)return ()=>a;}while(0);return ()=>b;};const f=pick(a);return f();",
+        "const pick=(x,y)=>{a+=10;if(x)return ()=>x*100+y*10+a;return ()=>y+a;};const f=pick(a++,a++);return f()+a;",
+        "const current=a?()=>a:()=>b;const pick=flag=>{if(flag)return current;return ()=>a+b;};const f=pick(a);a++;return f();",
+        "let current=a?()=>a:()=>b;const pick=()=>{return current;};const f=pick();current=()=>b*10;return f()+current();",
+        "const pick=flag=>{if(flag)return (a++,()=>a);return (b++,()=>b);};const f=pick(a);return f()+a+b;",
+    ]);
+}
+
+#[test]
+fn block_function_results_keep_return_kind_and_export_boundaries() {
+    for body in [
+        "const pick=flag=>{if(flag)return (fn,x)=>fn(x);return (fn,x)=>fn+x;};return a;",
+        "const pick=()=>{return ()=>a;};return pick();",
+        "const pick=flag=>{if(flag)return ()=>a;return b;};return a;",
+        "const pick=flag=>{if(flag)return ()=>a;return x=>x;};return a;",
+        "const pick=flag=>{if(flag)return ()=>a;};return a;",
+        "const pick=()=>{return;};return a;",
+        "const pick=()=>{return ()=>true;};const f=pick();return f();",
+        "const pick=()=>{return async()=>a;};const f=pick();return f();",
+        "const pick=()=>{return ()=>a;};const f=pick(a);return f();",
+        "const pick=()=>{return ()=>a;};const f=pick?.();return f();",
+        "const pick=()=>{return ()=>a;};const f=pick(...a);return f();",
+        "const pick=()=>{return later;const later=()=>a;};return a;",
+        "const pick=()=>{return x=>x+a;};const f=a?pick:pick;return f();",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
+fn block_function_results_keep_small_native_stack_and_expansion_limits() {
+    let outcomes = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            (0..11)
+                .map(|depth| {
+                    let mut body = String::from("const get0=()=>{return ()=>a;};");
+                    for index in 1..=depth {
+                        body.push_str(&format!(
+                            "const get{index}=()=>{{return get{}();}};",
+                            index - 1
+                        ));
+                    }
+                    let source = format!(
+                        "export function run(a,b){{{body}const f=get{depth}();return f();}}"
+                    );
+                    compile(&source, false).is_ok()
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    assert_eq!(
+        outcomes,
+        vec![
+            true, true, true, true, true, true, true, false, false, false, false
+        ]
+    );
+    println!("block function-result lowering on 2MiB stack: {outcomes:?}");
+    // Generated result regions accumulate across block call boundaries as well
+    // as within a single cursor; source bodies alone are each below the limit.
+    for (nested, admitted) in [(16, true), (64, false)] {
+        let mut body =
+            String::from("const current=a?()=>a:()=>b;const get0=()=>{return current;};");
+        for index in 1..=3 {
+            body.push_str(&format!(
+                "const get{index}=()=>{{return {}get{}();}};",
+                "a?current:".repeat(nested),
+                index - 1
+            ));
+        }
+        let source = format!("export function run(a,b){{{body}const f=get3();return f();}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted);
+        if let Err(error) = result {
+            assert!(error.contains("128"), "{error}");
+        }
+    }
+    // One initial constructor and the final indirect call consume two units;
+    // each factory call consumes its specialization and returned constructor.
+    for (calls, admitted) in [(127, true), (128, false)] {
+        let calls = vec!["pick()"; calls].join(",");
+        let source = format!(
+            "export function run(a,b){{const pick=()=>{{return ()=>a;}};let f=()=>b;f=({calls});return f();}}"
+        );
+        let result = compile(&source, false);
+        assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
     }
 }

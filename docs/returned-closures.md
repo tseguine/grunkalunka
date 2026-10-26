@@ -2,9 +2,8 @@
 
 Local synchronous arrow factories can have a concise body returning another
 known arrow or an existing immutable closure alias. Their results can initialize
-`const` closure bindings. Arguments remain ordered Numbers and leaf calls return
-Numbers; a returned arrow can itself be a factory. Parentheses and erased
-TypeScript wrappers preserve the underlying functions.
+`const` closure bindings. Arguments remain ordered and leaf calls return Numbers;
+a returned arrow can itself be a factory. Parentheses and erased TypeScript wrappers preserve the underlying functions.
 
 ```js
 export function run(a, b) {
@@ -50,8 +49,11 @@ the primitive async activation frame.
 Same-arity mutable bindings use typed pair assignments and retain call snapshots.
 Known factories can receive [callback arguments](local-callback-arguments.md) and
 retain them in the returned leaf's captured cells.
-General higher-order signatures, function identity comparisons, async closure bodies, block-bodied
-factory returns, top-level helpers returning functions, recursive initialization, function-valued
+[Block-bodied known factories](block-function-results.md) now return compatible
+function pairs through typed early returns, including local aliases and callback
+forwarding. These runtime pairs use the existing private table and captured cells.
+General higher-order signatures, function identity comparisons, async closure bodies,
+top-level helpers returning functions, recursive initialization, function-valued
 host results and escaping per-iteration environments remain open. This is a
 source-level returned-closure slice with statically known targets, not completion
 of the closure milestone. No existing 919-entry rejection source used this arrow

@@ -618,11 +618,17 @@ returns and async callback bodies remain open. See [higher-order callbacks](high
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls
 and async caller arguments. This changes no canonical rejection source or host
-ABI. Block-bodied results and runtime function-result signatures
-remain open; see [local function results](local-function-results.md).
+ABI. Runtime function-result signatures remain open; see [local function results](local-function-results.md).
 
 Primitive rejected awaits now enter lexical `try/catch` handlers, preserving the
 reason's primitive kind and await reaction job. Nested catches, later awaits,
 loop exits and captured handler bindings are covered in both engines. Source
 throw, finally, synchronous catches and general exception values remain open;
 numeric rejection fixtures and counts are unchanged. See [async catch](async-catch.md).
+
+Known block-bodied local calls now return compatible-signature function pairs
+through branches, loops and early returns. Callback identity/selection uses the actual
+argument kinds; local aliases, mutable-function snapshots and retained captures
+agree with JavaScript in synchronous and async callers. Function-valued host results,
+runtime function-returning signatures and mixed return kinds remain open. See
+[block function results](block-function-results.md).

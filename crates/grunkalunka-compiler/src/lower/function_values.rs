@@ -108,7 +108,7 @@ impl Lowering<'_, '_> {
     // This is a type query, not specialization: source arguments, conditions and
     // comma effects are not executed. None in a bound formal explicitly means
     // scalar, so another call's callback binding cannot leak into this scope.
-    fn function_arity_in(
+    pub(super) fn function_arity_in(
         &self,
         expression: &Expression<'_>,
         depth: usize,
@@ -164,10 +164,11 @@ impl Lowering<'_, '_> {
                 Expression::CallExpression(call) => {
                     let factory = self.closure_target(&call.callee, depth + 1)?;
                     let arrow = self.arrow(factory.arrow);
-                    let body = arrow.get_expression()?;
+                    let body = arrow.get_expression();
                     // Preserve the old known-arrow factory recognition, including
                     // its source-depth behavior and specialization path.
                     if factory.factory
+                        && let Some(body) = body
                         && let Some(returned) = self.closure_target(body, 0)
                     {
                         self.arrow_signature(self.arrow(returned.arrow))
@@ -197,7 +198,11 @@ impl Lowering<'_, '_> {
                                 self.function_arity_in(argument, depth + 1, bindings, calls + 1),
                             );
                         }
-                        self.function_arity_in(body, 0, &parameters, calls + 1)?
+                        if let Some(body) = body {
+                            self.function_arity_in(body, 0, &parameters, calls + 1)?
+                        } else {
+                            self.block_function_arity_in(arrow, 0, &parameters, calls + 1)?
+                        }
                     }
                 }
                 _ => {
@@ -476,12 +481,6 @@ impl Lowering<'_, '_> {
             self.check_local_call(call, &closure)?;
             self.charge_closure_expansion(call)?;
             let arrow = self.arrow(closure.arrow);
-            let body = arrow.get_expression().ok_or_else(|| {
-                unsupported(
-                    call,
-                    "function results currently require a concise local body",
-                )
-            })?;
             let mut arguments = Vec::new();
             for argument in &call.arguments {
                 let expression = argument
@@ -500,7 +499,18 @@ impl Lowering<'_, '_> {
             let charging = std::mem::replace(&mut self.source_charging, false);
             let result = (|| {
                 self.bind_arrow_parameters(arrow, arguments, region)?;
-                self.function_value(body, region, arity, 0)
+                if let Some(body) = arrow.get_expression() {
+                    self.function_value(body, region, arity, 0)
+                } else {
+                    let parent_depth = (self.inline_depth + self.statement_depth)
+                        .max(self.function_result_depth)
+                        + 1;
+                    let body =
+                        self.arrow_block_result(arrow, parent_depth, Type::Closure(arity))?;
+                    let result = self.value(Type::Closure(arity));
+                    Self::push(region, call, Op::InlineCall { result, body });
+                    Ok(result)
+                }
             })();
             self.bindings = previous;
             self.source_charging = charging;

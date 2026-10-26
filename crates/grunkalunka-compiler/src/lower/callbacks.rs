@@ -15,7 +15,7 @@ struct ReturnOrigins<'s, 'n, 'a> {
 }
 
 impl ReturnOrigins<'_, '_, '_> {
-    // Follow only concise source-known results. Actual argument origins are
+    // Follow source-known concise and block results. Actual argument origins are
     // computed before shadowing formals; no call effects or argument bindings
     // escape this read-only query. The same eight-call bound limits recursion.
     fn expression(
@@ -74,8 +74,13 @@ impl ReturnOrigins<'_, '_, '_> {
                     if arrow.params.items.len() != call.arguments.len() {
                         continue;
                     }
-                    let Some(expression) = arrow.get_expression() else {
-                        continue;
+                    let expressions = if let Some(expression) = arrow.get_expression() {
+                        vec![expression]
+                    } else {
+                        block_results::return_statements(self.semantic, body)
+                            .into_iter()
+                            .filter_map(|statement| statement.argument.as_ref())
+                            .collect()
                     };
                     let mut parameters = bindings.clone();
                     for (parameter, argument) in arrow.params.items.iter().zip(&call.arguments) {
@@ -89,9 +94,12 @@ impl ReturnOrigins<'_, '_, '_> {
                             );
                         }
                     }
-                    let returned = self.expression(expression, &parameters, depth + 1, calls + 1);
-                    result.0.extend(returned.0);
-                    result.1.extend(returned.1);
+                    for expression in expressions {
+                        let returned =
+                            self.expression(expression, &parameters, depth + 1, calls + 1);
+                        result.0.extend(returned.0);
+                        result.1.extend(returned.1);
+                    }
                 }
                 result
             }
@@ -241,6 +249,45 @@ pub(crate) fn infer_callback_parameters(semantic: &Semantic<'_>) -> Result<Param
         }
         if !changed {
             break;
+        }
+    }
+    // A known constructor on one return path fixes the kind of callbacks
+    // returned on the other paths. This also gives disposable body checking a
+    // function input without making constructor-free identity arrows monomorphic.
+    // These callback demands are Number-leaf arities, not higher-order signature IDs;
+    // block result joins independently compare complete signature IDs.
+    let returns = ReturnOrigins {
+        semantic,
+        targets: &targets,
+        arrows: &arrows,
+    };
+    for (id, arrow) in &arrows {
+        if arrow.get_expression().is_some() {
+            continue;
+        }
+        let mut returned = Origins::default();
+        for statement in block_results::return_statements(semantic, *id) {
+            if let Some(expression) = &statement.argument {
+                let origins = returns.expression(expression, &BTreeMap::new(), 0, 0);
+                returned.0.extend(origins.0);
+                returned.1.extend(origins.1);
+            }
+        }
+        for symbol in &returned.0 {
+            if let Some(bodies) = targets.get(symbol) {
+                returned.1.extend(bodies);
+            }
+        }
+        let arities = returned
+            .1
+            .iter()
+            .map(|body| arrows[body].params.items.len())
+            .collect::<BTreeSet<_>>();
+        if arities.len() == 1 {
+            let arity = *arities.first().unwrap();
+            for symbol in returned.0 {
+                demands.entry(symbol).or_default().insert(arity);
+            }
         }
     }
     for call in calls {

@@ -514,8 +514,8 @@ function-valued results remain open;
 see [local callback arguments](local-callback-arguments.md).
 
 Known concise local calls now preserve existing function pairs as results, with
-ordered argument snapshots and immediate invocation. Block results and runtime
-function-result signatures remain separate units; see [local function results](local-function-results.md).
+ordered argument snapshots and immediate invocation. Runtime function-result
+signatures remain separate units; see [local function results](local-function-results.md).
 
 Runtime-selected synchronous functions now receive numeric-leaf callbacks and
 Numbers through verified logical signatures and the existing fixed physical ABI.
@@ -527,3 +527,9 @@ including nested handlers, later awaits and retained catch bindings, with native
 JS reaction-order comparisons. Source throw, finally and general Promise/exception
 semantics remain open; this closes no numeric-profile rejection. See
 [async catch](async-catch.md).
+
+Known local block calls now carry compatible-signature function results through
+branches, loops and early returns, including callback forwarding and fresh captured cells.
+Typed inline-call results preserve the existing exported ABI and async caller job
+behavior; general runtime function-returning signatures remain open. See
+[block function results](block-function-results.md).

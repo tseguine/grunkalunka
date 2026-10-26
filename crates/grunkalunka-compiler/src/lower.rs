@@ -17,6 +17,7 @@ use crate::ir::{
 use crate::{is_type_declaration, unsupported};
 
 mod awaited;
+mod block_results;
 mod callbacks;
 mod closures;
 mod evaluate;
@@ -991,7 +992,9 @@ impl Lowering<'_, '_> {
                         } else {
                             "return must have a numeric expression"
                         })?;
-                let value = if self.return_type == Type::General {
+                let value = if let Type::Closure(arity) = self.return_type {
+                    self.function_value(expression, region, arity, 0)?
+                } else if self.return_type == Type::General {
                     self.evaluate(expression, region, 0, evaluate::Mode::General)?
                         .expect("General expression result")
                 } else {
