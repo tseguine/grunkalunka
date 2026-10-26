@@ -1658,7 +1658,13 @@ Synchronous arrows with expression or block bodies can be bound to `const`, alia
 numeric arguments and a numeric body result. Parentheses and erased TypeScript
 wrappers preserve the underlying function; annotations do not coerce values.
 
-The compiler specializes these non-escaping calls into the caller's typed regions.
+Known concise arrow factories can also return an arrow or immutable closure
+alias into a `const` binding. New arrows retain fresh creator parameter cells;
+existing returned aliases keep their cells. Leaf calls retain the numeric contract.
+See [returned closures](returned-closures.md)
+for specialization, the shared generation budget and remaining function-value gaps.
+
+The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call
 reads the current contents of those slots, and writes from sibling closures share
 the same cells. Capturing a value does not snapshot it. Arguments evaluate left to
@@ -1693,8 +1699,8 @@ definition, including unused bodies; aliases and specialization do not recharge 
 These limits bound specialization, not JavaScript
 language validity or runtime termination; the existing runtime fuel is unchanged.
 
-Captures must already be initialized when the arrow is defined. Escaping function
-values, mutable function bindings, recursive arrows, implicit undefined returns, defaults/rest,
+Captures must already be initialized when the arrow is defined. General first-class
+function values, mutable function bindings, recursive arrows, implicit undefined returns, defaults/rest,
 optional/generic calls, lexical `this`/`arguments` and async arrows remain outside
 this slice. General closure environments remain subsequent work; numeric suspension
 is available in the separate [async profile](async.md).

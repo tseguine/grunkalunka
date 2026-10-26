@@ -583,5 +583,7 @@ See [the bounded contract](compiler.md#local-arrow-calls-and-shared-captures).
 Captured bindings now have stable addresses in a bounded per-invocation arena,
 including across helper return and async suspension. This storage prerequisite
 does not promote any additional rejection source or admit escaping function
-records/calls. Their lifetime and source-level admission remain open; see
-[captured cells](captured-cells.md).
+records/calls. Their general lifetime and source-level admission remain open; see
+[captured cells](captured-cells.md). Known concise factories now return arrows into
+immutable local bindings, with fresh capture cells and statically specialized
+leaf calls. This adds no general function-value ABI; see [returned closures](returned-closures.md).

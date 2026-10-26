@@ -67,6 +67,9 @@ fn primitive_awaits_keep_kind_reasons_and_job_order() {
         "const f=x=>{const g=()=>x;return g();};const x=f(a);await null;return x+f(b);",
         "let x=await null;const f=()=>+x;x=await true;return f();",
         "const f=()=>+a;await null;a=await true;return f();",
+        "const make=x=>()=>++x;const f=make(a),g=make(b);await true;return f()*100+f()*10+g();",
+        "const make=x=>()=>++x;const f=make(await a);await false;const g=make(await b);return f()*100+f()*10+g();",
+        "const make=x=>()=>+(x=true);const f=make(a);await null;return f();",
     ];
     compare_promises(
         &bodies,

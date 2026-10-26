@@ -513,3 +513,7 @@ Captured bindings now use a bounded guest-memory arena with stable addresses
 across helper return and async suspension. This is an L5 storage prerequisite;
 returnable function records and their invocation remain open. Corpus counts are
 unchanged. See [captured cells](captured-cells.md).
+L5 now includes known concise local factories returning closures into immutable
+bindings, with fresh creator captures for new arrows and shared alias writes.
+Calls specialize known targets; general function records and indirect invocation
+remain open. See [returned closures](returned-closures.md).

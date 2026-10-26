@@ -1,4 +1,4 @@
-//! Local, non-escaping closures are specialized into their caller. Captures name
+//! Statically known local closures specialize into their caller. Captures name
 //! existing slots, so copying this metadata never snapshots captured values.
 use super::*;
 use oxc_ast::{
@@ -12,19 +12,28 @@ pub(crate) struct LocalClosure {
     pub symbol: Option<SymbolId>,
     pub arrow: NodeId,
     pub captures: Vec<NumericBinding>,
+    pub checked: bool,
+    pub factory: bool,
 }
 
 pub(super) fn unwrapped<'e, 'a>(
+    expression: &'e Expression<'a>,
+    depth: usize,
+) -> Option<&'e Expression<'a>> {
+    unwrapped_at(expression, depth).map(|(expression, _)| expression)
+}
+
+fn unwrapped_at<'e, 'a>(
     mut expression: &'e Expression<'a>,
     mut depth: usize,
-) -> Option<&'e Expression<'a>> {
+) -> Option<(&'e Expression<'a>, usize)> {
     while depth <= 128 {
         if let Some(inner) = erased_inner(expression) {
             expression = inner;
         } else if let Expression::ParenthesizedExpression(wrapper) = expression {
             expression = &wrapper.expression;
         } else {
-            return Some(expression);
+            return Some((expression, depth));
         }
         depth += 1;
     }
@@ -49,6 +58,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 symbol: None,
                 arrow: arrow.node_id.get(),
                 captures: self.bindings.clone(),
+                checked: false,
+                factory: false,
             }),
             Expression::Identifier(identifier) => {
                 let symbol = self
@@ -146,7 +157,21 @@ impl<'s, 'a> Lowering<'s, 'a> {
     }
 
     pub(super) fn check_local_closure(&mut self, closure: &mut LocalClosure) -> Result<(), String> {
+        self.check_closure_at(closure, 0)
+    }
+
+    fn check_closure_at(
+        &mut self,
+        closure: &mut LocalClosure,
+        factory_depth: usize,
+    ) -> Result<(), String> {
         let arrow = self.arrow(closure.arrow);
+        if factory_depth > 8 {
+            return Err(unsupported(
+                arrow,
+                "at most 8 nested factory results are admitted",
+            ));
+        }
         self.check_arrow(arrow)?;
         // Validate unused bodies too, without running effects or publishing their
         // scratch values/slots in the real function's verified IR.
@@ -168,7 +193,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
         check.bind_arrow_parameters(arrow, arguments, &mut region)?;
         if let Some(expression) = arrow.get_expression() {
-            check.evaluate(expression, &mut region, 0, evaluate::Mode::Number)?;
+            if let Some(mut returned) = check.closure_target(expression, 0) {
+                if !returned.checked {
+                    check.check_closure_at(&mut returned, factory_depth + 1)?;
+                }
+                check.capture_cells(&returned, &mut region);
+                closure.factory = true;
+            } else {
+                check.evaluate(expression, &mut region, 0, evaluate::Mode::Number)?;
+            }
         } else {
             region = check.arrow_block(arrow, 0)?;
         }
@@ -182,7 +215,97 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // never once per generated specialization.
         self.local_count = check.local_count;
         self.statement_count = check.statement_count;
+        closure.checked = true;
         Ok(())
+    }
+
+    pub(super) fn check_local_call(
+        &self,
+        call: &CallExpression<'_>,
+        closure: &LocalClosure,
+    ) -> Result<(), String> {
+        if call.optional || call.type_arguments.is_some() {
+            return Err(unsupported(
+                call,
+                "optional and generic local calls are not admitted",
+            ));
+        }
+        if call.arguments.len() != self.arrow(closure.arrow).params.items.len() {
+            return Err(unsupported(
+                call,
+                "local call requires exactly the declared number of arguments",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn charge_closure_expansion(&mut self, node: &impl GetSpan) -> Result<(), String> {
+        if self.closure_expansions >= 256 {
+            return Err(unsupported(
+                node,
+                "at most 256 local arrow call expansions are admitted",
+            ));
+        }
+        self.closure_expansions += 1;
+        Ok(())
+    }
+
+    pub(super) fn factory_result(
+        &mut self,
+        expression: &Expression<'_>,
+        region: &mut Region,
+    ) -> Result<Option<LocalClosure>, String> {
+        let Some((Expression::CallExpression(call), call_depth)) = unwrapped_at(expression, 0)
+        else {
+            return Ok(None);
+        };
+        let Some(mut factory) = self.closure_target(&call.callee, call_depth + 1) else {
+            return Ok(None);
+        };
+        if !factory.checked {
+            // Read-only shape recognition avoids validating/charging an ordinary
+            // numeric IIFE twice. Actual validation uses its fresh parameter cells.
+            if self
+                .arrow(factory.arrow)
+                .get_expression()
+                .and_then(|body| self.closure_target(body, 0))
+                .is_none()
+            {
+                return Ok(None);
+            }
+            self.check_local_closure(&mut factory)?;
+            self.capture_cells(&factory, region);
+        }
+        if !factory.factory {
+            return Ok(None);
+        }
+        self.check_local_call(call, &factory)?;
+        self.charge_closure_expansion(call.as_ref())?;
+        // Source arguments finish left-to-right before the creator's bindings
+        // replace the caller's. Every specialization gets fresh parameter slots.
+        let mut arguments = Vec::new();
+        for argument in &call.arguments {
+            let argument = argument.as_expression().ok_or_else(|| {
+                unsupported(call.as_ref(), "spread call arguments are not admitted")
+            })?;
+            arguments.push(self.expression(argument, region, call_depth + 1)?);
+        }
+        let arrow = self.arrow(factory.arrow);
+        let previous = std::mem::replace(&mut self.bindings, factory.captures);
+        let charging = std::mem::replace(&mut self.source_charging, false);
+        let result = (|| {
+            self.bind_arrow_parameters(arrow, arguments, region)?;
+            let mut returned = self
+                .closure_target(arrow.get_expression().expect("checked concise factory"), 0)
+                .expect("checked function result");
+            if !returned.checked {
+                self.check_local_closure(&mut returned)?;
+            }
+            Ok(Some(returned))
+        })();
+        self.bindings = previous;
+        self.source_charging = charging;
+        result
     }
 
     pub(super) fn capture_cells(&self, closure: &LocalClosure, region: &mut Region) {

@@ -45,7 +45,7 @@ function-value ABI must revisit reclamation. Function records, lifted bodies,
 indirect calls, recursive closures, later-initialized captures, per-iteration
 escaping `let` environments, collection and general Promise interoperability
 remain open. The native-JS factory below produces 563 for inputs 4 and 2; it is
-still a deliberate compiler rejection:
+now admitted through [known factory specialization](returned-closures.md):
 
 ```js
 const make = x => () => ++x;
@@ -58,4 +58,4 @@ the internal entry, check growth/limit/trap/reuse in both engines, and distingui
 one captured helper parameter from 999 unrelated parameters. Local-arrow and
 async oracle tests cover shared writes, nested captures, all three slot types,
 snapshots, primitive payload bits and suspension. These are bounded observations;
-they do not close the source-level escaping-closure gap.
+they do not close the general escaping-closure gap.

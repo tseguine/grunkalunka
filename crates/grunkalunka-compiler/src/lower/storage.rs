@@ -149,8 +149,9 @@ pub(crate) fn general_mutable_bindings(
     let mut definitions = BTreeMap::new();
     let mut mutable = BTreeSet::new();
     let mut parameters = BTreeSet::new();
-    // Every admitted local arrow has a checked Number result. This is only a
-    // storage-planning hint; declaration/call lowering still validates its body.
+    // Local arrow calls tentatively seed Number storage. This is only a planning
+    // hint: factory results become closure metadata, and call lowering rejects
+    // them in scalar value positions before any module is published.
     let mut numeric_closures = BTreeSet::new();
     let mut closure_aliases = Vec::new();
     for node in semantic.nodes().iter() {

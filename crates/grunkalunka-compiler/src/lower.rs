@@ -330,13 +330,16 @@ impl Lowering<'_, '_> {
     // This scan emits nothing; the evaluator still validates every source operand.
     fn numeric_result_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
         if let Expression::CallExpression(call) = expression
-            && self.closure_target(&call.callee, depth + 1).is_some()
+            && self
+                .closure_target(&call.callee, depth + 1)
+                .is_some_and(|closure| !closure.factory)
         {
             return true;
         }
         let closures = self
             .closures
             .iter()
+            .filter(|closure| !closure.factory)
             .filter_map(|closure| closure.symbol)
             .collect();
         storage::number_result_shape(
@@ -574,15 +577,20 @@ impl Lowering<'_, '_> {
                 return Err(unsupported(local, "local destructuring is not admitted"));
             };
             let mutable = declaration.kind == VariableDeclarationKind::Let;
-            if !mutable
-                && let Some(mut closure) = local
-                    .init
-                    .as_ref()
-                    .and_then(|initializer| self.closure_target(initializer, 0))
-            {
+            let closure = if !mutable && let Some(initializer) = local.init.as_ref() {
+                match self.closure_target(initializer, 0) {
+                    Some(closure) => Some(closure),
+                    None => self.factory_result(initializer, region)?,
+                }
+            } else {
+                None
+            };
+            if let Some(mut closure) = closure {
                 // An alias reuses an already validated source body and its cost.
                 if closure.symbol.is_none() {
-                    self.check_local_closure(&mut closure)?;
+                    if !closure.checked {
+                        self.check_local_closure(&mut closure)?;
+                    }
                     self.capture_cells(&closure, region);
                 }
                 closure.symbol = Some(

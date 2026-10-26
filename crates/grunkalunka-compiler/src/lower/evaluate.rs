@@ -328,13 +328,7 @@ impl Lowering<'_, '_> {
                         });
                         work.push(Work::Eval(argument, depth, Mode::Number));
                     } else {
-                        if self.closure_expansions >= 256 {
-                            return Err(unsupported(
-                                node,
-                                "at most 256 local arrow call expansions are admitted",
-                            ));
-                        }
-                        self.closure_expansions += 1;
+                        self.charge_closure_expansion(node)?;
                         self.active_local_calls += 1;
                         let arrow = self.arrow(closure.arrow);
                         let previous = std::mem::replace(&mut self.bindings, closure.captures);
@@ -970,20 +964,15 @@ impl Lowering<'_, '_> {
                     {
                         let arrow = self.arrow(closure.arrow);
                         self.check_arrow(arrow)?;
-                        if closure.symbol.is_none() {
+                        if !closure.checked {
                             self.check_local_closure(&mut closure)?;
                             self.capture_cells(&closure, regions.current());
                         }
-                        if call.optional || call.type_arguments.is_some() {
+                        self.check_local_call(call, &closure)?;
+                        if closure.factory {
                             return Err(unsupported(
                                 node,
-                                "optional and generic local calls are not admitted",
-                            ));
-                        }
-                        if call.arguments.len() != arrow.params.items.len() {
-                            return Err(unsupported(
-                                node,
-                                "local call requires exactly the declared number of arguments",
+                                "function-valued local calls require an immutable closure binding",
                             ));
                         }
                         match mode {

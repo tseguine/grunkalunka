@@ -8,6 +8,65 @@ use std::{
 #[test]
 fn local_arrows_share_cells_and_preserve_call_semantics_in_both_engines() {
     let cases: &[(&str, f64)] = &[
+        (
+            "const make=x=>()=>++x;const f=make(a),g=make(b);return f()*100+f()*10+g();",
+            563.0,
+        ),
+        (
+            "const make=x=>()=>++x;const f=make(a);const same=f;const g=make(b);return same()*100+f()*10+g();",
+            563.0,
+        ),
+        (
+            "const make=(x,y)=>()=>x*10+y+a;const f=make(a++,a++);return f();",
+            51.0,
+        ),
+        (
+            "let x=a;const make=y=>()=>x+=y;const f=make(b),g=make(a);f();return g();",
+            10.0,
+        ),
+        (
+            "const make=x=>()=>x++;const f=make(a),g=make(a);return f()*100+f()*10+g();",
+            454.0,
+        ),
+        (
+            "const make=x=>y=>()=>++x+y;const maker=make(a);const f=maker(b),g=maker(a);return f()*10+g();",
+            80.0,
+        ),
+        (
+            "const read=()=>a;const make=x=>read;const f=make(b);a=b;return f();",
+            2.0,
+        ),
+        (
+            "let x=null;const make=y=>()=>+(x=y);const f=make(a);return f();",
+            4.0,
+        ),
+        (
+            "const make=x=>()=>+(x=true);const f=make(a);return f();",
+            1.0,
+        ),
+        (
+            "const flag=a<b;const make=x=>()=>flag?x:b;const f=make(a);return f();",
+            2.0,
+        ),
+        (
+            "const make=x=>()=>{if(x)return ++x;return b;};const f=make(a);return f()+f();",
+            11.0,
+        ),
+        (
+            "const call=x=>{const make=y=>()=>x+y;const f=make(b);return f();};return call(a);",
+            6.0,
+        ),
+        ("const f=(x=>()=>++x)(a);return f()+f();", 11.0),
+        ("const make=x=>()=>++x;const f=make(a);return f()+a;", 9.0),
+        ("const make=x=>()=>x;const f=make(-0);return f();", -0.0),
+        (
+            "const total=x=>{const make=y=>()=>++y;const f=make(x);return f()+f();};return total(a)+total(b);",
+            18.0,
+        ),
+        (
+            "let x=0;const make=y=>()=>++y;for(let i=0;i<4;i++){const f=make(i);x+=f()+f();}return x;",
+            24.0,
+        ),
         ("const flag=a<b;const f=()=>flag?a:b;return f();", 2.0),
         ("const f=()=>+a;a=true;return f();", 1.0),
         (
@@ -160,7 +219,16 @@ fn local_arrows_share_cells_and_preserve_call_semantics_in_both_engines() {
 fn unsupported_closure_lifetimes_and_call_shapes_remain_explicit() {
     for body in [
         "const f=()=>a; return f;",
-        "const make=x=>()=>++x;const f=make(a),g=make(b);return f()*100+f()*10+g();",
+        "const make=x=>()=>++x;return make(a);",
+        "const make=x=>()=>++x;let f=make(a);return f();",
+        "const make=x=>()=>++x;const f=a?make(a):make(b);return f();",
+        "const make=x=>{return ()=>++x;};const f=make(a);return f();",
+        "const make=x=>()=>++x;const f=make(a);return f===f;",
+        "const make=x=>()=>++x;const f=make();return f();",
+        "const make=x=>()=>++x;const f=make(...a);return f();",
+        "const make=x=>()=>++x;const f=make?.(a);return f();",
+        "const make=x=>()=>true;return a;",
+        "const make=x=>()=>later;const f=make(a);const later=b;return f();",
         "let f=()=>a; return f();",
         "const f=async()=>a; return f();",
         "const f=()=>{if(a)return b;}; return f();",
@@ -215,6 +283,10 @@ fn closure_expansion_limits_bound_generated_work_separately_from_source_limits()
 
 #[test]
 fn numeric_local_closure_results_keep_the_primitive_host_tag() {
+    let source = "export function run(a,b){const make=x=>()=>++x;const f=make(a),g=make(b);return f()*100+f()*10+g();}";
+    let artifact = compile_value(source, false).unwrap();
+    let mut host = ValueInstance::new(&artifact.wasm).unwrap();
+    assert!(matches!(host.run(4.0, 2.0).unwrap(), Value::Number(563.0)));
     let source = "export function run(a,b){const read=()=>a; a=b; return read();}";
     let artifact = compile_value(source, false).unwrap();
     let mut host = ValueInstance::new(&artifact.wasm).unwrap();
@@ -348,5 +420,113 @@ fn nested_block_calls_have_an_observed_stack_bound() {
             .err()
             .unwrap()
             .contains("128 nested regions")
+    );
+}
+
+#[test]
+fn factory_checks_and_specializations_preserve_source_and_stack_budgets() {
+    for (wrappers, admitted) in [(63, true), (64, false)] {
+        let mut expression = String::from("make(a)");
+        for _ in 0..wrappers {
+            expression = format!("({expression} as never)");
+        }
+        let source = format!(
+            "export function run(a,b){{const make=x=>()=>x;const f={expression};return f();}}"
+        );
+        assert_eq!(
+            compile(&source, true).is_ok(),
+            admitted,
+            "{wrappers} erased call wrappers"
+        );
+    }
+    for (wrappers, admitted) in [(127, true), (128, false)] {
+        let source = format!(
+            "export function run(a,b){{const make=x=>()=>x;const f={}make(a){};return f();}}",
+            "(".repeat(wrappers),
+            ")".repeat(wrappers)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{wrappers} call wrappers"
+        );
+    }
+    for (depth, admitted) in [(8, true), (9, false)] {
+        let arrows = (0..depth).map(|i| format!("x{i}=>")).collect::<String>();
+        let mut source = format!("export function run(a,b){{const make={arrows}()=>x0;");
+        for i in 0..depth {
+            let callee = if i == 0 {
+                "make".into()
+            } else {
+                format!("f{}", i - 1)
+            };
+            source.push_str(&format!(
+                "const f{i}={callee}({});",
+                if i == 0 { "a" } else { "b" }
+            ));
+        }
+        source.push_str(&format!("return f{}();}}", depth - 1));
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted);
+        if admitted {
+            assert_eq!(
+                NumericInstance::new(&result.unwrap().wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        } else {
+            assert!(result.err().unwrap().contains("8 nested factory results"));
+        }
+    }
+    for (calls, admitted) in [(255, true), (256, false)] {
+        let source = format!(
+            "export function run(a,b){{const make=x=>()=>x;const f=make(a);return({});}}",
+            vec!["f()"; calls].join(",")
+        );
+        let result = compile(&source, false);
+        assert_eq!(result.is_ok(), admitted);
+        if !admitted {
+            assert!(
+                result
+                    .err()
+                    .unwrap()
+                    .contains("256 local arrow call expansions")
+            );
+        }
+    }
+    for (locals, admitted) in [(126, true), (127, false)] {
+        let declarations = (0..locals)
+            .map(|i| format!("let v{i}=a;"))
+            .collect::<String>();
+        let source = format!(
+            "export function run(a,b){{const make=x=>()=>{{{declarations}return x;}};const f=make(a);return f()+f();}}"
+        );
+        assert_eq!(compile(&source, false).is_ok(), admitted);
+    }
+    for (statements, admitted) in [(252, true), (253, false)] {
+        let source = format!(
+            "export function run(a,b){{const make=x=>()=>{{{}return x;}};const f=make(a);return f()+f();}}",
+            "a=a;".repeat(statements)
+        );
+        assert_eq!(compile(&source, false).is_ok(), admitted);
+    }
+    let js = "export function run(a,b){const make=x=>()=>++x;const f=make(a);return f();}";
+    let ts = "export function run(a:number,b:number){const make=((x:never):string=>((()=>++x) as unknown as number)) as any;const f=(make as any)(a);return(f as never)();}";
+    let plain = compile(js, false).unwrap();
+    let typed = compile(ts, true).unwrap();
+    assert_eq!(plain.wasm, typed.wasm);
+    assert_eq!(
+        NumericInstance::new(&typed.wasm)
+            .unwrap()
+            .run(4.0, 2.0)
+            .unwrap(),
+        5.0
     );
 }

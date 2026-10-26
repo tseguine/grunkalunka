@@ -494,3 +494,7 @@ captured writes, locals and loop control. Escaping environments still require wo
 Stable captured-cell addresses now survive helper return and suspension within
 one invocation. Function records, lifted bodies, indirect calls and escaping
 per-iteration environments remain subsequent work; see [storage](captured-cells.md).
+Known concise local factories now return arrows into immutable bindings through
+specialization with fresh captured cells. The two-counter example executes in
+both engines and across suspension. General dynamic function values remain open;
+see [returned closures](returned-closures.md).
