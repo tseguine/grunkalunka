@@ -1352,7 +1352,6 @@ fn known_async_arrows_keep_promise_object_and_body_boundaries() {
         "const f=async()=>a;return f;",
         "const f=a?async()=>a:async()=>b;return await f();",
         "let f=async()=>a;return await f();",
-        "const f=async()=>{throw b;};return await f();",
         "const f=async()=>Promise.reject(b);return await f();",
         "const f=async()=>()=>a;return await f();",
         "const f=async()=>{return ()=>a;};return await f();",
@@ -1425,13 +1424,8 @@ fn known_concise_async_bodies_preserve_body_and_caller_jobs() {
 }
 
 #[test]
-fn concise_async_body_fulfillment_guards_do_not_change_root_rejection() {
+fn concise_async_promise_object_guards_do_not_change_root_rejection() {
     for body in [
-        "const f=async()=>await Promise.reject(a);return await f();",
-        "const f=async()=>(await Promise.reject(a),b);return await f();",
-        "const f=async()=>a?await Promise.reject(b):await a;return await f();",
-        "const f=async()=>await(async()=>await Promise.reject(a))();return await f();",
-        "const f=async()=>await(async()=>{throw a;})();return await f();",
         "const f=async()=>await a;return f();",
         "const f=async()=>await a;const p=f();return await p;",
         "const f=async()=>await({});return await f();",
@@ -1439,13 +1433,6 @@ fn concise_async_body_fulfillment_guards_do_not_change_root_rejection() {
         let source = source_for(body);
         assert!(compile_async(&source, false).is_err(), "{source}");
     }
-    let source = source_for("const f=async()=>await Promise.reject(a);return await f();");
-    assert!(
-        compile_async(&source, false)
-            .err()
-            .unwrap()
-            .contains("fulfilled awaits")
-    );
     compare_promises(
         &["try{await Promise.reject(a);}catch(reason){return reason;}return b;"],
         &[(4.0, 2.0), (0.0, -0.0)],
@@ -1499,15 +1486,8 @@ fn known_async_blocks_preserve_body_and_caller_jobs() {
 }
 
 #[test]
-fn async_blocks_require_fulfilled_body_completions() {
+fn async_blocks_keep_promise_object_and_sync_guards() {
     for body in [
-        "const f=async()=>{return await Promise.reject(a);};return await f();",
-        "const f=async()=>{if(a)return await Promise.reject(b);return await a;};return await f();",
-        "const f=async()=>{try{await Promise.reject(a);}catch(reason){return reason;}};return await f();",
-        "const f=async()=>{throw a;};return await f();",
-        "const f=async()=>{await b;throw a;};return await f();",
-        "const f=async()=>{if(a)throw b;return await a;};return await f();",
-        "const f=async()=>{try{throw a;}catch(reason){return await reason;}};return await f();",
         "const f=async()=>{return await a;};return f();",
         "const f=async()=>{return await a;};const p=f();return await p;",
         "const f=()=>{return await a;};return await f();",
@@ -1587,6 +1567,114 @@ fn async_root_completion_keeps_other_profile_and_abrupt_guards() {
 fn async_root_completion_ignores_type_claims() {
     let js = "export async function run(a,b){if(a)return;await b;}";
     let ts = "export async function run(a:number,b:number):Promise<number>{if(a)return;await(b as number);}";
+    assert_eq!(
+        compile_async(js, false).unwrap().wasm,
+        compile_async(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn awaited_async_callee_rejection_keeps_its_caller_reaction() {
+    compare_promises(
+        &[
+            "const f=async()=>{throw b;};return await f();",
+            "const f=async()=>await Promise.reject(a);return await f();",
+            "const f=async()=>(await Promise.reject(a),b);return await f();",
+            "const f=async()=>a?await Promise.reject(b):await a;return await f();",
+            "const f=async()=>await(async()=>await Promise.reject(a))();return await f();",
+            "const f=async()=>await(async()=>{throw a;})();return await f();",
+            "const f=async()=>{return await Promise.reject(a);};return await f();",
+            "const f=async()=>{if(a)return await Promise.reject(b);return await a;};return await f();",
+            "const f=async()=>{try{await Promise.reject(a);}catch(reason){return reason;}};return await f();",
+            "const f=async()=>{throw a;};return await f();",
+            "const f=async()=>{await b;throw a;};return await f();",
+            "const f=async()=>{if(a)throw b;return await a;};return await f();",
+            "const f=async()=>{try{throw a;}catch(reason){return await reason;}};return await f();",
+            "const f=async()=>{throw null;};return await f();",
+            "const f=async()=>{throw undefined;};return await f();",
+            "const f=async()=>{throw false;};return await f();",
+            "const f=async()=>{throw -0;};return await f();",
+            "const f=async()=>{throw NaN;};return await f();",
+            "const f=async()=>await Promise.reject(null);return await f();",
+            "const f=async()=>await Promise.reject(false);return await f();",
+            "const f=async()=>await Promise.reject(undefined);return await f();",
+            "const f=async()=>{throw a;};try{return await f();}catch(reason){return reason;}",
+            "const f=async()=>{await a;throw b;};try{return await f();}catch(reason){await null;return reason;}",
+            "const f=async()=>{await a;throw b;};try{return await f();}catch(reason){throw await reason;}",
+            "const f=async()=>{try{await Promise.reject(a);}catch(reason){throw reason+b;}};try{return await f();}catch(reason){return reason;}",
+            "const g=async()=>{throw a;};const f=async()=>{return await g();};return await f();",
+            "const g=async()=>{throw a;};const f=async()=>{try{return await g();}catch(reason){throw await b;}};try{return await f();}catch(reason){return reason;}",
+            "const g=async()=>await Promise.reject(a);const f=async()=>{try{return await g();}catch(reason){return await reason;}};return await f();",
+            "let x=0;const f=async y=>{x+=10;throw y;};try{await f(await Promise.reject(a));}catch(reason){return x+ +reason;}",
+            "let x=a;const f=async()=>{x=b;await null;throw x++;};try{await f();}catch(reason){return reason+x;}",
+            "const f=async(fn,x)=>{const y=await x;throw fn(y);};try{return await f(x=>x+a,b);}catch(reason){return reason;}",
+            "const f=async()=>{for(let i=0;i<3;i++){await b;if(a)throw i;}return null;};try{return await f();}catch(reason){return reason;}",
+            "const f=async()=>{throw a;};try{await Promise.reject(await f());}catch(reason){return reason;}",
+            "const f=async()=>{try{await Promise.reject(a);}catch(reason){await reason;}};return await f();",
+            "const f=async()=>{try{if(a)throw b;await a;}catch(reason){throw reason;}};return await f();",
+            "const f=async()=>{throw a;};return b;",
+            "const f=async()=>await(async()=>{return null;})();return await f();",
+            "const f=async()=>await(async()=>{})();return await f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn awaited_callee_settlements_share_one_await_site_and_keep_job_limits() {
+    for (callee, accepted_calls) in [
+        ("async()=>a", 32),
+        ("async()=>await a", 16),
+        ("async()=>{throw a;}", 32),
+    ] {
+        for count in [accepted_calls, accepted_calls + 1] {
+            let body = format!(
+                "const f={callee};{}return b;",
+                "try{await f();}catch(reason){a=+reason;}".repeat(count)
+            );
+            let result = compile_async(&source_for(&body), false);
+            if count == accepted_calls {
+                result.unwrap();
+                compare_promises(&[&body], &[(4.0, 2.0)]);
+            } else {
+                assert!(result.err().unwrap().contains("32 await sites"));
+            }
+        }
+    }
+    for count in [16, 17] {
+        let body =
+            format!("const f=async()=>await a;for(let i=0;i<{count};i++)await f();return b;");
+        let artifact = compile_async(&source_for(&body), false).unwrap();
+        let mut call = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+        let mut failed = false;
+        while matches!(call.state().unwrap(), AsyncState::Pending) {
+            if call.run_one_job().is_err() {
+                failed = true;
+                break;
+            }
+        }
+        if count == 16 {
+            assert!(!failed);
+            assert!(matches!(
+                call.state().unwrap(),
+                AsyncState::Fulfilled(Value::Number(2.0))
+            ));
+        } else {
+            assert!(failed);
+            assert!(call.state().is_err());
+        }
+    }
+}
+
+#[test]
+fn awaited_callee_type_claims_do_not_coerce_rejection_or_fulfillment() {
+    let js = "export async function run(a,b){const f=async x=>{if(x)throw null;return await false;};return await f(a);}";
+    let ts = "export async function run(a:number,b:number):Promise<number>{const f=async(x:number):Promise<number>=>{if(x)throw null;return await(false as unknown as number);};return await f(a);}";
     assert_eq!(
         compile_async(js, false).unwrap().wasm,
         compile_async(ts, true).unwrap().wasm

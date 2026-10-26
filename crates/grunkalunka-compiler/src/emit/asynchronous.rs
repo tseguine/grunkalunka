@@ -132,6 +132,34 @@ impl<'a> Splitter<'a> {
                     self.return_to = outer;
                     entry?
                 }
+                Op::AwaitCall { result, body } => {
+                    // Two possible settlements share one logical await site.
+                    // The body runs now; only the caller reaction suspends here.
+                    self.awaits += 1;
+                    if self.awaits > 32 {
+                        return Err("async profile admits at most 32 await sites".into());
+                    }
+                    let fulfilled_resume = self.state(&[], Some(*result), End::Jump(next))?;
+                    let fulfilled = self.terminal(End::Suspend {
+                        input: *result,
+                        rejected: false,
+                        resume: fulfilled_resume,
+                    })?;
+                    let caught = self.catch_to;
+                    let (resumed, target) = caught.unwrap_or((*result, next));
+                    let rejected_resume = self.state(&[], Some(resumed), End::Jump(target))?;
+                    let rejected = self.terminal(End::Suspend {
+                        input: *result,
+                        rejected: caught.is_none(),
+                        resume: rejected_resume,
+                    })?;
+                    let outer_return = self.return_to.replace((*result, fulfilled));
+                    let outer_catch = self.catch_to.replace((*result, rejected));
+                    let entry = self.region(body, fulfilled, None, None);
+                    self.return_to = outer_return;
+                    self.catch_to = outer_catch;
+                    entry?
+                }
                 Op::TryCatch {
                     body,
                     reason,
@@ -257,6 +285,7 @@ fn atomic(op: &Op) -> bool {
     !matches!(
         op,
         Op::Await { .. }
+            | Op::AwaitCall { .. }
             | Op::TryCatch { .. }
             | Op::InlineCall { .. }
             | Op::Block(_)
@@ -287,7 +316,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let mut await_site = false;
         ir::visit_operations(&function.body, &mut |op| {
             source_call |= matches!(op, Op::Call { .. });
-            await_site |= matches!(op, Op::Await { .. } | Op::TryCatch { .. });
+            await_site |= matches!(
+                op,
+                Op::Await { .. } | Op::AwaitCall { .. } | Op::TryCatch { .. }
+            );
         });
         // The source entry's logical ID does not denote a callable numeric Wasm
         // function in this module; its physical implementation is $advance.

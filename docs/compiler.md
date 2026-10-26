@@ -1835,32 +1835,34 @@ primitive corpus pairs bring that profile to 109 pairs and 6104 comparisons.
 ## Directly awaited known async arrows
 
 The async entry profile now admits directly awaited calls to known const, alias
-and direct async arrows whose bodies produce represented primitives. Non-suspending
-bodies and ordered arguments execute before the existing caller `Await`; its
-fulfillment reaction preserves native promise job order. Both body forms may also
-await fulfilled primitives as described below. Explicit block, bare and implicit primitive returns reuse
+and direct async arrows whose bodies return or throw represented primitives.
+Ordered arguments and the synchronous body prefix execute before the caller's
+reaction. Both body forms may await primitives or known async calls, including
+rejected waits. Explicit block, bare and implicit primitive returns reuse
 the existing local evaluation paths. TypeScript type claims do not replace the
 actual result kind.
 
 These async arrows have no ordinary scalar closure signature. Calls in other
 positions and dynamic/mutable async function values remain rejected, as do
-Promise/function-valued outcomes, rejected body awaits and
-body throws. Pristine
+Promise/function-valued outcomes. Pristine
 `Promise.resolve` wrapping is supported. A rejected async-call result would be a
 Promise-valued reason and is rejected; awaiting the call first yields a supported
-primitive reason. No IR operation, emitter path, dependency or Promise-object ABI
-was added. See [the async profile](async.md#suspension-and-host-jobs).
+primitive reason. See [the async profile](async.md#suspension-and-host-jobs).
 
-Known async bodies now preserve their own fulfilled await reactions before
+Known async bodies preserve their own await reactions before
 the separate caller reaction. `const f=async()=>await a; return await f();` has
 two jobs. Nested fulfilled calls, conditional waits, argument waits and retained
 callback pairs use the same existing continuation state. Block bodies also retain
 local/captured cells, loop control and early, bare or implicit return completion.
-A read-only query checks only awaits and throws owned by the current source
-arrow; root rejection and catch behavior remains supported. Body throws and
-rejected waits, including caught or unselected ones, are still excluded because
-their callee rejection boundary is separate work. The shared evaluator, IR and
-emitters are unchanged by this extension.
+The structured General-result `AwaitCall` operation verifies a complete callee
+return/throw region. Its async transformation sends each completion through the
+caller's separate reaction, retaining nested callee catches and enclosing caller
+catches. Arguments execute outside that protected region. Both settlement paths
+count as one logical await site, and the existing runtime job bound still applies.
+Synchronous emitters and lifted ordinary functions reject this operation. Number
+results are packed at the boundary and keep their proved numeric use afterward;
+immediately invoked async blocks without a positive Number proof keep General.
+No dependency, Promise-object representation or host ABI was added.
 
 The root async entry also fulfills intrinsic Undefined on bare return or normal
 completion. Lowering adds that result only to normal paths, preserving existing

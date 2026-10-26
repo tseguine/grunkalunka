@@ -29,7 +29,8 @@ not deletion of a numeric-profile gap or general Promise support.
 
 Known async local arrows with primitive bodies can be called directly under
 `await`. The body may be concise or use the existing block/implicit-return rules.
-Both forms may await fulfilled primitives and known fulfilled async calls.
+Both forms may await represented primitives and known async calls, including
+rejected waits, source throws and lexical catches.
 Block bodies preserve locals, captured cells, branches, loop exits and early,
 bare or implicit returns across suspension. For example:
 
@@ -48,13 +49,17 @@ direct async arrow calls and pristine
 Number/numeric-leaf callback argument and source/resource checks still apply.
 
 Async function values and Promise objects are not reified. Unawaited calls,
-mutable/dynamic async function selections, rejected body awaits, body throws and Promise/function
+mutable/dynamic async function selections and Promise/function
 outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
 the reason would be the Promise object, rather than its eventual primitive value.
 `await Promise.reject(await f())` uses a primitive reason and remains supported.
-The fulfillment-only body check rejects source-owned throws and rejected waits
-even inside a catch or an unselected branch; the root entry retains its rejection
-and catch support.
+The structured `AwaitCall` region separates callee completion from the caller's
+reaction. A body throw settles the callee immediately, but the caller observes it
+on its own reaction job; a rejected body await adds its body job first. Callee
+catches run within that boundary, and caller catches run after the reaction.
+Ordered arguments complete outside the boundary, so their failures cannot enter
+callee catches. The return and rejection alternatives share one logical await
+site under the existing 32-site limit. No Promise-object or host ABI was added.
 
 The compiler lowers await to a Number or General operation in the typed IR.
 Known Number operands retain scalar specialization; other represented primitive
@@ -156,7 +161,8 @@ binding. Captured function cells share those writes; aliases retain their pairs.
 awaited arguments, and factories can retain those callbacks across later jobs.
 Local block-arrow calls run synchronously with a separate return boundary. Await
 can surround their numeric result; returning from the closure continues the caller,
-including when the body returns from inside a loop. Async arrows remain excluded.
+including when the body returns from inside a loop. Known async arrows use the
+separate immediately awaited call boundary described above.
 
 [Primitive rejected-await catch handlers](async-catch.md) now admit lexical
 `try/catch`, optional bindings, nested handlers, mutable/captured reasons and later
@@ -165,9 +171,11 @@ try. Rejected awaits within a handler belong to its enclosing protected scope.
 [Primitive source throw](async-throw.md) transfers to a lexical handler immediately
 or directly rejects the activation when uncaught. It adds no await reaction job;
 its operand can still suspend through explicit await. Async structural paths may
-return or throw; implicit fallthrough remains excluded.
+return, throw or fulfill Undefined through normal completion. Throws inside a
+known async callee settle that callee; observing them through the caller's await
+still requires its reaction job.
 
-Source helper calls, async arrows, arbitrary Promise/thenable values, Strings,
+Source helper calls, general async function values, arbitrary Promise/thenable values, Strings,
 Symbols, BigInts, objects, Promise callbacks, synchronous/lifted throw, finally, catch
 destructuring and Promise interoperability remain open. Runtime-selected functions
 accept Number and numeric-leaf callback parameters and return Number or a

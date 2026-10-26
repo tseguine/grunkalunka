@@ -87,6 +87,7 @@ enum Work<'e, 'a> {
     Eval(&'e Expression<'a>, usize, Mode),
     Forget,
     Await(&'e Expression<'a>, bool, Type),
+    FinishAwaitCall(&'e Expression<'a>, Type),
     Pack(&'e Expression<'a>),
     Convert(&'e Expression<'a>),
     Truthy(&'e Expression<'a>),
@@ -368,6 +369,26 @@ impl Lowering<'_, '_> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
+                Work::FinishAwaitCall(node, ty) => {
+                    let mut value = values.pop().expect("async body result").id();
+                    let mut body = regions.children.pop().expect("owned async body");
+                    if ty == Type::Number {
+                        let result = self.value(Type::General);
+                        Self::push(
+                            &mut body,
+                            node,
+                            Op::Pack {
+                                result,
+                                input: value,
+                            },
+                        );
+                        value = result;
+                    }
+                    body.exit = Exit::Return(value);
+                    let result = self.value(Type::General);
+                    Self::push(regions.current(), node, Op::AwaitCall { result, body });
+                    values.push(Value::General(result));
+                }
                 Work::Await(node, rejected, ty) => {
                     let input = values.pop().expect("await operand").id();
                     let result = self.value(ty);
@@ -438,6 +459,10 @@ impl Lowering<'_, '_> {
                         self.bind_arrow_parameters(arrow, arguments, regions.current())?;
                         let charging = std::mem::replace(&mut self.source_charging, false);
                         work.push(Work::RestoreBindings(previous, charging));
+                        if arrow.r#async {
+                            regions.children.push(self.region(arrow));
+                            work.push(Work::FinishAwaitCall(node, closure.result));
+                        }
                         if let Some(expression) = arrow.get_expression() {
                             work.push(Work::Eval(
                                 expression,
@@ -1319,7 +1344,14 @@ impl Lowering<'_, '_> {
                                 self.capture_cells(&closure, regions.current());
                             }
                             self.check_local_call(call, &closure)?;
-                            call_result(&mut work, node, mode, closure.result)?;
+                            // AwaitCall produces a General completion pair even
+                            // when the normal body result is known Number.
+                            work.pop().expect("scheduled caller await");
+                            if closure.result == Type::Number && matches!(mode, Mode::Number) {
+                                work.push(Work::NumberFromGeneral(node));
+                            } else {
+                                call_result(&mut work, node, mode, Type::General)?;
+                            }
                             work.push(Work::LocalCall {
                                 node: argument,
                                 call,

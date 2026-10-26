@@ -184,6 +184,11 @@ pub(super) fn number_result_shape(
                     if let Expression::ArrowFunctionExpression(arrow) = callee {
                         if let Some(body) = arrow.get_expression() {
                             pending.push((body, depth + 1));
+                        } else if arrow.r#async {
+                            // A block may complete with a primitive or throw.
+                            // Its checked call retains that General completion;
+                            // absence of an expression body proves no Number kind.
+                            return false;
                         }
                         continue;
                     }

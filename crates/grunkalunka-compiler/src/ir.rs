@@ -171,7 +171,9 @@ pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
     for operation in &region.operations {
         visit(&operation.kind);
         match &operation.kind {
-            Op::InlineCall { body, .. } | Op::Block(body) => visit_operations(body, visit),
+            Op::InlineCall { body, .. } | Op::AwaitCall { body, .. } | Op::Block(body) => {
+                visit_operations(body, visit)
+            }
             Op::If {
                 consequent,
                 alternate,
@@ -253,6 +255,12 @@ pub(crate) enum Op {
         cells: Vec<SlotId>,
     },
     InlineCall {
+        result: ValueId,
+        body: Region,
+    },
+    // Execute a known async body, then await its primitive return or throw.
+    // Arguments have already completed outside this callee rejection boundary.
+    AwaitCall {
         result: ValueId,
         body: Region,
     },
@@ -877,6 +885,7 @@ impl Verifier<'_> {
                 self.define(*result, Type::Number, visible, span)?;
             }
             Op::InlineCall { .. }
+            | Op::AwaitCall { .. }
             | Op::TryCatch { .. }
             | Op::DoWhile { .. }
             | Op::Block(_)
@@ -947,13 +956,19 @@ impl Verifier<'_> {
                 ));
             }
             let next = match (&operation.kind, frame.pending) {
-                (Op::InlineCall { result, body }, PendingRegion::Start) => {
+                (
+                    Op::InlineCall { result, body } | Op::AwaitCall { result, body },
+                    PendingRegion::Start,
+                ) => {
                     let ty = self
                         .function
                         .values
                         .get(result.0)
                         .copied()
                         .ok_or_else(|| invalid(span, "invalid inline-call result"))?;
+                    if matches!(operation.kind, Op::AwaitCall { .. }) && ty != Type::General {
+                        return Err(invalid(span, "awaited calls require General results"));
+                    }
                     if !matches!(ty, Type::Number | Type::General | Type::Closure(_)) {
                         return Err(invalid(
                             span,
@@ -968,7 +983,10 @@ impl Verifier<'_> {
                         ty,
                     )));
                 }
-                (Op::InlineCall { result, .. }, PendingRegion::Inline(ty)) => {
+                (
+                    Op::InlineCall { result, .. } | Op::AwaitCall { result, .. },
+                    PendingRegion::Inline(ty),
+                ) => {
                     completed.take().expect("checked inline body");
                     self.define(*result, ty, &mut frame.visible, span)?;
                     Completion::NORMAL
@@ -1133,6 +1151,7 @@ impl Verifier<'_> {
                 }
                 (
                     Op::InlineCall { .. }
+                    | Op::AwaitCall { .. }
                     | Op::Block(_)
                     | Op::If { .. }
                     | Op::TryCatch { .. }
@@ -3914,6 +3933,88 @@ mod throw_value_tests {
         assert_eq!(
             Completion::THROW.pretest_loop(),
             Completion::NORMAL.union(Completion::THROW)
+        );
+    }
+}
+
+#[cfg(test)]
+mod awaited_call_tests {
+    use super::*;
+
+    #[test]
+    fn awaited_calls_require_general_results_and_complete_scoped_bodies() {
+        let source =
+            "export async function run(a,b){const f=async()=>{throw a;};return await f();}";
+        for change in 0..6 {
+            let mut module =
+                crate::lower_source_profile(source, false, Type::General, true).unwrap();
+            verify_module_with_entry_type(&module, Type::General).unwrap();
+            let function = &mut module.functions[0];
+            let parent = function.body.id;
+            let Op::AwaitCall { result, body } = &mut function
+                .body
+                .operations
+                .iter_mut()
+                .find(|op| matches!(op.kind, Op::AwaitCall { .. }))
+                .unwrap()
+                .kind
+            else {
+                panic!("awaited call");
+            };
+            match change {
+                0 => function.values[result.0] = Type::Number,
+                1 => *result = ValueId(usize::MAX),
+                2 => body.exit = Exit::Fallthrough,
+                3 => body.exit = Exit::Return(*result),
+                4 => body.id = parent,
+                _ => body.exit = Exit::Return(ValueId(0)),
+            }
+            assert!(
+                verify_module_with_entry_type(&module, Type::General).is_err(),
+                "mutation {change}"
+            );
+        }
+    }
+
+    #[test]
+    fn awaited_call_cannot_suspend_an_ordinary_lifted_function() {
+        let source =
+            "export async function run(a,b){const f=()=>a;const g=()=>b;let h=a?f:g;return h();}";
+        let mut module = crate::lower_source_profile(source, false, Type::General, true).unwrap();
+        let function = &mut module.functions[1];
+        let input = ValueId(function.values.len());
+        function.values.push(Type::General);
+        let result = ValueId(function.values.len());
+        function.values.push(Type::General);
+        let span = function.body.span;
+        function.body.operations.push(Operation {
+            span,
+            kind: Op::AwaitCall {
+                result,
+                body: Region {
+                    id: RegionId(10000000),
+                    span,
+                    operations: vec![Operation {
+                        span,
+                        kind: Op::Nullish {
+                            result: input,
+                            value: Nullish::Undefined,
+                        },
+                    }],
+                    exit: Exit::Return(input),
+                },
+            },
+        });
+        verify_module_with_entry_type(&module, Type::General).unwrap();
+        assert!(
+            crate::emit::emit_with_entry_type(&module, Type::General)
+                .unwrap_err()
+                .contains("async emitter")
+        );
+        assert!(
+            crate::emit::emit_async(&module)
+                .unwrap_err()
+                .contains("async closure bodies must be synchronous")
         );
     }
 }

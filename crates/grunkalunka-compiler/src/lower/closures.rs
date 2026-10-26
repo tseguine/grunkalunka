@@ -201,9 +201,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // scratch values/slots in the real function's verified IR.
         let mut check = self.clone();
         if arrow.r#async {
-            // The caller's continuation holds the body, followed by its separate
-            // reaction job. Rejection needs a distinct callee boundary first.
-            awaited::check_fulfilled_body(arrow, self.semantic)?;
+            // AwaitCall owns the callee's return/rejection boundary and retains
+            // the caller's separate reaction job.
             check.allow_await = true;
         }
         check.function_result_depth = 0;
@@ -454,7 +453,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 && completion.normal
                 && !completion.breaks
                 && !completion.continues
-                && !completion.throws
+                && (arrow.r#async || !completion.throws)
             {
                 let value = self.value(Type::General);
                 Self::push(
@@ -466,7 +465,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     },
                 );
                 region.exit = Exit::Return(value);
-            } else if completion != Completion::RETURN {
+            } else if completion != Completion::RETURN
+                && !(arrow.r#async
+                    && result_type == Type::General
+                    && completion.returns_or_throws())
+            {
                 return Err(unsupported(
                     arrow,
                     if matches!(result_type, Type::Closure(_)) {
