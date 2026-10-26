@@ -188,8 +188,15 @@ compiler evidence, not a universal compilation or runtime speed claim.
 
 The next small extension admits same-signature function-valued `??` in the same
 four lowering files, retaining the left pair and skipping RHS effects/jobs. Its
-original rejected source becomes a differential JS/TS positive. Generic
-constructor-free selectors still encounter the separate missing primitive
-coalescing operation during numeric-placeholder body checking; the exact failed
-example remains recorded for that next unit. No new IR operation, emitter, runtime
+original rejected source becomes a differential JS/TS positive. At that stage,
+generic constructor-free selectors encountered the missing primitive coalescing
+operation during numeric-placeholder body checking. No new IR operation, emitter, runtime
 ABI, dependency or broad architecture decision is needed for the function-only slice.
+
+The following primitive binary `??` unit adds one typed `GeneralIsNullish` operation
+and a backend tag test. Existing scalar Number and function operands are non-nullish;
+General selection tests the kind, not truthiness. Predicate contexts select the
+actual primitive before converting it to Boolean. The shared selection cursor,
+structured regions, async splitting, layouts and ABI remain in place. The original
+constructor-free closure selector now passes preliminary numeric checking and
+specializes from actual function arguments. No broad IR migration is needed.

@@ -603,3 +603,14 @@ call result: one field for Number, both code/environment fields for Closure.
 It then follows the caller continuation. Neither path turns a closure return into
 a return from the containing function. Calls retain original capture slots, fresh
 parameter/body locals and separately bounded generated expansion.
+
+### Nullish selection
+
+`GeneralIsNullish` consumes a visible General snapshot and defines a Predicate.
+The backend tests only the canonical Undefined (0) and Null (1) tags. It does not
+inspect the numeric payload, so false, signed zero and NaN are non-nullish.
+Binary `??` inverts that predicate for the existing operand-selection regions;
+scalar Number and Closure values use a constant non-nullish predicate. Predicate
+source contexts select the actual value before ToBoolean. Both source operands
+remain validated; only the selected RHS executes. Existing async splitting emits
+the same typed leaf operation and preserves selected suspension boundaries.

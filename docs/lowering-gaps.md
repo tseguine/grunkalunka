@@ -657,7 +657,17 @@ results, numeric coercion and host function values remain open; see
 [function truthiness](function-truthiness.md).
 
 Function-valued `??` skips RHS construction, writes, awaits and rejections while
-retaining left-side effects and failures. The represented function kinds must be
-established; constructor-free `(x,y)=>x??y` still fails preliminary numeric-formal
-checking until primitive coalescing is supported. The exact failed example is kept
-in the runtime closure tests for that follow-up; annotations remain erased.
+retaining left-side effects and failures. Primitive binary coalescing now also
+unblocks the constructor-free `(x,y)=>x??y` selector's preliminary numeric-formal
+check; the exact former rejection executes in the runtime closure tests.
+Annotations remain erased and full function signatures remain checked.
+
+Binary `??` selects between represented Undefined, Null, Boolean and Number values,
+retaining false, zero, signed zero and NaN. Corpus 66 promotes the three unchanged
+numeric sources `discarded-nullish`, `predicate-logical-nullish` and
+`logical-unsupported-8`. The original `gap-nullish` source executes unchanged in the
+Value profile but stays a numeric-profile rejection because the compiler keeps a
+General join instead of proving its selected result is always a Number. Its numeric
+diagnostic now identifies the unsupported null operand rather
+than the entire operator. `??=`, `void`, other primitive/heap kinds and mixed
+function/primitive joins remain gaps. See [binary coalescing](compiler.md#binary-nullish-coalescing).

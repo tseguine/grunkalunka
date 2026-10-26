@@ -234,10 +234,7 @@ fn schedule_selection<'e, 'a>(
             });
             work.push(Work::Eval(&conditional.test, depth + 1, Mode::Predicate));
         }
-        Expression::LogicalExpression(logical)
-            if logical.operator != LogicalOperator::Coalesce
-                || matches!(mode, Mode::Function(_)) =>
-        {
+        Expression::LogicalExpression(logical) => {
             work.push(Work::LogicalLeft {
                 node,
                 left: &logical.left,
@@ -966,6 +963,41 @@ impl Lowering<'_, '_> {
                 } => {
                     let left = values.pop().expect("logical left");
                     let condition = match left {
+                        Value::General(input) if operator == LogicalOperator::Coalesce => {
+                            let nullish = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::GeneralIsNullish {
+                                    result: nullish,
+                                    input,
+                                },
+                            );
+                            let result = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Not {
+                                    result,
+                                    input: nullish,
+                                },
+                            );
+                            result
+                        }
+                        Value::Number(_) | Value::Predicate(_)
+                            if operator == LogicalOperator::Coalesce =>
+                        {
+                            let result = self.value(Type::Predicate);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Boolean {
+                                    result,
+                                    value: true,
+                                },
+                            );
+                            result
+                        }
                         Value::General(input) => {
                             let result = self.value(Type::Predicate);
                             Self::push(
@@ -1403,7 +1435,10 @@ impl Lowering<'_, '_> {
                         }
                     }
                     if matches!(mode, Mode::Predicate) {
-                        if self.general_predicate_leaf(node, depth) {
+                        if self.general_predicate_leaf(node, depth)
+                            || matches!(node, Expression::LogicalExpression(logical)
+                                if logical.operator == LogicalOperator::Coalesce)
+                        {
                             work.push(Work::GeneralTruthy(node));
                             work.push(Work::Eval(node, depth, Mode::General));
                             continue;
@@ -1529,13 +1564,6 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     match node {
-                        Expression::LogicalExpression(logical) => {
-                            debug_assert_eq!(logical.operator, LogicalOperator::Coalesce);
-                            return Err(unsupported(
-                                node,
-                                "expression is outside the numeric experiment",
-                            ));
-                        }
                         Expression::NumericLiteral(literal) => {
                             let result = self.value(Type::Number);
                             Self::push(

@@ -345,6 +345,10 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    GeneralIsNullish {
+        result: ValueId,
+        input: ValueId,
+    },
     NumberFromGeneral {
         result: ValueId,
         input: ValueId,
@@ -864,7 +868,7 @@ impl Verifier<'_> {
                 self.value(*input, Type::Number, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
-            Op::GeneralTruthy { result, input } => {
+            Op::GeneralTruthy { result, input } | Op::GeneralIsNullish { result, input } => {
                 self.value(*input, Type::General, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
@@ -3402,6 +3406,45 @@ mod general_truthiness_tests {
                 }
             }
             assert!(verify_module(&m).is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod general_nullish_tests {
+    use super::*;
+
+    #[test]
+    fn nullish_test_requires_visible_general_input_and_predicate_result() {
+        let module = || {
+            crate::lower_source(
+                "export function run(a,b){if(null??false)return a;return b;}",
+                false,
+            )
+            .unwrap()
+        };
+        verify_module(&module()).unwrap();
+        for change in 0..4 {
+            let mut m = module();
+            let f = &mut m.functions[0];
+            let Op::GeneralIsNullish { input, result } = &mut f.body.operations[1].kind else {
+                panic!("nullish test")
+            };
+            match change {
+                0 => *input = ValueId(99),
+                1 => {
+                    let input = *input;
+                    f.values[input.0] = Type::Number;
+                    // Keep the producer valid, so the nullish consumer must reject it.
+                    f.body.operations[0].kind = Op::Constant {
+                        result: input,
+                        value: 0.0,
+                    };
+                }
+                2 => f.values[result.0] = Type::General,
+                _ => f.body.operations.swap(0, 1),
+            }
+            assert!(verify_module(&m).is_err(), "mutation {change}");
         }
     }
 }

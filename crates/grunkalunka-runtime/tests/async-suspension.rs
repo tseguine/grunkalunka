@@ -1139,6 +1139,33 @@ fn runtime_factory_results_keep_cells_and_snapshots_across_async_jobs() {
 }
 
 #[test]
+fn primitive_coalescing_preserves_nullish_selection_jobs_and_catches() {
+    compare_promises(
+        &[
+            "return a??await b;",
+            "return a??await Promise.reject(b);",
+            "return false??await Promise.reject(b);",
+            "return NaN??await Promise.reject(b);",
+            "return null??await b;",
+            "return undefined??await null;",
+            "return (await (a?null:false))??await b;",
+            "try{return null??await Promise.reject(b);}catch(reason){return reason;}",
+            "try{return (await Promise.reject(a))??b;}catch(reason){await null;return reason;}",
+            "let x=a?null:false;const result=x??(await null,x=b);x=null;await null;return result;",
+            "if((a?null:false)??await b)return a;return b;",
+            "let n=0;(n++,a?undefined:a)??(await null,n++);return n;",
+            "let x=a?null:false;x??(x=await b);return x;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn nullish_function_results_skip_rhs_jobs_and_keep_left_failures_and_snapshots() {
     compare_promises(
         &[

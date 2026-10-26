@@ -298,13 +298,13 @@ const CASES: &[(&str, &str, bool, bool)] = &[
         "number-nullish",
         "export function run(a,b) { return a??b; }",
         false,
-        false,
+        true,
     ),
     (
         "predicate-nullish",
         "export function run(a,b) { return (true??false)?a:b; }",
         false,
-        false,
+        true,
     ),
 ];
 
@@ -361,12 +361,6 @@ fn evaluator_control_characterization() {
                     }
                     "skipped-invalid" => {
                         "unsupported at bytes 41..54: expression is outside the numeric experiment"
-                    }
-                    "number-nullish" => {
-                        "unsupported at bytes 34..38: expression is outside the numeric experiment"
-                    }
-                    "predicate-nullish" => {
-                        "unsupported at bytes 35..46: expression is outside the numeric experiment"
                     }
                     _ => unreachable!("characterized diagnostic"),
                 };

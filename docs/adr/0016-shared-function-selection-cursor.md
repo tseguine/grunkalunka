@@ -108,7 +108,8 @@ runtime ABI or dependency.
 Maintained JS/TS oracles cover selected code/captures, once-only effects, snapshots,
 returned/higher-order functions, primitive result tags, erased type claims and
 async fulfillment/rejection job counts. Mixed signatures and primitive joins,
-host function transport and function-valued coalescing remain rejected. A 2 MiB
+host function transport remain rejected. At this initial step, function-valued
+coalescing was also rejected. A 2 MiB
 stack check admits bounded chains and rejects over-depth chains. Inverting the
 new function truthiness branch makes the selection oracle return four instead
 of two; restoring exact source bytes makes the full closure/async suites pass.
@@ -118,9 +119,9 @@ approval of a broader architecture migration.
 A following feature also admits same-signature function-valued `??`: represented
 functions are non-nullish, so the existing function selection can retain the left
 snapshot and skip RHS effects/jobs. Signature, callback-origin and storage queries
-now traverse coalescing operands. Mixed-kind joins and primitive coalescing remain
-separate; a constructor-free selector's default numeric-formal check still rejects
-`x??y`. This does not infer function kinds from TypeScript claims or introduce new
+now traverse coalescing operands. At that stage, primitive coalescing was separate
+and a constructor-free selector's default numeric-formal check rejected `x??y`.
+This does not infer function kinds from TypeScript claims or introduce new
 IR, backend, runtime or dependency machinery.
 
 The function-only slice passes the full check (504 native tests, two doctests,
@@ -132,3 +133,11 @@ WAT/Wasm to their already supported function-valued `||` equivalents. This
 supports unchanged execution cost for those artifacts, without a new compiler
 or engine timing claim. A coalescing-branch mutation fails the new source oracle;
 restored code passes the complete closure and async suites.
+
+Primitive binary coalescing subsequently adds `GeneralIsNullish` plus backend tag
+testing, reusing this cursor and its existing typed joins. Scalar Number operands
+are always non-nullish; General operands test their kind before RHS selection.
+Boolean contexts convert the selected value afterwards, preserving false/0/NaN.
+This also admits the exact constructor-free selector above, specializing only from
+actual function argument kinds. Mixed function/primitive joins remain excluded.
+This feature adds no runtime ABI, layout, dependency or broader architecture.

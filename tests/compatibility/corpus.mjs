@@ -1,4 +1,5 @@
 import { localArrows } from './local-arrows.mjs';
+import { primitiveNullish } from './primitive-nullish.mjs';
 import { generalLogicalAssignment } from './general-logical-assignment.mjs';
 import { primitiveRelational } from './primitive-relational.mjs';
 import { primitiveCompound } from './primitive-compound.mjs';
@@ -67,7 +68,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 65;
+export const corpusVersion = 66;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -94,6 +95,7 @@ const expressions = [
 ];
 export const programs = expressions.map(([name, expression]) => [name, `return ${expression};`, `return ${expression};`]);
 programs.push(...localArrows);
+programs.push(...primitiveNullish);
 programs.push(...typescriptPrograms);
 programs.push(...test262Programs);
 programs.push(...benchmarkPrograms);
@@ -320,13 +322,12 @@ export const rejected = [
   ['predicate-logical-string', 'export function run(a,b) { if(a && "x") return a; return b; }'],
   ['predicate-logical-numeric-local', 'export function run(a,b) { const x=true && a; return x; }', 'js', 'General bindings require a primitive value position'],
   ['predicate-logical-depth', `export function run(a,b) { if(${Array(130).fill('a').join('&&')}) return a; return b; }`],
-  ['predicate-logical-nullish', 'export function run(a,b) { if(a ?? b) return a; return b; }'],
   ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],
   ['null', 'export function run(a,b) { return null; }'],
   ['power', 'export function run(a,b) { return a ** b; }'],
   ...['0 && Math.random()', '1 || Math.random()', 'a && "4"', 'a || {x:a}',
     'a && (b<1)', '(a<1) || b', 'a || true', 'false && a', 'a ?? b', '1 || (clock=b)'].map((body,index) =>
-    [`logical-unsupported-${index}`, `export function run(a,b) { return ${body}; }`]),
+    [`logical-unsupported-${index}`, `export function run(a,b) { return ${body}; }`]).filter(row => row[0] !== 'logical-unsupported-8'),
   ['logical-unselected-const', 'export function run(a,b) { const x=a; return 1 || (x=b); }'],
   ['comparison', 'export function run(a,b) { return a < b; }'],
   ...['Math.random(),a', 'a,Math.random(),b', 'a,Math.random()', '"4",a', 'a,"4"',

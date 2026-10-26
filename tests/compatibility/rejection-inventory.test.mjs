@@ -1,4 +1,5 @@
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
+import { primitiveNullish, primitiveNullishPromotions } from './primitive-nullish.mjs';
 import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
 import { primitiveRelational, primitiveRelationalPromotions } from './primitive-relational.mjs';
 import { primitiveCompound, primitiveCompoundPromotions } from './primitive-compound.mjs';
@@ -30,6 +31,29 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
 const validate = data => validateRejectionInventory(rejected, data);
+
+test('binary coalescing promotes three exact numeric sources and the original primitive rejection', () => {
+  assert.equal(primitiveNullishPromotions.length, 3);
+  for (const [id, js, hash] of primitiveNullishPromotions) {
+    const sources = programSources(primitiveNullish.find(row => row[0] === id));
+    assert.equal(sources.sourceJS, js);
+    assert.equal(sources.oracleSource, js);
+    assert.equal(sources.sourceTS, js.replace('run(a,b)', 'run(a:number,b:number)'));
+    assert.equal(createHash('sha256').update(js).digest('hex'), hash);
+    assert.ok(!rejected.some(row => row[0] === id));
+  }
+  const former = valuePrograms.find(row => row.id === 'nullish-operator');
+  assert.equal(former.sourceJS, 'export function run(a,b) {return null??b;}\n');
+  assert.equal(former.sourceTS, 'export function run(a:number,b:number):unknown {return null??b;}\n');
+  assert.ok(!valueRejected.some(row => row.id === former.id));
+  const numeric = rejected.find(row => row[0] === 'gap-nullish');
+  const value = valuePrograms.find(row => row.id === 'nullish-origin');
+  assert.equal(value.sourceJS, numeric[1]);
+  assert.equal(value.numericOrigin, numeric[0]);
+  assert.equal(createHash('sha256').update(value.sourceJS).digest('hex'), 'cc04ac11c14b9961473ec1c628ac3625e0098e727b8a9c6f4cb0f2df862ed31c');
+  const run = Function('"use strict";' + value.sourceJS.replace('export function', 'function') + ';return run;')();
+  assert.equal(run(4, 2), 2);
+});
 
 test('Boolean arithmetic preserves the six original promotion sources and explicit JS oracle', () => {
   assert.equal(booleanArithmeticPromotions.length, 6);
@@ -154,7 +178,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 919);
+  assert.equal(inventory.records.size, 916);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

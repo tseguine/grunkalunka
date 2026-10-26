@@ -549,7 +549,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   result is a canonical predicate, with the same evaluation order and selected
   effects. Raw Boolean/comparison operands remain rejected outside the admitted unary
   conversion in numeric value positions;
-  `??` remains rejected in both contexts.
+  Binary `??` uses the separate nullish-selection contract below.
   Both ternary arms must be admitted. In Number-value positions they yield numbers
   through `if (result f64)`; in predicate positions they yield predicates through
   `if (result i32)`, converting only the selected arm to truthiness at runtime.
@@ -651,7 +651,7 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   defaults/rest/destructuring, async/generator/declare functions,
   `this` parameters, modifiers, indirect/property/optional calls except the specified numeric Math intrinsics, strings/objects/BigInts,
   other declaration forms, uninitialized locals, `**=`/`??=` assignments,
-  `for-in`/`for-of`, `switch`, labels and nullish coalescing. Boolean arithmetic outside the explicit operand bridges, Boolean returns and self/forward local references are
+  `for-in`/`for-of`, `switch` and labels. Boolean arithmetic outside the explicit operand bridges, Boolean returns and self/forward local references are
   outside this admission, even in unselected branches. These rejections describe
   the experiment, not the validity of arbitrary JavaScript.
 - Admission covers the entire AST, including directives/modifiers stored outside
@@ -1740,3 +1740,30 @@ Represented synchronous function values now enter Boolean contexts through their
 existing typed value evaluator and a true predicate. Source expression effects run
 once without invoking the tested function. Numeric coercion and function transport
 remain separate; see [function truthiness](function-truthiness.md).
+
+## Binary nullish coalescing
+
+Binary `??` admits Undefined, Null, Boolean and Number operands in the Value and
+async profiles. It evaluates the left operand once and keeps its exact kind and
+payload unless it is Null or Undefined. Only then does it evaluate the RHS.
+False, zero, negative zero and NaN keep the left value. Both operands still undergo
+source admission, scope checks and resource limits, even when RHS execution is skipped.
+
+Number-only value positions admit `??` when both operands lower as Numbers.
+Predicate contexts first select the primitive value, then apply ToBoolean; `0??b`
+therefore remains false regardless of b. Discarded results retain operand effects.
+Async operands preserve the selected awaits, fulfillment/rejection and catch behavior;
+skipped awaits create no reaction jobs. TypeScript claims do not change these facts.
+
+The three exact former numeric rejections in `primitive-nullish.mjs` now execute.
+The Value profile also executes its original `nullish-operator` rejection and the
+unchanged curated `gap-nullish` source. Although that source always selects a Number,
+the compiler conservatively retains a General join and still rejects its numeric-only
+return. This is a missing narrowing proof, not a possible null result. The primitive
+report has 82 JS/TS
+pairs, 16 exact numeric origins, 6 rejection observations and 4592 comparisons.
+
+Function-only `??` still requires matching complete signatures. The constructor-free
+`(x,y)=>x??y` selector now passes preliminary Number checking and specializes from
+its actual function arguments. General function/primitive joins, String/BigInt/object
+operands, `??=` and `void` remain separate requirements. No dependency or host ABI changes.

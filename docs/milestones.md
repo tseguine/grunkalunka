@@ -575,3 +575,14 @@ L5 now includes truthiness of represented synchronous functions in Boolean conte
 with expression effects preserved and tested function bodies left dormant. Numeric
 and primitive result boundaries, async jobs and existing resource limits remain
 intact; see [function truthiness](function-truthiness.md).
+
+## Primitive binary coalescing
+
+Binary `??` now preserves represented primitive kinds and payloads, with RHS effects
+and async jobs only for Null/Undefined left operands. Number-only results and Boolean
+contexts retain their profile rules. Corpus 66 promotes three original numeric
+rejections; the Value profile has 82 pairs/4592 comparisons and also executes the
+original curated `gap-nullish` source. Its selected result is always a Number, but
+the compiler retains a General join; narrowing it for the numeric profile remains
+separate work. Constructor-free closure selectors using `??` now specialize successfully.
+`??=` and `void` remain separate units. See [the contract](compiler.md#binary-nullish-coalescing).

@@ -1543,19 +1543,10 @@ fn logical_function_results_keep_source_depth_limits_on_a_small_stack() {
                     4.0
                 );
             } else if let Err(error) = result {
-                if operator == "??" {
-                    // The bounded function query no longer establishes a kind;
-                    // numeric coalescing is still outside this profile.
-                    assert!(
-                        error.contains("expression is outside the numeric experiment"),
-                        "{error}"
-                    );
-                } else {
-                    assert!(
-                        error.contains("nesting") || error.contains("depth"),
-                        "{error}"
-                    );
-                }
+                assert!(
+                    error.contains("nesting") || error.contains("depth"),
+                    "{error}"
+                );
             }
         }
     }
@@ -1586,19 +1577,15 @@ fn logical_function_results_reject_mixed_signatures_kinds_and_host_transport() {
 }
 
 #[test]
-fn nullish_selection_with_numeric_placeholder_formals_is_still_a_separate_gap() {
-    // Keep the exact failed feature example until primitive coalescing permits
-    // checking this constructor-free selector's default numeric formal types.
+fn nullish_selection_accepts_constructor_free_generic_formals() {
+    // Exact former rejection: numeric preliminary checking must not block the
+    // actual function-kind specialization of this constructor-free selector.
     let source = "export function run(a,b){const f=()=>a;const g=()=>b;const pick=(x,y)=>x??y;return pick(f,g)();}";
-    for typescript in [false, true] {
-        let error = compile(source, typescript)
-            .err()
-            .expect("numeric placeholder coalescing remains outside this function-only unit");
-        assert!(
-            error.contains("expression is outside the numeric experiment"),
-            "{error}"
-        );
-    }
+    compare_functions(&[source
+        .strip_prefix("export function run(a,b){")
+        .unwrap()
+        .strip_suffix('}')
+        .unwrap()]);
 }
 
 #[test]

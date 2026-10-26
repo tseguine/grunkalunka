@@ -61,7 +61,6 @@ const negatives=[
   ['tdz','true&&(x<0); let x=a; return a;',reference],
   ['unselected-global','true||clock; return a;',reference],
   ['property-target','false&&(a.x=b); return a;','assignment target must be an initialized identifier'],
-  ['nullish','a??true; return a;',expression],
   ['predicate-depth',`${'('.repeat(129)}true${')'.repeat(129)}; return a;`,'expression nesting exceeds'],
   ['comparison-depth',`${'('.repeat(128)}a<b${')'.repeat(128)}; return a;`,'expression nesting exceeds'],
   ['comma-depth-limit',`return ${'('.repeat(127)}a<b,a${')'.repeat(127)};`,'expression nesting exceeds'],

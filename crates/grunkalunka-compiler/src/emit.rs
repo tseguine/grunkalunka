@@ -371,6 +371,12 @@ impl Emitter<'_> {
                     self.output.push_str("end\n");
                     self.set(*result);
                 }
+                Op::GeneralIsNullish { result, input } => {
+                    // Only the canonical Undefined (0) and Null (1) tags are nullish.
+                    writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
+                    self.output.push_str("i32.const 1\ni32.le_u\n");
+                    self.set(*result);
+                }
                 Op::GeneralTruthy { result, input } => {
                     // Canonical nullish payloads are zero, Boolean payloads are 0/1;
                     // Number payloads keep their value. This implements all four kinds.

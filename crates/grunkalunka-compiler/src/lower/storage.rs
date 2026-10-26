@@ -104,9 +104,7 @@ pub(super) fn number_result_shape(
                 };
                 pending.push((last, depth + 1));
             }
-            Expression::LogicalExpression(logical)
-                if matches!(logical.operator, LogicalOperator::And | LogicalOperator::Or) =>
-            {
+            Expression::LogicalExpression(logical) => {
                 pending.push((&logical.right, depth + 1));
                 pending.push((&logical.left, depth + 1));
             }

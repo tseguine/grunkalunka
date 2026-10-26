@@ -448,7 +448,10 @@ Mutable identifiers now admit `&&=`/`||=` across represented primitive kinds,
 including Number-initialized locals/parameters that can change kind. Captured old
 values, exact selected results and skipped effects use existing typed operations.
 Corpus 64 has 1759 numeric pairs and 921 rejections; Value reporting has 73 pairs
-and fifteen exact numeric origins. Binary `??`, then `??=`, remain separate work.
+and fifteen exact numeric origins at that stage. Binary `??` now admits the four
+represented primitive kinds, including async and closure-selector composition.
+Corpus 66 promotes three numeric rejections; the Value report reaches 82 pairs and
+16 numeric origins. `??=` and `void` remain separate work.
 See [the contract and exclusions](compiler.md#general-logical-assignment).
 
 ## JSON guest foundation

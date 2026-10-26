@@ -77,13 +77,17 @@ fn logical_matrix_preserves_selected_kind_and_payload() {
     let mut records = Vec::new();
     for (left, a) in &values {
         for (right, b) in &values {
-            for and in [false, true] {
-                let selected = if truthy(a) == and {
+            for op in ["||", "&&", "??"] {
+                let select_right = match op {
+                    "&&" => truthy(a),
+                    "||" => !truthy(a),
+                    _ => matches!(a, Value::Undefined | Value::Null),
+                };
+                let selected = if select_right {
                     (*right, b)
                 } else {
                     (*left, a)
                 };
-                let op = if and { "&&" } else { "||" };
                 for ts in [false, true] {
                     for value in [false, true] {
                         let body = if value {
@@ -154,12 +158,26 @@ console.log('PASS '+cases.length+' logical modules');
 "#,
         records.join(",")
     );
-    node(&script, "PASS 1152 logical modules");
+    node(&script, "PASS 1728 logical modules");
 }
 
 #[test]
 fn general_logical_effects_and_discard_paths_match_js() {
     let cases = [
+        ("return a??b;", true),
+        ("if(a??b)return a;return b;", true),
+        ("if(false??true)return a;return b;", true),
+        ("if((a?null:false)??true)return a;return b;", true),
+        ("a??(b+=1);return b;", true),
+        ("null??(b+=1);return b;", true),
+        ("const left=a?null:b;return left??(b=a);", false),
+        (
+            "let x=a?null:false;const old=(x??(x=b));x=null;return old;",
+            false,
+        ),
+        ("return ((a?null:b)??false)||undefined;", false),
+        ("return (a===4?null:a)??b;", false),
+        ("return null??b;", false),
         (
             "const left=a?false:b; const chosen=left&&((b=a),null); return (chosen===null?10:0)+b;",
             true,
@@ -249,7 +267,7 @@ console.log('PASS '+cases.length+' logical effect modules');
 "#,
         records.join(",")
     );
-    node(&script, "PASS 38 logical effect modules");
+    node(&script, "PASS 72 logical effect modules");
 }
 
 #[test]
@@ -262,24 +280,29 @@ fn general_logical_entry_calls_and_depth_guards_remain_bounded() {
         Value::Boolean(true)
     ));
     assert!(matches!(instance.run(0.0, 0.0).unwrap(), Value::Null));
-    for count in [128, 129] {
-        let source = format!(
-            "export function run(a,b) {{return {}null;}}",
-            "false||".repeat(count)
-        );
-        let result = compile_value(&source, false);
-        if count == 128 {
-            let a = result.unwrap();
-            assert!(matches!(
-                ValueInstance::new(&a.wasm).unwrap().run(0.0, 0.0).unwrap(),
-                Value::Null
-            ));
-        } else {
-            assert!(result.err().unwrap().contains("expression nesting exceeds"));
+    for operator in ["false||", "undefined??"] {
+        for count in [128, 129] {
+            let source = format!(
+                "export function run(a,b) {{return {}null;}}",
+                operator.repeat(count)
+            );
+            let result = compile_value(&source, false);
+            if count == 128 {
+                let a = result.unwrap();
+                assert!(matches!(
+                    ValueInstance::new(&a.wasm).unwrap().run(0.0, 0.0).unwrap(),
+                    Value::Null
+                ));
+            } else {
+                assert!(result.err().unwrap().contains("expression nesting exceeds"));
+            }
         }
     }
     for body in [
-        "return null??b;",
+        "return null??Math.random();",
+        "return false??'x';",
+        "return undefined??({});",
+        "const value=null;return true??(value=1);",
         "return false&&Math.random();",
         "const value=null; return true||(value=1);",
         "return value||a; const value=null;",

@@ -176,6 +176,7 @@ fn discarded_general_sequences_and_branches_evaluate_effects_once() {
         "const captured=a; (a=null,b=false); return +captured;",
         "let x=0; ((x++,null),(x+=2,undefined)); return x;",
         "let x=0; (x=a,undefined,x=b,null); return x;",
+        "a??null; return a;",
     ];
     check_cases(
         bodies
@@ -195,7 +196,7 @@ fn discarded_general_values_keep_scope_source_and_budget_guards() {
         "a?null:Math.random(); return a;",
         "({}); return a;",
         "void a; return a;",
-        "a??null; return a;",
+        "a??Math.random(); return a;",
         "const value=null; value++; return a;",
         "return a; null;",
     ] {

@@ -37,10 +37,10 @@ source profile. This also works for higher-order functions and function-returnin
 factories. Mixed primitive/function joins, function identity
 and exporting a function through the primitive host ABI remain unsupported.
 
-This function-only coalescing requires established function kinds. A constructor-free
-selector such as `(x,y)=>x??y` still fails its preliminary check with default numeric
-formal parameters; primitive coalescing is a separate gap. A known return constructor
-can establish function kinds for selector formals. TypeScript assertions do not do so.
+Coalescing requires compatible established operand kinds. Primitive binary `??`
+also lets a constructor-free selector such as `(x,y)=>x??y` pass preliminary checking
+with default numeric formals, then specialize using its actual function arguments.
+Full function signatures still must match; TypeScript assertions establish no kinds.
 
 `let` function bindings retain their initializer's logical signature and support
 plain `=` assignment from the same constructors. Conditional/chained assignments

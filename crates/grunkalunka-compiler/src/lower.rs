@@ -523,8 +523,7 @@ impl Lowering<'_, '_> {
             } else if let Expression::ParenthesizedExpression(wrapper) = expression {
                 expression = &wrapper.expression;
             } else {
-                return matches!(expression,Expression::LogicalExpression(logical)
-                    if matches!(logical.operator,LogicalOperator::And|LogicalOperator::Or))
+                return matches!(expression, Expression::LogicalExpression(_))
                     && !self.numeric_result_shape(expression, depth);
             }
             depth += 1;
