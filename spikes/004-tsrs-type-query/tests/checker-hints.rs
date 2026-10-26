@@ -103,7 +103,11 @@ fn source_handoff_uses_original_utf8_bytes_including_crlf() {
 #[test]
 fn text_only_selection_must_not_choose_an_arbitrary_duplicate() {
     let source = "const seed = 40; const first = seed + 2; const result = seed + 2;";
-    let error = check_with_tsrs(source, "ts", Some(ExpressionSelector::TsrsSource("seed + 2")))
-        .unwrap_err();
+    let error = check_with_tsrs(
+        source,
+        "ts",
+        Some(ExpressionSelector::TsrsSource("seed + 2")),
+    )
+    .unwrap_err();
     assert!(error.to_string().contains("2 matching binary expressions"));
 }
