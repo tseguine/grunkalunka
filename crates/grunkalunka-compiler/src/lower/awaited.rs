@@ -5,7 +5,7 @@ use oxc_ast::{
     ast::{ArrowFunctionExpression, AwaitExpression},
 };
 
-// Concise async bodies inline into their immediately awaiting caller. Until
+// Known async bodies inline into their immediately awaiting caller. Until
 // callee rejection has its own boundary, only fulfillment paths are admitted.
 // Nested functions own their awaits and undergo their own body validation.
 pub(super) fn check_fulfilled_body(
@@ -13,9 +13,12 @@ pub(super) fn check_fulfilled_body(
     semantic: &Semantic<'_>,
 ) -> Result<(), String> {
     for node in semantic.nodes().iter() {
-        let AstKind::AwaitExpression(awaited) = node.kind() else {
+        if !matches!(
+            node.kind(),
+            AstKind::AwaitExpression(_) | AstKind::ThrowStatement(_)
+        ) {
             continue;
-        };
+        }
         let owner = semantic
             .nodes()
             .ancestor_kinds(node.id())
@@ -24,11 +27,23 @@ pub(super) fn check_fulfilled_body(
                 AstKind::Function(_) => Some(None),
                 _ => None,
             });
-        if owner == Some(Some(arrow.node_id.get())) && operand(awaited, 0, semantic)?.2 {
-            return Err(unsupported(
-                awaited,
-                "concise async bodies currently require fulfilled awaits",
-            ));
+        if owner != Some(Some(arrow.node_id.get())) {
+            continue;
+        }
+        match node.kind() {
+            AstKind::AwaitExpression(awaited) if operand(awaited, 0, semantic)?.2 => {
+                return Err(unsupported(
+                    awaited,
+                    "known async bodies currently require fulfilled awaits",
+                ));
+            }
+            AstKind::ThrowStatement(statement) => {
+                return Err(unsupported(
+                    statement,
+                    "known async bodies currently require fulfilled completions",
+                ));
+            }
+            _ => (),
         }
     }
     Ok(())

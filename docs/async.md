@@ -22,8 +22,9 @@ not deletion of a numeric-profile gap or general Promise support.
 
 Known async local arrows with primitive bodies can be called directly under
 `await`. The body may be concise or use the existing block/implicit-return rules.
-Concise bodies may await fulfilled primitives and known fulfilled async calls;
-block bodies cannot suspend in this slice. For example:
+Both forms may await fulfilled primitives and known fulfilled async calls.
+Block bodies preserve locals, captured cells, branches, loop exits and early,
+bare or implicit returns across suspension. For example:
 
 ```js
 export async function run(a,b) {
@@ -40,11 +41,13 @@ direct async arrow calls and pristine
 Number/numeric-leaf callback argument and source/resource checks still apply.
 
 Async function values and Promise objects are not reified. Unawaited calls,
-mutable/dynamic async function selections, rejected body awaits, body throws,
-block-body suspension and Promise/function
+mutable/dynamic async function selections, rejected body awaits, body throws and Promise/function
 outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
 the reason would be the Promise object, rather than its eventual primitive value.
 `await Promise.reject(await f())` uses a primitive reason and remains supported.
+The fulfillment-only body check rejects source-owned throws and rejected waits
+even inside a catch or an unselected branch; the root entry retains its rejection
+and catch support.
 
 The compiler lowers await to a Number or General operation in the typed IR.
 Known Number operands retain scalar specialization; other represented primitive

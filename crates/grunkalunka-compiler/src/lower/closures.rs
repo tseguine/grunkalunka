@@ -201,12 +201,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // scratch values/slots in the real function's verified IR.
         let mut check = self.clone();
         if arrow.r#async {
-            // Concise bodies use the caller's continuation, then retain its
-            // separate await reaction. Block-body suspension is still excluded.
-            if arrow.get_expression().is_some() {
-                awaited::check_fulfilled_body(arrow, self.semantic)?;
-            }
-            check.allow_await = arrow.get_expression().is_some();
+            // The caller's continuation holds the body, followed by its separate
+            // reaction job. Rejection needs a distinct callee boundary first.
+            awaited::check_fulfilled_body(arrow, self.semantic)?;
+            check.allow_await = true;
         }
         check.function_result_depth = 0;
         check.bindings = closure.captures.clone();
@@ -440,7 +438,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         let closures = self.closures.len();
         self.return_type = result_type;
         self.in_loop_body = false;
-        self.allow_await = false;
+        self.allow_await = arrow.r#async && outer.2;
         self.inline_depth = parent_depth;
         self.statement_depth = 0;
         let lowered = (|| {

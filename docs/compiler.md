@@ -1783,9 +1783,9 @@ enter predicates or explicit numeric coercions. Existing local function-return
 paths can forward these closures; this includes the two former maintained
 rejections `id(()=>true)` and a block returning `()=>true`. A dormant factory
 containing `()=>true` is also valid when the entry returns a Number. Runtime factories
-retain their numeric-leaf result restriction. Arbitrary primitive arguments,
-suspending async arrow bodies and exported function values remain separate requirements.
-Primitive block returns are described below. All 916 numeric rejection sources and diagnostics
+retain their numeric-leaf result restriction. Arbitrary primitive arguments and
+exported function values remain separate requirements. Primitive block returns
+and suspending known async bodies are described below. All 916 numeric rejection sources and diagnostics
 are unchanged. Nine maintained primitive corpus pairs exercise these results.
 
 ## Explicit primitive returns from block closures
@@ -1807,7 +1807,7 @@ are preserved. Async callers retain primitive values across jobs and match nativ
 fulfillment, rejection and catch ordering.
 
 Eight additional maintained primitive corpus pairs brought that profile to 99 pairs
-and 5544 comparisons. Suspending async arrow bodies,
+and 5544 comparisons. Suspending async arrow bodies are described below;
 arbitrary primitive arguments, mixed function/primitive returns and expanded
 runtime factories remain separate work.
 
@@ -1837,25 +1837,27 @@ primitive corpus pairs bring that profile to 109 pairs and 6104 comparisons.
 The async entry profile now admits directly awaited calls to known const, alias
 and direct async arrows whose bodies produce represented primitives. Non-suspending
 bodies and ordered arguments execute before the existing caller `Await`; its
-fulfillment reaction preserves native promise job order. Concise bodies may also
+fulfillment reaction preserves native promise job order. Both body forms may also
 await fulfilled primitives as described below. Explicit block, bare and implicit primitive returns reuse
 the existing local evaluation paths. TypeScript type claims do not replace the
 actual result kind.
 
 These async arrows have no ordinary scalar closure signature. Calls in other
 positions and dynamic/mutable async function values remain rejected, as do
-Promise/function-valued outcomes, block-body suspension, rejected body awaits and
+Promise/function-valued outcomes, rejected body awaits and
 body throws. Pristine
 `Promise.resolve` wrapping is supported. A rejected async-call result would be a
 Promise-valued reason and is rejected; awaiting the call first yields a supported
 primitive reason. No IR operation, emitter path, dependency or Promise-object ABI
 was added. See [the async profile](async.md#suspension-and-host-jobs).
 
-Concise known async bodies now preserve their own fulfilled await reactions before
+Known async bodies now preserve their own fulfilled await reactions before
 the separate caller reaction. `const f=async()=>await a; return await f();` has
 two jobs. Nested fulfilled calls, conditional waits, argument waits and retained
-callback pairs use the same existing continuation state. A read-only query checks
-only awaits owned by the current source arrow; root rejected awaits remain
-supported. Rejected body waits are still excluded because their delayed callee
-rejection boundary is separate work. The shared evaluator, IR and emitters are
-unchanged by this extension.
+callback pairs use the same existing continuation state. Block bodies also retain
+local/captured cells, loop control and early, bare or implicit return completion.
+A read-only query checks only awaits and throws owned by the current source
+arrow; root rejection and catch behavior remains supported. Body throws and
+rejected waits, including caught or unselected ones, are still excluded because
+their callee rejection boundary is separate work. The shared evaluator, IR and
+emitters are unchanged by this extension.
