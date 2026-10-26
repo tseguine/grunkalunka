@@ -612,13 +612,13 @@ remain unchanged. See [local callback arguments](local-callback-arguments.md).
 Runtime-selected synchronous functions now accept numeric-leaf callback parameters
 alongside Number parameters. Compatible typed signatures preserve pair snapshots,
 shared cells and ordered arguments across async suspension; packed frames retain
-the 1,000 logical-argument bound. Callbacks taking callbacks, function-valued runtime
-returns and async callback bodies remain open. See [higher-order callbacks](higher-order-callbacks.md).
+the 1,000 logical-argument bound. Callbacks taking callbacks, factories returning factories
+and async callback bodies remain open. See [higher-order callbacks](higher-order-callbacks.md).
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls
 and async caller arguments. This changes no canonical rejection source or host
-ABI. Runtime function-result signatures remain open; see [local function results](local-function-results.md).
+ABI. General recursive function-result signatures remain open; see [local function results](local-function-results.md).
 
 Primitive rejected awaits now enter lexical `try/catch` handlers, preserving the
 reason's primitive kind and await reaction job. Nested catches, later awaits,
@@ -630,7 +630,7 @@ Known block-bodied local calls now return compatible-signature function pairs
 through branches, loops and early returns. Callback identity/selection uses the actual
 argument kinds; local aliases, mutable-function snapshots and retained captures
 agree with JavaScript in synchronous and async callers. Function-valued host results,
-runtime function-returning signatures and mixed return kinds remain open. See
+general recursive function-result signatures and mixed return kinds remain open. See
 [block function results](block-function-results.md).
 
 Primitive source throw now transfers immediately to lexical async catch handlers
@@ -639,3 +639,10 @@ no reaction job. Prefix/after-await effects, nested rethrows and 32-job settleme
 are checked against native JS. Synchronous/lifted throw, finally and general
 exception values remain open; numeric rejection sources remain unchanged. See
 [async throw](async-throw.md).
+
+Runtime-selected concise synchronous factories now return numeric-leaf function
+pairs, including fresh creator cells, captured aliases, ordered argument snapshots,
+recursive rebinding and async callers. Result-aware logical signatures and a
+private pair-return table call preserve the existing host ABI and wide argument
+bounds. See [runtime function results](runtime-function-results.md). General recursive
+callback/result signatures, nonnumeric leaf results and async bodies remain open.

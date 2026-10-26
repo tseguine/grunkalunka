@@ -41,11 +41,52 @@ impl Lowering<'_, '_> {
     pub(super) fn arrow_signature(
         &self,
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
-    ) -> usize {
+    ) -> Option<usize> {
+        self.arrow_signature_at(arrow, 0)
+    }
+
+    fn arrow_signature_at(
+        &self,
+        arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+        calls: usize,
+    ) -> Option<usize> {
+        if calls >= 8 {
+            return None;
+        }
         let parameters = callbacks::parameter_types(arrow, self.callback_parameters);
-        self.closure_signatures
-            .id(&parameters)
-            .expect("source arrow signature was registered")
+        let mut bindings: BTreeMap<_, _> = self
+            .bindings
+            .iter()
+            .map(|binding| {
+                (
+                    binding.symbol,
+                    match self.slots[binding.slot.0].ty {
+                        Type::Closure(id) => Some(id),
+                        _ => None,
+                    },
+                )
+            })
+            .collect();
+        for (parameter, ty) in arrow.params.items.iter().zip(&parameters) {
+            if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern {
+                bindings.insert(
+                    identifier.symbol_id.get()?,
+                    match ty {
+                        Type::Closure(id) => Some(*id),
+                        _ => None,
+                    },
+                );
+            }
+        }
+        let result = arrow
+            .get_expression()
+            .and_then(|body| self.function_arity_in(body, 0, &bindings, calls + 1))
+            .map_or(Type::Number, Type::Closure);
+        Some(
+            self.closure_signatures
+                .borrow_mut()
+                .intern(parameters, result),
+        )
     }
 
     pub(super) fn callback_argument(
@@ -162,6 +203,23 @@ impl Lowering<'_, '_> {
                     continue;
                 }
                 Expression::CallExpression(call) => {
+                    if self.closure_target(&call.callee, depth + 1).is_none() {
+                        if calls >= 8 {
+                            return None;
+                        }
+                        let callee =
+                            self.function_arity_in(&call.callee, depth + 1, bindings, calls + 1)?;
+                        let Type::Closure(result) =
+                            self.closure_signatures.borrow().result(callee)?
+                        else {
+                            return None;
+                        };
+                        if arity.is_some_and(|expected| expected != result) {
+                            return None;
+                        }
+                        arity = Some(result);
+                        continue;
+                    }
                     let factory = self.closure_target(&call.callee, depth + 1)?;
                     let arrow = self.arrow(factory.arrow);
                     let body = arrow.get_expression();
@@ -171,7 +229,7 @@ impl Lowering<'_, '_> {
                         && let Some(body) = body
                         && let Some(returned) = self.closure_target(body, 0)
                     {
-                        self.arrow_signature(self.arrow(returned.arrow))
+                        self.arrow_signature_at(self.arrow(returned.arrow), calls)?
                     } else {
                         if calls >= 8 || arrow.params.items.len() != call.arguments.len() {
                             return None;
@@ -222,7 +280,10 @@ impl Lowering<'_, '_> {
                     if let Some((_, arity)) = self.runtime_closure_callee(node, depth) {
                         arity
                     } else {
-                        self.arrow_signature(self.arrow(self.closure_target(node, depth)?.arrow))
+                        self.arrow_signature_at(
+                            self.arrow(self.closure_target(node, depth)?.arrow),
+                            calls,
+                        )?
                     }
                 }
             };
@@ -350,7 +411,14 @@ impl Lowering<'_, '_> {
                             let outer = self.function_result_depth;
                             self.function_result_depth = nesting;
                             let result = (|| {
-                                if let Some(closure) =
+                                if self.closure_target(&call.callee, depth + 1).is_none() {
+                                    self.runtime_function_result(
+                                        call,
+                                        regions.current(),
+                                        arity,
+                                        depth,
+                                    )
+                                } else if let Some(closure) =
                                     self.factory_result(node, regions.current(), depth)?
                                 {
                                     self.materialize_closure(
@@ -454,6 +522,83 @@ impl Lowering<'_, '_> {
         Ok(values.pop().unwrap())
     }
 
+    fn runtime_function_result(
+        &mut self,
+        call: &CallExpression<'_>,
+        region: &mut Region,
+        expected: usize,
+        depth: usize,
+    ) -> Result<ValueId, String> {
+        if self.active_function_results >= 8 {
+            return Err(unsupported(
+                call,
+                "at most 8 active runtime function-result calls are admitted",
+            ));
+        }
+        self.active_function_results += 1;
+        let result = (|| {
+            let signature = self
+                .function_arity(&call.callee, depth + 1)
+                .ok_or_else(|| unsupported(call, "runtime factory requires a function callee"))?;
+            let (parameter_count, result_type) = {
+                let signatures = self.closure_signatures.borrow();
+                (
+                    signatures
+                        .parameter_count(signature)
+                        .expect("checked signature"),
+                    signatures.result(signature).expect("checked signature"),
+                )
+            };
+            if call.optional
+                || call.type_arguments.is_some()
+                || call.arguments.len() != parameter_count
+            {
+                return Err(unsupported(
+                    call,
+                    "runtime factory requires a plain call with exact arguments",
+                ));
+            }
+            if result_type != Type::Closure(expected) {
+                return Err(unsupported(
+                    call,
+                    "runtime factory result signature mismatch",
+                ));
+            }
+            let callee = self.function_value(&call.callee, region, signature, depth + 1)?;
+            let mut arguments = Vec::new();
+            for (index, argument) in call.arguments.iter().enumerate() {
+                let expression = argument
+                    .as_expression()
+                    .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
+                let parameter = self
+                    .closure_signatures
+                    .borrow()
+                    .parameter(signature, index)
+                    .expect("checked signature");
+                let value = if let Type::Closure(callback) = parameter {
+                    self.callback_argument(expression, region, callback, depth + 1)?
+                } else {
+                    self.expression(expression, region, depth + 1)?
+                };
+                arguments.push(value);
+            }
+            self.charge_closure_expansion(call)?;
+            let result = self.value(result_type);
+            Self::push(
+                region,
+                call,
+                Op::ClosureCall {
+                    result,
+                    callee,
+                    arguments,
+                },
+            );
+            Ok(result)
+        })();
+        self.active_function_results -= 1;
+        result
+    }
+
     fn local_function_result(
         &mut self,
         call: &CallExpression<'_>,
@@ -537,14 +682,8 @@ impl Lowering<'_, '_> {
         if !closure.checked {
             self.check_local_closure(&mut closure)?;
         }
-        if closure.factory {
-            return Err(unsupported(
-                node,
-                "runtime function values currently require Number results",
-            ));
-        }
         let arrow = self.arrow(closure.arrow);
-        if self.arrow_signature(arrow) != arity {
+        if self.arrow_signature(arrow) != Some(arity) {
             return Err(unsupported(node, "function value signature mismatch"));
         }
         if self.lifted_base + self.lifted.len() >= self.functions.len() + 256 {
@@ -553,13 +692,30 @@ impl Lowering<'_, '_> {
                 "at most 256 lifted closure bodies are admitted",
             ));
         }
+        let return_type = self
+            .closure_signatures
+            .borrow()
+            .result(arity)
+            .expect("checked signature");
+        if !matches!(return_type, Type::Number | Type::Closure(0..=1000)) {
+            return Err(unsupported(
+                node,
+                "runtime factories return only numeric-leaf functions",
+            ));
+        }
+        if matches!(return_type, Type::Closure(_)) && arrow.get_expression().is_none() {
+            return Err(unsupported(
+                node,
+                "runtime factories currently require concise bodies",
+            ));
+        }
         self.charge_closure_expansion(node)?;
         let mut child = self.clone();
         child.bindings.clear();
         child.slots.clear();
         child.values.clear();
         child.next_region = 0;
-        child.return_type = Type::Number;
+        child.return_type = return_type;
         child.allow_await = false;
         child.source_charging = false;
         child.active_local_calls = 0;
@@ -635,7 +791,11 @@ impl Lowering<'_, '_> {
         child.initialize_general_parameters(&mut body);
         child.bindings.extend(capture_bindings);
         let returned = if let Some(expression) = arrow.get_expression() {
-            child.expression(expression, &mut body, 0)?
+            if let Type::Closure(signature) = return_type {
+                child.function_value(expression, &mut body, signature, 0)?
+            } else {
+                child.expression(expression, &mut body, 0)?
+            }
         } else {
             let region = child.arrow_block(arrow, 0)?;
             let result = child.value(Type::Number);

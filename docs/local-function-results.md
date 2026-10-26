@@ -49,8 +49,11 @@ statements, branches, loops and early returns, including callback identity and
 selection under actual argument-kind scopes. Typed inline-call results extend the
 existing IR operation; its verifier requires matching complete function signatures.
 
-These finite cases establish this slice. Function-valued runtime returns,
+These finite cases establish this slice. Factories returning factories,
 incompatible logical signatures, primitive/heap leaf results, async callback bodies and host function transport remain separate
 work. [Numeric-leaf higher-order callback signatures](higher-order-callbacks.md)
 now pass through concise and block identity, selection and known-factory paths too;
-selected and assigned function values must share their complete parameter kinds.
+selected and assigned function values must share their complete signatures.
+
+[Runtime-selected concise factories now return numeric-leaf pairs](runtime-function-results.md)
+through typed indirect calls, with the same invocation-owned capture lifetime.

@@ -48,8 +48,10 @@ block factory bodies are admitted; an eighth needs a returned closure body frame
 is rejected. A creator call and each emitted returned constructor independently
 consume the existing 256-expansion budget.
 
-Function-valued results remain internal. Exported Number/primitive signatures and
-lifted runtime closures' numeric results stay unchanged. This does not add
+Function-valued results remain internal. Exported Number/primitive signatures stay
+unchanged. [Concise runtime factories](runtime-function-results.md) additionally
+return numeric-leaf pairs through typed indirect calls; ordinary leaf closures
+retain Number results. This does not add
 function-valued host results, function coercion/equality, mixed return
 kinds or logical signatures, async local arrows, optional/spread local calls, or arbitrary
 runtime functions returning functions. TypeScript annotations remain erased.

@@ -385,16 +385,3 @@ pub(super) fn parameter_types(
         })
         .collect()
 }
-
-pub(crate) fn closure_signatures(
-    semantic: &Semantic<'_>,
-    parameters: &Parameters,
-) -> ir::ClosureSignatures {
-    let mut signatures = ir::ClosureSignatures::default();
-    for node in semantic.nodes().iter() {
-        if let AstKind::ArrowFunctionExpression(arrow) = node.kind() {
-            signatures.intern(parameter_types(arrow, parameters));
-        }
-    }
-    signatures
-}

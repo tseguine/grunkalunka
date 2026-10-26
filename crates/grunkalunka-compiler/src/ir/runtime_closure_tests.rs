@@ -184,13 +184,19 @@ fn higher_order_signatures_and_callback_arguments_are_verified_logically() {
         verify_module(&module).unwrap();
         match change {
             0 => module.closure_signatures.higher.clear(),
-            1 => module.closure_signatures.higher[0][0] = Type::Number,
+            1 => module.closure_signatures.higher[0].parameters[0] = Type::Number,
             2 => {
-                let duplicate = module.closure_signatures.higher[0].clone();
+                let original = &module.closure_signatures.higher[0];
+                let duplicate = ClosureSignature {
+                    parameters: original.parameters.clone(),
+                    result: original.result,
+                };
                 module.closure_signatures.higher.push(duplicate);
             }
-            3 => module.closure_signatures.higher[0][0] = Type::Closure(1001),
-            4 => module.closure_signatures.higher[0].resize(1001, Type::Number),
+            3 => module.closure_signatures.higher[0].parameters[0] = Type::Closure(1001),
+            4 => module.closure_signatures.higher[0]
+                .parameters
+                .resize(1001, Type::Number),
             5 => module.functions[1].slots[0].ty = Type::Number,
             6 => module.functions[1].slots[0].ty = Type::Closure(2),
             _ => {
@@ -217,6 +223,72 @@ fn higher_order_signatures_and_callback_arguments_are_verified_logically() {
         assert!(
             verify_module(&module).is_err(),
             "signature/argument mutation {change}"
+        );
+    }
+}
+
+#[test]
+fn runtime_factory_result_metadata_and_pair_calls_are_verified() {
+    let source = "export function run(a,b){let make=x=>()=>x;return make(a)();}";
+    for change in 0..9 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let factory = module
+            .functions
+            .iter()
+            .position(|f| matches!(f.return_type, Type::Closure(_)))
+            .unwrap();
+        match change {
+            0 => module.functions[factory].return_type = Type::Number,
+            1 => module.functions[factory].return_type = Type::Closure(1001),
+            2 => module.closure_signatures.higher[0].result = Type::Number,
+            3 => module.closure_signatures.higher[0].result = Type::Closure(1),
+            4 => module.closure_signatures.higher[0].result = Type::Closure(1001),
+            5 => module.functions[0].return_type = Type::Closure(0),
+            6 => {
+                let entry = &mut module.functions[0];
+                let result = entry
+                    .body
+                    .operations
+                    .iter()
+                    .find_map(|op| {
+                        if let Op::ClosureCall { result, .. } = op.kind {
+                            Some(result)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                entry.values[result.0] = Type::Number;
+            }
+            7 => {
+                let f = &mut module.functions[factory];
+                let value = f
+                    .body
+                    .operations
+                    .iter()
+                    .find_map(|op| {
+                        if let Op::MakeClosure { result, .. } = op.kind {
+                            Some(result)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                f.values[value.0] = Type::Closure(1);
+            }
+            _ => {
+                let leaf = module
+                    .functions
+                    .iter_mut()
+                    .find(|f| closure_environment(f).is_some() && f.return_type == Type::Number)
+                    .unwrap();
+                leaf.return_type = Type::General;
+            }
+        }
+        assert!(
+            verify_module(&module).is_err(),
+            "factory result mutation {change}"
         );
     }
 }

@@ -6,8 +6,8 @@ branches, arrows, known factory results and existing local closure aliases.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
 the resulting identifier or alias use an exact logical signature with Number and
-numeric-leaf callback arguments, and return Number. Leaf arrows may have concise
-or numeric block bodies.
+numeric-leaf callback arguments, and return Number or a numeric-leaf function
+pair from a concise factory. Leaf arrows may have concise or numeric block bodies.
 
 ```js
 export function run(a, b) {
@@ -52,19 +52,22 @@ address. It is separate from the four-primitive General domain and is never
 packed into a Number or primitive host tag. A function-valued cell stores the
 two fields at offsets 0 and 4 of its existing 16-byte cell. Conditional joins,
 initialization and loads preserve both fields as one typed value. Numeric-leaf
-signature IDs equal their arity; higher-order IDs refer to module-local ordered
-parameter lists. Callback signatures specify a fixed arity of Number inputs.
+signature IDs equal their arity; richer IDs refer to module-local ordered
+parameter lists and a result type. Callback signatures specify a fixed arity of
+Number inputs.
 
 The compiler lifts a synchronous body into an internal function. Its first IR
 operation, `ClosureEntry`, imports initialized captured-cell addresses into
 root-owned slots.
 `MakeClosure` checks target kind, capture count, initialization, type and mutability.
-`ClosureCall` checks the complete logical signature and each argument's type.
+`ClosureCall` checks the complete logical signature, argument types and result
+type against the function's declared result metadata.
 Ordinary `Call` cannot invoke a lifted body; the exported entry cannot use the
 closure ABI. Function values cannot be packed as primitives or awaited in the current protocol.
 
-The private Wasm table uses one physical signature:
-`(environment: i32, arguments: i32) -> f64`. A packed argument frame contains the
+The private Wasm table uses `(environment: i32, arguments: i32) -> f64` for
+Number results and adds `(environment: i32, arguments: i32) -> (i32, i32)` for
+[runtime factory results](runtime-function-results.md). A packed argument frame contains the
 ordered eight-byte snapshots: binary64 Numbers or two i32 callback fields. The
 body copies its typed logical parameters before execution. This supports zero
 through 1,000 parameters without expanding the physical Wasm signature. An
@@ -110,7 +113,8 @@ Existing static closure specialization across await remains available.
 [Known local helpers and factories accept callback arguments](local-callback-arguments.md)
 with numeric leaf signatures, including captured callback cells after creator return.
 [Runtime-selected functions also accept numeric-leaf callbacks](higher-order-callbacks.md).
-Callbacks taking callbacks, general function-valued runtime results, nonnumeric leaf
+Concise runtime factories now return numeric-leaf pairs. Callbacks taking
+callbacks, factories returning factories, nonnumeric leaf
 return kinds, function truthiness/coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.

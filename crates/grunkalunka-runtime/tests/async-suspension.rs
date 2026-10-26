@@ -1113,3 +1113,27 @@ fn block_function_results_survive_async_suspension() {
         ],
     );
 }
+
+#[test]
+fn runtime_factory_results_keep_cells_and_snapshots_across_async_jobs() {
+    compare_promises(
+        &[
+            "const one=x=>()=>++x;const two=x=>()=>x+b;const make=a?one:two;const f=make(await a);await null;return f()+f();",
+            "let make=x=>()=>x+a;const f=make(await(make=x=>()=>x-b,a));await null;return f()+make(b)();",
+            "let leaf=x=>x+a;let make=()=>leaf;const f=make();await null;leaf=x=>x-b;return f(a)+make()(a);",
+            "const factory=a?(fn,x)=>()=>fn(x):(fn,x)=>()=>fn(x)+b;const f=factory(x=>x+a,await b);await null;return f()+f();",
+            "let make=x=>()=>x;make=x=>x<=0?()=>b:make(x-1);await null;return make(3)();",
+            "let make=x=>()=>x;try{await Promise.reject(a);}catch(reason){make=x=>()=>x+ +reason;await null;return make(b)();}return 0;",
+            "let make=x=>()=>x+a;const saved=make;try{return make(await Promise.reject(a))();}catch(reason){return saved(+reason)();}",
+            "let make=x=>()=>x;try{throw a;}catch(reason){make=x=>()=>x+ +reason;await null;return make(b)();}",
+            "let make=x=>()=>x+a;try{throw make(await b)();}catch(reason){await null;return +reason;}",
+            "const pick=c=>{if(c)return x=>()=>x+a;return x=>()=>x-b;};const make=pick(a);await null;return make(b)();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

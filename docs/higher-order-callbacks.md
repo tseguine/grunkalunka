@@ -1,8 +1,9 @@
 # Runtime-selected functions with callback parameters
 
 Synchronous runtime function values accept Number arguments and numeric-leaf
-callbacks, and return Number. The Number, primitive-return and primitive async
-entry profiles share this support:
+callbacks, and return Number. [Concise runtime factories](runtime-function-results.md)
+also return numeric-leaf function pairs. The Number, primitive-return and
+primitive async entry profiles share this support:
 
 ```js
 export function run(a, b) {
@@ -24,11 +25,11 @@ unused callback to a runtime parameter is not inferred from its annotation.
 
 The private `Closure(signature)` type holds a module-local signature ID. Numeric
 leaf IDs retain their arity, 0 through 1,000; higher IDs intern parameter lists
-containing Number and numeric-leaf Closure types. The verifier checks registry
-shapes, constructor targets, branch results, source cells and ordered arguments.
-The host ABI and private physical `(environment, argument frame) -> f64` ABI stay
-the same. Each logical argument occupies eight frame bytes: an f64 Number or two
-i32 function fields. Captured callback parameters receive ordinary shared typed
+containing Number and numeric-leaf Closure types plus a result type. The verifier
+checks registry shapes, constructor targets, branch results, source cells and ordered arguments.
+The host ABI stays the same. Number-result functions retain the private physical
+`(environment, argument frame) -> f64` ABI; factories add a paired i32 result. Each logical argument occupies eight frame
+bytes: an f64 Number or two i32 function fields. Captured callback parameters receive ordinary shared typed
 cells, so rebinding a parameter is visible to closures capturing that parameter.
 
 The callee and each earlier argument snapshot both code and environment before
@@ -47,7 +48,7 @@ Source, expansion, lifting, native-stack, arena and fuel bounds remain applicabl
 The shared 128-region budget crosses runtime callback argument lowering too; a
 nested-caller/returned-callback test rejects the combined deep case on a 2 MiB stack.
 
-This slice does not admit callbacks taking callbacks, function-valued runtime
-returns, primitive or heap callback arguments/results, async callback bodies,
+This slice does not admit callbacks taking callbacks, factories returning
+factories, primitive or heap callback arguments/results, async callback bodies,
 Promise callbacks, function host parameters/results, or general JS function
 reflection and coercion. It does not complete first-class JavaScript functions.

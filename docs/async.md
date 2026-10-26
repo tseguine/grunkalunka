@@ -134,8 +134,9 @@ return or throw; implicit fallthrough remains excluded.
 Source helper calls, async arrows, arbitrary Promise/thenable values, Strings,
 Symbols, BigInts, objects, Promise callbacks, synchronous/lifted throw, finally, catch
 destructuring and Promise interoperability remain open. Runtime-selected functions
-accept Number and numeric-leaf callback parameters and return Number; see
-[higher-order callbacks](higher-order-callbacks.md). Callback bodies still take
+accept Number and numeric-leaf callback parameters and return Number or a
+numeric-leaf pair from a concise factory; see [higher-order callbacks](higher-order-callbacks.md)
+and [runtime function results](runtime-function-results.md). Callback bodies still take
 Numbers and return Number. Existing operator admission limits still apply. Rejected primitive reasons
 propagate through the nearest lexical handler or remain uncaught; host
 resource/protocol errors are not mapped to JS exceptions.

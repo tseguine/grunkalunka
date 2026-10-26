@@ -23,7 +23,7 @@ mod closures;
 mod evaluate;
 mod function_values;
 mod storage;
-pub(super) use callbacks::{closure_signatures, infer_callback_parameters};
+pub(super) use callbacks::infer_callback_parameters;
 pub(super) use storage::general_mutable_bindings;
 
 #[derive(Clone)]
@@ -240,7 +240,7 @@ pub(super) struct Lowering<'s, 'a> {
     // Generated parent regions retained across scalar/function cursor crossings.
     // AST wrapper depth has its own budget and must not be charged here again.
     pub function_result_depth: usize,
-    pub closure_signatures: &'s ir::ClosureSignatures,
+    pub closure_signatures: &'s std::cell::RefCell<ir::ClosureSignatures>,
 }
 
 impl Lowering<'_, '_> {
@@ -1033,6 +1033,7 @@ impl Lowering<'_, '_> {
 
     pub fn finish(self, body: Region, parameter_count: usize) -> ir::Function {
         ir::Function {
+            return_type: self.return_type,
             parameter_count,
             slots: self.slots,
             values: self.values,

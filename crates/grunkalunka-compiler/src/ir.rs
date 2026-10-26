@@ -34,29 +34,46 @@ impl Type {
 
 // Numeric leaf signatures keep their arity as the ID. Other IDs intern a
 // logical parameter list; the private physical ABI remains two pointers.
+#[derive(Debug, PartialEq)]
+pub(crate) struct ClosureSignature {
+    pub parameters: Vec<Type>,
+    pub result: Type,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct ClosureSignatures {
-    pub higher: Vec<Vec<Type>>,
+    pub higher: Vec<ClosureSignature>,
 }
 
 impl ClosureSignatures {
-    pub(crate) fn intern(&mut self, parameters: Vec<Type>) -> usize {
-        if let Some(id) = self.id(&parameters) {
+    pub(crate) fn intern(&mut self, parameters: Vec<Type>, result: Type) -> usize {
+        if let Some(id) = self.id(&parameters, result) {
             return id;
         }
         let id = 1001 + self.higher.len();
-        self.higher.push(parameters);
+        self.higher.push(ClosureSignature { parameters, result });
         id
     }
 
-    pub(crate) fn id(&self, parameters: &[Type]) -> Option<usize> {
-        if parameters.len() <= 1000 && parameters.iter().all(|ty| *ty == Type::Number) {
+    pub(crate) fn id(&self, parameters: &[Type], result: Type) -> Option<usize> {
+        if result == Type::Number
+            && parameters.len() <= 1000
+            && parameters.iter().all(|ty| *ty == Type::Number)
+        {
             Some(parameters.len())
         } else {
             self.higher
                 .iter()
-                .position(|entry| entry == parameters)
+                .position(|entry| entry.parameters == parameters && entry.result == result)
                 .map(|id| 1001 + id)
+        }
+    }
+
+    pub(crate) fn result(&self, id: usize) -> Option<Type> {
+        if id <= 1000 {
+            Some(Type::Number)
+        } else {
+            self.higher.get(id - 1001).map(|entry| entry.result)
         }
     }
 
@@ -64,7 +81,9 @@ impl ClosureSignatures {
         if id <= 1000 {
             Some(id)
         } else {
-            self.higher.get(id - 1001).map(Vec::len)
+            self.higher
+                .get(id - 1001)
+                .map(|entry| entry.parameters.len())
         }
     }
 
@@ -72,7 +91,7 @@ impl ClosureSignatures {
         if id <= 1000 {
             (index < id).then_some(Type::Number)
         } else {
-            self.higher.get(id - 1001)?.get(index).copied()
+            self.higher.get(id - 1001)?.parameters.get(index).copied()
         }
     }
 }
@@ -123,6 +142,7 @@ pub(crate) struct Slot {
 
 #[derive(Debug)]
 pub(crate) struct Function {
+    pub return_type: Type,
     pub parameter_count: usize,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,
@@ -624,7 +644,7 @@ impl Verifier<'_> {
                         .collect();
                     let signature = self
                         .closure_signatures
-                        .id(&parameters)
+                        .id(&parameters, target.return_type)
                         .ok_or_else(|| invalid(span, "unknown closure signature"))?;
                     self.define(*result, Type::Closure(signature), &mut visible, span)?;
                 }
@@ -656,7 +676,11 @@ impl Verifier<'_> {
                             .expect("checked argument count");
                         self.value(*argument, ty, &visible, span)?;
                     }
-                    self.define(*result, Type::Number, &mut visible, span)?;
+                    let result_type = self
+                        .closure_signatures
+                        .result(signature)
+                        .expect("checked signature");
+                    self.define(*result, result_type, &mut visible, span)?;
                 }
                 Op::CaptureCells { cells } => {
                     for slot in cells {
@@ -1054,15 +1078,22 @@ pub(crate) fn verify_module_with_entry_type(
     module: &Module,
     entry_type: Type,
 ) -> Result<(), String> {
-    for (index, parameters) in module.closure_signatures.higher.iter().enumerate() {
-        if parameters.len() > 1000
-            || !parameters.iter().any(|ty| matches!(ty, Type::Closure(_)))
-            || parameters
+    for (index, signature) in module.closure_signatures.higher.iter().enumerate() {
+        if signature.parameters.len() > 1000
+            || (signature.result == Type::Number
+                && !signature
+                    .parameters
+                    .iter()
+                    .any(|ty| matches!(ty, Type::Closure(_))))
+            || signature
+                .parameters
                 .iter()
                 .any(|ty| !matches!(ty, Type::Number | Type::Closure(0..=1000)))
-            || module.closure_signatures.higher[..index].contains(parameters)
+            || !matches!(signature.result, Type::Number | Type::Closure(_))
+            || matches!(signature.result, Type::Closure(id) if id > 1000 && id >= 1001 + index)
+            || module.closure_signatures.higher[..index].contains(signature)
         {
-            return Err("internal IR: invalid higher-order closure signature".into());
+            return Err("internal IR: invalid closure signature".into());
         }
     }
     let entry = module
@@ -1083,10 +1114,29 @@ pub(crate) fn verify_module_with_entry_type(
     }
     let functions: Vec<_> = module.functions.iter().collect();
     for (index, function) in module.functions.iter().enumerate() {
+        let result = if closure_environment(function).is_some() {
+            if !matches!(function.return_type, Type::Number | Type::Closure(0..=1000)) {
+                return Err(invalid(
+                    function.body.span,
+                    "runtime closure results require Number or numeric-leaf function",
+                ));
+            }
+            function.return_type
+        } else if index == 0 {
+            entry_type
+        } else {
+            Type::Number
+        };
+        if function.return_type != result {
+            return Err(invalid(
+                function.body.span,
+                "function result metadata disagrees with profile",
+            ));
+        }
         verify_function(
             function,
             &functions,
-            if index == 0 { entry_type } else { Type::Number },
+            result,
             entry_type,
             &module.closure_signatures,
         )?;
@@ -1796,6 +1846,7 @@ mod tests {
     }
     fn function(operations: Vec<Op>, exit: Exit) -> Function {
         Function {
+            return_type: Type::Number,
             parameter_count: 2,
             slots: (0..2)
                 .map(|_| Slot {
@@ -3013,6 +3064,7 @@ mod primitive_value_tests {
             let mut module =
                 crate::lower_source("export function run(a,b) {return a;}", false).unwrap();
             let f = &mut module.functions[0];
+            f.return_type = Type::General;
             f.values.push(output);
             f.body.operations.push(Operation {
                 span: f.body.span,

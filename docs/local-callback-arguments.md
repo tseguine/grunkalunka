@@ -64,10 +64,12 @@ unused invalid bodies, runtime signature exclusions, nesting and source budgets.
 with module-interned ordered parameter kinds rather than only an arity. Compatible
 selected targets and initialized mutable functions preserve callback snapshots,
 shared capture cells and the fixed two-pointer physical ABI. Callbacks taking
-callbacks, general function-valued runtime returns, primitive/heap callback
+callbacks, factories returning factories, primitive/heap callback
 arguments or results, async callback bodies and Promise callbacks remain separate
 gaps. This does not complete general first-class functions.
 
 Concise known calls now also forward existing function pairs, including immediate
 invocation and parameter replacement; see [local function results](local-function-results.md).
-Block bodies and general runtime function results remain separate work.
+Known local [block bodies](block-function-results.md) also return compatible pairs;
+concise runtime factories return numeric-leaf pairs via [typed indirect calls](runtime-function-results.md).
+General recursive result signatures remain separate work.

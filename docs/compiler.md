@@ -1667,10 +1667,10 @@ for specialization, the shared generation budget and remaining function-value ga
 Initialized local function values can also be selected at runtime and called through
 an identifier or alias in the Number, primitive and primitive async profiles. Internal code/environment
 pairs and table calls retain typed captures; packed argument frames handle up to
-1,000 Number arguments with a fixed physical signature. The exported ABI is
-unchanged. See [runtime closures](runtime-closures.md) for the bounded source forms,
+1,000 logical Number/callback arguments with fixed physical parameter lists. The
+exported ABI is unchanged. See [runtime closures](runtime-closures.md) for the bounded source forms,
 environment verifier, allocation, async frame retention and remaining general-value exclusions.
-`let` function slots support same-arity plain assignment and constructor aliases.
+`let` function slots support same-signature plain assignment and constructor aliases.
 An indirect call captures its callee pair before argument side effects or await;
 assignment cannot retroactively change that snapshot. Captured mutable function
 slots can be rebound and can form recursive calls through initialized cells.
@@ -1678,7 +1678,10 @@ Known local arrows and factories also accept numeric-leaf callback arguments.
 Original-symbol demand analysis checks fixed callback arities through aliases and
 forwarding; actual specialization initializes typed function parameter cells.
 See [local callback arguments](local-callback-arguments.md) for snapshot order,
-factory capture, definition checking and runtime higher-order exclusions.
+factory capture and definition checking. Runtime-selected higher-order functions
+accept numeric-leaf callbacks; [concise runtime factories](runtime-function-results.md)
+return numeric-leaf function pairs through a separate private pair-return call
+type. Selected and assigned signatures include both parameter and result kinds.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call

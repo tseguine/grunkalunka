@@ -537,7 +537,7 @@ L5 now includes runtime-selected synchronous functions receiving numeric-leaf
 callbacks and Numbers. Typed logical signatures, captured callback parameter cells,
 ordered snapshots, async callers and wide logical argument frames are demonstrated;
 see [higher-order callbacks](higher-order-callbacks.md). General recursive callback
-signatures, function-valued runtime returns and async callback bodies remain open.
+signatures, factories returning factories and async callback bodies remain open.
 
 L5 also includes existing function pairs returned by concise known local calls,
 with identity, conditional selection, assignment and immediate invocation across
@@ -553,7 +553,7 @@ semantics remain open; this closes no numeric-profile rejection. See
 L5 also includes compatible-signature function results from known block-bodied
 local calls,
 with typed early returns through branches/loops, callback identity/selection,
-retained captures and async caller suspension. Runtime function-returning signatures
+retained captures and async caller suspension. General recursive function-result signatures
 and exported function values remain separate requirements. See
 [block function results](block-function-results.md).
 
@@ -563,3 +563,10 @@ no reaction job. Prefix/after-await effects, nested rethrows and 32-job settleme
 are checked against native JS. Synchronous/lifted throw, finally and general
 exception values remain open; numeric rejection sources remain unchanged. See
 [async throw](async-throw.md).
+
+Runtime-selected concise synchronous factories now return numeric-leaf function
+pairs, including fresh creator cells, captured aliases, ordered argument snapshots,
+recursive rebinding and async callers. Result-aware logical signatures and a
+private pair-return table call preserve the existing host ABI and wide argument
+bounds. See [runtime function results](runtime-function-results.md). General recursive
+callback/result signatures, nonnumeric leaf results and async bodies remain open.

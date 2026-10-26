@@ -63,3 +63,7 @@ one captured helper parameter from 999 unrelated parameters. Local-arrow and
 async oracle tests cover shared writes, nested captures, all three slot types,
 snapshots, primitive payload bits and suspension. These are bounded observations;
 they do not close the general escaping-closure gap.
+
+[Runtime-selected concise factories](runtime-function-results.md) now return those
+internal function pairs too. Their fresh captured parameter cells use this same
+invocation arena; no function or cell crosses the exported host ABI.

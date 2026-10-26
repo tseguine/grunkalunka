@@ -398,6 +398,7 @@ impl Lowering<'_, '_> {
                         };
                         let parameter = self
                             .closure_signatures
+                            .borrow()
                             .parameter(signature, index)
                             .expect("checked signature");
                         let callback = if let Type::Closure(signature) = parameter {
@@ -1085,12 +1086,19 @@ impl Lowering<'_, '_> {
                         if call.arguments.len()
                             != self
                                 .closure_signatures
+                                .borrow()
                                 .parameter_count(arity)
                                 .expect("checked closure signature")
                         {
                             return Err(unsupported(
                                 node,
                                 "runtime closure call requires exactly the declared number of arguments",
+                            ));
+                        }
+                        if self.closure_signatures.borrow().result(arity) != Some(Type::Number) {
+                            return Err(unsupported(
+                                node,
+                                "function-valued runtime calls require a function position",
                             ));
                         }
                         let callee = if let Some((slot, _)) =

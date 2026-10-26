@@ -526,6 +526,8 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         }
         header.push_str(if index == 0 && entry_type == Type::General {
             " (result i32 f64)\n"
+        } else if matches!(function.return_type, Type::Closure(_)) {
+            " (result i32 i32)\n"
         } else {
             " (result f64)\n"
         });

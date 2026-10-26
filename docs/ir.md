@@ -49,8 +49,11 @@ values. `ClosureEntry` imports captured cells, `MakeClosure` constructs a typed
 code/environment pair and `ClosureCall` invokes it through the private table ABI.
 The verifier checks initialized capture type/mutability, ordered parameter kinds
 and calling convention. Numeric-leaf signature IDs equal arity; higher-order IDs
-intern ordered Number and numeric-leaf callback types in the module. Logical lifted
-parameters use those fixed types; emission copies Number or paired callback fields
+intern ordered Number/numeric-leaf callback parameters and a result type in the
+module. The compilation registry is shared across pure queries and scratch checks;
+only verified initialized IR reaches the emitter. Each function also records its
+result type; lifted runtime results are Number or a numeric-leaf Closure. Logical
+lifted parameters use those fixed types; emission copies Number or paired callback fields
 from eight-byte argument frame entries. See [runtime closures](runtime-closures.md)
 and [higher-order callbacks](higher-order-callbacks.md).
 Mutable function slots use the existing typed `Store` operation, which checks
@@ -59,7 +62,9 @@ snapshot; capture imports preserve the source slot's mutability.
 Known local helper specialization can initialize generated parameter cells from
 function pairs as well as Numbers. These specialized cells are not physical Wasm
 parameters. `ClosureCall` uses typed logical parameters through a fixed two-pointer
-physical ABI; ordinary source entry/helper parameters retain Number slots and ABI.
+physical ABI, with f64 Number or paired i32 function results. Ordinary source
+entry/helper parameters retain Number slots and ABI.
+See [runtime function results](runtime-function-results.md).
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.
 A loop body may enter its region repeatedly and initialize those cells on each

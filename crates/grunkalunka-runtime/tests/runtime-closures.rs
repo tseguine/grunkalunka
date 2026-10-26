@@ -179,8 +179,6 @@ fn function_results_do_not_cross_unsupported_kinds_or_runtime_signatures() {
         "const id=fn=>fn;const f=id(async()=>a);return f();",
         "const id=fn=>fn;const f=id?.(()=>a);return f();",
         "const id=fn=>fn;const f=id(...a);return f();",
-        "const get=()=>a?()=>a:()=>b;let f=get;return f()();",
-        "let current=()=>a;let get=()=>current;return get()();",
         "const id=fn=>fn;const f=id(()=>a);return f?.();",
     ] {
         for typescript in [false, true] {
@@ -1278,4 +1276,146 @@ fn block_function_results_keep_small_native_stack_and_expansion_limits() {
         let result = compile(&source, false);
         assert_eq!(result.is_ok(), admitted, "{source}: {:?}", result.err());
     }
+}
+
+#[test]
+fn runtime_selected_factories_return_fresh_closure_pairs() {
+    compare_functions(&[
+        "const one=x=>()=>++x;const two=x=>()=>x+b;const make=a?one:two;const f=make(a);return f()+f();",
+        "const get=()=>a?()=>a:()=>b;let f=get;return f()();",
+        "let current=()=>a;let get=()=>current;return get()();",
+        "const one=x=>()=>++x;const two=x=>()=>x+b;const make=a?one:two;const f=make(a);const g=make(b);return f()*100+g()*10+f();",
+        "let make=x=>()=>x+a;const old=make;make=x=>()=>x-b;const f=old(a);const g=make(b);a++;return f()*10+g();",
+        "let leaf=x=>x+a;const make=a?()=>leaf:()=>leaf;const f=make();leaf=x=>x-b;return f(a)+leaf(a);",
+        "let make=x=>()=>x+a;const f=make((make=x=>()=>x-b,a));return f()+make(b)();",
+        "let make=x=>(a++,()=>x);make(b);return a;",
+        "let n=0;const make=a?(n++,x=>()=>++x):(n+=2,x=>()=>x+b);const f=make(a);return f()+n;",
+        "const id=fn=>fn;let make=x=>id(()=>x);return make(a)()+make(b)();",
+        "let make=(fn,x)=>(fn(x),fn);const f=make(y=>y+a,b);return f(b);",
+        "const factory=a?(fn,x)=>()=>fn(x):(fn,x)=>()=>fn(x)+b;const f=factory(x=>x+a,b);return f()+f();",
+        "let make=x=>()=>x;make=x=>x<=0?()=>b:make(x-1);return make(3)();",
+        "const factory=a?()=>x=>x+a:()=>x=>x-b;const f=factory();return f(b);",
+        "const make=a?x=>()=>x+a:x=>()=>x-b;const alias=make;return alias(a)()+make(b)();",
+        "let make=(x,y)=>()=>x*10+y;return make(a++,a++)()+a;",
+        "let current=()=>a;let make=x=>(current=()=>x,current);const old=make(b);make(a);return old()+current();",
+        "const make=a?x=>()=>++x:x=>()=>--x;const f=make(a);const alias=f;return f()+alias();",
+        "let make=x=>()=>x;const read=()=>make;const get=read();make=x=>()=>x+b;return get(a)()+make(a)();",
+        "return (a?x=>()=>x+a:x=>()=>x-b)(a)();",
+        "let n=0;const make=(n++,a?x=>()=>x+n:x=>()=>x-n);return make((n++,b))()+n;",
+        "const build=x=>{let y=x;return ()=>++y;};let make=x=>build(x);const f=make(a);return f()+f();",
+        "const pick=c=>{if(c)return x=>()=>x+a;return x=>()=>x-b;};const make=pick(a);return make(b)();",
+        "let make=x=>()=>{return ++x;};const f=make(a);const g=make(b);return f()*100+g()*10+f();",
+    ]);
+}
+
+#[test]
+fn runtime_factory_results_require_one_numeric_leaf_signature() {
+    for body in [
+        "const make=a?()=>()=>a:()=>x=>x;return make()();",
+        "const make=a?()=>()=>a:()=>b;return make()();",
+        "let make=x=>()=>x;make=x=>y=>x+y;return make(a)();",
+        "let make=x=>()=>x;make=x=>x;return make(a)();",
+        "let make=x=>()=>()=>x;return make(a)()();",
+        "let make=x=>async()=>x;return make(a)();",
+        "let make=x=>()=>true;return make(a)();",
+        "let make=x=>()=>x;return make(a);",
+        "let make=x=>()=>x;return +make(a);",
+        "let make=x=>()=>x;if(make(a))return a;return b;",
+        "let make=x=>()=>x;return make?.(a)();",
+        "let make=x=>()=>x;return make(...a)();",
+        "let make=x=>()=>x;return make()();",
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+            let source = source.replace("export function", "export async function");
+            assert!(compile_async(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
+fn runtime_factory_calls_bound_native_cursor_reentry() {
+    for (count, admitted) in [(8, true), (9, false)] {
+        let mut expression = "a".to_string();
+        for _ in 0..count {
+            expression = format!("make({expression})()");
+        }
+        let source = format!("export function run(a,b){{let make=x=>()=>x;return {expression};}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        if admitted {
+            let artifact = result.unwrap();
+            let mut host = NumericInstance::new(&artifact.wasm).unwrap();
+            assert_eq!(host.run(4.0, 2.0).unwrap(), 4.0);
+        } else {
+            let error = result.err().expect("runtime result frames must be bounded");
+            assert!(error.contains("8 active"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn runtime_factories_keep_wide_lists_and_erased_types() {
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    compare_functions(&[
+        &format!("let make=({parameters})=>()=>p0+p999+b;return make({arguments})();"),
+        &format!("let make=x=>({parameters})=>p0+p999+x;return make(b)({arguments});"),
+    ]);
+    let plain = "export function run(a,b){let make=x=>()=>x+b;return make(a)();}";
+    let typed = "export function run(a:never,b:Missing):Wrong {let make:Wrong=((x:Missing)=>((()=>x+b) as Wrong)) as any;return ((make as any)(a as never) as Wrong)();}";
+    assert_eq!(
+        compile(plain, false).unwrap().wasm,
+        compile(typed, true).unwrap().wasm
+    );
+    let plain = plain.replace("export function", "export async function");
+    let typed = typed.replace("export function", "export async function");
+    assert_eq!(
+        compile_async(&plain, false).unwrap().wasm,
+        compile_async(&typed, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn runtime_factory_calls_share_the_existing_expansion_limit() {
+    for (calls, admitted) in [(127, true), (128, false)] {
+        let expressions = vec!["make(a)()"; calls].join(",");
+        let source =
+            format!("export function run(a,b){{let make=x=>()=>x;return ({expressions});}}");
+        let result = compile(&source, false);
+        assert_eq!(result.is_ok(), admitted, "{calls} factory/leaf pairs");
+        if !admitted {
+            assert!(result.err().unwrap().contains("256"));
+        }
+    }
+}
+
+#[test]
+fn runtime_factory_pairs_keep_primitive_tags_and_recover_after_fuel_failure() {
+    let artifact = compile_value(
+        "export function run(a,b){let make=x=>()=>x+b;return a?make(a)():true;}",
+        false,
+    )
+    .unwrap();
+    let mut host = ValueInstance::new(&artifact.wasm).unwrap();
+    assert!(matches!(host.run(4.0, 2.0).unwrap(), Value::Number(6.0)));
+    assert!(matches!(host.run(0.0, 2.0).unwrap(), Value::Boolean(true)));
+    node(&format!(
+        "const assert=require('node:assert/strict');const e=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({:?}))).exports;assert.deepEqual(e.run(4,2),[3,6]);assert.deepEqual(e.run(0,2),[2,1]);",
+        artifact.wasm
+    ));
+    let artifact=compile("export function run(a,b){let make=x=>()=>x;if(a){make=x=>make(x);return make(a)();}return make(b)();}",false).unwrap();
+    let mut host = NumericInstance::new(&artifact.wasm).unwrap();
+    let error = host.run(1.0, 2.0).unwrap_err();
+    assert!(format!("{error:#}").contains("fuel"), "{error:#}");
+    assert_eq!(host.run(0.0, 2.0).unwrap(), 2.0);
 }

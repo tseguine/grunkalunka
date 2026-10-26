@@ -21,6 +21,13 @@ pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
         "(type $closure (func (param i32 i32) (result f64)))\n(table {} funcref)\n",
         module.functions.len()
     );
+    if module
+        .functions
+        .iter()
+        .any(|function| matches!(function.return_type, Type::Closure(_)))
+    {
+        output.push_str("(type $closure_pair (func (param i32 i32) (result i32 i32)))\n");
+    }
     for (i, function) in module.functions.iter().enumerate() {
         if ir::closure_environment(function).is_some() {
             let target = if outlined {
@@ -108,10 +115,15 @@ impl Emitter<'_> {
                 _ => unreachable!("verified closure argument"),
             }
         }
+        let signature = if matches!(self.function.values[result.0], Type::Closure(_)) {
+            "$closure_pair"
+        } else {
+            "$closure"
+        };
         let callee = self.value_offsets[callee.0];
         writeln!(
             self.output,
-            "local.get {}\nlocal.get {temp}\nlocal.get {callee}\ncall_indirect (type $closure)",
+            "local.get {}\nlocal.get {temp}\nlocal.get {callee}\ncall_indirect (type {signature})",
             callee + 1
         )
         .unwrap();

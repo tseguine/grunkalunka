@@ -452,8 +452,13 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     );
     for (index, function) in lifted.iter().enumerate() {
         let header = format!(
-            "(func $closure_body{} (param i32 i32) (result f64)\n",
-            index + 1
+            "(func $closure_body{} (param i32 i32) (result {})\n",
+            index + 1,
+            if matches!(function.return_type, Type::Closure(_)) {
+                "i32 i32"
+            } else {
+                "f64"
+            }
         );
         let (body, remainder) = emit_function(function, header);
         output.push_str(&body);

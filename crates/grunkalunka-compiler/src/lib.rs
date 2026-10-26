@@ -227,7 +227,7 @@ fn lower_source_profile(
         });
     }
     let callback_parameters = lower::infer_callback_parameters(&built.semantic)?;
-    let closure_signatures = lower::closure_signatures(&built.semantic, &callback_parameters);
+    let closure_signatures = std::cell::RefCell::new(ir::ClosureSignatures::default());
     let general_bindings =
         lower::general_mutable_bindings(&built.semantic, &signatures, &callback_parameters);
     let mut functions = Vec::new();
@@ -351,7 +351,7 @@ fn lower_source_profile(
     }));
     Ok(ir::Module {
         functions,
-        closure_signatures,
+        closure_signatures: closure_signatures.into_inner(),
     })
 }
 
