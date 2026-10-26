@@ -23,15 +23,6 @@ pub(crate) enum Type {
     Closure(usize),
 }
 
-impl Type {
-    pub(crate) fn width(self) -> usize {
-        match self {
-            Self::General | Self::Closure(_) => 2,
-            _ => 1,
-        }
-    }
-}
-
 // Numeric leaf signatures keep their arity as the ID. Other IDs intern a
 // logical parameter list; the private physical ABI remains two pointers.
 #[derive(Debug, PartialEq)]

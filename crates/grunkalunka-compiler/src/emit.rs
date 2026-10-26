@@ -5,6 +5,7 @@ use std::fmt::Write;
 mod asynchronous;
 mod cells;
 mod closures;
+mod layout;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -69,12 +70,12 @@ struct Emitter<'a> {
 impl Emitter<'_> {
     fn get(&mut self, value: ValueId) {
         writeln!(self.output, "local.get {}", self.value_offsets[value.0]).unwrap();
-        if self.function.values[value.0].width() == 2 {
+        if layout::value(self.function.values[value.0]).parts.len() == 2 {
             writeln!(self.output, "local.get {}", self.value_offsets[value.0] + 1).unwrap();
         }
     }
     fn set(&mut self, value: ValueId) {
-        if self.function.values[value.0].width() == 2 {
+        if layout::value(self.function.values[value.0]).parts.len() == 2 {
             writeln!(self.output, "local.set {}", self.value_offsets[value.0] + 1).unwrap();
         }
         writeln!(self.output, "local.set {}", self.value_offsets[value.0]).unwrap();
@@ -108,11 +109,7 @@ impl Emitter<'_> {
                 } => self.call_closure(*result, *callee, arguments),
                 Op::InlineCall { result, body } => {
                     let outer = self.inline_return.replace(body.id.0);
-                    let result_types = match self.function.values[result.0] {
-                        Type::Number => "f64",
-                        Type::Closure(_) => "i32 i32",
-                        _ => unreachable!("verified inline result type"),
-                    };
+                    let result_types = layout::value(self.function.values[result.0]).wat;
                     writeln!(
                         self.output,
                         "block $call{} (result {result_types})",
@@ -201,7 +198,7 @@ impl Emitter<'_> {
                     }
                     let offset = self.slot_offsets[slot.0];
                     writeln!(self.output, "local.get {offset}").unwrap();
-                    if self.function.slots[slot.0].ty.width() == 2 {
+                    if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
                         writeln!(self.output, "local.get {}", offset + 1).unwrap();
                     }
                     self.set(*result);
@@ -218,7 +215,7 @@ impl Emitter<'_> {
                     }
                     self.get(*value);
                     let offset = self.slot_offsets[slot.0];
-                    if self.function.slots[slot.0].ty.width() == 2 {
+                    if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
                         writeln!(self.output, "local.set {}", offset + 1).unwrap();
                     }
                     writeln!(self.output, "local.set {offset}").unwrap();
@@ -395,14 +392,16 @@ impl Emitter<'_> {
                     alternate,
                 } => {
                     self.get(*condition);
-                    self.output
-                        .push_str(match result.map(|id| self.function.values[id.0]) {
-                            Some(Type::Number) => "if (result f64)\n",
-                            Some(Type::Predicate) => "if (result i32)\n",
-                            Some(Type::General) => "if (result i32 f64)\n",
-                            Some(Type::Closure(_)) => "if (result i32 i32)\n",
-                            None => "if\n",
-                        });
+                    if let Some(result) = result {
+                        writeln!(
+                            self.output,
+                            "if (result {})",
+                            layout::value(self.function.values[result.0]).wat
+                        )
+                        .unwrap();
+                    } else {
+                        self.output.push_str("if\n");
+                    }
                     self.region(consequent);
                     self.output.push_str("else\n");
                     self.region(alternate);
@@ -524,13 +523,12 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             }
             header.push(')');
         }
-        header.push_str(if index == 0 && entry_type == Type::General {
-            " (result i32 f64)\n"
-        } else if matches!(function.return_type, Type::Closure(_)) {
-            " (result i32 i32)\n"
-        } else {
-            " (result f64)\n"
-        });
+        writeln!(
+            header,
+            " (result {})",
+            layout::value(function.return_type).wat
+        )
+        .unwrap();
         let (body, remainder) = emit_function(function, header);
         needs_remainder |= remainder;
         output.push_str(&body);
@@ -542,11 +540,7 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
     if has_cells {
         output.push_str(cells::ALLOCATOR);
         output.push_str("(func (export \"run\") (param f64 f64)");
-        output.push_str(if entry_type == Type::General {
-            " (result i32 f64)\n"
-        } else {
-            " (result f64)\n"
-        });
+        writeln!(output, " (result {})", layout::value(entry_type).wat).unwrap();
         output.push_str("i32.const 0 global.set $cell_top\nlocal.get 0 local.get 1 call 0)\n");
     }
     if has_closures {
@@ -597,7 +591,7 @@ fn emit_function(function: &Function, header: String) -> (String, bool) {
         .iter()
         .map(|slot| {
             let current = offset;
-            offset += slot.ty.width();
+            offset += layout::value(slot.ty).parts.len();
             current
         })
         .collect();
@@ -606,7 +600,7 @@ fn emit_function(function: &Function, header: String) -> (String, bool) {
         .iter()
         .map(|ty| {
             let current = offset;
-            offset += ty.width();
+            offset += layout::value(*ty).parts.len();
             current
         })
         .collect();
@@ -629,20 +623,10 @@ fn emit_function(function: &Function, header: String) -> (String, bool) {
     } else {
         function.parameter_count
     }) {
-        emitter.output.push_str(match slot.ty {
-            Type::Number => "(local f64)\n",
-            Type::Predicate => "(local i32)\n",
-            Type::General => "(local i32 f64)\n",
-            Type::Closure(_) => "(local i32 i32)\n",
-        });
+        emitter.output.push_str(layout::value(slot.ty).local);
     }
     for ty in &function.values {
-        emitter.output.push_str(match ty {
-            Type::Number => "(local f64)\n",
-            Type::Predicate => "(local i32)\n",
-            Type::General => "(local i32 f64)\n",
-            Type::Closure(_) => "(local i32 i32)\n",
-        });
+        emitter.output.push_str(layout::value(*ty).local);
     }
     for _ in emitter.cell_offsets.iter().flatten() {
         emitter.output.push_str("(local i32)\n");

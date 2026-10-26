@@ -32,11 +32,7 @@ impl Emitter<'_> {
             if let Some(pointer) = self.cell_offsets[slot] {
                 self.new_cell(pointer);
                 let local = self.slot_offsets[slot];
-                match self.function.slots[slot].ty {
-                    Type::Number => writeln!(self.output, "local.get {pointer}\nlocal.get {local}\nf64.store").unwrap(),
-                    Type::Closure(_) => writeln!(self.output, "local.get {pointer}\nlocal.get {local}\ni32.store\nlocal.get {pointer}\nlocal.get {}\ni32.store offset=4", local + 1).unwrap(),
-                    _ => unreachable!("verified captured parameter"),
-                }
+                self.store_memory(pointer, local, self.function.slots[slot].ty, 0, false);
             }
         }
     }
@@ -46,19 +42,12 @@ impl Emitter<'_> {
     }
 
     pub(super) fn load_cell(&mut self, slot: ir::SlotId, pointer: usize) {
-        match self.function.slots[slot.0].ty {
-            Type::Number => writeln!(self.output, "local.get {pointer}\nf64.load").unwrap(),
-            Type::Predicate => writeln!(self.output, "local.get {pointer}\ni32.load").unwrap(),
-            Type::Closure(_) => writeln!(
-                self.output,
-                "local.get {pointer}\ni32.load\nlocal.get {pointer}\ni32.load offset=4"
-            )
-            .unwrap(),
-            Type::General => writeln!(
-                self.output,
-                "local.get {pointer}\ni32.load\nlocal.get {pointer}\nf64.load offset=8"
-            )
-            .unwrap(),
+        for part in layout::value(self.function.slots[slot.0].ty).parts {
+            write!(self.output, "local.get {pointer}\n{}.load", part.lane.wat()).unwrap();
+            if part.byte_offset != 0 {
+                write!(self.output, " offset={}", part.byte_offset).unwrap();
+            }
+            self.output.push('\n');
         }
     }
 
@@ -73,11 +62,32 @@ impl Emitter<'_> {
             self.new_cell(pointer);
         }
         let offset = self.value_offsets[value.0];
-        match self.function.slots[slot.0].ty {
-            Type::Number => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\nf64.store").unwrap(),
-            Type::Predicate => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\ni32.store").unwrap(),
-            Type::Closure(_) => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\ni32.store\nlocal.get {pointer}\nlocal.get {}\ni32.store offset=4", offset+1).unwrap(),
-            Type::General => writeln!(self.output, "local.get {pointer}\nlocal.get {offset}\ni32.store\nlocal.get {pointer}\nlocal.get {}\nf64.store offset=8", offset+1).unwrap(),
+        self.store_memory(pointer, offset, self.function.slots[slot.0].ty, 0, false);
+    }
+
+    // Explicit zero offsets retain the existing argument-frame WAT spelling;
+    // both frame and cell access use the same lane and byte-offset policy.
+    pub(super) fn store_memory(
+        &mut self,
+        pointer: usize,
+        local: usize,
+        ty: Type,
+        base: usize,
+        explicit_zero: bool,
+    ) {
+        for (index, part) in layout::value(ty).parts.iter().enumerate() {
+            let offset = base + part.byte_offset;
+            write!(
+                self.output,
+                "local.get {pointer}\nlocal.get {}\n{}.store",
+                local + index,
+                part.lane.wat()
+            )
+            .unwrap();
+            if offset != 0 || explicit_zero {
+                write!(self.output, " offset={offset}").unwrap();
+            }
+            self.output.push('\n');
         }
     }
 }

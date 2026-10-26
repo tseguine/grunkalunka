@@ -1,5 +1,5 @@
 //! Private function values carry a table index and an environment address.
-//! Populated closure slots use (environment, typed argument frame) -> Number.
+//! Calls use (environment, typed argument frame) and a verified logical result.
 use super::*;
 
 pub(super) const FRAME_ALLOCATOR: &str = r#"(func $closure_frame (param $bytes i32) (result i32) (local $old i32) (local $end i32)
@@ -18,7 +18,8 @@ pub(super) const FRAME_ALLOCATOR: &str = r#"(func $closure_frame (param $bytes i
 
 pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
     let mut output = format!(
-        "(type $closure (func (param i32 i32) (result f64)))\n(table {} funcref)\n",
+        "(type $closure (func (param i32 i32) (result {})))\n(table {} funcref)\n",
+        layout::value(Type::Number).wat,
         module.functions.len()
     );
     if module
@@ -26,7 +27,12 @@ pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
         .iter()
         .any(|function| matches!(function.return_type, Type::Closure(_)))
     {
-        output.push_str("(type $closure_pair (func (param i32 i32) (result i32 i32)))\n");
+        writeln!(
+            output,
+            "(type $closure_pair (func (param i32 i32) (result {})))",
+            layout::value(Type::Closure(0)).wat
+        )
+        .unwrap();
     }
     for (i, function) in module.functions.iter().enumerate() {
         if ir::closure_environment(function).is_some() {
@@ -55,10 +61,19 @@ impl Emitter<'_> {
             for parameter in 0..self.function.parameter_count {
                 let offset = parameter * 8;
                 let local = self.slot_offsets[parameter];
-                match self.function.slots[parameter].ty {
-                    Type::Number => writeln!(self.output, "local.get 1\nf64.load offset={offset}\nlocal.set {local}").unwrap(),
-                    Type::Closure(_) => writeln!(self.output, "local.get 1\ni32.load offset={offset}\nlocal.set {local}\nlocal.get 1\ni32.load offset={}\nlocal.set {}", offset + 4, local + 1).unwrap(),
-                    _ => unreachable!("verified closure parameter"),
+                for (index, part) in layout::value(self.function.slots[parameter].ty)
+                    .parts
+                    .iter()
+                    .enumerate()
+                {
+                    writeln!(
+                        self.output,
+                        "local.get 1\n{}.load offset={}\nlocal.set {}",
+                        part.lane.wat(),
+                        offset + part.byte_offset,
+                        local + index
+                    )
+                    .unwrap();
                 }
             }
             for (index, slot) in captures.iter().enumerate() {
@@ -109,11 +124,7 @@ impl Emitter<'_> {
         for (index, value) in arguments.iter().enumerate() {
             let local = self.value_offsets[value.0];
             let offset = index * 8;
-            match self.function.values[value.0] {
-                Type::Number => writeln!(self.output, "local.get {temp}\nlocal.get {local}\nf64.store offset={offset}").unwrap(),
-                Type::Closure(_) => writeln!(self.output, "local.get {temp}\nlocal.get {local}\ni32.store offset={offset}\nlocal.get {temp}\nlocal.get {}\ni32.store offset={}", local + 1, offset + 4).unwrap(),
-                _ => unreachable!("verified closure argument"),
-            }
+            self.store_memory(temp, local, self.function.values[value.0], offset, true);
         }
         let signature = if matches!(self.function.values[result.0], Type::Closure(_)) {
             "$closure_pair"

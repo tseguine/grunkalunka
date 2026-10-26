@@ -1,7 +1,7 @@
 //! Split verified regions into a switched-resume coroutine. The frame currently
 //! conservatively keeps source locals, captured-cell pointers and snapshots in
 //! instance globals; captured cell contents live in the invocation's guest arena.
-use super::{Emitter, NUMBER_REMAINDER, cells, closures, emit_function};
+use super::{Emitter, NUMBER_REMAINDER, cells, closures, emit_function, layout};
 use crate::ir::{self, Exit, Op, Region, Type, ValueId};
 use std::fmt::Write;
 
@@ -314,12 +314,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         .chain(function.values.iter().copied())
     {
         offsets.push(types.len());
-        match ty {
-            Type::Number => types.push("f64"),
-            Type::Predicate => types.push("i32"),
-            Type::General => types.extend(["i32", "f64"]),
-            Type::Closure(_) => types.extend(["i32", "i32"]),
-        }
+        types.extend(layout::value(ty).parts.iter().map(|part| part.lane.wat()));
     }
     let mut offset = types.len();
     let cell_offsets = cells::offsets(function, &mut offset);
@@ -396,7 +391,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 result,
                 next,
             } => {
-                for part in 0..function.values[input.0].width() {
+                for part in 0..layout::value(function.values[input.0]).parts.len() {
                     writeln!(
                         output,
                         "global.get {}\nglobal.set {}",
@@ -454,11 +449,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let header = format!(
             "(func $closure_body{} (param i32 i32) (result {})\n",
             index + 1,
-            if matches!(function.return_type, Type::Closure(_)) {
-                "i32 i32"
-            } else {
-                "f64"
-            }
+            layout::value(function.return_type).wat
         );
         let (body, remainder) = emit_function(function, header);
         output.push_str(&body);
