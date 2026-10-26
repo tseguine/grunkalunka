@@ -230,7 +230,8 @@ Initialization runs once; body locals initialize on each entry. Omitted tests us
 a generated true predicate. Pretest loops remain conservative for return coverage,
 including `for` with an omitted test. A statement if guarantees return only when
 both arms do; a block carries its
-child's return coverage. Every function must return a number on all structural paths.
+child's return coverage. Every numeric function must return a number on all
+structural paths.
 
 `DoWhile` owns sibling body and condition regions. Both inherit only outer values
 and initialized cells; neither can use new values or cells from the other. The
@@ -273,11 +274,12 @@ arbitrary control-flow graph or SSA conversion.
 ## Unlabelled loop exits
 
 Lowering and verification independently compute possible `Normal`, `Return`,
-`Break` and `Continue` completions with the same small algebra. Sequential composition preserves
-prior abrupt alternatives and applies the suffix only to normal paths. Branches
+`Throw`, `Break` and `Continue` completions with the same small algebra.
+Sequential composition preserves prior abrupt alternatives and applies the suffix only to normal paths. Branches
 union their outcomes. A fallthrough exit preserves that accumulated set: it does
-not invent a normal path after all-abrupt branches. Functions must end with exactly
-`Return`; runtime statements after guaranteed abrupt completion are rejected.
+not invent a normal path after all-abrupt branches. Numeric functions must end with
+exactly `Return`; async entry paths may return or throw. Runtime statements after
+guaranteed abrupt completion are rejected.
 
 Explicit type aliases/interfaces, including direct named exports and default
 interface exports recognized by source admission, emit no IR. They charge one
@@ -289,8 +291,8 @@ AST and semantic identities remain available; type names are not numeric binding
 
 A loop consumes only its nearest body's breaks and continues. Pretest loops remain possibly
 normal; do loops convert body breaks/continues into possible normal loop completion while preserving
-possible returns. All explicit condition/yield regions and for steps must complete
-normally, even under an outer loop body. Their verifier context denies inherited
+possible returns and throws. All explicit condition/yield regions and for steps
+must complete normally, even under an outer loop body. Their verifier context denies inherited
 break/continue through nested blocks and branches. A do body with return and
 continue alternatives therefore still needs a following numeric return. The generated for-initializer `Block`
 is an ordinary untagged lexical region; source lowering enforces its numeric
@@ -558,17 +560,27 @@ no host jobs. Each invocation retains its cells and snapshots in a separate Wasm
 instance, with a stored state index and terminal completion marker. This is a
 conservative coroutine frame, without general Promise values or live-only spilling.
 
+`TryCatch` defines a General reason snapshot only in its handler. The protected
+body and handler inherit outer cells/values but not each other's private snapshots.
+`Exit::Throw` requires a visible General reason. Source admission restricts throw
+to the async entry, and synchronous emission rejects it. It jumps directly to the
+nearest lexical handler or emits immediate rejection status 3. Catch replaces the body's throw completion channel with the handler's
+alternatives. Awaited rejection still uses the original reaction boundary; caught
+source throw adds none. See [primitive source throw](async-throw.md).
+
 ### Scoped inline calls
 
-`InlineCall` owns a statement body and defines a Number result in its caller.
-Its child inherits initialized captured cells and argument snapshots, but has its
-own Number-return and loop-control scope. The verifier requires a return on every
-structural path, consumes those completions and then defines the call result.
-Child locals and snapshots do not escape the region. This remains true when the
-containing function returns a General value.
+`InlineCall` owns a statement body and defines a Number or `Closure(signature)`
+result in its caller. Its child inherits initialized captured cells and argument
+snapshots, but has its own typed-return and loop-control scope. The verifier
+requires every structural return path to match the result type, including the
+complete closure signature, before defining the call result. Child locals and
+snapshots do not escape the region. This remains true when the containing function
+returns a General value. See [block function results](block-function-results.md).
 
-Synchronous emission branches body returns to a result block, preserving the
-caller's suffix. The async splitter instead copies the returned Number to the
-call result and follows the caller continuation. Neither path turns a closure
-return into a return from the containing function. Calls retain original capture
-slots, fresh parameter/body locals and separately bounded generated expansion.
+Synchronous emission branches body returns to a typed result block, preserving the
+caller's suffix. The async splitter copies the returned value's full width to the
+call result: one field for Number, both code/environment fields for Closure.
+It then follows the caller continuation. Neither path turns a closure return into
+a return from the containing function. Calls retain original capture slots, fresh
+parameter/body locals and separately bounded generated expansion.

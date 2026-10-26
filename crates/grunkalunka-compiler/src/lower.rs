@@ -980,7 +980,20 @@ impl Lowering<'_, '_> {
                         handler: caught,
                     },
                 );
-                Ok(body_completion.union(handler_completion))
+                Ok(body_completion.caught_by(handler_completion))
+            }
+            Statement::ThrowStatement(statement) => {
+                if !self.allow_await {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "statement is outside the numeric experiment",
+                    ));
+                }
+                let value = self
+                    .evaluate(&statement.argument, region, 0, evaluate::Mode::General)?
+                    .expect("General throw reason");
+                region.exit = Exit::Throw(value);
+                Ok(Completion::THROW)
             }
             Statement::ReturnStatement(statement) => {
                 let expression =

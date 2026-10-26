@@ -21,7 +21,7 @@ pub struct AsyncInstance {
 }
 
 impl AsyncInstance {
-    /// Run the synchronous prefix, stopping at the first await or return.
+    /// Run the synchronous prefix, stopping at the first await or settlement.
     pub fn new(wasm: &[u8], a: f64, b: f64) -> wasmtime::Result<Self> {
         let (mut store, instance) = super::instantiate(wasm, super::FUEL_PER_CALL)?;
         let start = instance.get_typed_func::<(f64, f64), (i32, i32, f64)>(&mut store, "start")?;
@@ -75,6 +75,10 @@ impl AsyncInstance {
         match kind {
             0 => {
                 self.state = AsyncState::Fulfilled(value);
+                self.pending = None;
+            }
+            3 => {
+                self.state = AsyncState::Rejected(value);
                 self.pending = None;
             }
             1 | 2 => {

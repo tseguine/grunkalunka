@@ -325,10 +325,15 @@ fn lower_source_profile(
         }
         let mut region = lowering.region(body.as_ref());
         lowering.initialize_general_parameters(&mut region);
-        if lowering.sequence(&body.statements, &mut region, 0)? != ir::Completion::RETURN {
+        let completion = lowering.sequence(&body.statements, &mut region, 0)?;
+        if completion != ir::Completion::RETURN
+            && !(lowering.allow_await && completion.returns_or_throws())
+        {
             return Err(unsupported(
                 body.as_ref(),
-                if lowering.return_type == ir::Type::General {
+                if lowering.allow_await {
+                    "every structural path must return a primitive value or throw"
+                } else if lowering.return_type == ir::Type::General {
                     "every structural path must return a primitive value"
                 } else {
                     "every structural path must return a numeric value"

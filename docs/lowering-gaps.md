@@ -4,7 +4,7 @@ The exact `gap-async-await` source now executes in the separate
 [primitive async profile](async.md), including its Promise job boundary. It remains
 a numeric-profile rejection; general Promise values and exception completion
 remain known requirements. Primitive rejected-await catch handlers now execute in
-the async profile; source throw and finally remain open. Numeric structured
+the async profile; synchronous throw and finally remain open. Numeric structured
 control flow can now suspend.
 Undefined/null/Boolean/Number values and uncaught rejection reasons survive that
 suspension; Strings, objects and arbitrary Promise values remain outside this slice.
@@ -622,7 +622,7 @@ ABI. Runtime function-result signatures remain open; see [local function results
 
 Primitive rejected awaits now enter lexical `try/catch` handlers, preserving the
 reason's primitive kind and await reaction job. Nested catches, later awaits,
-loop exits and captured handler bindings are covered in both engines. Source
+loop exits and captured handler bindings are covered in both engines. Synchronous
 throw, finally, synchronous catches and general exception values remain open;
 numeric rejection fixtures and counts are unchanged. See [async catch](async-catch.md).
 
@@ -632,3 +632,10 @@ argument kinds; local aliases, mutable-function snapshots and retained captures
 agree with JavaScript in synchronous and async callers. Function-valued host results,
 runtime function-returning signatures and mixed return kinds remain open. See
 [block function results](block-function-results.md).
+
+Primitive source throw now transfers immediately to lexical async catch handlers
+or rejects the activation directly, preserving represented reason kinds and adding
+no reaction job. Prefix/after-await effects, nested rethrows and 32-job settlement
+are checked against native JS. Synchronous/lifted throw, finally and general
+exception values remain open; numeric rejection sources remain unchanged. See
+[async throw](async-throw.md).

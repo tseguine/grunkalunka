@@ -18,6 +18,7 @@ export function createAsyncFunction(bytes) {
       function accept([status, tag, payload]) {
         const value = decode(tag, payload);
         if (status === 0) resolve(value);
+        else if (status === 3) reject(value);
         else if (status === 1 || status === 2) {
           if (jobs-- === 0) throw new RangeError('async activation exceeded its 32-job budget');
           queueMicrotask(() => {

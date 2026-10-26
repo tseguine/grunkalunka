@@ -440,6 +440,7 @@ impl Emitter<'_> {
         self.operations(&region.operations);
         match region.exit {
             Exit::Fallthrough => {}
+            Exit::Throw(_) => unreachable!("throw uses the async emitter"),
             Exit::Break => {
                 writeln!(
                     self.output,
@@ -554,6 +555,9 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
 }
 
 fn region_has_await(region: &Region) -> bool {
+    if matches!(region.exit, Exit::Throw(_)) {
+        return true;
+    }
     region
         .operations
         .iter()

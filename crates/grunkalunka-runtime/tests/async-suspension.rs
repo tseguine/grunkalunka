@@ -26,6 +26,131 @@ fn primitive_bits(value: Value) -> String {
 }
 
 #[test]
+fn primitive_throw_rejects_without_an_extra_reaction_job() {
+    compare_promises(
+        &[
+            "throw a;",
+            "throw undefined;",
+            "throw null;",
+            "throw true;",
+            "throw false;",
+            "throw -0;",
+            "throw a+b;",
+            "throw (a?null:true);",
+            "try{throw a;}catch(e){return e+b;}",
+            "try{throw a;}catch(e){return e;}",
+            "try{throw undefined;}catch(e){return e;}",
+            "try{throw null;}catch(e){return e;}",
+            "try{throw true;}catch(e){return e;}",
+            "try{throw false;}catch(e){return e;}",
+            "try{throw a;}catch{return b;}",
+            "try{throw (a=b,a++);}catch(e){return e*10+a;}",
+            "let x=0;try{x=1;throw (x+=a);}catch(e){return e+x;}",
+            "try{throw a?null:true;}catch(e){if(e)return a;return b;}",
+            "if(a)throw b;return a;",
+            "if(a)return b;throw a;",
+            "try{if(a)throw b;return a;}catch(e){return e;}",
+            "await a;throw b;",
+            "throw await a;",
+            "throw await Promise.reject(a);",
+            "try{throw await Promise.resolve(a);}catch(e){return e;}",
+            "try{throw await Promise.reject(a);}catch(e){return e;}",
+            "try{throw a;}catch(e){throw e+b;}",
+            "try{try{throw a;}catch(e){throw e+b;}}catch(e){return e;}",
+            "try{await null;try{throw a;}catch(e){throw await b;}}catch(e){return e;}",
+            "try{throw a;}catch(e){return await e;}",
+            "try{await a;throw b;}catch(e){return await e;}",
+            "try{throw null;}catch(e){e=a;return await e;}",
+            "try{await Promise.reject(a);return b;}catch(e){throw e;}",
+            "try{try{await Promise.reject(a);return b;}catch(e){throw e+b;}}catch(e){return await e;}",
+            "let x=0;for(let i=0;i<3;i++){try{throw i;}catch(e){x+=e;}}return x;",
+            "let x=0;for(let i=0;i<3;i++){try{throw i;}catch(e){if(e===1)continue;x+=e;}}return x;",
+            "let x=0;for(let i=0;i<3;i++){try{throw i;}catch(e){if(e===1)break;x+=e;}}return x;",
+            "try{for(let i=0;i<3;i++){if(i===1)throw b;a+=1;}}catch(e){return a+e;}return a;",
+            "try{while(a){throw b;}return a;}catch(e){return e;}",
+            "do{throw a;}while(await b);",
+            "let f=()=>a;try{throw b;}catch(e){f=()=>+e;}await null;return f();",
+            "let f=()=>a;let old=()=>b;for(let i=0;i<2;i++){try{throw i;}catch(e){old=f;f=()=>+e;}}return old()*10+f();",
+            "for(let i=0;i<32;i++)await null;throw a;",
+            "const pick=flag=>{if(flag)return (fn,x)=>fn(x);return (fn,x)=>fn(fn(x));};const h=pick(a);try{throw h(x=>x+b,a);}catch(reason){await null;return h(x=>x+ +reason,b);}",
+            "try{throw a;}catch(reason){const make=()=>{return (fn,x)=>fn(x)+ +reason;};const h=make();await null;throw h(x=>x+b,b);}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -2.0),
+            (-0.0, 0.0),
+            (f64::NAN, f64::INFINITY),
+            (f64::INFINITY, f64::NEG_INFINITY),
+            (f64::from_bits(1), f64::MAX),
+        ],
+    );
+}
+
+#[test]
+fn throw_keeps_profile_protocol_and_host_failure_boundaries() {
+    for body in [
+        "throw 'text';",
+        "throw {};",
+        "throw (()=>a);",
+        "const f=()=>{throw a;};return f();",
+        "try{throw a;}finally{return b;}",
+        "throw a;return b;",
+    ] {
+        assert!(compile_async(&source_for(body), false).is_err(), "{body}");
+    }
+    for value_profile in [false, true] {
+        let source = "export function run(a,b){throw a;}";
+        let error = if value_profile {
+            grunkalunka_compiler::compile_value(source, false)
+        } else {
+            grunkalunka_compiler::compile(source, false)
+        }
+        .err()
+        .unwrap();
+        assert!(
+            error.contains("statement is outside the numeric experiment"),
+            "{error}"
+        );
+    }
+    let plain = "export async function run(a,b){try{throw a;}catch(e){throw await e;}}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{try{throw(a as unknown);}catch(e:unknown){throw await(e as number);}}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    let wasm = compile_async(&source_for("throw a;"), false).unwrap().wasm;
+    let mut direct = AsyncInstance::new(&wasm, -0.0, 2.0).unwrap();
+    assert!(
+        matches!(direct.state().unwrap(),AsyncState::Rejected(Value::Number(value)) if value.to_bits()==(-0.0f64).to_bits())
+    );
+    assert!(!direct.run_one_job().unwrap());
+    let wasm = compile_async(
+        &source_for("try{const f=()=>{for(;;)a+=1;return a;};throw f();}catch(e){return e;}"),
+        false,
+    )
+    .unwrap()
+    .wasm;
+    assert!(AsyncInstance::new(&wasm, 4.0, 2.0).is_err());
+    let wasm = compile_async(
+        &source_for("try{for(let i=0;i<33;i++)await null;throw a;}catch(e){throw b;}"),
+        false,
+    )
+    .unwrap()
+    .wasm;
+    let mut call = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
+    for _ in 0..31 {
+        assert!(call.run_one_job().unwrap());
+    }
+    assert!(call.run_one_job().is_err());
+    assert!(call.state().is_err());
+    assert!(call.run_one_job().is_err());
+    run_node(&format!(
+        r#"import assert from 'node:assert/strict';import {{pathToFileURL}} from 'node:url';const {{createAsyncFunction}}=await import(pathToFileURL(process.argv[2]));await assert.rejects(createAsyncFunction(new Uint8Array({:?}))(4,2),/32-job budget/);"#,
+        wasm
+    ));
+}
+
+#[test]
 fn rejected_await_enters_lexical_catch_on_the_same_reaction_job() {
     compare_promises(
         &[
@@ -83,7 +208,6 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
         "try{return await a;}catch(e){return e;}finally{a=b;}",
         "try{return await a;}catch({x}){return x;}",
         "try{await a;}catch(e){a=+e;}return e;",
-        "try{throw a;}catch(e){return e;}",
         "const f=()=>{try{return a;}catch(e){return +e;}};return f();",
     ] {
         assert!(compile_async(&source_for(body), false).is_err(), "{body}");
@@ -924,23 +1048,25 @@ fn noncanonical_primitive_tags_fail_at_both_async_boundaries() {
         "import assert from 'node:assert/strict';import {pathToFileURL} from 'node:url';const {createAsyncFunction}=await import(pathToFileURL(process.argv[2]));\n",
     );
     for (tag, payload) in [(0, "-0"), (1, "1"), (2, "2"), (2, "-0"), (4, "0")] {
-        for status in [0, 1, 2] {
+        for status in [0, 1, 2, 3] {
             let wasm=wat::parse_str(format!(r#"(module
 (func(export "start")(param f64 f64)(result i32 i32 f64)i32.const {status} i32.const {tag} f64.const {payload})
 (func(export "resume")(param i32 f64)(result i32 i32 f64)unreachable))"#)).unwrap();
             assert!(AsyncInstance::new(&wasm, 4.0, 2.0).is_err());
             script.push_str(&format!("await assert.rejects(createAsyncFunction(new Uint8Array({wasm:?}))(4,2),TypeError);\n"));
         }
-        let wasm=wat::parse_str(format!(r#"(module
+        for status in [0, 1, 2, 3] {
+            let wasm=wat::parse_str(format!(r#"(module
 (func(export "start")(param f64 f64)(result i32 i32 f64)i32.const 1 i32.const 2 f64.const 1)
-(func(export "resume")(param i32 f64)(result i32 i32 f64)i32.const 0 i32.const {tag} f64.const {payload}))"#)).unwrap();
-        let mut call = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
-        assert!(call.run_one_job().is_err());
-        assert!(call.state().is_err());
-        assert!(call.run_one_job().is_err());
-        script.push_str(&format!(
+(func(export "resume")(param i32 f64)(result i32 i32 f64)i32.const {status} i32.const {tag} f64.const {payload}))"#)).unwrap();
+            let mut call = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
+            assert!(call.run_one_job().is_err());
+            assert!(call.state().is_err());
+            assert!(call.run_one_job().is_err());
+            script.push_str(&format!(
             "await assert.rejects(createAsyncFunction(new Uint8Array({wasm:?}))(4,2),TypeError);\n"
         ));
+        }
     }
     run_node(&script);
 }

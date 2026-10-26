@@ -41,9 +41,11 @@ consume the existing 32-site limit; executed reactions consume the 32-job limit.
 Fuel, traps, invalid protocols and exhausted host job budgets remain terminal host
 failures and cannot be caught by source code.
 
-This unit excludes source `throw`, `finally`, catch destructuring, synchronous
-function try/catch, async closures and general Promise/thenable values. Existing
-all-structural-path return requirements and primitive operator limits remain.
+[Primitive source throw](async-throw.md) now shares these handlers, transferring
+immediately without an await reaction. Synchronous/lifted throw, `finally`, catch
+destructuring, synchronous function try/catch, async closures and general
+Promise/thenable values remain excluded. Async paths must return or throw;
+implicit fallthrough and existing primitive operator limits remain.
 It does not establish general exception or async conformance.
 
 The maintained `async-suspension` suite compares Wasmtime and the JS adapter with

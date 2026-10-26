@@ -61,8 +61,9 @@ Only the async entry suspends; lifted function bodies remain synchronous.
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
 status 1 suspends on a resumable primitive await reaction, including a caught
-rejection; status 2 suspends on an uncaught rejected primitive. The synchronous
-prefix runs in `start`.
+rejection; status 2 suspends on an uncaught rejected primitive. Status 3 is direct
+rejection from source throw and settles immediately without a queued reaction.
+The synchronous prefix runs in `start`.
 For statuses 1/2 the host must enqueue one FIFO microtask, including when the
 operand is already settled. That job resumes status 1 or rejects the outer Promise
 for status 2. A rejected await skips its protected suffix and enters the nearest
@@ -125,9 +126,13 @@ including when the body returns from inside a loop. Async arrows remain excluded
 `try/catch`, optional bindings, nested handlers, mutable/captured reasons and later
 awaits. Normal bodies skip handlers, and falling-through handlers continue after
 try. Rejected awaits within a handler belong to its enclosing protected scope.
+[Primitive source throw](async-throw.md) transfers to a lexical handler immediately
+or directly rejects the activation when uncaught. It adds no await reaction job;
+its operand can still suspend through explicit await. Async structural paths may
+return or throw; implicit fallthrough remains excluded.
 
 Source helper calls, async arrows, arbitrary Promise/thenable values, Strings,
-Symbols, BigInts, objects, Promise callbacks, source throw, finally, catch
+Symbols, BigInts, objects, Promise callbacks, synchronous/lifted throw, finally, catch
 destructuring and Promise interoperability remain open. Runtime-selected functions
 accept Number and numeric-leaf callback parameters and return Number; see
 [higher-order callbacks](higher-order-callbacks.md). Callback bodies still take
@@ -157,7 +162,9 @@ independent interleaved activations. A 1,000-argument call repeats over 32 jobs;
 arena cursor checks in both engines observe retained frames and four-page growth.
 Catch cases additionally compare primitive reason identity, lexical shadows,
 nested rejection, later awaits, loop exits and captured catch binding re-entry.
-Host fuel/job failures remain terminal even inside a protected body.
+Source throw cases check immediate transfer/rejection, effects, nested rethrows,
+loop/capture behavior and settlement after the 32nd await. Host fuel/job failures
+remain terminal even inside a protected body.
 
 The state machine follows [ECMAScript Await](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#await).
 Finite tests establish this slice; they do not establish full async conformance.

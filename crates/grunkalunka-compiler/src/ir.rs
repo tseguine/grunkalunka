@@ -361,6 +361,7 @@ pub(crate) enum Exit {
     Fallthrough,
     Yield(ValueId),
     Return(ValueId),
+    Throw(ValueId),
     Break,
     Continue,
 }
@@ -370,6 +371,7 @@ pub(crate) enum Exit {
 pub(crate) struct Completion {
     pub normal: bool,
     pub returns: bool,
+    pub throws: bool,
     pub breaks: bool,
     pub continues: bool,
 }
@@ -378,32 +380,56 @@ impl Completion {
     pub const NORMAL: Self = Self {
         normal: true,
         returns: false,
+        throws: false,
         breaks: false,
         continues: false,
     };
     pub const RETURN: Self = Self {
         normal: false,
         returns: true,
+        throws: false,
+        breaks: false,
+        continues: false,
+    };
+    pub const THROW: Self = Self {
+        normal: false,
+        returns: false,
+        throws: true,
         breaks: false,
         continues: false,
     };
     pub const BREAK: Self = Self {
         normal: false,
         returns: false,
+        throws: false,
         breaks: true,
         continues: false,
     };
     pub const CONTINUE: Self = Self {
         normal: false,
         returns: false,
+        throws: false,
         breaks: false,
         continues: true,
     };
+
+    pub fn returns_or_throws(self) -> bool {
+        !self.normal && !self.breaks && !self.continues && (self.returns || self.throws)
+    }
+
+    pub fn caught_by(self, handler: Self) -> Self {
+        Self {
+            throws: false,
+            ..self
+        }
+        .union(handler)
+    }
 
     pub fn union(self, other: Self) -> Self {
         Self {
             normal: self.normal || other.normal,
             returns: self.returns || other.returns,
+            throws: self.throws || other.throws,
             breaks: self.breaks || other.breaks,
             continues: self.continues || other.continues,
         }
@@ -413,6 +439,7 @@ impl Completion {
         Self {
             normal: self.normal && other.normal,
             returns: self.returns || (self.normal && other.returns),
+            throws: self.throws || (self.normal && other.throws),
             breaks: self.breaks || (self.normal && other.breaks),
             continues: self.continues || (self.normal && other.continues),
         }
@@ -422,6 +449,7 @@ impl Completion {
         Self {
             normal: true,
             returns: self.returns,
+            throws: self.throws,
             breaks: false,
             continues: false,
         }
@@ -431,6 +459,7 @@ impl Completion {
         Self {
             normal: self.normal || self.breaks || self.continues,
             returns: self.returns,
+            throws: self.throws,
             breaks: false,
             continues: false,
         }
@@ -687,7 +716,7 @@ impl Verifier<'_> {
                         ancestors,
                         allow_loop_control,
                     )?;
-                    next = body_completion.union(handler_completion);
+                    next = body_completion.caught_by(handler_completion);
                 }
                 Op::Await { result, input, .. } => {
                     let ty = self
@@ -980,6 +1009,12 @@ impl Verifier<'_> {
                 self.value(value, self.return_type, &visible, region.span)?;
                 completion = completion.then(Completion::RETURN);
             }
+            (Contract::Statement | Contract::Function, Exit::Throw(value))
+                if completion.normal && self.return_type == Type::General =>
+            {
+                self.value(value, Type::General, &visible, region.span)?;
+                completion = completion.then(Completion::THROW);
+            }
             (Contract::Statement, Exit::Break) if completion.normal && allow_loop_control => {
                 completion = completion.then(Completion::BREAK);
             }
@@ -989,10 +1024,14 @@ impl Verifier<'_> {
             (Contract::Statement | Contract::Function, Exit::Fallthrough) => {}
             _ => return Err(invalid(region.span, "invalid region exit contract")),
         }
-        if matches!(contract, Contract::Function) && completion != Completion::RETURN {
+        if matches!(contract, Contract::Function) && !completion.returns_or_throws() {
             return Err(invalid(
                 region.span,
-                "function must return a number on every structural path",
+                if self.return_type == Type::General {
+                    "function must return a primitive or throw on every structural path"
+                } else {
+                    "function must return a number on every structural path"
+                },
             ));
         }
         ancestors.pop();
@@ -3480,5 +3519,85 @@ mod block_function_result_tests {
             }
             assert!(verify_module(&module).is_err(), "mutation {change}");
         }
+    }
+}
+
+#[cfg(test)]
+mod throw_value_tests {
+    use super::*;
+
+    #[test]
+    fn throw_exits_require_visible_general_reasons_and_async_emission() {
+        let source = "export async function run(a,b){throw a;}";
+        for change in 0..4 {
+            let mut module =
+                crate::lower_source_profile(source, false, Type::General, true).unwrap();
+            verify_module_with_entry_type(&module, Type::General).unwrap();
+            assert!(
+                crate::emit::emit_with_entry_type(&module, Type::General)
+                    .unwrap_err()
+                    .contains("async emitter")
+            );
+            let f = &mut module.functions[0];
+            let Exit::Throw(reason) = f.body.exit else {
+                panic!("throw exit");
+            };
+            match change {
+                0 => f.body.exit = Exit::Throw(ValueId(usize::MAX)),
+                1 => {
+                    let input = f
+                        .body
+                        .operations
+                        .iter()
+                        .find_map(|op| match op.kind {
+                            Op::Pack { input, .. } => Some(input),
+                            _ => None,
+                        })
+                        .unwrap();
+                    f.body.exit = Exit::Throw(input);
+                }
+                2 => {
+                    f.body.operations.pop();
+                }
+                _ => {
+                    f.values[reason.0] = Type::Predicate;
+                }
+            }
+            assert!(
+                verify_module_with_entry_type(&module, Type::General).is_err(),
+                "mutation {change}"
+            );
+        }
+    }
+
+    #[test]
+    fn throw_completions_skip_suffixes_and_handlers_replace_the_throw_channel() {
+        assert_eq!(
+            Completion::THROW.then(Completion::RETURN),
+            Completion::THROW
+        );
+        assert!(
+            Completion::THROW
+                .union(Completion::RETURN)
+                .returns_or_throws()
+        );
+        assert!(
+            !Completion::THROW
+                .union(Completion::NORMAL)
+                .returns_or_throws()
+        );
+        assert_eq!(
+            Completion::THROW.caught_by(Completion::NORMAL),
+            Completion::NORMAL
+        );
+        assert_eq!(
+            Completion::THROW.caught_by(Completion::THROW),
+            Completion::THROW
+        );
+        assert_eq!(Completion::THROW.do_loop(), Completion::THROW);
+        assert_eq!(
+            Completion::THROW.pretest_loop(),
+            Completion::NORMAL.union(Completion::THROW)
+        );
     }
 }

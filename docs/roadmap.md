@@ -524,7 +524,7 @@ logical lists are covered. See [higher-order callbacks](higher-order-callbacks.m
 
 The async profile now handles primitive rejected awaits through lexical catch handlers,
 including nested handlers, later awaits and retained catch bindings, with native
-JS reaction-order comparisons. Source throw, finally and general Promise/exception
+JS reaction-order comparisons. Finally and general Promise/exception
 semantics remain open; this closes no numeric-profile rejection. See
 [async catch](async-catch.md).
 
@@ -533,3 +533,10 @@ branches, loops and early returns, including callback forwarding and fresh captu
 Typed inline-call results preserve the existing exported ABI and async caller job
 behavior; general runtime function-returning signatures remain open. See
 [block function results](block-function-results.md).
+
+Primitive source throw now transfers immediately to lexical async catch handlers
+or rejects the activation directly, preserving represented reason kinds and adding
+no reaction job. Prefix/after-await effects, nested rethrows and 32-job settlement
+are checked against native JS. Synchronous/lifted throw, finally and general
+exception values remain open; numeric rejection sources remain unchanged. See
+[async throw](async-throw.md).

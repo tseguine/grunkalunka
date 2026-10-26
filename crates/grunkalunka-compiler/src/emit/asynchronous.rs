@@ -37,6 +37,7 @@ enum End {
         resume: usize,
     },
     Return(ValueId),
+    Reject(ValueId),
     Trap,
 }
 
@@ -95,6 +96,14 @@ impl<'a> Splitter<'a> {
                     next,
                 },
                 None => End::Return(input),
+            })?,
+            Exit::Throw(input) => self.terminal(match self.catch_to {
+                Some((result, next)) => End::Copy {
+                    input,
+                    result,
+                    next,
+                },
+                None => End::Reject(input),
             })?,
             Exit::Break => loops.ok_or("async break lacks a loop target")?.exit,
             Exit::Continue => loops.ok_or("async continue lacks a loop target")?.next,
@@ -418,6 +427,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             }
             End::Return(value) => {
                 output.push_str("i32.const -1\nglobal.set $pc\ni32.const 0\n");
+                primitive(&mut output, &emitter, value);
+                output.push_str("return\n");
+            }
+            End::Reject(value) => {
+                output.push_str("i32.const -1\nglobal.set $pc\ni32.const 3\n");
                 primitive(&mut output, &emitter, value);
                 output.push_str("return\n");
             }
