@@ -11,7 +11,8 @@ that is test input, not a release/distribution pipeline.
 
 Pull requests targeting `master`, pushes to `master`, and manual Actions runs
 execute the same three jobs. Feature-branch pushes do not also trigger a second
-copy of the PR build. New runs cancel older runs for the same event and PR/ref.
+copy of the PR build. Runs share a concurrency group for the same event and
+PR/ref; newer runs leave in-progress runs running (`cancel-in-progress: false`).
 There are no scheduled full builds, path filters, or paid/larger runners.
 Documentation-only changes still run CI so checks are not left pending by a
 workflow-level path filter. Failures on one platform do not cancel the others.
