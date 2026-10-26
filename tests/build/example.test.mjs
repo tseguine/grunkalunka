@@ -80,3 +80,19 @@ test('missing compiler and invalid UTF8 report failure without a numeric result'
     return true;
   });
 });
+
+
+test('an infinite guest times out without a result and a subsequent edit runs normally', async t => {
+  const cwd = await setup(t);
+  const path = 'loop.js';
+  await writeFile(join(cwd, path), 'export function run(a,b) { while (a) {} return b; }');
+  await assert.rejects(invoke(cwd, ['1', '2', path]), error => {
+    assert.equal(error.code, 1);
+    assert.equal(error.stdout, '');
+    assert.match(error.stderr, /Numeric execution timed out/);
+    assert.ok(error.stderr.includes(path));
+    return true;
+  });
+  await writeFile(join(cwd, path), 'export function run(a,b) { return a + b; }');
+  assert.equal((await invoke(cwd, ['1', '2', path])).stdout.trim(), '3');
+});
