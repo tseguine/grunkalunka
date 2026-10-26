@@ -592,6 +592,8 @@ The synchronous profiles now add immutable runtime-selected function values,
 environment records and indirect numeric calls, including packed frames for up to
 1,000 parameters. The focused prior factory-selection rejection now executes its
 original source. No canonical rejection source used this form, so the 919-entry
-accounting is unchanged. Dynamic async function values, mutable bindings, function
+accounting is unchanged. Runtime-selected synchronous closures also survive
+suspension in the primitive async profile; their pairs and captures belong to the
+activation frame. Async closure bodies, mutable bindings, function
 arguments/results, identity/properties and general return kinds remain open; see
 [runtime closures](runtime-closures.md).

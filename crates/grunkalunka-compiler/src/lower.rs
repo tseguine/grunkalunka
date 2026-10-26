@@ -228,7 +228,6 @@ pub(super) struct Lowering<'s, 'a> {
     pub inline_depth: usize,
     pub statement_depth: usize,
     pub allow_await: bool,
-    pub async_profile: bool,
     pub lifted: Vec<std::rc::Rc<ir::Function>>,
     pub lifted_base: usize,
     pub lifting_depth: usize,
@@ -617,12 +616,6 @@ impl Lowering<'_, '_> {
                 && let Some(initializer) = local.init.as_ref()
                 && let Some(arity) = self.function_arity(initializer, 0)
             {
-                if self.async_profile {
-                    return Err(unsupported(
-                        local,
-                        "runtime closure values currently require the synchronous profile",
-                    ));
-                }
                 let value = self.function_value(initializer, region, arity)?;
                 let slot = SlotId(self.slots.len());
                 self.slots.push(Slot {

@@ -1665,11 +1665,11 @@ See [returned closures](returned-closures.md)
 for specialization, the shared generation budget and remaining function-value gaps.
 
 Immutable local function values can also be selected at runtime and called through
-an identifier or alias in the synchronous profiles. Internal code/environment
+an identifier or alias in the Number, primitive and primitive async profiles. Internal code/environment
 pairs and table calls retain typed captures; packed argument frames handle up to
 1,000 Number arguments with a fixed physical signature. The exported ABI is
 unchanged. See [runtime closures](runtime-closures.md) for the bounded source forms,
-environment verifier, allocation and explicit async/general-value exclusions.
+environment verifier, allocation, async frame retention and remaining general-value exclusions.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call

@@ -199,16 +199,15 @@ fn unsupported_runtime_function_kinds_and_profiles_remain_explicit() {
             format!("export function run(a,b){{const f=a?()=>a:()=>b;return {expression};}}");
         assert!(compile_value(&source, false).is_err(), "{source}");
     }
-    for source in [
-        "export async function run(a,b){const f=a?()=>a:()=>b;return f();}",
-        "export async function run(a,b){const f=()=>{const g=a?()=>a:()=>b;return g();};return f();}",
+    for body in [
+        "const f=a?()=>a:()=>b;return await f;",
+        "const f=a?()=>a:()=>b;return await Promise.resolve(f);",
+        "const f=a?()=>a:()=>b;return await Promise.reject(f);",
+        "const f=a?()=>a:()=>b;return f;",
+        "const f=a?async()=>a:async()=>b;return await f();",
     ] {
-        assert!(
-            compile_async(source, false)
-                .err()
-                .unwrap()
-                .contains("synchronous profile")
-        );
+        let source = format!("export async function run(a,b){{{body}}}");
+        assert!(compile_async(&source, false).is_err(), "{source}");
     }
 }
 

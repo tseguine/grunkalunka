@@ -520,5 +520,7 @@ remain open. See [returned closures](returned-closures.md).
 L5 now includes an immutable synchronous runtime-function slice: typed
 code/environment values, lifted bodies, selected targets, shared captures and
 indirect numeric calls. Packed frames support the existing 1,000-argument bound.
-Dynamic async values and remaining first-class function semantics stay open;
+Primitive async frames now retain selected function pairs and captures across
+suspension, with lifted bodies separate from the dispatcher. Async closure bodies
+and remaining first-class function semantics stay open;
 see [runtime closures](runtime-closures.md).

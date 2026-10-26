@@ -1,6 +1,6 @@
 # Runtime local function values
 
-The synchronous Number and primitive-return profiles now support immutable local
+The Number, primitive-return and primitive async profiles support immutable local
 function values selected at runtime. Constructors include same-arity conditional
 branches, arrows, known factory results and existing local closure aliases.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
@@ -44,14 +44,17 @@ the physical Wasm signature. An environment contains ordered captured-cell
 addresses. Imported pointers remain valid after creator return. Static callbacks
 inside lifted bodies have their captures remapped to those imports. Source
 helpers retain their original function indices; lifted bodies append afterward.
+In the async profile the dispatcher and protocol entries have different physical
+indices, so table entries refer to named lifted bodies rather than numeric IDs.
 Only lifted bodies populate table slots; ordinary source-function positions are null.
 
 Cells, environments and argument frames share the private 1 MiB invocation arena.
 Frames round up to 16-byte alignment. Allocation checks the size, alignment,
 inclusive capacity and memory-growth failure before advancing the cursor. The
 memory and table are unexported. The next external invocation resets the cursor,
-including after a fuel or allocator trap; internal calls preserve it. Frames are
-retained until that boundary, so repeated calls consume the bounded arena.
+including after a fuel or allocator trap; internal calls preserve it. Async
+activations instead own a fresh instance until settlement or failure and retain
+their arena across jobs. Frames consume the bounded arena until that lifetime ends.
 
 Source locals/statements still count once. Constructors and indirect calls share
 the 256 generated-expansion limit per function; at most 256 lifted bodies are
@@ -68,9 +71,13 @@ Existing 919 rejection sources retain their exact diagnostics and hashes; the
 former focused runtime-factory-selection rejection now has a positive execution
 case. Canonical corpus counts remain unchanged.
 
-Dynamic function values in the async profile remain a separate unit; rejection
-also applies inside a synchronous local arrow of an async entry. Existing static
-closure specialization across await remains available. Mutable function bindings,
+The async frame retains code/environment pairs, scalar snapshots and capture-cell
+pointers across suspension. Lifted bodies keep ordinary activation locals, while
+only the source entry has resume states. Awaited conditions and factory/call
+arguments preserve their original evaluation order. `await f()` can suspend on a
+Number result; `await f` remains rejected because functions are not primitives.
+Existing static closure specialization across await remains available.
+Mutable function bindings,
 passing functions as arguments, general function-valued results, nonnumeric leaf
 return kinds, function truthiness/coercions, identity and properties, recursive function-value bindings
 and escaping per-iteration environments remain open.

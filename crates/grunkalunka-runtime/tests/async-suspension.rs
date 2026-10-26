@@ -26,6 +26,154 @@ fn primitive_bits(value: Value) -> String {
 }
 
 #[test]
+fn runtime_closures_survive_suspension_and_keep_native_job_order() {
+    compare_promises(
+        &[
+            "const f=a?()=>a:()=>b;return f();",
+            "const f=a?()=>1:()=>2;await true;return f();",
+            "const f=a?()=>a:()=>b;await null;return f();",
+            "const f=a?()=>a:()=>b;const alias=f;await false;a=b;return alias();",
+            "let x=a;const f=a?()=>++x:()=>--x;f();await true;return f();",
+            "const f=(await a)?()=>a:()=>b;await null;return f();",
+            "const f=a?(await null,()=>a):(await false,()=>b);return f();",
+            "const make=x=>()=>++x;const f=a?make(await a):make(await b);await false;return f()*10+f();",
+            "const f=a?x=>x+a:x=>x-b;return f(await b);",
+            "const f=a?(x,y)=>x*10+y+a:(x,y)=>x-y;return f(a++,await a++);",
+            "const f=a?()=>a:()=>b;return f()+await(a=b)+f();",
+            "const f=a?()=>a:()=>b;const g=a?()=>f()+1:()=>f()-1;await true;return g();",
+            "const read=()=>a;const f=a?()=>read()+b:()=>read()-b;await true;a=b;return f();",
+            "const f=()=>{const g=a?()=>a:()=>b;return g();};return f();",
+            "const f=a?x=>{const g=x?()=>x+b:()=>x-b;return g();}:x=>x;await false;return f(a);",
+            "const flag=a<b;const f=a?()=>flag?b:a:()=>flag?a:b;await null;return f();",
+            "let x=null;const f=a?()=>+(x=true):()=>+x;await false;f();await null;return x;",
+            "const f=a?()=>+a:()=>+b;await null;a=await true;return f();",
+            "const f=a?()=>-0:()=>b;return await f();",
+            "const f=a?x=>x%a:x=>x%b;await false;return f(b);",
+            "const f=a?()=>a:()=>b;let x=0;for(let i=0;i<3;i++){x+=await f();}return x;",
+            "const f=a?()=>a:()=>b;await Promise.reject(null);return f();",
+            "const f=a?()=>a:()=>b;return await Promise.reject(f());",
+            "const f=a?()=>a:()=>b;return a?f():true;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn async_closure_frames_keep_wide_calls_and_activation_ownership() {
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    let body = format!(
+        "const f=a?({parameters})=>p0+p999+a:({parameters})=>p0-p999+b;await null;return f({arguments});"
+    );
+    compare_promises(&[&body], &[(4.0, 2.0), (0.0, 2.0)]);
+
+    let source = source_for(
+        "const make=x=>()=>++x;const f=a?make(a):make(b);await null;const x=f();await true;return x*10+f();",
+    );
+    let artifact = compile_async(&source, false).unwrap();
+    // Logical closure IDs start at one. Physical function one is start; the
+    // table must point to the named lifted body instead of that numeric index.
+    assert!(
+        artifact
+            .wat
+            .contains("(elem (i32.const 1) func $closure_body1)")
+    );
+    let mut first = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+    let mut second = AsyncInstance::new(&artifact.wasm, 0.0, 2.0).unwrap();
+    for call in [&mut first, &mut second] {
+        assert!(matches!(call.state().unwrap(), AsyncState::Pending));
+        assert!(call.run_one_job().unwrap());
+        assert!(matches!(call.state().unwrap(), AsyncState::Pending));
+    }
+    assert!(second.run_one_job().unwrap());
+    assert!(first.run_one_job().unwrap());
+    assert!(matches!(
+        first.state().unwrap(),
+        AsyncState::Fulfilled(Value::Number(56.0))
+    ));
+    assert!(matches!(
+        second.state().unwrap(),
+        AsyncState::Fulfilled(Value::Number(34.0))
+    ));
+
+    for body in [
+        "const f=a?()=>{for(let i=0;i<10000;i++)a+=b;return a;}:()=>b;await null;return f();",
+        "const f=a?()=>a:()=>b;for(let i=0;i<33;i++)await f();return a;",
+    ] {
+        let wasm = compile_async(&source_for(body), false).unwrap().wasm;
+        let mut call = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
+        while matches!(call.state().unwrap(), AsyncState::Pending) {
+            if call.run_one_job().is_err() {
+                break;
+            }
+        }
+        assert!(call.state().is_err());
+        assert!(call.run_one_job().is_err());
+        let mut independent = AsyncInstance::new(&wasm, 0.0, 2.0).unwrap();
+        // The first body takes its short alternate; the second still has its
+        // own 32-job budget instead of inheriting the failed call's state.
+        assert!(matches!(independent.state().unwrap(), AsyncState::Pending));
+        assert!(independent.run_one_job().unwrap());
+    }
+}
+
+#[test]
+fn async_argument_frames_grow_without_resetting_captures_between_jobs() {
+    use wasmtime::{Engine, Instance, Module, Store};
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    let body = format!(
+        "const f=a?({parameters})=>p0+p999+a:({parameters})=>p0-p999+b;let x=0;for(let i=0;i<32;i++){{await null;x+=f({arguments});}}return x;"
+    );
+    compare_promises(&[&body], &[(4.0, 2.0), (0.0, 2.0)]);
+    let artifact = compile_async(&source_for(&body), false).unwrap();
+    let mut wat = artifact.wat.trim_end().to_string();
+    assert_eq!(wat.pop(), Some(')'));
+    wat.push_str("(export \"top\" (global $cell_top))(export \"arena\" (memory 0)))");
+    let wasm = wat::parse_str(wat).unwrap();
+    let mut config = wasmtime::Config::new();
+    config.consume_fuel(true);
+    let engine = Engine::new(&config).unwrap();
+    let module = Module::new(&engine, &wasm).unwrap();
+    let mut store = Store::new(&engine, ());
+    store.set_fuel(10000).unwrap();
+    let instance = Instance::new(&mut store, &module, &[]).unwrap();
+    let start = instance
+        .get_typed_func::<(f64, f64), (i32, i32, f64)>(&mut store, "start")
+        .unwrap();
+    let resume = instance
+        .get_typed_func::<(i32, f64), (i32, i32, f64)>(&mut store, "resume")
+        .unwrap();
+    let top = instance.get_global(&mut store, "top").unwrap();
+    let memory = instance.get_memory(&mut store, "arena").unwrap();
+    let mut state = start.call(&mut store, (4.0, 2.0)).unwrap();
+    let initial = top.get(&mut store).i32().unwrap();
+    assert!(initial > 0);
+    for job in 1..=32 {
+        assert_eq!(state.0, 1);
+        store.set_fuel(10000).unwrap();
+        state = resume.call(&mut store, (state.1, state.2)).unwrap();
+        assert_eq!(top.get(&mut store).i32(), Some(initial + 8000 * job));
+    }
+    assert_eq!(state, (0, 3, 384.0));
+    assert_eq!(memory.size(&store), 4);
+    run_node(&format!(
+        "import assert from 'node:assert/strict';const e=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({wasm:?}))).exports;let s=e.start(4,2);const initial=e.top.value;for(let j=1;j<=32;j++){{assert.equal(s[0],1);s=e.resume(s[1],s[2]);assert.equal(e.top.value,initial+8000*j);}}assert.deepEqual(s,[0,3,384]);assert.equal(e.arena.buffer.byteLength,4*65536);assert.throws(()=>e.start(4,2),WebAssembly.RuntimeError);assert.throws(()=>e.resume(3,0),WebAssembly.RuntimeError);"
+    ));
+}
+
+#[test]
 fn primitive_awaits_keep_kind_reasons_and_job_order() {
     let bodies = [
         "return await true;",

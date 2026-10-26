@@ -492,7 +492,7 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         output.push_str(cells::MEMORY);
     }
     if has_closures {
-        output.push_str(&closures::table(module));
+        output.push_str(&closures::table(module, false));
     }
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
@@ -516,73 +516,9 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         } else {
             " (result f64)\n"
         });
-        let mut offset = if environment.is_some() { 2 } else { 0 };
-        let slot_offsets = function
-            .slots
-            .iter()
-            .map(|slot| {
-                let current = offset;
-                offset += slot.ty.width();
-                current
-            })
-            .collect();
-        let value_offsets = function
-            .values
-            .iter()
-            .map(|ty| {
-                let current = offset;
-                offset += ty.width();
-                current
-            })
-            .collect();
-        let cell_offsets = cells::offsets(function, &mut offset);
-        let arena_temp = closures::temporary(function, offset);
-        let mut emitter = Emitter {
-            function,
-            slot_offsets,
-            value_offsets,
-            cell_offsets,
-            arena_temp,
-            loop_label: None,
-            inline_return: None,
-            needs_remainder: false,
-            output: header,
-        };
-        // Source cells and typed value snapshots occupy disjoint physical locals.
-        for slot in function.slots.iter().skip(if environment.is_some() {
-            0
-        } else {
-            function.parameter_count
-        }) {
-            emitter.output.push_str(match slot.ty {
-                Type::Number => "(local f64)\n",
-                Type::Predicate => "(local i32)\n",
-                Type::General => "(local i32 f64)\n",
-                Type::Closure(_) => "(local i32 i32)\n",
-            });
-        }
-        for ty in &function.values {
-            emitter.output.push_str(match ty {
-                Type::Number => "(local f64)\n",
-                Type::Predicate => "(local i32)\n",
-                Type::General => "(local i32 f64)\n",
-                Type::Closure(_) => "(local i32 i32)\n",
-            });
-        }
-        for _ in emitter.cell_offsets.iter().flatten() {
-            emitter.output.push_str("(local i32)\n");
-        }
-        if arena_temp.is_some() {
-            emitter.output.push_str("(local i32)\n");
-        }
-        emitter.init_environment();
-        emitter.init_cell_parameters();
-        emitter.region(&function.body);
-        needs_remainder |= emitter.needs_remainder;
-        // The verifier proved return coverage. This only helps Wasm validation after
-        // nested void branches whose arms return; it supplies no source semantics.
-        emitter.output.push_str("unreachable\n)");
-        output.push_str(&emitter.output);
+        let (body, remainder) = emit_function(function, header);
+        needs_remainder |= remainder;
+        output.push_str(&body);
     }
     if needs_remainder {
         output.push('\n');
@@ -632,4 +568,75 @@ fn region_has_await(region: &Region) -> bool {
             }
             _ => false,
         })
+}
+
+/// Emit one ordinary activation; coroutine frames use a separate storage mapping.
+fn emit_function(function: &Function, header: String) -> (String, bool) {
+    let environment = ir::closure_environment(function);
+    let mut offset = if environment.is_some() { 2 } else { 0 };
+    let slot_offsets = function
+        .slots
+        .iter()
+        .map(|slot| {
+            let current = offset;
+            offset += slot.ty.width();
+            current
+        })
+        .collect();
+    let value_offsets = function
+        .values
+        .iter()
+        .map(|ty| {
+            let current = offset;
+            offset += ty.width();
+            current
+        })
+        .collect();
+    let cell_offsets = cells::offsets(function, &mut offset);
+    let arena_temp = closures::temporary(function, offset);
+    let mut emitter = Emitter {
+        function,
+        slot_offsets,
+        value_offsets,
+        cell_offsets,
+        arena_temp,
+        loop_label: None,
+        inline_return: None,
+        needs_remainder: false,
+        output: header,
+    };
+    // Source cells and typed value snapshots occupy disjoint physical locals.
+    for slot in function.slots.iter().skip(if environment.is_some() {
+        0
+    } else {
+        function.parameter_count
+    }) {
+        emitter.output.push_str(match slot.ty {
+            Type::Number => "(local f64)\n",
+            Type::Predicate => "(local i32)\n",
+            Type::General => "(local i32 f64)\n",
+            Type::Closure(_) => "(local i32 i32)\n",
+        });
+    }
+    for ty in &function.values {
+        emitter.output.push_str(match ty {
+            Type::Number => "(local f64)\n",
+            Type::Predicate => "(local i32)\n",
+            Type::General => "(local i32 f64)\n",
+            Type::Closure(_) => "(local i32 i32)\n",
+        });
+    }
+    for _ in emitter.cell_offsets.iter().flatten() {
+        emitter.output.push_str("(local i32)\n");
+    }
+    if arena_temp.is_some() {
+        emitter.output.push_str("(local i32)\n");
+    }
+    emitter.init_environment();
+    emitter.init_cell_parameters();
+    emitter.region(&function.body);
+    // The verifier proved return coverage. This only helps Wasm validation after
+    // nested void branches whose arms return; it supplies no source semantics.
+    emitter.output.push_str("unreachable\n)");
+    (emitter.output, emitter.needs_remainder)
 }

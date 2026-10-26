@@ -1,7 +1,7 @@
 //! Split verified regions into a switched-resume coroutine. The frame currently
 //! conservatively keeps source locals, captured-cell pointers and snapshots in
 //! instance globals; captured cell contents live in the invocation's guest arena.
-use super::{Emitter, NUMBER_REMAINDER, cells};
+use super::{Emitter, NUMBER_REMAINDER, cells, closures, emit_function};
 use crate::ir::{self, Exit, Op, Region, Type, ValueId};
 use std::fmt::Write;
 
@@ -247,9 +247,32 @@ fn jump(output: &mut String, target: usize) {
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     ir::verify_module_with_entry_type(module, Type::General)?;
-    let [function] = module.functions.as_slice() else {
+    let Some((function, lifted)) = module.functions.split_first() else {
         return Err("async profile currently requires a single entry function".into());
     };
+    if lifted
+        .iter()
+        .any(|function| ir::closure_environment(function).is_none())
+    {
+        return Err("async profile currently requires a single source entry function".into());
+    }
+    for (index, function) in module.functions.iter().enumerate() {
+        let mut source_call = false;
+        let mut await_site = false;
+        ir::visit_operations(&function.body, &mut |op| {
+            source_call |= matches!(op, Op::Call { .. });
+            await_site |= matches!(op, Op::Await { .. });
+        });
+        // The source entry's logical ID does not denote a callable numeric Wasm
+        // function in this module; its physical implementation is $advance.
+        if source_call {
+            return Err("async profile does not yet admit source function calls".into());
+        }
+        if index != 0 && await_site {
+            return Err("async closure bodies must be synchronous".into());
+        }
+    }
+    let has_closures = !lifted.is_empty();
     let mut split = Splitter::default();
     let fresh = split.terminal(End::Trap)?;
     let unreachable = split.terminal(End::Trap)?;
@@ -269,23 +292,20 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             Type::Number => types.push("f64"),
             Type::Predicate => types.push("i32"),
             Type::General => types.extend(["i32", "f64"]),
-            Type::Closure(_) => {
-                return Err(
-                    "runtime closure values currently require the synchronous profile".into(),
-                );
-            }
+            Type::Closure(_) => types.extend(["i32", "i32"]),
         }
     }
     let mut offset = types.len();
     let cell_offsets = cells::offsets(function, &mut offset);
-    let has_cells = offset != types.len();
-    types.resize(offset, "i32");
+    let has_cells = has_closures || offset != types.len();
+    let arena_temp = closures::temporary(function, offset);
+    types.resize(offset + usize::from(arena_temp.is_some()), "i32");
     let mut emitter = Emitter {
         function,
         slot_offsets: offsets[..function.slots.len()].to_vec(),
         value_offsets: offsets[function.slots.len()..].to_vec(),
         cell_offsets,
-        arena_temp: None,
+        arena_temp,
         output: String::new(),
         loop_label: None,
         inline_return: None,
@@ -297,6 +317,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     }
     if has_cells {
         output.push_str(cells::MEMORY);
+    }
+    if has_closures {
+        output.push_str(&closures::table(module, true));
     }
     output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\nblock $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
@@ -347,12 +370,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 result,
                 next,
             } => {
-                let width = if function.values[input.0] == Type::General {
-                    2
-                } else {
-                    1
-                };
-                for part in 0..width {
+                for part in 0..function.values[input.0].width() {
                     writeln!(
                         output,
                         "global.get {}\nglobal.set {}",
@@ -401,11 +419,23 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
       local.get 0 local.get 1 call $advance)
     "#,
     );
+    for (index, function) in lifted.iter().enumerate() {
+        let header = format!(
+            "(func $closure_body{} (param i32 i32) (result f64)\n",
+            index + 1
+        );
+        let (body, remainder) = emit_function(function, header);
+        output.push_str(&body);
+        emitter.needs_remainder |= remainder;
+    }
     if emitter.needs_remainder {
         output.push_str(NUMBER_REMAINDER);
     }
     if has_cells {
         output.push_str(cells::ALLOCATOR);
+    }
+    if has_closures {
+        output.push_str(closures::FRAME_ALLOCATOR);
     }
     output.push_str(")\n");
     Ok(output)
@@ -417,5 +447,66 @@ fn primitive(output: &mut String, emitter: &Emitter<'_>, value: ValueId) {
         writeln!(output, "global.get {offset}\nglobal.get {}", offset + 1).unwrap();
     } else {
         writeln!(output, "i32.const 3\nglobal.get {offset}").unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn async_targets_cannot_use_the_source_entry_as_an_ordinary_call() {
+        for body in [
+            "return +run(a,b);",
+            "const f=a?()=>+run(a,b):()=>b;return f();",
+            "const f=a?()=>{const g=a?()=>+run(a,b):()=>b;return g();}:()=>b;return f();",
+        ] {
+            let source = format!("export async function run(a,b){{{body}}}");
+            assert!(
+                crate::compile_async(&source, false)
+                    .err()
+                    .unwrap()
+                    .contains("source function calls")
+            );
+        }
+        let source = "function helper(a){return a;}export async function run(a,b){return await b;}";
+        assert!(
+            crate::compile_async(source, false)
+                .err()
+                .unwrap()
+                .contains("single source entry")
+        );
+    }
+
+    #[test]
+    fn a_typed_lifted_body_still_cannot_suspend() {
+        let mut module = crate::lower_source_profile(
+            "export async function run(a,b){const f=a?()=>1:()=>2;return f();}",
+            false,
+            Type::General,
+            true,
+        )
+        .unwrap();
+        let function = &mut module.functions[1];
+        let Exit::Return(input) = function.body.exit else {
+            unreachable!()
+        };
+        let result = ValueId(function.values.len());
+        function.values.push(Type::Number);
+        function.body.operations.push(ir::Operation {
+            span: function.body.span,
+            kind: Op::Await {
+                result,
+                input,
+                rejected: false,
+            },
+        });
+        function.body.exit = Exit::Return(result);
+        ir::verify_module_with_entry_type(&module, Type::General).unwrap();
+        assert!(
+            emit_async(&module)
+                .unwrap_err()
+                .contains("closure bodies must be synchronous")
+        );
     }
 }

@@ -291,7 +291,6 @@ fn lower_source_profile(
             inline_depth: 0,
             statement_depth: 0,
             allow_await: index == 0 && async_entry,
-            async_profile: async_entry,
             lifted: Vec::new(),
             lifted_base: signatures.len() + lifted.len(),
             lifting_depth: 0,

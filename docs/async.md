@@ -38,7 +38,7 @@ and suspension edges. A stored program counter selects a state using Wasm `br_ta
 Ordinary edges execute within the current job. Only an executed await returns to
 the host; skipped branches and early exits add no jobs. `continue` visits the for
 update or do/while condition, and `break` targets the nearest loop exit. A region's
-yield copies its typed result, including both fields of a General value.
+yield copies its typed result, including both fields of a General or Closure value.
 
 This follows the frame/state-index approach described by
 [LLVM switched-resume coroutine lowering](https://llvm.org/docs/Coroutines.html#switched-resume-lowering).
@@ -50,9 +50,13 @@ The frame retains their pointers across jobs; parameter cells initialize only
 on the fresh state. Each instance owns its arena for the invocation's lifetime.
 Known [returned local closures](returned-closures.md) retain those cells across
 jobs, including when an awaited argument initializes a factory parameter.
-The new [runtime-selected function-value profile](runtime-closures.md) currently
-requires synchronous compilation, including when nested inside a local arrow;
-lifting those bodies alongside the async dispatcher remains separate work.
+[Runtime-selected local functions](runtime-closures.md) also survive suspension.
+The activation frame retains both code and environment fields, including captures
+of another function value. Lifted bodies use ordinary Wasm locals and the existing
+two-pointer numeric calling convention; they do not share the dispatcher's saved
+slot offsets. The private table maps logical closure IDs to named lifted bodies,
+because `advance`, `start` and `resume` occupy separate physical function indices.
+Only the async entry suspends; lifted function bodies remain synchronous.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
@@ -102,6 +106,10 @@ Parentheses and erased operand wrappers retain depth charges. Numeric blocks,
 including loop conditions and updates. Early returns and unlabelled break/continue
 preserve their existing structured semantics. Previously admitted local arrow
 calls remain available.
+Immutable runtime-selected functions can be constructed before or after await,
+including awaited conditions and factory arguments. Calls may use awaited Number
+arguments or have their Number result awaited. Awaiting a function value itself
+remains outside the primitive protocol.
 Local block-arrow calls run synchronously with a separate return boundary. Await
 can surround their numeric result; returning from the closure continues the caller,
 including when the body returns from inside a loop. Async arrows remain excluded.
@@ -128,6 +136,10 @@ typed wrappers, malformed statuses, terminal traps, graph size, fuel and the 32/
 runtime-job boundary using one repeated await site. Primitive cases check retained
 kinds, strict/loose equality, numeric conversion, typed metadata, shared cells and
 canonical-tag rejection at both initialization and continuation boundaries.
+Runtime-function cases check selected environments, shared mutations, alias pairs,
+nested lifted/static calls, captured slot kinds, terminal fuel/job failures and
+independent interleaved activations. A 1,000-argument call repeats over 32 jobs;
+arena cursor checks in both engines observe retained frames and four-page growth.
 
 The state machine follows [ECMAScript Await](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#await).
 Finite tests establish this slice; they do not establish full async conformance.

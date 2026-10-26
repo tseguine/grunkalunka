@@ -16,14 +16,19 @@ pub(super) const FRAME_ALLOCATOR: &str = r#"(func $closure_frame (param $bytes i
   local.get $old)
 "#;
 
-pub(super) fn table(module: &ir::Module) -> String {
+pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
     let mut output = format!(
         "(type $closure (func (param i32 i32) (result f64)))\n(table {} funcref)\n",
         module.functions.len()
     );
     for (i, function) in module.functions.iter().enumerate() {
         if ir::closure_environment(function).is_some() {
-            writeln!(output, "(elem (i32.const {i}) func {i})").unwrap();
+            let target = if outlined {
+                format!("$closure_body{i}")
+            } else {
+                i.to_string()
+            };
+            writeln!(output, "(elem (i32.const {i}) func {target})").unwrap();
         }
     }
     output

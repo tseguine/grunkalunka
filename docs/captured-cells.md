@@ -44,8 +44,9 @@ indices retain their existing layout, and the allocator retains its own locals.
 This bulk lifetime is sufficient for the current Number/four-primitive exported
 results: no cell or function reference escapes an invocation. A future exported
 function-value ABI must revisit reclamation. An [internal runtime-value slice](runtime-closures.md)
-now uses lifted bodies, environments and indirect calls for synchronous local
-selection. General function values, recursive closures, later-initialized captures, per-iteration
+now uses lifted bodies, environments and indirect calls for local selection,
+including retained pairs and pointers across async jobs. General function values,
+recursive closures, later-initialized captures, per-iteration
 escaping `let` environments, collection and general Promise interoperability
 remain open. The native-JS factory below produces 563 for inputs 4 and 2; it is
 now admitted through [known factory specialization](returned-closures.md):

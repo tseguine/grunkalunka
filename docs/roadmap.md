@@ -500,5 +500,7 @@ both engines and across suspension. General dynamic function values remain open;
 see [returned closures](returned-closures.md).
 An internal code/environment pair and private table now support immutable local
 runtime selection and indirect numeric calls. Argument frames preserve the source
-1,000-parameter bound with a fixed Wasm signature. General and async function-value
-integration remain subsequent work; see [runtime closures](runtime-closures.md).
+1,000-parameter bound with a fixed Wasm signature. The primitive async frame now
+retains those function pairs/captures across jobs and emits lifted bodies separately.
+General function values and async closure bodies remain subsequent work;
+see [runtime closures](runtime-closures.md).
