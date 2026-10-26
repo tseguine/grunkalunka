@@ -28,6 +28,7 @@ run('cargo', ['fmt', '--all', '--check']);
 run('cargo', ['clippy', '--workspace', '--all-targets', '--locked', '--offline', '-j', '4', '--', '-D', 'warnings']);
 run('cargo', ['test', '--workspace', '--locked', '--offline', '-j', '4']);
 run(process.execPath, ['--test', 'tests/build/compile.test.mjs']);
+run(process.execPath, ['--test', 'tests/build/example-options.test.mjs', 'tests/build/example.test.mjs']);
 run(process.execPath, ['scripts/check-json-composition.mjs']);
 run(process.execPath, ['scripts/check-heap-literals.mjs']);
 run('cargo', ['run', '--locked', '--offline', '--manifest-path', 'spikes/001-frontend-semantics/Cargo.toml']);
