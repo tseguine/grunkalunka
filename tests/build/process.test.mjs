@@ -75,9 +75,15 @@ test('cancellation stops a started direct child before rejecting', { timeout: 15
   const cwd = await temporary(t);
   const marker = join(cwd, 'started');
   const controller = new AbortController();
-  const pending = node("import { writeFileSync } from 'node:fs'; writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000);", [marker], { signal: controller.signal, timeout: 10000 });
+  const pending = node(`
+    import { writeFileSync, renameSync } from 'node:fs';
+    const marker = process.argv[1];
+    writeFileSync(marker + '.tmp', String(process.pid));
+    renameSync(marker + '.tmp', marker);
+    setInterval(() => {}, 1000);
+  `, [marker], { signal: controller.signal, timeout: 10000 });
   const rejected = assert.rejects(pending, failed('ABORT_ERR'));
-  // Observe startup rather than assuming a CI machine starts Node within a delay.
+  // The rename publishes a complete PID; file creation alone can race its write.
   try {
     let started = false;
     for (let count = 0; count < 500; count++) {
