@@ -8,6 +8,14 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['block-closure-null', 'const f=()=>{return null;};return f();'],
+  ['block-closure-undefined', 'const f=()=>{return undefined;};return f();'],
+  ['block-closure-boolean', 'const f=()=>{return false;};return f();'],
+  ['block-closure-mixed', 'const f=()=>{if(a)return null;return false;};return f();'],
+  ['block-closure-selected', 'const f=()=>{return null;};const g=()=>{return false;};let h=a?f:g;return h();'],
+  ['block-closure-stored', 'const f=()=>{return null;};let x=a;x=f();return x;'],
+  ['block-closure-loop', 'const f=()=>{let i=0;while(i<3){i++;if(a)return null;}return false;};return f();'],
+  ['block-closure-capture', 'let x=a?null:false;const f=()=>{const old=x;x=b;return old;};return f();'],
   ['closure-null', 'const f=()=>null;return f();'],
   ['closure-undefined', 'const f=()=>undefined;return f();'],
   ['closure-boolean', 'const f=()=>false;return f();'],

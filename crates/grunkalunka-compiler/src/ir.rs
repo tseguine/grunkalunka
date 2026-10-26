@@ -954,10 +954,10 @@ impl Verifier<'_> {
                         .get(result.0)
                         .copied()
                         .ok_or_else(|| invalid(span, "invalid inline-call result"))?;
-                    if !matches!(ty, Type::Number | Type::Closure(_)) {
+                    if !matches!(ty, Type::Number | Type::General | Type::Closure(_)) {
                         return Err(invalid(
                             span,
-                            "inline calls require Number or function results",
+                            "inline calls require Number, General or function results",
                         ));
                     }
                     frame.pending = PendingRegion::Inline(ty);
@@ -3630,6 +3630,37 @@ mod primitive_closure_result_tests {
 #[cfg(test)]
 mod inline_call_tests {
     use super::*;
+    #[test]
+    fn primitive_inline_returns_keep_result_type_and_complete_paths() {
+        let source = "export function run(a,b){const f=()=>{return null;};return f();}";
+        for change in 0..4 {
+            let mut module =
+                crate::lower_source_with_entry_type(source, false, Type::General).unwrap();
+            verify_module_with_entry_type(&module, Type::General).unwrap();
+            let f = &mut module.functions[0];
+            let Op::InlineCall { result, body } = &mut f
+                .body
+                .operations
+                .iter_mut()
+                .find(|operation| matches!(operation.kind, Op::InlineCall { .. }))
+                .unwrap()
+                .kind
+            else {
+                unreachable!()
+            };
+            match change {
+                0 => body.exit = Exit::Fallthrough,
+                1 => body.exit = Exit::Return(*result),
+                2 => f.values[result.0] = Type::Number,
+                _ => body.exit = Exit::Break,
+            }
+            assert!(
+                verify_module_with_entry_type(&module, Type::General).is_err(),
+                "mutation {change}"
+            );
+        }
+    }
+
     #[test]
     fn inline_returns_are_numeric_complete_and_lexically_scoped() {
         let source = "export function run(a,b){const f=()=>{return a;};return f();}";

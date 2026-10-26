@@ -228,7 +228,6 @@ fn unsupported_closure_lifetimes_and_call_shapes_remain_explicit() {
         "const f=async()=>a; return f();",
         "const f=()=>{if(a)return b;}; return f();",
         "const f=()=>{}; return a;",
-        "const f=()=>{return true;}; return a;",
         "const f=(x=1)=>x; return f();",
         "const f=(...x)=>a; return f();",
         "const f=x=>x; return f();",
@@ -293,13 +292,11 @@ fn numeric_local_closure_results_keep_the_primitive_host_tag() {
     let artifact = compile_value(source, false).unwrap();
     let mut host = ValueInstance::new(&artifact.wasm).unwrap();
     assert!(matches!(host.run(4.0, 2.0).unwrap(), Value::Number(6.0)));
-    assert!(
-        compile_value(
-            "export function run(a,b){const f=()=>{return true;};return f();}",
-            false
-        )
-        .is_err()
-    );
+    let source = "export function run(a,b){const f=()=>{return true;};return f();}";
+    let artifact = compile_value(source, false).unwrap();
+    let mut host = ValueInstance::new(&artifact.wasm).unwrap();
+    assert!(matches!(host.run(4.0, 2.0).unwrap(), Value::Boolean(true)));
+    assert!(compile(source, false).is_err());
 }
 
 #[test]

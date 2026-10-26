@@ -1256,3 +1256,27 @@ fn primitive_closure_results_preserve_async_values_and_job_order() {
         ],
     );
 }
+
+#[test]
+fn primitive_block_results_preserve_async_values_and_job_order() {
+    compare_promises(
+        &[
+            "const f=()=>{return null;};return await f();",
+            "const f=()=>{if(a)return undefined;return false;};return await f();",
+            "const f=()=>{return null;};const g=()=>{return false;};let h=a?f:g;return await h();",
+            "const f=()=>{return null;};return f()??await b;",
+            "const f=()=>{return false;};return f()??await b;",
+            "let x=a?null:false;const f=()=>{const old=x;x=b;return old;};const old=f();await b;x=true;return old;",
+            "const f=()=>{return null;};try{throw f();}catch(reason){await b;return reason;}",
+            "let x=0;const f=y=>{x+=y;return false;};const g=y=>null;let h=f;const old=h((h=g,await a));await b;return old||x;",
+            "const f=()=>{return null;};let x=a;x=f();await b;return x;",
+            "const f=()=>{let i=0;while(i<3){i++;if(a)return null;}return false;};const g=()=>undefined;let h=a?f:g;await b;return h();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

@@ -255,7 +255,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
             region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
             closure.factory = true;
         } else {
-            region = check.arrow_block(arrow, 0)?;
+            closure.result = check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
+            region = check.arrow_block_result(arrow, 0, closure.result)?;
         }
         // Include transitive references recorded by nested (even unused) arrows,
         // but exclude unrelated bindings and erased type-only references.
@@ -382,14 +383,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
-    pub(super) fn arrow_block(
-        &mut self,
-        arrow: &ArrowFunctionExpression<'_>,
-        parent_depth: usize,
-    ) -> Result<Region, String> {
-        self.arrow_block_result(arrow, parent_depth, Type::Number)
-    }
-
     pub(super) fn arrow_block_result(
         &mut self,
         arrow: &ArrowFunctionExpression<'_>,
@@ -432,6 +425,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     arrow,
                     if matches!(result_type, Type::Closure(_)) {
                         "block arrows must return a function on every structural path"
+                    } else if result_type == Type::General {
+                        "block arrows must return a primitive value on every structural path"
                     } else {
                         "block arrows must return a Number on every structural path"
                     },

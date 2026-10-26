@@ -3,6 +3,36 @@ use super::*;
 use oxc_ast::AstKind;
 use std::collections::{BTreeMap, BTreeSet};
 
+pub(super) fn arrow_number_result_shape(
+    arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    semantic: &Semantic<'_>,
+    functions: &[NumericFunction],
+    mut is_number_call: impl FnMut(SymbolId) -> bool,
+    mut is_number_symbol: impl FnMut(SymbolId) -> bool,
+) -> bool {
+    let expressions = if let Some(body) = arrow.get_expression() {
+        vec![Some(body)]
+    } else {
+        block_results::return_statements(semantic, arrow.node_id.get())
+            .into_iter()
+            .map(|statement| statement.argument.as_ref())
+            .collect()
+    };
+    !expressions.is_empty()
+        && expressions.into_iter().all(|expression| {
+            expression.is_some_and(|expression| {
+                number_result_shape(
+                    expression,
+                    0,
+                    semantic,
+                    functions,
+                    &mut is_number_call,
+                    &mut is_number_symbol,
+                )
+            })
+        })
+}
+
 // Positive Number-result classification for the represented source domain. Actual lowering
 // still validates every operand, target, call, scope and source budget.
 pub(super) fn number_result_shape(
@@ -288,9 +318,24 @@ pub(crate) fn general_mutable_bindings(
             )
         };
         let initialized_number = if let Some(bodies) = targets.get(symbol) {
-            bodies
-                .iter()
-                .all(|body| arrows[body].get_expression().is_none_or(shape))
+            bodies.iter().all(|body| {
+                arrow_number_result_shape(
+                    arrows[body],
+                    semantic,
+                    functions,
+                    |callee| {
+                        if !targets.contains_key(&callee) && !numeric_callbacks.contains(&callee) {
+                            return false;
+                        }
+                        required.borrow_mut().insert(callee);
+                        true
+                    },
+                    |input| {
+                        required.borrow_mut().insert(input);
+                        true
+                    },
+                )
+            })
         } else {
             parameters.contains(symbol)
                 || definitions

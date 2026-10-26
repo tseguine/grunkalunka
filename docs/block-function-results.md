@@ -36,9 +36,10 @@ constructors, identity and selection; equal parameter counts alone are insuffici
 Constructor-derived inference for returned formals remains limited to Number-leaf
 callbacks, as in the existing callback-demand model.
 
-`InlineCall` now carries either a Number or function result, determined by its result
-value's IR type. The verifier checks every return's complete signature; the
-synchronous emitter uses an `i32 i32` block result for functions. The async state
+`InlineCall` carries Number, primitive or function results, determined by its result
+value's IR type. The verifier checks every return's complete type/signature; the
+synchronous emitter uses an `i32 i32` block result for functions and `i32 f64`
+for primitives. The async state
 machine already copies typed values at inline returns, so returned pairs and their
 captures also survive suspension in an async caller.
 
@@ -51,7 +52,8 @@ consume the existing 256-expansion budget.
 Function-valued results remain internal. Exported Number/primitive signatures stay
 unchanged. [Concise runtime factories](runtime-function-results.md) additionally
 return numeric-leaf pairs through typed indirect calls; ordinary leaf closures
-also support [concise primitive results](runtime-closures.md). This does not add
+also support [primitive results](runtime-closures.md) from concise bodies and
+explicit block returns. Bare and implicit returns remain separate work. This does not add
 function-valued host results, function coercion/equality, mixed return
 kinds or logical signatures, async local arrows, optional/spread local calls, or arbitrary
 runtime functions returning functions. TypeScript annotations remain erased.

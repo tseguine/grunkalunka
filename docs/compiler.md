@@ -1784,6 +1784,29 @@ paths can forward these closures; this includes the two former maintained
 rejections `id(()=>true)` and a block returning `()=>true`. A dormant factory
 containing `()=>true` is also valid when the entry returns a Number. Runtime factories
 retain their numeric-leaf result restriction. Arbitrary primitive arguments,
-primitive-result block bodies, async arrow bodies and exported function values
-remain separate requirements. All 916 numeric rejection sources and diagnostics
+async arrow bodies and exported function values remain separate requirements.
+Primitive block returns are described below. All 916 numeric rejection sources and diagnostics
 are unchanged. Nine maintained primitive corpus pairs exercise these results.
+
+## Explicit primitive returns from block closures
+
+Synchronous block-bodied local arrows now return represented primitive expressions
+through specialization and runtime calls. For example,
+`const f=()=>{if(a)return null;return false;}; return f();` preserves the selected
+kind. Returns inside nested blocks and loops follow the existing structural
+completion rules. A nested arrow's returns belong only to that nested arrow.
+Every structural path must explicitly return a represented expression; bare and
+implicit returns remain separate requirements.
+
+The existing typed `InlineCall` result now accepts General. The verifier checks
+each return against the result type; existing backend layouts carry `(i32,f64)`
+without a new IR operation or emitter path. Number bodies retain their Number
+specialization, and function-returning bodies retain their existing signature
+rules. Captured cells, argument/callee snapshots, early returns and loop effects
+are preserved. Async callers retain primitive values across jobs and match native
+fulfillment, rejection and catch ordering.
+
+Eight additional maintained primitive corpus pairs bring that profile to 99 pairs
+and 5544 comparisons. Implicit completion, bare returns, async arrow bodies,
+arbitrary primitive arguments, mixed function/primitive returns and expanded
+runtime factories remain separate work.

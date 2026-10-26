@@ -59,17 +59,13 @@ impl Lowering<'_, '_> {
         )
     }
 
-    // Block bodies retain their existing Number/function contract. Concise
-    // results use the same positive Number proof as storage planning; otherwise
+    // Scalar results use the same positive Number proof as storage planning; otherwise
     // the body checker must validate the represented primitive domain.
-    fn arrow_scalar_result(
+    pub(super) fn arrow_scalar_result(
         &self,
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
         bindings: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Type {
-        let Some(body) = arrow.get_expression() else {
-            return Type::Number;
-        };
         let mut numeric_calls: std::collections::BTreeSet<_> = self
             .closures
             .iter()
@@ -92,12 +88,15 @@ impl Lowering<'_, '_> {
                 numeric_calls.insert(*symbol);
             }
         }
-        let number = storage::number_result_shape(
-            body,
-            0,
+        let number = storage::arrow_number_result_shape(
+            arrow,
             self.semantic,
             self.functions,
-            |symbol| numeric_calls.contains(&symbol),
+            |symbol| {
+                numeric_calls.contains(&symbol)
+                    || (!self.general_bindings.contains(&symbol)
+                        && !self.bindings.iter().any(|binding| binding.symbol == symbol))
+            },
             |symbol| {
                 if let Some(binding) = self
                     .bindings
@@ -670,8 +669,8 @@ impl Lowering<'_, '_> {
                 child.expression(expression, &mut body, 0)?
             }
         } else {
-            let region = child.arrow_block(arrow, 0)?;
-            let result = child.value(Type::Number);
+            let region = child.arrow_block_result(arrow, 0, return_type)?;
+            let result = child.value(return_type);
             Self::push(
                 &mut body,
                 arrow,

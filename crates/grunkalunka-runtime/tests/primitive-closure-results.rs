@@ -55,8 +55,40 @@ fn concise_closure_returns_null() {
 }
 
 #[test]
+fn block_closure_returns_null() {
+    let source = "export function run(a,b){const f=()=>{return null;};return f();}";
+    let artifact = compile_value(source, false).unwrap();
+    let result = ValueInstance::new(&artifact.wasm)
+        .unwrap()
+        .run(4.0, 2.0)
+        .unwrap();
+    assert!(matches!(result, Value::Null));
+}
+
+#[test]
 fn primitive_closure_results_match_javascript_and_node_wasm() {
     let bodies = [
+        "const f=()=>{return undefined;};return f();",
+        "const f=()=>{return null;};return f();",
+        "const f=()=>{return false;};return f();",
+        "const f=()=>{return true;};return f();",
+        "const f=()=>{return true;}; return a;",
+        "const f=()=>{if(a)return null;return false;};return f();",
+        "const f=()=>{if(a){return b;}else{return true;}};return f();",
+        "const f=()=>{let x=null;for(let i=0;i<3;i++){if(a)return x;x=b;}return x;};return f();",
+        "const f=()=>{let i=0;while(i<3){i++;if(a)return false;}return null;};return f();",
+        "const f=()=>{let i=0;do{i++;if(a)return undefined;}while(i<3);return null;};return f();",
+        "const f=()=>{const g=()=>null;return g();};return f();",
+        "const f=()=>{const g=()=>a;return g();};return f();",
+        "const f=()=>{let x=a;x=null;return x;};return f();",
+        "let x=a?null:false;const f=()=>{const old=x;x=b;return old;};return f();",
+        "const make=x=>()=>{if(x)return null;return false;};const f=make(a);return f();",
+        "const f=()=>{return null;};const g=()=>{return false;};let h=a?f:g;return h();",
+        "const f=()=>{return null;};const g=()=>false;let h=f;if(a)h=g;return h();",
+        "let x=0;const f=y=>{x+=y;return false;};const g=y=>null;let h=f;const old=h((h=g,a));return old||x;",
+        "const f=x=>{x=null;return x;};const g=x=>false;let h=a?f:g;return h(b);",
+        "const f=()=>{return -0;};const g=()=>{return NaN;};let h=a?f:g;return h();",
+        "const f=()=>{return null;};let x=a;x=f();return x;",
         "const f=()=>undefined;return f();",
         "const f=()=>null;const g=f;return g();",
         "const f=()=>false;return f();",
@@ -138,6 +170,12 @@ fn primitive_closure_coercions_and_predicates() {
         "const f=()=>null;const g=()=>false;let h=a?f:g;return +h();",
         "const f=()=>null;return f()===null?1:0;",
         "return +(()=>null)();",
+        "const f=()=>{return null;};return +f();",
+        "const f=()=>{return false;};if(f())return a;return b;",
+        "const f=()=>{const g=()=>a;return g();};let x=f();x=f();return x;",
+        "const f=()=>{let x=a;x+=b;return x;};return f();",
+        "const f=x=>{x=null;return +x;};return f(a);",
+        "const f=()=>{return true;}; return a;",
         "const make=x=>()=>++x;const f=make(a);let y=f();y=f();return y;",
         "const make=x=>()=>true;return a;",
     ] {
@@ -154,7 +192,12 @@ fn primitive_closure_coercions_and_predicates() {
 #[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
-        "const f=()=>{return null;};return f();",
+        "const f=()=>{};return a;",
+        "const f=()=>{return;};return a;",
+        "const f=()=>{if(a)return null;};return a;",
+        "const f=()=>{if(a)return ()=>b;return null;};return a;",
+        "const f=()=>{return '';};return a;",
+        "const f=()=>{return {};};return a;",
         "const f=async()=>null;return a;",
         "const f=x=>x;return f(null);",
         "const f=()=>null;return f;",

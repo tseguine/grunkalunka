@@ -453,10 +453,14 @@ impl Lowering<'_, '_> {
                                 + self.statement_depth
                                 + regions.children.len()
                                 + 1;
-                            let body = self.arrow_block(arrow, depth)?;
-                            let result = self.value(Type::Number);
+                            let body = self.arrow_block_result(arrow, depth, closure.result)?;
+                            let result = self.value(closure.result);
                             Self::push(regions.current(), node, Op::InlineCall { result, body });
-                            values.push(Value::Number(result));
+                            values.push(if closure.result == Type::General {
+                                Value::General(result)
+                            } else {
+                                Value::Number(result)
+                            });
                         }
                     }
                 }
