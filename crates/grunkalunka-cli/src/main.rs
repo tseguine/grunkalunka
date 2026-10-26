@@ -1,4 +1,6 @@
 //! Build and execute the maintained numeric and primitive-return profiles.
+mod help;
+
 use grunkalunka_compiler as compiler;
 use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 
@@ -73,6 +75,10 @@ fn input_pairs(
 fn execute() -> Result<(), Box<dyn Error>> {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     match arguments.as_slice() {
+        [command] if matches!(command.as_str(), "--help" | "-h") => print!("{}", help::TEXT),
+        [command] if matches!(command.as_str(), "--version" | "-V") => {
+            println!("grunkalunka {}", env!("CARGO_PKG_VERSION"));
+        }
         [command, source, destination] if command == "compile" || command == "compile-value" => {
             // Finish parsing/admission/encoding before opening the destination.
             // create_new also prevents accidental overwrite and stale-output success.
