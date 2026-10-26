@@ -65,6 +65,9 @@ admitted language, limits and diagnostics. Compilation refuses existing output
 files. The numeric runtime executes locally generated modules without ambient
 imports; it is not a hardened arbitrary-module service.
 
+For programmatic builds, the [Node build API](docs/build-api.md) invokes an
+existing compiler with explicit paths, bounded output and cancellation.
+
 ## Workspace
 
 - `crates/grunkalunka-compiler`: source text to portable typed Wasm; independent of Wasmtime.
