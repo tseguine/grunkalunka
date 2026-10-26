@@ -532,3 +532,8 @@ L5 now includes numeric-leaf callback arguments to known local arrows/factories,
 with source-symbol arity demands, forwarding, typed parameter cells, argument
 snapshots and retained factory captures. Runtime higher-order function signatures
 and general function results remain open; see [local callback arguments](local-callback-arguments.md).
+
+L5 also includes existing function pairs returned by concise known local calls,
+with identity, conditional selection, assignment and immediate invocation across
+synchronous and async callers. General function signatures remain incomplete; see
+[local function results](local-function-results.md).

@@ -606,3 +606,9 @@ original symbols through aliases and static forwarding. Argument snapshots and
 captured callback cells survive async jobs and factory return. Runtime higher-order
 signatures and general function results remain open. This admits no original
 canonical rejection source; counts remain unchanged. See [local callback arguments](local-callback-arguments.md).
+
+Concise known local calls now return existing same-arity function pairs through
+identity, selection, forwarding and plain assignment, including immediate calls
+and async caller arguments. This changes no canonical rejection source or host
+ABI. Block-bodied results and runtime higher-order/function-result signatures
+remain open; see [local function results](local-function-results.md).

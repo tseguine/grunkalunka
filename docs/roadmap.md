@@ -512,3 +512,7 @@ Known local arrows and factories now accept numeric-leaf callbacks, including
 forwarding, aliases and retained factory captures across async jobs. Runtime
 higher-order signatures and general function-valued results remain open;
 see [local callback arguments](local-callback-arguments.md).
+
+Known concise local calls now preserve existing function pairs as results, with
+ordered argument snapshots and immediate invocation. Block results and runtime
+higher-order signatures remain separate units; see [local function results](local-function-results.md).

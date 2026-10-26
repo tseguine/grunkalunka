@@ -133,6 +133,40 @@ fn local_callback_arguments_keep_order_and_captures_across_await() {
 }
 
 #[test]
+fn local_function_results_keep_pairs_effects_and_jobs_across_await() {
+    compare_promises(
+        &[
+            "const id=fn=>fn;const f=id(()=>a);await null;return f();",
+            "const id=fn=>fn;return id(x=>x+a)(await b);",
+            "const id=fn=>fn;return id((await null,x=>x+a))(await b);",
+            "const choose=(f,g,c)=>c?f:g;const h=choose(()=>a,()=>b,await a);await true;return h();",
+            "const id=x=>x;const forward=fn=>id(fn);const f=forward(()=>a);await false;return id(b)+f();",
+            "let current=()=>a;const get=()=>current;const f=get();await false;current=()=>b;return f()*10+current();",
+            "let current=()=>a;const get=x=>current;const f=get(await(current=()=>b,1));await true;current=()=>a;return f();",
+            "const pass=fn=>(fn(),fn);const f=pass(()=>++a);await null;return f()+a;",
+            "const id=fn=>fn;let f=x=>x+a;return id(f)(await(f=x=>x-b,b))+f(a);",
+            "const make=x=>()=>++x;const id=fn=>fn;const f=id(make(await a));await null;return f()*10+f();",
+            "const get=()=>a?()=>a:()=>b;await null;return get()();",
+            "const replace=fn=>(fn=()=>b);const f=replace(()=>a);await null;return f();",
+            "const id=fn=>fn;const f=id(()=>a);return await Promise.reject(f());",
+            "const id=fn=>fn;const f=id(()=>+a);await null;a=await true;return f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){const id=fn=>fn;return id(x=>x+a)(await b);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong {const id=<T>(fn:T):T=>(fn as T);return ((id as any)(((x:number)=>x+a) as any) as any)(await(b as unknown as number));}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn async_closure_frames_keep_wide_calls_and_activation_ownership() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))

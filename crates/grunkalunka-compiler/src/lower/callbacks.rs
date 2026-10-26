@@ -6,6 +6,99 @@ use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) type Parameters = BTreeMap<NodeId, BTreeMap<SymbolId, usize>>;
+type Origins = (BTreeSet<SymbolId>, BTreeSet<NodeId>);
+
+struct ReturnOrigins<'s, 'n, 'a> {
+    semantic: &'s Semantic<'a>,
+    targets: &'s BTreeMap<SymbolId, BTreeSet<NodeId>>,
+    arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
+}
+
+impl ReturnOrigins<'_, '_, '_> {
+    // Follow only concise source-known results. Actual argument origins are
+    // computed before shadowing formals; no call effects or argument bindings
+    // escape this read-only query. The same eight-call bound limits recursion.
+    fn expression(
+        &self,
+        expression: &Expression<'_>,
+        bindings: &BTreeMap<SymbolId, Origins>,
+        depth: usize,
+        calls: usize,
+    ) -> Origins {
+        if depth > 128 {
+            return Origins::default();
+        }
+        if let Some(inner) = erased_inner(expression) {
+            return self.expression(inner, bindings, depth + 1, calls);
+        }
+        match expression {
+            Expression::ParenthesizedExpression(wrapper) => {
+                self.expression(&wrapper.expression, bindings, depth + 1, calls)
+            }
+            Expression::Identifier(identifier) => symbol(identifier, self.semantic)
+                .and_then(|id| bindings.get(&id))
+                .cloned()
+                .unwrap_or_else(|| origins(expression, self.semantic)),
+            Expression::SequenceExpression(sequence) => sequence
+                .expressions
+                .last()
+                .map(|last| self.expression(last, bindings, depth + 1, calls))
+                .unwrap_or_default(),
+            Expression::AssignmentExpression(assignment)
+                if assignment.operator == AssignmentOperator::Assign =>
+            {
+                self.expression(&assignment.right, bindings, depth + 1, calls)
+            }
+            Expression::ConditionalExpression(conditional) => {
+                let mut result =
+                    self.expression(&conditional.consequent, bindings, depth + 1, calls);
+                let other = self.expression(&conditional.alternate, bindings, depth + 1, calls);
+                result.0.extend(other.0);
+                result.1.extend(other.1);
+                result
+            }
+            Expression::CallExpression(call) => {
+                if calls >= 8 {
+                    return Origins::default();
+                }
+                let (sources, mut bodies) =
+                    self.expression(&call.callee, bindings, depth + 1, calls + 1);
+                for source in sources {
+                    if let Some(known) = self.targets.get(&source) {
+                        bodies.extend(known);
+                    }
+                }
+                let mut result = Origins::default();
+                for body in bodies {
+                    let arrow = self.arrows[&body];
+                    if arrow.params.items.len() != call.arguments.len() {
+                        continue;
+                    }
+                    let Some(expression) = arrow.get_expression() else {
+                        continue;
+                    };
+                    let mut parameters = bindings.clone();
+                    for (parameter, argument) in arrow.params.items.iter().zip(&call.arguments) {
+                        if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                            && let Some(id) = identifier.symbol_id.get()
+                            && let Some(argument) = argument.as_expression()
+                        {
+                            parameters.insert(
+                                id,
+                                self.expression(argument, bindings, depth + 1, calls + 1),
+                            );
+                        }
+                    }
+                    let returned = self.expression(expression, &parameters, depth + 1, calls + 1);
+                    result.0.extend(returned.0);
+                    result.1.extend(returned.1);
+                }
+                result
+            }
+            _ => origins(expression, self.semantic),
+        }
+    }
+}
 
 fn symbol(identifier: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
     semantic
@@ -16,10 +109,7 @@ fn symbol(identifier: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Opti
 
 // Origins of a function-valued expression; scalar effects/tests do not supply
 // its value. Actual lowering still checks every branch, target and source limit.
-fn origins(
-    expression: &Expression<'_>,
-    semantic: &Semantic<'_>,
-) -> (BTreeSet<SymbolId>, BTreeSet<NodeId>) {
+fn origins(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Origins {
     let mut symbols = BTreeSet::new();
     let mut arrows = BTreeSet::new();
     let mut pending = vec![(expression, 0)];
@@ -69,7 +159,9 @@ pub(crate) fn infer_callback_parameters(semantic: &Semantic<'_>) -> Result<Param
     let mut demands: BTreeMap<SymbolId, BTreeSet<usize>> = BTreeMap::new();
     let mut arrows = BTreeMap::new();
     let mut calls = Vec::new();
+    let mut definitions = Vec::new();
     let mut definition = |id, expression| {
+        definitions.push((id, expression));
         let (sources, bodies) = origins(expression, semantic);
         aliases.entry(id).or_default().extend(sources);
         targets.entry(id).or_default().extend(bodies);
@@ -126,9 +218,26 @@ pub(crate) fn infer_callback_parameters(semantic: &Semantic<'_>) -> Result<Param
                 }
             }
         }
+        let returns = ReturnOrigins {
+            semantic,
+            targets: &targets,
+            arrows: &arrows,
+        };
+        let mut origins = Vec::new();
+        for &(id, expression) in &definitions {
+            origins.push((id, returns.expression(expression, &BTreeMap::new(), 0, 0)));
+        }
         let mut changed = false;
         for (alias, body) in additions {
             changed |= targets.entry(alias).or_default().insert(body);
+        }
+        for (id, (sources, bodies)) in origins {
+            for source in sources {
+                changed |= aliases.entry(id).or_default().insert(source);
+            }
+            for body in bodies {
+                changed |= targets.entry(id).or_default().insert(body);
+            }
         }
         if !changed {
             break;
@@ -176,13 +285,23 @@ pub(crate) fn infer_callback_parameters(semantic: &Semantic<'_>) -> Result<Param
         }
     }
     let mut result = Parameters::new();
-    for (id, arrow) in arrows {
+    for (id, arrow) in &arrows {
         let mut parameters = BTreeMap::new();
         for parameter in &arrow.params.items {
             if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                 && let Some(symbol) = identifier.symbol_id.get()
-                && let Some(arities) = demands.get(&symbol)
             {
+                let mut arities = demands.get(&symbol).cloned().unwrap_or_default();
+                // A function constructor written to a formal also fixes its
+                // represented kind, even when the body returns it without calling.
+                // Known call arguments do not populate `targets` for formals:
+                // scalar identity functions remain polymorphic at specialization.
+                if let Some(bodies) = targets.get(&symbol) {
+                    arities.extend(bodies.iter().map(|body| arrows[body].params.items.len()));
+                }
+                if arities.is_empty() {
+                    continue;
+                }
                 if arities.len() != 1 || *arities.first().unwrap() > 1000 {
                     return Err(unsupported(
                         parameter,
@@ -192,7 +311,7 @@ pub(crate) fn infer_callback_parameters(semantic: &Semantic<'_>) -> Result<Param
                 parameters.insert(symbol, *arities.first().unwrap());
             }
         }
-        result.insert(id, parameters);
+        result.insert(*id, parameters);
     }
     Ok(result)
 }

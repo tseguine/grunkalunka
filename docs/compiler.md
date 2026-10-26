@@ -1728,3 +1728,7 @@ Corpus 65 adds 22 pairs, including the two exact original `gap-call` and
 sources retain their diagnostics. This is a demonstrated closure slice, not full
 closure or async support. See the
 [arrow creation semantics](https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-runtime-semantics-instantiatearrowfunctionexpression).
+
+Known concise local calls also return existing same-arity function pairs and can
+be invoked immediately. Classification is effect-free; actual arguments execute
+once in caller order. See [local function results](local-function-results.md).

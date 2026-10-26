@@ -92,6 +92,19 @@ impl Lowering<'_, '_> {
         expression: &Expression<'_>,
         depth: usize,
     ) -> Option<usize> {
+        self.function_arity_in(expression, depth, &BTreeMap::new(), 0)
+    }
+
+    // This is a type query, not specialization: source arguments, conditions and
+    // comma effects are not executed. None in a bound formal explicitly means
+    // scalar, so another call's callback binding cannot leak into this scope.
+    fn function_arity_in(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+        bindings: &BTreeMap<SymbolId, Option<usize>>,
+        calls: usize,
+    ) -> Option<usize> {
         let mut pending = vec![(expression, depth)];
         let mut arity = None;
         while let Some((node, depth)) = pending.pop() {
@@ -119,7 +132,18 @@ impl Lowering<'_, '_> {
                 Expression::AssignmentExpression(assignment)
                     if assignment.operator == AssignmentOperator::Assign =>
                 {
-                    let (_, target_arity) = self.function_assignment_target(assignment, depth)?;
+                    let identifier =
+                        target_identifier(assignment.left.as_simple_assignment_target()?, depth)
+                            .ok()??;
+                    let symbol = self
+                        .semantic
+                        .scoping()
+                        .get_reference(identifier.reference_id.get()?)
+                        .symbol_id()?;
+                    let target_arity = match bindings.get(&symbol) {
+                        Some(kind) => (*kind)?,
+                        None => self.function_assignment_target(assignment, depth)?.1,
+                    };
                     if arity.is_some_and(|expected| expected != target_arity) {
                         return None;
                     }
@@ -129,14 +153,57 @@ impl Lowering<'_, '_> {
                 }
                 Expression::CallExpression(call) => {
                     let factory = self.closure_target(&call.callee, depth + 1)?;
-                    if factory.checked && !factory.factory {
-                        return None;
+                    let arrow = self.arrow(factory.arrow);
+                    let body = arrow.get_expression()?;
+                    // Preserve the old known-arrow factory recognition, including
+                    // its source-depth behavior and specialization path.
+                    if factory.factory
+                        && let Some(returned) = self.closure_target(body, 0)
+                    {
+                        self.arrow(returned.arrow).params.items.len()
+                    } else {
+                        if calls >= 8 || arrow.params.items.len() != call.arguments.len() {
+                            return None;
+                        }
+                        let mut parameters = BTreeMap::new();
+                        for capture in &factory.captures {
+                            parameters.insert(
+                                capture.symbol,
+                                match self.slots[capture.slot.0].ty {
+                                    Type::Closure(arity) => Some(arity),
+                                    _ => None,
+                                },
+                            );
+                        }
+                        for (parameter, argument) in arrow.params.items.iter().zip(&call.arguments)
+                        {
+                            let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                            else {
+                                return None;
+                            };
+                            let argument = argument.as_expression()?;
+                            parameters.insert(
+                                identifier.symbol_id.get()?,
+                                self.function_arity_in(argument, depth + 1, bindings, calls + 1),
+                            );
+                        }
+                        self.function_arity_in(body, 0, &parameters, calls + 1)?
                     }
-                    let returned =
-                        self.closure_target(self.arrow(factory.arrow).get_expression()?, 0)?;
-                    self.arrow(returned.arrow).params.items.len()
                 }
                 _ => {
+                    if let Expression::Identifier(identifier) = node
+                        && let Some(symbol) = identifier.reference_id.get().and_then(|reference| {
+                            self.semantic.scoping().get_reference(reference).symbol_id()
+                        })
+                        && let Some(kind) = bindings.get(&symbol)
+                    {
+                        let next = (*kind)?;
+                        if arity.is_some_and(|expected| expected != next) {
+                            return None;
+                        }
+                        arity = Some(next);
+                        continue;
+                    }
                     if let Some((_, arity)) = self.runtime_closure_callee(node, depth) {
                         arity
                     } else {
@@ -192,6 +259,15 @@ impl Lowering<'_, '_> {
         while let Some(task) = work.pop() {
             match task {
                 Work::Eval(node, depth) => {
+                    let context =
+                        (self.inline_depth + self.statement_depth).max(self.function_result_depth);
+                    let nesting = context + regions.children.len();
+                    if nesting > 128 {
+                        return Err(unsupported(
+                            node,
+                            "function-value expansion exceeds 128 aggregate nested regions",
+                        ));
+                    }
                     if depth > 128 {
                         return Err(unsupported(
                             node,
@@ -207,8 +283,12 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(&wrapper.expression, depth + 1))
                         }
                         Expression::ConditionalExpression(conditional) => {
+                            let outer = self.function_result_depth;
+                            self.function_result_depth = nesting;
                             let condition =
-                                self.predicate(&conditional.test, regions.current(), depth + 1)?;
+                                self.predicate(&conditional.test, regions.current(), depth + 1);
+                            self.function_result_depth = outer;
+                            let condition = condition?;
                             work.push(Work::Consequent {
                                 node,
                                 condition,
@@ -224,7 +304,11 @@ impl Lowering<'_, '_> {
                                 .split_last()
                                 .ok_or("empty function sequence")?;
                             for item in preceding {
-                                self.discarded(item, regions.current(), depth + 1)?;
+                                let outer = self.function_result_depth;
+                                self.function_result_depth = nesting;
+                                let discarded = self.discarded(item, regions.current(), depth + 1);
+                                self.function_result_depth = outer;
+                                discarded?;
                             }
                             work.push(Work::Eval(last, depth + 1));
                         }
@@ -249,6 +333,31 @@ impl Lowering<'_, '_> {
                                 slot: binding.slot,
                             });
                             work.push(Work::Eval(&assignment.right, depth + 1));
+                        }
+                        Expression::CallExpression(call) => {
+                            let outer = self.function_result_depth;
+                            self.function_result_depth = nesting;
+                            let result = (|| {
+                                if let Some(closure) =
+                                    self.factory_result(node, regions.current(), depth)?
+                                {
+                                    self.materialize_closure(
+                                        closure,
+                                        regions.current(),
+                                        node,
+                                        arity,
+                                    )
+                                } else {
+                                    self.local_function_result(
+                                        call,
+                                        regions.current(),
+                                        arity,
+                                        depth,
+                                    )
+                                }
+                            })();
+                            self.function_result_depth = outer;
+                            values.push(result?);
                         }
                         _ => {
                             if let Some((slot, actual)) = self.runtime_closure_callee(node, depth) {
@@ -333,6 +442,67 @@ impl Lowering<'_, '_> {
         Ok(values.pop().unwrap())
     }
 
+    fn local_function_result(
+        &mut self,
+        call: &CallExpression<'_>,
+        region: &mut Region,
+        arity: usize,
+        depth: usize,
+    ) -> Result<ValueId, String> {
+        if self.active_function_results >= 8 {
+            return Err(unsupported(
+                call,
+                "at most 8 active local function-result calls are admitted",
+            ));
+        }
+        self.active_function_results += 1;
+        let result = (|| {
+            let mut closure = self
+                .closure_target(&call.callee, depth + 1)
+                .ok_or_else(|| {
+                    unsupported(call, "function results require a known local callee")
+                })?;
+            if !closure.checked {
+                self.check_local_closure(&mut closure)?;
+                self.capture_cells(&closure, region);
+            }
+            self.check_local_call(call, &closure)?;
+            self.charge_closure_expansion(call)?;
+            let arrow = self.arrow(closure.arrow);
+            let body = arrow.get_expression().ok_or_else(|| {
+                unsupported(
+                    call,
+                    "function results currently require a concise local body",
+                )
+            })?;
+            let mut arguments = Vec::new();
+            for argument in &call.arguments {
+                let expression = argument
+                    .as_expression()
+                    .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
+                let value = if let Some(kind) = self.function_arity(expression, depth + 1) {
+                    self.callback_argument(expression, region, kind, depth + 1)?
+                } else {
+                    self.expression(expression, region, depth + 1)?
+                };
+                arguments.push(value);
+            }
+            // Only after all caller arguments finish do fresh formal bindings
+            // replace the caller's. Returned values are snapshots of these slots.
+            let previous = std::mem::replace(&mut self.bindings, closure.captures);
+            let charging = std::mem::replace(&mut self.source_charging, false);
+            let result = (|| {
+                self.bind_arrow_parameters(arrow, arguments, region)?;
+                self.function_value(body, region, arity, 0)
+            })();
+            self.bindings = previous;
+            self.source_charging = charging;
+            result
+        })();
+        self.active_function_results -= 1;
+        result
+    }
+
     fn materialize_closure(
         &mut self,
         mut closure: closures::LocalClosure,
@@ -390,6 +560,7 @@ impl Lowering<'_, '_> {
         child.closure_expansions = 0;
         child.inline_depth = 0;
         child.statement_depth = 0;
+        child.function_result_depth = 0;
         child.in_loop_body = false;
         child.lifting_depth += 1;
         for parameter in &arrow.params.items {

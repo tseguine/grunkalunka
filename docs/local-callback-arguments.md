@@ -66,3 +66,7 @@ callback, but materializing that helper as an indirect function value with calle
 callback parameters is rejected. General function-valued returns, primitive/heap
 callback arguments or results, async callback bodies and Promise callbacks remain
 separate gaps. This does not complete general first-class functions.
+
+Concise known calls now also forward existing function pairs, including immediate
+invocation and parameter replacement; see [local function results](local-function-results.md).
+Block bodies and runtime higher-order signatures remain separate work.

@@ -190,6 +190,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // Validate unused bodies too, without running effects or publishing their
         // scratch values/slots in the real function's verified IR.
         let mut check = self.clone();
+        check.function_result_depth = 0;
         check.bindings = closure.captures.clone();
         let mut region = check.region(arrow);
         let mut arguments = Vec::new();
@@ -229,6 +230,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 }
                 check.capture_cells(&returned, &mut region);
                 closure.factory = true;
+            } else if let Some(arity) = check.function_arity(expression, 0) {
+                check.function_value(expression, &mut region, arity, 0)?;
             } else {
                 check.evaluate(expression, &mut region, 0, evaluate::Mode::Number)?;
             }

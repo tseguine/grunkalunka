@@ -298,6 +298,8 @@ fn lower_source_profile(
             lifted_base: signatures.len() + lifted.len(),
             lifting_depth: 0,
             active_function_values: 0,
+            active_function_results: 0,
+            function_result_depth: 0,
             slots,
             values: Vec::new(),
             next_region: 0,

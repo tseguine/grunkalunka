@@ -129,6 +129,226 @@ fn known_local_functions_receive_callback_pairs_and_keep_argument_snapshots() {
 }
 
 #[test]
+fn concise_local_results_preserve_existing_function_pairs_and_creator_effects() {
+    compare_functions(&[
+        "const id=fn=>fn;const f=id(()=>a);return f();",
+        "const id=fn=>fn;let f=id(x=>x+a);return f(b);",
+        "const choose=(f,g,c)=>c?f:g;const h=choose(()=>a,()=>b,a);return h();",
+        "const id=x=>x;const f=id(()=>a);return id(b)+f();",
+        "const id=x=>x;const forward=fn=>id(fn);const f=forward(()=>a);return id(b)+f();",
+        "const id=fn=>fn;const apply=(fn,x)=>fn(x);return apply(id(x=>x+a),b);",
+        "let current=()=>a;const get=()=>current;const f=get();current=()=>b;return f()*10+current();",
+        "let current=()=>a;const get=x=>current;const f=get((current=()=>b,1));current=()=>a;return f();",
+        "const pass=fn=>(fn(),fn);const f=pass(()=>++a);return f()+a;",
+        "const choose=(f,g,c)=>c?f:g;let f=()=>a;const h=choose(f,(f=()=>b),a);return h()*10+f();",
+        "const replace=fn=>(fn=()=>b);const f=replace(()=>a);return f();",
+        "const id=x=>x;const replace=fn=>(fn=id(()=>b));const f=replace(()=>a);return f();",
+        "const get=()=>()=>b;const replace=fn=>(fn=get());const f=replace(()=>a);return f();",
+        "const choose=(f,g)=>a?(b++,f):(a++,g);const h=choose(()=>a,()=>b);return h()+a+b;",
+        "const make=x=>()=>++x;const id=fn=>fn;const f=id(make(a));return f()*10+f();",
+        "const make=fn=>()=>fn();const id=fn=>fn;const f=id(make(()=>a));return f();",
+        "const get=()=>a?()=>a:()=>b;const f=get();return f();",
+        "const get=x=>(a++,()=>x+a);const f=get(b++);return f()+b;",
+        "const choose=(f,g,c)=>c?f:g;const f=choose(x=>x+a,x=>x-b,a);return f(b);",
+        "const id=x=>x;const f=(id)(()=>a);return f();",
+        "const f=(fn=>fn)(()=>a);return f();",
+        "const id=fn=>fn;return id(x=>x+a)(b);",
+        "const choose=(f,g,c)=>c?f:g;return choose(()=>a,()=>b,a)();",
+        "const get=()=>a?()=>a:()=>b;return get()();",
+        "return (a?()=>a:()=>b)();",
+        "let f=()=>a;return (f=()=>b)();",
+        "const id=fn=>fn;let f=x=>x+a;return id(f)((f=x=>x-b,b))+f(a);",
+    ]);
+}
+
+#[test]
+fn local_function_result_arguments_run_once_in_caller_order() {
+    compare_functions(&[
+        "let current=()=>a;const get=(x,y)=>(a=x*10+y,current);const f=get(a++,a+=10);return f()+a;",
+    ]);
+}
+
+#[test]
+fn function_results_do_not_cross_unsupported_kinds_or_runtime_signatures() {
+    for body in [
+        "const id=fn=>fn;return id(()=>a);",
+        "const id=fn=>fn;return +id(()=>a);",
+        "const choose=(f,g,c)=>c?f:g;const h=choose(()=>a,x=>x,a);return h();",
+        "const choose=(f,g,c)=>c?f:g;const h=choose(()=>a,b,a);return h();",
+        "const id=fn=>fn;const f=id(()=>true);return f();",
+        "const id=fn=>fn;const f=id(async()=>a);return f();",
+        "const id=fn=>fn;const f=id?.(()=>a);return f();",
+        "const id=fn=>fn;const f=id(...a);return f();",
+        "const id=fn=>{return fn;};const f=id(()=>a);return f();",
+        "const get=()=>a?()=>a:()=>b;let f=get;return f()();",
+        "let current=()=>a;let get=()=>current;return get()();",
+        "const id=fn=>fn;const f=id(()=>a);return f?.();",
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+            let source = source.replace("export function", "export async function");
+            assert!(compile_async(&source, typescript).is_err(), "{source}");
+        }
+    }
+    let source = "export async function run(a,b){const id=fn=>fn;return await id(()=>a);}";
+    assert!(compile_async(source, false).is_err());
+}
+
+#[test]
+fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    let body = format!("const id=fn=>fn;return id(({parameters})=>p0+p999+b)({arguments});");
+    compare_functions(&[&body]);
+    let mut nested = Vec::new();
+    let mut forwarded = Vec::new();
+    for depth in 0..10 {
+        let mut value = String::from("()=>a");
+        for _ in 0..depth {
+            value = format!("id({value})");
+        }
+        let source =
+            format!("export function run(a,b){{const id=fn=>fn;const f={value};return f();}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        nested.push(result.is_ok());
+        if let Ok(artifact) = result {
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        }
+        let mut declarations = String::from("let current=()=>a;const get0=()=>current;");
+        for i in 1..=depth {
+            declarations.push_str(&format!("const get{i}=()=>get{}();", i - 1));
+        }
+        let source =
+            format!("export function run(a,b){{{declarations}const f=get{depth}();return f();}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        forwarded.push(result.is_ok());
+        if let Ok(artifact) = result {
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        }
+    }
+    assert_eq!(
+        nested,
+        [true, true, true, true, true, true, true, true, false, false]
+    );
+    assert_eq!(
+        forwarded,
+        [true, true, true, true, true, true, true, true, false, false]
+    );
+    println!("function-result admission on 2MiB stack: nested {nested:?}, forwarded {forwarded:?}");
+}
+
+#[test]
+fn local_function_results_preserve_source_depth_costs_and_expansion_limits() {
+    for (wrappers, admitted) in [(127, true), (128, false)] {
+        let source = format!(
+            "export function run(a,b){{const id=fn=>fn;const f=id({}()=>a{});return f();}}",
+            "(".repeat(wrappers),
+            ")".repeat(wrappers)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{wrappers} return-argument wrappers"
+        );
+    }
+    for (locals, admitted) in [(125, true), (126, false)] {
+        let declarations = (0..locals)
+            .map(|i| format!("let v{i}=a;"))
+            .collect::<String>();
+        let source = format!(
+            "export function run(a,b){{const id=fn=>fn;const read=()=>{{{declarations}return a;}};const f=id(read);return f();}}"
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{locals} leaf body locals"
+        );
+    }
+    for (calls, admitted) in [(85, true), (86, false)] {
+        let source = format!(
+            "export function run(a,b){{const id=fn=>fn;return({});}}",
+            vec!["id(()=>a)()"; calls].join(",")
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{calls} returned-function calls"
+        );
+    }
+}
+
+#[test]
+fn function_result_nesting_counts_across_bodies_and_numeric_prefixes() {
+    for branches in [16, 64] {
+        let mut declarations = String::from("let current=()=>a;const get0=()=>current;");
+        for i in 1..=3 {
+            declarations.push_str(&format!(
+                "const get{i}=()=>{}get{}();",
+                "a?current:".repeat(branches),
+                i - 1
+            ));
+        }
+        let source =
+            format!("export function run(a,b){{{declarations}const f=get3();return f();}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), branches == 16);
+        if let Ok(artifact) = result {
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        }
+    }
+    let numeric = format!("{}a", "a?a:".repeat(65));
+    let source = format!(
+        "export function run(a,b){{const numeric=()=>{numeric};const get=()=>{}(numeric(),()=>a);const f=get();return f();}}",
+        "a?(()=>a):".repeat(64)
+    );
+    let result = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || compile(&source, false))
+        .unwrap()
+        .join()
+        .unwrap();
+    assert!(result.err().unwrap().contains("128"));
+}
+
+#[test]
 fn local_callback_constraints_reject_conflicting_kinds_and_runtime_signatures() {
     for body in [
         "const apply=(fn,x)=>fn(x);return apply(a,b);",

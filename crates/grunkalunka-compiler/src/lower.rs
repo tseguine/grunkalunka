@@ -235,6 +235,10 @@ pub(super) struct Lowering<'s, 'a> {
     pub lifted_base: usize,
     pub lifting_depth: usize,
     pub active_function_values: usize,
+    pub active_function_results: usize,
+    // Generated parent regions retained across scalar/function cursor crossings.
+    // AST wrapper depth has its own budget and must not be charged here again.
+    pub function_result_depth: usize,
 }
 
 impl Lowering<'_, '_> {

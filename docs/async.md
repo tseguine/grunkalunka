@@ -148,3 +148,8 @@ arena cursor checks in both engines observe retained frames and four-page growth
 
 The state machine follows [ECMAScript Await](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#await).
 Finite tests establish this slice; they do not establish full async conformance.
+
+Concise known synchronous helpers can return existing function pairs before or
+after suspension; returned callees and callback arguments retain their snapshots.
+This adds no async callback body or Promise value; see
+[local function results](local-function-results.md).

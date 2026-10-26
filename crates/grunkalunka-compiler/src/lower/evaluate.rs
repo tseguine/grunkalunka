@@ -336,12 +336,14 @@ impl Lowering<'_, '_> {
                         })?;
                         let function = self.function_arity(argument, depth);
                         if let Some(arity) = function {
-                            arguments.push(self.callback_argument(
-                                argument,
-                                regions.current(),
-                                arity,
-                                depth,
-                            )?);
+                            let outer = self.function_result_depth;
+                            self.function_result_depth = (self.inline_depth + self.statement_depth)
+                                .max(outer)
+                                + regions.children.len();
+                            let value =
+                                self.callback_argument(argument, regions.current(), arity, depth);
+                            self.function_result_depth = outer;
+                            arguments.push(value?);
                         }
                         work.push(Work::LocalCall {
                             node,
@@ -938,7 +940,13 @@ impl Lowering<'_, '_> {
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
                     if let Some(arity) = self.function_arity(node, depth) {
-                        self.function_value(node, regions.current(), arity, depth)?;
+                        let outer = self.function_result_depth;
+                        self.function_result_depth = (self.inline_depth + self.statement_depth)
+                            .max(outer)
+                            + regions.children.len();
+                        let result = self.function_value(node, regions.current(), arity, depth);
+                        self.function_result_depth = outer;
+                        result?;
                         continue;
                     }
                     // Routing owns classification before the selected mode's guard.
@@ -971,12 +979,19 @@ impl Lowering<'_, '_> {
                     }
                 }
                 Work::Eval(node, depth, mode) => {
-                    if self.active_block_calls != 0
-                        && self.inline_depth + self.statement_depth + regions.children.len() > 128
+                    if (self.active_block_calls != 0 || self.function_result_depth != 0)
+                        && (self.inline_depth + self.statement_depth)
+                            .max(self.function_result_depth)
+                            + regions.children.len()
+                            > 128
                     {
                         return Err(unsupported(
                             node,
-                            "block-arrow expansion exceeds 128 nested regions",
+                            if self.function_result_depth != 0 {
+                                "local function-value expansion exceeds 128 nested regions"
+                            } else {
+                                "block-arrow expansion exceeds 128 nested regions"
+                            },
                         ));
                     }
                     if self.active_local_calls != 0 && regions.children.len() > 128 {
@@ -1032,8 +1047,8 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
-                        && let Some((slot, arity)) =
-                            self.runtime_closure_callee(&call.callee, depth + 1)
+                        && self.closure_target(&call.callee, depth + 1).is_none()
+                        && let Some(arity) = self.function_arity(&call.callee, depth + 1)
                     {
                         if call.optional || call.type_arguments.is_some() {
                             return Err(unsupported(
@@ -1047,15 +1062,33 @@ impl Lowering<'_, '_> {
                                 "runtime closure call requires exactly the declared number of arguments",
                             ));
                         }
-                        let callee = self.value(Type::Closure(arity));
-                        Self::push(
-                            regions.current(),
-                            node,
-                            Op::Load {
-                                result: callee,
-                                slot,
-                            },
-                        );
+                        let callee = if let Some((slot, _)) =
+                            self.runtime_closure_callee(&call.callee, depth + 1)
+                        {
+                            let value = self.value(Type::Closure(arity));
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Load {
+                                    result: value,
+                                    slot,
+                                },
+                            );
+                            value
+                        } else {
+                            let outer = self.function_result_depth;
+                            self.function_result_depth = (self.inline_depth + self.statement_depth)
+                                .max(outer)
+                                + regions.children.len();
+                            let value = self.function_value(
+                                &call.callee,
+                                regions.current(),
+                                arity,
+                                depth + 1,
+                            );
+                            self.function_result_depth = outer;
+                            value?
+                        };
                         match mode {
                             Mode::General => work.push(Work::Pack(node)),
                             Mode::Predicate => work.push(Work::Truthy(node)),
