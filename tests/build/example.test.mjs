@@ -19,9 +19,11 @@ async function setup(t) {
   return cwd;
 }
 function invoke(cwd, args = [], extraEnv = {}) {
+  const env = { ...process.env, ...extraEnv };
+  if (!Object.hasOwn(extraEnv, 'GRUNKALUNKA_COMPILER')) delete env.GRUNKALUNKA_COMPILER;
   return execute(process.execPath, [runner, ...args], {
     cwd, timeout: 30_000, maxBuffer: 1024 * 1024, killSignal: 'SIGKILL',
-    env: { ...process.env, GRUNKALUNKA_COMPILER: binary, ...extraEnv },
+    env,
   });
 }
 
@@ -34,6 +36,7 @@ test('example builds and runs repeatedly outside the repository working director
     assert.equal(result.stdout.trim(), expected);
     assert.equal(result.stderr, '');
   }
+  assert.equal((await invoke(cwd, [], { GRUNKALUNKA_COMPILER: binary })).stdout.trim(), '6');
   assert.deepEqual(await readdir(cwd), []);
 });
 
