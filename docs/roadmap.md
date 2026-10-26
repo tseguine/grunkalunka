@@ -547,3 +547,8 @@ recursive rebinding and async callers. Result-aware logical signatures and a
 private pair-return table call preserve the existing host ABI and wide argument
 bounds. See [runtime function results](runtime-function-results.md). General recursive
 callback/result signatures, nonnumeric leaf results and async bodies remain open.
+
+Function truthiness now covers represented synchronous values in Boolean contexts,
+including returned/assigned pairs, higher-order signatures, loops, negation and
+short-circuit effects across async jobs and catches. Primitive boxing and numeric
+coercion of functions remain outside this slice; see [function truthiness](function-truthiness.md).

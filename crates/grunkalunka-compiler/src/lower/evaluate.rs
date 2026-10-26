@@ -1045,6 +1045,31 @@ impl Lowering<'_, '_> {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
                     }
+                    if matches!(mode, Mode::Predicate)
+                        && let Some(signature) = self.function_arity(node, depth)
+                    {
+                        // Evaluating a function can have constructor/argument/
+                        // assignment effects. Its ToBoolean result is always true;
+                        // evaluating its body is neither needed nor permitted here.
+                        let outer = self.function_result_depth;
+                        self.function_result_depth = (self.inline_depth + self.statement_depth)
+                            .max(outer)
+                            + regions.children.len();
+                        let value = self.function_value(node, regions.current(), signature, depth);
+                        self.function_result_depth = outer;
+                        value?;
+                        let result = self.value(Type::Predicate);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::Boolean {
+                                result,
+                                value: true,
+                            },
+                        );
+                        values.push(Value::Predicate(result));
+                        continue;
+                    }
                     if let Expression::AwaitExpression(awaited) = node {
                         if !self.allow_await {
                             return Err(unsupported(node, "await requires the async profile"));

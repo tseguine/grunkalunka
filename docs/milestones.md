@@ -570,3 +570,8 @@ recursive rebinding and async callers. Result-aware logical signatures and a
 private pair-return table call preserve the existing host ABI and wide argument
 bounds. See [runtime function results](runtime-function-results.md). General recursive
 callback/result signatures, nonnumeric leaf results and async bodies remain open.
+
+L5 now includes truthiness of represented synchronous functions in Boolean contexts,
+with expression effects preserved and tested function bodies left dormant. Numeric
+and primitive result boundaries, async jobs and existing resource limits remain
+intact; see [function truthiness](function-truthiness.md).

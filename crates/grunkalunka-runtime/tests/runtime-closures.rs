@@ -510,6 +510,10 @@ fn nested_callback_argument_constructors_have_an_observed_small_stack_bound() {
 }
 
 fn compare_functions(bodies: &[&str]) {
+    compare_function_programs(bodies, true);
+}
+
+fn compare_function_programs(bodies: &[&str], require_call: bool) {
     let inputs = [
         (4.0, 2.0),
         (0.0, 2.0),
@@ -529,7 +533,9 @@ fn compare_functions(bodies: &[&str]) {
             let source = format!("export function run({parameters}){{{body}}}");
             let artifact =
                 compile(&source, typescript).unwrap_or_else(|error| panic!("{source}: {error}"));
-            assert!(artifact.wat.contains("call_indirect"));
+            if require_call {
+                assert!(artifact.wat.contains("call_indirect"));
+            }
             let mut host = NumericInstance::new(&artifact.wasm).unwrap();
             let rust = inputs
                 .iter()
@@ -1320,7 +1326,6 @@ fn runtime_factory_results_require_one_numeric_leaf_signature() {
         "let make=x=>()=>true;return make(a)();",
         "let make=x=>()=>x;return make(a);",
         "let make=x=>()=>x;return +make(a);",
-        "let make=x=>()=>x;if(make(a))return a;return b;",
         "let make=x=>()=>x;return make?.(a)();",
         "let make=x=>()=>x;return make(...a)();",
         "let make=x=>()=>x;return make()();",
@@ -1418,4 +1423,133 @@ fn runtime_factory_pairs_keep_primitive_tags_and_recover_after_fuel_failure() {
     let error = host.run(1.0, 2.0).unwrap_err();
     assert!(format!("{error:#}").contains("fuel"), "{error:#}");
     assert_eq!(host.run(0.0, 2.0).unwrap(), 2.0);
+}
+
+#[test]
+fn function_values_are_truthy_without_invoking_their_bodies() {
+    compare_function_programs(
+        &[
+            "let make=x=>()=>x;if(make(a))return a;return b;",
+            "let calls=0;let make=x=>(calls++,()=>++calls);return (make?10:20)+calls;",
+            "let calls=0;let make=x=>(calls++,()=>++calls);return (make(a++)?1:2)*100+calls*10+a;",
+            "let calls=0;const f=a?()=>++calls:()=>--calls;return (f?10:20)+calls;",
+            "const f=()=>a;if(f)return b;return a;",
+            "const f=a?()=>a:()=>b;return +!f+ +!!f;",
+            "return (()=>a)?b:a;",
+            "let f=()=>a;const old=f;f=()=>b;return (old?10:20)+(f?1:2);",
+            "let calls=0;const f=()=>++calls;const g=()=>--calls;if(f&&g)return calls+1;return 99;",
+            "let calls=0;const f=()=>++calls;if(f||(calls++,0))return calls;return 99;",
+            "let calls=0;const f=()=>++calls;if(0&&(calls++,f))return 99;return calls;",
+            "let calls=0;const f=()=>++calls;if(f&&(calls++,0))return 99;return calls;",
+            "const f=()=>a;return (a?f:0)?b:a;",
+            "const f=()=>a;return (a?f:(x=>x))?b:a;",
+            "let calls=0;const make=x=>{calls++;return ()=>++calls;};return (make(a++)?1:2)*100+calls*10+a;",
+            "let f=()=>0;let calls=0;return (f=(calls++,()=>++calls))?calls:99;",
+            "const id=fn=>fn;let calls=0;const f=a?()=>++calls:()=>--calls;return (id((calls++,f))?10:20)+calls;",
+            "const get=()=>{a++;return ()=>b++;};if(get())return a+b;return 0;",
+            "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(fn(x));return h?10:20;",
+            "const f=()=>a;const read=()=>f?b:a;return read();",
+            "const f=()=>a;const read=a?()=>f?b:a:()=>!f?b:a;return read();",
+            "let calls=0;const f=()=>++calls;let i=0;while(f){i++;if(i>=2)break;}return i+calls;",
+            "let calls=0;const f=()=>++calls;let i=0;for(;f;i++){if(i>=2)break;}return i+calls;",
+            "let calls=0;const f=()=>++calls;let i=0;do{i++;if(i>=2)break;}while(f);return i+calls;",
+            "let calls=0;const f=()=>++calls;let i=0;while((calls++,f)){i++;if(i>=2)break;}return i*10+calls;",
+        ],
+        false,
+    );
+}
+
+#[test]
+fn function_negation_keeps_primitive_boolean_results_and_numeric_boundaries() {
+    let plain = "export function run(a,b){const f=a?()=>a:()=>b;return (f?1:2)+ +!f;}";
+    let typed = "export function run(a:never,b:Missing):Wrong {const f:Missing=(a?()=>a:()=>b) as unknown as Missing;return ((f as never)?1:2)+ +!(f satisfies Wrong);}";
+    assert_eq!(
+        compile(plain, false).unwrap().wasm,
+        compile(typed, true).unwrap().wasm
+    );
+    for (expression, expected) in [("!f", false), ("!!f", true)] {
+        let source =
+            format!("export function run(a,b){{const f=a?()=>a:()=>b;return {expression};}}");
+        for typescript in [false, true] {
+            assert!(
+                compile(&source, typescript).is_err(),
+                "numeric profile still requires explicit conversion"
+            );
+            let artifact = compile_value(&source, typescript).unwrap();
+            let mut host = ValueInstance::new(&artifact.wasm).unwrap();
+            assert!(matches!(host.run(0.0,2.0).unwrap(),Value::Boolean(value) if value==expected));
+            node(&format!(
+                "const assert=require('node:assert/strict');const e=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({:?}))).exports;assert.deepEqual(e.run(0,2),[2,{}]);",
+                artifact.wasm,
+                u8::from(expected)
+            ));
+        }
+    }
+    for body in [
+        "const f=a?()=>a:()=>b;return +f;",
+        "const f=a?()=>a:()=>b;return f+1;",
+        "const f=a?()=>a:()=>b;return f===f;",
+        "const f=a?()=>a:()=>b;return f;",
+        "const f=a?()=>a:()=>b;return f&&b;",
+        "const f=a?()=>a:()=>b;return f||b;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
+fn function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack() {
+    for (depth, admitted) in [(2, true), (20, false)] {
+        let mut expression = String::from("a");
+        for _ in 0..depth {
+            expression = format!("((()=>{expression})?a:b)");
+        }
+        let source = format!("export function run(a,b){{return {expression};}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted);
+        if let Err(error) = result {
+            assert!(
+                error.contains("function-value") || error.contains("closure lowering"),
+                "{error}"
+            );
+        }
+    }
+    for (regions, admitted) in [(40, true), (70, false)] {
+        let source = format!(
+            "export function run(a,b){{let cb=()=>a;const get=()=>{{return {}cb;}};return {}(get()?a:b);}}",
+            "a?cb:".repeat(regions),
+            "a?0:".repeat(regions)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        match result {
+            Ok(artifact) => {
+                assert!(admitted);
+                assert_eq!(
+                    NumericInstance::new(&artifact.wasm)
+                        .unwrap()
+                        .run(0.0, 2.0)
+                        .unwrap(),
+                    0.0
+                );
+            }
+            Err(error) => {
+                assert!(!admitted);
+                assert!(error.contains("128"), "{error}");
+            }
+        }
+    }
 }

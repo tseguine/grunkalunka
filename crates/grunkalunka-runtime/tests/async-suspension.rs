@@ -1137,3 +1137,27 @@ fn runtime_factory_results_keep_cells_and_snapshots_across_async_jobs() {
         ],
     );
 }
+
+#[test]
+fn function_truthiness_preserves_async_conditions_effects_and_catches() {
+    compare_promises(
+        &[
+            "let make=x=>()=>x;try{if(make(await a))throw b;}catch(reason){await null;return +reason;}return 99;",
+            "let calls=0;let make=x=>(calls++,()=>++calls);try{if(make(await a))throw b;}catch(reason){await null;return calls*10+ +reason;}return 99;",
+            "let calls=0;const f=a?()=>++calls:()=>--calls;await null;return f?calls:b;",
+            "const make=x=>()=>x;if(make(await a))return b;return a;",
+            "const get=()=>{a++;return ()=>b++;};return get()?await a:b;",
+            "const f=()=>a;return !f;",
+            "let calls=0;const f=()=>++calls;if(f||(await Promise.reject(a)))return calls;return 99;",
+            "let calls=0;const f=()=>++calls;try{if(f&&(await Promise.reject(a)))return 99;}catch(reason){return calls+ +reason;}return 0;",
+            "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(fn(x));try{await Promise.reject(b);}catch(reason){await null;return h?+reason:a;}return 0;",
+            "let f=()=>a;const old=f;if(f=(await null,()=>b))return (old?10:20)+(f?1:2);return 99;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

@@ -115,6 +115,11 @@ with numeric leaf signatures, including captured callback cells after creator re
 [Runtime-selected functions also accept numeric-leaf callbacks](higher-order-callbacks.md).
 Concise runtime factories now return numeric-leaf pairs. Callbacks taking
 callbacks, factories returning factories, nonnumeric leaf
-return kinds, function truthiness/coercions, identity and properties, recursive initialization
+return kinds, function coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.
+
+Represented functions are now truthy in [Boolean contexts](function-truthiness.md).
+The source expression executes once while the tested function's body stays dormant;
+constructors, assignments, known returned values and admitted higher-order pairs use
+the existing predicate path. This adds neither numeric coercion nor function transport.

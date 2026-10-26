@@ -465,6 +465,13 @@ No tag dispatch is needed. New runtime kinds must revisit this operation before
 admission. No heap, import or numeric coercion is introduced. General-valued logical
 selection uses the contract below.
 
+Represented function values use a separate front-end predicate rule: evaluate the
+function expression once through its existing typed cursor, retaining its effects,
+then emit the existing `Boolean(true)` operation. Testing truthiness does not emit
+an invocation of that function. The pair never enters General storage and no new
+runtime kind is admitted by `GeneralTruthy`. Generated region context crosses this
+cursor boundary. See [function truthiness](function-truthiness.md).
+
 ### General logical joins
 
 The existing `If` operation represents General-valued `&&` and `||`. The evaluator

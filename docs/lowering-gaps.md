@@ -646,3 +646,9 @@ recursive rebinding and async callers. Result-aware logical signatures and a
 private pair-return table call preserve the existing host ABI and wide argument
 bounds. See [runtime function results](runtime-function-results.md). General recursive
 callback/result signatures, nonnumeric leaf results and async bodies remain open.
+
+Represented synchronous function values now support Boolean contexts: conditions,
+negation, loops and Boolean-position short-circuit expressions. Existing higher-order
+pairs and returned/assigned functions retain expression effects without invoking
+the tested body. Numeric coercion, function logical-result transport and host function
+values remain open; see [function truthiness](function-truthiness.md).

@@ -1735,3 +1735,8 @@ closure or async support. See the
 Known concise local calls also return existing same-arity function pairs and can
 be invoked immediately. Classification is effect-free; actual arguments execute
 once in caller order. See [local function results](local-function-results.md).
+
+Represented synchronous function values now enter Boolean contexts through their
+existing typed value evaluator and a true predicate. Source expression effects run
+once without invoking the tested function. Numeric coercion and function transport
+remain separate; see [function truthiness](function-truthiness.md).
