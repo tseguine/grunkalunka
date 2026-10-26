@@ -39,9 +39,11 @@ diagnostic; inner diagnostic paths may refer to deleted temporary files. Invalid
 UTF-8 is rejected rather than silently replaced.
 
 This runs trusted local source in Node's WebAssembly engine, not a sandboxed service.
-The build API's timeout limits compilation, not subsequent Wasm execution. Editing
-in a nonterminating loop can hang this example. It grants no imports, implements no
-component/capability profile and does not complete the A1 application milestone.
+Compilation retains the build API's timeout. Subsequent Wasm initialization and
+execution use a fresh worker with a separate five-second deadline, so an infinite
+loop reports an error without printing a result. See [numeric execution](../../docs/numeric-execution.md)
+for cancellation, termination and resource limits. No imports are granted; this
+implements no component/capability profile and does not complete A1.
 No watch server, release packaging, publication or deployment is involved.
 
 `node --test tests/build/example-options.test.mjs` checks the JS algorithm against

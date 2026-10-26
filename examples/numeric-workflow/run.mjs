@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compileSource } from '../../tools/build/compile.mjs';
+import { runNumeric } from '../../tools/runtime/numeric.mjs';
 
 const defaultSource = fileURLToPath(new URL('./gcd.js', import.meta.url));
 const defaultCompiler = fileURLToPath(new URL(
@@ -35,9 +36,7 @@ export async function runExample(args) {
       source, language,
     });
     if (stderr) process.stderr.write(stderr);
-    const { instance } = await WebAssembly.instantiate(wasm);
-    if (typeof instance.exports.run !== 'function') throw new Error('module has no run function');
-    return instance.exports.run(...inputs);
+    return await runNumeric(wasm, ...inputs);
   } catch (cause) {
     throw new Error(`Cannot run ${sourcePath}: ${cause.stderr || cause.message}`, { cause });
   }
