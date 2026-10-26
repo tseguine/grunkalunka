@@ -21,8 +21,9 @@ not deletion of a numeric-profile gap or general Promise support.
 ## Suspension and host jobs
 
 Known async local arrows with primitive bodies can be called directly under
-`await`. The body may be concise or use the existing block/implicit-return rules,
-but cannot itself await or throw in this slice. For example:
+`await`. The body may be concise or use the existing block/implicit-return rules.
+Concise bodies may await fulfilled primitives and known fulfilled async calls;
+block bodies cannot suspend in this slice. For example:
 
 ```js
 export async function run(a,b) {
@@ -31,14 +32,16 @@ export async function run(a,b) {
 }
 ```
 
-Ordered arguments and synchronous body effects execute before suspension. The
-existing caller await then observes the fulfilled primitive in one reaction job,
-matching native JavaScript. Const aliases, direct async arrow calls and pristine
+Ordered arguments and the synchronous body prefix execute before suspension. Body
+awaits and the caller's await remain separate reaction jobs: `async()=>await a`
+under a caller await takes two jobs, matching native JavaScript. Const aliases,
+direct async arrow calls and pristine
 `Promise.resolve` wrapping preserve that behavior. Existing exact-arity,
 Number/numeric-leaf callback argument and source/resource checks still apply.
 
 Async function values and Promise objects are not reified. Unawaited calls,
-mutable/dynamic async function selections, body awaits/throws and Promise/function
+mutable/dynamic async function selections, rejected body awaits, body throws,
+block-body suspension and Promise/function
 outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
 the reason would be the Promise object, rather than its eventual primitive value.
 `await Promise.reject(await f())` uses a primitive reason and remains supported.

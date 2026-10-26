@@ -1,6 +1,38 @@
 //! Shared await-operand inspection for storage planning and actual lowering.
 use super::*;
-use oxc_ast::ast::AwaitExpression;
+use oxc_ast::{
+    AstKind,
+    ast::{ArrowFunctionExpression, AwaitExpression},
+};
+
+// Concise async bodies inline into their immediately awaiting caller. Until
+// callee rejection has its own boundary, only fulfillment paths are admitted.
+// Nested functions own their awaits and undergo their own body validation.
+pub(super) fn check_fulfilled_body(
+    arrow: &ArrowFunctionExpression<'_>,
+    semantic: &Semantic<'_>,
+) -> Result<(), String> {
+    for node in semantic.nodes().iter() {
+        let AstKind::AwaitExpression(awaited) = node.kind() else {
+            continue;
+        };
+        let owner = semantic
+            .nodes()
+            .ancestor_kinds(node.id())
+            .find_map(|kind| match kind {
+                AstKind::ArrowFunctionExpression(owner) => Some(Some(owner.node_id.get())),
+                AstKind::Function(_) => Some(None),
+                _ => None,
+            });
+        if owner == Some(Some(arrow.node_id.get())) && operand(awaited, 0, semantic)?.2 {
+            return Err(unsupported(
+                awaited,
+                "concise async bodies currently require fulfilled awaits",
+            ));
+        }
+    }
+    Ok(())
+}
 
 pub(super) fn operand<'e, 'a>(
     awaited: &'e AwaitExpression<'a>,

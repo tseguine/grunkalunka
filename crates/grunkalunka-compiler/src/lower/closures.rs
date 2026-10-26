@@ -201,9 +201,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // scratch values/slots in the real function's verified IR.
         let mut check = self.clone();
         if arrow.r#async {
-            // This slice only admits synchronously fulfilled primitive bodies.
-            // They execute before the caller's existing await reaction job.
-            check.allow_await = false;
+            // Concise bodies use the caller's continuation, then retain its
+            // separate await reaction. Block-body suspension is still excluded.
+            if arrow.get_expression().is_some() {
+                awaited::check_fulfilled_body(arrow, self.semantic)?;
+            }
+            check.allow_await = arrow.get_expression().is_some();
         }
         check.function_result_depth = 0;
         check.bindings = closure.captures.clone();

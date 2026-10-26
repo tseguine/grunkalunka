@@ -1835,17 +1835,27 @@ primitive corpus pairs bring that profile to 109 pairs and 6104 comparisons.
 ## Directly awaited known async arrows
 
 The async entry profile now admits directly awaited calls to known const, alias
-and direct async arrows whose bodies produce represented primitives without
-awaiting or throwing. The synchronous body and ordered arguments execute before
-the existing caller `Await`; its fulfillment reaction preserves native promise
-job order. Concise, explicit block, bare and implicit primitive returns reuse
+and direct async arrows whose bodies produce represented primitives. Non-suspending
+bodies and ordered arguments execute before the existing caller `Await`; its
+fulfillment reaction preserves native promise job order. Concise bodies may also
+await fulfilled primitives as described below. Explicit block, bare and implicit primitive returns reuse
 the existing local evaluation paths. TypeScript type claims do not replace the
 actual result kind.
 
 These async arrows have no ordinary scalar closure signature. Calls in other
 positions and dynamic/mutable async function values remain rejected, as do
-Promise/function-valued outcomes and bodies that suspend or throw. Pristine
+Promise/function-valued outcomes, block-body suspension, rejected body awaits and
+body throws. Pristine
 `Promise.resolve` wrapping is supported. A rejected async-call result would be a
 Promise-valued reason and is rejected; awaiting the call first yields a supported
 primitive reason. No IR operation, emitter path, dependency or Promise-object ABI
 was added. See [the async profile](async.md#suspension-and-host-jobs).
+
+Concise known async bodies now preserve their own fulfilled await reactions before
+the separate caller reaction. `const f=async()=>await a; return await f();` has
+two jobs. Nested fulfilled calls, conditional waits, argument waits and retained
+callback pairs use the same existing continuation state. A read-only query checks
+only awaits owned by the current source arrow; root rejected awaits remain
+supported. Rejected body waits are still excluded because their delayed callee
+rejection boundary is separate work. The shared evaluator, IR and emitters are
+unchanged by this extension.

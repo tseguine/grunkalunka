@@ -1352,7 +1352,6 @@ fn known_async_arrows_keep_promise_object_and_body_boundaries() {
         "const f=async()=>a;return f;",
         "const f=a?async()=>a:async()=>b;return await f();",
         "let f=async()=>a;return await f();",
-        "const f=async()=>await a;return await f();",
         "const f=async()=>{throw b;};return await f();",
         "const f=async()=>Promise.reject(b);return await f();",
         "const f=async()=>()=>a;return await f();",
@@ -1384,6 +1383,81 @@ fn known_async_arrows_keep_promise_object_and_body_boundaries() {
 fn known_async_arrow_type_claims_do_not_override_runtime_primitives() {
     let js = "export async function run(a,b){const f=async x=>x?null:false;return await f(a);}";
     let ts = "export async function run(a:number,b:number):Promise<unknown>{const f=async(x:number):Promise<number>=>(x?null:false) as unknown as number;return await f(a);}";
+    assert_eq!(
+        compile_async(js, false).unwrap().wasm,
+        compile_async(ts, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn known_concise_async_bodies_preserve_body_and_caller_jobs() {
+    compare_promises(
+        &[
+            "const f=async()=>await a;return await f();",
+            "const f=async()=>await null;return await f();",
+            "const f=async()=>await false;return await f();",
+            "const f=async()=>await undefined;return await f();",
+            "const f=async()=>await -0;return await f();",
+            "const f=async()=>await NaN;return await f();",
+            "const f=async()=>await Promise.resolve(a);return await f();",
+            "const f=async()=>await (await a);return await f();",
+            "const f=async()=>a?await null:await false;return await f();",
+            "const f=async x=>x+await b;return await f(await a);",
+            "const f=async()=>a+await(a=b);return await f();",
+            "let value=a;const f=async x=>(value+=x,value+await b);const out=await f((value=b,a));return out+value;",
+            "const g=async()=>await b;const f=async()=>a+await g();return await f();",
+            "const f=async()=>await(async()=>await a)();return await f();",
+            "const f=async()=>await a;const alias=f;return await alias();",
+            "const f=async()=>await false;if(await f())return a;return b;",
+            "const f=async()=>await undefined;return +(await f());",
+            "const f=async()=>await a;try{await Promise.reject(await f());}catch(reason){return reason;}return b;",
+            "const f=async()=>await a;try{await Promise.reject(b);}catch(reason){return await f();}return b;",
+            "const f=async(fn,x)=>fn(await x);return await f(x=>x+a,b);",
+            "let total=0;for(let i=0;i<3;i++){const f=async()=>i+await b;total+=await f();}return total;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn concise_async_body_fulfillment_guards_do_not_change_root_rejection() {
+    for body in [
+        "const f=async()=>await Promise.reject(a);return await f();",
+        "const f=async()=>(await Promise.reject(a),b);return await f();",
+        "const f=async()=>a?await Promise.reject(b):await a;return await f();",
+        "const f=async()=>await(async()=>await Promise.reject(a))();return await f();",
+        "const f=async()=>{return await a;};return await f();",
+        "const f=async()=>await(async()=>{throw a;})();return await f();",
+        "const f=async()=>await a;return f();",
+        "const f=async()=>await a;const p=f();return await p;",
+        "const f=async()=>await({});return await f();",
+    ] {
+        let source = source_for(body);
+        assert!(compile_async(&source, false).is_err(), "{source}");
+    }
+    let source = source_for("const f=async()=>await Promise.reject(a);return await f();");
+    assert!(
+        compile_async(&source, false)
+            .err()
+            .unwrap()
+            .contains("fulfilled awaits")
+    );
+    compare_promises(
+        &["try{await Promise.reject(a);}catch(reason){return reason;}return b;"],
+        &[(4.0, 2.0), (0.0, -0.0)],
+    );
+}
+
+#[test]
+fn concise_async_body_type_claims_preserve_general_wait_values() {
+    let js =
+        "export async function run(a,b){const f=async x=>await(x?null:false);return await f(a);}";
+    let ts = "export async function run(a:number,b:number):Promise<unknown>{const f=async(x:number):Promise<number>=>await((x?null:false) as unknown as number);return await f(a);}";
     assert_eq!(
         compile_async(js, false).unwrap().wasm,
         compile_async(ts, true).unwrap().wasm
