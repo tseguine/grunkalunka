@@ -38,6 +38,16 @@ impl Regions<'_> {
 }
 
 impl Lowering<'_, '_> {
+    pub(super) fn arrow_signature(
+        &self,
+        arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    ) -> usize {
+        let parameters = callbacks::parameter_types(arrow, self.callback_parameters);
+        self.closure_signatures
+            .id(&parameters)
+            .expect("source arrow signature was registered")
+    }
+
     pub(super) fn callback_argument(
         &mut self,
         expression: &Expression<'_>,
@@ -160,7 +170,7 @@ impl Lowering<'_, '_> {
                     if factory.factory
                         && let Some(returned) = self.closure_target(body, 0)
                     {
-                        self.arrow(returned.arrow).params.items.len()
+                        self.arrow_signature(self.arrow(returned.arrow))
                     } else {
                         if calls >= 8 || arrow.params.items.len() != call.arguments.len() {
                             return None;
@@ -207,10 +217,7 @@ impl Lowering<'_, '_> {
                     if let Some((_, arity)) = self.runtime_closure_callee(node, depth) {
                         arity
                     } else {
-                        self.arrow(self.closure_target(node, depth)?.arrow)
-                            .params
-                            .items
-                            .len()
+                        self.arrow_signature(self.arrow(self.closure_target(node, depth)?.arrow))
                     }
                 }
             };
@@ -527,18 +534,8 @@ impl Lowering<'_, '_> {
             ));
         }
         let arrow = self.arrow(closure.arrow);
-        if self
-            .callback_parameters
-            .get(&arrow.node_id.get())
-            .is_some_and(|parameters| !parameters.is_empty())
-        {
-            return Err(unsupported(
-                node,
-                "runtime function values with callback parameters are not yet admitted",
-            ));
-        }
-        if arrow.params.items.len() != arity {
-            return Err(unsupported(node, "function value arity mismatch"));
+        if self.arrow_signature(arrow) != arity {
+            return Err(unsupported(node, "function value signature mismatch"));
         }
         if self.lifted_base + self.lifted.len() >= self.functions.len() + 256 {
             return Err(unsupported(
@@ -569,7 +566,13 @@ impl Lowering<'_, '_> {
             };
             let slot = SlotId(child.slots.len());
             child.slots.push(Slot {
-                ty: Type::Number,
+                ty: self
+                    .callback_parameters
+                    .get(&arrow.node_id.get())
+                    .and_then(|parameters| {
+                        parameters.get(&identifier.symbol_id.get().expect("parameter symbol"))
+                    })
+                    .map_or(Type::Number, |arity| Type::Closure(*arity)),
                 owner: RegionId(0),
                 mutable: true,
                 parameter: true,
@@ -646,8 +649,9 @@ impl Lowering<'_, '_> {
             ));
         }
         let function = ir::FunctionId(self.lifted_base + self.lifted.len());
-        self.lifted
-            .push(std::rc::Rc::new(child.finish(body, arity)));
+        self.lifted.push(std::rc::Rc::new(
+            child.finish(body, arrow.params.items.len()),
+        ));
         let result = self.value(Type::Closure(arity));
         Self::push(
             region,

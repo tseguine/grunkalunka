@@ -386,13 +386,37 @@ impl Lowering<'_, '_> {
                     mut arguments,
                     depth,
                 } => {
-                    if index != 0 {
+                    if arguments.len() < index {
                         arguments.push(values.pop().expect("runtime closure argument").number());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
                             unsupported(node, "spread call arguments are not admitted")
                         })?;
+                        let Type::Closure(signature) = self.values[callee.0] else {
+                            unreachable!()
+                        };
+                        let parameter = self
+                            .closure_signatures
+                            .parameter(signature, index)
+                            .expect("checked signature");
+                        let callback = if let Type::Closure(signature) = parameter {
+                            let outer = self.function_result_depth;
+                            self.function_result_depth = (self.inline_depth + self.statement_depth)
+                                .max(outer)
+                                + regions.children.len();
+                            let value = self.callback_argument(
+                                argument,
+                                regions.current(),
+                                signature,
+                                depth,
+                            );
+                            self.function_result_depth = outer;
+                            arguments.push(value?);
+                            true
+                        } else {
+                            false
+                        };
                         work.push(Work::ClosureCall {
                             node,
                             call,
@@ -401,7 +425,9 @@ impl Lowering<'_, '_> {
                             arguments,
                             depth,
                         });
-                        work.push(Work::Eval(argument, depth, Mode::Number));
+                        if !callback {
+                            work.push(Work::Eval(argument, depth, Mode::Number));
+                        }
                     } else {
                         self.charge_closure_expansion(node)?;
                         let result = self.value(Type::Number);
@@ -1056,7 +1082,12 @@ impl Lowering<'_, '_> {
                                 "optional and generic runtime closure calls are not admitted",
                             ));
                         }
-                        if call.arguments.len() != arity {
+                        if call.arguments.len()
+                            != self
+                                .closure_signatures
+                                .parameter_count(arity)
+                                .expect("checked closure signature")
+                        {
                             return Err(unsupported(
                                 node,
                                 "runtime closure call requires exactly the declared number of arguments",

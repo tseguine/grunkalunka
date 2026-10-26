@@ -31,12 +31,12 @@ impl Emitter<'_> {
         for slot in 0..self.function.parameter_count {
             if let Some(pointer) = self.cell_offsets[slot] {
                 self.new_cell(pointer);
-                writeln!(
-                    self.output,
-                    "local.get {pointer}\nlocal.get {}\nf64.store",
-                    self.slot_offsets[slot]
-                )
-                .unwrap();
+                let local = self.slot_offsets[slot];
+                match self.function.slots[slot].ty {
+                    Type::Number => writeln!(self.output, "local.get {pointer}\nlocal.get {local}\nf64.store").unwrap(),
+                    Type::Closure(_) => writeln!(self.output, "local.get {pointer}\nlocal.get {local}\ni32.store\nlocal.get {pointer}\nlocal.get {}\ni32.store offset=4", local + 1).unwrap(),
+                    _ => unreachable!("verified captured parameter"),
+                }
             }
         }
     }

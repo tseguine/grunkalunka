@@ -43,6 +43,8 @@ Tests compare original JavaScript with Node Wasm and Wasmtime for identity,
 selection, forwarding, parameter replacement, capture lifetime, argument effects,
 immediate invocation, async jobs, numeric reuse and 1,000-argument leaf calls.
 These finite cases establish this slice. Block-bodied function results,
-runtime-selected higher-order or function-returning signatures, mixed arities,
-primitive/heap leaf results, async callback bodies and host function transport
-remain separate work.
+function-valued runtime returns, incompatible logical signatures, primitive/heap
+leaf results, async callback bodies and host function transport remain separate
+work. [Numeric-leaf higher-order callback signatures](higher-order-callbacks.md)
+now pass through these concise identity, selection and known-factory paths too;
+selected and assigned function values must share their complete parameter kinds.

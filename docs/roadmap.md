@@ -509,13 +509,18 @@ including chained results, shared captured writes and callee snapshots across
 await. Rebinding can form recursive calls through initialized cells; recursive
 initialization, mixed scalar/function storage and general function arguments/results remain open.
 Known local arrows and factories now accept numeric-leaf callbacks, including
-forwarding, aliases and retained factory captures across async jobs. Runtime
-higher-order signatures and general function-valued results remain open;
+forwarding, aliases and retained factory captures across async jobs. General
+function-valued results remain open;
 see [local callback arguments](local-callback-arguments.md).
 
 Known concise local calls now preserve existing function pairs as results, with
 ordered argument snapshots and immediate invocation. Block results and runtime
-higher-order signatures remain separate units; see [local function results](local-function-results.md).
+function-result signatures remain separate units; see [local function results](local-function-results.md).
+
+Runtime-selected synchronous functions now receive numeric-leaf callbacks and
+Numbers through verified logical signatures and the existing fixed physical ABI.
+Argument snapshots, captured parameter writes, async callers and 1,000-element
+logical lists are covered. See [higher-order callbacks](higher-order-callbacks.md).
 
 The async profile now handles primitive rejected awaits through lexical catch handlers,
 including nested handlers, later awaits and retained catch bindings, with native

@@ -19,6 +19,7 @@ pub(crate) enum Type {
     Number,
     Predicate,
     General,
+    // Module-local signature ID; numeric leaf IDs equal their arity.
     Closure(usize),
 }
 
@@ -27,6 +28,51 @@ impl Type {
         match self {
             Self::General | Self::Closure(_) => 2,
             _ => 1,
+        }
+    }
+}
+
+// Numeric leaf signatures keep their arity as the ID. Other IDs intern a
+// logical parameter list; the private physical ABI remains two pointers.
+#[derive(Debug, Default)]
+pub(crate) struct ClosureSignatures {
+    pub higher: Vec<Vec<Type>>,
+}
+
+impl ClosureSignatures {
+    pub(crate) fn intern(&mut self, parameters: Vec<Type>) -> usize {
+        if let Some(id) = self.id(&parameters) {
+            return id;
+        }
+        let id = 1001 + self.higher.len();
+        self.higher.push(parameters);
+        id
+    }
+
+    pub(crate) fn id(&self, parameters: &[Type]) -> Option<usize> {
+        if parameters.len() <= 1000 && parameters.iter().all(|ty| *ty == Type::Number) {
+            Some(parameters.len())
+        } else {
+            self.higher
+                .iter()
+                .position(|entry| entry == parameters)
+                .map(|id| 1001 + id)
+        }
+    }
+
+    pub(crate) fn parameter_count(&self, id: usize) -> Option<usize> {
+        if id <= 1000 {
+            Some(id)
+        } else {
+            self.higher.get(id - 1001).map(Vec::len)
+        }
+    }
+
+    pub(crate) fn parameter(&self, id: usize, index: usize) -> Option<Type> {
+        if id <= 1000 {
+            (index < id).then_some(Type::Number)
+        } else {
+            self.higher.get(id - 1001)?.get(index).copied()
         }
     }
 }
@@ -85,6 +131,7 @@ pub(crate) struct Function {
 
 #[derive(Debug)]
 pub(crate) struct Module {
+    pub closure_signatures: ClosureSignatures,
     // Entry first; all signatures are available before any body is verified.
     pub functions: Vec<Function>,
 }
@@ -405,6 +452,7 @@ enum Contract {
 }
 
 struct Verifier<'a> {
+    closure_signatures: &'a ClosureSignatures,
     function: &'a Function,
     functions: &'a [&'a Function],
     return_type: Type,
@@ -539,21 +587,45 @@ impl Verifier<'_> {
                             ));
                         }
                     }
-                    self.define(
-                        *result,
-                        Type::Closure(target.parameter_count),
-                        &mut visible,
-                        span,
-                    )?;
+                    let parameters: Vec<_> = target
+                        .slots
+                        .iter()
+                        .take(target.parameter_count)
+                        .map(|slot| slot.ty)
+                        .collect();
+                    let signature = self
+                        .closure_signatures
+                        .id(&parameters)
+                        .ok_or_else(|| invalid(span, "unknown closure signature"))?;
+                    self.define(*result, Type::Closure(signature), &mut visible, span)?;
                 }
                 Op::ClosureCall {
                     result,
                     callee,
                     arguments,
                 } => {
-                    self.value(*callee, Type::Closure(arguments.len()), &visible, span)?;
-                    for argument in arguments {
-                        self.value(*argument, Type::Number, &visible, span)?;
+                    let Some(Type::Closure(signature)) =
+                        self.function.values.get(callee.0).copied()
+                    else {
+                        return Err(invalid(span, "closure call requires a function value"));
+                    };
+                    self.value(*callee, Type::Closure(signature), &visible, span)?;
+                    let parameter_count = self
+                        .closure_signatures
+                        .parameter_count(signature)
+                        .ok_or_else(|| invalid(span, "unknown closure signature"))?;
+                    if parameter_count != arguments.len() {
+                        return Err(invalid(
+                            span,
+                            "closure argument count does not match signature",
+                        ));
+                    }
+                    for (index, argument) in arguments.iter().enumerate() {
+                        let ty = self
+                            .closure_signatures
+                            .parameter(signature, index)
+                            .expect("checked argument count");
+                        self.value(*argument, ty, &visible, span)?;
                     }
                     self.define(*result, Type::Number, &mut visible, span)?;
                 }
@@ -931,6 +1003,17 @@ pub(crate) fn verify_module_with_entry_type(
     module: &Module,
     entry_type: Type,
 ) -> Result<(), String> {
+    for (index, parameters) in module.closure_signatures.higher.iter().enumerate() {
+        if parameters.len() > 1000
+            || !parameters.iter().any(|ty| matches!(ty, Type::Closure(_)))
+            || parameters
+                .iter()
+                .any(|ty| !matches!(ty, Type::Number | Type::Closure(0..=1000)))
+            || module.closure_signatures.higher[..index].contains(parameters)
+        {
+            return Err("internal IR: invalid higher-order closure signature".into());
+        }
+    }
     let entry = module
         .functions
         .first()
@@ -954,6 +1037,7 @@ pub(crate) fn verify_module_with_entry_type(
             &functions,
             if index == 0 { entry_type } else { Type::Number },
             entry_type,
+            &module.closure_signatures,
         )?;
     }
     Ok(())
@@ -961,7 +1045,13 @@ pub(crate) fn verify_module_with_entry_type(
 
 #[cfg(test)]
 fn verify(function: &Function) -> Result<(), String> {
-    verify_function(function, &[function], Type::Number, Type::Number)
+    verify_function(
+        function,
+        &[function],
+        Type::Number,
+        Type::Number,
+        &ClosureSignatures::default(),
+    )
 }
 
 fn verify_function(
@@ -969,6 +1059,7 @@ fn verify_function(
     functions: &[&Function],
     return_type: Type,
     entry_type: Type,
+    closure_signatures: &ClosureSignatures,
 ) -> Result<(), String> {
     if function.parameter_count > 1000 {
         return Err(invalid(
@@ -984,7 +1075,11 @@ fn verify_function(
                 "General source slots cannot be parameters",
             ));
         }
-        if slot.parameter && slot.ty != Type::Number {
+        if slot.parameter
+            && slot.ty != Type::Number
+            && !(closure_environment(function).is_some()
+                && matches!(slot.ty, Type::Closure(0..=1000)))
+        {
             return Err(invalid(slot.span, "parameter slots must be Number"));
         }
         if slot.parameter != (index < function.parameter_count)
@@ -1006,6 +1101,7 @@ fn verify_function(
         ));
     }
     let mut verifier = Verifier {
+        closure_signatures,
         function,
         functions,
         return_type,
@@ -1067,6 +1163,7 @@ mod tests {
             Exit::Return(ValueId(0)),
         );
         Module {
+            closure_signatures: ClosureSignatures::default(),
             functions: vec![caller, callee],
         }
     }
@@ -1145,6 +1242,7 @@ mod tests {
         assert!(verify_module(&module).unwrap_err().contains("entry"));
         assert!(
             verify_module(&Module {
+                closure_signatures: ClosureSignatures::default(),
                 functions: Vec::new()
             })
             .is_err()
@@ -2684,6 +2782,7 @@ mod tests {
                     )
                 };
                 let mut module = Module {
+                    closure_signatures: ClosureSignatures::default(),
                     functions: vec![constant(), constant()],
                 };
                 verify_module(&module).unwrap();
@@ -2816,7 +2915,11 @@ mod tests {
                 span: Span::new(0, 1),
             });
         }
-        let wat = crate::emit::emit(&Module { functions: vec![f] }).unwrap();
+        let wat = crate::emit::emit(&Module {
+            closure_signatures: ClosureSignatures::default(),
+            functions: vec![f],
+        })
+        .unwrap();
         assert_eq!(
             wat.lines()
                 .filter(|line| line.starts_with("(local"))

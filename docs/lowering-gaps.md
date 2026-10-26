@@ -605,14 +605,20 @@ arguments/results, identity/properties and general return kinds remain open; see
 
 Known local arrows/factories now accept numeric-leaf callback arguments, following
 original symbols through aliases and static forwarding. Argument snapshots and
-captured callback cells survive async jobs and factory return. Runtime higher-order
-signatures and general function results remain open. This admits no original
-canonical rejection source; counts remain unchanged. See [local callback arguments](local-callback-arguments.md).
+captured callback cells survive async jobs and factory return. General function
+results remain open. This admits no original canonical rejection source; counts
+remain unchanged. See [local callback arguments](local-callback-arguments.md).
+
+Runtime-selected synchronous functions now accept numeric-leaf callback parameters
+alongside Number parameters. Compatible typed signatures preserve pair snapshots,
+shared cells and ordered arguments across async suspension; packed frames retain
+the 1,000 logical-argument bound. Callbacks taking callbacks, function-valued runtime
+returns and async callback bodies remain open. See [higher-order callbacks](higher-order-callbacks.md).
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls
 and async caller arguments. This changes no canonical rejection source or host
-ABI. Block-bodied results and runtime higher-order/function-result signatures
+ABI. Block-bodied results and runtime function-result signatures
 remain open; see [local function results](local-function-results.md).
 
 Primitive rejected awaits now enter lexical `try/catch` handlers, preserving the

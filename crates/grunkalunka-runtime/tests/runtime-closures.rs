@@ -361,8 +361,6 @@ fn local_callback_constraints_reject_conflicting_kinds_and_runtime_signatures() 
         "const apply=(fn,x)=>fn(x);return apply(x=>true,b);",
         "const apply=fn=>{fn=a;return fn();};return apply(()=>a);",
         "const apply=fn=>fn;return apply(()=>a);",
-        "const apply=(fn,x)=>fn(x);const f=a?apply:apply;return f(x=>x,b);",
-        "let apply=(fn,x)=>fn(x);return apply(x=>x,b);",
         "const apply=(fn,x)=>fn?.(x);return a;",
         "const apply=(fn,x)=>fn(...x);return a;",
         "const apply=(fn,x)=>fn(x.bad);return a;",
@@ -1034,6 +1032,130 @@ fn nested_lifting_cannot_push_the_module_past_its_body_limit() {
             assert!(result.err().unwrap().contains("256 lifted closure bodies"));
         } else if !seed {
             assert!(result.unwrap().wat.contains("(table 257 funcref)"));
+        }
+    }
+}
+
+#[test]
+fn selected_higher_order_functions_receive_callback_pairs() {
+    compare_functions(&[
+        "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=a?apply:twice;return h(x=>x+b,a);",
+        "const apply=(fn,x)=>fn(x);const f=a?apply:apply;return f(x=>x,b);",
+        "let apply=(fn,x)=>fn(x);return apply(x=>x,b);",
+        "let h=(fn,x)=>fn(x);const old=h;h=(fn,x)=>fn(x)+1;return old(x=>x+a,b)*10+h(x=>x-b,a);",
+        "let h=(fn,x)=>fn(x);let cb=x=>x+a;return h(cb,(h=(fn,x)=>fn(x)*10,cb=x=>x-b,a))+h(cb,b);",
+        "const h=a?(fn,x)=>{const invoke=()=>fn(x);fn=y=>y+b;return invoke();}:(fn,x)=>fn(x);return h(x=>x+a,b);",
+        "const h=a?(fn,x)=>{const make=()=>()=>fn(x);const read=make();fn=y=>y+b;return read();}:(fn,x)=>fn(x);return h(x=>x+a,b);",
+        "const h=a?(fn,x)=>{const invoke=a?()=>fn(x):()=>fn(x)+1;fn=y=>y+b;return invoke();}:(fn,x)=>fn(x);return h(x=>x+a,b);",
+        "const h=a?(f,g,x)=>f()+g(x):(f,g,x)=>g(f()+x);return h(()=>a,x=>x+b,b);",
+        "const h=a?fn=>fn():fn=>fn()+b;return h(()=>a);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+b;const relay=(g,x)=>h(g,x);return relay(x=>x+a,b);",
+        "const h=a?(fn,x)=>{let y=0;for(let i=0;i<3;i++)y+=fn(x+i);return y;}:(fn,x)=>fn(x);return h(x=>x+a,b);",
+        "const make=x=>()=>++x;const h=a?fn=>fn()*10+fn():fn=>fn();return h(make(b));",
+        "let h=(fn,x)=>fn(x);h=(fn,x)=>{if(x<=0)return fn(x);return h(fn,x-1)+fn(x);};return h(x=>x+b,3);",
+        "const id=fn=>fn;const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=id(a?apply:twice);return h(x=>x+b,a);",
+        "const id=fn=>fn;const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));return id(a?apply:twice)(x=>x+b,a);",
+        "const select=(f,g,c)=>c?f:g;const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=select(apply,twice,a);return h(x=>x+b,a);",
+        "const make=()=> (fn,x)=>fn(x)+b;let h=make();return h(x=>x+a,b);",
+        "const outer=(fn,x)=>fn(x);const make=()=>outer;const h=a?make():make();return h(x=>x+b,a);",
+    ]);
+}
+
+#[test]
+fn higher_order_signatures_reject_mixed_parameter_kinds_and_non_leaf_callbacks() {
+    for body in [
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn+x;return h(y=>y,b);",
+        "let h=(fn,x)=>fn(x);h=(fn,x)=>fn+x;return h(y=>y,b);",
+        "const h=a?fn=>fn():fn=>fn(a);return h(()=>b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(a,b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(()=>a,b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(async y=>y,b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>true,b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h((g,y)=>g(y),b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>()=>y,b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h?.(y=>y,b);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>y,...b);",
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+            let source = source.replace("export function", "export async function");
+            assert!(compile_async(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
+fn higher_order_frames_keep_one_thousand_logical_arguments_and_erased_types() {
+    let parameters = (0..999)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 999].join(",");
+    compare_functions(&[&format!(
+        "let h=(fn,{parameters})=>fn(p0)+fn(p998);return h(x=>x+b,{arguments});"
+    )]);
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    compare_functions(&[&format!(
+        "let h=fn=>fn({arguments});return h(({parameters})=>p0+p999+b);"
+    )]);
+    let plain =
+        "export function run(a,b){const h=a?(fn,x)=>fn(x):(fn,x)=>fn(fn(x));return h(y=>y+b,a);}";
+    let typed = "export function run(a:never,b:Missing):Wrong {const h=(a?((fn:Wrong,x:string)=>fn(x)):((fn:Missing,x:boolean)=>fn(fn(x)))) as unknown as Wrong;return (h as any)(((y:Missing)=>y+b) satisfies Wrong,a as never);}";
+    assert_eq!(
+        compile(plain, false).unwrap().wasm,
+        compile(typed, true).unwrap().wasm
+    );
+    let plain = plain.replace("export function", "export async function");
+    let typed = typed.replace("export function", "export async function");
+    assert_eq!(
+        compile_async(&plain, false).unwrap().wasm,
+        compile_async(&typed, true).unwrap().wasm
+    );
+}
+
+#[test]
+fn runtime_callback_arguments_keep_the_parent_generated_region_budget() {
+    for (regions, admitted) in [(40, true), (70, false)] {
+        let source = format!(
+            "export function run(a,b){{let cb=x=>x+b;const get=()=>{}cb;let h=(fn,x)=>fn(x);return {}h(get(),b);}}",
+            "a?cb:".repeat(regions),
+            "a?0:".repeat(regions)
+        );
+        // A generous probe stack lets an erroneous admission report a normal
+        // failed assertion rather than exhausting the test runner's native stack.
+        let source_for_thread = source.clone();
+        let result = std::thread::Builder::new()
+            .stack_size(16 * 1024 * 1024)
+            .spawn(move || compile(&source_for_thread, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        if admitted {
+            let artifact = result.unwrap_or_else(|error| panic!("{source}: {error}"));
+            let mut host = NumericInstance::new(&artifact.wasm).unwrap();
+            assert_eq!(host.run(0.0, 2.0).unwrap(), 4.0);
+        } else {
+            let error = result
+                .err()
+                .expect("parent and callback bodies must share the generated region budget");
+            assert!(error.contains("128"), "{error}");
+            let error = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || {
+                    compile(&source, false)
+                        .err()
+                        .expect("small stack rejects deep callback")
+                })
+                .unwrap()
+                .join()
+                .unwrap();
+            assert!(error.contains("128"), "{error}");
         }
     }
 }

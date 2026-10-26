@@ -530,8 +530,14 @@ Rebinding can form self/mutual recursive calls through existing initialized cell
 recursive initialization and general function arguments/results remain open.
 L5 now includes numeric-leaf callback arguments to known local arrows/factories,
 with source-symbol arity demands, forwarding, typed parameter cells, argument
-snapshots and retained factory captures. Runtime higher-order function signatures
-and general function results remain open; see [local callback arguments](local-callback-arguments.md).
+snapshots and retained factory captures. General function results remain open;
+see [local callback arguments](local-callback-arguments.md).
+
+L5 now includes runtime-selected synchronous functions receiving numeric-leaf
+callbacks and Numbers. Typed logical signatures, captured callback parameter cells,
+ordered snapshots, async callers and wide logical argument frames are demonstrated;
+see [higher-order callbacks](higher-order-callbacks.md). General recursive callback
+signatures, function-valued runtime returns and async callback bodies remain open.
 
 L5 also includes existing function pairs returned by concise known local calls,
 with identity, conditional selection, assignment and immediate invocation across

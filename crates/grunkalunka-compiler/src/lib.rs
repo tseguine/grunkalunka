@@ -227,6 +227,7 @@ fn lower_source_profile(
         });
     }
     let callback_parameters = lower::infer_callback_parameters(&built.semantic)?;
+    let closure_signatures = lower::closure_signatures(&built.semantic, &callback_parameters);
     let general_bindings =
         lower::general_mutable_bindings(&built.semantic, &signatures, &callback_parameters);
     let mut functions = Vec::new();
@@ -282,6 +283,7 @@ fn lower_source_profile(
             functions: &signatures,
             general_bindings: &general_bindings,
             callback_parameters: &callback_parameters,
+            closure_signatures: &closure_signatures,
             bindings,
             local_count,
             statement_count,
@@ -342,7 +344,10 @@ fn lower_source_profile(
         std::rc::Rc::try_unwrap(function)
             .expect("completed lifted body has no remaining lowering owner")
     }));
-    Ok(ir::Module { functions })
+    Ok(ir::Module {
+        functions,
+        closure_signatures,
+    })
 }
 
 pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {

@@ -944,3 +944,26 @@ fn noncanonical_primitive_tags_fail_at_both_async_boundaries() {
     }
     run_node(&script);
 }
+
+#[test]
+fn selected_higher_order_calls_preserve_pairs_across_await() {
+    compare_promises(
+        &[
+            "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));const h=a?apply:twice;await null;return h(x=>x+b,a);",
+            "let h=(fn,x)=>fn(x);let cb=x=>x+a;return h(cb,await(h=(fn,x)=>fn(x)*10,cb=x=>x-b,a))+h(cb,b);",
+            "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(fn(x));return h((await null,x=>x+b),await a);",
+            "const h=a?(fn,x)=>{const invoke=a?()=>fn(x):()=>fn(x)+1;fn=y=>y+b;return invoke();}:(fn,x)=>fn(x);await true;return h(x=>x+a,b);",
+            "const make=x=>()=>++x;const h=a?fn=>fn()*10+fn():fn=>fn();return h((await null,make(b)));",
+            "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(fn(x));return await Promise.reject(h(x=>x+b,a));",
+            "let h=(fn,x)=>fn(x);try{await Promise.reject(a);}catch(reason){const cb=x=>x+ +reason;await null;return h(cb,b);}return 0;",
+            "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(fn(x));try{return h(x=>x+b,await Promise.reject(a));}catch(reason){return h(x=>x+ +reason,b);}",
+            "let h=(fn,x)=>fn(x);const saved=h;try{await Promise.reject(b);}catch(reason){h=(fn,x)=>fn(x)+ +reason;await null;return saved(x=>x+a,b)+h(x=>x+b,a);}return 0;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

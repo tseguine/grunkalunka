@@ -40,23 +40,26 @@ bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 ## Source cells and computed values
 
-A `SlotId` names a fixed-type cell (`Number`, `Predicate`, `General` or `Closure(arity)`). Each slot records
+A `SlotId` names a fixed-type cell (`Number`, `Predicate`, `General` or `Closure(signature)`). Each slot records
 its type, owning lexical region, mutability, parameter status and source span.
 Source lowering constructs scalar `Number` slots, immutable `Predicate` const slots,
 and immutable/mutable `General` local slots.
-Initialized runtime function bindings additionally use `Closure(arity)` slots and
+Initialized runtime function bindings additionally use `Closure(signature)` slots and
 values. `ClosureEntry` imports captured cells, `MakeClosure` constructs a typed
 code/environment pair and `ClosureCall` invokes it through the private table ABI.
-The verifier checks initialized capture type/mutability, arity and calling
-convention. See [runtime closures](runtime-closures.md). Logical lifted parameters
-remain Number slots; emission copies them from a packed argument frame.
+The verifier checks initialized capture type/mutability, ordered parameter kinds
+and calling convention. Numeric-leaf signature IDs equal arity; higher-order IDs
+intern ordered Number and numeric-leaf callback types in the module. Logical lifted
+parameters use those fixed types; emission copies Number or paired callback fields
+from eight-byte argument frame entries. See [runtime closures](runtime-closures.md)
+and [higher-order callbacks](higher-order-callbacks.md).
 Mutable function slots use the existing typed `Store` operation, which checks
-mutability and exact arity. Assignment expressions preserve the RHS `ValueId`
+mutability and exact logical signature. Assignment expressions preserve the RHS `ValueId`
 snapshot; capture imports preserve the source slot's mutability.
 Known local helper specialization can initialize generated parameter cells from
-function pairs as well as Numbers. These cells are not logical Wasm parameters;
-`ClosureCall` and ordinary source-function parameters retain their Number ABI.
-Every entry/helper parameter slot remains `Number`.
+function pairs as well as Numbers. These specialized cells are not physical Wasm
+parameters. `ClosureCall` uses typed logical parameters through a fixed two-pointer
+physical ABI; ordinary source entry/helper parameters retain Number slots and ABI.
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.
 A loop body may enter its region repeatedly and initialize those cells on each

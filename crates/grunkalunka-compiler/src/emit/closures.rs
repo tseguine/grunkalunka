@@ -1,5 +1,5 @@
 //! Private function values carry a table index and an environment address.
-//! Populated closure slots use (environment, numeric argument frame) -> Number.
+//! Populated closure slots use (environment, typed argument frame) -> Number.
 use super::*;
 
 pub(super) const FRAME_ALLOCATOR: &str = r#"(func $closure_frame (param $bytes i32) (result i32) (local $old i32) (local $end i32)
@@ -46,13 +46,13 @@ impl Emitter<'_> {
     pub(super) fn init_environment(&mut self) {
         if let Some(captures) = ir::closure_environment(self.function) {
             for parameter in 0..self.function.parameter_count {
-                writeln!(
-                    self.output,
-                    "local.get 1\nf64.load offset={}\nlocal.set {}",
-                    parameter * 8,
-                    self.slot_offsets[parameter]
-                )
-                .unwrap();
+                let offset = parameter * 8;
+                let local = self.slot_offsets[parameter];
+                match self.function.slots[parameter].ty {
+                    Type::Number => writeln!(self.output, "local.get 1\nf64.load offset={offset}\nlocal.set {local}").unwrap(),
+                    Type::Closure(_) => writeln!(self.output, "local.get 1\ni32.load offset={offset}\nlocal.set {local}\nlocal.get 1\ni32.load offset={}\nlocal.set {}", offset + 4, local + 1).unwrap(),
+                    _ => unreachable!("verified closure parameter"),
+                }
             }
             for (index, slot) in captures.iter().enumerate() {
                 writeln!(
@@ -100,13 +100,13 @@ impl Emitter<'_> {
     pub(super) fn call_closure(&mut self, result: ValueId, callee: ValueId, arguments: &[ValueId]) {
         let temp = self.frame(arguments.len() * 8);
         for (index, value) in arguments.iter().enumerate() {
-            writeln!(
-                self.output,
-                "local.get {temp}\nlocal.get {}\nf64.store offset={}",
-                self.value_offsets[value.0],
-                index * 8
-            )
-            .unwrap();
+            let local = self.value_offsets[value.0];
+            let offset = index * 8;
+            match self.function.values[value.0] {
+                Type::Number => writeln!(self.output, "local.get {temp}\nlocal.get {local}\nf64.store offset={offset}").unwrap(),
+                Type::Closure(_) => writeln!(self.output, "local.get {temp}\nlocal.get {local}\ni32.store offset={offset}\nlocal.get {temp}\nlocal.get {}\ni32.store offset={}", local + 1, offset + 4).unwrap(),
+                _ => unreachable!("verified closure argument"),
+            }
         }
         let callee = self.value_offsets[callee.0];
         writeln!(

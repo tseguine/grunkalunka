@@ -315,3 +315,39 @@ pub(crate) fn infer_callback_parameters(semantic: &Semantic<'_>) -> Result<Param
     }
     Ok(result)
 }
+
+// Callback demands describe leaf signatures. A higher-order arrow's own shape
+// follows parameter order, while source syntax and TypeScript names prove no kind.
+pub(super) fn parameter_types(
+    arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    parameters: &Parameters,
+) -> Vec<Type> {
+    arrow
+        .params
+        .items
+        .iter()
+        .map(|parameter| {
+            let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                return Type::Number;
+            };
+            identifier
+                .symbol_id
+                .get()
+                .and_then(|symbol| parameters.get(&arrow.node_id.get())?.get(&symbol))
+                .map_or(Type::Number, |arity| Type::Closure(*arity))
+        })
+        .collect()
+}
+
+pub(crate) fn closure_signatures(
+    semantic: &Semantic<'_>,
+    parameters: &Parameters,
+) -> ir::ClosureSignatures {
+    let mut signatures = ir::ClosureSignatures::default();
+    for node in semantic.nodes().iter() {
+        if let AstKind::ArrowFunctionExpression(arrow) = node.kind() {
+            signatures.intern(parameter_types(arrow, parameters));
+        }
+    }
+    signatures
+}

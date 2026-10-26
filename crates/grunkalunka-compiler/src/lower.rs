@@ -22,7 +22,7 @@ mod closures;
 mod evaluate;
 mod function_values;
 mod storage;
-pub(super) use callbacks::infer_callback_parameters;
+pub(super) use callbacks::{closure_signatures, infer_callback_parameters};
 pub(super) use storage::general_mutable_bindings;
 
 #[derive(Clone)]
@@ -239,6 +239,7 @@ pub(super) struct Lowering<'s, 'a> {
     // Generated parent regions retained across scalar/function cursor crossings.
     // AST wrapper depth has its own budget and must not be charged here again.
     pub function_result_depth: usize,
+    pub closure_signatures: &'s ir::ClosureSignatures,
 }
 
 impl Lowering<'_, '_> {
@@ -265,11 +266,14 @@ impl Lowering<'_, '_> {
         }
     }
 
-    // Physical parameters retain Number signature slots. Only source bindings whose
+    // Numeric physical parameters retain Number slots; callback parameters keep pairs.
+    // Only source bindings whose
     // later writes require General storage receive a separately initialized cell.
     pub(super) fn initialize_general_parameters(&mut self, region: &mut Region) {
         for index in 0..self.bindings.len() {
-            if !self.general_bindings.contains(&self.bindings[index].symbol) {
+            if self.slots[self.bindings[index].slot.0].ty != Type::Number
+                || !self.general_bindings.contains(&self.bindings[index].symbol)
+            {
                 continue;
             }
             let input_slot = self.bindings[index].slot;

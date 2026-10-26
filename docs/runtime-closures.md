@@ -1,12 +1,13 @@
 # Runtime local function values
 
 The Number, primitive-return and primitive async profiles support initialized local
-function values selected at runtime. Constructors include same-arity conditional
+function values selected at runtime. Constructors include same-signature conditional
 branches, arrows, known factory results and existing local closure aliases.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
-the resulting identifier or alias use exact-arity numeric arguments and return a
-Number. Leaf arrows may have concise or numeric block bodies.
+the resulting identifier or alias use an exact logical signature with Number and
+numeric-leaf callback arguments, and return Number. Leaf arrows may have concise
+or numeric block bodies.
 
 ```js
 export function run(a, b) {
@@ -23,11 +24,11 @@ variables remain shared cells, including captures of another runtime function
 value. Numeric call results can initialize or update existing scalar bindings;
 later primitive writes still select General storage where required.
 
-`let` function bindings retain their initializer's arity and support plain `=`
-assignment from the same constructors. Conditional/chained assignments return the
-RHS function snapshot, so another local can retain it. Discarded function values
+`let` function bindings retain their initializer's logical signature and support
+plain `=` assignment from the same constructors. Conditional/chained assignments
+return the RHS function snapshot, so another local can retain it. Discarded function values
 and assignments may occur in comma prefixes. Calls snapshot both callee fields
-before evaluating Number arguments, including when an argument reassigns the
+before evaluating ordered arguments, including when an argument reassigns the
 binding or suspends. For example, with `a=4, b=2` this returns 695:
 
 ```js
@@ -43,28 +44,31 @@ Capturing a mutable function binding shares its cell; copying its value into an
 alias snapshots the pair. Rebinding an already initialized function can form
 self/mutual recursive calls through those cells, bounded by runtime fuel and the
 arena. An initializer cannot capture its own unpublished binding. Mixed scalar/
-function storage, arity changes, function compound/logical assignments and numeric
+function storage, signature changes, function compound/logical assignments and numeric
 updates remain rejected. Assignment results cannot enter primitive/coercion positions.
 
-A `Closure(arity)` IR value is an `i32` code index plus an `i32` environment
+A `Closure(signature)` IR value is an `i32` code index plus an `i32` environment
 address. It is separate from the four-primitive General domain and is never
 packed into a Number or primitive host tag. A function-valued cell stores the
 two fields at offsets 0 and 4 of its existing 16-byte cell. Conditional joins,
-initialization and loads preserve both fields as one typed value.
+initialization and loads preserve both fields as one typed value. Numeric-leaf
+signature IDs equal their arity; higher-order IDs refer to module-local ordered
+parameter lists. Callback signatures specify a fixed arity of Number inputs.
 
-The compiler lifts a leaf body into an internal function. Its first IR operation,
-`ClosureEntry`, imports initialized captured-cell addresses into root-owned slots.
+The compiler lifts a synchronous body into an internal function. Its first IR
+operation, `ClosureEntry`, imports initialized captured-cell addresses into
+root-owned slots.
 `MakeClosure` checks target kind, capture count, initialization, type and mutability.
-`ClosureCall` checks function arity and Number arguments. Ordinary `Call` cannot
-invoke a lifted body; the exported entry cannot use the closure ABI. Function
-values cannot be packed as primitives or awaited in the current protocol.
+`ClosureCall` checks the complete logical signature and each argument's type.
+Ordinary `Call` cannot invoke a lifted body; the exported entry cannot use the
+closure ABI. Function values cannot be packed as primitives or awaited in the current protocol.
 
 The private Wasm table uses one physical signature:
 `(environment: i32, arguments: i32) -> f64`. A packed argument frame contains the
-ordered binary64 snapshots; the body copies its logical Number parameters before
-execution. This supports zero through 1,000 numeric parameters without expanding
-the physical Wasm signature. An environment contains ordered captured-cell
-addresses. Imported pointers remain valid after creator return. Static callbacks
+ordered eight-byte snapshots: binary64 Numbers or two i32 callback fields. The
+body copies its typed logical parameters before execution. This supports zero
+through 1,000 parameters without expanding the physical Wasm signature. An
+environment contains ordered captured-cell addresses. Imported pointers remain valid after creator return. Static callbacks
 inside lifted bodies have their captures remapped to those imports. Source
 helpers retain their original function indices; lifted bodies append afterward.
 In the async profile the dispatcher and protocol entries have different physical
@@ -105,7 +109,8 @@ Number result; `await f` remains rejected because functions are not primitives.
 Existing static closure specialization across await remains available.
 [Known local helpers and factories accept callback arguments](local-callback-arguments.md)
 with numeric leaf signatures, including captured callback cells after creator return.
-Runtime-selected higher-order function signatures, general function-valued results, nonnumeric leaf
+[Runtime-selected functions also accept numeric-leaf callbacks](higher-order-callbacks.md).
+Callbacks taking callbacks, general function-valued runtime results, nonnumeric leaf
 return kinds, function truthiness/coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.

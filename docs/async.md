@@ -113,7 +113,7 @@ including awaited conditions and factory arguments. Calls may use awaited Number
 arguments or have their Number result awaited. Awaiting a function value itself
 remains outside the primitive protocol.
 Initialized `let` function bindings can also be reassigned with plain `=` at the
-same arity. A callee snapshot survives suspension while an argument changes the
+same logical signature. A callee snapshot survives suspension while an argument changes the
 binding. Captured function cells share those writes; aliases retain their pairs.
 [Known local callback arguments](local-callback-arguments.md) can precede or follow
 awaited arguments, and factories can retain those callbacks across later jobs.
@@ -128,9 +128,10 @@ try. Rejected awaits within a handler belong to its enclosing protected scope.
 
 Source helper calls, async arrows, arbitrary Promise/thenable values, Strings,
 Symbols, BigInts, objects, Promise callbacks, source throw, finally, catch
-destructuring and Promise interoperability remain open. Runtime indirect callbacks
-retain their Number argument/result contract and existing operator admission
-limits still apply. Rejected primitive reasons
+destructuring and Promise interoperability remain open. Runtime-selected functions
+accept Number and numeric-leaf callback parameters and return Number; see
+[higher-order callbacks](higher-order-callbacks.md). Callback bodies still take
+Numbers and return Number. Existing operator admission limits still apply. Rejected primitive reasons
 propagate through the nearest lexical handler or remain uncaught; host
 resource/protocol errors are not mapped to JS exceptions.
 The per-invocation globals are provisional activation storage, not a final shared

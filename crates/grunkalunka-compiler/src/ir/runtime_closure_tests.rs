@@ -174,3 +174,49 @@ fn function_values_cannot_be_called_with_wrong_types_or_packed_as_primitives() {
         assert!(verify_module(&module).is_err(), "mutation {change}");
     }
 }
+
+#[test]
+fn higher_order_signatures_and_callback_arguments_are_verified_logically() {
+    let source =
+        "export function run(a,b){const h=a?(fn,x)=>fn(x):(fn,x)=>fn(fn(x));return h(y=>y+b,a);}";
+    for change in 0..10 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        match change {
+            0 => module.closure_signatures.higher.clear(),
+            1 => module.closure_signatures.higher[0][0] = Type::Number,
+            2 => {
+                let duplicate = module.closure_signatures.higher[0].clone();
+                module.closure_signatures.higher.push(duplicate);
+            }
+            3 => module.closure_signatures.higher[0][0] = Type::Closure(1001),
+            4 => module.closure_signatures.higher[0].resize(1001, Type::Number),
+            5 => module.functions[1].slots[0].ty = Type::Number,
+            6 => module.functions[1].slots[0].ty = Type::Closure(2),
+            _ => {
+                let entry = &mut module.functions[0];
+                let operation = entry
+                    .body
+                    .operations
+                    .iter_mut()
+                    .find(|op| matches!(op.kind, Op::ClosureCall { .. }))
+                    .unwrap();
+                let Op::ClosureCall {
+                    callee, arguments, ..
+                } = &mut operation.kind
+                else {
+                    unreachable!()
+                };
+                match change {
+                    7 => arguments[0] = arguments[1],
+                    8 => *callee = arguments[0],
+                    _ => arguments.swap(0, 1),
+                }
+            }
+        }
+        assert!(
+            verify_module(&module).is_err(),
+            "signature/argument mutation {change}"
+        );
+    }
+}

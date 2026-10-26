@@ -41,9 +41,9 @@ specialized with those initialized typed slots and passes the module verifier.
 Call-result storage planning uses callback demands as hints; it cannot establish
 that a scalar value is callable.
 
-Specialized helper parameters use existing `Closure(arity)` slots, initialization,
+Specialized helper parameters use existing `Closure(signature)` slots, initialization,
 stores and captured cells. Actual callback calls use the existing private table
-and environment/Number-argument frames. No new IR operation, host signature,
+and environment/typed-argument frames. No new IR operation, host signature,
 dependency or primitive tag is introduced. Logical lists still admit at most
 1,000 parameters and arguments; Number source functions keep their prior ABI.
 
@@ -60,13 +60,14 @@ forwarding, aliases, shared writes, factories, lexical shadows, 1,000-argument l
 async jobs and erased annotations. Boundary tests cover conflicting/invalid inputs,
 unused invalid bodies, runtime signature exclusions, nesting and source budgets.
 
-Runtime-selected higher-order function signatures remain open: `Closure(arity)`
-currently describes Number arguments and results. A known helper may receive a
-callback, but materializing that helper as an indirect function value with called
-callback parameters is rejected. General function-valued returns, primitive/heap
-callback arguments or results, async callback bodies and Promise callbacks remain
-separate gaps. This does not complete general first-class functions.
+[Runtime-selected higher-order functions now accept numeric-leaf callbacks](higher-order-callbacks.md),
+with module-interned ordered parameter kinds rather than only an arity. Compatible
+selected targets and initialized mutable functions preserve callback snapshots,
+shared capture cells and the fixed two-pointer physical ABI. Callbacks taking
+callbacks, general function-valued runtime returns, primitive/heap callback
+arguments or results, async callback bodies and Promise callbacks remain separate
+gaps. This does not complete general first-class functions.
 
 Concise known calls now also forward existing function pairs, including immediate
 invocation and parameter replacement; see [local function results](local-function-results.md).
-Block bodies and runtime higher-order signatures remain separate work.
+Block bodies and general runtime function results remain separate work.
