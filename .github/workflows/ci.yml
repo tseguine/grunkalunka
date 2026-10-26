@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux
+            runner: ubuntu-24.04
+          - platform: Windows
+            runner: windows-2025
+          - platform: macOS
+            runner: macos-15-intel
+    steps:
+      - name: Check out the tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Install the repository Rust toolchain and Wasm target
+        run: |
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+          rustc --version --verbose
+          cargo --version
+          node --version
+
+      - name: Check formatting before expensive builds
+        run: |
+          cargo fmt --all --check
+          cargo fmt --manifest-path spikes/001-frontend-semantics/Cargo.toml --check
+
+      - name: Restore Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ${{ matrix.runner }}
+          workspaces: |
+            . -> target
+            spikes/001-frontend-semantics -> target
+          cache-bin: 'false'
+          # PRs reuse base-branch caches without creating a cache per PR.
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+
+      - name: Fetch locked dependencies for both workspaces
+        run: |
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
+
+      # Early kernel tests have short build watchdogs. Do the cold build first;
+      # keep their existing timeouts and all semantic assertions unchanged.
+      - name: Build the workspace offline
+        run: cargo build --workspace --locked --offline -j 4
+
+      - name: Run the canonical checks
+        run: node scripts/check.mjs
