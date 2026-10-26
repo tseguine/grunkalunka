@@ -86,7 +86,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if arrow.params.rest.is_some() || arrow.params.items.len() > 1000 {
             return Err(unsupported(
                 arrow,
-                "local arrows require at most 1000 ordinary numeric parameters",
+                "local arrows require at most 1000 ordinary parameters",
             ));
         }
         for parameter in &arrow.params.items {
@@ -121,7 +121,21 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 .symbol_id
                 .get()
                 .ok_or("missing arrow parameter binding")?;
-            let ty = if self.general_bindings.contains(&symbol) {
+            let input_type = self.values[value.0];
+            if let Some(expected) = self
+                .callback_parameters
+                .get(&arrow.node_id.get())
+                .and_then(|parameters| parameters.get(&symbol))
+                && input_type != Type::Closure(*expected)
+            {
+                return Err(unsupported(
+                    parameter,
+                    "callback argument requires a function with the inferred arity",
+                ));
+            }
+            let ty = if matches!(input_type, Type::Closure(_)) {
+                input_type
+            } else if self.general_bindings.contains(&symbol) {
                 Type::General
             } else {
                 Type::Number
@@ -180,6 +194,22 @@ impl<'s, 'a> Lowering<'s, 'a> {
         let mut region = check.region(arrow);
         let mut arguments = Vec::new();
         for parameter in &arrow.params.items {
+            let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                unreachable!("checked parameter");
+            };
+            if let Some(arity) =
+                self.callback_parameters
+                    .get(&arrow.node_id.get())
+                    .and_then(|parameters| {
+                        parameters.get(&identifier.symbol_id.get().expect("parameter symbol"))
+                    })
+            {
+                // A type-only input to disposable definition checking. This SSA
+                // value has no runtime target and never reaches published IR;
+                // actual calls construct/load and verify complete closure pairs.
+                arguments.push(check.value(Type::Closure(*arity)));
+                continue;
+            }
             let value = check.value(Type::Number);
             Self::push(
                 &mut region,
@@ -289,7 +319,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
             let argument = argument.as_expression().ok_or_else(|| {
                 unsupported(call.as_ref(), "spread call arguments are not admitted")
             })?;
-            arguments.push(self.expression(argument, region, call_depth + 1)?);
+            let value = if let Some(arity) = self.function_arity(argument, call_depth + 1) {
+                self.callback_argument(argument, region, arity, call_depth + 1)?
+            } else {
+                self.expression(argument, region, call_depth + 1)?
+            };
+            arguments.push(value);
         }
         let arrow = self.arrow(factory.arrow);
         let previous = std::mem::replace(&mut self.bindings, factory.captures);

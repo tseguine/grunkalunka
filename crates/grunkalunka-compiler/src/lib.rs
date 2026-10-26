@@ -226,7 +226,9 @@ fn lower_source_profile(
             },
         });
     }
-    let general_bindings = lower::general_mutable_bindings(&built.semantic, &signatures);
+    let callback_parameters = lower::infer_callback_parameters(&built.semantic)?;
+    let general_bindings =
+        lower::general_mutable_bindings(&built.semantic, &signatures, &callback_parameters);
     let mut functions = Vec::new();
     let mut lifted = Vec::new();
     let mut local_count = 0;
@@ -279,6 +281,7 @@ fn lower_source_profile(
             semantic: &built.semantic,
             functions: &signatures,
             general_bindings: &general_bindings,
+            callback_parameters: &callback_parameters,
             bindings,
             local_count,
             statement_count,

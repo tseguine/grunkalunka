@@ -600,3 +600,9 @@ Three original focused mutable-binding guards now execute their unchanged bodies
 Canonical rejection counts remain unchanged. Async closure bodies, function
 arguments/results, identity/properties and general return kinds remain open; see
 [runtime closures](runtime-closures.md).
+
+Known local arrows/factories now accept numeric-leaf callback arguments, following
+original symbols through aliases and static forwarding. Argument snapshots and
+captured callback cells survive async jobs and factory return. Runtime higher-order
+signatures and general function results remain open. This admits no original
+canonical rejection source; counts remain unchanged. See [local callback arguments](local-callback-arguments.md).

@@ -53,6 +53,9 @@ remain Number slots; emission copies them from a packed argument frame.
 Mutable function slots use the existing typed `Store` operation, which checks
 mutability and exact arity. Assignment expressions preserve the RHS `ValueId`
 snapshot; capture imports preserve the source slot's mutability.
+Known local helper specialization can initialize generated parameter cells from
+function pairs as well as Numbers. These cells are not logical Wasm parameters;
+`ClosureCall` and ordinary source-function parameters retain their Number ABI.
 Every entry/helper parameter slot remains `Number`.
 Parameters begin initialized; local declarations initialize their own region's
 slots once per lexical entry.

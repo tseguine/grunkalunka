@@ -325,13 +325,24 @@ impl Lowering<'_, '_> {
                     mut arguments,
                     depth,
                 } => {
-                    if index != 0 {
+                    // Function arguments are completed directly into this vector;
+                    // only a pending Number argument needs the scalar value stack.
+                    if arguments.len() < index {
                         arguments.push(values.pop().expect("local call argument").number());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
                             unsupported(node, "spread call arguments are not admitted")
                         })?;
+                        let function = self.function_arity(argument, depth);
+                        if let Some(arity) = function {
+                            arguments.push(self.callback_argument(
+                                argument,
+                                regions.current(),
+                                arity,
+                                depth,
+                            )?);
+                        }
                         work.push(Work::LocalCall {
                             node,
                             call,
@@ -340,7 +351,9 @@ impl Lowering<'_, '_> {
                             arguments,
                             depth,
                         });
-                        work.push(Work::Eval(argument, depth, Mode::Number));
+                        if function.is_none() {
+                            work.push(Work::Eval(argument, depth, Mode::Number));
+                        }
                     } else {
                         self.charge_closure_expansion(node)?;
                         self.active_local_calls += 1;

@@ -508,3 +508,7 @@ Initialized mutable function slots now support same-arity plain assignment,
 including chained results, shared captured writes and callee snapshots across
 await. Rebinding can form recursive calls through initialized cells; recursive
 initialization, mixed scalar/function storage and general function arguments/results remain open.
+Known local arrows and factories now accept numeric-leaf callbacks, including
+forwarding, aliases and retained factory captures across async jobs. Runtime
+higher-order signatures and general function-valued results remain open;
+see [local callback arguments](local-callback-arguments.md).

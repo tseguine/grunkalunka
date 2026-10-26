@@ -101,6 +101,38 @@ fn mutable_function_writes_preserve_snapshots_across_jobs() {
 }
 
 #[test]
+fn local_callback_arguments_keep_order_and_captures_across_await() {
+    compare_promises(
+        &[
+            "const apply=(fn,x)=>fn(x);return apply(x=>x+a,await b);",
+            "const apply=(fn,x)=>fn(x);let f=x=>x+a;return apply(f,await(f=x=>x-b,a))+f(a);",
+            "const apply=(fn,x)=>fn(x);return apply((await null,x=>x+a),b);",
+            "const apply=(fn,x)=>fn(x);return apply(a?x=>x+a:x=>x-b,await b);",
+            "const apply=(fn,x)=>fn(x);const relay=(f,y)=>apply(f,y);await null;return relay(x=>x+a,b);",
+            "const apply=(fn,x)=>{const alias=fn;return alias(x);};return await apply(x=>x+a,b);",
+            "const make=fn=>x=>fn(x);const f=make(x=>x+a);await null;a=b;return f(b);",
+            "const make=fn=>()=>fn();const f=a?make(()=>a):make(()=>b);await false;return f();",
+            "const make=fn=>()=>fn();const f=make((await null,()=>a));await true;return f();",
+            "const apply=(fn,x)=>fn(x);await null;return await Promise.reject(apply(x=>x+a,b));",
+            "const apply=(fn,x)=>{let y=fn(x);y|=1;return y;};return await apply(x=>x+a,b);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain =
+        "export async function run(a,b){const apply=(fn,x)=>fn(x);return apply(x=>x+a,await b);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong {const apply=<T>(fn:T,x:never):string=>(fn as any)(x);return apply(((x:number)=>x+a) as any,await(b as unknown as number));}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn async_closure_frames_keep_wide_calls_and_activation_ownership() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))

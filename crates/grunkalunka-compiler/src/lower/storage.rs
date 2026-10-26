@@ -199,6 +199,7 @@ pub(super) fn number_result_shape(
 pub(crate) fn general_mutable_bindings(
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
+    callback_parameters: &super::callbacks::Parameters,
 ) -> BTreeSet<SymbolId> {
     let mut definitions = BTreeMap::new();
     let mut mutable = BTreeSet::new();
@@ -207,6 +208,12 @@ pub(crate) fn general_mutable_bindings(
     // hint: actual lowering fixes the function arity and validates every write;
     // factories/scalar values still cannot become callable via this hint.
     let mut numeric_closures = BTreeSet::new();
+    numeric_closures.extend(
+        callback_parameters
+            .values()
+            .flat_map(|parameters| parameters.keys())
+            .copied(),
+    );
     let mut closure_aliases = Vec::new();
     for node in semantic.nodes().iter() {
         match node.kind() {

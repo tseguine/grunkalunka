@@ -17,10 +17,12 @@ use crate::ir::{
 use crate::{is_type_declaration, unsupported};
 
 mod awaited;
+mod callbacks;
 mod closures;
 mod evaluate;
 mod function_values;
 mod storage;
+pub(super) use callbacks::infer_callback_parameters;
 pub(super) use storage::general_mutable_bindings;
 
 #[derive(Clone)]
@@ -213,6 +215,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub semantic: &'s Semantic<'a>,
     pub functions: &'s [NumericFunction],
     pub general_bindings: &'s std::collections::BTreeSet<SymbolId>,
+    pub callback_parameters: &'s callbacks::Parameters,
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,

@@ -113,13 +113,15 @@ remains outside the primitive protocol.
 Initialized `let` function bindings can also be reassigned with plain `=` at the
 same arity. A callee snapshot survives suspension while an argument changes the
 binding. Captured function cells share those writes; aliases retain their pairs.
+[Known local callback arguments](local-callback-arguments.md) can precede or follow
+awaited arguments, and factories can retain those callbacks across later jobs.
 Local block-arrow calls run synchronously with a separate return boundary. Await
 can surround their numeric result; returning from the closure continues the caller,
 including when the body returns from inside a loop. Async arrows remain excluded.
 
 Source helper calls, async arrows, arbitrary Promise/thenable values, Strings,
-Symbols, BigInts, objects, callbacks, try/catch/finally and Promise interoperability
-remain open. Local arrows retain their Number argument/result contract and existing
+Symbols, BigInts, objects, Promise callbacks, try/catch/finally and Promise interoperability
+remain open. Runtime indirect callbacks retain their Number argument/result contract and existing
 operator admission limits still apply. Rejected primitive reasons
 propagate uncaught; host resource/protocol errors are not mapped to JS exceptions.
 The per-invocation globals are provisional activation storage, not a final shared

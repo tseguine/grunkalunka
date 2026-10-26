@@ -528,3 +528,7 @@ L5 now includes initialized mutable function bindings with same-arity plain writ
 shared captured cells and alias/callee snapshots, including across async jobs.
 Rebinding can form self/mutual recursive calls through existing initialized cells;
 recursive initialization and general function arguments/results remain open.
+L5 now includes numeric-leaf callback arguments to known local arrows/factories,
+with source-symbol arity demands, forwarding, typed parameter cells, argument
+snapshots and retained factory captures. Runtime higher-order function signatures
+and general function results remain open; see [local callback arguments](local-callback-arguments.md).

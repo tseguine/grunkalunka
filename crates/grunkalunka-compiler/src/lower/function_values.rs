@@ -38,6 +38,24 @@ impl Regions<'_> {
 }
 
 impl Lowering<'_, '_> {
+    pub(super) fn callback_argument(
+        &mut self,
+        expression: &Expression<'_>,
+        region: &mut Region,
+        arity: usize,
+        depth: usize,
+    ) -> Result<ValueId, String> {
+        // An argument constructor can reenter full body checking, which has a
+        // larger native frame than comma-prefix evaluation's cursor crossing.
+        if self.active_function_values >= 8 {
+            return Err(unsupported(
+                expression,
+                "callback arguments require fewer than 8 active function-value cursors",
+            ));
+        }
+        self.function_value(expression, region, arity, depth)
+    }
+
     fn function_assignment_target(
         &self,
         assignment: &oxc_ast::ast::AssignmentExpression<'_>,
@@ -339,6 +357,16 @@ impl Lowering<'_, '_> {
             ));
         }
         let arrow = self.arrow(closure.arrow);
+        if self
+            .callback_parameters
+            .get(&arrow.node_id.get())
+            .is_some_and(|parameters| !parameters.is_empty())
+        {
+            return Err(unsupported(
+                node,
+                "runtime function values with callback parameters are not yet admitted",
+            ));
+        }
         if arrow.params.items.len() != arity {
             return Err(unsupported(node, "function value arity mismatch"));
         }

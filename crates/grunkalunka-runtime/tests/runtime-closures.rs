@@ -101,6 +101,199 @@ fn mutable_functions_keep_alias_snapshots_and_shared_function_cells() {
     assert_eq!(host.run(0.0, 2.0).unwrap(), 291.0);
 }
 
+#[test]
+fn known_local_functions_receive_callback_pairs_and_keep_argument_snapshots() {
+    compare_functions(&[
+        "const apply=(fn,x)=>fn(x);return apply(x=>x+a,b);",
+        "const apply=fn=>fn();return apply(()=>a);",
+        "const apply=(fn,x)=>fn(x);const f=x=>x+a;return apply(f,b);",
+        "const apply=(fn,x)=>fn(x);let f=x=>x+a;return apply(f,(f=x=>x-b,a))+f(a);",
+        "const apply=(fn,x)=>{const alias=fn;return alias(x);};return apply(x=>x+a,b);",
+        "const apply=(fn,x)=>{let alias=fn;alias=x=>x-b;return alias(x)+fn(x);};return apply(x=>x+a,b);",
+        "const apply=(fn,x)=>{fn=x=>x-b;return fn(x);};let f=x=>x+a;return apply(f,b)+f(a);",
+        "const apply=(fn,x)=>{let y=fn(x);y|=1;return y;};return apply(x=>x+a,b);",
+        "const apply=(fn,x)=>fn(x);const relay=(g,y)=>apply(g,y);return relay(x=>x+a,b);",
+        "const apply=(fn,x)=>fn(x);const alias=apply;const relay=(g,y)=>alias(g,y);return relay(x=>x+a,b);",
+        "const apply=(fn,x)=>fn(x);return apply(a?x=>x+a:x=>x-b,b);",
+        "const apply=(fn,x)=>{const call=()=>fn(x);return call();};return apply(x=>x+a,b);",
+        "const apply=(fn,x)=>{let y=0;for(let i=0;i<3;i++)y+=fn(x+i);return y;};return apply(x=>x+a,b);",
+        "const make=fn=>x=>fn(x);const f=make(x=>x+a);return f(b);",
+        "const make=fn=>()=>fn();const f=a?make(()=>a):make(()=>b);return f();",
+        "const combine=(f,g,x)=>f()+g(x);return combine(()=>a,x=>x+b,a);",
+        "let f=()=>a;const unused=(g,x)=>x;return unused(f,a)+f();",
+        "const apply=(fn,x)=>{const other=fn=>fn+x;return fn(x)+other(x);};return apply(x=>x+a,b);",
+        "const apply=(fn,x)=>{const g=a?fn:(x=>x-b);return g(x);};return apply(x=>x+a,b);",
+        "const apply=(fn,x)=>{let g=x=>x;g=fn;return g(x);};return apply(x=>x+a,b);",
+        "const identity=fn=>fn;const apply=(fn,x)=>fn(x);return apply(x=>identity(x)+a,b);",
+    ]);
+}
+
+#[test]
+fn local_callback_constraints_reject_conflicting_kinds_and_runtime_signatures() {
+    for body in [
+        "const apply=(fn,x)=>fn(x);return apply(a,b);",
+        "const apply=(fn,x)=>fn(x);return apply(()=>a,b);",
+        "const apply=fn=>fn();return apply(x=>x);",
+        "const apply=fn=>fn(a)+fn(a,b);return a;",
+        "const apply=fn=>{const alias=fn;return alias(a)+fn(a,b);};return a;",
+        "const apply=(fn,x)=>fn(x);const relay=f=>apply(f,a)+f(a,b);return a;",
+        "const apply=(fn,x)=>fn(x);return apply(async x=>x,b);",
+        "const apply=(fn,x)=>fn(x);return apply(x=>true,b);",
+        "const apply=fn=>{fn=a;return fn();};return apply(()=>a);",
+        "const apply=fn=>fn;return apply(()=>a);",
+        "const apply=(fn,x)=>fn(x);const f=a?apply:apply;return f(x=>x,b);",
+        "let apply=(fn,x)=>fn(x);return apply(x=>x,b);",
+        "const apply=(fn,x)=>fn?.(x);return a;",
+        "const apply=(fn,x)=>fn(...x);return a;",
+        "const apply=(fn,x)=>fn(x.bad);return a;",
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+            let source = source.replace("export function", "export async function");
+            assert!(compile_async(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
+fn local_callback_arguments_keep_wide_logical_lists_on_the_existing_abi() {
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    let body = format!("const apply=fn=>fn({arguments});return apply(({parameters})=>p0+p999+b);");
+    compare_functions(&[&body]);
+    let parameters = (0..999)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 999].join(",");
+    let body = format!("const apply=(fn,{parameters})=>fn(p998);return apply(x=>x+b,{arguments});");
+    compare_functions(&[&body]);
+    let source = format!(
+        "export function run(a,b){{const apply=fn=>fn({});return a;}}",
+        vec!["a"; 1001].join(",")
+    );
+    assert!(
+        compile(&source, false)
+            .err()
+            .unwrap()
+            .contains("at most 1000")
+    );
+}
+
+#[test]
+fn callback_definition_and_specialization_keep_original_resource_limits() {
+    for (wrappers, admitted) in [(127, true), (128, false)] {
+        let source = format!(
+            "export function run(a,b){{const apply=fn=>fn();return apply({}()=>a{});}}",
+            "(".repeat(wrappers),
+            ")".repeat(wrappers)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{wrappers} callback wrappers"
+        );
+    }
+    for (locals, admitted) in [(127, true), (128, false)] {
+        let declarations = (0..locals)
+            .map(|i| format!("let v{i}=a;"))
+            .collect::<String>();
+        let source = format!(
+            "export function run(a,b){{const apply=(fn,x)=>{{{declarations}return fn(x);}};return apply(x=>x+b,a);}}"
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{locals} body locals"
+        );
+    }
+    for (statements, admitted) in [(253, true), (254, false)] {
+        let source = format!(
+            "export function run(a,b){{const apply=(fn,x)=>{{{}return fn(x);}};return apply(x=>x+b,a);}}",
+            "a=a;".repeat(statements)
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{statements} body statements"
+        );
+    }
+    for (calls, admitted) in [(85, true), (86, false)] {
+        let source = format!(
+            "export function run(a,b){{const apply=fn=>fn();return({});}}",
+            vec!["apply(()=>a)"; calls].join(",")
+        );
+        assert_eq!(
+            compile(&source, false).is_ok(),
+            admitted,
+            "{calls} expanded callback calls"
+        );
+    }
+    for (locals, admitted) in [(128, true), (129, false)] {
+        let mut declarations = String::from("const f0=fn=>fn();");
+        for i in 1..locals {
+            declarations.push_str(&format!("const f{i}=fn=>f{}(fn);", i - 1));
+        }
+        let source = format!(
+            "export function run(a,b){{{declarations}return f{}(()=>a);}}",
+            locals - 1
+        );
+        let result = compile(&source, false);
+        assert_eq!(
+            result.is_ok(),
+            admitted,
+            "{locals} forwarding helpers: {:?}",
+            result.as_ref().err()
+        );
+        if admitted {
+            assert_eq!(
+                NumericInstance::new(&result.unwrap().wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_callback_argument_constructors_have_an_observed_small_stack_bound() {
+    let mut outcomes = Vec::new();
+    for depth in 0..10 {
+        let mut callback = String::from("()=>a");
+        for _ in 0..depth {
+            callback = format!("()=>apply({callback})");
+        }
+        let source =
+            format!("export function run(a,b){{const apply=fn=>fn();return apply({callback});}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        outcomes.push(result.is_ok());
+        if let Ok(artifact) = result {
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        }
+    }
+    assert!(outcomes[0] && outcomes[1]);
+    assert!(!outcomes[9]);
+    println!("callback argument construction on 2MiB stack: {outcomes:?}");
+}
+
 fn compare_functions(bodies: &[&str]) {
     let inputs = [
         (4.0, 2.0),

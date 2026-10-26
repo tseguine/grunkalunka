@@ -103,7 +103,9 @@ only the source entry has resume states. Awaited conditions and factory/call
 arguments preserve their original evaluation order. `await f()` can suspend on a
 Number result; `await f` remains rejected because functions are not primitives.
 Existing static closure specialization across await remains available.
-Passing functions as arguments, general function-valued results, nonnumeric leaf
+[Known local helpers and factories accept callback arguments](local-callback-arguments.md)
+with numeric leaf signatures, including captured callback cells after creator return.
+Runtime-selected higher-order function signatures, general function-valued results, nonnumeric leaf
 return kinds, function truthiness/coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.

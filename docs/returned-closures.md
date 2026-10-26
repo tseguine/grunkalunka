@@ -48,7 +48,9 @@ An [internal runtime-value slice](runtime-closures.md) now handles initialized l
 selection and indirect numeric calls in the Number/primitive profiles, including
 the primitive async activation frame.
 Same-arity mutable bindings use typed pair assignments and retain call snapshots.
-Function arguments, function identity comparisons, async closure bodies, block-bodied
+Known factories can receive [callback arguments](local-callback-arguments.md) and
+retain them in the returned leaf's captured cells.
+General higher-order signatures, function identity comparisons, async closure bodies, block-bodied
 factory returns, top-level helpers returning functions, recursive initialization, function-valued
 host results and escaping per-iteration environments remain open. This is a
 source-level returned-closure slice with statically known targets, not completion

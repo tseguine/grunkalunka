@@ -1674,6 +1674,11 @@ environment verifier, allocation, async frame retention and remaining general-va
 An indirect call captures its callee pair before argument side effects or await;
 assignment cannot retroactively change that snapshot. Captured mutable function
 slots can be rebound and can form recursive calls through initialized cells.
+Known local arrows and factories also accept numeric-leaf callback arguments.
+Original-symbol demand analysis checks fixed callback arities through aliases and
+forwarding; actual specialization initializes typed function parameter cells.
+See [local callback arguments](local-callback-arguments.md) for snapshot order,
+factory capture, definition checking and runtime higher-order exclusions.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call
