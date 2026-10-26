@@ -1527,3 +1527,68 @@ fn async_block_type_claims_preserve_general_wait_values() {
         compile_async(ts, true).unwrap().wasm
     );
 }
+
+#[test]
+fn async_root_normal_completion_fulfills_undefined() {
+    compare_promises(
+        &[
+            "",
+            "return;",
+            "await a;",
+            "await a;return;",
+            "if(a)return b;",
+            "if(a)return;return b;",
+            "if(a)throw b;",
+            "if(a)return await b;await null;",
+            "if(a)return await null;",
+            "if(a)throw await b;await a;",
+            "let undefined=a;await b;return;",
+            "let undefined=a;await b;",
+            "let x=a;const f=()=>++x;await f();",
+            "for(let i=0;i<3;i++){await b;if(a)return;}",
+            "for(let i=0;i<3;i++){await b;if(i===1)continue;if(a)break;}",
+            "while(a){await b;return b;}",
+            "do{await b;if(a)return null;}while(false);",
+            "try{await Promise.reject(a);}catch(reason){await reason;}",
+            "try{await Promise.reject(a);}catch(reason){if(reason)return b;}",
+            "try{throw a;}catch(reason){await b;return;}",
+            "try{if(a)throw b;await a;}catch(reason){throw reason;}",
+            "const f=async()=>{await a;};await f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn async_root_completion_keeps_other_profile_and_abrupt_guards() {
+    for body in ["", "return;", "if(a)return b;"] {
+        let source = format!("export function run(a,b){{{body}}}");
+        assert!(grunkalunka_compiler::compile(&source, false).is_err());
+        assert!(grunkalunka_compiler::compile_value(&source, false).is_err());
+    }
+    for source in [
+        "function helper(x){return;}export async function run(a,b){return helper(a);}",
+        "function helper(x){x++;}export async function run(a,b){return helper(a);}",
+        "export async function run(a,b){return;await a;}",
+        "export async function run(a,b){break;}",
+        "export async function run(a,b){continue;}",
+        "export async function run(a,b){try{await a;}finally{a++;}}",
+    ] {
+        assert!(compile_async(source, false).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn async_root_completion_ignores_type_claims() {
+    let js = "export async function run(a,b){if(a)return;await b;}";
+    let ts = "export async function run(a:number,b:number):Promise<number>{if(a)return;await(b as number);}";
+    assert_eq!(
+        compile_async(js, false).unwrap().wasm,
+        compile_async(ts, true).unwrap().wasm
+    );
+}

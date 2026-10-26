@@ -325,7 +325,11 @@ fn lower_source_profile(
         }
         let mut region = lowering.region(body.as_ref());
         lowering.initialize_general_parameters(&mut region);
-        let completion = lowering.sequence(&body.statements, &mut region, 0)?;
+        let mut completion = lowering.sequence(&body.statements, &mut region, 0)?;
+        if lowering.allow_await && completion.normal {
+            lowering.return_undefined(body.as_ref(), &mut region);
+            completion = completion.then(ir::Completion::RETURN);
+        }
         if completion != ir::Completion::RETURN
             && !(lowering.allow_await && completion.returns_or_throws())
         {

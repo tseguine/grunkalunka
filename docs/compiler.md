@@ -1861,3 +1861,9 @@ arrow; root rejection and catch behavior remains supported. Body throws and
 rejected waits, including caught or unselected ones, are still excluded because
 their callee rejection boundary is separate work. The shared evaluator, IR and
 emitters are unchanged by this extension.
+
+The root async entry also fulfills intrinsic Undefined on bare return or normal
+completion. Lowering adds that result only to normal paths, preserving existing
+return/throw alternatives and await/catch reaction jobs. Numeric and primitive
+entries and named helpers keep their explicit completion rules. Source bindings
+and TypeScript return claims cannot replace the synthesized result.

@@ -310,6 +310,19 @@ impl Lowering<'_, '_> {
         }
     }
 
+    pub fn return_undefined(&mut self, node: &impl GetSpan, region: &mut Region) {
+        let value = self.value(Type::General);
+        Self::push(
+            region,
+            node,
+            Op::Nullish {
+                result: value,
+                value: ir::Nullish::Undefined,
+            },
+        );
+        region.exit = Exit::Return(value);
+    }
+
     fn value(&mut self, ty: Type) -> ValueId {
         let id = ValueId(self.values.len());
         self.values.push(ty);
@@ -1011,18 +1024,9 @@ impl Lowering<'_, '_> {
             Statement::ReturnStatement(statement) => {
                 if statement.argument.is_none()
                     && self.return_type == Type::General
-                    && self.active_block_calls != 0
+                    && (self.active_block_calls != 0 || self.allow_await)
                 {
-                    let value = self.value(Type::General);
-                    Self::push(
-                        region,
-                        statement.as_ref(),
-                        Op::Nullish {
-                            result: value,
-                            value: ir::Nullish::Undefined,
-                        },
-                    );
-                    region.exit = Exit::Return(value);
+                    self.return_undefined(statement.as_ref(), region);
                     return Ok(Completion::RETURN);
                 }
                 let expression =

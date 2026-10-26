@@ -8,6 +8,13 @@ binding identities and shared source limits. TypeScript annotations/wrappers do
 not coerce values. Existing numeric, primitive and heap entry points keep their
 contracts and reject async functions.
 
+The root async function fulfills intrinsic `undefined` for a bare `return;` or
+normal completion, including after awaits, loop exits and catches. Partial
+return/throw paths keep their original values and rejection reasons. Falling off
+the end adds no reaction job, and a binding named `undefined` cannot change the
+implicit result. Ordinary numeric/primitive entries and named helpers retain
+their explicit completion requirements.
+
 The exact current `gap-async-await` source runs in this profile:
 
 ```js
