@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import test from 'node:test';
+import { watchExample } from '../../examples/numeric-workflow/watch.mjs';
 
 const execute = promisify(execFile);
 const runner = fileURLToPath(new URL('../../examples/numeric-workflow/run.mjs', import.meta.url));
@@ -95,4 +96,37 @@ test('an infinite guest times out without a result and a subsequent edit runs no
   });
   await writeFile(join(cwd, path), 'export function run(a,b) { return a + b; }');
   assert.equal((await invoke(cwd, ['1', '2', path])).stdout.trim(), '3');
+});
+
+test('watch mode rebuilds valid, invalid and corrected JS/TS snapshots', { timeout: 60_000 }, async t => {
+  const cwd = await setup(t);
+  for (const language of ['js', 'ts']) {
+    const sourcePath = join(cwd, `watched 猫.${language}`);
+    const params = language === 'ts' ? 'a: number, b: number' : 'a, b';
+    const source = expression => `export function run(${params}) { return ${expression}; }`;
+    await writeFile(sourcePath, source('a + b'));
+    const controller = new AbortController();
+    const observed = [];
+    try {
+      await watchExample(['4', '1', sourcePath], { compiler: binary, signal: AbortSignal.any([controller.signal, t.signal]), interval: 25,
+        report: async outcome => {
+          if (observed.length === 0) {
+            assert.equal(outcome.value.result, 5);
+            observed.push('initial');
+            await writeFile(sourcePath, 'export function run( {');
+          } else if (observed.length === 1) {
+            assert.match(outcome.error.stderr, /ERROR:/);
+            observed.push('invalid');
+            await writeFile(sourcePath, source('a - b'));
+          } else {
+            assert.equal(outcome.value.result, 3);
+            observed.push('corrected');
+            controller.abort();
+          }
+        },
+      });
+    } finally { controller.abort(); }
+    assert.deepEqual(observed, ['initial', 'invalid', 'corrected']);
+  }
+  assert.deepEqual((await readdir(cwd)).sort(), ['watched 猫.js', 'watched 猫.ts']);
 });

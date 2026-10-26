@@ -5,6 +5,7 @@
   "scripts": {
     "check": "node scripts/check.mjs",
     "poc": "node scripts/poc.mjs",
+    "example:watch": "node examples/numeric-workflow/watch.mjs",
     "example:numeric": "node examples/numeric-workflow/run.mjs",
     "build:spike": "cargo build --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml",
     "build": "cargo build --workspace --locked --offline"
