@@ -20,7 +20,10 @@ fn empty_or_excluded_documents_produce_no_text() {
 #[test]
 fn headings_paragraphs_and_rules_separate_words_without_extra_blank_lines() {
     let source = "# First\n\nOne *bold* sentence.\n\n---\n\nSecond\n===\n\nLast";
-    assert_eq!(prose_text(source), "First\nOne bold sentence.\nSecond\nLast");
+    assert_eq!(
+        prose_text(source),
+        "First\nOne bold sentence.\nSecond\nLast"
+    );
     assert_eq!(prose_text("# one\n##\n### two\n"), "one\ntwo");
 }
 
