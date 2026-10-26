@@ -26,6 +26,161 @@ fn primitive_bits(value: Value) -> String {
 }
 
 #[test]
+fn rejected_await_enters_lexical_catch_on_the_same_reaction_job() {
+    compare_promises(
+        &[
+            "try{return await Promise.reject(a);}catch(e){return e+b;}",
+            "try{return await Promise.reject(null);}catch(e){return e;}",
+            "try{return await Promise.reject(undefined);}catch(e){return e;}",
+            "try{return await Promise.reject(true);}catch(e){return e;}",
+            "try{return await Promise.reject(false);}catch(e){return e;}",
+            "try{return await Promise.reject(a);}catch(e){return e;}",
+            "try{return await a;}catch(e){return b;}",
+            "try{return a;}catch(e){return b;}",
+            "try{await Promise.reject(a);a=99;}catch(e){return e;}return b;",
+            "let x=0;try{x=await Promise.reject(a);x=99;}catch(e){x=e;}return x;",
+            "let x=0;try{x=await a;}catch(e){x=e;}return await x;",
+            "try{await Promise.reject(a);}catch(e){e+=b;return await e;}return b;",
+            "try{await Promise.reject(null);}catch(e){e=true;await false;return e;}return b;",
+            "let e=a;try{await Promise.reject(b);}catch(e){e=a;await null;}return e;",
+            "try{await Promise.reject(a);}catch(a){a=b;await null;}return a;",
+            "try{await Promise.reject(a);}catch(undefined){return await undefined;}return b;",
+            "try{await Promise.reject(null);}catch{return await b;}return b;",
+            "try{if(a)return await Promise.reject(b);return await a;}catch(e){return e;}",
+            "try{return a?await Promise.reject(b):await a;}catch(e){return e;}",
+            "try{return (await Promise.reject(a))+(await b);}catch(e){return e;}",
+            "try{await a;return await Promise.reject(b);}catch(e){return e;}",
+            "try{await Promise.reject(a);}catch(e){return (await e)+(await b);}return b;",
+            "try{await Promise.reject(a);}catch(e){return await Promise.reject(e);}return b;",
+            "try{try{await Promise.reject(a);}catch(e){return await Promise.reject(e+b);}}catch(e){return e;}return b;",
+            "try{try{return await Promise.reject(a);}catch(e){return await e;}}catch(e){return b;}",
+            "try{try{return await a;}catch(e){return await Promise.reject(b);}}catch(e){return e;}",
+            "let x=0;try{try{await Promise.reject(a);}catch(e){x=e;await Promise.reject(b);}}catch(e){return x+e;}return b;",
+            "let x=0;for(let i=0;i<3;i++){try{await Promise.reject(i);}catch(e){x+=e;}}return x;",
+            "let x=0;for(let i=0;i<3;i++){try{await Promise.reject(i);}catch(e){if(e===1)continue;x+=e;}}return x;",
+            "let x=0;for(let i=0;i<3;i++){try{await Promise.reject(i);}catch(e){if(e===1)break;x+=e;}}return x;",
+            "try{for(let i=0;i<3;i++){if(i===1)await Promise.reject(b);a+=1;}}catch(e){return a+e;}return a;",
+            "let f=()=>a;try{await Promise.reject(b);}catch(e){f=()=>+e;}await null;return f();",
+            "let f=()=>a;for(let i=0;i<2;i++){try{await Promise.reject(i);}catch(e){f=()=>+e;}}return f();",
+            "let f=()=>a;let old=()=>b;for(let i=0;i<2;i++){try{await Promise.reject(i);}catch(e){old=f;f=()=>+e;}}return old()*10+f();",
+            "try{await Promise.reject(a);}catch(e){const f=()=>{e=b;return +e;};await null;return f();}return b;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -2.0),
+            (-0.0, 0.0),
+            (f64::NAN, f64::INFINITY),
+            (f64::INFINITY, f64::NEG_INFINITY),
+            (f64::from_bits(1), f64::MAX),
+        ],
+    );
+}
+
+#[test]
+fn catch_keeps_profile_limits_and_resource_failures_terminal() {
+    for body in [
+        "try{return await a;}finally{return b;}",
+        "try{return await a;}catch(e){return e;}finally{a=b;}",
+        "try{return await a;}catch({x}){return x;}",
+        "try{await a;}catch(e){a=+e;}return e;",
+        "try{throw a;}catch(e){return e;}",
+        "const f=()=>{try{return a;}catch(e){return +e;}};return f();",
+    ] {
+        assert!(compile_async(&source_for(body), false).is_err(), "{body}");
+    }
+    let plain = "export async function run(a,b){try{return await Promise.reject(a);}catch(e){e=b;return await e;}}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{try{return await Promise.reject((a as unknown));}catch(e:unknown){e=b;return await(e as number);}}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    for count in [127, 128] {
+        let locals = (0..count)
+            .map(|i| format!("const x{i}=a;"))
+            .collect::<String>();
+        let source = source_for(&format!(
+            "{locals}try{{return await a;}}catch(e){{return e;}}"
+        ));
+        let result = compile_async(&source, false);
+        if count == 127 {
+            result.unwrap();
+        } else {
+            assert!(result.err().unwrap().contains("128 source locals"));
+        }
+    }
+    for count in [16, 17] {
+        let source = source_for(&format!(
+            "try{{{}return a;}}catch(e){{{}return e;}}",
+            "await a;".repeat(count),
+            "await b;".repeat(16)
+        ));
+        let result = compile_async(&source, false);
+        if count == 16 {
+            result.unwrap();
+        } else {
+            assert!(result.err().unwrap().contains("32 await sites"));
+        }
+    }
+    let ordinary = "export function run(a,b){try{return a;}catch(e){return +e;}}";
+    assert!(
+        grunkalunka_compiler::compile(ordinary, false)
+            .err()
+            .unwrap()
+            .contains("statement is outside the numeric experiment")
+    );
+    assert!(
+        grunkalunka_compiler::compile_value(ordinary, false)
+            .err()
+            .unwrap()
+            .contains("statement is outside the numeric experiment")
+    );
+    for count in [32, 33] {
+        let body = format!(
+            "let x=0;for(let i=0;i<{count};i++){{try{{await Promise.reject(i);}}catch(e){{x+=e;}}}}return x;"
+        );
+        let artifact = compile_async(&source_for(&body), false).unwrap();
+        if count == 32 {
+            compare_promises(&[&body], &[(4.0, 2.0)]);
+        }
+        let mut call = AsyncInstance::new(&artifact.wasm, 4.0, 2.0).unwrap();
+        let mut failed = false;
+        while matches!(call.state().unwrap(), AsyncState::Pending) {
+            if call.run_one_job().is_err() {
+                failed = true;
+                break;
+            }
+        }
+        if count == 32 {
+            assert!(!failed);
+            assert!(matches!(
+                call.state().unwrap(),
+                AsyncState::Fulfilled(Value::Number(496.0))
+            ));
+        } else {
+            assert!(failed);
+            assert!(call.state().is_err());
+            assert!(call.run_one_job().is_err());
+            // Host job-budget errors cannot enter a source catch in either adapter.
+            run_node(&format!(
+                r#"import assert from 'node:assert/strict';import {{pathToFileURL}} from 'node:url';const {{createAsyncFunction}}=await import(pathToFileURL(process.argv[2]));await assert.rejects(createAsyncFunction(new Uint8Array({:?}))(4,2), /32-job budget/);"#,
+                artifact.wasm
+            ));
+        }
+    }
+    let wasm = compile_async(
+        &source_for("try{await null;for(;;)a+=1;}catch(e){return e;}return a;"),
+        false,
+    )
+    .unwrap()
+    .wasm;
+    let mut call = AsyncInstance::new(&wasm, 4.0, 2.0).unwrap();
+    assert!(matches!(call.state().unwrap(), AsyncState::Pending));
+    assert!(call.run_one_job().is_err());
+    assert!(call.state().is_err());
+    assert!(call.run_one_job().is_err());
+}
+
+#[test]
 fn runtime_closures_survive_suspension_and_keep_native_job_order() {
     compare_promises(
         &[

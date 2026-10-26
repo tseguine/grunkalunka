@@ -901,6 +901,82 @@ impl Lowering<'_, '_> {
                 Self::push(region, block.as_ref(), Op::Block(child));
                 Ok(returns)
             }
+            Statement::TryStatement(statement) => {
+                if !self.allow_await {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "statement is outside the numeric experiment",
+                    ));
+                }
+                if statement.finalizer.is_some() {
+                    return Err(unsupported(
+                        statement.as_ref(),
+                        "async try/catch does not yet admit finally",
+                    ));
+                }
+                let handler = statement.handler.as_ref().ok_or_else(|| {
+                    unsupported(statement.as_ref(), "try requires a catch handler")
+                })?;
+                let visible = self.bindings.len();
+                let mut body = self.region(statement.block.as_ref());
+                self.charge_statement(statement.block.as_ref())?;
+                let body_completion = self.sequence(&statement.block.body, &mut body, depth + 2)?;
+                self.bindings.truncate(visible);
+                let mut caught = self.region(handler.body.as_ref());
+                self.charge_statement(handler.body.as_ref())?;
+                let reason = self.value(Type::General);
+                if let Some(parameter) = &handler.param {
+                    let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                        return Err(unsupported(
+                            parameter,
+                            "catch destructuring is not admitted",
+                        ));
+                    };
+                    if self.source_charging && self.local_count >= 128 {
+                        return Err(unsupported(
+                            parameter,
+                            "at most 128 source locals are admitted",
+                        ));
+                    }
+                    if self.source_charging {
+                        self.local_count += 1;
+                    }
+                    let slot = SlotId(self.slots.len());
+                    self.slots.push(Slot {
+                        ty: Type::General,
+                        owner: caught.id,
+                        mutable: true,
+                        parameter: false,
+                        span: parameter.span(),
+                    });
+                    Self::push(
+                        &mut caught,
+                        parameter,
+                        Op::Initialize {
+                            slot,
+                            value: reason,
+                        },
+                    );
+                    self.bindings.push(NumericBinding {
+                        symbol: identifier.symbol_id.get().ok_or("missing catch binding")?,
+                        slot,
+                        mutable: true,
+                    });
+                }
+                let handler_completion =
+                    self.sequence(&handler.body.body, &mut caught, depth + 2)?;
+                self.bindings.truncate(visible);
+                Self::push(
+                    region,
+                    statement.as_ref(),
+                    Op::TryCatch {
+                        body,
+                        reason,
+                        handler: caught,
+                    },
+                );
+                Ok(body_completion.union(handler_completion))
+            }
             Statement::ReturnStatement(statement) => {
                 let expression =
                     statement

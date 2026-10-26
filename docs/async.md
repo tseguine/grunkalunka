@@ -60,11 +60,13 @@ Only the async entry suspends; lifted function bodies remain synchronous.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
-status 1 suspends on a fulfilled primitive; status 2 suspends on a rejected
-primitive. The synchronous prefix runs in `start`.
+status 1 suspends on a resumable primitive await reaction, including a caught
+rejection; status 2 suspends on an uncaught rejected primitive. The synchronous
+prefix runs in `start`.
 For statuses 1/2 the host must enqueue one FIFO microtask, including when the
 operand is already settled. That job resumes status 1 or rejects the outer Promise
-for status 2. A rejected await never executes following source operations.
+for status 2. A rejected await skips its protected suffix and enters the nearest
+lexical catch handler, if present; otherwise it rejects the activation.
 Repeated start and resume after completion/rejection trap.
 
 | Tag | Kind | Payload |
@@ -119,11 +121,18 @@ Local block-arrow calls run synchronously with a separate return boundary. Await
 can surround their numeric result; returning from the closure continues the caller,
 including when the body returns from inside a loop. Async arrows remain excluded.
 
+[Primitive rejected-await catch handlers](async-catch.md) now admit lexical
+`try/catch`, optional bindings, nested handlers, mutable/captured reasons and later
+awaits. Normal bodies skip handlers, and falling-through handlers continue after
+try. Rejected awaits within a handler belong to its enclosing protected scope.
+
 Source helper calls, async arrows, arbitrary Promise/thenable values, Strings,
-Symbols, BigInts, objects, Promise callbacks, try/catch/finally and Promise interoperability
-remain open. Runtime indirect callbacks retain their Number argument/result contract and existing
-operator admission limits still apply. Rejected primitive reasons
-propagate uncaught; host resource/protocol errors are not mapped to JS exceptions.
+Symbols, BigInts, objects, Promise callbacks, source throw, finally, catch
+destructuring and Promise interoperability remain open. Runtime indirect callbacks
+retain their Number argument/result contract and existing operator admission
+limits still apply. Rejected primitive reasons
+propagate through the nearest lexical handler or remain uncaught; host
+resource/protocol errors are not mapped to JS exceptions.
 The per-invocation globals are provisional activation storage, not a final shared
 heap or escaping closure design.
 
@@ -145,6 +154,9 @@ Runtime-function cases check selected environments, shared mutations, alias pair
 nested lifted/static calls, captured slot kinds, terminal fuel/job failures and
 independent interleaved activations. A 1,000-argument call repeats over 32 jobs;
 arena cursor checks in both engines observe retained frames and four-page growth.
+Catch cases additionally compare primitive reason identity, lexical shadows,
+nested rejection, later awaits, loop exits and captured catch binding re-entry.
+Host fuel/job failures remain terminal even inside a protected body.
 
 The state machine follows [ECMAScript Await](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#await).
 Finite tests establish this slice; they do not establish full async conformance.

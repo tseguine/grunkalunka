@@ -516,3 +516,9 @@ see [local callback arguments](local-callback-arguments.md).
 Known concise local calls now preserve existing function pairs as results, with
 ordered argument snapshots and immediate invocation. Block results and runtime
 higher-order signatures remain separate units; see [local function results](local-function-results.md).
+
+The async profile now handles primitive rejected awaits through lexical catch handlers,
+including nested handlers, later awaits and retained catch bindings, with native
+JS reaction-order comparisons. Source throw, finally and general Promise/exception
+semantics remain open; this closes no numeric-profile rejection. See
+[async catch](async-catch.md).

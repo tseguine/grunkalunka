@@ -2,8 +2,10 @@
 
 The exact `gap-async-await` source now executes in the separate
 [primitive async profile](async.md), including its Promise job boundary. It remains
-a numeric-profile rejection; general Promise values and exception handlers are
-still known requirements. Numeric structured control flow can now suspend.
+a numeric-profile rejection; general Promise values and exception completion
+remain known requirements. Primitive rejected-await catch handlers now execute in
+the async profile; source throw and finally remain open. Numeric structured
+control flow can now suspend.
 Undefined/null/Boolean/Number values and uncaught rejection reasons survive that
 suspension; Strings, objects and arbitrary Promise values remain outside this slice.
 
@@ -612,3 +614,9 @@ identity, selection, forwarding and plain assignment, including immediate calls
 and async caller arguments. This changes no canonical rejection source or host
 ABI. Block-bodied results and runtime higher-order/function-result signatures
 remain open; see [local function results](local-function-results.md).
+
+Primitive rejected awaits now enter lexical `try/catch` handlers, preserving the
+reason's primitive kind and await reaction job. Nested catches, later awaits,
+loop exits and captured handler bindings are covered in both engines. Source
+throw, finally, synchronous catches and general exception values remain open;
+numeric rejection fixtures and counts are unchanged. See [async catch](async-catch.md).

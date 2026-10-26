@@ -133,6 +133,10 @@ pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
                     visit_operations(step, visit);
                 }
             }
+            Op::TryCatch { body, handler, .. } => {
+                visit_operations(body, visit);
+                visit_operations(handler, visit);
+            }
             Op::DoWhile { body, condition } => {
                 visit_operations(body, visit);
                 visit_operations(condition, visit);
@@ -193,6 +197,12 @@ pub(crate) enum Op {
     InlineCall {
         result: ValueId,
         body: Region,
+    },
+    // The reason is defined only on the handler's lexical entry.
+    TryCatch {
+        body: Region,
+        reason: ValueId,
+        handler: Region,
     },
     Await {
         result: ValueId,
@@ -569,6 +579,31 @@ impl Verifier<'_> {
                     self.return_type = outer_return;
                     checked?;
                     self.define(*result, Type::Number, &mut visible, span)?;
+                }
+                Op::TryCatch {
+                    body,
+                    reason,
+                    handler,
+                } => {
+                    let body_completion = self.region(
+                        body,
+                        Contract::Statement,
+                        &visible,
+                        &initialized,
+                        ancestors,
+                        allow_loop_control,
+                    )?;
+                    let mut caught = visible.clone();
+                    self.define(*reason, Type::General, &mut caught, span)?;
+                    let handler_completion = self.region(
+                        handler,
+                        Contract::Statement,
+                        &caught,
+                        &initialized,
+                        ancestors,
+                        allow_loop_control,
+                    )?;
+                    next = body_completion.union(handler_completion);
                 }
                 Op::Await { result, input, .. } => {
                     let ty = self
@@ -3247,6 +3282,54 @@ mod capture_cell_tests {
                 _ => function.body.operations.swap(0, index),
             }
             assert!(verify_module(&module).is_err(), "mutation {change}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod catch_value_tests {
+    use super::*;
+
+    #[test]
+    fn catch_reason_is_general_and_visible_only_in_the_handler() {
+        let source = "export async function run(a,b){try{await null;}catch(e){a=+e;}return a;}";
+        for change in 0..4 {
+            let mut module =
+                crate::lower_source_profile(source, false, Type::General, true).unwrap();
+            verify_module_with_entry_type(&module, Type::General).unwrap();
+            let function = &mut module.functions[0];
+            let Op::TryCatch {
+                body,
+                reason,
+                handler,
+            } = &mut function.body.operations[0].kind
+            else {
+                panic!("try/catch");
+            };
+            match change {
+                0 => function.values[reason.0] = Type::Number,
+                1 => body.exit = Exit::Return(*reason),
+                2 => function.body.exit = Exit::Return(*reason),
+                _ => {
+                    let value = body
+                        .operations
+                        .iter()
+                        .find_map(|op| match op.kind {
+                            Op::Await { result, .. } => Some(result),
+                            _ => None,
+                        })
+                        .unwrap();
+                    let Op::Initialize { value: caught, .. } = &mut handler.operations[0].kind
+                    else {
+                        panic!("catch binding");
+                    };
+                    *caught = value;
+                }
+            }
+            assert!(
+                verify_module_with_entry_type(&module, Type::General).is_err(),
+                "mutation {change}"
+            );
         }
     }
 }

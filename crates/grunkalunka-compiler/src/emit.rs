@@ -114,7 +114,9 @@ impl Emitter<'_> {
                     self.inline_return = outer;
                     self.set(*result);
                 }
-                Op::Await { .. } => unreachable!("await uses the async emitter"),
+                Op::Await { .. } | Op::TryCatch { .. } => {
+                    unreachable!("async control uses the async emitter")
+                }
                 Op::Nullish { result, value } => {
                     let tag = match value {
                         ir::Nullish::Undefined => 0,
@@ -546,7 +548,7 @@ fn region_has_await(region: &Region) -> bool {
         .operations
         .iter()
         .any(|operation| match &operation.kind {
-            Op::Await { .. } => true,
+            Op::Await { .. } | Op::TryCatch { .. } => true,
             Op::InlineCall { body, .. } => region_has_await(body),
             Op::Block(child) => region_has_await(child),
             Op::If {

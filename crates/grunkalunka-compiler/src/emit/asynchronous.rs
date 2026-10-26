@@ -51,6 +51,7 @@ struct Splitter<'a> {
     states: Vec<State<'a>>,
     awaits: usize,
     return_to: Option<(ValueId, usize)>,
+    catch_to: Option<(ValueId, usize)>,
 }
 
 impl<'a> Splitter<'a> {
@@ -122,6 +123,18 @@ impl<'a> Splitter<'a> {
                     self.return_to = outer;
                     entry?
                 }
+                Op::TryCatch {
+                    body,
+                    reason,
+                    handler,
+                } => {
+                    // The handler itself belongs to the enclosing protected scope.
+                    let handler = self.region(handler, next, None, loops)?;
+                    let outer = self.catch_to.replace((*reason, handler));
+                    let entry = self.region(body, next, None, loops);
+                    self.catch_to = outer;
+                    entry?
+                }
                 Op::Await {
                     result,
                     input,
@@ -131,11 +144,14 @@ impl<'a> Splitter<'a> {
                     if self.awaits > 32 {
                         return Err("async profile admits at most 32 await sites".into());
                     }
-                    // Only the host resume entry supplies the awaited payload.
-                    let resume = self.state(&[], Some(*result), End::Jump(next))?;
+                    // A caught rejection resumes into its lexical handler on the
+                    // same reaction job. The host still supplies the original pair.
+                    let caught = rejected.then_some(self.catch_to).flatten();
+                    let (resumed, target) = caught.unwrap_or((*result, next));
+                    let resume = self.state(&[], Some(resumed), End::Jump(target))?;
                     self.terminal(End::Suspend {
                         input: *input,
-                        rejected: *rejected,
+                        rejected: *rejected && caught.is_none(),
                         resume,
                     })?
                 }
@@ -232,6 +248,7 @@ fn atomic(op: &Op) -> bool {
     !matches!(
         op,
         Op::Await { .. }
+            | Op::TryCatch { .. }
             | Op::InlineCall { .. }
             | Op::Block(_)
             | Op::If { .. }
@@ -261,7 +278,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let mut await_site = false;
         ir::visit_operations(&function.body, &mut |op| {
             source_call |= matches!(op, Op::Call { .. });
-            await_site |= matches!(op, Op::Await { .. });
+            await_site |= matches!(op, Op::Await { .. } | Op::TryCatch { .. });
         });
         // The source entry's logical ID does not denote a callable numeric Wasm
         // function in this module; its physical implementation is $advance.

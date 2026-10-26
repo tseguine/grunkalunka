@@ -537,3 +537,9 @@ L5 also includes existing function pairs returned by concise known local calls,
 with identity, conditional selection, assignment and immediate invocation across
 synchronous and async callers. General function signatures remain incomplete; see
 [local function results](local-function-results.md).
+
+L5 now handles primitive rejected awaits through lexical catch handlers,
+including nested handlers, later awaits and retained catch bindings, with native
+JS reaction-order comparisons. Source throw, finally and general Promise/exception
+semantics remain open; this closes no numeric-profile rejection. See
+[async catch](async-catch.md).
