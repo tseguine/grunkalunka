@@ -305,6 +305,36 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn higher_callback_shapes_keep_caller_jobs_and_argument_order() {
+    compare_promises(
+        &[
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);return invoke(apply,await a);",
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>cb(fn,x);return invoke(apply,(await null,y=>y+b),await a);",
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>cb(fn,x);let leaf=y=>y+a;return invoke(apply,leaf,await(leaf=y=>y-b,b))+leaf(a);",
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>{const alias=cb;cb=(fn,y)=>fn(y)+b;return alias(y=>y+a,x)+cb(y=>y-b,x);};await null;return invoke(apply,await a);",
+            "const apply=(fn,x)=>fn(x);const middle=(cb,x)=>cb(y=>y+b,x);const outer=(step,x)=>step(apply,x);return outer(middle,await a);",
+            "const apply=(fn,x)=>fn(x);const make=offset=>(cb,x)=>()=>cb(y=>y+offset,x);const f=make(await a)(apply,await b);await null;return f();",
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>x?null:cb(y=>y+b,x);await null;return invoke(apply,await a);",
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>{cb(y=>y+b,x);};return invoke(apply,await a);",
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);try{return await Promise.reject(invoke(apply,a));}catch(e){return e;}",
+            "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);try{return invoke(apply,await Promise.reject(a));}catch(e){return e;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);return invoke(apply,await a);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{const apply=(fn:string,x:never)=>(fn as any)(x);const invoke=(cb:never,x:Missing)=>(cb as any)(((y:number)=>y+b) as any,x);return invoke(apply,await(a as never));}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn returned_function_callbacks_keep_argument_snapshots_and_async_jobs() {
     compare_promises(
         &[

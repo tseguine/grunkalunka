@@ -8,6 +8,12 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['higher-callback-null','const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>x?null:cb(y=>y+b,x);return invoke(apply,a);'],
+  ['higher-callback-boolean','const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>x?false:cb(fn,x);return invoke(apply,y=>y+b,a);'],
+  ['higher-callback-undefined','const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>{cb(y=>y+b,x);};return invoke(apply,a);'],
+  ['higher-callback-returned','const apply=(fn,x)=>fn(x);const make=offset=>(cb,x)=>()=>x?null:cb(y=>y+offset,x);return make(a)(apply,b)();'],
+  ['higher-callback-selected','const apply=(fn,x)=>fn(x);const invoke=a?((cb,x)=>{cb(y=>y+b,x);return null;}):((cb,x)=>{cb(y=>y-b,x);return false;});return invoke(apply,b);'],
+  ['higher-callback-negative-zero','const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>x?null:cb(y=>-0,x);return invoke(apply,a);'],
   ['returned-callback-null', 'let make=x=>(fn,y)=>x?null:fn(y);return make(a)(z=>z+b,b);'],
   ['returned-callback-negative-zero', 'let make=x=>fn=>x?null:fn();return make(a)(()=>-0);'],
   ['returned-callback-boolean', 'let make=x=>(fn,y)=>{fn(y);return false;};return make(a)(z=>z+b,b);'],

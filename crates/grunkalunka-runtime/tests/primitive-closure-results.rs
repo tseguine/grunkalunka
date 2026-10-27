@@ -85,6 +85,17 @@ fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
 }
 
 #[test]
+fn higher_numeric_callbacks_keep_enclosing_primitive_results() {
+    compare_primitive_closure_programs(&[
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>x?null:cb(y=>y+b,x);return invoke(apply,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>x?false:cb(fn,x);return invoke(apply,y=>y+b,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>{cb(y=>y+b,x);};return invoke(apply,a);",
+        "const apply=(fn,x)=>fn(x);const make=offset=>(cb,x)=>()=>x?null:cb(y=>y+offset,x);return make(a)(apply,b)();",
+        "const apply=(fn,x)=>fn(x);const invoke=a?((cb,x)=>{cb(y=>y+b,x);return null;}):((cb,x)=>{cb(y=>y-b,x);return false;});return invoke(apply,b);",
+    ]);
+}
+
+#[test]
 fn returned_callbacks_preserve_general_results_and_retained_function_cells() {
     compare_primitive_closure_programs(&[
         "let make=x=>(fn,y)=>x?null:fn(y);return make(a)(z=>z+b,b);",

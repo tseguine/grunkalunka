@@ -140,7 +140,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             {
                 return Err(unsupported(
                     parameter,
-                    "callback argument requires a function with the inferred arity",
+                    "callback argument requires a function with the inferred signature",
                 ));
             }
             let ty = if matches!(input_type, Type::Closure(_)) {

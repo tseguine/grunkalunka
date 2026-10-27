@@ -39,8 +39,8 @@ Richer IDs describe callback parameters or a function result. Pure kind queries
 lazily intern compilation metadata without evaluating source effects; scratch
 checking shares that registry but cannot publish its scratch IR. Result references
 in the registry are acyclic. Runtime bodies return Number, General or a
-Closure type. Every returned function accepts Number parameters or numeric-leaf
-callbacks with exact Number parameter lists and a Number result. It can return
+Closure type. Every returned function accepts Number parameters or finite
+Number-result callbacks, which may themselves accept further callbacks. It can return
 Undefined, Null, Boolean or Number, including mixed primitive results from block
 bodies, or another function satisfying the same contract. Selected or assigned
 factory values must agree on the complete signature at every returned layer.
@@ -52,8 +52,9 @@ additional private `(environment, arguments) -> (i32, i32)` table call type.
 Primitive leaf calls use the existing `(environment, arguments) -> (i32, f64)`
 type. A shared iterative signature check guards lifting and IR results at every
 returned layer. References strictly descend through earlier interned signature IDs;
-cycles, dangling IDs and callbacks taking callbacks stay rejected. Callback
-parameter IDs remain the canonical numeric-leaf IDs, 0 through 1,000. Returned
+cycles and dangling IDs stay rejected. Numeric-leaf parameter IDs remain
+canonical, 0 through 1,000; richer callback IDs describe acyclic Number-result
+parameter graphs. Returned
 callbacks and further closures retain captured callback cells and pair snapshots;
 ordered arguments can suspend in the caller before their parameter cells are bound.
 For example, `make(a)(b)()` can retain both creator cells through two returned pairs.
@@ -75,7 +76,7 @@ result metadata and signature consistency; erased TypeScript annotations produce
 identical bytes. Deliberately routing a factory call through the Number-return
 physical type causes the behavioral test to fail with a Wasm type error.
 
-General function host transport, callbacks taking callbacks, unrepresented leaf
+General function host transport, General-result callbacks, unrepresented leaf
 results, async factory/leaf bodies and Promise callbacks
 remain outside this slice. Known local block-result specialization and runtime
 block lifting share the existing typed completion machinery.

@@ -421,3 +421,36 @@ fn nested_factory_result_chains_reject_cycles_parameters_and_wrong_pairs() {
         );
     }
 }
+
+#[test]
+fn higher_callback_graphs_are_bounded_and_keep_number_results() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let mut module = module();
+            let mut previous = 0;
+            for _ in 0..512 {
+                previous = module
+                    .closure_signatures
+                    .intern(vec![Type::Closure(previous)], Type::Number);
+            }
+            assert!(module.closure_signatures.is_callback_signature(previous));
+            verify_module(&module).unwrap();
+            let last = previous - 1001;
+            module.closure_signatures.higher[last].parameters[0] = Type::Closure(previous);
+            assert!(!module.closure_signatures.is_callback_signature(previous));
+            assert!(verify_module(&module).is_err());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    let mut module = module();
+    let primitive = module
+        .closure_signatures
+        .intern(vec![Type::Number], Type::General);
+    let callback = module
+        .closure_signatures
+        .intern(vec![Type::Closure(primitive)], Type::Number);
+    assert!(!module.closure_signatures.is_callback_signature(callback));
+    assert!(verify_module(&module).is_err());
+}

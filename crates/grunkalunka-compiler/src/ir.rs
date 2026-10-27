@@ -79,10 +79,13 @@ impl ClosureSignatures {
                 return false;
             };
             if signature.parameters.len() > 1000
-                || signature
-                    .parameters
-                    .iter()
-                    .any(|ty| !matches!(ty, Type::Number | Type::Closure(0..=1000)))
+                || signature.parameters.iter().any(|ty| match ty {
+                    Type::Number => false,
+                    Type::Closure(callback) => {
+                        *callback >= id || !self.is_callback_signature(*callback)
+                    }
+                    _ => true,
+                })
             {
                 return false;
             }
@@ -92,6 +95,30 @@ impl ClosureSignatures {
                 _ => return false,
             }
         }
+    }
+
+    pub(crate) fn is_callback_signature(&self, id: usize) -> bool {
+        let mut pending = vec![id];
+        let mut seen = BTreeSet::new();
+        while let Some(id) = pending.pop() {
+            if id <= 1000 || !seen.insert(id) {
+                continue;
+            }
+            let Some(signature) = self.higher.get(id - 1001) else {
+                return false;
+            };
+            if signature.result != Type::Number || signature.parameters.len() > 1000 {
+                return false;
+            }
+            for parameter in &signature.parameters {
+                match parameter {
+                    Type::Number => (),
+                    Type::Closure(callback) if *callback < id => pending.push(*callback),
+                    _ => return false,
+                }
+            }
+        }
+        true
     }
 
     pub(crate) fn parameter_count(&self, id: usize) -> Option<usize> {
@@ -1279,10 +1306,14 @@ pub(crate) fn verify_module_with_entry_type(
                     .parameters
                     .iter()
                     .any(|ty| matches!(ty, Type::Closure(_))))
-            || signature
-                .parameters
-                .iter()
-                .any(|ty| !matches!(ty, Type::Number | Type::Closure(0..=1000)))
+            || signature.parameters.iter().any(|ty| match ty {
+                Type::Number => false,
+                Type::Closure(callback) => {
+                    *callback >= 1001 + index
+                        || !module.closure_signatures.is_callback_signature(*callback)
+                }
+                _ => true,
+            })
             || !matches!(
                 signature.result,
                 Type::Number | Type::General | Type::Closure(_)
@@ -1382,7 +1413,7 @@ fn verify_function(
         if slot.parameter
             && slot.ty != Type::Number
             && !(closure_environment(function).is_some()
-                && matches!(slot.ty, Type::Closure(0..=1000)))
+                && matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback)))
         {
             return Err(invalid(slot.span, "parameter slots must be Number"));
         }

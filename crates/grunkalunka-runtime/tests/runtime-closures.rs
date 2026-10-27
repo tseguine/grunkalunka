@@ -1132,6 +1132,44 @@ fn selected_higher_order_functions_receive_callback_pairs() {
 }
 
 #[test]
+fn callbacks_accept_further_numeric_callbacks() {
+    compare_functions(&[
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);return invoke(apply,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=a?((cb,x)=>cb(y=>y+b,x)):((cb,x)=>cb(y=>y-b,x));return invoke(apply,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>cb(fn,x);return invoke(apply,z=>z+b,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>cb(fn,x);const relay=(g,fn,x)=>invoke(g,fn,x);return relay(apply,z=>z+b,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>{const alias=cb;return alias(y=>y+b,x);};return invoke(apply,a);",
+        "const id=x=>x;const fn=z=>z+b;return id(a)+id(fn)(b);",
+        "const apply=(fn,x)=>fn(x);const middle=(cb,x)=>cb(y=>y+b,x);const outer=(step,x)=>step(apply,x);return outer(middle,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>cb(fn,x);const make=seed=>(fn,x)=>fn(x)+seed;return invoke(make(a),z=>z+b,b);",
+        "const invoke=(cb,x)=>cb(y=>y+b,x);let apply=(fn,x)=>fn(x);const old=apply;const out=invoke(apply,(apply=(fn,x)=>fn(x)-b,a));return out+old(y=>y,b);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>{const alias=cb;cb=(fn,y)=>fn(y)+b;return alias(y=>y+a,x)+cb(y=>y-b,x);};return invoke(apply,a);",
+        "const apply=(fn,x)=>fn(x);const make=offset=>(cb,x)=>()=>cb(y=>y+offset,x);const f=make(a)(apply,b);return f();",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>{const alias=fn;return cb(alias,x);};return invoke(apply,y=>y+b,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);const id=x=>x;const fn=y=>y+a;return invoke(apply,a)+id(a)+id(fn)(b);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);const make=offset=>(fn,y)=>fn(y)+offset;let fn=y=>y+a;return invoke(make(a),b)+fn(a);",
+        "let n=0;const make=offset=>(fn,y)=>(n++,fn(y)+offset);const invoke=(cb,x)=>cb(y=>y+b,x);return invoke(make(a),b)+n;",
+    ]);
+}
+
+#[test]
+fn higher_callback_shapes_keep_numeric_result_and_cycle_guards() {
+    for body in [
+        "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>null,a);",
+        "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke(async(fn,x)=>fn(x),a);",
+        "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>fn(),a);",
+        "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>fn(x),()=>a);",
+        "const cycle=fn=>fn(fn);return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn higher_order_signatures_reject_mixed_parameter_kinds_and_non_leaf_callbacks() {
     for body in [
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn+x;return h(y=>y,b);",
