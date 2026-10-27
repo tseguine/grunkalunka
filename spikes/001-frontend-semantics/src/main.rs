@@ -1,4 +1,5 @@
 //! Disposable evidence probe; deliberately not a compiler frontend API.
+mod frontend_cost;
 use std::{collections::BTreeMap, error::Error, fs, path::Path};
 
 use oxc_allocator::Allocator;
@@ -118,6 +119,14 @@ fn reject_probes() {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.first().map(String::as_str) == Some("--frontend-cost") {
+        println!("{}", frontend_cost::run_cost_mode(&args[1..])?);
+        return Ok(());
+    }
+    if !args.is_empty() {
+        return Err("unrecognized arguments; use --frontend-cost".into());
+    }
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
     for group in ["bindings", "ambient", "coercion", "type-mismatch"] {
         let js = fs::read_to_string(fixtures.join(format!("{group}.js")))?;
@@ -134,6 +143,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
     }
     reject_probes();
+    frontend_cost::smoke()?;
+    println!("PASS frontend cost controls: 4 JS/TS fixtures, independent parse/semantic phases");
     println!(
         "PASS: 8 module fixtures + 2 rejection probes; type mismatch accepted (no TS type checker)"
     );
