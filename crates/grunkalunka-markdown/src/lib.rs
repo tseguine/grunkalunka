@@ -8,6 +8,9 @@
 mod prose;
 pub use prose::prose_text;
 
+mod source;
+pub use source::{SourceIndex, SourcePosition};
+
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
