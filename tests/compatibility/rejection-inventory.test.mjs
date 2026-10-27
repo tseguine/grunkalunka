@@ -1,5 +1,6 @@
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
+import { nullishAssignment, promotedNullishAssignment } from './nullish-assignment.mjs';
 import { primitiveNullish, primitiveNullishPromotions } from './primitive-nullish.mjs';
 import { generalLogicalAssignment, generalLogicalAssignmentNumericOrigins } from './general-logical-assignment.mjs';
 import { primitiveRelational, primitiveRelationalPromotions } from './primitive-relational.mjs';
@@ -32,6 +33,19 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
 const validate = data => validateRejectionInventory(rejected, data);
+
+test('nullish assignment promotes its original Number source and golden',()=>{
+  const source=programSources(nullishAssignment.find(row=>row[0]==='unsupported-compound-10'));
+  assert.equal(source.sourceJS,promotedNullishAssignment.sourceJS);
+  assert.equal(source.sourceTS,promotedNullishAssignment.sourceTS);
+  assert.equal(source.oracleSource,promotedNullishAssignment.oracleSource);
+  assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'),'f4f8e0f8afbb4aaf5a528360b0944d6d61875e68ecaa0f30d2e69556a66c9eb0');
+  assert.deepEqual([promotedNullishAssignment.args,promotedNullishAssignment.expected],[[4,2],4]);
+  assert.ok(!rejected.some(row=>row[0]==='unsupported-compound-10'));
+  assert.ok(!catalog.records.some(row=>row.id==='unsupported-compound-10'));
+  const run=Function('"use strict";'+source.oracleSource.replace('export function','function')+';return run;')();
+  assert.equal(run(...promotedNullishAssignment.args),promotedNullishAssignment.expected);
+});
 
 test('void promotes its exact original source and unchanged Number golden',()=>{
   const source=programSources(voidPrograms.find(row=>row[0]==='gap-void'));
@@ -193,7 +207,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 915);
+  assert.equal(inventory.records.size, 914);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

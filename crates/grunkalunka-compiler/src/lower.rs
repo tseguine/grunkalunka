@@ -574,6 +574,7 @@ impl Lowering<'_, '_> {
                     AssignmentOperator::Assign
                         | AssignmentOperator::LogicalAnd
                         | AssignmentOperator::LogicalOr
+                        | AssignmentOperator::LogicalNullish
                 ) {
                     return None;
                 }

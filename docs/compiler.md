@@ -1766,7 +1766,7 @@ pairs, 16 exact numeric origins, 6 rejection observations and 4592 comparisons.
 Function-only `??` still requires matching complete signatures. The constructor-free
 `(x,y)=>x??y` selector now passes preliminary Number checking and specializes from
 its actual function arguments. General function/primitive joins, String/BigInt/object
-operands and `??=` remain separate requirements. Void is described below.
+operands remain separate requirements. Mutable primitive `??=` and void are described below.
 No dependency or host ABI changes.
 
 ## Primitive results from concise closures
@@ -1897,3 +1897,19 @@ The original `gap-void` Number-comparison source and fixed golden are now execut
 unchanged. Corpus 67 has 1,799 numeric pairs and 915 rejections; six additional
 primitive pairs bring that profile to 115 pairs. See the
 [ECMAScript void semantics](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-void-operator).
+
+## Nullish assignment
+
+Mutable Number/General identifier cells now admit `??=`. The old value is loaded
+once; non-nullish values skip RHS evaluation and the store, including false,
+zero, negative zero and NaN. Null and Undefined select the RHS, then store and
+return its exact primitive kind and payload. Captured/parameter cells, RHS writes
+to the same cell, nested assignments and async suspension keep those snapshots.
+An abrupt RHS completion performs no assignment store.
+
+Number-only paths retain scalar storage; General joins keep the current explicit
+numeric-conversion policy. Const, property and function targets and unrepresented
+operand kinds remain outside this slice. The existing nullish predicate, typed
+regions and stores suffice; no IR schema, emitter or host ABI changed. The original
+`unsupported-compound-10` source and Number golden execute unchanged. Corpus 68
+has 1,807 numeric pairs and 914 rejections; the primitive profile has 121 pairs.

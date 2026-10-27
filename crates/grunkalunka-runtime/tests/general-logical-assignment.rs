@@ -1,6 +1,57 @@
 use grunkalunka_compiler::{compile, compile_value};
 use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 #[test]
+fn original_numeric_nullish_assignment_preserves_its_left_number() {
+    let source = "export function run(a,b) { return a ??= b; }";
+    let artifact = compile(source, false).unwrap();
+    assert_eq!(
+        NumericInstance::new(&artifact.wasm)
+            .unwrap()
+            .run(4.0, 2.0)
+            .unwrap(),
+        4.0
+    );
+}
+
+#[test]
+fn nullish_assignment_erased_targets_preserve_types_and_limits() {
+    let js = "export function run(a,b){a=null;return a??=false;}";
+    let ts = "export function run(a:never,b:Missing):number{a=null;return (a as number)??=(false as unknown as number);}";
+    let artifact = compile_value(js, false).unwrap();
+    assert_eq!(artifact.wasm, compile_value(ts, true).unwrap().wasm);
+    assert!(matches!(
+        ValueInstance::new(&artifact.wasm)
+            .unwrap()
+            .run(4.0, 2.0)
+            .unwrap(),
+        Value::Boolean(false)
+    ));
+    for depth in [127, 128] {
+        for typed in [false, true] {
+            let rhs = if typed {
+                format!("b{}", "!".repeat(depth))
+            } else {
+                format!("{}b{}", "(".repeat(depth), ")".repeat(depth))
+            };
+            let source = format!("export function run(a,b){{return a??={rhs};}}");
+            let result = compile(&source, typed);
+            if depth == 127 {
+                let artifact = result.unwrap();
+                assert_eq!(
+                    NumericInstance::new(&artifact.wasm)
+                        .unwrap()
+                        .run(-0.0, 2.0)
+                        .unwrap()
+                        .to_bits(),
+                    (-0.0f64).to_bits()
+                );
+            } else {
+                assert!(result.err().unwrap().contains("nesting"));
+            }
+        }
+    }
+}
+#[test]
 fn general_null_or_assignment_stores_selected_boolean() {
     let artifact = compile_value(
         "export function run(a,b) {let value=null;value ||= true;return value;}",
@@ -104,13 +155,13 @@ fn logical_assignments_select_and_store_exact_kind_with_independent_goldens() {
     let mut records = Vec::new();
     for (left, left_value, truthy) in &cases {
         for (right, right_value, _) in &cases {
-            for and in [false, true] {
-                let op = if and { "&&=" } else { "||=" };
-                let selected = if *truthy == and {
-                    right_value
-                } else {
-                    left_value
+            for op in ["||=", "&&=", "??="] {
+                let take = match op {
+                    "&&=" => *truthy,
+                    "||=" => !*truthy,
+                    _ => matches!(left_value, Value::Null | Value::Undefined),
                 };
+                let selected = if take { right_value } else { left_value };
                 for stored in [false, true] {
                     for ts in [false, true] {
                         for value in [false, true] {
@@ -176,7 +227,7 @@ for(const c of cases){{const original=Function('"use strict";'+c.source.replace(
 "#,
         records.join(",")
     );
-    node(&script, "PASS 1600 logical assignment golden modules");
+    node(&script, "PASS 2400 logical assignment golden modules");
 }
 
 #[test]
@@ -198,6 +249,18 @@ fn general_logical_assignments_skip_rhs_and_preserve_selected_effects() {
         "let value=null;if(value||=a)return b;return a;",
         "let value=a;return +(value&&=null);",
         "let x=null,y=true;const result=(x||=(y&&=a));return +result+(+x)+(+y);",
+        "let x=null;x??=a;return a;",
+        "let count=0,value=null;const result=(value??=(count++,a));return count*10+(+result)+(+value);",
+        "let value=false;value??=b++;return b;",
+        "let value=0;value??=b++;return b;",
+        "let value=-0;value??=b++;return b;",
+        "let value=NaN;value??=b++;return b;",
+        "a=null;a??=b;return +a;",
+        "let value=a;value??=null;return +value;",
+        "let value=null;const result=(value??=(value=false,b));return +result+(+value);",
+        "let value=null;const read=()=>value;const result=(value??=(value=false,b));return +result+(+read());",
+        "let x=null,y=undefined;const result=(x??=(y??=b));return +result+(+x)+(+y);",
+        "let value;let i=0;while(i++<2){value??=i;}return +value;",
     ];
     let vectors = [
         (0.0, 0.0),
@@ -260,7 +323,10 @@ for(const c of cases){{const original=Function('"use strict";'+c.source.replace(
 "#,
         records.join(",")
     );
-    node(&script, "PASS 64 General logical assignment effect modules");
+    node(
+        &script,
+        "PASS 112 General logical assignment effect modules",
+    );
 }
 
 #[test]
@@ -351,12 +417,15 @@ fn general_logical_assignments_keep_unrepresented_and_binding_guards() {
         "export function run(a,b) {let x;{x&&=a;let x=null;}return a;}",
         "export function run(a,b) {clock||=b;return a;}",
         "export function run(a,b) {a.x&&=b;return a;}",
-        "export function run(a,b) {let x=null;x??=a;return a;}",
+        "export function run(a,b) {const x=1;return x??=b;}",
+        "export function run(a,b) {a.x??=b;return a;}",
+        "export function run(a,b) {clock??=b;return a;}",
+        "export function run(a,b) {let x=(x??=b);return a;}",
     ] {
         let error = compile_value(source, false).err().unwrap();
         assert!(!error.contains("internal IR"), "{source}: {error}");
     }
-    for (op, start) in [("&&=", "0"), ("||=", "1")] {
+    for (op, start) in [("&&=", "0"), ("||=", "1"), ("??=", "1")] {
         for rhs in ["Math.random()", "\"x\"", "1n"] {
             let source = format!("export function run(a,b) {{let x={start};return x {op} {rhs};}}");
             let error = compile_value(&source, false).err().unwrap();
@@ -367,7 +436,7 @@ fn general_logical_assignments_keep_unrepresented_and_binding_guards() {
             );
         }
     }
-    for op in ["&&=", "||="] {
+    for op in ["&&=", "||=", "??="] {
         let source = format!("export function run(a,b) {{return a {op} true;}}");
         assert!(
             compile(&source, false)

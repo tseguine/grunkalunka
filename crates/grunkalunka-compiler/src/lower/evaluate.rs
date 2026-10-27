@@ -323,7 +323,19 @@ impl Lowering<'_, '_> {
         let old = self.value(ty);
         Self::push(regions.current(), node, Op::Load { result: old, slot });
         let condition = self.value(Type::Predicate);
-        let truthy = if general {
+        let test = if assignment.operator == AssignmentOperator::LogicalNullish {
+            if general {
+                Op::GeneralIsNullish {
+                    result: condition,
+                    input: old,
+                }
+            } else {
+                Op::Boolean {
+                    result: condition,
+                    value: false,
+                }
+            }
+        } else if general {
             Op::GeneralTruthy {
                 result: condition,
                 input: old,
@@ -334,7 +346,7 @@ impl Lowering<'_, '_> {
                 input: old,
             }
         };
-        Self::push(regions.current(), node, truthy);
+        Self::push(regions.current(), node, test);
         regions.children.push(self.region(&assignment.right));
         work.push(Work::LogicalAssign {
             node,
@@ -789,7 +801,7 @@ impl Lowering<'_, '_> {
                     let mut skipped = self.region(&assignment.left);
                     skipped.exit = Exit::Yield(old);
                     let (consequent, alternate) =
-                        if assignment.operator == AssignmentOperator::LogicalAnd {
+                        if assignment.operator != AssignmentOperator::LogicalOr {
                             (selected, skipped)
                         } else {
                             (skipped, selected)
@@ -1814,7 +1826,9 @@ impl Lowering<'_, '_> {
                         Expression::AssignmentExpression(assignment) => {
                             if matches!(
                                 assignment.operator,
-                                AssignmentOperator::LogicalAnd | AssignmentOperator::LogicalOr
+                                AssignmentOperator::LogicalAnd
+                                    | AssignmentOperator::LogicalOr
+                                    | AssignmentOperator::LogicalNullish
                             ) {
                                 self.schedule_logical_assignment(
                                     node,
@@ -1844,7 +1858,7 @@ impl Lowering<'_, '_> {
                                 _ => {
                                     return Err(unsupported(
                                         node,
-                                        "only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, >>>=, &&= and ||= assignments are admitted",
+                                        "only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, >>>=, &&=, ||= and ??= assignments are admitted",
                                     ));
                                 }
                             };

@@ -73,6 +73,12 @@ Undefined. `void(await f())` retains the callee/caller jobs; it cannot turn a
 rejection into fulfillment. An unawaited async call remains outside admission
 even when its result is discarded with `void`.
 
+Primitive identifier `??=` only enters RHS awaits when the old value is Null or
+Undefined. The old value is captured before that work, and a successful RHS is
+stored after its final reaction. Rejection skips the assignment store; earlier
+RHS effects remain visible to a surrounding catch. Non-nullish values skip all
+RHS jobs, including zero, false and NaN.
+
 The compiler lowers await to a Number or General operation in the typed IR.
 Known Number operands retain scalar specialization; other represented primitive
 values retain their tag and payload across suspension. Await does not coerce a

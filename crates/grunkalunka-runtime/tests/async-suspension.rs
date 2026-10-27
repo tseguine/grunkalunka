@@ -1807,3 +1807,37 @@ fn void_preserves_async_jobs_effects_and_rejection() {
         assert!(compile_async(&source_for(body), false).is_err(), "{body}");
     }
 }
+
+#[test]
+fn nullish_assignment_preserves_selected_values_cells_and_jobs() {
+    compare_promises(
+        &[
+            "let value=null;return value??=await a;",
+            "let value;return value??=await false;",
+            "let value=false;return value??=await a;",
+            "let value=0;return value??=await a;",
+            "let value=-0;return value??=await a;",
+            "let value=NaN;return value??=await a;",
+            "let value=a?null:false;return value??=await b;",
+            "let value=null;const old=value??=await(value=false,b);return +old+(+value);",
+            "let value=null;const read=()=>value;const old=value??=await(value=false,b);return +old+(+read());",
+            "let value=a?false:0;return value??=await(value=null,b);",
+            "let value=null;if(value??=await a)return b;return false;",
+            "let value=NaN;return value??=await Promise.reject(b);",
+            "let value=null;return value??=await Promise.reject(b);",
+            "let value=null;try{value??=await Promise.reject(b);}catch(reason){return value===null?reason:false;}return 0;",
+            "let value=null;try{value??=await Promise.reject((value=false,b));}catch(reason){return value;}return b;",
+            "let value;for(let i=0;i<2;i++){value??=await undefined;}return value;",
+            "a=null;return a??=await b;",
+            "const undefined=a;let value=undefined;return value??=await b;",
+            "let value=null;const set=async()=>{value=false;return await b;};const old=value??=await set();return +old+(+value);",
+            "const f=async()=>{throw b;};a=false;return a??=await f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}

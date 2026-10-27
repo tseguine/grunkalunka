@@ -287,6 +287,7 @@ pub(crate) fn general_mutable_bindings(
                 AssignmentOperator::Assign
                     | AssignmentOperator::LogicalAnd
                     | AssignmentOperator::LogicalOr
+                    | AssignmentOperator::LogicalNullish
             )
             && let Some(identifier) = assignment
                 .left
