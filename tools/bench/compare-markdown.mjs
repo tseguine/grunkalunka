@@ -1,4 +1,4 @@
-// Compare two saved Markdown/WIT captures only when collected in one verified session.
+// Compare saved Markdown/WIT receipts only within a bound same-process capture pair.
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
