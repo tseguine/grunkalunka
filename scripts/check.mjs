@@ -1,16 +1,11 @@
 // Shared Node/Bun entry point. No package dependencies or shell command parsing.
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runCheck } from './check-command.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-function run(command, args) {
-  const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: false });
-  if (result.error) throw result.error;
-  if (result.signal || result.status !== 0) {
-    throw new Error(`${command} failed: ${result.signal ?? result.status}`);
-  }
-}
+const run = (command, args) => runCheck(command, args, root);
 
+run(process.execPath, ['--test', 'tests/build/check-command.test.mjs']);
 run(process.execPath, ['--test', 'tests/build/process.test.mjs', 'tests/build/source.test.mjs']);
 run(process.execPath, ['--test', 'tests/build/execution.test.mjs', 'tests/build/primitive-execution.test.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/suites.test.mjs', 'tests/compatibility/test262.test.mjs',

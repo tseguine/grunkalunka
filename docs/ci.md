@@ -62,6 +62,19 @@ See [testing](testing.md) for individual checks and evidence limits. Tests emit
 receipts in local target directories, but this workflow does not upload them.
 Inspect the job log and reproduce locally when a retained receipt is needed.
 
+## Locating slow or interrupted checks
+
+The canonical runner prints `CHECK START` and `CHECK END` records around each
+child command. Each record contains the literal executable/argument array; end
+records add elapsed milliseconds, exit status, signal and any launch-error code.
+Child stdout/stderr remain inherited and separate. Records begin on a fresh line
+even when a child leaves its final output line unterminated.
+
+An unmatched start identifies the last observed active command, not the cause of
+an interruption. Elapsed time includes process and runner overhead and is only a
+diagnostic, not a benchmark or pass/fail threshold. Failures still stop the check
+runner. This adds no retries, timeouts, skipped tests or workflow permission changes.
+
 ## PR permissions and maintenance
 
 The workflow uses `pull_request`, never `pull_request_target`, and grants only
