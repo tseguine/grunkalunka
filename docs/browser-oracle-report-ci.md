@@ -26,3 +26,15 @@ browser difference, incomplete evidence and a normative assertion failure remain
 separate outcomes; none is silently relabeled as another. See
 [browser-oracle-cross-engine.md](browser-oracle-cross-engine.md) for the detailed
 receipt contract and the limits of source hashes and environment metadata.
+
+## Node toolchain consistency
+
+All browser producers and the report job select the same exact Node patch
+version from workflow-level `BROWSER_NODE_VERSION`, currently `24.21.0`, and
+assert the selected runtime before doing work. Update that one pin deliberately;
+do not use a floating major or choose versions independently in matrix jobs.
+The initial hosted join correctly rejected captures from Node `24.21.0` and
+`24.22.1` in the same run when the workflow requested `24`. The environment
+compatibility check remains strict; changing metadata or ignoring the mismatch
+is not a fix. The pin concerns the job toolchain, not actions' internal runtimes,
+and does not freeze OS images, fonts or transitive npm dependencies.

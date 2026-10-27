@@ -16,6 +16,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  # A floating major can select different cached versions in different jobs.
+  BROWSER_NODE_VERSION: '24.21.0'
+
 jobs:
   smoke:
     name: Real ${{ matrix.engine }} observations
@@ -34,8 +38,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: ${{ env.BROWSER_NODE_VERSION }}
           package-manager-cache: false
+      - name: Verify pinned Node runtime
+        run: node -e 'require("node:assert/strict").equal(process.versions.node, process.env.BROWSER_NODE_VERSION)'
       - name: Test the independent receipt verifier offline
         run: node --test tools/browser-oracles/verify-baseline.test.mjs
       - name: Install isolated optional automation dependency
@@ -77,8 +83,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: ${{ env.BROWSER_NODE_VERSION }}
           package-manager-cache: false
+      - name: Verify pinned Node runtime
+        run: node -e 'require("node:assert/strict").equal(process.versions.node, process.env.BROWSER_NODE_VERSION)'
       - name: Download this run's separate engine artifacts
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
