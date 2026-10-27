@@ -645,3 +645,29 @@ fulfilled Promise arguments through known/runtime closures and supported callbac
 and factories. Typed definition inputs, actual binding/call modes and positive
 Number-result facts agree on that kind. All actual calls still validate it; mixed
 primitive/Promise parameter uses and result interfaces remain separate work.
+
+### Settled primitive completion snapshots
+
+`SettledPromise` is a distinct **IR-only** private value that retains either
+fulfillment or rejection together with a represented primitive payload.
+`SettlePromise` runs a closed General-return region synchronously and captures
+its return or throw. Primitive catches, loops and inline calls keep their lexical
+boundaries; an inline call's normal result kind does not narrow its General throw
+payload inside this closed scope. Actual suspension anywhere inside is invalid.
+`PromotePromise` explicitly converts a fulfilled snapshot to the settled kind.
+`SettledValue` projects its primitive payload, and `PromiseRejected` queries its
+settlement. None of these operations adds a reaction.
+
+`AwaitSettled` schedules exactly one caller reaction. Fulfillment continues with
+the primitive; rejection enters the caller's nearest catch on that reaction or
+rejects the async entry. Both branches count as one logical await site. Private
+closure inputs/results, callbacks, returned functions, captured cells and async
+storage retain the distinct type. Public entries and ordinary helpers still
+accept only Number inputs, and entry results remain Number or General.
+
+This prerequisite does **not** admit new JS/TS rejected-Promise or throwing async
+closure sources. The source evaluator stays closed to the new kind until its
+following admission change. Pending promises, async-return adoption, thenables,
+object identity, general payloads and unhandled-rejection tracking remain open.
+Executable IR tests compare independent native JavaScript with Wasm values and
+reaction traces; an IR fixture is not source-lowering compatibility.

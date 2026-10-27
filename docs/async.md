@@ -148,6 +148,15 @@ runtime closure values. Known eager calls inside `Promise.resolve` with extra
 arguments use the fulfilled snapshot path so prefix and argument order remain
 observable without inventing a pending Promise.
 
+The distinct IR-only `SettledPromise` prerequisite also retains immediate
+primitive rejection. A synchronous `SettlePromise` boundary closes returns and
+throws, while `AwaitSettled` performs the caller's single reaction and lexical
+catch transfer. It uses this same host start/resume protocol and canonical
+primitive tags. Source async closures with throw, rejected Promise storage and
+general pending/adoption behavior are still unimplemented; the executable IR
+contract alone does not admit them. Unhandled-rejection observation is not modeled
+by these nonescaping snapshots.
+
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
 status 1 suspends on a resumable primitive await reaction, including a caught

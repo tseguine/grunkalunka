@@ -31,6 +31,11 @@ enum End {
         yes: usize,
         no: usize,
     },
+    SettledTest {
+        input: ValueId,
+        yes: usize,
+        no: usize,
+    },
     Suspend {
         input: ValueId,
         rejected: bool,
@@ -172,6 +177,31 @@ impl<'a> Splitter<'a> {
                     self.catch_to = outer;
                     entry?
                 }
+                Op::AwaitSettled { result, input } => {
+                    self.awaits += 1;
+                    if self.awaits > 32 {
+                        return Err("async profile admits at most 32 await sites".into());
+                    }
+                    let normal_resume = self.state(&[], Some(*result), End::Jump(next))?;
+                    let normal = self.terminal(End::Suspend {
+                        input: *input,
+                        rejected: false,
+                        resume: normal_resume,
+                    })?;
+                    let caught = self.catch_to;
+                    let (resumed, target) = caught.unwrap_or((*result, next));
+                    let rejected_resume = self.state(&[], Some(resumed), End::Jump(target))?;
+                    let rejected = self.terminal(End::Suspend {
+                        input: *input,
+                        rejected: caught.is_none(),
+                        resume: rejected_resume,
+                    })?;
+                    self.terminal(End::SettledTest {
+                        input: *input,
+                        yes: rejected,
+                        no: normal,
+                    })?
+                }
                 Op::Await {
                     result,
                     input,
@@ -282,6 +312,7 @@ fn atomic(op: &Op) -> bool {
     !matches!(
         op,
         Op::Await { .. }
+            | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }
             | Op::TryCatch { .. }
             | Op::InlineCall { .. }
@@ -353,6 +384,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output: String::new(),
         loop_label: None,
         inline_return: None,
+        throw_to: None,
         needs_remainder: false,
     };
     let mut output = String::from("(module\n");
@@ -427,6 +459,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             }
             End::Test { condition, yes, no } => {
                 writeln!(output, "i32.const {yes}\ni32.const {no}\nglobal.get {}\nselect\nglobal.set $pc\nbr $dispatch", emitter.value_offsets[condition.0]).unwrap();
+            }
+            End::SettledTest { input, yes, no } => {
+                writeln!(output, "i32.const {yes}\ni32.const {no}\nglobal.get {}\ni32.const 4\ni32.and\nselect\nglobal.set $pc\nbr $dispatch", emitter.value_offsets[input.0]).unwrap();
             }
             End::Suspend {
                 input,
@@ -509,7 +544,14 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
 
 fn primitive(output: &mut String, emitter: &Emitter<'_>, value: ValueId) {
     let offset = emitter.value_offsets[value.0];
-    if emitter.function.values[value.0] == Type::General {
+    if emitter.function.values[value.0] == Type::SettledPromise {
+        writeln!(
+            output,
+            "global.get {offset}\ni32.const 3\ni32.and\nglobal.get {}",
+            offset + 1
+        )
+        .unwrap();
+    } else if emitter.function.values[value.0] == Type::General {
         writeln!(output, "global.get {offset}\nglobal.get {}", offset + 1).unwrap();
     } else {
         writeln!(output, "i32.const 3\nglobal.get {offset}").unwrap();

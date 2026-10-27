@@ -1260,6 +1260,12 @@ impl Lowering<'_, '_> {
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
+                        Type::SettledPromise => {
+                            return Err(unsupported(
+                                node,
+                                "settled Promise source values are not admitted",
+                            ));
+                        }
                     });
                 }
                 Work::LogicalLeft {
@@ -1389,6 +1395,12 @@ impl Lowering<'_, '_> {
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
+                        Type::SettledPromise => {
+                            return Err(unsupported(
+                                node,
+                                "settled Promise source values are not admitted",
+                            ));
+                        }
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {

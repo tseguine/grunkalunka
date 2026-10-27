@@ -141,3 +141,35 @@ the logical type, without changing the physical frame policy. This admits the
 documented homogeneous fulfilled inputs, not arbitrary Promise objects. Exported
 Promise parameters/results and ordinary-helper Promise parameters remain invalid.
 The public ABI, arena limit and default fuel budget are unchanged.
+
+## Settled primitive snapshot follow-up
+
+The separate IR-only `SettledPromise` kind preserves an immediate fulfillment or
+rejection and a primitive payload. It shares the sixteen-byte pair policy for
+locals, private results/arguments, captured cells and suspended storage. The
+backend uses rejection mask 4 in its tag word; the primitive tag remains
+in bits 0..1. General and fulfilled-only values keep tags 0..3. Explicit
+promotion, payload/status operations and await emission own those conversions;
+the source lowerer and logical IR do not encode bit constants. Both host adapters
+continue to receive only canonical General tags.
+
+A separate 24-byte status/tag/payload triple would work, but adds a lane and
+widens every private transport for one additional state bit. Reinterpreting the
+existing fulfilled-only logical type would weaken its guarantee. A distinct
+logical kind with the existing pair is the bounded choice; it does not decide
+the representation of future pending Promise objects or a scheduler.
+The encoding assumes the current four primitive payload kinds; extending General
+must revisit this backend mapping rather than treating mask 4 as a product limit.
+
+A closed settlement region captures synchronous primitive returns/throws and
+lexical catches without a reaction. It rejects suspension. Awaiting the snapshot
+uses one existing host reaction for either settlement, entering the caller's
+catch or rejecting the entry when needed. Public/helper input and entry-result
+profiles, arenas, default fuel and dependencies remain unchanged.
+
+This is an executable IR prerequisite, with private calls, snapshots, mutable
+captures, all primitive tags, reaction order and 1,000-parameter/32-await limits
+covered separately from source admission. The five IR operations have narrowly
+scoped non-test dead-code expectations until a production source consumer exists;
+an expectation becoming unnecessary is a compiler warning. Source rejecting async
+closures, pending/adoption, identity and unhandled-rejection tracking remain open.

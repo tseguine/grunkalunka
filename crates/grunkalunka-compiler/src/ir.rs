@@ -6,6 +6,8 @@ use std::collections::BTreeSet;
 mod fulfilled_promise_tests;
 #[cfg(test)]
 mod runtime_closure_tests;
+#[cfg(test)]
+mod settled_promise_tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct ValueId(pub usize);
@@ -23,6 +25,8 @@ pub(crate) enum Type {
     General,
     // A nonescaping fulfilled primitive Promise; distinct from its completion.
     FulfilledPromise,
+    // A nonescaping immediate primitive fulfillment or rejection snapshot.
+    SettledPromise,
     // Module-local signature ID; numeric leaf IDs equal their arity.
     Closure(usize),
 }
@@ -84,7 +88,10 @@ impl ClosureSignatures {
             };
             if signature.parameters.len() > 1000
                 || signature.parameters.iter().any(|ty| match ty {
-                    Type::Number | Type::General | Type::FulfilledPromise => false,
+                    Type::Number
+                    | Type::General
+                    | Type::FulfilledPromise
+                    | Type::SettledPromise => false,
                     Type::Closure(callback) => {
                         *callback >= id || !self.is_callback_signature(*callback)
                     }
@@ -94,7 +101,9 @@ impl ClosureSignatures {
                 return false;
             }
             match signature.result {
-                Type::Number | Type::General | Type::FulfilledPromise => return true,
+                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => {
+                    return true;
+                }
                 Type::Closure(next) if next < id => id = next,
                 _ => return false,
             }
@@ -113,14 +122,17 @@ impl ClosureSignatures {
             };
             if !matches!(
                 signature.result,
-                Type::Number | Type::General | Type::FulfilledPromise
+                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise
             ) || signature.parameters.len() > 1000
             {
                 return false;
             }
             for parameter in &signature.parameters {
                 match parameter {
-                    Type::Number | Type::General | Type::FulfilledPromise => (),
+                    Type::Number
+                    | Type::General
+                    | Type::FulfilledPromise
+                    | Type::SettledPromise => (),
                     Type::Closure(callback) if *callback < id => pending.push(*callback),
                     _ => return false,
                 }
@@ -232,9 +244,10 @@ pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
     for operation in &region.operations {
         visit(&operation.kind);
         match &operation.kind {
-            Op::InlineCall { body, .. } | Op::AwaitCall { body, .. } | Op::Block(body) => {
-                visit_operations(body, visit)
-            }
+            Op::InlineCall { body, .. }
+            | Op::AwaitCall { body, .. }
+            | Op::SettlePromise { body, .. }
+            | Op::Block(body) => visit_operations(body, visit),
             Op::If {
                 consequent,
                 alternate,
@@ -341,6 +354,48 @@ pub(crate) enum Op {
         input: ValueId,
     },
     PromiseValue {
+        result: ValueId,
+        input: ValueId,
+    },
+    // Capture a synchronous primitive return/throw without adding a reaction.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    SettlePromise {
+        result: ValueId,
+        body: Region,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    PromotePromise {
+        result: ValueId,
+        input: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    SettledValue {
+        result: ValueId,
+        input: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    PromiseRejected {
+        result: ValueId,
+        input: ValueId,
+    },
+    // One caller reaction, regardless of which settlement is represented.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    AwaitSettled {
         result: ValueId,
         input: ValueId,
     },
@@ -587,6 +642,7 @@ enum PendingRegion {
     Start,
     Block,
     Inline(Type),
+    Settlement,
     IfConsequent(Contract),
     IfAlternate(Contract, Completion),
     TryBody,
@@ -605,6 +661,7 @@ struct RegionFrame<'a> {
     initialized: BTreeSet<SlotId>,
     ancestors: Vec<RegionId>,
     allow_loop_control: bool,
+    settlement: bool,
     return_type: Type,
     entered: bool,
     index: usize,
@@ -627,6 +684,7 @@ impl<'a> RegionFrame<'a> {
             initialized: self.initialized.clone(),
             ancestors: self.ancestors.iter().copied().chain([region.id]).collect(),
             allow_loop_control,
+            settlement: self.settlement,
             return_type,
             entered: false,
             index: 0,
@@ -825,6 +883,18 @@ impl Verifier<'_> {
                 self.value(*input, Type::FulfilledPromise, visible, span)?;
                 self.define(*result, Type::General, visible, span)?;
             }
+            Op::PromotePromise { result, input } => {
+                self.value(*input, Type::FulfilledPromise, visible, span)?;
+                self.define(*result, Type::SettledPromise, visible, span)?;
+            }
+            Op::SettledValue { result, input } | Op::AwaitSettled { result, input } => {
+                self.value(*input, Type::SettledPromise, visible, span)?;
+                self.define(*result, Type::General, visible, span)?;
+            }
+            Op::PromiseRejected { result, input } => {
+                self.value(*input, Type::SettledPromise, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
             Op::Call {
                 result,
                 function,
@@ -962,6 +1032,7 @@ impl Verifier<'_> {
                 self.define(*result, Type::Number, visible, span)?;
             }
             Op::InlineCall { .. }
+            | Op::SettlePromise { .. }
             | Op::AwaitCall { .. }
             | Op::TryCatch { .. }
             | Op::DoWhile { .. }
@@ -990,6 +1061,7 @@ impl Verifier<'_> {
             initialized: outer_cells.clone(),
             ancestors: ancestors.iter().copied().chain([region.id]).collect(),
             allow_loop_control,
+            settlement: false,
             return_type: self.return_type,
             entered: false,
             index: 0,
@@ -1022,6 +1094,14 @@ impl Verifier<'_> {
         }
         while let Some(operation) = frame.region.operations.get(frame.index) {
             let span = operation.span;
+            if frame.settlement
+                && matches!(
+                    operation.kind,
+                    Op::Await { .. } | Op::AwaitCall { .. } | Op::AwaitSettled { .. }
+                )
+            {
+                return Err(invalid(span, "settlement bodies cannot suspend"));
+            }
             if !frame.completion.normal {
                 return Err(invalid(
                     span,
@@ -1033,6 +1113,17 @@ impl Verifier<'_> {
                 ));
             }
             let next = match (&operation.kind, frame.pending) {
+                (Op::SettlePromise { body, .. }, PendingRegion::Start) => {
+                    frame.pending = PendingRegion::Settlement;
+                    let mut child = frame.child(body, Contract::Function, false, Type::General);
+                    child.settlement = true;
+                    return Ok(RegionCheck::Child(child));
+                }
+                (Op::SettlePromise { result, .. }, PendingRegion::Settlement) => {
+                    completed.take().expect("checked primitive settlement body");
+                    self.define(*result, Type::SettledPromise, &mut frame.visible, span)?;
+                    Completion::NORMAL
+                }
                 (
                     Op::InlineCall { result, body } | Op::AwaitCall { result, body },
                     PendingRegion::Start,
@@ -1048,7 +1139,11 @@ impl Verifier<'_> {
                     }
                     if !matches!(
                         ty,
-                        Type::Number | Type::General | Type::Closure(_) | Type::FulfilledPromise
+                        Type::Number
+                            | Type::General
+                            | Type::Closure(_)
+                            | Type::FulfilledPromise
+                            | Type::SettledPromise
                     ) {
                         return Err(invalid(
                             span,
@@ -1231,6 +1326,7 @@ impl Verifier<'_> {
                 }
                 (
                     Op::InlineCall { .. }
+                    | Op::SettlePromise { .. }
                     | Op::AwaitCall { .. }
                     | Op::Block(_)
                     | Op::If { .. }
@@ -1281,7 +1377,8 @@ impl Verifier<'_> {
                 completion = completion.then(Completion::RETURN);
             }
             (Contract::Statement | Contract::Function, Exit::Throw(value))
-                if completion.normal && frame.return_type == Type::General =>
+                if completion.normal
+                    && (frame.return_type == Type::General || frame.settlement) =>
             {
                 self.value(value, Type::General, &frame.visible, region.span)?;
                 completion = completion.then(Completion::THROW);
@@ -1335,11 +1432,16 @@ pub(crate) fn verify_module_with_entry_type(
                 && !signature.parameters.iter().any(|ty| {
                     matches!(
                         ty,
-                        Type::General | Type::Closure(_) | Type::FulfilledPromise
+                        Type::General
+                            | Type::Closure(_)
+                            | Type::FulfilledPromise
+                            | Type::SettledPromise
                     )
                 }))
             || signature.parameters.iter().any(|ty| match ty {
-                Type::Number | Type::General | Type::FulfilledPromise => false,
+                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => {
+                    false
+                }
                 Type::Closure(callback) => {
                     *callback >= 1001 + index
                         || !module.closure_signatures.is_callback_signature(*callback)
@@ -1348,7 +1450,11 @@ pub(crate) fn verify_module_with_entry_type(
             })
             || !matches!(
                 signature.result,
-                Type::Number | Type::General | Type::Closure(_) | Type::FulfilledPromise
+                Type::Number
+                    | Type::General
+                    | Type::Closure(_)
+                    | Type::FulfilledPromise
+                    | Type::SettledPromise
             )
             || matches!(signature.result, Type::Closure(id) if id > 1000 && id >= 1001 + index)
             || module.closure_signatures.higher[..index].contains(signature)
@@ -1376,7 +1482,9 @@ pub(crate) fn verify_module_with_entry_type(
     for (index, function) in module.functions.iter().enumerate() {
         let result = if closure_environment(function).is_some() {
             if !match function.return_type {
-                Type::Number | Type::General | Type::FulfilledPromise => true,
+                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => {
+                    true
+                }
                 Type::Closure(signature) => {
                     module.closure_signatures.is_returned_function(signature)
                 }
@@ -1445,8 +1553,10 @@ fn verify_function(
         if slot.parameter
             && slot.ty != Type::Number
             && !(closure_environment(function).is_some()
-                && (matches!(slot.ty, Type::General | Type::FulfilledPromise)
-                    || matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback))))
+                && (matches!(
+                    slot.ty,
+                    Type::General | Type::FulfilledPromise | Type::SettledPromise
+                ) || matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback))))
         {
             return Err(invalid(slot.span, "parameter slots must be Number"));
         }

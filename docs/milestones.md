@@ -66,6 +66,10 @@ Async arrows with admitted non-suspending primitive bodies now use these private
 closure pairs and fulfilled results, including callbacks/factories and mutable
 selection. Their prefix effects and caller reactions have differential coverage;
 runtime async suspension/rejection and Promise-return adoption remain open.
+The next rejection prerequisite now exists as a distinct settled-completion IR
+value, closed primitive return/throw capture and a one-reaction await operation.
+It has executable private-call, capture and budget-boundary IR tests; source
+throwing async closure and rejected-Promise admission remains the next step.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

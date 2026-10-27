@@ -54,6 +54,12 @@ const NUMBER_REMAINDER: &str = r#"(func $number_remainder (param $a f64) (param 
     (i64.shl (i64.sub (local.get $ey) (local.get $s)) (i64.const 52))))))
 "#;
 
+#[derive(Clone, Copy)]
+enum ThrowTarget {
+    Settlement(usize),
+    Catch { label: usize, reason: ValueId },
+}
+
 struct Emitter<'a> {
     function: &'a Function,
     slot_offsets: Vec<usize>,
@@ -64,6 +70,7 @@ struct Emitter<'a> {
     // One ID names paired exit/body-end targets, active only inside its loop body.
     loop_label: Option<usize>,
     inline_return: Option<usize>,
+    throw_to: Option<ThrowTarget>,
     needs_remainder: bool,
 }
 
@@ -97,7 +104,9 @@ impl Emitter<'_> {
             match &operation.kind {
                 Op::CaptureCells { .. } => (),
                 Op::ClosureEntry { .. } => (),
-                Op::FulfillPromise { result, input } | Op::PromiseValue { result, input } => {
+                Op::FulfillPromise { result, input }
+                | Op::PromiseValue { result, input }
+                | Op::PromotePromise { result, input } => {
                     self.get(*input);
                     self.set(*result);
                 }
@@ -125,7 +134,59 @@ impl Emitter<'_> {
                     self.inline_return = outer;
                     self.set(*result);
                 }
-                Op::Await { .. } | Op::AwaitCall { .. } | Op::TryCatch { .. } => {
+                Op::SettlePromise { result, body } => {
+                    let outer_return = self.inline_return.replace(body.id.0);
+                    let outer_throw = self.throw_to.replace(ThrowTarget::Settlement(body.id.0));
+                    let outer_loop = self.loop_label.take();
+                    writeln!(self.output, "block $call{} (result i32 f64)", body.id.0).unwrap();
+                    self.region(body);
+                    self.output.push_str("unreachable\nend\n");
+                    self.inline_return = outer_return;
+                    self.throw_to = outer_throw;
+                    self.loop_label = outer_loop;
+                    self.set(*result);
+                }
+                Op::SettledValue { result, input } => {
+                    writeln!(
+                        self.output,
+                        "local.get {}\ni32.const 3\ni32.and\nlocal.get {}",
+                        self.value_offsets[input.0],
+                        self.value_offsets[input.0] + 1
+                    )
+                    .unwrap();
+                    self.set(*result);
+                }
+                Op::PromiseRejected { result, input } => {
+                    writeln!(
+                        self.output,
+                        "local.get {}\ni32.const 4\ni32.and\ni32.eqz\ni32.eqz",
+                        self.value_offsets[input.0]
+                    )
+                    .unwrap();
+                    self.set(*result);
+                }
+                Op::TryCatch {
+                    body,
+                    reason,
+                    handler,
+                } => {
+                    let label = body.id.0;
+                    writeln!(
+                        self.output,
+                        "block $try_done{label}\nblock $try_catch{label}"
+                    )
+                    .unwrap();
+                    let outer = self.throw_to.replace(ThrowTarget::Catch {
+                        label,
+                        reason: *reason,
+                    });
+                    self.region(body);
+                    writeln!(self.output, "br $try_done{label}\nend").unwrap();
+                    self.throw_to = outer;
+                    self.region(handler);
+                    self.output.push_str("end\n");
+                }
+                Op::Await { .. } | Op::AwaitSettled { .. } | Op::AwaitCall { .. } => {
                     unreachable!("async control uses the async emitter")
                 }
                 Op::Nullish { result, value } => {
@@ -449,7 +510,22 @@ impl Emitter<'_> {
         self.operations(&region.operations);
         match region.exit {
             Exit::Fallthrough => {}
-            Exit::Throw(_) => unreachable!("throw uses the async emitter"),
+            Exit::Throw(value) => match self.throw_to.expect("verified closed primitive throw") {
+                ThrowTarget::Settlement(label) => {
+                    writeln!(
+                        self.output,
+                        "local.get {}\ni32.const 4\ni32.or\nlocal.get {}\nbr $call{label}",
+                        self.value_offsets[value.0],
+                        self.value_offsets[value.0] + 1
+                    )
+                    .unwrap();
+                }
+                ThrowTarget::Catch { label, reason } => {
+                    self.get(value);
+                    self.set(reason);
+                    writeln!(self.output, "br $try_catch{label}").unwrap();
+                }
+            },
             Exit::Break => {
                 writeln!(
                     self.output,
@@ -568,7 +644,12 @@ fn region_has_await(region: &Region) -> bool {
         .operations
         .iter()
         .any(|operation| match &operation.kind {
-            Op::Await { .. } | Op::AwaitCall { .. } | Op::TryCatch { .. } => true,
+            Op::Await { .. }
+            | Op::AwaitSettled { .. }
+            | Op::AwaitCall { .. }
+            | Op::TryCatch { .. } => true,
+            // Verified settlement bodies close primitive throws and cannot await.
+            Op::SettlePromise { .. } => false,
             Op::InlineCall { body, .. } => region_has_await(body),
             Op::Block(child) => region_has_await(child),
             Op::If {
@@ -624,6 +705,7 @@ fn emit_function(function: &Function, header: String) -> (String, bool) {
         arena_temp,
         loop_label: None,
         inline_return: None,
+        throw_to: None,
         needs_remainder: false,
         output: header,
     };

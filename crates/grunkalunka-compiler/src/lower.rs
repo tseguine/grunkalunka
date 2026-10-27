@@ -710,6 +710,12 @@ impl Lowering<'_, '_> {
                     Type::Number => self.expression(initializer, region, 0)?,
                     Type::Closure(_) => unreachable!("function values use their own cursor"),
                     Type::FulfilledPromise => unreachable!("Promise initializer handled above"),
+                    Type::SettledPromise => {
+                        return Err(unsupported(
+                            initializer,
+                            "settled Promise source values are not admitted",
+                        ));
+                    }
                 };
                 (ty, value)
             } else if mutable {

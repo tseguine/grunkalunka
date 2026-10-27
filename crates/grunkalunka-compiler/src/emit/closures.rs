@@ -35,8 +35,10 @@ pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
         .unwrap();
     }
     if module.functions.iter().any(|function| {
-        matches!(function.return_type, Type::General | Type::FulfilledPromise)
-            && ir::closure_environment(function).is_some()
+        matches!(
+            function.return_type,
+            Type::General | Type::FulfilledPromise | Type::SettledPromise
+        ) && ir::closure_environment(function).is_some()
     }) {
         writeln!(
             output,
@@ -143,7 +145,7 @@ impl Emitter<'_> {
         }
         let signature = match self.function.values[result.0] {
             Type::Closure(_) => "$closure_pair",
-            Type::General | Type::FulfilledPromise => "$closure_general",
+            Type::General | Type::FulfilledPromise | Type::SettledPromise => "$closure_general",
             _ => "$closure",
         };
         let callee = self.value_offsets[callee.0];
