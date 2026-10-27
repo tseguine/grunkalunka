@@ -1,0 +1,13 @@
+{
+  "name": "grunkalunka-browser-oracles",
+  "private": true,
+  "type": "module",
+  "description": "Optional local reference-engine oracle collector; not part of the Grunkalunka runtime",
+  "scripts": {
+    "test": "node --test collect.test.mjs",
+    "collect": "node collect.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}
