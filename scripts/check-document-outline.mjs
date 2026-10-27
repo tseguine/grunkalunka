@@ -110,5 +110,34 @@ assert.match(captured.provenance.harnessSha256['tools/bench/capture-markdown.mjs
 assert.deepEqual(captured.report.configuration, repeatedUnicode.configuration);
 assert.deepEqual(captured.report.fixture, repeatedUnicode.fixture);
 assert.equal(captured.report.outcomes.deniedBackingReads, 0);
+run(process.execPath, ['--test', 'tests/build/markdown-comparison.test.mjs']);
+const paired = JSON.parse(run(process.execPath, [
+  'tools/bench/compare-markdown.mjs', '--capture', executable('markdown_cost'), wasm,
+  '--workload', 'unicode', '--samples', '2', '--iterations', '2', '--warmup', '1',
+  '--build-label', 'ci-debug',
+], true));
+assert.equal(paired.workload, 'markdown-wit-same-process-pair');
+assert.equal(paired.binding.method, 'same-node-process-sequential');
+assert.equal(paired.captures.length, 2);
+for (const sample of paired.captures) {
+  assert.equal(sample.provenance.guest.sha256, initialGuestHash);
+  assert.equal(sample.provenance.runner.sha256, captured.provenance.runner.sha256);
+  assert.deepEqual(sample.report.fixture, captured.report.fixture);
+  assert.deepEqual(sample.report.configuration, captured.report.configuration);
+  assert.equal(sample.provenance.trackedChangesPresent, false);
+}
+const compared = JSON.parse(run(process.execPath, [
+  'tools/bench/compare-markdown.mjs', '-',
+], true, JSON.stringify(paired)));
+assert.equal(compared.workload, 'markdown-wit-repeat-comparison');
+assert.equal(compared.guestSha256, initialGuestHash);
+assert.equal(compared.runnerSha256, captured.provenance.runner.sha256);
+assert.deepEqual(compared.configuration, captured.report.configuration);
+for (const name of ['instantiation', 'granted', 'denied']) {
+  assert.equal(compared.series[name].baselineSamplesMs.length, 2);
+  assert.equal(compared.series[name].candidateSamplesMs.length, 2);
+  assert.ok(Number.isFinite(compared.series[name].median.deltaMs));
+}
+assert.equal(guestHash(), initialGuestHash, 'guest changed across paired captures');
 console.log('PASS capability-backed Markdown outlines: 9 native/component comparisons, policy errors, cleanup and fuel isolation; 4 cost fixtures with native parity; repeated Unicode report identity; guest sha256 ' + initialGuestHash);
 
