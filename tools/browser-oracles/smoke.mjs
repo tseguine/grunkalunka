@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { compareCaptures } from "../../tests/browser-oracles/compare.mjs";
 import { collectOne } from "./collect.mjs";
 import { verifyBaseline } from "./verify-baseline.mjs";
+import { probeDiagnosticIsolation, verifyDiagnosticIsolation } from "./diagnostic-isolation.mjs";
 
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
@@ -46,8 +47,11 @@ export async function runSmoke(engine, { browserTypes, playwrightVersion, output
   const sensitivity = compareCaptures(first, mutated);
   await save("intentional-source-mutation.json", sensitivity);
   assert.equal(sensitivity.status, "different", "real source mutation must be detected");
+  const isolation = await probeDiagnosticIsolation(browserTypes[engine], snapshot);
+  await save("diagnostic-isolation.json", { engine, sourceHash, browserVersion: first.provenance.browserVersion, observations: isolation });
+  for (const { viewport, measurement } of isolation) verifyDiagnosticIsolation(measurement, viewport);
   const summary = { engine, browserVersion: first.provenance.browserVersion, sourceHash,
-    repeat: stable.status, mutation: sensitivity.status, selectedBaseline: "passed" };
+    repeat: stable.status, mutation: sensitivity.status, selectedBaseline: "passed", diagnosticIsolation: "passed" };
   await save("summary.json", summary);
   return summary;
 }

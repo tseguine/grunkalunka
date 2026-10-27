@@ -23,8 +23,11 @@ recorded. Never interpret engine agreement as a specification proof.
 
 ## First executable slice
 
-Open `tests/browser-oracles/layout-baseline.html` in each browser and copy
-the JSON displayed in the page. The fixture measures basic block geometry,
+Open `tests/browser-oracles/layout-baseline.html` in each browser. Its diagnostic
+JSON stays in a hidden `#output` element, outside the rendered layout. Retrieve
+`document.getElementById("output").textContent` in the developer console or use
+the optional collector; do not reveal the element inside the measured document.
+The fixture measures basic block geometry,
 computed styles and text content. It uses only browser-native APIs and
 requires no npm dependencies, server, or compiler changes.
 
