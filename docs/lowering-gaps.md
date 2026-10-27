@@ -654,7 +654,11 @@ Returned leaves keep Number parameters; primitive tags and payloads survive fact
 selection, captures, rebinding and async callers without a new physical ABI.
 Block creators retain early returns, loops, lexical aliases and fresh creator
 cells; every structural return must produce the same full function signature.
-Normal/bare creator completion, deeper factories and async bodies remain guarded.
+Normal/bare creator completion and async bodies remain guarded. Further factory
+results now use the same pair representation with acyclic, Number-parameter
+signature chains. Captured cells and middle/leaf snapshots survive later calls and
+async jobs; returned functions with callback parameters and cyclic type metadata
+remain outside this slice.
 
 Represented synchronous function values now support Boolean contexts: conditions,
 negation, loops and Boolean-position short-circuit expressions. Existing higher-order

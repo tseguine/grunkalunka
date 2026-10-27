@@ -85,6 +85,22 @@ fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
 }
 
 #[test]
+fn nested_runtime_factories_keep_primitive_leaf_kinds_and_captures() {
+    compare_primitive_closure_programs(&[
+        "let make=x=>()=>()=>true;return make(a)()();",
+        "let make=x=>()=>()=>null;return make(a)()();",
+        "let make=x=>y=>()=>x?null:false;return make(a)(b)();",
+        "let make=x=>{return y=>{return ()=>undefined;};};return make(a)(b)();",
+        "let make=x=>y=>()=>{if(x)return y;};return make(a)(b)();",
+        "let make=x=>{let state=x;return y=>()=>{const old=state;state=null;return old;};};const middle=make(a);const f=middle(b);f();return middle(a)();",
+        "let make=x=>y=>()=>null;const middle=make(a);make=x=>y=>()=>false;return middle(b)();",
+        "let make=x=>y=>()=>null;let middle=make(a);const f=middle((middle=make(b),a));return f();",
+        "let make=x=>()=>()=>true;let middle=make(a);const f=middle();middle=()=>()=>false;return f();",
+        "let make=x=>{return ()=>()=>x;};return a;",
+    ]);
+}
+
+#[test]
 fn runtime_block_factories_preserve_primitive_leaf_kinds() {
     compare_primitive_closure_programs(&[
         "let make=x=>{return ()=>null;};return make(a)();",

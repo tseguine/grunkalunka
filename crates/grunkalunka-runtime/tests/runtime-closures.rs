@@ -1412,7 +1412,6 @@ fn runtime_block_factories_keep_completion_signature_and_target_guards() {
         "let make=x=>{if(x)return ()=>a;return ()=>null;};return a;",
         "let make=x=>{while(x){return ()=>a;}};return a;",
         "let make=x=>{return later;const later=()=>a;};return a;",
-        "let make=x=>{return ()=>()=>x;};return a;",
         "let make=x=>{return async()=>x;};return a;",
         "let make=x=>{return (fn,y)=>fn(y);};return a;",
         "let make=async x=>{return ()=>x;};return a;",
@@ -1469,7 +1468,71 @@ fn runtime_block_factory_result_cursors_remain_bounded_on_a_small_stack() {
 }
 
 #[test]
-fn runtime_factory_results_require_one_primitive_leaf_signature() {
+fn runtime_factories_return_further_factories() {
+    compare_functions(&[
+        "let make=x=>()=>()=>x;return make(a)()();",
+        "let make=x=>y=>()=>x+y;return make(a)(b)();",
+        "let make=a?(x=>y=>()=>x+y):(x=>y=>()=>x-y);return make(a)(b)();",
+        "let make=x=>y=>z=>()=>x+y+z;return make(a)(b)(3)();",
+        "let make=x=>{let z=x;return y=>()=>++z+y;};const middle=make(a);const f=middle(b),g=middle(a);return f()+g()+f();",
+        "let make=x=>{return y=>{return ()=>x+y;};};return make(a)(b)();",
+        "let make=x=>y=>()=>x+y;const middle=make(a);make=x=>y=>()=>x-y;return middle(b)()+make(a)(b)();",
+        "let make=x=>y=>()=>x+y;let middle=make(a);const f=middle((middle=make(b),a));return f()+middle(b)();",
+        "let state=()=>a;let make=x=>y=>()=>state()+x+y;const f=make(a)(b);state=()=>b;return f();",
+        "let make=(fn,x)=>y=>()=>fn(x)+y;return make(z=>z+b,a)(b)();",
+        "let make=x=>()=>()=>null;return +make(a)()();",
+        "let make=x=>y=>()=>x+y;make&&=x=>y=>()=>x-y;return make(a)(b)();",
+        "let make=x=>y=>()=>x+y;make??=x=>y=>()=>x-y;return make(a)(b)();",
+    ]);
+    compare_function_programs(&["let make=x=>{return ()=>()=>x;};return a;"], false);
+}
+
+#[test]
+fn nested_runtime_factory_signatures_keep_small_stack_and_width_bounds() {
+    for (depth, admitted) in [(1, true), (5, true), (8, false)] {
+        let mut returned = "x".to_string();
+        for _ in 0..depth {
+            returned = format!("()=>{returned}");
+        }
+        let source = format!(
+            "export function run(a,b){{let make=x=>{returned};return make(a){};}}",
+            "()".repeat(depth)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted, "{depth} returned function layers");
+        if let Ok(artifact) = result {
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        }
+    }
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    compare_functions(&[&format!(
+        "let make=x=>({parameters})=>()=>x+p0+p999;return make(b)({arguments})();"
+    )]);
+    let source =
+        format!("export function run(a,b){{let make=x=>({parameters},extra)=>()=>x+p0;return a;}}");
+    for typescript in [false, true] {
+        assert!(compile(&source, typescript).is_err());
+        assert!(compile_value(&source, typescript).is_err());
+    }
+}
+
+#[test]
+fn runtime_factory_results_require_matching_number_parameter_result_chains() {
     for body in [
         "const make=a?()=>()=>a:()=>x=>x;return make()();",
         "const make=a?()=>()=>a:()=>b;return make()();",
@@ -1477,7 +1540,9 @@ fn runtime_factory_results_require_one_primitive_leaf_signature() {
         "let make=x=>()=>x;make=x=>x;return make(a)();",
         "let make=x=>()=>null;make=x=>()=>x;return make(a)();",
         "let make=x=>()=>null;make=x=>y=>false;return make(a)();",
-        "let make=x=>()=>()=>x;return make(a)()();",
+        "let make=x=>y=>()=>x+y;make=x=>()=>()=>x;return a;",
+        "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",
+        "let make=x=>(fn,y)=>()=>fn(y);return a;",
         "let make=x=>async()=>x;return make(a)();",
         "let make=x=>()=>x;return make(a);",
         "let make=x=>()=>x;return +make(a);",

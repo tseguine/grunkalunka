@@ -305,6 +305,40 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn nested_runtime_factories_retain_pairs_values_and_job_order() {
+    compare_promises(
+        &[
+            "let make=x=>()=>()=>x;return make(a)()();",
+            "let make=x=>y=>()=>x+y;const middle=make(await a);await null;const f=middle(await b);await false;return f();",
+            "let make=a?(x=>y=>()=>x+y):(x=>y=>()=>x-y);return make(await a)(await b)();",
+            "let make=x=>{let y=x;return z=>()=>++y+z;};const middle=make(a);const f=middle(b);await null;const g=middle(a);return f()+g()+f();",
+            "let make=x=>y=>()=>x+y;const middle=make(a);await null;make=x=>y=>()=>x-y;return middle(b)()+make(a)(b)();",
+            "let make=x=>y=>()=>x+y;let middle=make(a);const f=middle((await null,middle=make(b),a));return f();",
+            "let make=x=>{return y=>{return ()=>null;};};const middle=make(await a);await null;return middle(b)();",
+            "let make=x=>y=>()=>x?null:false;return await make(await a)(await b)();",
+            "let make=x=>()=>()=>undefined;const f=make(a)();await null;return f();",
+            "let make=x=>()=>()=>true;const middle=make(a);try{return await Promise.reject(middle()());}catch(e){return e;}",
+            "let make=x=>()=>()=>null;const middle=make(a);return await Promise.reject(middle()());",
+            "let make=x=>y=>()=>x+y;make??=(await Promise.reject(a),x=>y=>()=>x-y);return make(a)(b)();",
+            "let make=x=>y=>()=>x+y;make&&=(await null,x=>y=>()=>x-y);return make(a)(b)();",
+            "let make=(fn,x)=>y=>()=>fn(x)+y;const middle=make(z=>z+b,await a);await null;return middle(await b)();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){let make=x=>y=>()=>null;const middle=make(await a);await false;return middle(b)();}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let make:Wrong=((x:Missing)=>(y:never)=>(()=>null) as any) as any;const middle=make(await(a as never));await(false as number);return (middle as any)(b)();}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn runtime_block_factories_keep_synchronous_bodies_and_async_caller_jobs() {
     compare_promises(
         &[

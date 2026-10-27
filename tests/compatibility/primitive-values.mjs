@@ -8,6 +8,12 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['nested-factory-null', 'let make=x=>()=>()=>null;return make(a)()();'],
+  ['nested-factory-boolean', 'let make=x=>()=>()=>true;return make(a)()();'],
+  ['nested-factory-undefined', 'let make=x=>{return y=>{return ()=>undefined;};};return make(a)(b)();'],
+  ['nested-factory-choice', 'let make=x=>y=>()=>x?null:false;return make(a)(b)();'],
+  ['nested-factory-leaf-block', 'let make=x=>y=>()=>{if(x)return y;};return make(a)(b)();'],
+  ['nested-factory-cell', 'let make=x=>{let state=x;return y=>()=>{const old=state;state=null;return old;};};const middle=make(a);middle(b)();return middle(a)();'],
   ['block-factory-branch', 'let make=x=>{if(x)return ()=>null;return ()=>false;};return make(a)();'],
   ['block-factory-undefined', 'const make=a?(x=>{return ()=>false;}):(x=>{return ()=>undefined;});return make(b)();'],
   ['block-factory-leaf-block', 'let make=x=>{return ()=>{if(x)return b;};};return make(a)();'],

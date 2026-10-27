@@ -1683,12 +1683,16 @@ forwarding; actual specialization initializes typed function parameter cells.
 See [local callback arguments](local-callback-arguments.md) for snapshot order,
 factory capture and definition checking. Runtime-selected higher-order functions
 accept numeric-leaf callbacks; [runtime factories](runtime-function-results.md)
-return Number-parameter, primitive-result function pairs through a separate private pair-return call
+return Number-parameter function pairs through a separate private pair-return call
 type. Selected and assigned signatures include both parameter and result kinds.
 Complete block creators use the existing owned-return query and typed `InlineCall`
 boundary for branches, loops and early returns; their implicit/bare or mixed-kind
 creator completion remains rejected. The signature query and concise-only guard
 were extended without a new IR operation or backend path.
+Returned functions may themselves return functions through strictly earlier,
+acyclic signature IDs. The shared result validator walks that chain without native
+recursion, requiring Number parameters at each returned layer; primitive leaves
+retain the existing General or Number call ABI. Exact signature matching remains.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call

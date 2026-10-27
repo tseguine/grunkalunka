@@ -1,6 +1,6 @@
 # Runtime-selected factory results
 
-Synchronous concise or complete block factories selected at runtime return primitive-leaf function
+Synchronous concise or complete block factories selected at runtime return function
 pairs in the Number, primitive-return and primitive async entry profiles:
 
 ```js
@@ -38,19 +38,21 @@ leaf IDs 0 through 1,000 keep their prior meaning: Number inputs and Number resu
 Richer IDs describe callback parameters or a function result. Pure kind queries
 lazily intern compilation metadata without evaluating source effects; scratch
 checking shares that registry but cannot publish its scratch IR. Result references
-in the registry are acyclic. Runtime bodies return Number, General or a primitive
-leaf Closure type. A returned leaf has only Number parameters and can return
+in the registry are acyclic. Runtime bodies return Number, General or a
+Closure type. Every returned function has only Number parameters and can return
 Undefined, Null, Boolean or Number, including mixed primitive results from block
-bodies. Selected or assigned factory values must agree on the complete signature,
-including the returned leaf's parameter and result kinds.
+bodies, or another function satisfying the same contract. Selected or assigned
+factory values must agree on the complete signature at every returned layer.
 
 Each IR function records its result type. The verifier checks it against the
 entry profile, lifted-body contract, constructor signature and call result.
 Number calls retain `(environment, arguments) -> f64`; factory calls use the
 additional private `(environment, arguments) -> (i32, i32)` table call type.
 Primitive leaf calls use the existing `(environment, arguments) -> (i32, f64)`
-type. The shared primitive-leaf signature check guards both lifting and IR results;
-it excludes callback parameters and another function result at the returned leaf.
+type. A shared iterative signature check guards lifting and IR results at every
+returned layer. References strictly descend through earlier interned signature IDs;
+cycles, dangling IDs and callback parameters on returned functions stay rejected.
+For example, `make(a)(b)()` can retain both creator cells through two returned pairs.
 Frames and typed cells retain their existing layouts. The host ABI is unchanged.
 
 Eight active static/runtime function-result lowering frames bound native cursor
@@ -69,7 +71,7 @@ result metadata and signature consistency; erased TypeScript annotations produce
 identical bytes. Deliberately routing a factory call through the Number-return
 physical type causes the behavioral test to fail with a Wasm type error.
 
-General function host transport, callbacks taking callbacks, factories returning
-factories, unrepresented leaf results, async factory/leaf bodies and Promise callbacks
+General function host transport, callbacks taking callbacks, unrepresented leaf
+results, async factory/leaf bodies and Promise callbacks
 remain outside this slice. Known local block-result specialization and runtime
 block lifting share the existing typed completion machinery.

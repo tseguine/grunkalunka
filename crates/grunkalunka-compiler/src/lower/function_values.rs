@@ -576,12 +576,12 @@ impl Lowering<'_, '_> {
             Type::Closure(signature) => self
                 .closure_signatures
                 .borrow()
-                .is_primitive_leaf(signature),
+                .is_returned_function(signature),
             _ => false,
         } {
             return Err(unsupported(
                 node,
-                "runtime factories return only primitive-leaf functions",
+                "runtime factories require returned functions with only Number parameters",
             ));
         }
         self.charge_closure_expansion(node)?;

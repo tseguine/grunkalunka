@@ -68,15 +68,27 @@ impl ClosureSignatures {
         }
     }
 
-    pub(crate) fn is_primitive_leaf(&self, id: usize) -> bool {
-        if id <= 1000 {
-            return true;
+    pub(crate) fn is_returned_function(&self, mut id: usize) -> bool {
+        // Numeric leaves are canonical; richer results reference earlier IDs.
+        // Walk the result chain without adding native recursion.
+        loop {
+            if id <= 1000 {
+                return true;
+            }
+            let Some(signature) = self.higher.get(id - 1001) else {
+                return false;
+            };
+            if signature.parameters.len() > 1000
+                || signature.parameters.iter().any(|ty| *ty != Type::Number)
+            {
+                return false;
+            }
+            match signature.result {
+                Type::Number | Type::General => return true,
+                Type::Closure(next) if next < id => id = next,
+                _ => return false,
+            }
         }
-        self.higher.get(id - 1001).is_some_and(|signature| {
-            signature.parameters.len() <= 1000
-                && signature.parameters.iter().all(|ty| *ty == Type::Number)
-                && matches!(signature.result, Type::Number | Type::General)
-        })
     }
 
     pub(crate) fn parameter_count(&self, id: usize) -> Option<usize> {
@@ -1299,12 +1311,14 @@ pub(crate) fn verify_module_with_entry_type(
         let result = if closure_environment(function).is_some() {
             if !match function.return_type {
                 Type::Number | Type::General => true,
-                Type::Closure(signature) => module.closure_signatures.is_primitive_leaf(signature),
+                Type::Closure(signature) => {
+                    module.closure_signatures.is_returned_function(signature)
+                }
                 _ => false,
             } {
                 return Err(invalid(
                     function.body.span,
-                    "runtime closure results require Number, General or primitive-leaf function",
+                    "runtime closure results require Number, General or acyclic Number-parameter functions",
                 ));
             }
             function.return_type

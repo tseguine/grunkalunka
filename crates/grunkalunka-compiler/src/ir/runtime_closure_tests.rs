@@ -350,3 +350,70 @@ fn primitive_factory_leaf_signatures_and_metadata_are_verified() {
         );
     }
 }
+
+#[test]
+fn nested_factory_result_chains_reject_cycles_parameters_and_wrong_pairs() {
+    let source = "export function run(a,b){let make=x=>y=>()=>x+y;return make(a)(b)();}";
+    for change in 0..9 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        verify_module(&module).unwrap();
+        let factory=module.functions.iter().position(|f| matches!(f.return_type,Type::Closure(id) if matches!(module.closure_signatures.result(id),Some(Type::Closure(_))))).unwrap();
+        let Type::Closure(signature) = module.functions[factory].return_type else {
+            unreachable!()
+        };
+        match change {
+            0 => {
+                module.closure_signatures.higher[signature - 1001].result = Type::Closure(signature)
+            }
+            1 => {
+                module.closure_signatures.higher[signature - 1001].result =
+                    Type::Closure(signature + 1)
+            }
+            2 => {
+                module.closure_signatures.higher[signature - 1001].result =
+                    Type::Closure(usize::MAX)
+            }
+            3 => {
+                module.closure_signatures.higher[signature - 1001].parameters =
+                    vec![Type::Closure(0)]
+            }
+            4 => {
+                module.closure_signatures.higher[signature - 1001].parameters = vec![Type::General]
+            }
+            5 => {
+                module.closure_signatures.higher[signature - 1001].parameters =
+                    vec![Type::Number; 1001]
+            }
+            6 => {
+                module
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.return_type == Type::Closure(0))
+                    .unwrap()
+                    .return_type = Type::General;
+            }
+            7 => module.functions[factory].return_type = Type::Closure(0),
+            _ => {
+                let entry = &mut module.functions[0];
+                let result = entry
+                    .body
+                    .operations
+                    .iter()
+                    .find_map(|op| match op.kind {
+                        Op::ClosureCall { result, .. }
+                            if matches!(entry.values[result.0], Type::Closure(_)) =>
+                        {
+                            Some(result)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                entry.values[result.0] = Type::Closure(0);
+            }
+        }
+        assert!(
+            verify_module(&module).is_err(),
+            "nested result mutation {change}"
+        );
+    }
+}
