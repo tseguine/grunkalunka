@@ -2205,13 +2205,7 @@ impl Lowering<'_, '_> {
                                 }
                             };
                             work.push(Work::Unary(node, operator));
-                            if !matches!(operator, Unary::BitNot) {
-                                work.push(Work::Eval(&unary.argument, depth + 1, Mode::Arithmetic));
-                            } else if self.operand_boolean_shape(&unary.argument, depth + 1) {
-                                predicate_number(&mut work, &unary.argument, depth + 1);
-                            } else {
-                                work.push(Work::Eval(&unary.argument, depth + 1, Mode::Number));
-                            }
+                            work.push(Work::Eval(&unary.argument, depth + 1, Mode::Arithmetic));
                         }
                         Expression::BinaryExpression(binary) => {
                             let operator = match binary.operator {

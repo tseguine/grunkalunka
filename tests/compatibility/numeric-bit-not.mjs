@@ -30,6 +30,14 @@ numericBitNot.push(['bit-not-directive-postfix', 'return ~a++ + a;', 'return ~a+
     sourceTS: '"module hint"; export function run(a:number,b:number):number { "use strict"; return ~a++ + a; }',
   }]);
 
+for(const [id,sourceJS] of [
+ ['bit-not-null','export function run(a,b) { return ~null; }'],
+ ['bit-not-undefined','export function run(a,b) { return ~undefined; }'],
+ ['bit-not-primitive-conditional','export function run(a,b) { return ~(a?true:false); }'],
+ ['bit-not-primitive-logical','export function run(a,b) { return ~(true&&false); }'],
+])numericBitNot.push([id,'','',undefined,undefined,{sourceJS,sourceTS:sourceJS}]);
+numericBitNot.push(['bit-not-general-snapshot','let x=a;return (~x)+(x=false,0);','let x=a;return (~x)+(x=false,0);']);
+
 const expression = 'expression is outside the numeric experiment';
 const unary = 'only unary +, - and ~ are admitted';
 const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
@@ -38,8 +46,6 @@ const negatives = [
   ['bit-not-string', 'return ~"4";', expression],
   ['bit-not-object', 'return ~({});', expression],
   ['bit-not-bigint', 'return ~1n;', expression],
-  ['bit-not-null', 'return ~null;', expression],
-  ['bit-not-undefined', 'return ~undefined;', reference],
   ['bit-not-global', 'return ~clock;', reference],
   ['bit-not-call', 'return ~Math.random();', expression],
   ['bit-not-unselected-call', 'return 0?~Math.random():a;', expression],

@@ -305,6 +305,32 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn bitwise_not_primitive_inputs_preserve_async_results_and_jobs() {
+    compare_promises(
+        &[
+            "return ~(await null);",
+            "return ~(await undefined);",
+            "return ~(await(a<b));",
+            "let x=a;const n=~x;await(x=false);return n;",
+            "let x=null;return (~x)+(await(x=a));",
+            "try{return ~(await Promise.reject(b));}catch(e){return e;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){return ~(await null);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{return (~(await(null as never))) satisfies Wrong;}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn binary_bitwise_primitive_inputs_preserve_async_snapshots_and_jobs() {
     let mut bodies = Vec::new();
     for operator in ["&", "|", "^", "<<", ">>", ">>>"] {

@@ -111,6 +111,56 @@ fn compare_helper_sources(sources: &[&str]) {
 }
 
 #[test]
+fn bitwise_not_converts_primitive_operands() {
+    let mut sources = vec!["export function run(a,b) { return ~null; }".to_string()];
+    for body in [
+        "return ~undefined;",
+        "return ~true;",
+        "return ~false;",
+        "return ~(a<b);",
+        "return ~(a?true:false);",
+        "return ~(true&&false);",
+        "return ~(a,null);",
+        "return ~(void(a=b));",
+        "return ~(a?null:undefined);",
+        "const undefined=a;return ~undefined;",
+        "let x=null;return ~x;",
+        "let x=undefined;return ~x;",
+        "let x=a;return (~x)+(x=false,0);",
+        "let x=null;return (~x)+(x=a);",
+        "let x=null;x=4294967297.9;return ~x;",
+        "let x=null;x=-4294967297.9;return ~x;",
+        "let x=a?true:b;return ~x;",
+        "let x=null;const f=()=>x=a;return (~x)+f();",
+        "const f=()=>null;return ~f();",
+    ] {
+        sources.push(format!("export function run(a,b){{{body}}}"));
+    }
+    compare_helper_sources(&sources.iter().map(String::as_str).collect::<Vec<_>>());
+}
+
+#[test]
+fn bitwise_not_keeps_unsupported_operand_and_binding_guards() {
+    for body in [
+        "return ~\"3\";",
+        "return ~({});",
+        "return ~1n;",
+        "return ~(()=>a);",
+        "const f=()=>a;return ~f;",
+        "return ~missing;",
+        "return ~(a**b);",
+        "const x=null;return ~(x=a);",
+        "return ~x;let x=null;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+            assert!(compile_value(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn binary_bitwise_converts_primitive_operands() {
     let mut sources = vec![
         "export function run(a,b) { return a&true; }".to_string(),

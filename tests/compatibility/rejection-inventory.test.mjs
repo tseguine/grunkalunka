@@ -1,3 +1,4 @@
+import { numericBitNot } from './numeric-bit-not.mjs';
 import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
 import { numericMathUnary } from './numeric-math-unary.mjs';
@@ -211,7 +212,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 854);
+  assert.equal(inventory.records.size, 852);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -651,5 +652,17 @@ test('primitive bitwise operands retain thirty-two exact prior rejection sources
     assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
     const sources=programSources(fixture),source=extension==='ts'?sources.sourceTS:sources.sourceJS;
     assert.equal(createHash('sha256').update(source).digest('hex'),hash,id);
+  }
+});
+
+test('primitive unary bitwise not retains both exact prior rejection sources',()=>{
+  const expected={
+    "bit-not-null": "efe5977f02f9f31b251e73c38bc8c28cd4d49f820539afe3221057eef4b176a6",
+    "bit-not-undefined": "40cb1d957f1e7331c7ec5aaf35f3ebdd1a540850c170c842a7f467533631a275"
+};
+  for(const [id,hash] of Object.entries(expected)){
+    const fixture=numericBitNot.find(([name])=>name===id);
+    assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
+    assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
   }
 });

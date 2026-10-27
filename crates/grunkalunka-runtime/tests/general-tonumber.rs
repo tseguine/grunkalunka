@@ -233,6 +233,10 @@ console.log('PASS '+cases.length+' primitive arithmetic effect modules');
 #[test]
 fn exact_previous_guard_sources_now_execute_fixed_results() {
     let cases = [
+        (
+            "export function run(a,b) {const value=null; return ~value;}",
+            -1.0,
+        ),
         ("export function run(a,b) {return a&true;}", 0.0),
         ("export function run(a,b) {return null+1;}", 1.0),
         (
@@ -301,7 +305,7 @@ console.log('PASS '+cases.length+' exact former arithmetic guards');
 "#,
         records.join(",")
     );
-    node(&script, "PASS 44 exact former arithmetic guards");
+    node(&script, "PASS 48 exact former arithmetic guards");
 }
 
 #[test]
@@ -311,7 +315,6 @@ fn primitive_coercion_does_not_widen_other_source_contracts() {
         "return true;",
         "return +\"1\";",
         "return {}+a;",
-        "const value=null; return ~value;",
         "return +value; let value=null;",
         "const value=null; value=1; return +value;",
     ] {

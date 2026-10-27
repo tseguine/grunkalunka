@@ -521,13 +521,15 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   sign-extends; both return signed results. `>>>` zero-fills and alone uses unsigned
   result conversion, so `-1 >>> 0` returns `4294967295`. Shift results are Numbers
   and zero results are positive zero.
-  Unary `+`, `-` and `~` additionally admit Boolean literals, logical negation and
-  numeric comparison/equality through retained TS/parenthesis wrappers. They lower
-  the original operand once to a predicate and explicitly convert false/true to
-  Number +0/1. Unary plus copies that Number; unary minus uses f64 negation, so
-  `-false` retains -0. Number operands keep their existing path. The shape classifier
-  is unchanged: assertions do not prove Boolean kinds, root Boolean logical,
-  conditional and comma shapes do not qualify, and `!` itself is not a numeric return.
+  Unary `+`, `-` and `~` use primitive ToNumber for represented Undefined, Null,
+  Boolean and Number operands. Inline Boolean literals, negation, comparisons and
+  immutable Predicate bindings retain their direct Boolean-to-Number bridge;
+  other admitted primitive expressions use General conversion. Logical,
+  conditional and comma operands can therefore supply primitive values. Unary plus
+  copies the converted Number; unary minus uses f64 negation, so `-false` retains
+  -0. Bitwise not uses existing ToInt32 and complement operations. Number operands
+  keep their existing path. TS assertions are erased and do not prove runtime kinds;
+  a direct Boolean return remains outside the Number result profile.
   Conditions admit Boolean literals, logical negation, numeric
   `< <= > >= == != === !==` comparisons and represented primitive truthiness. Truthiness
   evaluates its expression once; null, undefined, false, ±0 and NaN are false.
@@ -2033,3 +2035,19 @@ sources, and adds six General-binding snapshot pairs. Original source hashes are
 pinned in the Node inventory test. It has 1,935 numeric pairs, 175 primitive pairs
 and 854 rejections. The primitive ToNumber and existing numeric integer operations
 are reused; the evaluator no longer treats binary bitwise operands as Number-only.
+
+### Primitive operands to unary bitwise not
+
+Unary `~` now shares the existing Arithmetic operand evaluator used by unary plus
+and minus. Undefined, Null, Boolean and Number operands convert with ToNumber before
+the unchanged BitNot operation. General bindings, calls, conditional/logical/sequence
+results and awaited operands evaluate once. No new IR operation, emitter, runtime
+ABI or dependency is required. Strings, objects, BigInts and functions stay guarded.
+
+Twenty full-source cases compare Number/Value profiles, JS/TS and native JavaScript,
+Node-Wasm and Wasmtime; six async bodies check effects, snapshots, rejections and
+job ordering, with erased TS byte identity. Exact former compiler Boolean selection
+guards and the runtime null-binding guard are retained as positives. Corpus 83
+promotes `bit-not-null` and `bit-not-undefined` with exact original source hashes,
+and adds the two exact compiler selection sources and a General snapshot pair.
+It has 1,940 numeric pairs, 175 primitive pairs and 852 rejections.

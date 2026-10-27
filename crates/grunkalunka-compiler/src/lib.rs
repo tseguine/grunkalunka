@@ -623,6 +623,11 @@ mod tests {
     #[test]
     fn boolean_bit_not_original_requirements_are_admitted() {
         let outcomes: Vec<_> = [
+            (
+                "export function run(a,b) { return ~(a?true:false); }",
+                false,
+            ),
+            ("export function run(a,b) { return ~(true&&false); }", false),
             ("export function run(a,b) { return ~true; }", false),
             ("export function run(a,b) { return ~(a<b); }", false),
             ("export function run(a,b) { return ~(!a); }", false),
@@ -639,12 +644,7 @@ mod tests {
 
     #[test]
     fn boolean_bit_not_keeps_shape_depth_and_source_guards() {
-        for body in [
-            "return true;",
-            "return ~(a?true:false);",
-            "return ~(true&&false);",
-            "return ~!(0&&Math.random());",
-        ] {
+        for body in ["return true;", "return ~!(0&&Math.random());"] {
             assert!(
                 compile(&format!("export function run(a,b) {{ {body} }}"), true).is_err(),
                 "{body}"

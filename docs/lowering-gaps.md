@@ -728,6 +728,14 @@ and Number values with the existing ToNumber lowering. Existing integer conversi
 and shift masking are unchanged. Corpus 82 promotes 32 exact old sources, preserving
 their original JS or TS source hashes, and retains 854 rejection observations.
 General-binding values are captured before later writes and async waits. Strings,
-objects, BigInts, functions, compound assignments with primitive RHS values and
-broader unary conversion remain separate gaps. See
+objects, BigInts, functions and compound assignments with primitive RHS values
+remain separate gaps; the following unit supplies broader unary bitwise-not
+conversion. See
 [primitive bitwise operands](compiler.md#primitive-operands-to-binary-bitwise-and-shift-operators).
+
+Unary `~` now converts represented Undefined, Null, Boolean and Number operands
+using the same shared operand evaluator as unary plus/minus. General primitive
+results, including Boolean logical/conditional values and awaited values, are
+admitted. Corpus 83 promotes both exact original nullish bit-not sources and keeps
+852 rejection observations. Unsupported source kinds and compound assignments
+remain separate. See [primitive bitwise not](compiler.md#primitive-operands-to-unary-bitwise-not).

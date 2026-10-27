@@ -2735,20 +2735,6 @@
       "group": "bigint-values"
     },
     {
-      "id": "bit-not-null",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "efe5977f02f9f31b251e73c38bc8c28cd4d49f820539afe3221057eef4b176a6",
-      "group": "nullish-values"
-    },
-    {
-      "id": "bit-not-undefined",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "40cb1d957f1e7331c7ec5aaf35f3ebdd1a540850c170c842a7f467533631a275",
-      "group": "nullish-values"
-    },
-    {
       "id": "bit-not-global",
       "extension": "js",
       "sourceMode": "module-strict",
