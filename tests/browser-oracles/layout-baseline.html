@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grunkalunka browser layout oracle: baseline</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  #frame { box-sizing: border-box; width: 240px; padding: 12px; border: 3px solid black; }
+  #block { box-sizing: content-box; width: 50%; height: 20px; margin: 4px; padding: 5px; border: 2px solid black; }
+  #inline { font: 16px/20px monospace; white-space: pre; }
+  #output { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+<main>
+  <div id="frame"><div id="block">abc</div><span id="inline">A B</span></div>
+</main>
+<pre id="output" aria-label="Browser oracle observations"></pre>
+<script>
+(() => {
+  "use strict";
+  const properties = [
+    "display", "boxSizing", "width", "height", "marginTop", "paddingLeft",
+    "borderLeftWidth", "fontSize", "lineHeight", "whiteSpace"
+  ];
+  function observe(id) {
+    const element = document.getElementById(id);
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    const computed = {};
+    for (const property of properties) computed[property] = style[property];
+    return {
+      id,
+      text: element.textContent,
+      computed,
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+    };
+  }
+  const result = {
+    schemaVersion: 1,
+    fixtureId: "layout-baseline-v1",
+    environment: {
+      userAgent: navigator.userAgent,
+      viewportWidth: document.documentElement.clientWidth,
+      viewportHeight: document.documentElement.clientHeight,
+      devicePixelRatio: window.devicePixelRatio,
+      url: location.href,
+      timestamp: new Date().toISOString()
+    },
+    observations: ["frame", "block", "inline"].map(observe)
+  };
+  document.getElementById("output").textContent = JSON.stringify(result, null, 2);
+})();
+</script>
+</html>
