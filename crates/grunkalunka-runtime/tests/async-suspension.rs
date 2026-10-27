@@ -305,6 +305,36 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn runtime_surplus_arguments_preserve_async_pairs_and_job_order() {
+    compare_promises(
+        &[
+            "let f=x=>x+a;return f(a,await(f=x=>x-b,a=b,null));",
+            "const f=a?(()=>null):(()=>false);return f(await a,await(a=b,null));",
+            "const invoke=fn=>fn(a,b);return invoke((await null,x=>x+b));",
+            "const invoke=async fn=>fn(a,await(a=b,null));return await invoke(x=>x+a);",
+            "let make=x=>()=>x+a;return make(await a,await(make=x=>()=>x-b,a=b,null))();",
+            "let make=x=>(fn,y)=>fn(y,b);return make(await a)(()=>null,await b,await null);",
+            "let f=x=>x+a;try{return f(a,await Promise.reject(b));}catch(e){return e;}",
+            "const invoke=fn=>fn(a,b);try{return await Promise.reject(invoke(()=>null));}catch(e){return e;}",
+            "const h=a?fn=>fn():fn=>fn(a);await null;return h(()=>b);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain =
+        "export async function run(a,b){let f=x=>x+a;return f(a,await(f=x=>x-b,a=b,null));}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let f=(x:Wrong)=>(x as any)+a;return f(a as never,await(f=(x:Missing)=>(x as any)-b,a=b,null as never));}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn known_local_surplus_arguments_preserve_async_order_and_boundaries() {
     compare_promises(
         &[

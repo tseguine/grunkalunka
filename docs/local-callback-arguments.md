@@ -15,7 +15,8 @@ export function run(a,b) {
 
 Source-known calls may supply extra ordinary arguments, up to 1,000 in total.
 These evaluate in caller scope and discard their values; all declared inputs are
-still required. Runtime indirect calls retain their exact signature arity.
+still required. Runtime calls follow the same rule and pass only declared inputs
+through their typed frames.
 
 Arguments finish left-to-right before the helper's parameter bindings replace
 the caller's. Function arguments snapshot both code and environment fields;
@@ -32,7 +33,11 @@ const f = make(x => x+a);
 The compiler derives a callback parameter's ordered parameter and result kinds
 from calls, constructors, local aliases and forwarding to source-known local arrows. It follows original semantic
 SymbolIds through conditional/comma/plain-assignment values and respects shadows.
-Conflicting arities and arities above 1,000 are rejected. This is conservative
+Call counts bound the required inputs from above: analysis starts with the minimum
+supplied count, and concrete constructors refine the callback's declared signature.
+Surplus arguments do not become parameters. Every call must still supply all
+declared inputs, and all supplied lists are bounded to 1,000. Incompatible complete
+constructor signatures stay rejected. This is conservative
 static demand analysis, not general JS type inference. Parameter names and erased
 TypeScript annotations establish no runtime kind. A parameter not demanded as a
 callback retains ordinary scalar checking, or accepts a function input when its

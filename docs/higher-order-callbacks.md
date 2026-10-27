@@ -22,6 +22,12 @@ propagate through callers and local storage. A callback's call sites also constr
 unused function formals of its concrete target; ordinary identity calls remain polymorphic.
 General callback results need the primitive entry profile or an explicit numeric
 consumer such as `+apply(x => null, a)`; Number exports still return Numbers.
+Different supplied argument counts can share one callback signature. The minimum
+call count seeds the required-input bound, and a concrete constructor may declare
+fewer parameters; its full parameter/result kinds determine the final signature.
+Calls save the callee, evaluate every argument left-to-right and discard surplus
+values, then pass only declared inputs. Missing inputs and more than 1,000 supplied
+arguments remain rejected. The same rule applies to runtime factories and async callers.
 Constructor and call-demand refinement is bounded, and signature references point
 to earlier entries. Cyclic or growing type requirements are rejected.
 Logical signatures describe every parameter in order. Functions selected into

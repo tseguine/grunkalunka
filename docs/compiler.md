@@ -1659,9 +1659,10 @@ admit up to 1,000 supplied ordinary arguments. Surplus arguments evaluate once,
 left-to-right in caller scope, then their values are discarded before formal cells
 are bound. Discarded primitives/functions retain their effects and validation.
 This includes known factories and awaited known async calls; an argument rejection
-occurs outside the callee's rejection boundary. Runtime indirect calls and top-level
-numeric helpers still require exact arity. Missing, spread, optional and generic
-local arguments remain unsupported. Body results retain their existing typed contract.
+occurs outside the callee's rejection boundary. Runtime function values and factories
+also admit surplus arguments, preserving the saved callee pair and passing only
+declared inputs through their frames. Top-level numeric helpers retain exact arity.
+Missing, spread, optional and generic local arguments remain unsupported. Body results retain their existing typed contract.
 Parentheses and erased TypeScript wrappers preserve the underlying function; annotations do not coerce values.
 
 Known concise arrow factories can also return an arrow or immutable closure

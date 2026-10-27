@@ -388,7 +388,9 @@ pub(crate) fn infer_callback_parameters(
                 if arities.is_empty() {
                     continue;
                 }
-                if arities.len() != 1 || *arities.first().unwrap() > 1000 {
+                // Call counts are upper bounds on required inputs. Start at
+                // the smallest demand; concrete targets refine the full type.
+                if *arities.first().unwrap() > 1000 {
                     return Err(unsupported(
                         parameter,
                         "callback parameters require one fixed arity of at most 1000 Number arguments",
@@ -534,8 +536,11 @@ fn refine_shapes<'a>(
                         };
                         if let Some(signature) = argument.as_expression().and_then(|expression| {
                             function_kind(expression, &working, true, &general)
-                        }) && signatures.borrow().parameter_count(signature)
-                            == signatures.borrow().parameter_count(*previous)
+                        }) && signatures
+                            .borrow()
+                            .parameter_count(signature)
+                            .zip(signatures.borrow().parameter_count(*previous))
+                            .is_some_and(|(declared, supplied)| declared <= supplied)
                         {
                             demands.entry(symbol).or_default().insert(signature);
                         }
@@ -572,7 +577,14 @@ fn refine_shapes<'a>(
             let (sources, _) = origins(&call.callee, semantic);
             let expected = function_kind(&call.callee, &working, false, &general);
             let mut arguments = Vec::new();
-            for (index, argument) in call.arguments.iter().enumerate() {
+            let declared =
+                expected.and_then(|signature| signatures.borrow().parameter_count(signature));
+            for (index, argument) in call
+                .arguments
+                .iter()
+                .take(declared.unwrap_or(call.arguments.len()))
+                .enumerate()
+            {
                 let Some(expression) = argument.as_expression() else {
                     arguments.push(Type::Number);
                     continue;

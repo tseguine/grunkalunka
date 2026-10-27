@@ -83,8 +83,12 @@ packed into a Number or primitive host tag. A function-valued cell stores the
 two fields at offsets 0 and 4 of its existing 16-byte cell. Conditional joins,
 initialization and loads preserve both fields as one typed value. Numeric-leaf
 signature IDs equal their arity; richer IDs refer to module-local ordered
-parameter lists and a result type. Callback signatures specify a fixed arity of
-Number inputs.
+parameter lists and a result type. Callback signatures have fixed declared inputs,
+which may be Numbers or finite scalar-result callbacks. Supplied call counts may
+exceed that fixed count: the callee pair is saved first, all arguments finish in
+caller scope, and surplus values are discarded before the call. Only declared
+inputs occupy the argument frame. Missing inputs and more than 1,000 supplied
+arguments stay unsupported, including on callbacks and runtime factories.
 
 The compiler lifts a synchronous body into an internal function. Its first IR
 operation, `ClosureEntry`, imports initialized captured-cell addresses into

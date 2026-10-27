@@ -57,6 +57,10 @@ canonical, 0 through 1,000; richer callback IDs describe acyclic scalar-result
 parameter graphs. Returned
 callbacks and further closures retain captured callback cells and pair snapshots;
 ordered arguments can suspend in the caller before their parameter cells are bound.
+Runtime creator and returned-function calls evaluate surplus ordinary arguments
+before invocation, preserving the earlier callee pair and declared-input snapshots.
+Only declared inputs are passed; the extras retain their effects, validation and
+async jobs. Missing inputs and lists above 1,000 supplied arguments remain guarded.
 For example, `make(a)(b)()` can retain both creator cells through two returned pairs.
 Frames and typed cells retain their existing layouts. The host ABI is unchanged.
 

@@ -85,6 +85,19 @@ fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
 }
 
 #[test]
+fn runtime_surplus_arguments_preserve_primitive_results() {
+    compare_primitive_closure_programs(&[
+        "const f=a?(()=>null):(()=>false);return f(a,(a=b,null));",
+        "let f=x=>x?null:b;return f(a,(f=x=>undefined,a=b,null));",
+        "const invoke=fn=>fn(a,b);return invoke(x=>x?null:b);",
+        "const invoke=fn=>{const value=fn(a,b);return value;};return invoke(()=>null);",
+        "const h=a?fn=>fn():fn=>fn(a);return h(()=>null);",
+        "let make=x=>()=>x?null:b;return make(a,(make=x=>()=>undefined,a=b,null))();",
+        "let make=x=>(fn,y)=>fn(y,b);return make(a)(()=>null,b,undefined);",
+    ]);
+}
+
+#[test]
 fn known_local_surplus_values_preserve_primitive_results() {
     compare_primitive_closure_programs(&[
         "const apply=(fn,x)=>fn(x);return apply(x=>null,a,b);",

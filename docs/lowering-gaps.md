@@ -623,8 +623,12 @@ Source-known local arrows now evaluate surplus ordinary arguments in caller orde
 before binding declared inputs, preserving effects, captures, function/primitive
 discard and async caller rejection boundaries. Known concise/block creators retain
 function results through these calls. All declared inputs are still required and
-supplied arguments remain bounded to 1,000. Runtime indirect calls and top-level
-numeric helper calls retain exact arity; spread/optional/generic forms stay guarded.
+supplied arguments remain bounded to 1,000. Runtime indirect calls, callbacks and
+factories now use the same surplus-argument behavior, saving the callee pair first
+and passing only declared inputs through unchanged typed frames. Callback analysis
+uses minimum supplied counts and concrete signatures rather than requiring equal
+source call counts. Top-level numeric helpers still require exact arity;
+missing/spread/optional/generic forms stay guarded.
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls

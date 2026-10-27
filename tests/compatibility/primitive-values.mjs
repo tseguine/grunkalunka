@@ -8,6 +8,13 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['runtime-extra-selected','const f=a?(()=>null):(()=>false);return f(a,(a=b,null));'],
+  ['runtime-extra-snapshot','let f=x=>x?null:b;return f(a,(f=x=>undefined,a=b,null));'],
+  ['runtime-extra-callback','const invoke=fn=>fn(a,b);return invoke(x=>x?null:b);'],
+  ['runtime-extra-local','const invoke=fn=>{const value=fn(a,b);return value;};return invoke(()=>null);'],
+  ['runtime-extra-factory','let make=x=>()=>x?null:b;return make(a,(make=x=>()=>undefined,a=b,null))();'],
+  ['runtime-extra-returned-callback','let make=x=>(fn,y)=>fn(y,b);return make(a)(()=>null,b,undefined);'],
+
   ['local-extra-original','const apply=(fn,x)=>fn(x);return apply(x=>null,a,b);'],
   ['local-extra-null','const f=x=>x?null:b;return f(a,(a=b,null));'],
   ['local-extra-boolean','const f=x=>{if(x)return true;};return f(a,(a=b,false));'],

@@ -425,11 +425,12 @@ impl Lowering<'_, '_> {
             };
             if call.optional
                 || call.type_arguments.is_some()
-                || call.arguments.len() != parameter_count
+                || call.arguments.len() < parameter_count
+                || call.arguments.len() > 1000
             {
                 return Err(unsupported(
                     call,
-                    "runtime factory requires a plain call with exact arguments",
+                    "runtime factory requires a plain call, all declared inputs and at most 1000 arguments",
                 ));
             }
             if result_type != Type::Closure(expected) {
@@ -444,6 +445,10 @@ impl Lowering<'_, '_> {
                 let expression = argument
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
+                if index >= parameter_count {
+                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
+                    continue;
+                }
                 let parameter = self
                     .closure_signatures
                     .borrow()

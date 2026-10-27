@@ -546,16 +546,33 @@ impl Lowering<'_, '_> {
                     mut arguments,
                     depth,
                 } => {
-                    if arguments.len() < index {
+                    let Type::Closure(signature) = self.values[callee.0] else {
+                        unreachable!()
+                    };
+                    let parameter_count = self
+                        .closure_signatures
+                        .borrow()
+                        .parameter_count(signature)
+                        .expect("checked signature");
+                    if index <= parameter_count && arguments.len() < index {
                         arguments.push(values.pop().expect("runtime closure argument").number());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
                             unsupported(node, "spread call arguments are not admitted")
                         })?;
-                        let Type::Closure(signature) = self.values[callee.0] else {
-                            unreachable!()
-                        };
+                        if index >= parameter_count {
+                            work.push(Work::ClosureCall {
+                                node,
+                                call,
+                                callee,
+                                index: index + 1,
+                                arguments,
+                                depth,
+                            });
+                            work.push(Work::Eval(argument, depth, Mode::Discard));
+                            continue;
+                        }
                         let parameter = self
                             .closure_signatures
                             .borrow()
@@ -1465,8 +1482,14 @@ impl Lowering<'_, '_> {
                                 "optional and generic runtime closure calls are not admitted",
                             ));
                         }
+                        if call.arguments.len() > 1000 {
+                            return Err(unsupported(
+                                node,
+                                "at most 1000 ordinary runtime closure arguments are admitted",
+                            ));
+                        }
                         if call.arguments.len()
-                            != self
+                            < self
                                 .closure_signatures
                                 .borrow()
                                 .parameter_count(arity)
@@ -1474,7 +1497,7 @@ impl Lowering<'_, '_> {
                         {
                             return Err(unsupported(
                                 node,
-                                "runtime closure call requires exactly the declared number of arguments",
+                                "runtime closure call is missing declared arguments",
                             ));
                         }
                         let result_type = self
