@@ -64,7 +64,6 @@ fn local_primitive_inputs_keep_existing_call_and_result_guards() {
         "export function run(a,b){const f=x=>+x;return f('text');}",
         "export function run(a,b){const f=x=>+x;return f({});}",
         "export function run(a,b){const f=x=>+x;return f([]);}",
-        "export function run(a,b){const f=a?x=>+x:x=>-x;return f(null);}",
         "export function run(a,b){const f=x=>+x;return f(null,missing);}",
     ] {
         for ts in [false, true] {

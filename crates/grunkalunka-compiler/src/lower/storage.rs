@@ -1,7 +1,19 @@
 //! Readonly storage planning over the original semantic AST. Planning never publishes a binding.
 use super::*;
 use oxc_ast::AstKind;
+use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
+
+type CallResults<'a> = BTreeMap<NodeId, Option<Vec<&'a Expression<'a>>>>;
+
+// Storage planning traverses resolved returns while its symbol facts converge.
+// Later shape queries use the resulting positive call-site facts, so argument
+// specialization and signature checking do not disagree with storage planning.
+#[derive(Clone, Copy)]
+pub(super) enum NumberCalls<'s, 'a> {
+    Proven(&'s BTreeSet<NodeId>),
+    Returns(&'s CallResults<'a>),
+}
 
 // The same completion algebra as statement lowering, without evaluating source
 // expressions or looking inside nested functions. Unsupported statements are
@@ -36,56 +48,64 @@ fn completion_shape(statement: &Statement<'_>, depth: usize) -> Completion {
     }
 }
 
-pub(super) fn arrow_number_result_shape(
-    arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
-    semantic: &Semantic<'_>,
+fn arrow_returns<'n, 'a: 'n>(
+    arrow: &'n oxc_ast::ast::ArrowFunctionExpression<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<Vec<&'n Expression<'a>>> {
+    if let Some(body) = arrow.get_expression() {
+        return Some(vec![body]);
+    }
+    let oxc_ast::ast::ArrowFunctionBody::FunctionBody(body) = &arrow.body else {
+        unreachable!("block arrow body")
+    };
+    if body
+        .statements
+        .iter()
+        .fold(Completion::NORMAL, |completion, statement| {
+            completion.then(completion_shape(statement, 0))
+        })
+        != Completion::RETURN
+    {
+        return None;
+    }
+    block_results::return_statements(semantic, arrow.node_id.get())
+        .into_iter()
+        .map(|statement| statement.argument.as_ref())
+        .collect()
+}
+
+pub(super) fn arrow_number_result_shape<'a>(
+    arrow: &oxc_ast::ast::ArrowFunctionExpression<'a>,
+    semantic: &Semantic<'a>,
     functions: &[NumericFunction],
+    calls: NumberCalls<'_, 'a>,
     mut is_number_call: impl FnMut(SymbolId) -> bool,
     mut is_number_symbol: impl FnMut(SymbolId) -> bool,
 ) -> bool {
-    let expressions = if let Some(body) = arrow.get_expression() {
-        vec![Some(body)]
-    } else {
-        let oxc_ast::ast::ArrowFunctionBody::FunctionBody(body) = &arrow.body else {
-            unreachable!("block arrow body")
-        };
-        if body
-            .statements
-            .iter()
-            .fold(Completion::NORMAL, |completion, statement| {
-                completion.then(completion_shape(statement, 0))
-            })
-            != Completion::RETURN
-        {
-            return false;
-        }
-        block_results::return_statements(semantic, arrow.node_id.get())
-            .into_iter()
-            .map(|statement| statement.argument.as_ref())
-            .collect()
-    };
-    !expressions.is_empty()
-        && expressions.into_iter().all(|expression| {
-            expression.is_some_and(|expression| {
+    arrow_returns(arrow, semantic).is_some_and(|expressions| {
+        !expressions.is_empty()
+            && expressions.into_iter().all(|expression| {
                 number_result_shape(
                     expression,
                     0,
                     semantic,
                     functions,
+                    calls,
                     &mut is_number_call,
                     &mut is_number_symbol,
                 )
             })
-        })
+    })
 }
 
 // Positive Number-result classification for the represented source domain. Actual lowering
 // still validates every operand, target, call, scope and source budget.
-pub(super) fn number_result_shape(
-    expression: &Expression<'_>,
+pub(super) fn number_result_shape<'a>(
+    expression: &Expression<'a>,
     depth: usize,
-    semantic: &Semantic<'_>,
+    semantic: &Semantic<'a>,
     functions: &[NumericFunction],
+    calls: NumberCalls<'_, 'a>,
     mut is_number_call: impl FnMut(SymbolId) -> bool,
     mut is_number_symbol: impl FnMut(SymbolId) -> bool,
 ) -> bool {
@@ -100,6 +120,7 @@ pub(super) fn number_result_shape(
     };
 
     let mut pending = vec![(expression, depth)];
+    let mut expanded = 0;
     while let Some((node, depth)) = pending.pop() {
         if depth > 128 {
             return false;
@@ -180,6 +201,24 @@ pub(super) fn number_result_shape(
                 }
             }
             Expression::CallExpression(call) => {
+                if let NumberCalls::Proven(known) = calls
+                    && known.contains(&call.node_id.get())
+                {
+                    continue;
+                }
+                if let NumberCalls::Returns(known) = calls
+                    && let Some(results) = known.get(&call.node_id.get())
+                {
+                    let Some(results) = results else {
+                        return false;
+                    };
+                    expanded += results.len();
+                    if expanded > 256 {
+                        return false;
+                    }
+                    pending.extend(results.iter().map(|result| (*result, depth + 1)));
+                    continue;
+                }
                 if let Some(callee) = closures::unwrapped(&call.callee, depth + 1) {
                     if let Expression::ArrowFunctionExpression(arrow) = callee {
                         if let Some(body) = arrow.get_expression() {
@@ -224,12 +263,20 @@ pub(super) fn number_result_shape(
     true
 }
 
+#[derive(Default)]
+pub(crate) struct BindingKinds {
+    pub(crate) storage: BTreeSet<SymbolId>,
+    pub(crate) inputs: BTreeSet<SymbolId>,
+    // Source-local computed calls proven Number under all incoming scalar facts.
+    pub(crate) number_calls: BTreeSet<NodeId>,
+}
+
 pub(crate) fn general_mutable_bindings(
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
     callback_parameters: &super::callbacks::Parameters,
     signatures: &ir::ClosureSignatures,
-) -> BTreeSet<SymbolId> {
+) -> BindingKinds {
     // Also retain non-Number facts for immutable definitions: nested signature
     // queries may inspect their captures before those definitions are lowered.
     // Function constructors still use their separate, checked binding path.
@@ -242,6 +289,10 @@ pub(crate) fn general_mutable_bindings(
         .filter_map(|(symbol, signature)| {
             (signatures.result(*signature) == Some(Type::Number)).then_some(*symbol)
         })
+        .collect();
+    let callback_formals: BTreeSet<_> = callback_parameters
+        .values()
+        .flat_map(|parameters| parameters.keys().copied())
         .collect();
     let mut arrows = BTreeMap::new();
     for node in semantic.nodes().iter() {
@@ -280,7 +331,7 @@ pub(crate) fn general_mutable_bindings(
     }
     if mutable.is_empty() || definitions.len() > 128 {
         // Invalid oversized modules retain ordinary lowering's source-local diagnostics.
-        return BTreeSet::new();
+        return BindingKinds::default();
     }
     let mut writes: BTreeMap<SymbolId, Vec<&Expression<'_>>> = BTreeMap::new();
     for node in semantic.nodes().iter() {
@@ -333,9 +384,89 @@ pub(crate) fn general_mutable_bindings(
             }
             additions.extend(bodies.into_iter().map(|body| (symbol, body)));
         }
+        // Follow actual constructors through demanded callback formals. Generic
+        // identity inputs have no callback role and keep call-site specialization.
+        for node in semantic.nodes().iter() {
+            let AstKind::CallExpression(call) = node.kind() else {
+                continue;
+            };
+            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            for source in sources {
+                if let Some(known) = targets.get(&source) {
+                    bodies.extend(known);
+                }
+            }
+            for body in bodies {
+                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                {
+                    let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                        continue;
+                    };
+                    let (Some(symbol), Some(actual)) =
+                        (identifier.symbol_id.get(), argument.as_expression())
+                    else {
+                        continue;
+                    };
+                    if !callback_formals.contains(&symbol) {
+                        continue;
+                    }
+                    let (sources, mut constructors) =
+                        returns.expression(actual, &BTreeMap::new(), 0, 0);
+                    for source in sources {
+                        if let Some(known) = targets.get(&source) {
+                            constructors.extend(known);
+                        }
+                    }
+                    additions.extend(constructors.into_iter().map(|body| (symbol, body)));
+                }
+            }
+        }
         let mut changed = false;
         for (symbol, body) in additions {
             changed |= targets.entry(symbol).or_default().insert(body);
+        }
+        if !changed {
+            break;
+        }
+    }
+    // Known local calls specialize their actuals without using the private ABI.
+    // Match immutable arrows/aliases and concise known factory results, rather
+    // than widening a shared private signature because of an inlined call.
+    let static_constructor = |expression: &Expression<'_>, known: &BTreeMap<SymbolId, NodeId>| {
+        match closures::unwrapped(expression, 0)? {
+            Expression::ArrowFunctionExpression(arrow) => Some(arrow.node_id.get()),
+            Expression::Identifier(identifier) => identifier
+                .reference_id
+                .get()
+                .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
+                .and_then(|symbol| known.get(&symbol).copied()),
+            _ => None,
+        }
+    };
+    let mut static_targets = BTreeMap::new();
+    loop {
+        let mut additions = Vec::new();
+        for (&symbol, initializer) in &definitions {
+            if mutable.contains(&symbol) {
+                continue;
+            }
+            let Some(initializer) = initializer else {
+                continue;
+            };
+            let target = static_constructor(initializer, &static_targets).or_else(|| {
+                let Expression::CallExpression(call) = closures::unwrapped(initializer, 0)? else {
+                    return None;
+                };
+                let creator = static_constructor(&call.callee, &static_targets)?;
+                static_constructor(arrows[&creator].get_expression()?, &static_targets)
+            });
+            if let Some(target) = target {
+                additions.push((symbol, target));
+            }
+        }
+        let mut changed = false;
+        for (symbol, target) in additions {
+            changed |= static_targets.insert(symbol, target) != Some(target);
         }
         if !changed {
             break;
@@ -349,9 +480,38 @@ pub(crate) fn general_mutable_bindings(
         targets: &targets,
         arrows: &arrows,
     };
-    // A failed Number proof for an opaque call is not a General-kind fact.
-    // Retain the prior admission for such inputs; actual lowering still checks
-    // their values. In particular, nested runtime factory calls may be Number.
+    let mut call_results = BTreeMap::new();
+    for node in semantic.nodes().iter() {
+        let AstKind::CallExpression(call) = node.kind() else {
+            continue;
+        };
+        if matches!(
+            closures::unwrapped(&call.callee, 0),
+            Some(Expression::Identifier(_) | Expression::ArrowFunctionExpression(_))
+        ) || math_unary(call, semantic).is_some()
+        {
+            continue;
+        }
+        let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+        for source in sources {
+            if let Some(known) = targets.get(&source) {
+                bodies.extend(known);
+            }
+        }
+        if bodies.is_empty() {
+            continue;
+        }
+        let results: Option<Vec<_>> =
+            bodies
+                .into_iter()
+                .try_fold(Vec::new(), |mut results, body| {
+                    results.extend(arrow_returns(arrows[&body], semantic)?);
+                    Some(results)
+                });
+        call_results.insert(call.node_id.get(), results);
+    }
+    // Resolve computed callees before admitting their result as an input fact.
+    // Unknown callees still supply no scalar-kind evidence.
     let opaque_calls: Vec<_> = semantic
         .nodes()
         .iter()
@@ -359,17 +519,22 @@ pub(crate) fn general_mutable_bindings(
             let AstKind::CallExpression(call) = node.kind() else {
                 return None;
             };
-            (!matches!(
-                closures::unwrapped(&call.callee, 0),
-                Some(Expression::Identifier(_) | Expression::ArrowFunctionExpression(_))
-            ) && math_unary(call, semantic).is_none())
+            let known = call_results.contains_key(&call.node_id.get());
+            (!known
+                && !matches!(
+                    closures::unwrapped(&call.callee, 0),
+                    Some(Expression::Identifier(_) | Expression::ArrowFunctionExpression(_))
+                )
+                && math_unary(call, semantic).is_none())
             .then_some(call.span())
         })
         .collect();
+    let mut incoming = Vec::new();
     for node in semantic.nodes().iter() {
         let AstKind::CallExpression(call) = node.kind() else {
             continue;
         };
+        let runtime_input = static_constructor(&call.callee, &static_targets).is_none();
         let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
         for source in sources {
             if let Some(known) = targets.get(&source) {
@@ -405,6 +570,9 @@ pub(crate) fn general_mutable_bindings(
                     continue;
                 }
                 writes.entry(symbol).or_default().push(actual);
+                if runtime_input {
+                    incoming.push((symbol, actual));
+                }
             }
         }
     }
@@ -432,6 +600,7 @@ pub(crate) fn general_mutable_bindings(
                 0,
                 semantic,
                 functions,
+                NumberCalls::Returns(&call_results),
                 |callee| {
                     if !targets.contains_key(&callee) && !numeric_callbacks.contains(&callee) {
                         return false;
@@ -451,6 +620,7 @@ pub(crate) fn general_mutable_bindings(
                     arrows[body],
                     semantic,
                     functions,
+                    NumberCalls::Returns(&call_results),
                     |callee| {
                         if !targets.contains_key(&callee) && !numeric_callbacks.contains(&callee) {
                             return false;
@@ -495,5 +665,55 @@ pub(crate) fn general_mutable_bindings(
             pending.extend(readers.iter().copied());
         }
     }
-    candidates.difference(&numbers).copied().collect()
+    let storage: BTreeSet<_> = candidates.difference(&numbers).copied().collect();
+    // Source writes choose cell storage; only actual argument kinds choose the
+    // input ABI. A Number input may still be copied into a General local cell.
+    let inputs = incoming
+        .into_iter()
+        .filter_map(|(symbol, actual)| {
+            (!number_result_shape(
+                actual,
+                0,
+                semantic,
+                functions,
+                NumberCalls::Returns(&call_results),
+                |callee| {
+                    !storage.contains(&callee)
+                        && (targets.contains_key(&callee) || numeric_callbacks.contains(&callee))
+                },
+                |input| numbers.contains(&input),
+            ))
+            .then_some(symbol)
+        })
+        .collect();
+    let number_calls = call_results
+        .iter()
+        .filter_map(|(id, results)| {
+            results
+                .as_ref()
+                .is_some_and(|results| {
+                    results.iter().all(|result| {
+                        number_result_shape(
+                            result,
+                            0,
+                            semantic,
+                            functions,
+                            NumberCalls::Returns(&call_results),
+                            |callee| {
+                                !storage.contains(&callee)
+                                    && (targets.contains_key(&callee)
+                                        || numeric_callbacks.contains(&callee))
+                            },
+                            |input| numbers.contains(&input),
+                        )
+                    })
+                })
+                .then_some(*id)
+        })
+        .collect();
+    BindingKinds {
+        storage,
+        inputs,
+        number_calls,
+    }
 }

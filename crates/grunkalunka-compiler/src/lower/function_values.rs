@@ -22,7 +22,8 @@ impl Lowering<'_, '_> {
         if calls >= 8 || arrow.r#async {
             return None;
         }
-        let parameters = callbacks::parameter_types(arrow, self.callback_parameters);
+        let parameters =
+            callbacks::parameter_types(arrow, self.callback_parameters, self.general_parameters);
         let mut bindings: BTreeMap<_, _> = self
             .bindings
             .iter()
@@ -95,6 +96,7 @@ impl Lowering<'_, '_> {
             arrow,
             self.semantic,
             self.functions,
+            storage::NumberCalls::Proven(self.number_calls),
             |symbol| {
                 numeric_calls.contains(&symbol)
                     || (!self.general_bindings.contains(&symbol)
@@ -456,6 +458,9 @@ impl Lowering<'_, '_> {
                     .expect("checked signature");
                 let value = if let Type::Closure(callback) = parameter {
                     self.callback_argument(expression, region, callback, depth + 1)?
+                } else if parameter == Type::General {
+                    self.evaluate(expression, region, depth + 1, evaluate::Mode::General)?
+                        .expect("General runtime factory argument")
                 } else {
                     self.expression(expression, region, depth + 1)?
                 };
@@ -612,19 +617,15 @@ impl Lowering<'_, '_> {
         child.function_result_depth = 0;
         child.in_loop_body = false;
         child.lifting_depth += 1;
-        for parameter in &arrow.params.items {
+        let parameter_types =
+            callbacks::parameter_types(arrow, self.callback_parameters, self.general_parameters);
+        for (parameter, ty) in arrow.params.items.iter().zip(parameter_types) {
             let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                 unreachable!("checked closure parameter")
             };
             let slot = SlotId(child.slots.len());
             child.slots.push(Slot {
-                ty: self
-                    .callback_parameters
-                    .get(&arrow.node_id.get())
-                    .and_then(|parameters| {
-                        parameters.get(&identifier.symbol_id.get().expect("parameter symbol"))
-                    })
-                    .map_or(Type::Number, |arity| Type::Closure(*arity)),
+                ty,
                 owner: RegionId(0),
                 mutable: true,
                 parameter: true,

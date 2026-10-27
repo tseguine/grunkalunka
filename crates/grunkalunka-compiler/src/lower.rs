@@ -216,6 +216,8 @@ pub(super) struct Lowering<'s, 'a> {
     pub semantic: &'s Semantic<'a>,
     pub functions: &'s [NumericFunction],
     pub general_bindings: &'s std::collections::BTreeSet<SymbolId>,
+    pub general_parameters: &'s std::collections::BTreeSet<SymbolId>,
+    pub number_calls: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub callback_parameters: &'s callbacks::Parameters,
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,
@@ -397,6 +399,7 @@ impl Lowering<'_, '_> {
             depth,
             self.semantic,
             self.functions,
+            storage::NumberCalls::Proven(self.number_calls),
             |symbol| closures.contains(&symbol),
             |symbol| {
                 self.bindings

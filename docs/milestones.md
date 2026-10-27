@@ -10,10 +10,29 @@ Use small coherent commits, meaningful tests, proportional review and clear
 limitations. Each experiment should resolve a concrete engineering uncertainty
 before broader implementation depends on its result.
 
-The current goal's first practical horizon is L1, L2, C1 and R1: useful scalar
-control flow, explicit compatibility reporting, and one component whose authority
-changes with its capability profile. The later milestones remain visible without
-pretending a whole browser/framework is a short implementation task.
+The initial L1/L2/C1/R1 horizon has been demonstrated; its measurements below are
+historical evidence, not the current work queue. The compiler/runtime stream now
+extends L3/L4/L5 in small verified units, prioritizing async and closures while
+extending the [existing structured IR](ir-course-correction.md). Initialized local
+function pairs, represented primitive arguments/results, captures and limited
+[async catch/source throw](async-catch.md) are implemented; these do not establish
+general functions, synchronous exceptions, `finally` or Promise-object support.
+
+The next bounded lowering demonstration is primitive input inference through an
+awaited `Promise.resolve`/`Promise.reject` used as a callback argument, without a
+prior successful call establishing its kind. Native JS, Node Wasm and Wasmtime
+must agree on primitive results, skipped callback effects and reaction-job traces
+for JS/TS sources. Joining Number/General private input interfaces is a separate
+following unit. [Runtime closure contracts](runtime-closures.md) and the maintained
+`async-suspension` tests supply the existing behavior and guards to preserve.
+
+General JSON-compatible source values and parse/stringify remain a broader
+unfinished goal; current IR/closure work supports their eventual typed integration,
+and the separate [String/JSON bridge](json.md) is not general object/array lowering.
+The document/capability stream owns [the Markdown demonstration](https://github.com/tseguine/grunkalunka/issues/27);
+browser work remains separate. This summary addresses the coordination finding in
+[steering #37](https://github.com/tseguine/grunkalunka/issues/37) without changing
+those streams' scope or the maintainer's priorities.
 
 ## Lowering track
 
@@ -22,9 +41,9 @@ pretending a whole browser/framework is a short implementation task.
 | L0 — numeric expressions | Done | JS/TS -> portable Wasm; Wasmtime + Node-Wasm differential tests including signed zero, NaN, infinities and rounding. [Compiler contract](compiler.md). |
 | L1 — local values and decisions | Done | Numeric `const` locals and comparison-controlled ternaries; the L1 run had 31 JS/TS pairs, 76,508 engine comparisons and 64 rejected inputs. Bindings become available after their initializer. |
 | L2 — mutable control flow | Demonstrated | Numeric mutation, lexical blocks, `if`/`else`, early returns, numeric truthiness and `while`/`for`/`do...while`; the initial L2 run had 72 JS/TS pairs, 177,696 comparisons and 100 rejections. NaN/±0 conditions, nested loops, per-entry initialization and selected branches agree with JS. A separate runtime test observes OutOfFuel and successful instance reuse. Numeric compound assignments, prefix/postfix updates and parenthesized write statements are now admitted. Unlabelled break/continue now target the nearest while/for/do loop; switch, labels and other control forms remain explicit compatibility gaps. |
-| L3 — functions and modules | In progress | Top-level direct numeric helpers, exact arity, ordered argument snapshots and self/mutual recursion are demonstrated. Local concise arrow calls now share captured cells. General function values, nested declarations and module graphs/initialization remain. |
-| L4 — JS value semantics | Research gate | Compare small value-representation experiments for strings, undefined/null, booleans, numbers, objects/prototypes and coercion. Demonstrate equivalent observable behavior before selecting a production representation or GC strategy. |
-| L5 — exceptions, closures and async | Started | Local arrows share mutable cells and have scoped block returns. Initialized same-arity function bindings support reassignment and recursive rebinding. A separate async profile preserves undefined/null/Boolean/Number and internal function pairs across suspension, matching selected Promise/job ordering. General escaping function values, recursive initialization, throw/catch/finally and general Promise values remain. No blanket compatibility claim from one slice. |
+| L3 — functions and modules | In progress | Numeric helpers preserve ordered argument snapshots and self/mutual recursion. Initialized local/runtime function pairs, returned closures and captured cells work in the [admitted scalar/callback domains](runtime-closures.md). General function forms, nested declarations and module graphs/initialization remain. |
+| L4 — JS value semantics | In progress | Undefined, Null, Boolean and Number values and their admitted coercions have executable coverage. The separate String-literal/JSON bridge and guest operations are documented in [JSON notes](json.md). General source strings, arrays, objects/prototypes and a general heap/GC strategy remain open. |
+| L5 — exceptions, closures and async | In progress | Local/runtime closures preserve captured cells and scoped block returns. The async profile preserves represented primitives and internal function pairs across suspension. [Lexical async catch and primitive source throw](async-catch.md) have differential result/job-order tests. General synchronous exceptions, finally, recursive initialization, async closure bodies and general Promise/thenable values remain. No blanket compatibility claim from these slices. |
 | T1 — tsrs integration | Research gate | Pin source; perform one real type query associated with an expression; compare tsrs-only against Oxc+tsrs representations. Type information must not erase observable JS behavior. |
 
 L1/L2 retain an explicitly numeric ABI during the experiment. They expand a

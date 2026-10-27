@@ -50,6 +50,15 @@ specialized with those initialized typed slots and passes the module verifier.
 Call-result storage planning distinguishes Number-result callbacks from General
 results (Undefined, Null, Boolean or Number), including intermediate locals and
 forwarding functions. These facts cannot establish that a scalar value is callable.
+Actual constructors passed to demanded callback parameters also participate in
+primitive input analysis. For example, `apply=(fn,x)=>fn(x)` can call `y=>+y`
+with Null, and `y=>y` can preserve that Null result. The relation follows aliases,
+forwarding and captured callback parameters. Parameters with no callback demand,
+including generic identities, keep their independent call-site specialization.
+Computed calls with source-known constructors can supply scalar facts too, for
+example `apply(y=>y, make(a)())` when `make` returns a Null-returning closure.
+Number-result proofs remain distinct and are reused by argument specialization
+and signature queries. Unresolved computed callees do not gain a scalar fact.
 
 Specialized helper parameters use existing `Closure(signature)` slots, initialization,
 stores and captured cells. Actual callback calls use the existing private table

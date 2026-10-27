@@ -437,30 +437,32 @@ fn refine_shapes<'a>(
             })
         })
         .collect();
-    let constructor_kind = |body: NodeId, parameters: &Parameters, general: &BTreeSet<SymbolId>| {
-        let arrow = arrows[&body];
-        let number = storage::arrow_number_result_shape(
-            arrow,
-            semantic,
-            functions,
-            |symbol| !general.contains(&symbol),
-            |symbol| {
-                !general.contains(&symbol)
-                    && !parameters
-                        .values()
-                        .any(|inputs| inputs.contains_key(&symbol))
-            },
-        );
-        signatures.borrow_mut().intern(
-            parameter_types(arrow, parameters),
-            if number { Type::Number } else { Type::General },
-        )
-    };
+    let constructor_kind =
+        |body: NodeId, parameters: &Parameters, kinds: &storage::BindingKinds| {
+            let arrow = arrows[&body];
+            let number = storage::arrow_number_result_shape(
+                arrow,
+                semantic,
+                functions,
+                storage::NumberCalls::Proven(&kinds.number_calls),
+                |symbol| !kinds.storage.contains(&symbol),
+                |symbol| {
+                    !kinds.storage.contains(&symbol)
+                        && !parameters
+                            .values()
+                            .any(|inputs| inputs.contains_key(&symbol))
+                },
+            );
+            signatures.borrow_mut().intern(
+                parameter_types(arrow, parameters, &kinds.inputs),
+                if number { Type::Number } else { Type::General },
+            )
+        };
     for _ in 0..8 {
         let function_kind = |expression: &Expression<'a>,
                              parameters: &Parameters,
                              constructors_only: bool,
-                             general: &BTreeSet<SymbolId>| {
+                             general: &storage::BindingKinds| {
             let (sources, bodies) = returns.expression(expression, &BTreeMap::new(), 0, 0);
             let mut pending = sources.into_iter().collect::<Vec<_>>();
             let mut seen = BTreeSet::new();
@@ -613,7 +615,11 @@ fn refine_shapes<'a>(
                     }
                     arguments.push(Type::Closure(actual.unwrap_or(signature)));
                 } else {
-                    arguments.push(actual.map_or(Type::Number, Type::Closure));
+                    arguments.push(match actual {
+                        Some(signature) => Type::Closure(signature),
+                        None if expected == Some(Type::General) => Type::General,
+                        None => Type::Number,
+                    });
                 }
             }
             // A runtime callback's signature constrains even an unused formal
@@ -722,6 +728,7 @@ fn refine_shapes<'a>(
 pub(super) fn parameter_types(
     arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
     parameters: &Parameters,
+    general: &BTreeSet<SymbolId>,
 ) -> Vec<Type> {
     arrow
         .params
@@ -731,11 +738,22 @@ pub(super) fn parameter_types(
             let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                 return Type::Number;
             };
-            identifier
-                .symbol_id
-                .get()
-                .and_then(|symbol| parameters.get(&arrow.node_id.get())?.get(&symbol))
-                .map_or(Type::Number, |arity| Type::Closure(*arity))
+            let Some(symbol) = identifier.symbol_id.get() else {
+                return Type::Number;
+            };
+            parameters
+                .get(&arrow.node_id.get())
+                .and_then(|parameters| parameters.get(&symbol))
+                .map_or_else(
+                    || {
+                        if general.contains(&symbol) {
+                            Type::General
+                        } else {
+                            Type::Number
+                        }
+                    },
+                    |signature| Type::Closure(*signature),
+                )
         })
         .collect()
 }

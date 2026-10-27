@@ -29,6 +29,25 @@ fn known_local_results_follow_primitive_inputs() {
     ]);
 }
 
+#[test]
+fn runtime_primitive_inputs_preserve_value_tags_and_payloads() {
+    compare_primitive_closure_programs(&[
+        "const f=a?x=>+x:x=>-x;return f(null);",
+        "const f=a?x=>+x:x=>-x;return f(undefined);",
+        "const f=a?x=>+x:x=>-x;return f(true);",
+        "const f=a?x=>x:x=>x;return f(null);",
+        "const f=a?x=>x:x=>x;return f(undefined);",
+        "const f=a?x=>x:x=>x;return f(true);",
+        "const f=a?x=>x:x=>x;return f(false);",
+        "const f=a?x=>x:x=>x;return f(a?null:b);",
+        "let f=x=>x;const old=f;f=x=>!x;return old(true);",
+        "let make=x=>()=>x;const f=make(null);return f();",
+        "let make=x=>{return ()=>x;};return make(false)();",
+        "let f=x=>{x=null;return x;};return f(a);",
+        "let x=null;const f=a?(x,y)=>+x+y:(x,y)=>-x-y;return f(x,x=a);",
+    ]);
+}
+
 fn encode(value: Value) -> String {
     match value {
         Value::Undefined => "[0]".into(),
@@ -502,6 +521,37 @@ fn primitive_closure_coercions_and_predicates() {
             .unwrap();
         node(format!("const assert=require('node:assert/strict');{source};assert.ok(Object.is(run(4,2),{}));", if result.is_nan() { "NaN".into() } else { result.to_string() }).replace("export function", "function"));
     }
+}
+
+#[test]
+fn callback_primitive_inputs_preserve_result_kinds() {
+    compare_primitive_closure_programs(&[
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,null);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,false);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,undefined);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,a);",
+        "const apply=(fn,x)=>fn(x);const relay=(f,x)=>apply(f,x);return relay(y=>y,true);",
+        "const make=fn=>x=>fn(x);const f=make(y=>y);return f(null);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>{const f=()=>y;y=false;return f();},null);",
+    ]);
+}
+
+#[test]
+fn computed_call_results_feed_primitive_input_facts() {
+    compare_primitive_closure_programs(&[
+        "const make=x=>()=>null;const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>false;const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>{};const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>x;const id=x=>x;return id(make(a)());",
+        "let make=x=>()=>x;const id=x=>x;return id(make(null)());",
+        "const make=x=>()=>null;const id=x=>x;const relay=y=>id(y);return relay(make(a)());",
+        "const make=x=>()=>{if(x)return null;return false;};const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>{if(x)return null;};const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>x;const id=x=>x;return id((a?make(null):make(false))());",
+        "const make=x=>()=>null;const apply=(f,x)=>f(x);return apply(y=>y,make(a)());",
+        "const make=x=>()=>null;const id=x=>x;return id((a,make(b)()));",
+        "const make=x=>()=>null;const id=x=>x;return id(a?make(b)():false);",
+    ]);
 }
 
 #[test]

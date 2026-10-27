@@ -100,3 +100,12 @@ produced valid Wasm with a wrong result (5 versus native 3); typed offsets fix i
 The fresh modules also execute through the existing Wasmtime evaluator. This is
 bounded representation evidence, not frontend admission, a new compilation-cost
 measurement or proof of arbitrary physical layouts.
+
+The source lowerer now also uses this established General argument policy for
+runtime closures and factories. Input facts are separate from mutable storage
+facts: a Number input may still initialize a General local cell after entry.
+Known inlined calls specialize their arguments independently of that private ABI.
+Callers box Number values only when their callee's logical input is General;
+function pairs remain separate. No layout, exported ABI, arena or default fuel
+change was needed. Maintained source oracles cover the frontend admission apart
+from the earlier IR representation evidence.

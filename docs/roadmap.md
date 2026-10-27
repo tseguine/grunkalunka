@@ -2,8 +2,11 @@
 
 The [experimental primitive async profile](async.md) now provides saved activation
 state and host Promise jobs across numeric branches and loops, preserving the four
-represented primitive kinds and uncaught rejection reasons. General Promise
-values, exception handlers and escaping environments remain open.
+represented primitive kinds and uncaught rejection reasons. Limited
+[lexical async catch and primitive source throw](async-catch.md) and
+[returned synchronous closures with captured cells](runtime-closures.md) now have
+execution evidence. General Promise/thenable values, synchronous exceptions,
+`finally` and unrestricted function environments remain open.
 
 The project's direction is clear; implementation choices should earn their place
 through small experiments. This is a sequence of questions and exit criteria, not
@@ -86,12 +89,18 @@ Sources: [Node subprocess API](https://nodejs.org/api/child_process.html) and
 
 ## Experiments
 
-The immediate lowering priority is now JSON-compatible values plus `JSON.parse`
-and `JSON.stringify`. The [JSON implementation notes](json.md) track the verified
-native parser/compact serializer and remaining builtin, guest runtime and
-source-lowering work.
-The compiler still admits only the four existing immediate General kinds; a native
-data parser does not close a source-lowering gap.
+JSON-compatible source values plus `JSON.parse`/`JSON.stringify` remain an
+unfinished lowering goal. Later maintainer steering prioritizes concrete async
+and closure features on the [existing structured IR](ir-course-correction.md);
+the [current execution summary](milestones.md#execution-scope-and-quality) names
+the next owned demonstration and its observable exit criterion. This work improves
+the typed value/call/suspension foundation without claiming that JSON lowering is
+complete or adopting a wholesale IR replacement.
+The [JSON notes](json.md) distinguish verified native/guest operations and the
+separate String-literal source bridge from general source arrays, objects and
+arbitrary JSON value returns. The main General kind still represents only
+Undefined, Null, Boolean and Number; guest JSON support alone does not close those
+source-lowering gaps.
 
 | Order | Question and bounded experiment | Evidence required to move on |
 | --- | --- | --- |

@@ -14,10 +14,13 @@ cell; a later argument cannot overwrite an earlier argument's saved value.
 Separate factory applications retain separate cells, while aliases share their
 original cell. This includes primitive inputs obtained by awaiting in an async
 caller, without adding a reaction job at factory invocation. Runtime-selected
-factories still require their existing Number/callback input signatures;
+factories also transport represented primitive arguments through typed General
+entries, alongside Number and callback entries. Input kinds remain separate from
+storage needed after parameter writes;
 known scalar inputs also contribute to formal and result facts, including a
 captured primitive leaf such as `const make=x=>()=>x; return make(null)();`.
-This does not add General-input signatures for runtime-selected functions.
+Unresolved call-result and higher-order callback-origin inference remain separate
+work; this does not add function coercion or unrepresented scalar values.
 
 ```js
 export function run(a, b) {
