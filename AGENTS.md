@@ -37,12 +37,24 @@ belong at component boundaries; do not quietly turn every internal operation int
 a host call. Type annotations alone cannot justify changing observable JavaScript
 behavior. Narrow experimental admission is not a decision to narrow the product.
 
-The maintainer owns product requirements, priorities and scope. Implementation
-agents own technical choices within their delegated work. Record consequential
-choices, especially ones the maintainer might reasonably disagree with, using
-[the ADR template](docs/adr/TEMPLATE.md), with alternatives, tradeoffs and evidence.
-Respect accepted ADRs within their stated scope; proposals are not accepted policy.
-Escalate genuine requirement conflicts instead of silently choosing new goals.
+The maintainer **explicitly assigns high-level roadmap targets, their priority and
+workstream ownership**. Do not infer a new target, priority, or assignment from the
+roadmap, a steering issue, a completed milestone, another agent's progress, or a
+suggested A1/application vertical slice. Those are context and proposals, **not
+permission to start or redirect work**. Continue the maintainer's last explicit
+goal within its assigned scope until it is changed or completed. Agents may select
+and execute bounded technical tasks needed for that goal without asking for every
+step. When the assigned goal is complete and no next goal was explicitly delegated,
+report completion and propose options to the maintainer rather than self-assigning
+an adjacent roadmap target. If a proposed priority conflicts with current work,
+ask the maintainer instead of unilaterally switching streams.
+
+Implementation agents own technical choices within their delegated work. Record
+consequential choices, especially ones the maintainer might reasonably disagree
+with, using [the ADR template](docs/adr/TEMPLATE.md), with alternatives, tradeoffs
+and evidence. Respect accepted ADRs within their stated scope; proposals are not
+accepted policy. Escalate genuine requirement conflicts instead of silently
+choosing new goals.
 
 The architecture-review stream checks cross-stream convergence and proposes
 steering. It does not become a second implementation manager, automatically overrule
@@ -58,7 +70,9 @@ A steering issue should identify the affected workstream, inspected commit/PR an
 paths, concrete evidence, the relevant contract or decision, and a bounded next
 step with an observable completion criterion. Distinguish an observed defect or
 accepted-contract conflict from a proposed design improvement or open question.
-A proposal is not automatically a blocker or permission to expand scope.
+A proposal is not a blocker, a new roadmap assignment, or permission to expand
+scope. Steering from the architecture-review stream is advisory unless the
+maintainer explicitly assigns implementation or changes priorities.
 
 Keep one issue per concern; update existing evidence instead of opening duplicates.
 Link it from an affected active PR when useful. The affected implementation agent
