@@ -56,11 +56,15 @@ fn call_result<'e, 'a>(
     node: &'e Expression<'a>,
     mode: Mode,
     ty: Type,
+    number_proven: bool,
 ) -> Result<(), String> {
     match (ty, mode) {
         (Type::Number, Mode::General) => work.push(Work::Pack(node)),
         (Type::Number, Mode::Predicate) => work.push(Work::Truthy(node)),
         (Type::General, Mode::Predicate) => work.push(Work::GeneralTruthy(node)),
+        (Type::General, Mode::Number) if number_proven => {
+            work.push(Work::NumberFromGeneral(node));
+        }
         (Type::General, Mode::Number) => {
             return Err(unsupported(
                 node,
@@ -1538,7 +1542,7 @@ impl Lowering<'_, '_> {
                             if closure.result == Type::Number && matches!(mode, Mode::Number) {
                                 work.push(Work::NumberFromGeneral(node));
                             } else {
-                                call_result(&mut work, node, mode, Type::General)?;
+                                call_result(&mut work, node, mode, Type::General, false)?;
                             }
                             work.push(Work::LocalCall {
                                 node: argument,
@@ -1619,7 +1623,13 @@ impl Lowering<'_, '_> {
                             self.function_result_depth = outer;
                             value?
                         };
-                        call_result(&mut work, node, mode, result_type)?;
+                        call_result(
+                            &mut work,
+                            node,
+                            mode,
+                            result_type,
+                            self.numeric_result_shape(node, depth),
+                        )?;
                         work.push(Work::ClosureCall {
                             node,
                             call,
@@ -1646,7 +1656,13 @@ impl Lowering<'_, '_> {
                                 "function-valued local calls require an immutable closure binding",
                             ));
                         }
-                        call_result(&mut work, node, mode, closure.result)?;
+                        call_result(
+                            &mut work,
+                            node,
+                            mode,
+                            closure.result,
+                            self.numeric_result_shape(node, depth),
+                        )?;
                         work.push(Work::LocalCall {
                             node,
                             call,

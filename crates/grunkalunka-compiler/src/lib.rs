@@ -289,6 +289,7 @@ fn lower_source_profile(
             general_bindings: &general_bindings.storage,
             general_parameters: &general_bindings.inputs,
             number_calls: &general_bindings.number_calls,
+            general_results: &general_bindings.general_results,
             callback_parameters: &callback_parameters,
             closure_signatures: &closure_signatures,
             bindings,

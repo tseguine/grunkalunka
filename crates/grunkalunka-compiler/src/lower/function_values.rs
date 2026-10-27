@@ -70,6 +70,9 @@ impl Lowering<'_, '_> {
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
         bindings: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Type {
+        if self.general_results.contains(&arrow.node_id.get()) {
+            return Type::General;
+        }
         let mut numeric_calls: std::collections::BTreeSet<_> = self
             .closures
             .iter()

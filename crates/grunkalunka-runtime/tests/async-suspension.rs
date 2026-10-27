@@ -204,6 +204,29 @@ fn joined_private_inputs_preserve_async_results_and_snapshots() {
 }
 
 #[test]
+fn joined_result_interfaces_preserve_async_values_and_snapshots() {
+    compare_promises(
+        &[
+            "const f=()=>null;const g=()=>b;let h=a?f:g;await a;return h();",
+            "let f=x=>null;const g=x=>x;return (a?f:g)((f=g,await b));",
+            "const f=()=>null;const g=()=>b;let h=a?f:g;try{await Promise.reject(h());}catch(x){await a;return x;}return b;",
+            "const f=()=>null;const g=()=>b;let h=a?f:g;return (a?g:g)()+await b;",
+            "let f=()=>a;f=()=>true;return a;",
+            "let f=()=>a;f&&=()=>true;return a;",
+            "let f=()=>a;f||=()=>true;return a;",
+            "let f=()=>a;f??=()=>true;return a;",
+            "let make=x=>()=>null;make=x=>()=>x;return make(a)();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn immediate_selections_keep_async_values_and_callee_snapshots() {
     compare_promises(
         &[

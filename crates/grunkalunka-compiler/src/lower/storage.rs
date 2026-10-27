@@ -269,6 +269,8 @@ pub(crate) struct BindingKinds {
     pub(crate) inputs: BTreeSet<SymbolId>,
     // Source-local computed calls proven Number under all incoming scalar facts.
     pub(crate) number_calls: BTreeSet<NodeId>,
+    // Physical scalar result interfaces; source-local Number proofs stay separate.
+    pub(crate) general_results: BTreeSet<NodeId>,
 }
 
 pub(crate) fn general_mutable_bindings(
@@ -774,9 +776,32 @@ pub(crate) fn general_mutable_bindings(
                 .then_some(*id)
         })
         .collect();
+    let mut general_results = BTreeSet::new();
+    loop {
+        let previous = general_results.len();
+        for bodies in &input_groups {
+            if bodies.iter().any(|body| {
+                general_results.contains(body)
+                    || !arrow_number_result_shape(
+                        arrows[body],
+                        semantic,
+                        functions,
+                        NumberCalls::Proven(&number_calls),
+                        |callee| !storage.contains(&callee),
+                        |input| numbers.contains(&input) && !callback_formals.contains(&input),
+                    )
+            }) {
+                general_results.extend(bodies);
+            }
+        }
+        if previous == general_results.len() {
+            break;
+        }
+    }
     BindingKinds {
         storage,
         inputs,
         number_calls,
+        general_results,
     }
 }

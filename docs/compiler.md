@@ -2148,3 +2148,18 @@ is rejected. Fresh artifacts are replayed in Wasmtime through the existing CLI.
 No new dependency, host interface or arena-budget change is involved. Corpus 84
 and its 1,949 numeric pairs, 175 primitive pairs and 849 rejections are unchanged.
 See [the layout follow-up](adr/0014-backend-value-layout.md#general-closure-parameter-follow-up).
+
+### Joined primitive closure result interfaces
+
+Source-known constructors that share a runtime function value use a common General
+result interface when one peer lacks a positive Number result proof. The same
+constructor groups used for scalar input joins cover named bindings, immediate
+calls, demanded callbacks and overlapping aliases. Existing General return pairs
+carry Undefined, Null, Boolean or Number; Number bodies use ordinary packing.
+Source-local Number proofs are retained separately, allowing proven Number calls
+to convert the tagged completion for existing numeric uses. Mixed result calls
+still require a value, predicate or explicit coercion position. No new IR operation,
+backend layout, public host ABI, dependency or resource allowance is introduced.
+JS/TS differential execution covers both engines, native JavaScript, captured
+cells, ordered argument snapshots, numeric callers and async jobs. Function/primitive
+signature mismatches and unrepresented String/object results remain guarded.

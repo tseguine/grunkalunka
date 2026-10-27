@@ -151,6 +151,27 @@ fn immediate_selections_join_private_primitive_inputs() {
 }
 
 #[test]
+fn joined_result_interfaces_keep_number_only_call_sites() {
+    compare_function_programs(
+        &[
+            "let f=()=>a;f=()=>true;return a;",
+            "let f=()=>a;f&&=()=>true;return a;",
+            "let f=()=>a;f||=()=>true;return a;",
+            "let f=()=>a;f??=()=>true;return a;",
+        ],
+        false,
+    );
+    compare_functions(&[
+        "const f=()=>null;const g=()=>b;let h=a?f:g;return (a?g:g)();",
+        "const f=()=>null;const g=()=>b;let h=a?f:g;return +h();",
+        "const f=()=>null;const g=()=>b;let h=a?f:g;h();return g()+b;",
+        "const f=()=>null;const g=()=>b;let h=a?f:g;return h()?a:b;",
+        "const f=()=>null;const g=()=>{return b;};let h=a?f:g;h();return g()+b;",
+        "const f=()=>null;const g=()=>b;const k=()=>a;let h=a?f:g;let j=b?g:k;return (a?k:g)();",
+    ]);
+}
+
+#[test]
 fn immediate_join_callee_and_argument_type_wrappers_erase() {
     let plain =
         "export function run(a,b){const f=x=>+x;let p=f;p(null);const g=x=>-x;return (a?f:g)(b);}";
@@ -885,13 +906,9 @@ fn mutable_function_slots_require_function_initializers_and_unchanged_signatures
         "let f=()=>a;f=true;return a;",
         "let f=()=>a;f=x=>x;return a;",
         "let f=x=>x;let g=()=>a;f=g;return a;",
-        "let f=()=>a;f=()=>true;return a;",
         "let f=()=>a;f&&=x=>x;return a;",
         "let f=()=>a;f||=x=>x;return a;",
         "let f=()=>a;f??=x=>x;return a;",
-        "let f=()=>a;f&&=()=>true;return a;",
-        "let f=()=>a;f||=()=>true;return a;",
-        "let f=()=>a;f??=()=>true;return a;",
         "const f=()=>a;f&&=()=>b;return a;",
         "const f=()=>a;f||=()=>b;return a;",
         "const f=()=>a;f??=()=>b;return a;",
@@ -1874,7 +1891,6 @@ fn runtime_factory_results_require_matching_parameter_and_result_chains() {
         "const make=a?()=>()=>a:()=>b;return make()();",
         "let make=x=>()=>x;make=x=>y=>x+y;return make(a)();",
         "let make=x=>()=>x;make=x=>x;return make(a)();",
-        "let make=x=>()=>null;make=x=>()=>x;return make(a)();",
         "let make=x=>()=>null;make=x=>y=>false;return make(a)();",
         "let make=x=>y=>()=>x+y;make=x=>()=>()=>x;return a;",
         "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",

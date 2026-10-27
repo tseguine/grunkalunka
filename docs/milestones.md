@@ -25,9 +25,11 @@ and General scalar input interfaces now join across source-known constructors,
 with result/capture/downstream-call facts kept consistent. JS/TS differential
 tests cover named and immediately invoked selections, aliases, transitive groups,
 forwarded/factory results and async snapshots while preserving existing
-Number-only selections. The next bounded demonstration is
-selecting closures whose Number and General scalar result interfaces differ:
-primitive tags, Number bits and source evaluation order must survive in both engines.
+Number-only selections. Selected closures now also join Number and General scalar
+result interfaces, preserving primitive tags, Number bits and source evaluation
+order in both engines. Source-local Number proofs remain independent of the
+private tagged result interface. General function-valued result joins and
+unrepresented String/object results remain separate work.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

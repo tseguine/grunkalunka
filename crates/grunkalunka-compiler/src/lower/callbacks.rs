@@ -440,19 +440,20 @@ fn refine_shapes<'a>(
     let constructor_kind =
         |body: NodeId, parameters: &Parameters, kinds: &storage::BindingKinds| {
             let arrow = arrows[&body];
-            let number = storage::arrow_number_result_shape(
-                arrow,
-                semantic,
-                functions,
-                storage::NumberCalls::Proven(&kinds.number_calls),
-                |symbol| !kinds.storage.contains(&symbol),
-                |symbol| {
-                    !kinds.storage.contains(&symbol)
-                        && !parameters
-                            .values()
-                            .any(|inputs| inputs.contains_key(&symbol))
-                },
-            );
+            let number = !kinds.general_results.contains(&body)
+                && storage::arrow_number_result_shape(
+                    arrow,
+                    semantic,
+                    functions,
+                    storage::NumberCalls::Proven(&kinds.number_calls),
+                    |symbol| !kinds.storage.contains(&symbol),
+                    |symbol| {
+                        !kinds.storage.contains(&symbol)
+                            && !parameters
+                                .values()
+                                .any(|inputs| inputs.contains_key(&symbol))
+                    },
+                );
             signatures.borrow_mut().intern(
                 parameter_types(arrow, parameters, &kinds.inputs),
                 if number { Type::Number } else { Type::General },

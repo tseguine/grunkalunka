@@ -33,7 +33,8 @@ value. Numeric call results can initialize or update existing scalar bindings;
 later primitive writes still select General storage where required.
 
 Logical selection requires matching complete function signatures, including callback
-parameter kinds and the result kind. A represented function is truthy: `f && g`
+parameter kinds and the result kind after scalar interface joins described below.
+A represented function is truthy: `f && g`
 evaluates `f` once and selects `g`; `f || g` keeps the captured value of `f` and skips
 `g`. Functions are also non-nullish, so `f ?? g` keeps the same left snapshot and
 skips the right operand. Evaluating an operand can construct a function, update a
@@ -220,3 +221,15 @@ parameter writes/captures and async job order in both engines. A frame with 1,00
 General parameters executes with an explicit bounded Wasmtime test fuel budget and
 Node; this does not raise the default host fuel allowance. Missing inputs,
 defaults, rest/spread and unrepresented String/object values retain their guards.
+
+Selected scalar constructors also join Number and General result interfaces. If
+any source-known peer lacks a Number proof, the group uses the existing tagged
+General return pair, packing Number results without changing their bits. This
+propagates through overlapping groups and applies to named, immediate and callback
+selections. Input inference and source-local Number proofs remain separate: a
+call proven to return Number can still use arithmetic even when its private
+result interface is General. A genuinely mixed result requires a value, Boolean
+or explicit coercion position. Callee snapshots, argument effects, captures and
+async reaction order retain their existing behavior. Function-valued results
+retain their separate signatures; this does not join functions with primitives
+or add String/object result support.

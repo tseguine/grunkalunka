@@ -193,8 +193,6 @@ fn primitive_callback_width_and_signature_guards() {
     )]);
     for body in [
         format!("const apply=fn=>fn({arguments},a);return apply(({parameters},extra)=>null);"),
-        "const apply=(fn,x)=>fn(x);return apply(a?(x=>null):(x=>x),b);".into(),
-        "const apply=(fn,x)=>fn(x);let f=x=>null;f=x=>x;return apply(f,a);".into(),
         "const apply=(fn,x)=>fn(x);return apply(async x=>null,a);".into(),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
@@ -581,6 +579,33 @@ fn immediate_selections_preserve_joined_input_and_result_kinds() {
 }
 
 #[test]
+fn selections_join_number_and_general_result_interfaces() {
+    compare_primitive_closure_programs(&[
+        "const f=()=>null;const g=()=>b;let h=a?f:g;return h();",
+        "const f=()=>undefined;const g=()=>b;return (a?f:g)();",
+        "const f=()=>false;const g=()=>b;let h=f;if(a)h=g;return h();",
+        "const f=()=>{if(a)return null;return false;};const g=()=>{return b;};return (a?f:g)();",
+        "const f=()=>null;const g=()=>b;let h=a?f:g;return (h&&g)();",
+        "const f=()=>null;const g=()=>b;const h=a?f:g;const id=x=>x;return id(h)();",
+        "const apply=(fn,x)=>fn(x);return apply(a?(x=>null):(x=>x),b);",
+        "const apply=(fn,x)=>fn(x);let f=x=>null;f=x=>x;return apply(f,a);",
+        "const f=x=>null;const g=x=>x;let h=a?f:g;return h(b);",
+        "let x=b;const f=()=>null;const g=()=>x;let h=a?f:g;x=-0;return h();",
+        "let x=b;const f=()=>null;const g=()=>x;let h=a?f:g;return (h=(x=7,g),h)();",
+        "const f=()=>null;const g=()=>b;const k=()=>a;let h=a?f:g;let j=b?g:k;return j();",
+        "let f=()=>a;f=()=>true;return a;",
+        "let f=()=>a;f&&=()=>true;return a;",
+        "let f=()=>a;f||=()=>true;return a;",
+        "let f=()=>a;f??=()=>true;return a;",
+        "let f=()=>a;f&&=()=>true;return f();",
+        "let f=()=>a;f||=()=>true;return f();",
+        "let f=()=>a;f??=()=>true;return f();",
+        "let make=x=>()=>null;make=x=>()=>x;return make(a)();",
+        "let n=a;const f=x=>(n++,null);const g=x=>(n+=b,x);let h=a?f:g;return h((h=g,b));",
+    ]);
+}
+
+#[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>{if(a)return ()=>b;return null;};return a;",
@@ -588,18 +613,21 @@ fn primitive_results_do_not_expand_other_closure_domains() {
         "const f=()=>{return {};};return a;",
         "const f=async()=>null;return a;",
         "const f=()=>null;return f;",
-        "const f=()=>null;const g=()=>b;let h=a?f:g;return h();",
+        "const f=()=>null;const g=()=>()=>b;let h=a?f:g;return h();",
         "const f=()=>'';return f();",
         "const f=()=>({});return f();",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         assert!(compile_value(&source, false).is_err(), "{source}");
     }
-    assert!(
-        compile(
-            "export function run(a,b){const f=()=>null;return f();}",
-            false
-        )
-        .is_err()
-    );
+    for body in [
+        "const f=()=>null;return f();",
+        "const f=()=>null;const g=()=>b;let h=a?f:g;return h();",
+        "let make=x=>()=>null;make=x=>()=>x;return make(a)();",
+    ] {
+        for ts in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, ts).is_err(), "{source}");
+        }
+    }
 }
