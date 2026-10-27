@@ -107,7 +107,9 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if signature.result != Type::Number || signature.parameters.len() > 1000 {
+            if !matches!(signature.result, Type::Number | Type::General)
+                || signature.parameters.len() > 1000
+            {
                 return false;
             }
             for parameter in &signature.parameters {

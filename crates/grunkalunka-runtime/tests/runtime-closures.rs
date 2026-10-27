@@ -416,7 +416,6 @@ fn local_callback_constraints_reject_conflicting_kinds_and_runtime_signatures() 
         "const apply=fn=>{const alias=fn;return alias(a)+fn(a,b);};return a;",
         "const apply=(fn,x)=>fn(x);const relay=f=>apply(f,a)+f(a,b);return a;",
         "const apply=(fn,x)=>fn(x);return apply(async x=>x,b);",
-        "const apply=(fn,x)=>fn(x);return apply(x=>true,b);",
         "const apply=fn=>{fn=a;return fn();};return apply(()=>a);",
         "const apply=fn=>fn;return apply(()=>a);",
         "const apply=(fn,x)=>fn?.(x);return a;",
@@ -1132,6 +1131,32 @@ fn selected_higher_order_functions_receive_callback_pairs() {
 }
 
 #[test]
+fn primitive_callbacks_keep_numeric_consumers_and_identity() {
+    compare_functions(&[
+        "const apply=(fn,x)=>fn(x);return +apply(x=>null,a);",
+        "const apply=(fn,x)=>fn(x);return +apply(x=>undefined,a);",
+        "const apply=(fn,x)=>fn(x);return apply(x=>x?false:b,a)?a:b;",
+        "const apply=(fn,x)=>fn(x);let value=apply(x=>null,a);value=b;return +value;",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y?false:b,x);return +invoke(apply,a);",
+        "const apply=(fn,x)=>fn(x);const id=x=>x;const f=x=>x+b;return +apply(x=>null,a)+id(a)+id(f)(b);",
+    ]);
+}
+
+#[test]
+fn primitive_callback_results_do_not_become_numeric_exports() {
+    for body in [
+        "const apply=(fn,x)=>fn(x);return apply(x=>null,a);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>true,b);",
+        "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>null,a);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn callbacks_accept_further_numeric_callbacks() {
     compare_functions(&[
         "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y+b,x);return invoke(apply,a);",
@@ -1153,9 +1178,8 @@ fn callbacks_accept_further_numeric_callbacks() {
 }
 
 #[test]
-fn higher_callback_shapes_keep_numeric_result_and_cycle_guards() {
+fn higher_callback_shapes_keep_arity_async_and_cycle_guards() {
     for body in [
-        "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>null,a);",
         "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke(async(fn,x)=>fn(x),a);",
         "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>fn(),a);",
         "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>fn(x),()=>a);",
@@ -1178,7 +1202,6 @@ fn higher_order_signatures_reject_mixed_parameter_kinds_and_non_leaf_callbacks()
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(a,b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(()=>a,b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(async y=>y,b);",
-        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>true,b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h((g,y)=>g(y),b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>()=>y,b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h?.(y=>y,b);",
@@ -1624,7 +1647,6 @@ fn runtime_factory_results_require_matching_parameter_and_result_chains() {
 fn returned_function_callbacks_keep_numeric_leaf_kind_and_arity_guards() {
     for body in [
         "let make=x=>(fn,y)=>fn(y);return make(a)(()=>b,a);",
-        "let make=x=>(fn,y)=>fn(y);return make(a)(z=>null,a);",
         "let make=x=>(fn,y)=>fn(y);return make(a)(a,b);",
         "let make=x=>(fn,y)=>fn(y);return make(a)(async z=>z,a);",
         "let make=x=>fn=>fn(1);const apply=g=>g(1);return make(a)(apply);",

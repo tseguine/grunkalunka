@@ -8,6 +8,13 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['primitive-callback-null','const apply=(fn,x)=>fn(x);return apply(x=>null,a);'],
+  ['primitive-callback-boolean','const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>true,b);'],
+  ['primitive-callback-undefined','const apply=(fn,x)=>fn(x);return apply(x=>undefined,a);'],
+  ['primitive-callback-mixed','const apply=(fn,x)=>{const value=fn(x);return value;};return apply(x=>x?null:b,a);'],
+  ['primitive-callback-returned','let make=x=>(fn,y)=>fn(y);return make(a)(z=>null,a);'],
+  ['primitive-callback-higher','const apply=(fn,x)=>fn(x);const middle=(cb,x)=>cb(y=>y?false:b,x);const outer=(step,x)=>step(apply,x);return outer(middle,a);'],
+
   ['higher-callback-null','const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>x?null:cb(y=>y+b,x);return invoke(apply,a);'],
   ['higher-callback-boolean','const apply=(fn,x)=>fn(x);const invoke=(cb,fn,x)=>x?false:cb(fn,x);return invoke(apply,y=>y+b,a);'],
   ['higher-callback-undefined','const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>{cb(y=>y+b,x);};return invoke(apply,a);'],

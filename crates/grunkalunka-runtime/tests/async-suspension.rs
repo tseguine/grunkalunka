@@ -305,6 +305,35 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn primitive_callbacks_keep_caller_jobs_and_argument_snapshots() {
+    compare_promises(
+        &[
+            "const apply=(fn,x)=>fn(x);return apply(x=>null,await a);",
+            "const apply=(fn,x)=>fn(x);return apply((await null,x=>x?false:b),await a);",
+            "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>true,await b);",
+            "const apply=(fn,x)=>fn(x);const middle=(cb,x)=>cb(y=>y?false:b,x);const outer=(step,x)=>step(apply,x);return outer(middle,await a);",
+            "const make=offset=>(fn,x)=>()=>fn(x+offset);const f=make(await a)(x=>x?false:null,await b);await null;return f();",
+            "const apply=(fn,x)=>fn(x);let leaf=x=>x?null:b;return apply(leaf,await(leaf=x=>undefined,a));",
+            "const apply=(fn,x)=>fn(x);try{return await Promise.reject(apply(x=>null,a));}catch(e){return e;}",
+            "const apply=(fn,x)=>fn(x);try{return apply(x=>null,await Promise.reject(a));}catch(e){return e;}",
+            "const apply=(fn,x)=>fn(x);let value=apply(x=>x?null:b,await a);await null;return value;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){const apply=(fn,x)=>fn(x);return apply(x=>x?null:b,await a);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{const apply=(fn:string,x:never)=>(fn as any)(x);return apply(((x:never)=>x?null:b) as any,await(a as never));}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn higher_callback_shapes_keep_caller_jobs_and_argument_order() {
     compare_promises(
         &[

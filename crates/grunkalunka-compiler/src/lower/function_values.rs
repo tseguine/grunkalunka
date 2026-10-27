@@ -581,7 +581,7 @@ impl Lowering<'_, '_> {
         } {
             return Err(unsupported(
                 node,
-                "runtime factories require Number or finite Number-result callback parameters in returned functions",
+                "runtime factories require Number or finite scalar-result callback parameters in returned functions",
             ));
         }
         self.charge_closure_expansion(node)?;

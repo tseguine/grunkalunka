@@ -1,7 +1,7 @@
 # Callback arguments to known local functions
 
-Known synchronous local arrows and concise factories accept Number arguments or
-numeric-leaf function values. The Number, primitive-return and primitive async
+Known synchronous local arrows and factories accept Number arguments or finite
+scalar-result function values, including callbacks taking callbacks. The Number, primitive-return and primitive async
 entry profiles share this source lowering. Constructors, runtime selections,
 aliases and initialized mutable function bindings can supply a callback:
 
@@ -25,8 +25,8 @@ const make = fn => x => fn(x);
 const f = make(x => x+a);
 ```
 
-The compiler derives a callback parameter's fixed arity from calls, local aliases
-and forwarding to source-known local arrows. It follows original semantic
+The compiler derives a callback parameter's ordered parameter and result kinds
+from calls, constructors, local aliases and forwarding to source-known local arrows. It follows original semantic
 SymbolIds through conditional/comma/plain-assignment values and respects shadows.
 Conflicting arities and arities above 1,000 are rejected. This is conservative
 static demand analysis, not general JS type inference. Parameter names and erased
@@ -38,8 +38,9 @@ Unused bodies still undergo disposable definition checking. Callback inputs ther
 carry a type only, with no runtime target, and that scratch IR is never published.
 Every actual argument constructs or loads a complete pair; every actual body is
 specialized with those initialized typed slots and passes the module verifier.
-Call-result storage planning uses callback demands as hints; it cannot establish
-that a scalar value is callable.
+Call-result storage planning distinguishes Number-result callbacks from General
+results (Undefined, Null, Boolean or Number), including intermediate locals and
+forwarding functions. These facts cannot establish that a scalar value is callable.
 
 Specialized helper parameters use existing `Closure(signature)` slots, initialization,
 stores and captured cells. Actual callback calls use the existing private table
@@ -60,16 +61,16 @@ forwarding, aliases, shared writes, factories, lexical shadows, 1,000-argument l
 async jobs and erased annotations. Boundary tests cover conflicting/invalid inputs,
 unused invalid bodies, runtime signature exclusions, nesting and source budgets.
 
-[Runtime-selected higher-order functions now accept numeric-leaf callbacks](higher-order-callbacks.md),
+[Runtime-selected higher-order functions accept scalar-result callbacks](higher-order-callbacks.md),
 with module-interned ordered parameter kinds rather than only an arity. Compatible
 selected targets and initialized mutable functions preserve callback snapshots,
-shared capture cells and the fixed two-pointer physical ABI. Callbacks taking
-callbacks, factories returning factories, primitive/heap callback
-arguments or results, async callback bodies and Promise callbacks remain separate
-gaps. This does not complete general first-class functions.
+shared capture cells and the fixed two-pointer physical ABI. General primitive
+results use the existing tag/payload call result. Ordinary General/heap parameters,
+heap or function callback results, async callback bodies and Promise callbacks
+remain separate gaps. This does not complete general first-class functions.
 
 Concise known calls now also forward existing function pairs, including immediate
 invocation and parameter replacement; see [local function results](local-function-results.md).
 Known local [block bodies](block-function-results.md) also return compatible pairs;
-concise runtime factories return numeric-leaf pairs via [typed indirect calls](runtime-function-results.md).
+runtime factories return finite function pairs via [typed indirect calls](runtime-function-results.md).
 General recursive result signatures remain separate work.

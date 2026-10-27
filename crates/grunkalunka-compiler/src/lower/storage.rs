@@ -228,6 +228,7 @@ pub(crate) fn general_mutable_bindings(
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
     callback_parameters: &super::callbacks::Parameters,
+    signatures: &ir::ClosureSignatures,
 ) -> BTreeSet<SymbolId> {
     // Also retain non-Number facts for immutable definitions: nested signature
     // queries may inspect their captures before those definitions are lowered.
@@ -237,8 +238,10 @@ pub(crate) fn general_mutable_bindings(
     let mut parameters = BTreeSet::new();
     let numeric_callbacks: BTreeSet<_> = callback_parameters
         .values()
-        .flat_map(|parameters| parameters.keys())
-        .copied()
+        .flat_map(|parameters| parameters.iter())
+        .filter_map(|(symbol, signature)| {
+            (signatures.result(*signature) == Some(Type::Number)).then_some(*symbol)
+        })
         .collect();
     let mut arrows = BTreeMap::new();
     for node in semantic.nodes().iter() {
@@ -347,7 +350,13 @@ pub(crate) fn general_mutable_bindings(
         .copied()
         .collect::<BTreeSet<_>>();
     let mut dependents: BTreeMap<SymbolId, BTreeSet<SymbolId>> = BTreeMap::new();
-    let mut invalid = BTreeSet::new();
+    // A General-result callback cannot supply a Number proof to its callers.
+    let mut invalid: BTreeSet<_> = callback_parameters
+        .values()
+        .flat_map(|parameters| parameters.keys())
+        .filter(|symbol| !numeric_callbacks.contains(symbol))
+        .copied()
+        .collect();
     for symbol in &candidates {
         let required = std::cell::RefCell::new(BTreeSet::new());
         let shape = |expression| {

@@ -228,9 +228,13 @@ fn lower_source_profile(
     }
     let closure_signatures = std::cell::RefCell::new(ir::ClosureSignatures::default());
     let callback_parameters =
-        lower::infer_callback_parameters(&built.semantic, &closure_signatures)?;
-    let general_bindings =
-        lower::general_mutable_bindings(&built.semantic, &signatures, &callback_parameters);
+        lower::infer_callback_parameters(&built.semantic, &signatures, &closure_signatures)?;
+    let general_bindings = lower::general_mutable_bindings(
+        &built.semantic,
+        &signatures,
+        &callback_parameters,
+        &closure_signatures.borrow(),
+    );
     let mut functions = Vec::new();
     let mut lifted = Vec::new();
     let mut local_count = 0;

@@ -1677,12 +1677,12 @@ its RHS. No new IR operation or representation is needed.
 An indirect call captures its callee pair before argument side effects or await;
 assignment cannot retroactively change that snapshot. Captured mutable function
 slots can be rebound and can form recursive calls through initialized cells.
-Known local arrows and factories also accept numeric-leaf callback arguments.
+Known local arrows and factories also accept fixed-signature scalar-result callbacks.
 Original-symbol demand analysis checks fixed callback arities through aliases and
 forwarding; actual specialization initializes typed function parameter cells.
 See [local callback arguments](local-callback-arguments.md) for snapshot order,
 factory capture and definition checking. Runtime-selected higher-order functions
-accept finite Number-result callbacks, including callbacks taking callbacks; [runtime factories](runtime-function-results.md)
+accept finite scalar-result callbacks, including callbacks taking callbacks; [runtime factories](runtime-function-results.md)
 return function pairs with Number or these callback parameters through a separate private pair-return call
 type. Selected and assigned signatures include both parameter and result kinds.
 Complete block creators use the existing owned-return query and typed `InlineCall`
@@ -1691,17 +1691,19 @@ creator completion remains rejected. The signature query and concise-only guard
 were extended without a new IR operation or backend path.
 Returned functions may themselves return functions through strictly earlier,
 acyclic signature IDs. The shared result validator walks that chain without native
-recursion, admitting Number parameters or acyclic Number-result callbacks at each
+recursion, admitting Number parameters or acyclic scalar-result callbacks at each
 returned layer; primitive leaves
 retain the existing General or Number call ABI. Exact signature matching remains.
 Returned callbacks retain both code/environment fields in the existing ordered
 argument frames and mutable parameter cells, including across async caller waits.
-Callback arguments require Number results; their parameters may themselves be
-callbacks. Original-symbol shape refinement uses concrete constructors and demanded
-formal forwarding without forcing generic identity formals. Both refinement phases
+Callback arguments return Number or General represented primitives; their
+parameters may themselves be callbacks. Original-symbol shape refinement uses
+concrete constructors and demanded formal forwarding without forcing generic identity formals. Both refinement phases
 are bounded to eight rounds. The IR verifier walks callback parameter graphs
-iteratively, checking earlier signature references, Number results and widths.
-General-result/async callbacks and cyclic callback type metadata remain unsupported.
+iteratively, checking earlier signature references, Number/General results and widths.
+General-result callback facts propagate through storage planning and constructor
+signatures rather than retaining a Number assumption. Async callbacks, ordinary
+General parameters and cyclic callback type metadata remain unsupported.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call

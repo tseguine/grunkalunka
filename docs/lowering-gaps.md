@@ -607,17 +607,17 @@ Canonical rejection counts remain unchanged. Async closure bodies, function
 arguments/results, identity/properties and general return kinds remain open; see
 [runtime closures](runtime-closures.md).
 
-Known local arrows/factories now accept numeric-leaf callback arguments, following
+Known local arrows/factories now accept fixed-signature scalar-result callbacks, following
 original symbols through aliases and static forwarding. Argument snapshots and
 captured callback cells survive async jobs and factory return. General function
 results remain open. This admits no original canonical rejection source; counts
 remain unchanged. See [local callback arguments](local-callback-arguments.md).
 
-Runtime-selected synchronous functions now accept numeric-leaf callback parameters
+Runtime-selected synchronous functions now accept fixed-signature scalar-result callbacks
 alongside Number parameters. Compatible typed signatures preserve pair snapshots,
 shared cells and ordered arguments across async suspension; packed frames retain
-the 1,000 logical-argument bound. Callbacks taking callbacks, factories returning factories
-and async callback bodies remain open. See [higher-order callbacks](higher-order-callbacks.md).
+the 1,000 logical-argument bound. Finite callbacks taking callbacks and factories
+returning factories are supported; async callback bodies remain open. See [higher-order callbacks](higher-order-callbacks.md).
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls
@@ -650,7 +650,7 @@ recursive rebinding and async callers. Result-aware logical signatures and a
 private pair-return table call preserve the existing host ABI and wide argument
 bounds. See [runtime function results](runtime-function-results.md). General recursive
 callback/result signatures, unrepresented leaf results and async bodies remain open.
-Returned functions keep Number or finite Number-result callback parameters; primitive tags and payloads survive factory
+Returned functions keep Number or finite scalar-result callback parameters; primitive tags and payloads survive factory
 selection, captures, rebinding and async callers without a new physical ABI.
 Block creators retain early returns, loops, lexical aliases and fresh creator
 cells; every structural return must produce the same full function signature.
@@ -659,9 +659,10 @@ results now use the same pair representation with acyclic
 signature chains. Captured cells and middle/leaf snapshots survive later calls and
 async jobs. Callback parameter pairs also retain caller argument snapshots and
 shared mutable cells across returned layers. Callbacks taking callbacks now use
-acyclic Number-result parameter graphs derived from constructors, aliases and
-demanded formals. General-result/async callback arguments and cyclic type metadata
-remain outside this slice.
+acyclic scalar-result parameter graphs derived from constructors, aliases and
+demanded formals. Number or General callback results preserve primitive tags and
+payloads through existing typed calls. Async callback arguments, ordinary General
+parameters and cyclic type metadata remain outside this slice.
 
 Represented synchronous function values now support Boolean contexts: conditions,
 negation, loops and Boolean-position short-circuit expressions. Existing higher-order

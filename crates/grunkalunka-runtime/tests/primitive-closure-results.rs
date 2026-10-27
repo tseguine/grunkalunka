@@ -85,6 +85,54 @@ fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
 }
 
 #[test]
+fn callbacks_return_represented_primitives() {
+    compare_primitive_closure_programs(&[
+        "const apply=(fn,x)=>fn(x);return apply(x=>null,a);",
+        "const apply=(fn,x)=>fn(x);return apply(x=>true,a);",
+        "const apply=(fn,x)=>fn(x);return apply(x=>true,b);",
+        "let make=x=>(fn,y)=>fn(y);return make(a)(z=>null,a);",
+        "const apply=(fn,x)=>fn(x);return apply(x=>undefined,a);",
+        "const apply=(fn,x)=>fn(x);return apply(x=>x?null:b,a);",
+        "const apply=(fn,x)=>{const value=fn(x);return value;};return apply(x=>x?false:b,a);",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>true,b);",
+        "const invoke=(cb,x)=>cb(y=>y+b,x);return invoke((fn,x)=>null,a);",
+        "const apply=(fn,x)=>fn(x);const relay=(cb,x)=>apply(cb,x);return relay(x=>x?null:b,a);",
+        "const apply=(fn,x)=>fn(x);const make=offset=>(fn,x)=>fn(x+offset);return make(a)(x=>x?false:null,b);",
+        "const apply=(fn,x)=>fn(x);const h=a?((fn,x)=>fn(x)):((fn,x)=>fn(x+b));return h(x=>x?false:null,a);",
+        "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>cb(y=>y?null:b,x);return invoke(apply,a);",
+        "const apply=(fn,x)=>fn(x);const middle=(cb,x)=>cb(y=>y?false:b,x);const outer=(step,x)=>step(apply,x);return outer(middle,a);",
+        "const apply=(fn,x)=>fn(x);let leaf=x=>x?null:b;const invoke=(cb,x)=>{const old=cb;cb=x=>false;return old(x);};return invoke(leaf,(leaf=x=>undefined,a));",
+        "let count=0;const apply=(fn,x)=>{fn(x);return fn(x);};const make=offset=>x=>(count++,x?null:offset);return apply(make(b),a);",
+        "const apply=(fn,x)=>fn(x);return apply(x=>{if(x)return null;},a);",
+        "const apply=(fn,x)=>fn(x);const id=x=>x;return apply(x=>null,id(a));",
+    ]);
+}
+
+#[test]
+fn primitive_callback_width_and_signature_guards() {
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 1000].join(",");
+    compare_primitive_closure_programs(&[&format!(
+        "const apply=fn=>fn({arguments});return apply(({parameters})=>null);"
+    )]);
+    for body in [
+        format!("const apply=fn=>fn({arguments},a);return apply(({parameters},extra)=>null);"),
+        "const apply=(fn,x)=>fn(x);return apply(a?(x=>null):(x=>x),b);".into(),
+        "const apply=(fn,x)=>fn(x);let f=x=>null;f=x=>x;return apply(f,a);".into(),
+        "const apply=(fn,x)=>fn(x);return apply(async x=>null,a);".into(),
+        "const apply=(fn,x)=>fn(x);return apply(x=>null,a,b);".into(),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert!(compile_value(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn higher_numeric_callbacks_keep_enclosing_primitive_results() {
     compare_primitive_closure_programs(&[
         "const apply=(fn,x)=>fn(x);const invoke=(cb,x)=>x?null:cb(y=>y+b,x);return invoke(apply,a);",

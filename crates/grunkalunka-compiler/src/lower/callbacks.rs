@@ -5,7 +5,7 @@ use oxc_ast::AstKind;
 use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
 
-// Entries are full Number-result signature IDs; numeric leaves use their arity.
+// Entries are full scalar-result signature IDs; numeric leaves use their arity.
 pub(crate) type Parameters = BTreeMap<NodeId, BTreeMap<SymbolId, usize>>;
 type Origins = (BTreeSet<SymbolId>, BTreeSet<NodeId>);
 
@@ -175,6 +175,7 @@ fn origins(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Origins {
 
 pub(crate) fn infer_callback_parameters(
     semantic: &Semantic<'_>,
+    functions: &[NumericFunction],
     signatures: &std::cell::RefCell<ir::ClosureSignatures>,
 ) -> Result<Parameters, String> {
     let mut aliases: BTreeMap<SymbolId, BTreeSet<SymbolId>> = BTreeMap::new();
@@ -305,26 +306,49 @@ pub(crate) fn infer_callback_parameters(
             }
         }
     }
-    for call in &calls {
-        let (sources, mut bodies) = origins(&call.callee, semantic);
-        for source in sources {
-            if let Some(known) = targets.get(&source) {
-                bodies.extend(known);
-            }
-        }
-        for body in bodies {
-            let arrow = arrows[&body];
-            for (parameter, argument) in arrow.params.items.iter().zip(&call.arguments) {
-                if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
-                    && let Some(id) = identifier.symbol_id.get()
-                    && let Some(expression) = argument.as_expression()
-                {
-                    aliases
-                        .entry(id)
-                        .or_default()
-                        .extend(origins(expression, semantic).0);
+    let declared_targets = targets.clone();
+    // Calls through an aliased callback can reveal another known target's
+    // parameter origins. Saturate this finite source relation before shapes.
+    loop {
+        let mut additions = Vec::new();
+        for call in &calls {
+            let (sources, mut bodies) = origins(&call.callee, semantic);
+            let mut pending = sources.into_iter().collect::<Vec<_>>();
+            let mut seen = BTreeSet::new();
+            while let Some(source) = pending.pop() {
+                if !seen.insert(source) {
+                    continue;
+                }
+                if let Some(known) = targets.get(&source) {
+                    bodies.extend(known);
+                }
+                if let Some(sources) = aliases.get(&source) {
+                    pending.extend(sources);
                 }
             }
+            for body in bodies {
+                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(id) = identifier.symbol_id.get()
+                        && let Some(expression) = argument.as_expression()
+                    {
+                        additions.push((id, origins(expression, semantic)));
+                    }
+                }
+            }
+        }
+        let mut changed = false;
+        for (id, (sources, bodies)) in additions {
+            for source in sources {
+                changed |= aliases.entry(id).or_default().insert(source);
+            }
+            for body in bodies {
+                changed |= targets.entry(id).or_default().insert(body);
+            }
+        }
+        if !changed {
+            break;
         }
     }
     loop {
@@ -356,9 +380,9 @@ pub(crate) fn infer_callback_parameters(
                 let mut arities = demands.get(&symbol).cloned().unwrap_or_default();
                 // A function constructor written to a formal also fixes its
                 // represented kind, even when the body returns it without calling.
-                // Known call arguments do not populate `targets` for formals:
+                // Argument-derived targets are separate from declared writes:
                 // scalar identity functions remain polymorphic at specialization.
-                if let Some(bodies) = targets.get(&symbol) {
+                if let Some(bodies) = declared_targets.get(&symbol) {
                     arities.extend(bodies.iter().map(|body| arrows[body].params.items.len()));
                 }
                 if arities.is_empty() {
@@ -376,24 +400,30 @@ pub(crate) fn infer_callback_parameters(
         result.insert(*id, parameters);
     }
     refine_shapes(
-        semantic, &aliases, &targets, &arrows, &calls, result, signatures,
+        ReturnOrigins {
+            semantic,
+            targets: &targets,
+            arrows: &arrows,
+        },
+        functions,
+        &aliases,
+        &calls,
+        result,
+        signatures,
     )
 }
 
 fn refine_shapes<'a>(
-    semantic: &Semantic<'a>,
+    returns: ReturnOrigins<'_, '_, 'a>,
+    functions: &[NumericFunction],
     aliases: &BTreeMap<SymbolId, BTreeSet<SymbolId>>,
-    targets: &BTreeMap<SymbolId, BTreeSet<NodeId>>,
-    arrows: &BTreeMap<NodeId, &oxc_ast::ast::ArrowFunctionExpression<'a>>,
     calls: &[&oxc_ast::ast::CallExpression<'a>],
     mut parameters: Parameters,
     signatures: &std::cell::RefCell<ir::ClosureSignatures>,
 ) -> Result<Parameters, String> {
-    let returns = ReturnOrigins {
-        semantic,
-        targets,
-        arrows,
-    };
+    let semantic = returns.semantic;
+    let targets = returns.targets;
+    let arrows = returns.arrows;
     let owners: BTreeMap<_, _> = arrows
         .iter()
         .flat_map(|(body, arrow)| {
@@ -405,41 +435,56 @@ fn refine_shapes<'a>(
             })
         })
         .collect();
+    let constructor_kind = |body: NodeId, parameters: &Parameters, general: &BTreeSet<SymbolId>| {
+        let arrow = arrows[&body];
+        let number = storage::arrow_number_result_shape(
+            arrow,
+            semantic,
+            functions,
+            |symbol| !general.contains(&symbol),
+            |symbol| {
+                !general.contains(&symbol)
+                    && !parameters
+                        .values()
+                        .any(|inputs| inputs.contains_key(&symbol))
+            },
+        );
+        signatures.borrow_mut().intern(
+            parameter_types(arrow, parameters),
+            if number { Type::Number } else { Type::General },
+        )
+    };
     for _ in 0..8 {
-        let function_kind =
-            |expression: &Expression<'a>, parameters: &Parameters, constructors_only: bool| {
-                let (sources, bodies) = returns.expression(expression, &BTreeMap::new(), 0, 0);
-                let mut pending = sources.into_iter().collect::<Vec<_>>();
-                let mut seen = BTreeSet::new();
-                let mut kinds = BTreeSet::new();
-                let constructor = |body: NodeId| {
-                    // Number is the callback contract. Real body checking still
-                    // checks the constructor's actual result against that type.
-                    signatures
-                        .borrow_mut()
-                        .intern(parameter_types(arrows[&body], parameters), Type::Number)
-                };
-                kinds.extend(bodies.into_iter().map(constructor));
-                while let Some(source) = pending.pop() {
-                    if !seen.insert(source) {
-                        continue;
-                    }
-                    if !constructors_only
-                        && let Some(kind) = parameters
-                            .values()
-                            .find_map(|parameters| parameters.get(&source))
-                    {
-                        kinds.insert(*kind);
-                    }
-                    if let Some(bodies) = targets.get(&source) {
-                        kinds.extend(bodies.iter().copied().map(constructor));
-                    }
-                    if let Some(sources) = aliases.get(&source) {
-                        pending.extend(sources);
-                    }
+        let function_kind = |expression: &Expression<'a>,
+                             parameters: &Parameters,
+                             constructors_only: bool,
+                             general: &BTreeSet<SymbolId>| {
+            let (sources, bodies) = returns.expression(expression, &BTreeMap::new(), 0, 0);
+            let mut pending = sources.into_iter().collect::<Vec<_>>();
+            let mut seen = BTreeSet::new();
+            let mut kinds = BTreeSet::new();
+            let constructor = |body| constructor_kind(body, parameters, general);
+            kinds.extend(bodies.into_iter().map(constructor));
+            while let Some(source) = pending.pop() {
+                if !seen.insert(source) {
+                    continue;
                 }
-                (kinds.len() == 1).then(|| *kinds.first().unwrap())
-            };
+                if !constructors_only
+                    && let Some(kind) = parameters
+                        .values()
+                        .find_map(|parameters| parameters.get(&source))
+                {
+                    kinds.insert(*kind);
+                }
+                if let Some(bodies) = targets.get(&source) {
+                    kinds.extend(bodies.iter().copied().map(constructor));
+                }
+                if let Some(sources) = aliases.get(&source) {
+                    pending.extend(sources);
+                }
+            }
+            (kinds.len() == 1).then(|| *kinds.first().unwrap())
+        };
         let mut demands: BTreeMap<SymbolId, BTreeSet<usize>> = BTreeMap::new();
         let mut working = parameters.clone();
         // Actual constructors refine already-demanded callbacks, not arbitrary
@@ -447,6 +492,12 @@ fn refine_shapes<'a>(
         let mut constructors_settled = false;
         // Stabilize constructor inputs before comparing dependent call shapes.
         for _ in 0..8 {
+            let general = storage::general_mutable_bindings(
+                semantic,
+                functions,
+                &working,
+                &signatures.borrow(),
+            );
             demands.clear();
             for call in calls {
                 let (sources, mut bodies) =
@@ -481,11 +532,10 @@ fn refine_shapes<'a>(
                         else {
                             continue;
                         };
-                        if let Some(signature) = argument
-                            .as_expression()
-                            .and_then(|expression| function_kind(expression, &working, true))
-                            && signatures.borrow().parameter_count(signature)
-                                == signatures.borrow().parameter_count(*previous)
+                        if let Some(signature) = argument.as_expression().and_then(|expression| {
+                            function_kind(expression, &working, true, &general)
+                        }) && signatures.borrow().parameter_count(signature)
+                            == signatures.borrow().parameter_count(*previous)
                         {
                             demands.entry(symbol).or_default().insert(signature);
                         }
@@ -512,16 +562,22 @@ fn refine_shapes<'a>(
         if !constructors_settled {
             return Err("callback constructor signatures exceed eight rounds".into());
         }
+        // Constructor seeds have served their purpose; compare final call and
+        // target shapes after any demanded-formal promotion in this phase.
+        demands.clear();
+        let mut target_refined = false;
+        let general =
+            storage::general_mutable_bindings(semantic, functions, &working, &signatures.borrow());
         for call in calls {
             let (sources, _) = origins(&call.callee, semantic);
-            let expected = function_kind(&call.callee, &working, false);
+            let expected = function_kind(&call.callee, &working, false, &general);
             let mut arguments = Vec::new();
             for (index, argument) in call.arguments.iter().enumerate() {
                 let Some(expression) = argument.as_expression() else {
                     arguments.push(Type::Number);
                     continue;
                 };
-                let actual = function_kind(expression, &working, false);
+                let actual = function_kind(expression, &working, false, &general);
                 let expected =
                     expected.and_then(|signature| signatures.borrow().parameter(signature, index));
                 if let Some(Type::Closure(signature)) = expected {
@@ -548,18 +604,59 @@ fn refine_shapes<'a>(
                     arguments.push(actual.map_or(Type::Number, Type::Closure));
                 }
             }
-            let signature = signatures.borrow_mut().intern(arguments, Type::Number);
+            // A runtime callback's signature constrains even an unused formal
+            // of its concrete target. Ordinary known-call identity arrows do
+            // not acquire this monomorphic demand from their callers.
+            if sources
+                .iter()
+                .any(|symbol| working.values().any(|inputs| inputs.contains_key(symbol)))
+            {
+                let mut pending = sources.iter().copied().collect::<Vec<_>>();
+                let mut seen = BTreeSet::new();
+                while let Some(source) = pending.pop() {
+                    if !seen.insert(source) {
+                        continue;
+                    }
+                    if let Some(bodies) = targets.get(&source) {
+                        for body in bodies {
+                            for (parameter, argument) in
+                                arrows[body].params.items.iter().zip(&arguments)
+                            {
+                                if let (
+                                    BindingPattern::BindingIdentifier(identifier),
+                                    Type::Closure(signature),
+                                ) = (&parameter.pattern, argument)
+                                    && let Some(symbol) = identifier.symbol_id.get()
+                                {
+                                    target_refined |=
+                                        working.get_mut(body).unwrap().insert(symbol, *signature)
+                                            != Some(*signature);
+                                }
+                            }
+                        }
+                    }
+                    if let Some(sources) = aliases.get(&source) {
+                        pending.extend(sources);
+                    }
+                }
+            }
+            let result = expected
+                .and_then(|signature| signatures.borrow().result(signature))
+                .unwrap_or(Type::Number);
+            let signature = signatures.borrow_mut().intern(arguments, result);
             for source in sources {
                 demands.entry(source).or_default().insert(signature);
             }
+        }
+        if target_refined {
+            parameters = working;
+            continue;
         }
         for parameter in working.values() {
             for symbol in parameter.keys() {
                 if let Some(bodies) = targets.get(symbol) {
                     for body in bodies {
-                        let signature = signatures
-                            .borrow_mut()
-                            .intern(parameter_types(arrows[body], &working), Type::Number);
+                        let signature = constructor_kind(*body, &working, &general);
                         demands.entry(*symbol).or_default().insert(signature);
                     }
                 }
@@ -608,7 +705,7 @@ fn refine_shapes<'a>(
     Err("callback signature propagation exceeds eight rounds".into())
 }
 
-// Callback demands describe finite Number-result signatures. An arrow's own shape
+// Callback demands describe finite Number/General-result signatures. An arrow's own shape
 // follows parameter order, while source syntax and TypeScript names prove no kind.
 pub(super) fn parameter_types(
     arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,

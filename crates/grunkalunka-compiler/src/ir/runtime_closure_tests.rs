@@ -238,12 +238,17 @@ fn runtime_factory_result_metadata_and_pair_calls_are_verified() {
             .iter()
             .position(|f| matches!(f.return_type, Type::Closure(_)))
             .unwrap();
+        let factory_signature = module
+            .closure_signatures
+            .id(&[Type::Number], Type::Closure(0))
+            .unwrap()
+            - 1001;
         match change {
             0 => module.functions[factory].return_type = Type::Number,
             1 => module.functions[factory].return_type = Type::Closure(1001),
-            2 => module.closure_signatures.higher[0].result = Type::Number,
-            3 => module.closure_signatures.higher[0].result = Type::Closure(1),
-            4 => module.closure_signatures.higher[0].result = Type::Closure(1001),
+            2 => module.closure_signatures.higher[factory_signature].result = Type::Number,
+            3 => module.closure_signatures.higher[factory_signature].result = Type::Closure(1),
+            4 => module.closure_signatures.higher[factory_signature].result = Type::Closure(1001),
             5 => module.functions[0].return_type = Type::Closure(0),
             6 => {
                 let entry = &mut module.functions[0];
@@ -423,7 +428,69 @@ fn nested_factory_result_chains_reject_cycles_parameters_and_wrong_pairs() {
 }
 
 #[test]
-fn higher_callback_graphs_are_bounded_and_keep_number_results() {
+fn primitive_callback_result_kinds_match_calls_and_parameter_cells() {
+    let source = "export function run(a,b){let apply=(fn,x)=>fn(x);return apply(y=>y?null:b,a);}";
+    for change in 0..4 {
+        let mut module = crate::lower_source_with_entry_type(source, false, Type::General).unwrap();
+        verify_module_with_entry_type(&module, Type::General).unwrap();
+        let callback = module
+            .closure_signatures
+            .id(&[Type::Number], Type::General)
+            .unwrap();
+        match change {
+            0 => module.closure_signatures.higher[callback - 1001].result = Type::Number,
+            1 => module.closure_signatures.higher[callback - 1001].parameters[0] = Type::General,
+            2 => {
+                let function = module
+                    .functions
+                    .iter_mut()
+                    .find(|f| {
+                        f.slots
+                            .iter()
+                            .any(|s| s.parameter && s.ty == Type::Closure(callback))
+                    })
+                    .unwrap();
+                let slot = function
+                    .slots
+                    .iter_mut()
+                    .find(|s| s.parameter && s.ty == Type::Closure(callback))
+                    .unwrap();
+                slot.ty = Type::Closure(1);
+            }
+            _ => {
+                let function = module
+                    .functions
+                    .iter_mut()
+                    .find(|f| {
+                        f.slots
+                            .iter()
+                            .any(|s| s.parameter && s.ty == Type::Closure(callback))
+                    })
+                    .unwrap();
+                let result = function
+                    .body
+                    .operations
+                    .iter()
+                    .find_map(|op| {
+                        if let Op::ClosureCall { result, .. } = op.kind {
+                            Some(result)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                function.values[result.0] = Type::Number;
+            }
+        }
+        assert!(
+            verify_module_with_entry_type(&module, Type::General).is_err(),
+            "primitive callback mutation {change}"
+        );
+    }
+}
+
+#[test]
+fn higher_callback_graphs_are_bounded_and_keep_scalar_results() {
     std::thread::Builder::new()
         .stack_size(2 * 1024 * 1024)
         .spawn(|| {
@@ -451,6 +518,9 @@ fn higher_callback_graphs_are_bounded_and_keep_number_results() {
     let callback = module
         .closure_signatures
         .intern(vec![Type::Closure(primitive)], Type::Number);
+    assert!(module.closure_signatures.is_callback_signature(callback));
+    verify_module(&module).unwrap();
+    module.closure_signatures.higher[primitive - 1001].result = Type::Predicate;
     assert!(!module.closure_signatures.is_callback_signature(callback));
     assert!(verify_module(&module).is_err());
 }

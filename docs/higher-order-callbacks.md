@@ -1,6 +1,6 @@
 # Runtime-selected functions with callback parameters
 
-Synchronous runtime function values accept Number arguments and finite Number-result
+Synchronous runtime function values accept Number arguments and finite scalar-result
 callbacks, including callbacks that accept further callbacks. [Runtime factories](runtime-function-results.md)
 also return function pairs. The Number, primitive-return and
 primitive async entry profiles share this support:
@@ -15,8 +15,13 @@ export function run(a, b) {
 ```
 
 The compiler derives each callback parameter's full ordered shape from source
-calls, concrete constructors, aliases and known forwarding. Callback results stay
-Number; their parameters are Numbers or further callbacks satisfying that contract.
+calls, concrete constructors, aliases and known forwarding. Callback results may
+be Number or General (Undefined, Null, Boolean or Number); their parameters are
+Numbers or further callbacks satisfying that contract. Primitive result facts
+propagate through callers and local storage. A callback's call sites also constrain
+unused function formals of its concrete target; ordinary identity calls remain polymorphic.
+General callback results need the primitive entry profile or an explicit numeric
+consumer such as `+apply(x => null, a)`; Number exports still return Numbers.
 Constructor and call-demand refinement is bounded, and signature references point
 to earlier entries. Cyclic or growing type requirements are rejected.
 Logical signatures describe every parameter in order. Functions selected into
@@ -28,10 +33,11 @@ unused callback to a runtime parameter is not inferred from its annotation.
 
 The private `Closure(signature)` type holds a module-local signature ID. Numeric
 leaf IDs retain their arity, 0 through 1,000; higher IDs intern parameter lists
-containing Number and acyclic Number-result Closure types plus a result type. The verifier
+containing Number and acyclic scalar-result Closure types plus a result type. The verifier
 checks registry shapes, constructor targets, branch results, source cells and ordered arguments.
 The host ABI stays the same. Number-result functions retain the private physical
-`(environment, argument frame) -> f64` ABI; factories add a paired i32 result. Each logical argument occupies eight frame
+`(environment, argument frame) -> f64` ABI; General results use the existing
+`(i32, f64)` tag/payload result, and factories add a paired i32 result. Each logical argument occupies eight frame
 bytes: an f64 Number or two i32 function fields. Captured callback parameters receive ordinary shared typed
 cells, so rebinding a parameter is visible to closures capturing that parameter.
 
@@ -52,12 +58,13 @@ The shared 128-region budget crosses runtime callback argument lowering too; a
 nested-caller/returned-callback test rejects the combined deep case on a 2 MiB stack.
 
 Ordinary and returned functions can retain these callback pairs through further
-factory calls. A callback's own result must still be Number; an enclosing function
-can return represented primitives or further functions. Constructor-free identity
+factory calls. Callback results retain their Number or General physical signature;
+Number and General callback functions cannot be joined into one logical signature.
+An enclosing function can return represented primitives or further functions. Constructor-free identity
 formals remain polymorphic at known-call specialization rather than acquiring a
 callback kind merely because one caller supplies a function.
 
-This slice does not admit General-result callbacks, arbitrary primitive or heap
-callback arguments/results, cyclic callback types, async callback bodies,
+This slice does not admit ordinary General/heap callback parameters, heap or
+function callback results, cyclic callback types, async callback bodies,
 Promise callbacks, function host parameters/results, or general JS function
 reflection and coercion. It does not complete first-class JavaScript functions.

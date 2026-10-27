@@ -40,7 +40,7 @@ lazily intern compilation metadata without evaluating source effects; scratch
 checking shares that registry but cannot publish its scratch IR. Result references
 in the registry are acyclic. Runtime bodies return Number, General or a
 Closure type. Every returned function accepts Number parameters or finite
-Number-result callbacks, which may themselves accept further callbacks. It can return
+Number/General-result callbacks, which may themselves accept further callbacks. It can return
 Undefined, Null, Boolean or Number, including mixed primitive results from block
 bodies, or another function satisfying the same contract. Selected or assigned
 factory values must agree on the complete signature at every returned layer.
@@ -53,7 +53,7 @@ Primitive leaf calls use the existing `(environment, arguments) -> (i32, f64)`
 type. A shared iterative signature check guards lifting and IR results at every
 returned layer. References strictly descend through earlier interned signature IDs;
 cycles and dangling IDs stay rejected. Numeric-leaf parameter IDs remain
-canonical, 0 through 1,000; richer callback IDs describe acyclic Number-result
+canonical, 0 through 1,000; richer callback IDs describe acyclic scalar-result
 parameter graphs. Returned
 callbacks and further closures retain captured callback cells and pair snapshots;
 ordered arguments can suspend in the caller before their parameter cells are bound.
@@ -76,7 +76,7 @@ result metadata and signature consistency; erased TypeScript annotations produce
 identical bytes. Deliberately routing a factory call through the Number-return
 physical type causes the behavioral test to fail with a Wasm type error.
 
-General function host transport, General-result callbacks, unrepresented leaf
+General function host transport, unrepresented leaf
 results, async factory/leaf bodies and Promise callbacks
 remain outside this slice. Known local block-result specialization and runtime
 block lifting share the existing typed completion machinery.

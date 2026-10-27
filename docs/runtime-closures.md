@@ -9,9 +9,9 @@ they are not ordinary runtime closure values.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
 the resulting identifier or alias use an exact logical signature with Number and
-finite Number-result callback arguments. Concise synchronous bodies can return Number,
+finite scalar-result callback arguments. Concise synchronous bodies can return Number,
 Undefined, Null or Boolean, retaining the selected kind and payload. Runtime
-factories return function pairs with Number or finite Number-result callback parameters
+factories return function pairs with Number or finite scalar-result callback parameters
 and primitive or further function results. Leaf arrows may have concise
 or block bodies. Bare returns and normal completion of local primitive block
 bodies produce Undefined. Early returns and loops retain their existing completion
@@ -142,11 +142,11 @@ arguments preserve their original evaluation order. `await f()` can suspend on a
 Number result; `await f` remains rejected because functions are not primitives.
 Existing static closure specialization across await remains available.
 [Known local helpers and factories accept callback arguments](local-callback-arguments.md)
-with numeric leaf signatures, including captured callback cells after creator return.
+with finite scalar-result signatures, including captured callback cells after creator return.
 [Runtime-selected functions also accept callbacks taking further callbacks](higher-order-callbacks.md).
 Concise and complete block runtime factories can return further factories through
-acyclic result signatures with Number or finite Number-result callback parameters.
-General-result callbacks, cyclic callback types, unrepresented leaf
+acyclic result signatures with Number or finite scalar-result callback parameters.
+Cyclic callback types, unrepresented leaf
 return kinds, function coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.
