@@ -143,7 +143,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     "callback argument requires a function with the inferred signature",
                 ));
             }
-            let ty = if matches!(input_type, Type::Closure(_)) {
+            if self.promise_parameters.contains(&symbol) && input_type != Type::FulfilledPromise {
+                return Err(unsupported(
+                    parameter,
+                    "fulfilled Promise parameters require Promise arguments",
+                ));
+            }
+            let ty = if matches!(input_type, Type::Closure(_) | Type::FulfilledPromise) {
                 input_type
             } else if input_type == Type::General || self.general_bindings.contains(&symbol) {
                 Type::General
@@ -224,6 +230,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 // value has no runtime target and never reaches published IR;
                 // actual calls construct/load and verify complete closure pairs.
                 arguments.push(check.value(Type::Closure(*arity)));
+                continue;
+            }
+            if self
+                .promise_parameters
+                .contains(&identifier.symbol_id.get().expect("parameter symbol"))
+            {
+                // Disposable type-only input, like callback pairs above; actual
+                // calls must provide a fully defined, verified Promise value.
+                arguments.push(check.value(Type::FulfilledPromise));
                 continue;
             }
             let value = check.value(Type::Number);

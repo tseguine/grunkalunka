@@ -22,8 +22,12 @@ impl Lowering<'_, '_> {
         if calls >= 8 || arrow.r#async {
             return None;
         }
-        let parameters =
-            callbacks::parameter_types(arrow, self.callback_parameters, self.general_parameters);
+        let parameters = callbacks::parameter_types(
+            arrow,
+            self.callback_parameters,
+            self.general_parameters,
+            self.promise_parameters,
+        );
         let mut bindings: BTreeMap<_, _> = self
             .bindings
             .iter()
@@ -483,6 +487,9 @@ impl Lowering<'_, '_> {
                     .expect("checked signature");
                 let value = if let Type::Closure(callback) = parameter {
                     self.callback_argument(expression, region, callback, depth + 1)?
+                } else if parameter == Type::FulfilledPromise {
+                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Promise)?
+                        .expect("Promise runtime factory argument")
                 } else if parameter == Type::General {
                     self.evaluate(expression, region, depth + 1, evaluate::Mode::General)?
                         .expect("General runtime factory argument")
@@ -642,8 +649,12 @@ impl Lowering<'_, '_> {
         child.function_result_depth = 0;
         child.in_loop_body = false;
         child.lifting_depth += 1;
-        let parameter_types =
-            callbacks::parameter_types(arrow, self.callback_parameters, self.general_parameters);
+        let parameter_types = callbacks::parameter_types(
+            arrow,
+            self.callback_parameters,
+            self.general_parameters,
+            self.promise_parameters,
+        );
         for (parameter, ty) in arrow.params.items.iter().zip(parameter_types) {
             let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                 unreachable!("checked closure parameter")

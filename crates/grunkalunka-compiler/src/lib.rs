@@ -227,8 +227,13 @@ fn lower_source_profile(
         });
     }
     let closure_signatures = std::cell::RefCell::new(ir::ClosureSignatures::default());
-    let callback_parameters =
-        lower::infer_callback_parameters(&built.semantic, &signatures, &closure_signatures)?;
+    let promise_parameters = lower::infer_promise_parameters(&built.semantic);
+    let callback_parameters = lower::infer_callback_parameters(
+        &built.semantic,
+        &signatures,
+        &promise_parameters,
+        &closure_signatures,
+    )?;
     let general_bindings = lower::general_mutable_bindings(
         &built.semantic,
         &signatures,
@@ -291,6 +296,7 @@ fn lower_source_profile(
             number_calls: &general_bindings.number_calls,
             general_results: &general_bindings.general_results,
             callback_parameters: &callback_parameters,
+            promise_parameters: &promise_parameters,
             closure_signatures: &closure_signatures,
             bindings,
             local_count,

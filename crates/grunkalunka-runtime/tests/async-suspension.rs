@@ -231,6 +231,188 @@ fn stored_fulfilled_promises_snapshot_primitive_values() {
 }
 
 #[test]
+fn known_closures_receive_fulfilled_promise_arguments() {
+    compare_promises(
+        &[
+            "const id=p=>p;return await id(Promise.resolve(a));",
+            "const id=p=>{return p;};return await id(Promise.resolve(false));",
+            "const read=async p=>await p;return await read(Promise.resolve(null));",
+            "const relay=(p,x)=>p;const p=Promise.resolve(a);return await relay(p,await b);",
+            "const make=x=>Promise.resolve(x);const p=Promise.resolve(a);return await make(p);",
+            "const p=Promise.resolve(a);const id=x=>x;return await id(p);",
+            "const id=p=>p;const alias=id;const p=Promise.resolve();return await alias(p);",
+            "const get=(p,x)=>{const old=p;p=Promise.resolve(x);return old;};return await get(Promise.resolve(a),b);",
+            "const get=p=>{const read=()=>p;p=Promise.resolve(b);return read;};const read=get(Promise.resolve(a));return await read();",
+            "let p=Promise.resolve(a);const get=(p,x)=>p;return await get(p,(p=Promise.resolve(b),await b));",
+            "const read=async p=>{await b;return await p;};return await read(Promise.resolve(a));",
+            "const read=async(p,x)=>{a++;return await p;};try{return await read(Promise.resolve(a),await Promise.reject(b));}catch(e){return +e+a;}",
+            "const id=p=>{if(a)return p;return Promise.resolve(p);};return await id(Promise.resolve(null));",
+            "const first=p=>p;const second=p=>p;const q=second(Promise.resolve(a));return +(await q)+first(b);",
+            "const id=p=>p;const p=Promise.resolve(a);{const p=b;return await id(p);}",
+            "const fail=async p=>{throw await p;};try{return await fail(Promise.resolve(b));}catch(e){return e;}",
+            "const read=async p=>{const get=()=>p;await b;p=Promise.resolve(a);return await get();};return await read(Promise.resolve(b));",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn runtime_closures_receive_fulfilled_promise_arguments() {
+    compare_promises(
+        &[
+            "let id=p=>p;return await id(Promise.resolve(a));",
+            "const id=a?p=>p:p=>Promise.resolve(p);return await id(Promise.resolve(b));",
+            "const apply=(fn,p)=>fn(p);return await apply(p=>p,Promise.resolve(a));",
+            "const make=a?p=>()=>p:p=>()=>p;return await make(Promise.resolve(b))();",
+            "const apply=a?(fn,p)=>fn(p):(fn,p)=>fn(p);return await apply(p=>p,Promise.resolve(b));",
+            "const apply=(fn,p)=>{const old=fn(p);p=Promise.resolve(b);return old;};return await apply(x=>x,Promise.resolve(a));",
+            "let get=(p,x)=>{const old=p;p=Promise.resolve(x);return old;};return await get(Promise.resolve(a),b);",
+            "const make=a?p=>{return ()=>p;}:p=>()=>Promise.resolve(p);return await make(Promise.resolve(null))();",
+            "let id=p=>p;return await id((id=p=>Promise.resolve(-b),Promise.resolve(a)));",
+            "const apply=(fn,p)=>{const old=fn;fn=x=>Promise.resolve(b);return old(p);};return await apply(x=>x,Promise.resolve(a));",
+            "const relay=(fn,p)=>fn(p);const apply=(fn,p)=>relay(fn,p);return await apply(p=>p,Promise.resolve(false));",
+            "let f=x=>Promise.resolve(x);return await f(Promise.resolve(a));",
+            "const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>Promise.resolve(fn(p));return await f(Promise.resolve(b),a,p=>p,false);",
+            "let p=Promise.resolve(a);const f=a?(x,p,y)=>p:(x,p,y)=>p;return await f(null,p,(p=Promise.resolve(b),await false));",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn source_promise_parameter_frames_keep_wide_arity_and_snapshots() {
+    use wasmtime::{Config, Engine, Instance, Module, Store};
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = (0..1000)
+        .map(|i| if i == 999 { "last" } else { "first" })
+        .collect::<Vec<_>>()
+        .join(",");
+    let body = format!(
+        "const first=Promise.resolve(a),last=Promise.resolve(b);let f=({parameters})=>a?p0:p999;return await f({arguments});"
+    );
+    for ts in [false, true] {
+        let source = source_for(&body);
+        let artifact = compile_async(&source, ts).unwrap();
+        let mut config = Config::new();
+        config.consume_fuel(true);
+        let engine = Engine::new(&config).unwrap();
+        let module = Module::new(&engine, &artifact.wasm).unwrap();
+        for (a, b) in [(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)] {
+            let mut store = Store::new(&engine, ());
+            store.set_fuel(10_000_000).unwrap();
+            let instance = Instance::new(&mut store, &module, &[]).unwrap();
+            let start = instance
+                .get_typed_func::<(f64, f64), (i32, i32, f64)>(&mut store, "start")
+                .unwrap();
+            let resume = instance
+                .get_typed_func::<(i32, f64), (i32, i32, f64)>(&mut store, "resume")
+                .unwrap();
+            let pending = start.call(&mut store, (a, b)).unwrap();
+            assert_eq!(pending.0, 1);
+            let done = resume.call(&mut store, (pending.1, pending.2)).unwrap();
+            assert_eq!((done.0, done.1), (0, 3));
+            let expected = if a != 0.0 && !a.is_nan() { a } else { b };
+            assert_eq!(done.2.to_bits(), expected.to_bits());
+        }
+        run_node(&format!(
+            "import assert from 'node:assert/strict';import {{pathToFileURL}} from 'node:url';const {{createAsyncFunction}}=await import(pathToFileURL(process.argv[2]));const native=(()=>{{{};return run;}})(),wasm=createAsyncFunction(new Uint8Array({:?}));for(const [a,b] of [[4,2],[0,-0],[NaN,Infinity]])assert.ok(Object.is(await wasm(a,b),await native(a,b)));",
+            source.replacen("export async function run", "async function run", 1),
+            artifact.wasm
+        ));
+        let too_wide = source_for(&format!(
+            "const first=Promise.resolve(a),last=Promise.resolve(b);let f=({parameters},extra)=>extra;return await f({arguments},last);"
+        ));
+        assert!(compile_async(&too_wide, ts).is_err());
+    }
+}
+
+#[test]
+fn source_promise_parameters_keep_erasure_domains_and_await_bounds() {
+    let writes = format!(
+        "const id=p=>{{{}return p;}};return await id(Promise.resolve(b));",
+        "p=Promise.resolve(a);".repeat(140)
+    );
+    let factories = (0..37)
+        .map(|i| format!("const f{i}={}a;", "()=>".repeat(7)))
+        .collect::<String>();
+    let many_arrows = format!("{factories}const id=p=>p;return await id(Promise.resolve(a));");
+    compare_promises(&[&writes, &many_arrows], &[(4.0, 2.0)]);
+    for (plain, typed) in [
+        (
+            "export async function run(a,b){let id=p=>p;return await id(Promise.resolve(a));}",
+            "export async function run(a:never,b:Missing):Wrong{let id=(p:NotPromise):Wrong=>(p as Bad);return await (id(Promise.resolve(a as any)) as Wrong);}",
+        ),
+        (
+            "export async function run(a,b){const id=p=>p;return await id(a);}",
+            "export async function run(a:never,b:Missing):Wrong{const id=(p:Promise<number>):Promise<number>=>p as any;return await id(a as Wrong);}",
+        ),
+    ] {
+        assert_eq!(
+            compile_async(plain, false).unwrap().wasm,
+            compile_async(typed, true).unwrap().wasm
+        );
+    }
+    for count in [32, 33] {
+        let body = format!(
+            "let id=p=>p;{}return b;",
+            "await id(Promise.resolve(a));".repeat(count)
+        );
+        for ts in [false, true] {
+            assert_eq!(compile_async(&source_for(&body), ts).is_ok(), count == 32);
+        }
+        if count == 32 {
+            compare_promises(&[&body], &[(4.0, 2.0)]);
+        }
+    }
+    for body in [
+        "const id=p=>p;id(Promise.resolve(a));return await id(b);",
+        "let id=p=>p;id(Promise.resolve(a));return await id(b);",
+        "const apply=(fn,p)=>fn(p);return await apply(x=>x,Promise.resolve(a))+apply(x=>x,b);",
+        "const id=p=>{p=b;return p;};return await id(Promise.resolve(a));",
+        "const id=async p=>p;return await id(Promise.resolve(a));",
+        "const read=async p=>await p;const p=read(Promise.resolve(a));return await p;",
+        "const id=p=>p;return await id(Promise.reject(a));",
+        "const id=p=>p;return id(Promise.resolve(a));",
+        "const id=p=>p;return +id(Promise.resolve(a));",
+        "const id=p=>p;return await id?.(Promise.resolve(a));",
+        "const id=p=>p;return await id(...a);",
+        "const id=(p,x)=>p;return await id(Promise.resolve(a));",
+        "const id=(p=Promise.resolve(a))=>p;return await id(Promise.resolve(a));",
+        "const id=(...p)=>p;return await id(Promise.resolve(a));",
+        "const id=p=>p;{const Promise=a;return await id(Promise.resolve(b));}",
+        "const id=p=>{const old=later;const later=p;return old;};return await id(Promise.resolve(a));",
+    ] {
+        for ts in [false, true] {
+            assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
+        }
+    }
+    assert!(compile_async("export async function run(a,b){const id=p=>p;return await id<number>(Promise.resolve(a));}",true).is_err());
+}
+
+#[test]
+fn selected_unused_callback_peer_parameters_remain_an_explicit_gap() {
+    let numeric = "export function run(a,b){const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>p;return f(b,a,p=>p,false);}";
+    let promises = "export async function run(a,b){const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>Promise.resolve(p);return await f(Promise.resolve(b),a,p=>p,false);}";
+    for ts in [false, true] {
+        assert!(grunkalunka_compiler::compile(numeric, ts).is_err());
+        assert!(compile_async(promises, ts).is_err());
+    }
+}
+
+#[test]
 fn selected_closures_return_fulfilled_promise_values() {
     compare_promises(
         &[
@@ -351,7 +533,6 @@ fn known_promise_results_keep_erasure_interfaces_and_completion_guards() {
         "const make=()=>{if(a)return Promise.resolve(b);};return b;",
         "const make=()=>{if(a)return Promise.resolve(b);return a;};return b;",
         "const make=()=>{const p=p;return p;};return a;",
-        "const make=x=>Promise.resolve(x);const p=Promise.resolve(a);return await make(p);",
         "const make=x=>Promise.resolve(x);return await make();",
         "const make=x=>Promise.resolve(x);return await make?.(a);",
         "const make=x=>Promise.resolve(x);return await make(...a);",
@@ -394,7 +575,6 @@ fn runtime_promise_results_keep_logical_interfaces_and_bounds() {
         "let f=()=>Promise.resolve(a);f=()=>b;return await f();",
         "const f=a?()=>Promise.resolve(b):()=>b;return await f();",
         "const apply=(fn,x)=>fn(x);apply(x=>x,a);return await apply(x=>Promise.resolve(x),b);",
-        "let f=x=>Promise.resolve(x);return await f(Promise.resolve(a));",
         "let f=async()=>Promise.resolve(a);return await f();",
         "let f=()=>f();return await f();",
         "const f=a?()=>missing():()=>Promise.resolve(a);return await f();",
@@ -533,7 +713,6 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
         "const p=Promise.resolve(a);return await (p&&a);",
         "const p=Promise.resolve(a);throw p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
-        "const p=Promise.resolve(a);const id=x=>x;return await id(p);",
     ] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");

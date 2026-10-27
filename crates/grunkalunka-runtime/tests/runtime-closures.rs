@@ -151,6 +151,22 @@ fn immediate_selections_join_private_primitive_inputs() {
 }
 
 #[test]
+fn promise_parameter_calls_preserve_synchronous_prefixes() {
+    compare_function_programs(
+        &[
+            "const consume=p=>{p=Promise.resolve(b,a++);return p;};consume(Promise.resolve(a,a++));return a;",
+            "let consume=p=>{p&&=Promise.resolve(b,a++);return p;};consume(Promise.resolve(false));return a;",
+            "let consume=p=>{p||=Promise.resolve(b,a++);return p;};consume(Promise.resolve(null));return a;",
+            "const id=p=>p;return id(Promise.resolve(false))?a:b;",
+            "const apply=(fn,p)=>fn(p);apply(p=>Promise.resolve(p,a++),Promise.resolve(b));return a;",
+            "const make=a?p=>()=>p:p=>()=>p;make(Promise.resolve(a,a++))();return a;",
+            "let p=Promise.resolve(a);const f=a?(x,y)=>+x+(+y):(x,y)=>+x+(+y);return f(null,(p=Promise.resolve(b),false));",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn runtime_promise_results_preserve_synchronous_prefixes() {
     compare_function_programs(
         &[

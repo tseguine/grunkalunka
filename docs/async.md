@@ -72,8 +72,12 @@ body synchronously; only the caller's await adds a reaction. Returned locals,
 aliases and captured bindings keep their typed snapshots. Runtime-selected,
 reassigned and returned synchronous closures and supported callbacks also carry
 these results through a distinct logical signature kind, using the existing
-tag/f64 physical return pair. Promise parameters and async-return adoption remain
-separate requirements.
+tag/f64 physical return pair. Represented fulfilled Promise arguments now pass
+through these synchronous calls and supported known directly awaited async local
+calls. Actual argument facts establish the parameter kind; type syntax does not.
+Arguments retain their creation/callee snapshots before later effects or awaits.
+Mixed primitive/Promise parameter uses and async-return adoption remain separate
+requirements.
 The structured `AwaitCall` region separates callee completion from the caller's
 reaction. A body throw settles the callee immediately, but the caller observes it
 on its own reaction job; a rejected body await adds its body job first. Callee

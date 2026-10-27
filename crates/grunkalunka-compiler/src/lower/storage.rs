@@ -545,7 +545,12 @@ pub(crate) fn general_mutable_bindings(
                 return None;
             };
             let known = call_results.contains_key(&call.node_id.get());
+            let fulfilled = awaited::intrinsic(call, semantic)
+                .ok()
+                .flatten()
+                .is_some_and(|intrinsic| !intrinsic.rejected);
             (!known
+                && !fulfilled
                 && !awaited_intrinsics.contains(&call.node_id.get())
                 && !matches!(
                     closures::unwrapped(&call.callee, 0),

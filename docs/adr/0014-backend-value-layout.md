@@ -132,7 +132,12 @@ using sixteen-byte entries through the same caller-store/callee-load policy as
 General parameters. Mixed Promise, General, Number and function entries retain
 their logical types and ordered offsets; captured parameter cells retain the
 existing sixteen-byte allocation policy. Maintained IR fixtures execute callback
-forwarding, captures and 1,000 parameters. Source Promise argument inference remains
-unfinished; this IR contract does not itself admit those JS/TS calls. Exported
+forwarding, captures and 1,000 parameters. Source inference now connects represented
+fulfilled Promise actuals to these private inputs through original semantic symbols
+and constructors. Promise input facts are separate from General storage facts.
+Known fulfilled constructors participate in argument dependency analysis instead
+of remaining opaque. Actual argument modes and binders retain
+the logical type, without changing the physical frame policy. This admits the
+documented homogeneous fulfilled inputs, not arbitrary Promise objects. Exported
 Promise parameters/results and ordinary-helper Promise parameters remain invalid.
 The public ABI, arena limit and default fuel budget are unchanged.

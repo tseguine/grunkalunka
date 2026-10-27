@@ -426,7 +426,9 @@ impl Lowering<'_, '_> {
         expression: &Expression<'_>,
         depth: usize,
     ) -> Mode {
-        if self.numeric_result_shape(expression, depth) {
+        if self.fulfilled_promise_shape(expression, depth) {
+            Mode::Promise
+        } else if self.numeric_result_shape(expression, depth) {
             Mode::Number
         } else {
             Mode::General
@@ -697,7 +699,9 @@ impl Lowering<'_, '_> {
                             depth,
                         });
                         if !callback {
-                            let mode = if parameter == Type::General {
+                            let mode = if parameter == Type::FulfilledPromise {
+                                Mode::Promise
+                            } else if parameter == Type::General {
                                 Mode::General
                             } else {
                                 Mode::Number

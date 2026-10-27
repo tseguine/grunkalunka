@@ -251,7 +251,7 @@ Promises through concise or complete block bodies. The logical signature uses
 return pair. Reassignment, returned-function chains and supported callback
 forwarding preserve result snapshots, captured cells and callee-before-argument
 evaluation. Calling adds no reaction job; an explicit await adds its ordinary job.
-Promise parameters, mixed primitive/Promise result interfaces, pending/rejected
+Mixed Promise/primitive parameter uses, mixed primitive/Promise result interfaces, pending/rejected
 Promise objects and async-return adoption remain outside this slice. See
 [fulfilled Promise values](fulfilled-promise-locals.md) for evidence and guards.
 
@@ -259,6 +259,26 @@ The private IR can now describe fulfilled Promise parameters and uses sixteen-by
 tag/f64 argument entries. Indirect calls and callback signatures check that logical
 kind rather than treating the pair as a primitive General value. Executable IR
 fixtures cover mixed argument widths, Promise-consuming callbacks, captured
-parameter cells and the 1,000/1,001 limit. Source argument inference and binding
-remain a separate unfinished step; this does not yet admit Promise arguments in
-JS/TS closure calls.
+parameter cells and the 1,000/1,001 limit. Source argument inference and binding now
+admit these fulfilled inputs in known/runtime closures and supported callbacks and
+factories. Original-symbol positive facts propagate through aliases and actual
+calls, then disposable definition checking and actual evaluation retain the same
+logical kind. Mixed Promise/primitive actuals and kind-changing Promise-formal
+stores remain rejected. Source oracles separately compare snapshots, captures,
+effects, all primitive payload tags and caller/body reaction jobs.
+
+An additional known gap remains when selected constructor peers disagree on
+whether a formal is a callback. For example, this Number-only source is still
+rejected even without Promise inputs:
+
+```js
+export function run(a, b) {
+  const f = a ? (p, x, fn, y) => fn(p) : (p, x, fn, y) => p;
+  return f(b, a, p => p, false);
+}
+```
+
+The corresponding Promise-input case also remains rejected. The maintained
+`selected_unused_callback_peer_parameters_remain_an_explicit_gap` test preserves
+both exact sources for the next callback-signature refinement unit. This is not
+claimed as general callback compatibility.

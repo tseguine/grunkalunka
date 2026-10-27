@@ -76,13 +76,24 @@ occupies a sixteen-byte tag/f64 frame entry, using the shared caller/callee offs
 policy. General and Promise entries retain distinct logical types despite their
 matching physical layout. Parameter cells can be captured and mutated without
 changing earlier loaded snapshots. Public entries and ordinary helpers still
-require Number parameters. Source argument inference and binding do not yet
-admit Promise parameters; the IR representation is a prerequisite for that work.
+require Number parameters. Fulfilled source arguments use this existing IR
+representation directly.
+
+Known synchronous local arrows, runtime closures, returned factories and supported
+callbacks accept represented fulfilled Promise arguments. Known directly awaited
+async local arrows also accept them, retaining their body and caller reactions.
+Readonly analysis follows original symbols, aliases, actual arguments and function
+constructors to infer Promise parameter positions. Actual calls must match that
+kind; annotations do not establish it. Definition checking uses disposable typed
+inputs, while real evaluation supplies verified snapshots. Arguments finish before
+new formal bindings replace the caller's bindings, preserving earlier values
+across later effects or awaits. Promise formals are excluded from Number proofs;
+known fulfilled-constructor prefixes do not hide a later primitive argument kind.
 
 This is a bounded fulfilled-value slice. Bindings require a fulfilled initializer;
 payloads are represented primitives or other admitted fulfilled values.
 Rejected/unsettled Promises, thenables, `.then` callbacks, general object payloads,
-Promise parameters and observable Promise identity
+Mixed Promise/primitive parameter uses and observable Promise identity
 remain separate work. A Promise cannot be read as its payload in ordinary scalar
 positions, returned directly from an entry point or async arrow, or used as a
 primitive rejection reason. Async Promise-return adoption remains separate. Uninitialized
@@ -113,4 +124,9 @@ frames, Promise-consuming callbacks, captured parameter writes and the 1,000-arg
 boundary in Node-Wasm. Fresh emitted fixtures were also replayed in Wasmtime with
 an explicit test fuel budget; the default runtime budget is unchanged. These IR
 fixtures do not demonstrate source-level Promise argument admission or new jobs.
+Separate maintained source tests now compare the admitted parameter calls against
+native JavaScript, Node-Wasm and Wasmtime, including callback/factory forwarding,
+parameter reassignment and capture, argument rejection, erasure and job traces.
+A 1,000-parameter source fixture executes first/last snapshots in both engines
+with an explicit Wasmtime test budget; 1,001 parameters remain rejected.
 These are not general Promise conformance.

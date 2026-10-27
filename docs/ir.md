@@ -640,5 +640,8 @@ the existing tag/f64 return pair. Private closure parameters may also use this
 type, including acyclic callback and returned-function signatures; ordinary
 helpers and exported entries retain Number inputs. The shared frame policy uses
 sixteen-byte Promise entries, with logical type checks independent of their
-General-compatible physical encoding. Source Promise argument inference/binding
-and mixed primitive/Promise result interfaces remain separate work.
+General-compatible physical encoding. Source inference now supplies this kind for
+fulfilled Promise arguments through known/runtime closures and supported callbacks
+and factories. Typed definition inputs, actual binding/call modes and positive
+Number-result facts agree on that kind. All actual calls still validate it; mixed
+primitive/Promise parameter uses and result interfaces remain separate work.

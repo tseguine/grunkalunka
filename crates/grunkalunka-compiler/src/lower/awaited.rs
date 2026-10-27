@@ -78,6 +78,16 @@ impl Lowering<'_, '_> {
                 numeric_binding(identifier, self.semantic, &self.bindings)
                     .ok()
                     .map(|binding| self.slots[binding.slot.0].ty == Type::FulfilledPromise)
+                    .or_else(|| {
+                        identifier
+                            .reference_id
+                            .get()
+                            .and_then(|reference| {
+                                self.semantic.scoping().get_reference(reference).symbol_id()
+                            })
+                            .filter(|symbol| self.promise_parameters.contains(symbol))
+                            .map(|_| true)
+                    })
             },
             |call, depth| {
                 if let Some(closure) = self.closure_target(&call.callee, depth + 1) {
@@ -94,12 +104,31 @@ impl Lowering<'_, '_> {
                 if calls >= 8 {
                     return None;
                 }
-                self.function_arity_in(&call.callee, depth + 1, bindings, calls + 1)
-                    .filter(|signature| {
-                        self.closure_signatures.borrow().result(*signature)
-                            == Some(Type::FulfilledPromise)
-                    })
-                    .map(|_| Vec::new())
+                let mut callee = &call.callee;
+                let mut depth = depth + 1;
+                while let Some((node, unwrapped_depth)) = closures::unwrapped_at(callee, depth) {
+                    if let Some(signature) =
+                        self.function_arity_in(node, unwrapped_depth, bindings, calls + 1)
+                    {
+                        return (self.closure_signatures.borrow().result(signature)
+                            == Some(Type::FulfilledPromise))
+                        .then(Vec::new);
+                    }
+                    let Expression::Identifier(identifier) = node else {
+                        return None;
+                    };
+                    let symbol = identifier.reference_id.get().and_then(|reference| {
+                        self.semantic.scoping().get_reference(reference).symbol_id()
+                    })?;
+                    if bindings.contains_key(&symbol)
+                        || numeric_binding(identifier, self.semantic, &self.bindings).is_ok()
+                    {
+                        return None;
+                    }
+                    callee = source_initializer(symbol, self.semantic)?;
+                    depth = unwrapped_depth + 1;
+                }
+                None
             },
         )
     }
@@ -161,19 +190,7 @@ pub(super) fn fulfilled_shape<'e, 'a>(
             else {
                 return false;
             };
-            let initializer = semantic.nodes().iter().find_map(|node| {
-                let oxc_ast::AstKind::VariableDeclaration(declaration) = node.kind() else {
-                    return None;
-                };
-                declaration.declarations.iter().find_map(|local| {
-                    let BindingPattern::BindingIdentifier(binding) = &local.id else {
-                        return None;
-                    };
-                    (binding.symbol_id.get() == Some(symbol))
-                        .then_some(local.init.as_ref())
-                        .flatten()
-                })
-            });
+            let initializer = source_initializer(symbol, semantic);
             let Some(initializer) = initializer else {
                 return false;
             };
@@ -210,6 +227,25 @@ pub(super) fn fulfilled_shape<'e, 'a>(
         }
     }
     true
+}
+
+fn source_initializer<'s, 'a>(
+    symbol: SymbolId,
+    semantic: &'s Semantic<'a>,
+) -> Option<&'s Expression<'a>> {
+    semantic.nodes().iter().find_map(|node| {
+        let oxc_ast::AstKind::VariableDeclaration(declaration) = node.kind() else {
+            return None;
+        };
+        declaration.declarations.iter().find_map(|local| {
+            let BindingPattern::BindingIdentifier(binding) = &local.id else {
+                return None;
+            };
+            (binding.symbol_id.get() == Some(symbol))
+                .then_some(local.init.as_ref())
+                .flatten()
+        })
+    })
 }
 
 pub(super) fn operand<'e, 'a>(

@@ -51,12 +51,16 @@ Known synchronous local arrows now return fulfilled Promise snapshots through
 concise or complete block bodies. Their calls add no job; the caller's await keeps
 its reaction. Runtime-selected/reassigned closures, returned functions and supported
 callbacks now return the same fulfilled snapshots through distinct logical
-signatures and the existing physical pair. Promise parameters, mixed result
+signatures and the existing physical pair. Mixed parameter/result
 interfaces and async-return adoption remain open.
 The private IR now supports fulfilled Promise parameters with sixteen-byte frame
 entries and distinct logical callback/return signatures. Mixed-frame, captured-cell
-and 1,000-parameter executable IR checks cover that representation. Source Promise
-argument inference/binding remains unfinished and is the next required step.
+and 1,000-parameter executable IR checks cover that representation. Source inference
+and binding now admit homogeneous fulfilled Promise parameters through known/runtime
+closures, supported callbacks/factories and known awaited async local calls. Source
+tests preserve tags, snapshots, captures, effects and reaction jobs. Selected peers
+with an unused callback formal remain a separately recorded signature gap; arbitrary
+Promise objects and mixed parameter domains remain unfinished.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

@@ -176,6 +176,7 @@ fn origins(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Origins {
 pub(crate) fn infer_callback_parameters(
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
+    promise_parameters: &BTreeSet<SymbolId>,
     signatures: &std::cell::RefCell<ir::ClosureSignatures>,
 ) -> Result<Parameters, String> {
     let mut aliases: BTreeMap<SymbolId, BTreeSet<SymbolId>> = BTreeMap::new();
@@ -408,6 +409,7 @@ pub(crate) fn infer_callback_parameters(
             arrows: &arrows,
         },
         functions,
+        promise_parameters,
         &aliases,
         &calls,
         result,
@@ -418,6 +420,7 @@ pub(crate) fn infer_callback_parameters(
 fn refine_shapes<'a>(
     returns: ReturnOrigins<'_, '_, 'a>,
     functions: &[NumericFunction],
+    promise_parameters: &BTreeSet<SymbolId>,
     aliases: &BTreeMap<SymbolId, BTreeSet<SymbolId>>,
     calls: &[&oxc_ast::ast::CallExpression<'a>],
     mut parameters: Parameters,
@@ -449,7 +452,11 @@ fn refine_shapes<'a>(
                             expression,
                             semantic,
                             0,
-                            |_| None,
+                            |identifier| {
+                                symbol(identifier, semantic)
+                                    .filter(|symbol| promise_parameters.contains(symbol))
+                                    .map(|_| true)
+                            },
                             |call, _| {
                                 let (sources, mut bodies) =
                                     returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
@@ -505,7 +512,7 @@ fn refine_shapes<'a>(
                 },
             );
         signatures.borrow_mut().intern(
-            parameter_types(arrow, parameters, &kinds.inputs),
+            parameter_types(arrow, parameters, &kinds.inputs, promise_parameters),
             if promise {
                 Type::FulfilledPromise
             } else if number {
@@ -674,6 +681,7 @@ fn refine_shapes<'a>(
                 } else {
                     arguments.push(match actual {
                         Some(signature) => Type::Closure(signature),
+                        None if expected == Some(Type::FulfilledPromise) => Type::FulfilledPromise,
                         None if expected == Some(Type::General) => Type::General,
                         None => Type::Number,
                     });
@@ -786,6 +794,7 @@ pub(super) fn parameter_types(
     arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
     parameters: &Parameters,
     general: &BTreeSet<SymbolId>,
+    promises: &BTreeSet<SymbolId>,
 ) -> Vec<Type> {
     arrow
         .params
@@ -803,7 +812,9 @@ pub(super) fn parameter_types(
                 .and_then(|parameters| parameters.get(&symbol))
                 .map_or_else(
                     || {
-                        if general.contains(&symbol) {
+                        if promises.contains(&symbol) {
+                            Type::FulfilledPromise
+                        } else if general.contains(&symbol) {
                             Type::General
                         } else {
                             Type::Number

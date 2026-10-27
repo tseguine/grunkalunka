@@ -22,8 +22,10 @@ mod callbacks;
 mod closures;
 mod evaluate;
 mod function_values;
+mod promises;
 mod storage;
 pub(super) use callbacks::infer_callback_parameters;
+pub(super) use promises::parameters as infer_promise_parameters;
 pub(super) use storage::general_mutable_bindings;
 
 #[derive(Clone)]
@@ -220,6 +222,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub number_calls: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub general_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub callback_parameters: &'s callbacks::Parameters,
+    pub promise_parameters: &'s std::collections::BTreeSet<SymbolId>,
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,
