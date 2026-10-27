@@ -1,0 +1,19 @@
+package grunkalunka:documents;
+
+interface documents {
+    enum read-error {
+        denied,
+        too-large,
+        unknown-grant,
+    }
+    resource document {
+        read: func() -> result<string, read-error>;
+    }
+}
+
+world reader {
+    import documents;
+    use documents.{document, read-error};
+    export read: func(document: borrow<document>) -> result<string, read-error>;
+    export cleanup-count: func() -> u32;
+}
