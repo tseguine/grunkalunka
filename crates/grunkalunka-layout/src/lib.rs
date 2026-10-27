@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod hit_test;
 pub mod paint;
 pub mod semantic;
 
