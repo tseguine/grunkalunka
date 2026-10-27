@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Grunkalunka original flex layout oracle</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  #row { display: flex; flex-direction: row; gap: 10px; width: 300px; height: 40px; padding: 0; margin: 0; border: 0; }
+  #alpha { flex: 0 0 50px; height: 20px; min-width: 0; }
+  #beta { flex: 1 1 0px; height: 20px; min-width: 0; }
+  #gamma { flex: 0 0 30px; height: 20px; min-width: 0; }
+</style>
+<div id="row"><div id="alpha"></div><div id="beta"></div><div id="gamma"></div></div>
+<pre id="output" hidden></pre>
+<script>
+(() => {
+  "use strict";
+  const row = document.getElementById("row");
+  const alpha = document.getElementById("alpha");
+  const beta = document.getElementById("beta");
+  const gamma = document.getElementById("gamma");
+  const observations = [];
+  function observe(id) {
+    const container = getComputedStyle(row);
+    observations.push({ id,
+      container: { computed: { display: container.display, width: container.width,
+        height: container.height, flexDirection: container.flexDirection, gap: container.gap },
+        inlineGap: row.style.gap, inlineDirection: row.style.flexDirection,
+        rect: { x: row.getBoundingClientRect().x, y: row.getBoundingClientRect().y,
+          width: row.getBoundingClientRect().width, height: row.getBoundingClientRect().height } },
+      items: [alpha, beta, gamma].map(node => {
+        const computed = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return { id: node.id, text: node.textContent,
+          computed: { display: computed.display, width: computed.width, height: computed.height,
+            flexGrow: computed.flexGrow, flexBasis: computed.flexBasis, minWidth: computed.minWidth },
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          inlineBasis: node.style.flexBasis, inlineGrow: node.style.flexGrow };
+      })
+    });
+  }
+  observe("initial");
+  beta.style.setProperty("flex-grow", "0");
+  observe("no-growth");
+  beta.style.removeProperty("flex-grow");
+  observe("restore-growth");
+  alpha.style.setProperty("flex-basis", "80px");
+  observe("increase-basis");
+  row.style.setProperty("gap", "20px");
+  observe("increase-gap");
+  row.style.setProperty("flex-direction", "row-reverse");
+  observe("reverse-axis");
+  row.style.setProperty("gap", "10px");
+  observe("restore-gap");
+  row.style.setProperty("flex-direction", "row");
+  observe("restore-axis");
+  alpha.style.removeProperty("flex-basis");
+  observe("restore-basis");
+  document.getElementById("output").textContent = JSON.stringify({
+    schemaVersion: 1, fixtureId: "flex-mutations-v1", observationKind: "flex-layout",
+    environment: { userAgent: navigator.userAgent, viewportWidth: innerWidth,
+      viewportHeight: innerHeight, devicePixelRatio, url: location.href,
+      timestamp: new Date().toISOString() }, observations
+  });
+})();
+</script>
+</html>
