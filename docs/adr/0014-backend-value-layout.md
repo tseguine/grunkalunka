@@ -27,9 +27,10 @@ their existing frontend/verifier layers.
 
 This first mapping retains the existing encodings exactly: f64 Number, i32
 Predicate, tag/f64 General and code/environment i32 Closure pairs. A 16-byte
-captured-cell allocation and eight-byte closure argument entry remain distinct
-storage contracts. They are not inferred solely from lane count. General values
-are not newly permitted as closure arguments just because a layout exists.
+captured-cell allocation and the original eight-byte Number/function closure
+argument entries remain distinct storage contracts. They are not inferred solely
+from lane count. The original layout refactor did not admit General arguments;
+the later typed-IR extension below does so explicitly.
 
 ## Alternatives and limits
 
@@ -77,3 +78,25 @@ protocol remain explicit backend consumers of the current field ordering; changi
 those roles would still require corresponding operation/adapter changes. The chosen later extension and cost gates
 are recorded in the [evidence note](../ir-course-correction.md). Broad migration
 requires that additional evidence; successful relocation alone is insufficient.
+
+## General closure parameter follow-up
+
+The typed IR now permits General parameters only on the private closure ABI.
+Predicate parameters and General parameters on ordinary helpers or exported entries
+remain invalid. Source parameter inference is a separate step: the existence of
+this IR representation does not itself admit new JS/TS calls.
+
+The backend's argument-entry policy is eight bytes for Number or code/environment
+Closure values and sixteen bytes for General tag/f64 pairs. Ordered prefix offsets
+and total frame size use that one policy for both caller stores and callee loads.
+Captured cells remain sixteen bytes and frame allocation retains its sixteen-byte
+alignment, 1 MiB arena and 1,000 logical parameter limit. Existing Number/function
+frames retain their prior encodings. No new host interface or dependency is introduced.
+
+Maintained executable IR tests cover mixed General/Number/General and
+General/Closure/General entries, Number and General results, captured parameters,
+all four primitive kinds and the 1,000/1,001 boundary. A fixed-eight-byte frame
+produced valid Wasm with a wrong result (5 versus native 3); typed offsets fix it.
+The fresh modules also execute through the existing Wasmtime evaluator. This is
+bounded representation evidence, not frontend admission, a new compilation-cost
+measurement or proof of arbitrary physical layouts.

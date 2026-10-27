@@ -2078,3 +2078,21 @@ Corpus 84 promotes three exact former Boolean, Null and predicate RHS sources,
 pins their original hashes and adds six General-cell snapshot pairs. It has 1,949
 numeric pairs, 175 primitive pairs and 849 rejections. Plain assignment and other
 operator admission remain unchanged.
+
+### General closure argument IR
+
+The private typed IR and backend now represent General closure parameters, using
+the existing tag/f64 value layout in sixteen-byte argument entries. Number and
+function entries remain eight bytes. Shared prefix offsets drive both caller
+stores and callee loads, avoiding payload overlap when General values sit next
+to other arguments. Exported entries and ordinary helpers retain Number parameters;
+Predicate closure parameters remain invalid. Source parameter inference has not
+changed and primitive source arguments remain guarded.
+
+Twenty mixed-frame IR variants execute against native JavaScript and Node-Wasm,
+covering four primitive kinds, Number/General results, callbacks and captured
+General parameters. A separate 1,000-General-argument module executes and 1,001
+is rejected. Fresh artifacts are replayed in Wasmtime through the existing CLI.
+No new dependency, host interface or arena-budget change is involved. Corpus 84
+and its 1,949 numeric pairs, 175 primitive pairs and 849 rejections are unchanged.
+See [the layout follow-up](adr/0014-backend-value-layout.md#general-closure-parameter-follow-up).

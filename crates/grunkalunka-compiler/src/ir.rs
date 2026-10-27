@@ -80,7 +80,7 @@ impl ClosureSignatures {
             };
             if signature.parameters.len() > 1000
                 || signature.parameters.iter().any(|ty| match ty {
-                    Type::Number => false,
+                    Type::Number | Type::General => false,
                     Type::Closure(callback) => {
                         *callback >= id || !self.is_callback_signature(*callback)
                     }
@@ -114,7 +114,7 @@ impl ClosureSignatures {
             }
             for parameter in &signature.parameters {
                 match parameter {
-                    Type::Number => (),
+                    Type::Number | Type::General => (),
                     Type::Closure(callback) if *callback < id => pending.push(*callback),
                     _ => return false,
                 }
@@ -1307,9 +1307,9 @@ pub(crate) fn verify_module_with_entry_type(
                 && !signature
                     .parameters
                     .iter()
-                    .any(|ty| matches!(ty, Type::Closure(_))))
+                    .any(|ty| matches!(ty, Type::General | Type::Closure(_))))
             || signature.parameters.iter().any(|ty| match ty {
-                Type::Number => false,
+                Type::Number | Type::General => false,
                 Type::Closure(callback) => {
                     *callback >= 1001 + index
                         || !module.closure_signatures.is_callback_signature(*callback)
@@ -1406,7 +1406,7 @@ fn verify_function(
     }
     let mut initialized = BTreeSet::new();
     for (index, slot) in function.slots.iter().enumerate() {
-        if slot.ty == Type::General && slot.parameter {
+        if slot.ty == Type::General && slot.parameter && closure_environment(function).is_none() {
             return Err(invalid(
                 slot.span,
                 "General source slots cannot be parameters",
@@ -1415,7 +1415,8 @@ fn verify_function(
         if slot.parameter
             && slot.ty != Type::Number
             && !(closure_environment(function).is_some()
-                && matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback)))
+                && (slot.ty == Type::General
+                    || matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback))))
         {
             return Err(invalid(slot.span, "parameter slots must be Number"));
         }

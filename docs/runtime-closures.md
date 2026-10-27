@@ -103,7 +103,10 @@ The private Wasm table uses `(environment: i32, arguments: i32) -> f64` for
 Number results, `(environment: i32, arguments: i32) -> (i32, f64)` for primitive
 results, and `(environment: i32, arguments: i32) -> (i32, i32)` for
 [runtime factory results](runtime-function-results.md). A packed argument frame contains the
-ordered eight-byte snapshots: binary64 Numbers or two i32 callback fields. The
+ordered typed snapshots. Number and two-i32 callback entries occupy eight bytes;
+General tag/f64 entries occupy sixteen bytes. Caller stores and callee loads share
+prefix offsets from that backend policy. General parameters are currently an IR
+capability; source inference still admits Number/function parameters only. The
 body copies its typed logical parameters before execution. This supports zero
 through 1,000 parameters without expanding the physical Wasm signature. An
 environment contains ordered captured-cell addresses. Imported pointers remain valid after creator return. Static callbacks
@@ -159,3 +162,11 @@ Represented functions are now truthy in [Boolean contexts](function-truthiness.m
 The source expression executes once while the tested function's body stays dormant;
 constructors, assignments, known returned values and admitted higher-order pairs use
 the existing predicate path. This adds neither numeric coercion nor function transport.
+
+General IR parameters are restricted to this private closure entry protocol;
+ordinary helpers and exported entries retain their Number parameter contracts.
+Executable IR tests exercise mixed scalar/function/General frames, primitive and
+Number returns, a captured General parameter, and the unchanged 1,000 parameter
+limit. Source calls such as `(x=>+x)(null)` remain separate frontend work. The
+runtime arena and frame alignment are unchanged; new General arguments simply
+consume sixteen-byte entries within the existing allocation limit.

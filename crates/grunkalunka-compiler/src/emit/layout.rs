@@ -80,3 +80,12 @@ pub(super) fn value(ty: Type) -> Layout {
         },
     }
 }
+
+// Argument entries are storage contracts, distinct from captured-cell allocation.
+pub(super) fn argument_bytes(ty: Type) -> usize {
+    match ty {
+        Type::Number | Type::Closure(_) => 8,
+        Type::General => 16,
+        Type::Predicate => unreachable!("Predicate closure parameters are not admitted"),
+    }
+}

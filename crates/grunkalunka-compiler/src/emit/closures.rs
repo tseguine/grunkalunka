@@ -68,14 +68,11 @@ pub(super) fn temporary(function: &Function, offset: usize) -> Option<usize> {
 impl Emitter<'_> {
     pub(super) fn init_environment(&mut self) {
         if let Some(captures) = ir::closure_environment(self.function) {
+            let mut offset = 0;
             for parameter in 0..self.function.parameter_count {
-                let offset = parameter * 8;
+                let ty = self.function.slots[parameter].ty;
                 let local = self.slot_offsets[parameter];
-                for (index, part) in layout::value(self.function.slots[parameter].ty)
-                    .parts
-                    .iter()
-                    .enumerate()
-                {
+                for (index, part) in layout::value(ty).parts.iter().enumerate() {
                     writeln!(
                         self.output,
                         "local.get 1\n{}.load offset={}\nlocal.set {}",
@@ -85,6 +82,7 @@ impl Emitter<'_> {
                     )
                     .unwrap();
                 }
+                offset += layout::argument_bytes(ty);
             }
             for (index, slot) in captures.iter().enumerate() {
                 writeln!(
@@ -130,11 +128,17 @@ impl Emitter<'_> {
     }
 
     pub(super) fn call_closure(&mut self, result: ValueId, callee: ValueId, arguments: &[ValueId]) {
-        let temp = self.frame(arguments.len() * 8);
-        for (index, value) in arguments.iter().enumerate() {
+        let bytes = arguments
+            .iter()
+            .map(|value| layout::argument_bytes(self.function.values[value.0]))
+            .sum();
+        let temp = self.frame(bytes);
+        let mut offset = 0;
+        for value in arguments {
             let local = self.value_offsets[value.0];
-            let offset = index * 8;
-            self.store_memory(temp, local, self.function.values[value.0], offset, true);
+            let ty = self.function.values[value.0];
+            self.store_memory(temp, local, ty, offset, true);
+            offset += layout::argument_bytes(ty);
         }
         let signature = match self.function.values[result.0] {
             Type::Closure(_) => "$closure_pair",
