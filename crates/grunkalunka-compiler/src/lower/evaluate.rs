@@ -1513,8 +1513,21 @@ impl Lowering<'_, '_> {
                         } else {
                             mode
                         };
-                        let (argument, argument_depth, rejected) =
-                            awaited::operand(awaited, depth, self.semantic)?;
+                        let operand = awaited::operand(awaited, depth, self.semantic)?;
+                        let Some(argument) = operand.argument else {
+                            if !matches!(mode, Mode::General) {
+                                return Err(unsupported(
+                                    node,
+                                    "undefined await completions require a primitive value or coercion position",
+                                ));
+                            }
+                            let input = self.undefined_value(node, regions.current());
+                            values.push(Value::General(input));
+                            work.push(Work::Await(node, operand.rejected, Type::General));
+                            continue;
+                        };
+                        let argument_depth = operand.depth;
+                        let rejected = operand.rejected;
                         if let Some(slot) = self.fulfilled_promise_slot(argument, argument_depth) {
                             if rejected {
                                 return Err(unsupported(
@@ -1546,17 +1559,15 @@ impl Lowering<'_, '_> {
                                     input: promise,
                                 },
                             );
-                            let result = self.value(Type::General);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Await {
-                                    result,
-                                    input,
-                                    rejected: false,
-                                },
-                            );
-                            values.push(Value::General(result));
+                            values.push(Value::General(input));
+                            work.push(Work::Await(node, false, Type::General));
+                            for extra in operand.extras.iter().rev() {
+                                work.push(Work::Eval(
+                                    extra.as_expression().expect("validated ordinary argument"),
+                                    argument_depth,
+                                    Mode::Discard,
+                                ));
+                            }
                             continue;
                         }
                         let ty = if matches!(mode, Mode::General) {
@@ -1571,6 +1582,12 @@ impl Lowering<'_, '_> {
                                 self.closure_target(&call.callee, call_depth + 1)
                             && self.arrow(closure.arrow).r#async
                         {
+                            if !operand.extras.is_empty() {
+                                return Err(unsupported(
+                                    node,
+                                    "async-call Promise payloads with surplus arguments require stored pending Promises",
+                                ));
+                            }
                             if rejected {
                                 return Err(unsupported(
                                     node,
@@ -1599,6 +1616,13 @@ impl Lowering<'_, '_> {
                                 depth: call_depth + 1,
                             });
                             continue;
+                        }
+                        for extra in operand.extras.iter().rev() {
+                            work.push(Work::Eval(
+                                extra.as_expression().expect("validated ordinary argument"),
+                                argument_depth,
+                                Mode::Discard,
+                            ));
                         }
                         work.push(Work::Eval(argument, argument_depth, mode));
                         continue;

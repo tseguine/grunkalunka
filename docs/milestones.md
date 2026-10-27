@@ -41,6 +41,10 @@ primitive payloads at construction and preserve aliases, captures and repeated
 await jobs. The internal type remains distinct from its primitive completion;
 general Promise identity, rejected/unsettled values and escaping objects remain
 separate requirements.
+Represented `Promise.resolve`/`Promise.reject` intrinsics now default missing
+payloads to Undefined and preserve ordered surplus-argument effects, snapshots
+and suspension before the outer reaction. Stored fulfilled constructors share
+these rules; pending async-call payloads with surplus arguments remain separate.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

@@ -1,6 +1,20 @@
 //! Shared await-operand inspection for storage planning and actual lowering.
 use super::*;
-use oxc_ast::ast::AwaitExpression;
+use oxc_ast::ast::{Argument, AwaitExpression};
+
+pub(super) struct Operand<'e, 'a> {
+    pub argument: Option<&'e Expression<'a>>,
+    pub depth: usize,
+    pub rejected: bool,
+    pub extras: &'e [Argument<'a>],
+}
+
+#[derive(Clone, Copy)]
+struct Intrinsic<'e, 'a> {
+    argument: Option<&'e Expression<'a>>,
+    rejected: bool,
+    extras: &'e [Argument<'a>],
+}
 
 impl Lowering<'_, '_> {
     pub(super) fn fulfilled_promise_slot(
@@ -23,27 +37,68 @@ impl Lowering<'_, '_> {
         let payload = match closures::unwrapped_at(expression, 0) {
             Some((Expression::CallExpression(call), depth)) => {
                 match intrinsic(call, self.semantic) {
-                    Ok(Some((argument, false))) => Some((argument, depth + 1)),
+                    Ok(Some(intrinsic)) if !intrinsic.rejected => Some((intrinsic, depth + 1)),
                     _ => None,
                 }
             }
             _ => None,
         };
-        let (argument, depth) = payload.unwrap_or((expression, 0));
-        if let Some(slot) = self.fulfilled_promise_slot(argument, depth) {
+        let (intrinsic, depth) = payload.unwrap_or((
+            Intrinsic {
+                argument: Some(expression),
+                rejected: false,
+                extras: &[],
+            },
+            0,
+        ));
+        let argument = intrinsic.argument;
+        let result = if let Some(slot) =
+            argument.and_then(|argument| self.fulfilled_promise_slot(argument, depth))
+        {
             let result = self.value(Type::FulfilledPromise);
             Self::push(region, expression, Op::Load { result, slot });
-            return Ok(Some(result));
+            result
+        } else {
+            if payload.is_none() {
+                return Ok(None);
+            }
+            let input = if let Some(argument) = argument {
+                self.evaluate(argument, region, depth, evaluate::Mode::General)?
+                    .expect("fulfilled primitive payload")
+            } else {
+                self.undefined_value(expression, region)
+            };
+            let result = self.value(Type::FulfilledPromise);
+            Self::push(region, expression, Op::FulfillPromise { result, input });
+            result
+        };
+        // The first value is already a snapshot before later arguments run.
+        for extra in intrinsic.extras {
+            self.evaluate(
+                extra.as_expression().expect("validated ordinary argument"),
+                region,
+                depth,
+                evaluate::Mode::Discard,
+            )?;
         }
-        if payload.is_none() {
-            return Ok(None);
-        }
-        let input = self
-            .evaluate(argument, region, depth, evaluate::Mode::General)?
-            .expect("fulfilled primitive payload");
-        let result = self.value(Type::FulfilledPromise);
-        Self::push(region, expression, Op::FulfillPromise { result, input });
         Ok(Some(result))
+    }
+
+    pub(super) fn undefined_value(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+    ) -> ValueId {
+        let result = self.value(Type::General);
+        Self::push(
+            region,
+            node,
+            Op::Nullish {
+                result,
+                value: ir::Nullish::Undefined,
+            },
+        );
+        result
     }
 }
 
@@ -51,7 +106,7 @@ pub(super) fn operand<'e, 'a>(
     awaited: &'e AwaitExpression<'a>,
     depth: usize,
     semantic: &Semantic<'_>,
-) -> Result<(&'e Expression<'a>, usize, bool), String> {
+) -> Result<Operand<'e, 'a>, String> {
     let mut argument = &awaited.argument;
     let mut argument_depth = depth + 1;
     while let Some(inner) = erased_inner(argument).or_else(|| {
@@ -67,16 +122,23 @@ pub(super) fn operand<'e, 'a>(
             return Err(unsupported(awaited, "await operand nesting exceeds 128"));
         }
     }
-    let mut rejected = false;
     if let Expression::CallExpression(call) = argument
-        && let Some((payload, reject)) =
+        && let Some(intrinsic) =
             intrinsic(call, semantic).map_err(|message| unsupported(awaited, message))?
     {
-        rejected = reject;
-        argument = payload;
-        argument_depth += 1;
+        return Ok(Operand {
+            argument: intrinsic.argument,
+            depth: argument_depth + 1,
+            rejected: intrinsic.rejected,
+            extras: intrinsic.extras,
+        });
     }
-    Ok((argument, argument_depth, rejected))
+    Ok(Operand {
+        argument: Some(argument),
+        depth: argument_depth,
+        rejected: false,
+        extras: &[],
+    })
 }
 
 // Shared validation keeps stored constructors and directly awaited intrinsics
@@ -85,7 +147,7 @@ pub(super) fn operand<'e, 'a>(
 fn intrinsic<'e, 'a>(
     call: &'e CallExpression<'a>,
     semantic: &Semantic<'_>,
-) -> Result<Option<(&'e Expression<'a>, bool)>, &'static str> {
+) -> Result<Option<Intrinsic<'e, 'a>>, &'static str> {
     let Expression::StaticMemberExpression(member) = &call.callee else {
         return Ok(None);
     };
@@ -106,15 +168,30 @@ fn intrinsic<'e, 'a>(
         || call.optional
         || member.optional
         || call.type_arguments.is_some()
-        || call.arguments.len() != 1
         || !matches!(member.property.name.as_str(), "resolve" | "reject")
     {
         return Err(
-            "await Promise calls require one argument and the unshadowed resolve/reject intrinsic",
+            "await Promise calls require the unshadowed nonoptional nongeneric resolve/reject intrinsic",
         );
     }
-    let argument = call.arguments[0]
-        .as_expression()
-        .ok_or("spread await arguments are not admitted")?;
-    Ok(Some((argument, member.property.name == "reject")))
+    if call.arguments.len() > 1000 {
+        return Err("at most 1000 ordinary Promise intrinsic arguments are admitted");
+    }
+    if call
+        .arguments
+        .iter()
+        .any(|argument| argument.as_expression().is_none())
+    {
+        return Err("spread await arguments are not admitted");
+    }
+    let argument = call.arguments.first().map(|argument| {
+        argument
+            .as_expression()
+            .expect("validated ordinary argument")
+    });
+    Ok(Some(Intrinsic {
+        argument,
+        rejected: member.property.name == "reject",
+        extras: call.arguments.get(1..).unwrap_or(&[]),
+    }))
 }

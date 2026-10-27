@@ -149,10 +149,13 @@ pub(super) fn number_result_shape<'a>(
             }
             Expression::NumericLiteral(_) | Expression::UpdateExpression(_) => (),
             Expression::AwaitExpression(awaited) => {
-                let Ok((argument, depth, _)) = awaited::operand(awaited, depth, semantic) else {
+                let Ok(operand) = awaited::operand(awaited, depth, semantic) else {
                     return false;
                 };
-                pending.push((argument, depth));
+                let Some(argument) = operand.argument else {
+                    return false;
+                };
+                pending.push((argument, operand.depth));
             }
             Expression::AssignmentExpression(assignment) => match assignment.operator {
                 AssignmentOperator::Assign => pending.push((&assignment.right, depth + 1)),
@@ -525,10 +528,13 @@ pub(crate) fn general_mutable_bindings(
             else {
                 return None;
             };
-            let (payload, _, _) = awaited::operand(awaited, 0, semantic).ok()?;
+            let operand = awaited::operand(awaited, 0, semantic).ok()?;
             // Only a validated Promise.resolve/reject unwraps the call to its
             // payload. An ordinary awaited call retains its complete span.
-            (payload.span() != call.span()).then_some(call.node_id.get())
+            operand
+                .argument
+                .is_none_or(|payload| payload.span() != call.span())
+                .then_some(call.node_id.get())
         })
         .collect();
     let opaque_calls: Vec<_> = semantic

@@ -163,8 +163,15 @@ are cooperating generated-module adapters, not arbitrary-module execution servic
 ## Admission and remaining work
 
 Await operands can be the four represented primitive kinds, admitted stored
-fulfilled Promise locals, or direct one-argument calls to unshadowed
-`Promise.resolve`/`Promise.reject` over primitive expressions. Implicit await uses
+fulfilled Promise locals, or direct calls to unshadowed
+`Promise.resolve`/`Promise.reject` over primitive expressions. Missing arguments
+supply intrinsic Undefined. Up to 1,000 ordinary arguments are admitted: the first
+value is saved, then surplus arguments evaluate left to right and their values are
+ignored before the outer reaction. An await in a surplus argument retains its own
+job; its rejection skips later arguments and the outer await. Stored fulfilled
+constructors use the same rules. `Promise.resolve(asyncCall(), extra)` still needs
+pending-Promise storage; explicitly awaiting the first call supplies a represented
+primitive and permits the extra arguments. Implicit await uses
 intrinsic Promise behavior even if a local variable is named `Promise`.
 Parentheses and erased operand wrappers retain depth charges. Numeric blocks,
 `if`, conditional/logical expressions, `while`, `for` and `do...while` can suspend,
