@@ -1,0 +1,13 @@
+package grunkalunka:compiled;
+
+interface rates {
+    resource rate {
+        read: func() -> f64;
+    }
+}
+
+world calculator {
+    import rates;
+    use rates.{rate};
+    export run: func(rate: borrow<rate>, units: f64) -> f64;
+}
