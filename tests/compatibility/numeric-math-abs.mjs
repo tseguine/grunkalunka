@@ -23,6 +23,8 @@ const cases = [
 export const numericMathAbs=cases.map(([id,body])=>[`math-abs-${id}`,body,body]);
 function full(id,sourceJS,sourceTS=sourceJS){numericMathAbs.push([`math-abs-${id}`,'','',undefined,undefined,{sourceJS,sourceTS}]);}
 full('extra','export function run(a,b) { return Math.abs(a,b); }');
+full('missing','export function run(a,b) { return Math.abs(); }');
+numericMathAbs.push(['math-abs-missing-shadowed-undefined','const undefined=a;return Math.abs();','const undefined=a;return Math.abs();']);
 numericMathAbs.push(['math-abs-extra-effects','let x=a;return Math.abs(x,x=b)+x;','let x=a;return Math.abs(x,x=b)+x;']);
 const promoted='export function run(a,b) { return Math.abs(a); }';
 // Preserve the promoted curated requirement's original source/oracle and provenance.
@@ -51,7 +53,6 @@ for(const [id,body] of [
  ['object','return Math.abs({});'], ['bigint','return Math.abs(1n);'],
  ['null','return Math.abs(null);'], ['dead-unsupported','return 1?a:Math.abs(Math.random());'],
  ]) reject(id,body);
-reject('missing','return Math.abs();','Math.abs requires at least one numeric argument');
 reject('spread','return Math.abs(...a);','spread call arguments');
 reject('generic','return Math.abs<number>(a);',expression,'ts');
 reject('undefined','return Math.abs(undefined);',reference);

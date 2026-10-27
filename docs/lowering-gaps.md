@@ -634,8 +634,9 @@ now executes unchanged; `direct-call-missing` remains rejected with updated word
 Missing/spread/optional/generic forms stay guarded. The five supported pristine
 unary Math functions also evaluate surplus arguments and preserve their first
 Number snapshot before effects/awaits. Their five original extra-argument guards
-now execute unchanged; missing operands and primitive coercions remain open,
-along with namespace, unsupported operand and builtin shape rules.
+now execute unchanged. Missing operands also produce Number NaN in the subsequent
+unit; primitive coercions remain open, along with namespace, unsupported operand
+and builtin shape rules.
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls
@@ -708,3 +709,10 @@ than the entire operator. Subsequent units admit primitive `void` and mutable
 primitive/function identifier `??=`. String/heap operands, const/property assignment
 targets and mixed function/primitive joins remain gaps. See
 [binary coalescing](compiler.md#binary-nullish-coalescing).
+
+Missing inputs to the five supported pristine unary Math intrinsics now produce
+Number NaN, independently of local `undefined` and `NaN` bindings. Corpus 80
+promotes the five exact former missing-input sources unchanged. A supplied first
+argument still requires a Number; primitive ToNumber conversion remains the next
+bounded Math gap. Namespace shadowing, property patches, reification and external
+realm integration remain open.

@@ -210,7 +210,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 908);
+  assert.equal(inventory.records.size, 903);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -471,6 +471,15 @@ test('numeric helper surplus arguments retain the exact prior rejection source',
 
 test('unary Math surplus calls retain five exact prior rejection sources',()=>{
   const expected={"math-abs-extra": "b3cc7508e2f1fa4daad8ce46a99444d712dd956618b080e646432aac0d459e9c", "math-unary-sqrt-extra": "8387140f9ceadb91217f64f7f6668821ec9c482f10d36a06846d21b268719f82", "math-unary-floor-extra": "0bbe82c0665e7515d002b3961a125f03fba1c20506953e0c9ab90ef1158022f1", "math-unary-ceil-extra": "1b90c68e6b93972f115805af5a67847d5b0776e0a4a3e84f54c6c866812e2a0a", "math-unary-trunc-extra": "eb8e75271322d360dd7d902529cccba246aeec17cc2a8b7bf20cc653a50fd452"};
+  for(const [id,hash] of Object.entries(expected)){
+    const fixture=[...numericMathAbs,...numericMathUnary].find(([name])=>name===id);
+    assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
+    assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
+  }
+});
+
+test('unary Math missing inputs retain five exact prior rejection sources',()=>{
+  const expected={"math-abs-missing": "d72df3382d9d9832fe8eddfc6c27b8489628d2099a72bbd2457688754ea864fd", "math-unary-sqrt-missing": "507dbcac1069b5c9f96db815f64fa11c681203a5ace9124273092de72a36be91", "math-unary-floor-missing": "1299d581903789cd61bc96801f46ca358bc1f8c9e4a6eaa1778bdbd5f371047c", "math-unary-ceil-missing": "5ac8797a02b610d2c19114aa71831f6d472ecfa5bc4f14d974dcb2170b3bf2b4", "math-unary-trunc-missing": "c647c8d098bc588c564e3499f4caeab05ba2fc20188fd896c3dd2da4f6c3e241"};
   for(const [id,hash] of Object.entries(expected)){
     const fixture=[...numericMathAbs,...numericMathUnary].find(([name])=>name===id);
     assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);

@@ -111,6 +111,28 @@ fn compare_helper_sources(sources: &[&str]) {
 }
 
 #[test]
+fn unary_math_defaults_missing_input_to_nan() {
+    let mut sources = Vec::new();
+    for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
+        sources.push(format!(
+            "export function run(a,b) {{ return Math.{method}(); }}"
+        ));
+        for body in [
+            format!("return Math.{method}();"),
+            format!("const undefined=a;return Math.{method}();"),
+            format!("const NaN=a;return Math.{method}();"),
+            format!("return Math.{method}()?a:b;"),
+            format!("Math.{method}();return ++a;"),
+            format!("let x=a;return Math.{method}(Math.{method}(),x=b)||x;"),
+            format!("return a||Math.{method}();"),
+        ] {
+            sources.push(format!("export function run(a,b){{{body}}}"));
+        }
+    }
+    compare_helper_sources(&sources.iter().map(String::as_str).collect::<Vec<_>>());
+}
+
+#[test]
 fn unary_math_evaluates_surplus_arguments() {
     let mut sources = vec![
         "export function run(a,b) { return Math.abs(a,b); }".to_string(),
@@ -144,7 +166,6 @@ fn unary_math_surplus_arguments_keep_width_type_and_namespace_guards() {
         compare_helper_sources(&[&source]);
         for body in [
             format!("return Math.{method}(a,{extras},b);"),
-            format!("return Math.{method}();"),
             format!("return Math.{method}(true,a);"),
             format!("return Math.{method}(null,a);"),
             format!("return Math.{method}(a,...b);"),
@@ -153,6 +174,13 @@ fn unary_math_surplus_arguments_keep_width_type_and_namespace_guards() {
             format!("return Math.{method}(a,missing);"),
             format!("return Math.{method}(a,()=>missing);"),
             format!("return Math.{method}(a,Math.{method}=b);"),
+            format!("let Math=a;return Math.{method}();"),
+            format!("const n=Math.{method}();let Math=b;return n;"),
+            format!("return Math.{method}?.();"),
+            format!("return Math[\"{method}\"]();"),
+            format!("return (Math.{method})();"),
+            format!("return Math.{method}<number>();"),
+            format!("if(false)Math.{method}=a;return Math.{method}();"),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for ts in [false, true] {

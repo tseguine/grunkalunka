@@ -479,7 +479,7 @@
     {
       "id": "function-calls",
       "kind": "open-requirement",
-      "assessment": "Top-level numeric helpers and the five supported pristine unary Math calls evaluate supplied ordinary surplus arguments and discard their values after retaining declared Number inputs. Missing or over-limit arguments, indirect, property, wrapped-callee, spread and generic calls remain outside the direct numeric helper subset; unsupported calls in unselected source still reject. Unary Math missing inputs and non-Number first operands remain separate requirements.",
+      "assessment": "Top-level numeric helpers and the five supported pristine unary Math calls evaluate supplied ordinary surplus arguments and discard their values after retaining declared Number inputs. Missing helper or over-limit arguments, indirect, property, wrapped-callee, spread and generic calls remain outside the direct numeric helper subset; unsupported calls in unselected source still reject. The five pristine unary Math intrinsics produce Number NaN for missing inputs; non-Number first operands remain separate work.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-function-calls",
@@ -5290,13 +5290,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-abs-missing",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "d72df3382d9d9832fe8eddfc6c27b8489628d2099a72bbd2457688754ea864fd",
-      "group": "function-calls"
-    },
-    {
       "id": "math-abs-spread",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5430,13 +5423,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-sqrt-missing",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "507dbcac1069b5c9f96db815f64fa11c681203a5ace9124273092de72a36be91",
-      "group": "function-calls"
-    },
-    {
       "id": "math-unary-sqrt-spread",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5532,13 +5518,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "c73f7bc169b263c56c839776e3405f8af6516ce3c2fa90d06b8769b7999978e3",
-      "group": "function-calls"
-    },
-    {
-      "id": "math-unary-floor-missing",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "1299d581903789cd61bc96801f46ca358bc1f8c9e4a6eaa1778bdbd5f371047c",
       "group": "function-calls"
     },
     {
@@ -5640,13 +5619,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-ceil-missing",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "5ac8797a02b610d2c19114aa71831f6d472ecfa5bc4f14d974dcb2170b3bf2b4",
-      "group": "function-calls"
-    },
-    {
       "id": "math-unary-ceil-spread",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5742,13 +5714,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "085dfc2158219931822c317015da047ae178aa9cac91054313f454a435d76a71",
-      "group": "function-calls"
-    },
-    {
-      "id": "math-unary-trunc-missing",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c647c8d098bc588c564e3499f4caeab05ba2fc20188fd896c3dd2da4f6c3e241",
       "group": "function-calls"
     },
     {

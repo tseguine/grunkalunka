@@ -462,14 +462,16 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - The self-contained numeric execution profile provides pristine specified
   Math.abs, Math.sqrt, Math.floor, Math.ceil and Math.trunc intrinsics, rather than
   references to an external JavaScript realm's mutable Math object. Each requires
-  a nonoptional static call, a first Number argument and an actual unresolved
-  semantic value reference for Math. Up to 1,000 ordinary arguments may be
+  a nonoptional static call and an actual unresolved semantic value reference for
+  Math. An omitted first argument produces Number NaN; a supplied first argument
+  must currently be a Number. Up to 1,000 ordinary arguments may be
   supplied; surplus expressions run left-to-right and discard their values. Resolved
   parameter/local/TDZ/module-helper shadows never fall back by spelling. Ordinary numeric bindings named Math may
   still mutate; type-only Math names do not create value bindings. The first
   Number is saved before surplus argument effects and waits; the intrinsic runs
-  after all arguments finish. Missing inputs remain guarded separately.
-  Abs emits `f64.abs`;
+  after all arguments finish. Missing inputs do not read a source `undefined` or
+  `NaN` binding.
+  With a supplied Number, abs emits `f64.abs`;
   sqrt/floor/ceil/trunc emit their corresponding `f64` opcode directly. There is
   no ToNumber coercion, integer conversion or generated arithmetic helper.
   Non-NaNs compare exact binary64 bits; NaNs compare by class, not payload/sign.
@@ -1971,3 +1973,18 @@ extra-argument rejection sources are promoted and pinned by SHA256. Missing-inpu
 diagnostics now say at least one Number argument; default-Undefined behavior and
 primitive coercion remain separate work. Corpus 79 has 1,873 numeric pairs and
 908 rejections; primitive coverage remains 175 pairs.
+
+### Missing inputs to unary Math intrinsics
+
+The five pristine unary Math calls return Number NaN when no argument is supplied.
+The evaluator emits an existing Number constant; there is no source lookup of
+`undefined` or `NaN`, new IR operation, emitter path or runtime ABI. Explicit
+non-Number first arguments remain separate conversion work. Surplus argument
+ordering and the existing namespace, patch, spread and width guards are unchanged.
+
+Native JavaScript, Node-Wasm and Wasmtime oracles cover all five methods in both
+Number and Value profiles, JS/erased TS, local `undefined`/`NaN` shadows, predicates,
+discarded calls, nested calls and async job traces. Five exact former missing-input
+rejection sources are promoted with their original hashes pinned by a Node test.
+Corpus 80 has 1,879 numeric pairs and 903 rejections; primitive coverage remains
+175 pairs.

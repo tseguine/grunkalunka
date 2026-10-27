@@ -1889,14 +1889,19 @@ impl Lowering<'_, '_> {
                             values.push(Value::Number(result));
                         }
                         Expression::CallExpression(call) => {
-                            if let Some((operator, method)) = math_unary(call, self.semantic) {
+                            if let Some((operator, _)) = math_unary(call, self.semantic) {
                                 if call.arguments.is_empty() {
-                                    return Err(unsupported(
+                                    let result = self.value(Type::Number);
+                                    Self::push(
+                                        regions.current(),
                                         node,
-                                        &format!(
-                                            "Math.{method} requires at least one numeric argument"
-                                        ),
-                                    ));
+                                        Op::Constant {
+                                            result,
+                                            value: f64::NAN,
+                                        },
+                                    );
+                                    values.push(Value::Number(result));
+                                    continue;
                                 }
                                 if call.arguments.len() > 1000 {
                                     return Err(unsupported(

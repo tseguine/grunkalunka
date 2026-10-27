@@ -11,6 +11,7 @@ const witnesses={sqrt:'4',floor:'-1.5',ceil:'1.5',trunc:'-1.5'};
 for(const method of mathUnaryMethods){
  add(`${method}-input`,`return Math.${method}(a);`);
  full(`${method}-extra`,`export function run(a,b) { return Math.${method}(a,b); }`);
+ full(`${method}-missing`,`export function run(a,b) { return Math.${method}(); }`);
  add(`${method}-witness`,`return Math.${method}(${witnesses[method]});`);
  add(`${method}-negative-zero`,`return Math.${method}(-0);`);
  add(`${method}-postfix-once`,`return Math.${method}(a++)+a;`);
@@ -41,7 +42,6 @@ for(const method of mathUnaryMethods){
  bad.push([`math-unary-${method}-parameter-shadow`,`export function run(Math,b) { return Math.${method}(b); }`,'js',expression]);
  reject(`${method}-forward-tdz`,`const x=Math.${method}(a); let Math=b; return x;`,expression);
  reject(`${method}-unselected-unsupported`,`return 1?a:Math.${method}(Math.random());`);
- reject(`${method}-missing`,`return Math.${method}();`,`Math.${method} requires at least one numeric argument`);
  reject(`${method}-spread`,`return Math.${method}(...a);`,'spread call arguments');
  reject(`${method}-generic`,`return Math.${method}<number>(a);`,expression,'ts');
  reject(`${method}-computed`,`return Math["${method}"](a);`);

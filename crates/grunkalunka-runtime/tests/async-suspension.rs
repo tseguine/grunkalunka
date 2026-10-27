@@ -305,6 +305,27 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn unary_math_missing_inputs_preserve_async_results_and_jobs() {
+    let mut bodies = Vec::new();
+    for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
+        bodies.push(format!("return Math.{method}();"));
+        bodies.push(format!("const n=Math.{method}();await(a=b);return n;"));
+        bodies.push(format!("return (await Math.{method}())?a:b;"));
+    }
+    compare_promises(
+        &bodies.iter().map(String::as_str).collect::<Vec<_>>(),
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+    let plain = "export async function run(a,b){return Math.abs();}";
+    let typed =
+        "export async function run(a:never,b:Missing):Wrong{return (Math.abs() satisfies Wrong);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn unary_math_surplus_arguments_preserve_async_snapshots_and_jobs() {
     let mut bodies = Vec::new();
     for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
