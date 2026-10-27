@@ -53,6 +53,40 @@ second implementation of Markdown. This validates projection parity; it
 does not independently certify CommonMark. Existing document authority, quota
 and malformed-result suites are separate evidence.
 
+## Repeatability and local report provenance
+
+The canonical document check also invokes the **same Unicode workload twice in
+separate cost-probe processes** on one CI host. It reruns the native reference for
+each reported source, compares the two complete fixture projections, sampling
+configuration, declared environment and artifact sizes, and verifies that the
+actual guest Wasm file's SHA-256 stays unchanged. It does **not** require equal
+timings or establish controlled thermal, cache or scheduler conditions. The
+CI logs record the guest SHA-256, but do not retain either timing JSON report.
+
+To retain raw observations for manual investigation, run the example command
+above **twice with exactly the same guest file and options**, redirecting each
+JSON stdout stream to a different local file. Record these observations
+alongside both files from the same checkout:
+
+```sh
+git rev-parse HEAD
+rustc -Vv
+cargo -V
+node -p "JSON.stringify({node:process.version,v8:process.versions.v8,cpu:require('node:os').cpus()?.[0]?.model??null})"
+node -p "require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync('target/wasm32-unknown-unknown/debug/examples/outline_guest.wasm')).digest('hex')"
+```
+
+Also record the actual Cargo profile/RUSTFLAGS, CPU/virtualization details,
+machine load and whether build products were reused. For an interpretable
+same-workload comparison, require matching fixture source/output bytes,
+samples/iterations/warmup, OS/architecture, Wasmtime dependency, guest binary
+SHA-256 and build conditions; matching byte **lengths** alone are insufficient.
+The report does not independently record the guest hash, compiler flags or CPU
+model, so those must accompany saved reports. Even matched metadata cannot
+establish steady CPU frequency, equal caches or JIT state. Collect several
+whole runs; do not apply the numeric-GCD report comparator to these differently
+shaped Markdown reports, rank hosts or infer isolated host overhead.
+
 ## Interpretation boundaries
 
 This cannot isolate *pure* host-call overhead or pure Markdown parser cost:
