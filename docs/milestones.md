@@ -20,10 +20,13 @@ general functions, synchronous exceptions, `finally` or Promise-object support.
 
 Primitive input inference through validated awaited `Promise.resolve`/`Promise.reject`
 callback arguments now has native JS, Node Wasm and Wasmtime result/effect/job-trace
-coverage, without a prior successful call establishing the kind. The next bounded
-lowering demonstration is selecting between private Number and General input
-interfaces. JS/TS sources must compile and match native results and argument
-snapshots in both engines while preserving existing Number-only selections.
+coverage, without a prior successful call establishing the kind. Private Number
+and General scalar input interfaces now join across source-known constructors,
+with result/capture/downstream-call facts kept consistent. JS/TS differential
+tests cover selections, aliases, transitive groups and async snapshots while
+preserving existing Number-only selections. The next bounded demonstration is
+selecting closures whose Number and General scalar result interfaces differ:
+primitive tags, Number bits and source evaluation order must survive in both engines.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

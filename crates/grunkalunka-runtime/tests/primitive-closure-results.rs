@@ -555,6 +555,20 @@ fn computed_call_results_feed_primitive_input_facts() {
 }
 
 #[test]
+fn selected_identity_functions_share_joined_primitive_inputs() {
+    compare_primitive_closure_programs(&[
+        "const f=x=>x;let p=f;p(null);const g=x=>x;let h=a?f:g;return h(b);",
+        "const f=x=>x;let p=f;p(undefined);const g=x=>x;let h=a?f:g;return h(b);",
+        "const f=x=>x;let p=f;p(false);let g=x=>x;let h=a?f:g;return h(null);",
+        "const f=x=>x;let p=f;p(null);let g=x=>x;let h=a?f:g;let q=y=>y;return q(g(b));",
+        "const f=x=>{const read=()=>x;return read();};let p=f;p(null);const g=x=>{const read=()=>x;return read();};let h=a?f:g;return h(b);",
+        "const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;let make=a?f:g;const h=make(b);return h();",
+        "const f=x=>+x;const g=x=>-x;f(null);let h=a?f:g;return h(b);",
+        "const f=x=>{x=null;return +x;};const g=x=>-x;let h=a?f:g;return h(b);",
+    ]);
+}
+
+#[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>{if(a)return ()=>b;return null;};return a;",

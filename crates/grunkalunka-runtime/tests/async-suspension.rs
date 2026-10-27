@@ -183,6 +183,26 @@ fn awaited_input_facts_keep_intrinsic_and_promise_object_guards() {
     );
 }
 
+#[test]
+fn joined_private_inputs_preserve_async_results_and_snapshots() {
+    compare_promises(
+        &[
+            "const f=x=>+x;let p=f;p(await null);const g=x=>-x;let h=a?f:g;return h(await b);",
+            "const f=x=>x;let p=f;p(null);const g=x=>x;let h=a?f:g;return await h(b);",
+            "const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;let make=a?f:g;const h=make(await b);await a;return h();",
+            "const f=x=>+x;let p=f;try{throw null;}catch(e){p(e);}const g=x=>-x;let h=a?f:g;return h(await b);",
+            "const f=x=>+x;let p=f;p(null);const g=x=>-x;let h=a?f:g;return 1/h((h=g,await null));",
+            "const f=(fn,x)=>fn(x);let p=f;p(y=>+y,null);const g=(fn,x)=>fn(x)-b;let h=a?f:g;return h(y=>+y,await b);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()

@@ -1765,6 +1765,15 @@ argument specialization and signature queries. Fallthrough or missing return
 values do not establish Number. Unresolved callees retain their previous guard;
 the query emits no source effects and changes no runtime calling convention.
 
+Constructors that share a source-known runtime function value can join Number and
+General scalar input requirements, position by position at matching logical arity.
+The existing Number dependency worklist and runtime-input facts converge together:
+a joined General formal has General cell storage, and its result dependencies can
+affect downstream callers. Callback positions stay on their separate signature
+path. Source writes and known inlined calls still affect storage without seeding
+a General private input requirement. Other complete-signature, result-kind and
+resource guards remain in force; no new IR operation or calling convention is used.
+
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call
 reads the current contents of those slots, and writes from sibling closures share

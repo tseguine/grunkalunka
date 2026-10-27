@@ -183,6 +183,14 @@ storage kinds: a Number input that is later assigned Null keeps its Number input
 ABI and receives a General local cell. This preserves selection with another
 Number-input function. Inlined known calls specialize their arguments and do not
 widen the shared private ABI; runtime call sites establish that input requirement.
+Source-known constructors sharing a runtime function value now join scalar input
+kinds when their logical arities match. A runtime General input requirement on
+one constructor propagates to the corresponding scalar formals of its peers.
+Their cell/result dependencies and downstream call facts settle together; this
+also keeps identity results and captured parameters consistent with the entry
+kind. Callback positions retain their separate signatures. General local writes
+or inlined actuals alone do not seed this join, and the other result/signature
+guards remain unchanged.
 Actual constructors also propagate through demanded callback parameters, aliases,
 forwarding and captured callbacks. Calls through those parameters establish the
 constructor's primitive input requirements. Generic identity parameters retain

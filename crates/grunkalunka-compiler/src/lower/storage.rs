@@ -676,19 +676,19 @@ pub(crate) fn general_mutable_bindings(
     }
     let mut numbers = candidates.clone();
     let mut pending = invalid.into_iter().collect::<Vec<_>>();
-    while let Some(input) = pending.pop() {
-        if numbers.remove(&input)
-            && let Some(readers) = dependents.get(&input)
-        {
-            pending.extend(readers.iter().copied());
+    let mut inputs = BTreeSet::new();
+    loop {
+        while let Some(input) = pending.pop() {
+            if numbers.remove(&input)
+                && let Some(readers) = dependents.get(&input)
+            {
+                pending.extend(readers.iter().copied());
+            }
         }
-    }
-    let storage: BTreeSet<_> = candidates.difference(&numbers).copied().collect();
-    // Source writes choose cell storage; only actual argument kinds choose the
-    // input ABI. A Number input may still be copied into a General local cell.
-    let inputs = incoming
-        .into_iter()
-        .filter_map(|(symbol, actual)| {
+        let previous_inputs = inputs.len();
+        // Runtime actuals choose the private input ABI; ordinary source writes
+        // and known inlined calls still choose only cell/result storage.
+        inputs.extend(incoming.iter().filter_map(|(symbol, actual)| {
             (!number_result_shape(
                 actual,
                 0,
@@ -696,14 +696,51 @@ pub(crate) fn general_mutable_bindings(
                 functions,
                 NumberCalls::Returns(&call_results),
                 |callee| {
-                    !storage.contains(&callee)
+                    numbers.contains(&callee)
                         && (targets.contains_key(&callee) || numeric_callbacks.contains(&callee))
                 },
                 |input| numbers.contains(&input),
             ))
-            .then_some(symbol)
-        })
-        .collect();
+            .then_some(*symbol)
+        }));
+        // Constructors sharing a value need one scalar entry interface. Keep
+        // callback parameters on their separate signature path.
+        for bodies in targets.values().filter(|bodies| bodies.len() > 1) {
+            let count = arrows[bodies.first().unwrap()].params.items.len();
+            if bodies
+                .iter()
+                .any(|body| arrows[body].params.items.len() != count)
+            {
+                continue;
+            }
+            for index in 0..count {
+                let group: BTreeSet<_> = bodies
+                    .iter()
+                    .filter_map(|body| {
+                        let BindingPattern::BindingIdentifier(identifier) =
+                            &arrows[body].params.items[index].pattern
+                        else {
+                            return None;
+                        };
+                        identifier
+                            .symbol_id
+                            .get()
+                            .filter(|symbol| !callback_formals.contains(symbol))
+                    })
+                    .collect();
+                if group.len() == bodies.len() && !group.is_disjoint(&inputs) {
+                    inputs.extend(group);
+                }
+            }
+        }
+        if inputs.len() == previous_inputs {
+            break;
+        }
+        // A joined General entry is a General formal cell too. Propagate its
+        // result dependencies before checking downstream actuals again.
+        pending.extend(inputs.iter().copied());
+    }
+    let storage: BTreeSet<_> = candidates.difference(&numbers).copied().collect();
     let number_calls = call_results
         .iter()
         .filter_map(|(id, results)| {

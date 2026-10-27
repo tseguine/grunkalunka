@@ -119,6 +119,23 @@ fn computed_call_inputs_retain_number_results() {
     ]);
 }
 
+#[test]
+fn runtime_selection_joins_primitive_input_requirements() {
+    compare_functions(&[
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;let h=a?f:g;return h(b);",
+        "const f=x=>+x;let p=f;p(undefined);const g=x=>-x;let h=a?f:g;return h(b);",
+        "const f=x=>+x;let p=f;p(false);const g=x=>-x;const alias=g;let h=a?f:alias;return h(b);",
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;let h=f??g;return h(b);",
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;let h=f&&g;return h(b);",
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;let h=f;if(a)h=g;return h(b);",
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;const k=x=>x*2;let h=a?f:g;let j=b?g:k;return h(b)+j(a);",
+        "const f=(x,y)=>+x+y;let p=f;p(null,b);const g=(x,y)=>-x+y;let h=a?f:g;return h(b,a);",
+        "let n=a;const f=x=>(n+=b,+x);let p=f;p(null);const g=x=>(n+=a,-x);let h=a?f:g;return h(b)+n;",
+        "let f=x=>+x;let p=f;p(null);const g=x=>-x;let h=a?f:g;return 1/h((h=g,null));",
+        "const f=(fn,x)=>fn(x);let p=f;p(y=>+y,null);const g=(fn,x)=>fn(x)-b;let h=a?f:g;return h(y=>+y,b);",
+    ]);
+}
+
 fn bits(value: f64) -> String {
     if value.is_nan() {
         "nan".into()
