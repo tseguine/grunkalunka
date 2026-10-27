@@ -63,3 +63,7 @@ and the measurement code using an independent small-input Wasm fixture. After a
 native build, `node --test tests/build/benchmark-integration.test.mjs` exercises the
 actual command and compiler from another working directory. Both are included in
 `node scripts/check.mjs`. Timing uses Node's [performance clock](https://nodejs.org/api/perf_hooks.html#performancenow).
+
+To compare saved reports with matching workload and environment metadata, use the
+[comparison command](benchmark-comparison.md). It retains raw samples and rejects
+incompatible reports rather than silently presenting a timing ratio.
