@@ -69,14 +69,18 @@ fn policy_errors_are_values_and_do_not_poison_the_same_instance() {
     let (mut store, reader) = setup();
     store.data_mut().text = "# Private\r\n猫😀".into();
     assert_eq!(
-        reader.call_read(&mut store, Resource::new_borrow(7)).unwrap(),
+        reader
+            .call_read(&mut store, Resource::new_borrow(7))
+            .unwrap(),
         Err(ReadError::Denied)
     );
     assert_eq!((store.data().attempts, store.data().reads), (1, 0));
     assert_eq!(reader.call_cleanup_count(&mut store).unwrap(), 1);
     store.data_mut().allowed = true;
     assert_eq!(
-        reader.call_read(&mut store, Resource::new_borrow(8)).unwrap(),
+        reader
+            .call_read(&mut store, Resource::new_borrow(8))
+            .unwrap(),
         Err(ReadError::UnknownGrant)
     );
     assert_eq!((store.data().attempts, store.data().reads), (2, 0));
@@ -88,7 +92,9 @@ fn policy_errors_are_values_and_do_not_poison_the_same_instance() {
     assert_eq!(reader.call_cleanup_count(&mut store).unwrap(), 3);
     store.data_mut().text = "replacement".into();
     assert_eq!(
-        reader.call_read(&mut store, Resource::new_borrow(7)).unwrap(),
+        reader
+            .call_read(&mut store, Resource::new_borrow(7))
+            .unwrap(),
         Ok("replacement".into())
     );
     assert_eq!(
@@ -110,7 +116,9 @@ fn exact_utf8_content_and_byte_limits_survive_canonical_transport() {
     for (index, expected) in values.iter().enumerate() {
         store.data_mut().text.clone_from(expected);
         assert_eq!(
-            reader.call_read(&mut store, Resource::new_borrow(7)).unwrap(),
+            reader
+                .call_read(&mut store, Resource::new_borrow(7))
+                .unwrap(),
             Ok(expected.clone())
         );
         assert_eq!(
@@ -120,14 +128,18 @@ fn exact_utf8_content_and_byte_limits_survive_canonical_transport() {
     }
     store.data_mut().text = format!("{}x", values[2]);
     assert_eq!(
-        reader.call_read(&mut store, Resource::new_borrow(7)).unwrap(),
+        reader
+            .call_read(&mut store, Resource::new_borrow(7))
+            .unwrap(),
         Err(ReadError::TooLarge)
     );
     assert_eq!((store.data().attempts, store.data().reads), (4, 3));
     assert_eq!(reader.call_cleanup_count(&mut store).unwrap(), 4);
     store.data_mut().text = "after limit".into();
     assert_eq!(
-        reader.call_read(&mut store, Resource::new_borrow(7)).unwrap(),
+        reader
+            .call_read(&mut store, Resource::new_borrow(7))
+            .unwrap(),
         Ok("after limit".into())
     );
     assert_eq!(reader.call_cleanup_count(&mut store).unwrap(), 5);
