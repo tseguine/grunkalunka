@@ -53,3 +53,35 @@ Parser choice, glyph metrics and host presentation remain open. As required by
 the browser roadmap, the crate is independent of a browser shell and can be
 exercised by a headless caller. This step does not authorize editing the
 compiler, Markdown/WIT code or the unselected application pilot.
+
+
+## Minimal semantic-tree projection (next experiment)
+
+`crates/grunkalunka-layout/src/semantic.rs` accepts an **already structured**
+parent-before-child tree of `Body`, `Main`, `Heading(1..6)`, `OrderedList`,
+`ListItem`, `Paragraph` and `Div` nodes. It maps them to the existing block
+geometry engine using explicitly documented toy defaults, or accepts a full
+**caller-resolved** style override. A hidden flag hides a subtree regardless of
+its supplied box style. Neither CSS selectors nor the HTML tokenizer are present.
+
+A text-bearing node must be a leaf and supply a nonzero **measured text height**;
+otherwise layout fails explicitly. Text remains an uninterpreted UTF-8 string:
+angle brackets and entity-like input are *data*, never parsed/executed. Returned
+`TextBox` records associate those borrowed strings with their content rectangles
+for a future separate shaping/painting consumer. The module does not draw glyphs,
+provide text width, or perform line breaking. It caps total UTF-8 text bytes at
+256 KiB, alongside the block engine's node/depth/viewport/overflow checks.
+
+```sh
+cargo test -p grunkalunka-layout --locked --offline
+cargo run -p grunkalunka-layout --example semantic_outline --locked --offline
+```
+
+The example projects an outline-shaped semantic tree, hides its ordered list,
+then demonstrates paragraph reflow with no HTML parser, browser shell, WASI or
+host capabilities. This is **not HTML-to-layout** yet: a future parser/sink must
+produce this typed tree, and a text service must supply metrics. We reviewed
+`html5ever` as a future HTML5 parser candidate (MIT/Apache-2.0, TreeSink API),
+but deliberately added no new parser/dependency or public DOM ABI in this
+separately reviewable step. See the browser roadmap for the reusable component
+constraint and source-licensed dependency review requirements.
