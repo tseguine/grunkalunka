@@ -628,3 +628,8 @@ reaction boundary. The source evaluator has a distinct Promise mode for initiali
 mutable cells, typed assignments and same-kind selections. It uses the existing
 branch/store operations and projects only at await; truthiness does not inspect
 the primitive payload. See [the bounded source contract](fulfilled-promise-locals.md).
+
+`InlineCall` may yield `FulfilledPromise` from a statically known synchronous arrow,
+checking every return against that type. `AwaitCall` still yields only General,
+and function-signature/public-result restrictions are unchanged. Caller await
+projects the returned Promise before using the existing suspension protocol.

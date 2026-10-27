@@ -231,6 +231,102 @@ fn stored_fulfilled_promises_snapshot_primitive_values() {
 }
 
 #[test]
+fn known_sync_arrows_return_fulfilled_promise_values() {
+    compare_promises(
+        &[
+            "const make=x=>Promise.resolve(x);const p=make(a);return await p;",
+            "const make=x=>Promise.resolve(x);return await make(false);",
+            "const make=()=>Promise.resolve();return await make();",
+            "const p=Promise.resolve(a);const get=()=>p;return await get();",
+            "let p=Promise.resolve(a);const get=()=>p;const old=get();p=Promise.resolve(b);return +(await old)+(+(await get()));",
+            "const make=x=>Promise.resolve(x,a++);return await make(a);",
+            "const make=x=>Promise.resolve(x);return await make(await b);",
+            "let p=Promise.resolve(a);const get=()=>p;return await Promise.resolve(get(),p=Promise.resolve(b));",
+            "const make=x=>Promise.resolve(x);const relay=x=>make(x);return await relay(null);",
+            "return await (x=>Promise.resolve(x))(a);",
+            "const make=x=>Promise.resolve(x);const alias=make;return await alias(a);",
+            "let n=0;const make=()=>Promise.resolve(n++);return n;",
+            "let n=0;const make=x=>Promise.resolve((n++,x));try{return await make(await Promise.reject(b));}catch(e){return +e+n;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn known_block_arrows_return_fulfilled_promise_values() {
+    compare_promises(
+        &[
+            "const make=x=>{return Promise.resolve(x);};const p=make(a);return await p;",
+            "const make=x=>{const p=Promise.resolve(x);return p;};return await make(a);",
+            "const make=x=>{let p=Promise.resolve(x);p=Promise.resolve(b);return p;};return await make(a);",
+            "const make=x=>{if(x)return Promise.resolve(null);return Promise.resolve(false);};return await make(a);",
+            "let p=Promise.resolve(a);const get=()=>{return p;};const old=get();p=Promise.resolve(b);return +(await old)+(+(await get()));",
+            "const make=x=>{for(let i=0;i<3;i++){if(x)return Promise.resolve(i);}return Promise.resolve(b);};return await make(a);",
+            "const make=x=>{const p=Promise.resolve(x);const q=p;return q;};return await make(false);",
+            "const make=x=>{let p=Promise.resolve(x);return (p=Promise.resolve(b));};return await make(a);",
+            "let p=Promise.resolve(a);const set=x=>{p=Promise.resolve(x);return p;};const old=p;return +(await set(b))+(+(await old));",
+            "let n=0;const make=x=>{n++;return Promise.resolve(x);};try{return await make(await Promise.reject(b));}catch(e){return +e+n;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn known_promise_results_keep_erasure_interfaces_and_completion_guards() {
+    let plain = "export async function run(a,b){const make=x=>{const p=Promise.resolve(x);return p;};const alias=make;return await alias(a);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{const make=(x:NotNumber):NotPromise=>{const p:NotPromise=Promise.resolve(x as Wrong);return p as any;};const alias=make;return await (alias(a as any) as Wrong);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    for count in [32, 33] {
+        let body = format!(
+            "const make=()=>{{return Promise.resolve(a);}};{}return b;",
+            "await make();".repeat(count)
+        );
+        for ts in [false, true] {
+            assert_eq!(compile_async(&source_for(&body), ts).is_ok(), count == 32);
+        }
+        if count == 32 {
+            compare_promises(&[&body], &[(4.0, 2.0)]);
+        }
+    }
+    for body in [
+        "const make=x=>Promise.resolve(x);return make(a);",
+        "let make=x=>Promise.resolve(x);return await make(a);",
+        "const make=a?()=>Promise.resolve(a):()=>Promise.resolve(b);return await make();",
+        "const make=async()=>Promise.resolve(a);return await make();",
+        "const make=()=>{if(a)return Promise.resolve(b);};return b;",
+        "const make=()=>{if(a)return Promise.resolve(b);return a;};return b;",
+        "const make=()=>{const p=p;return p;};return a;",
+        "const make=x=>Promise.resolve(x);const p=Promise.resolve(a);return await make(p);",
+        "const make=x=>Promise.resolve(x);return await make();",
+        "const make=x=>Promise.resolve(x);return await make?.(a);",
+        "const make=x=>Promise.resolve(x);return await make(...a);",
+    ] {
+        for ts in [false, true] {
+            assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
+        }
+    }
+    for body in [
+        "const make=x=>Promise.resolve(x);return await make<number>(a);",
+        "const make=x=>{return Promise.resolve(x);};return await make<number>(a);",
+    ] {
+        assert!(compile_async(&source_for(body), true).is_err(), "{body}");
+    }
+}
+
+#[test]
 fn mutable_fulfilled_promises_retain_primitive_values() {
     compare_promises(
         &["let p=Promise.resolve(a);return await p;"],
@@ -344,7 +440,6 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
         "const p=Promise.resolve(a);throw p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
         "const p=Promise.resolve(a);const id=x=>x;return await id(p);",
-        "const p=Promise.resolve(a);const get=()=>p;return await get();",
     ] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");

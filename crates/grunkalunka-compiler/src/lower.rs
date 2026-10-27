@@ -1053,6 +1053,9 @@ impl Lowering<'_, '_> {
                         })?;
                 let value = if let Type::Closure(arity) = self.return_type {
                     self.function_value(expression, region, arity, 0)?
+                } else if self.return_type == Type::FulfilledPromise {
+                    self.evaluate(expression, region, 0, evaluate::Mode::Promise)?
+                        .expect("fulfilled Promise return")
                 } else if self.return_type == Type::General {
                     self.evaluate(expression, region, 0, evaluate::Mode::General)?
                         .expect("General expression result")

@@ -1,5 +1,55 @@
 use super::*;
 
+#[test]
+fn fulfilled_promise_inline_results_keep_return_and_async_contracts() {
+    let make = || {
+        crate::lower_source_profile(
+        "export async function run(a,b){const make=x=>{return Promise.resolve(x);};const p=make(a);return await p;}",
+        false, Type::General, true,
+    ).unwrap()
+    };
+    verify_module_with_entry_type(&make(), Type::General).unwrap();
+    for change in 0..3 {
+        let mut invalid = make();
+        let function = &mut invalid.functions[0];
+        let operation = function
+            .body
+            .operations
+            .iter_mut()
+            .find(|operation| matches!(operation.kind, Op::InlineCall { .. }))
+            .unwrap();
+        let Op::InlineCall { result, .. } = &operation.kind else {
+            unreachable!()
+        };
+        let result = *result;
+        match change {
+            0 => function.values[result.0] = Type::Predicate,
+            1 => function.values[result.0] = Type::General,
+            _ => {
+                let Op::InlineCall { result, body } = std::mem::replace(
+                    &mut operation.kind,
+                    Op::Boolean {
+                        result,
+                        value: false,
+                    },
+                ) else {
+                    unreachable!()
+                };
+                operation.kind = Op::AwaitCall { result, body };
+            }
+        }
+        let error = verify_module_with_entry_type(&invalid, Type::General).unwrap_err();
+        assert!(
+            error.contains(match change {
+                0 => "inline calls require",
+                1 => "invalid value ID or value type",
+                _ => "awaited calls require General results",
+            }),
+            "{change}: {error}"
+        );
+    }
+}
+
 fn module() -> Module {
     crate::lower_source_profile(
         "export async function run(a,b){const p=Promise.resolve(a);return await p;}",

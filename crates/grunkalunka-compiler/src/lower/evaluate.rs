@@ -84,6 +84,19 @@ fn call_result<'e, 'a>(
             ));
         }
         (Type::Number, Mode::Number) | (Type::General, Mode::General) => (),
+        (Type::FulfilledPromise, Mode::Promise) => (),
+        (Type::FulfilledPromise, _) => {
+            return Err(unsupported(
+                node,
+                "fulfilled Promise call results require a Promise value or await position",
+            ));
+        }
+        (_, Mode::Promise) => {
+            return Err(unsupported(
+                node,
+                "Promise positions require fulfilled Promise call results",
+            ));
+        }
         _ => unreachable!("scalar call result after mode routing"),
     }
     Ok(())
@@ -592,7 +605,9 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(
                                 expression,
                                 0,
-                                if closure.result == Type::General {
+                                if closure.result == Type::FulfilledPromise {
+                                    Mode::Promise
+                                } else if closure.result == Type::General {
                                     Mode::General
                                 } else {
                                     Mode::Number
@@ -606,7 +621,9 @@ impl Lowering<'_, '_> {
                             let body = self.arrow_block_result(arrow, depth, closure.result)?;
                             let result = self.value(closure.result);
                             Self::push(regions.current(), node, Op::InlineCall { result, body });
-                            values.push(if closure.result == Type::General {
+                            values.push(if closure.result == Type::FulfilledPromise {
+                                Value::Promise(result)
+                            } else if closure.result == Type::General {
                                 Value::General(result)
                             } else {
                                 Value::Number(result)
@@ -1545,10 +1562,13 @@ impl Lowering<'_, '_> {
                             }
                             continue;
                         }
-                        return Err(unsupported(
-                            node,
-                            "expression requires a represented fulfilled Promise",
-                        ));
+                        if !matches!(node, Expression::CallExpression(call) if self.closure_target(&call.callee, depth + 1).is_some())
+                        {
+                            return Err(unsupported(
+                                node,
+                                "expression requires a represented fulfilled Promise",
+                            ));
+                        }
                     }
                     if matches!(mode, Mode::Predicate) && self.fulfilled_promise_shape(node, depth)
                     {

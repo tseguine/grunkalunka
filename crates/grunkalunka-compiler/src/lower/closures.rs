@@ -257,7 +257,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else if let Some(arity) = check.function_arity(expression, 0) {
                 check.function_value(expression, &mut region, arity, 0)?;
             } else {
-                closure.result = if check.numeric_result_shape(expression, 0) {
+                closure.result = if check.fulfilled_promise_shape(expression, 0) {
+                    if arrow.r#async {
+                        return Err(unsupported(
+                            expression,
+                            "async Promise-valued returns require Promise adoption",
+                        ));
+                    }
+                    Type::FulfilledPromise
+                } else if check.numeric_result_shape(expression, 0) {
                     Type::Number
                 } else {
                     Type::General
@@ -266,7 +274,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     expression,
                     &mut region,
                     0,
-                    if closure.result == Type::General {
+                    if closure.result == Type::FulfilledPromise {
+                        evaluate::Mode::Promise
+                    } else if closure.result == Type::General {
                         evaluate::Mode::General
                     } else {
                         evaluate::Mode::Number
@@ -283,7 +293,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
             region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
             closure.factory = true;
         } else {
-            closure.result = check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
+            closure.result = if check.arrow_fulfilled_promise_result(arrow) {
+                Type::FulfilledPromise
+            } else {
+                check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new())
+            };
             region = check.arrow_block_result(arrow, 0, closure.result)?;
         }
         // Include transitive references recorded by nested (even unused) arrows,
@@ -486,6 +500,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     arrow,
                     if matches!(result_type, Type::Closure(_)) {
                         "block arrows must return a function on every structural path"
+                    } else if result_type == Type::FulfilledPromise {
+                        "block arrows must return a fulfilled Promise on every structural path"
                     } else if result_type == Type::General {
                         "block arrows must return a primitive value on every structural path"
                     } else {

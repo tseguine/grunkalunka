@@ -65,6 +65,12 @@ mutable/dynamic async function selections and Promise/function
 outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
 the reason would be the Promise object, rather than its eventual primitive value.
 `await Promise.reject(await f())` uses a primitive reason and remains supported.
+
+Known synchronous local arrows can return admitted fulfilled Promise values
+through concise or complete block bodies. Calling them runs their arguments and
+body synchronously; only the caller's await adds a reaction. Returned locals,
+aliases and captured bindings keep their typed snapshots. This uses existing
+inlining, not a new Promise argument/result ABI for runtime-selected functions.
 The structured `AwaitCall` region separates callee completion from the caller's
 reaction. A body throw settles the callee immediately, but the caller observes it
 on its own reaction job; a rejected body await adds its body job first. Callee

@@ -122,3 +122,7 @@ locals without prematurely choosing general Promise object identity, settlement,
 ownership or scheduler layouts. A general Promise representation can replace
 this virtual encoding when those observable operations are implemented. See
 [the contract and evidence](../fulfilled-promise-locals.md).
+
+Known synchronous local arrows can return the same logical type through inline
+regions. This preserves the sixteen-byte snapshot without adding a physical
+call ABI: runtime closure signatures and exported Promise results remain invalid.

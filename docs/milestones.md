@@ -47,6 +47,9 @@ Represented `Promise.resolve`/`Promise.reject` intrinsics now default missing
 payloads to Undefined and preserve ordered surplus-argument effects, snapshots
 and suspension before the outer reaction. Stored fulfilled constructors share
 these rules; pending async-call payloads with surplus arguments remain separate.
+Known synchronous local arrows now return fulfilled Promise snapshots through
+concise or complete block bodies. Their calls add no job; the caller's await keeps
+its reaction. Promise parameters and runtime-selected result interfaces remain open.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

@@ -1044,10 +1044,13 @@ impl Verifier<'_> {
                     if matches!(operation.kind, Op::AwaitCall { .. }) && ty != Type::General {
                         return Err(invalid(span, "awaited calls require General results"));
                     }
-                    if !matches!(ty, Type::Number | Type::General | Type::Closure(_)) {
+                    if !matches!(
+                        ty,
+                        Type::Number | Type::General | Type::Closure(_) | Type::FulfilledPromise
+                    ) {
                         return Err(invalid(
                             span,
-                            "inline calls require Number, General or function results",
+                            "inline calls require Number, General, function or fulfilled Promise results",
                         ));
                     }
                     frame.pending = PendingRegion::Inline(ty);

@@ -17,6 +17,19 @@ pub(super) struct Intrinsic<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    pub(super) fn arrow_fulfilled_promise_result(
+        &self,
+        arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    ) -> bool {
+        !arrow.r#async
+            && storage::arrow_returns(arrow, self.semantic).is_some_and(|results| {
+                !results.is_empty()
+                    && results
+                        .into_iter()
+                        .all(|result| self.fulfilled_promise_shape(result, 0))
+            })
+    }
+
     pub(super) fn fulfilled_promise_slot(
         &self,
         expression: &Expression<'_>,
@@ -52,7 +65,46 @@ impl Lowering<'_, '_> {
             let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
                 return false;
             };
-            if self.fulfilled_promise_slot(expression, depth).is_some() {
+            let identifier = match expression {
+                Expression::Identifier(identifier) => Some(&**identifier),
+                Expression::AssignmentExpression(assignment) => assignment
+                    .left
+                    .as_simple_assignment_target()
+                    .and_then(|target| target_identifier(target, depth).ok().flatten()),
+                _ => None,
+            };
+            if let Some(identifier) = identifier {
+                if let Ok(binding) = numeric_binding(identifier, self.semantic, &self.bindings) {
+                    if self.slots[binding.slot.0].ty != Type::FulfilledPromise {
+                        return false;
+                    }
+                    continue;
+                }
+                // Definition checking has not executed the arrow's declarations.
+                // An original initializer may prove its logical result kind;
+                // evaluation must still publish/validate the binding in order.
+                let Some(symbol) = identifier.reference_id.get().and_then(|reference| {
+                    self.semantic.scoping().get_reference(reference).symbol_id()
+                }) else {
+                    return false;
+                };
+                let initializer = self.semantic.nodes().iter().find_map(|node| {
+                    let oxc_ast::AstKind::VariableDeclaration(declaration) = node.kind() else {
+                        return None;
+                    };
+                    declaration.declarations.iter().find_map(|local| {
+                        let BindingPattern::BindingIdentifier(binding) = &local.id else {
+                            return None;
+                        };
+                        (binding.symbol_id.get() == Some(symbol))
+                            .then_some(local.init.as_ref())
+                            .flatten()
+                    })
+                });
+                let Some(initializer) = initializer else {
+                    return false;
+                };
+                pending.push((initializer, depth + 1));
                 continue;
             }
             match expression {
@@ -61,17 +113,28 @@ impl Lowering<'_, '_> {
                         .ok()
                         .flatten()
                         .is_some_and(|intrinsic| !intrinsic.rejected) => {}
-                Expression::AssignmentExpression(assignment)
-                    if assignment
-                        .left
-                        .as_simple_assignment_target()
-                        .and_then(|target| target_identifier(target, depth).ok().flatten())
-                        .and_then(|identifier| {
-                            numeric_binding(identifier, self.semantic, &self.bindings).ok()
-                        })
-                        .is_some_and(|binding| {
-                            self.slots[binding.slot.0].ty == Type::FulfilledPromise
-                        }) => {}
+                Expression::CallExpression(call) => {
+                    let Some(closure) = self.closure_target(&call.callee, depth + 1) else {
+                        return false;
+                    };
+                    let arrow = self.arrow(closure.arrow);
+                    if arrow.r#async {
+                        return false;
+                    }
+                    if closure.checked {
+                        if closure.result != Type::FulfilledPromise {
+                            return false;
+                        }
+                    } else {
+                        let Some(results) = storage::arrow_returns(arrow, self.semantic) else {
+                            return false;
+                        };
+                        if results.is_empty() {
+                            return false;
+                        }
+                        pending.extend(results.into_iter().map(|result| (result, depth + 1)));
+                    }
+                }
                 Expression::SequenceExpression(sequence) => {
                     let Some(last) = sequence.expressions.last() else {
                         return false;

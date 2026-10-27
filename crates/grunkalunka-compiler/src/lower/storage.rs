@@ -48,7 +48,7 @@ fn completion_shape(statement: &Statement<'_>, depth: usize) -> Completion {
     }
 }
 
-fn arrow_returns<'n, 'a: 'n>(
+pub(super) fn arrow_returns<'n, 'a: 'n>(
     arrow: &'n oxc_ast::ast::ArrowFunctionExpression<'a>,
     semantic: &Semantic<'a>,
 ) -> Option<Vec<&'n Expression<'a>>> {

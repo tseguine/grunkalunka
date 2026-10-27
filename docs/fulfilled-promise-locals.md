@@ -45,6 +45,15 @@ Promise expressions still run their effects. A dedicated mode in the iterative
 expression evaluator owns construction, assignment, selection and projection;
 nested constructors and assignments do not recursively re-enter that evaluator.
 
+Statically known synchronous local arrows can return these fulfilled values,
+including concise bodies and blocks that return a fulfilled Promise on every
+structural path. Number and represented primitive arguments retain their existing
+rules. Results can be stored, aliased, selected, discarded or awaited; a synchronous
+call adds no reaction job. Arguments finish before the body, captured bindings are
+read when the call executes, and returned values keep their snapshots. Original
+semantic binding identities and initializers supply bounded result-kind evidence;
+the actual lowering still checks declaration order and every return path.
+
 `FulfilledPromise` is a distinct internal IR type. `FulfillPromise` wraps a visible
 General completion snapshot; `PromiseValue` projects only that Promise type back
 to General before the existing await operation. The verifier rejects scalar
@@ -56,9 +65,10 @@ host ABI, job scheduler or allocation allowance is introduced.
 This is a bounded fulfilled-value slice. Bindings require a fulfilled initializer;
 payloads are represented primitives or other admitted fulfilled values.
 Rejected/unsettled Promises, thenables, `.then` callbacks, general object payloads,
-function arguments/results carrying Promises and observable Promise identity
+Promise parameters, runtime-selected function result interfaces and observable Promise identity
 remain separate work. A Promise cannot be read as its payload in ordinary scalar
-positions, returned directly, or used as a primitive rejection reason. Uninitialized
+positions, returned directly from an entry point or async arrow, or used as a
+primitive rejection reason. Async Promise-return adoption remains separate. Uninitialized
 bindings and selections between Promise and primitive values remain separate.
 Existing intrinsic shadowing and optional/generic/spread-call guards remain.
 Type annotations and wrappers establish no runtime Promise or payload kind.
@@ -74,4 +84,6 @@ selection and truthiness, nested adoption and rejection before stores. Control
 observations check the 127/128 nested-assignment and 128/129 constructor boundaries
 with a maximum of one active evaluator entry.
 Compiler IR tests separately check constructor/projection types and
-parameter/entry-profile rejection. These are not general Promise conformance.
+parameter/entry-profile rejection. Inline regions may return the Promise type;
+their return values must match it, while `AwaitCall` still requires General.
+These are not general Promise conformance.
