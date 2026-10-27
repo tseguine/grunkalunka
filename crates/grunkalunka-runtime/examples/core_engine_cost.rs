@@ -135,24 +135,31 @@ fn statistics(samples: &[f64]) -> String {
 
 impl Report {
     pub fn json(&self) -> String {
-        let mut out = String::new();
+        let mut out = String::from(r#"{"schemaVersion":1,"workload":"core-gcd-two-engine","#);
         write!(
             out,
-            r#"{{"schemaVersion":1,"workload":"core-gcd-two-engine","configuration":{{"samples":{},"iterations":{},"warmup":{}}},"artifact":{{"wasmBytes":{}}},"environment":{{"rustHostOs":"{}","rustHostArch":"{}","wasmtimeDependency":"=50.0.0"}},"sourceCompileMs":{:.9},"wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{} }},"node":{} }}"#,
-            self.options.samples,
-            self.options.iterations,
-            self.options.warmup,
-            self.wasm_bytes,
-            std::env::consts::OS,
-            std::env::consts::ARCH,
-            self.source_compile_ms,
+            r#""configuration":{{"samples":{},"iterations":{},"warmup":{}}},"#,
+            self.options.samples, self.options.iterations, self.options.warmup
+        )
+        .unwrap();
+        write!(
+            out,
+            r#""artifact":{{"wasmBytes":{}}},"environment":{{"rustHostOs":"{}","rustHostArch":"{}","wasmtimeDependency":"=50.0.0"}},"sourceCompileMs":{:.9},"#,
+            self.wasm_bytes, std::env::consts::OS, std::env::consts::ARCH, self.source_compile_ms
+        )
+        .unwrap();
+        write!(
+            out,
+            r#""wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{}}},"#,
             self.module_compile_ms,
             self.instantiation_ms,
             self.first_call_ms,
-            statistics(&self.wasmtime_samples_ms),
-            self.node_json
+            statistics(&self.wasmtime_samples_ms)
         )
         .unwrap();
+        out.push_str(r#""node":"#);
+        out.push_str(&self.node_json);
+        out.push('}');
         out
     }
 }
