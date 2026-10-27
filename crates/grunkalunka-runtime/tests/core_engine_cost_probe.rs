@@ -79,6 +79,11 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
         "\"checksum\":33",
         "\"goldenCases\":8",
         "\"samplesMs\":",
+        "\"memory\":",
+        "\"scope\":\"entire-node-process\"",
+        "\"rssBytes\":",
+        "\"afterModule\":",
+        "\"afterBatches\":",
     ] {
         assert!(output.contains(expected), "missing {expected}");
     }
