@@ -52,3 +52,27 @@ consumers can use it independently of a browser shell.
 
 This is a narrow implementation building block, not Unicode shaping, CSS Text,
 SVG, Web Platform Test coverage, browser compatibility or A1 acceptance.
+
+
+## Inert masks at semantic text anchors
+
+The additional headless `semantic_ink_ppm` example composes the existing
+`layout_semantic` text anchors, RGB background painter and caller-supplied
+`blit_mono` masks. It paints original, hand-defined 3x5 pixel patterns
+resembling H and I, plus small row markers, into a 320x120 PPM:
+
+    cargo run -q -p grunkalunka-layout --example semantic_ink_ppm --locked --offline > anchors.ppm
+    cargo test -p grunkalunka-layout --locked --offline
+
+The standalone `tests/semantic_bitmap_anchors.rs` supplies manual expected
+coordinates for opaque strokes, transparent mask bits, both list rows,
+the paragraph and untouched viewport pixels. It hides the list and verifies
+that the paragraph's ink moves with its new content rectangle, the removed
+list ink disappears, and the PPM output changes.
+
+**This is not automatically rendered text.** The caller chooses masks and
+an explicit five-pixel advance independent of the semantic string. The second
+test deliberately replaces text with inert markup-like characters while
+leaving the supplied masks unchanged, documenting the missing font/shaping
+boundary rather than pretending to implement it. There is no implicit
+glyph lookup, font metric inference, CSS Text conformance or DOM scripting.
