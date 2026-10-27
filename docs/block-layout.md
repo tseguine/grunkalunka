@@ -25,7 +25,7 @@ of visible blocks, plus scroll extents.
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
 tokenizer, selectors/cascade, text shaping, inline formatting, negative or auto
 margins, collapsed margins, floats, positioning, percentages, scrollbars,
-painting, hit testing, event loop or native window. Input text heights are
+CSS painting, hit testing, event loop or native window. Input text heights are
 provided by a separate caller, not guessed. All coordinates are unsigned
 integers. This is a small, experimental implementation component, NOT an
 A1 application or a commitment to the final renderer architecture.
@@ -85,3 +85,10 @@ produce this typed tree, and a text service must supply metrics. We reviewed
 but deliberately added no new parser/dependency or public DOM ABI in this
 separately reviewable step. See the browser roadmap for the reusable component
 constraint and source-licensed dependency review requirements.
+
+## Optional headless pixel diagnostics
+
+The separate [RGB paint-surface experiment](block-paint.md) can draw solid
+backgrounds and border strips from the block geometry into a bounded PPM
+image. This does not add text/glyph rendering, CSS painting rules, a native
+window or scripting to the block layout or semantic projection modules.

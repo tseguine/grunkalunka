@@ -1,9 +1,11 @@
 //! A bounded, host-independent normal-flow block-box layout experiment.
-//! HTML parsing, CSS cascade, font metrics, painting and scripting are external.
+//! HTML parsing, CSS cascade, font metrics and scripting are external.
+//! A separate optional module provides bounded opaque RGB diagnostic painting.
 
 #![forbid(unsafe_code)]
 
 pub mod semantic;
+pub mod paint;
 
 pub const MAX_BLOCKS: usize = 4096;
 pub const MAX_DEPTH: usize = 64;
