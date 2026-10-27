@@ -147,6 +147,7 @@ fn main() -> wasmtime::Result<()> {
         "```md\n# literal\n```\n\nTitle\n=====\n".into(),
         "# Repeat\n".repeat(64),
         format!("# {}", "é".repeat(2047)),
+        format!("# {}x", "\0".repeat(1365)),
     ];
     let mut held = Vec::new();
     for source in &sources {
@@ -191,22 +192,11 @@ fn main() -> wasmtime::Result<()> {
         inspect(&mut store, &inspector, 7).unwrap_err(),
         InspectError::OutlineTooLarge
     );
-    // CommonMark replaces each NUL with U+FFFD: small input can expand its label.
-    store.data_mut().text = format!("# {}x", "\0".repeat(1365));
-    let expanded = inspect(&mut store, &inspector, 7).unwrap();
-    assert_eq!(expanded.len(), 1);
-    assert_eq!(expanded[0].text, format!("{}x", "\u{fffd}".repeat(1365)));
-    assert_eq!(expanded[0].text.len(), 4096);
-    store.data_mut().text = format!("# {}", "\0".repeat(1366));
-    assert_eq!(
-        inspect(&mut store, &inspector, 7).unwrap_err(),
-        InspectError::OutlineTooLarge
-    );
-    assert_eq!(
-        expanded[0].text.len(),
-        4096,
-        "owned label survives rejection"
-    );
+    // The pinned parser retains literal NULs in an unrendered heading label.
+    // An earlier owned projection survives the preceding quota failures.
+    assert_eq!(held[8].len(), 1);
+    assert_eq!(held[8][0].text, format!("{}x", "\0".repeat(1365)));
+    assert_eq!(held[8][0].text.len(), 1366);
     let reads = store.data().reads;
     store.data_mut().allowed = false;
     assert_eq!(

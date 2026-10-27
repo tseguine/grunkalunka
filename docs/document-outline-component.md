@@ -28,12 +28,15 @@ This happens for ordinary errors too. Retained host outputs are compared after
 subsequent calls and destruction of the original store. Reset is not secure erasure
 of Rust allocator memory, and cleanup/reuse after a trap is not promised.
 
-The check compares eight real component projections with direct native-library
+The check compares nine real component projections with direct native-library
 results, covering Unicode, combining marks, BOM/NUL, CRLF, empty/duplicate headings,
 container headings, literal code and exact limits. It also exercises repeated
 calls, denied-to-permitted transitions, oversized input/results, correction,
-separate instances and fuel exhaustion. NUL-to-U+FFFD projection also tests exact
-4,096-byte labels and overflow from a source below the input quota. The existing
+separate instances and fuel exhaustion. A longer NUL-containing label is compared byte-for-byte with the pinned native
+parser: the unrendered text retains literal NUL bytes rather than expanding them
+to U+FFFD. The 65-heading case exercises result-count overflow. The
+4,096-label-byte limit remains a defensive guard; no naturally generated
+over-limit label from a source below the input quota is claimed. The existing
 CI hosts run the command.
 Builds and driver invocations have outer watchdogs; no timing ratio is asserted.
 
@@ -46,4 +49,5 @@ deployment is added. See [text transport](document-transport.md),
 [core outline guest](markdown-outline-guest.md), and the
 [canonical ABI](https://github.com/WebAssembly/component-model/blob/main/design/mvp/CanonicalABI.md).
 
-The expanding-label golden follows [CommonMark 0.31.2, insecure characters](https://spec.commonmark.org/0.31.2/#insecure-characters).
+CommonMark rendering guidance for insecure characters does not imply that
+the pinned inspection parser sanitizes its unrendered heading text.

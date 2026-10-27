@@ -24,7 +24,7 @@ const executable = name => resolve(target, 'debug/examples', name + (process.pla
 const output = run(executable('document_outline'), [resolve(target, 'wasm32-unknown-unknown/debug/examples/outline_guest.wasm')], true);
 assert.ok(output.endsWith('\n'));
 const records = output.slice(0, -1).split('\n');
-assert.equal(records.length, 8, 'every supplied fixture must be compared');
+assert.equal(records.length, 9, 'every supplied fixture must be compared');
 for (const record of records) {
   const parts = record.split('\t');
   assert.equal(parts.length, 2);
@@ -34,4 +34,4 @@ for (const record of records) {
   const expected = Buffer.from(run(executable('outline_guest'), [], true, source));
   assert.deepEqual(actual, expected, 'component records must equal the native library projection');
 }
-console.log('PASS capability-backed Markdown outlines: 8 native/component comparisons, policy errors, cleanup and fuel isolation');
+console.log('PASS capability-backed Markdown outlines: 9 native/component comparisons, policy errors, cleanup and fuel isolation');
