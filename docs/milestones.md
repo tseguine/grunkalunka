@@ -33,10 +33,16 @@ primitive tags, Number bits and source evaluation order must survive in both eng
 General JSON-compatible source values and parse/stringify remain a broader
 unfinished goal; current IR/closure work supports their eventual typed integration,
 and the separate [String/JSON bridge](json.md) is not general object/array lowering.
-The document/capability stream owns [the Markdown demonstration](https://github.com/tseguine/grunkalunka/issues/27);
-browser work remains separate. This summary addresses the coordination finding in
-[steering #37](https://github.com/tseguine/grunkalunka/issues/37) without changing
-those streams' scope or the maintainer's priorities.
+The bounded [capability-backed Markdown demonstration](https://github.com/tseguine/grunkalunka/issues/27)
+is complete: the same compiled guest inspects authorized in-memory documents
+through WIT, returns native-parity outlines, and rejects ungranted document
+substitution. [Integration evidence](document-outline-authority.md) and the
+three-platform [final CI run](https://github.com/tseguine/grunkalunka/actions/runs/40505705440)
+cover this experimental boundary, not a writable vault or an A1 application.
+The next independent document/runtime experiment is P1 cost characterization;
+browser work remains separate. This summary addresses the coordination finding
+in [steering #37](https://github.com/tseguine/grunkalunka/issues/37) without
+changing those streams' scope or the maintainer's priorities.
 
 ## Lowering track
 
@@ -62,7 +68,8 @@ be represented internally without changing the public two-number/result-number A
 | C1 — executable compatibility matrix | Done | [Corpus version 65](../tests/compatibility/corpus.mjs): 1781 paired programs, 919 rejection fixtures, five explicit unexecuted feature groups. The [34 lowering-gap references](lowering-gaps.md) separately execute their specified JS result and verify the current rejection. Reports distinguish expected admission from test outcome, preserve runtime/build provenance, seed, source/artifact hashes and rejection diagnostics. Every admitted fixture compares JS to both Wasm engines; every rejection verifies no artifact. |
 | C2 — external conformance selection | In progress | A pinned TypeScript arithmetic source supplies 32 adapted runtime cases and zero selected admission rejections, with explicit provenance and limitations. This does not run the TypeScript conformance suite. Four pinned Test262 numeric programs adapt 18 assertions with an independent success oracle and per-check failure probes. Full upstream execution still needs its original harness and broader semantics. Record exclusions rather than silently skipping them. Use WPT for later browser behavior; Acid as historical regression; Can I Use as feature-roadmap input. |
 | R1 — WIT capability profiles | Demonstrated | [One WIT component](capabilities.md) under absent/denied/granted profiles; typed policy errors and backing-read counters distinguish authorization from guest handle validation. Revocation, aliases, store ownership and three specific guest handle misuse cases are observed. No WASI links. Independent core-module tests observe fuel exhaustion, per-memory growth rejection, expired-epoch trapping/renewal, epoch expiry triggered by a host callback during an active invocation, and a host algorithm enforcing an item-processing quota. These are separate controls, not a complete component budget. |
-| P1 — portability and costs | Planned | Reuse emitted Wasm across engines/hosts; test Linux/macOS/Windows and relevant architectures before claiming support. Separate frontend/lowering, compilation, instantiation, execution, host-call, artifact/executable and memory costs. Report reproducible workloads and variance. |
+| D1 — capability-backed Markdown inspection | Demonstrated | Closed [issue #27](https://github.com/tseguine/grunkalunka/issues/27): the real [Markdown guest and WIT component](document-outline-component.md) consume only host-authorized in-memory documents, return typed owned outline lists and original ranges matching the native library, and distinguish policy errors from malformed data and traps. [Multi-document grant isolation](document-outline-authority.md) checks denial without backing reads, alias revocation, owner collisions and forged guest borrow indices. Final [PR #40](https://github.com/tseguine/grunkalunka/pull/40) passed complete [Linux/Windows/macOS CI](https://github.com/tseguine/grunkalunka/actions/runs/40505705440). No filesystem/vault authority, persistence, source-language imports or finished application is claimed. |
+| P1 — portability and costs | In progress | The [numeric cost probe](numeric-benchmark.md) and [report comparator](benchmark-comparison.md) preserve independent build/startup/warmed-sample measurements and provenance, while CI verifies correctness without performance thresholds. Three-platform CI of the document component is test coverage, not cross-host benchmark data. Next: isolate WIT host-call overhead from component instantiation and guest work with bounded repeatable measurements. Cross-engine/architecture replay, frontend-only, memory and representative application costs remain unmeasured. |
 | A1 — first useful framework app | Planned | A small application with straightforward build/run/debug/package flow, using prior component/capability evidence. Show the same application under two capability profiles. |
 | B1 — reusable browser pieces | Later | Compare libraries before custom implementation. Own HTML/CSS modules should work through explicit inputs outside the browser shell; prove a second consumer. Embedded and standalone browser use primarily differ through capability profiles. |
 | M1 — alternative markup + converters | Research gate | Evaluate KDL/SDLang as application authoring syntaxes for XHTML-equivalent documents. Support includes round-trip converters: preserve namespaces, attributes, ordered mixed text/elements, significant whitespace and comments. Reject unsupported constructs without data loss. Exact source formatting/trivia preservation is a separate fidelity contract. |

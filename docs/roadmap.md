@@ -211,6 +211,14 @@ components yet.
   checks outside timed loops. A debug frontend probe or empty component cannot
   establish production speed, memory use, startup cost or platform footprint.
 
+The [numeric cost probe](numeric-benchmark.md) is a first P1 measurement harness,
+not a cross-engine cost conclusion. The next independent bounded P1 experiment
+will measure a real typed WIT document read under granted and denied profiles,
+distinguishing component construction/instantiation, host-call round trips and
+guest work. Keep profiles, input bytes, environment provenance and raw dispersion
+visible, and check correctness outside timed loops. Do not infer total memory
+use or production throughput from this small in-memory fixture.
+
 The numeric PoC uses an internal [verified region IR](ir.md). A full-language
 production IR, object/GC strategy, scheduler, package distribution scheme, and
 permanent capability API remain unsettled by this roadmap.
@@ -270,6 +278,15 @@ resolves them. Parsing, document semantics, rendering and source-preserving edit
 are separate responsibilities. [Markdown inspection](markdown.md) is the first
 maintained adapter: headings, links and images for application indexing, with no
 renderer or resource resolver.
+
+The bounded [document capability demonstration](document-outline-component.md)
+now embeds that actual Markdown guest into an experimental WIT component. The
+[verified multi-document host](document-outline-authority.md) issues explicit
+in-memory grants, distinguishes policy denial from traps, and rejects attempts
+to select ungranted documents. Native/component outline parity and ownership
+checks passed on Linux, Windows and macOS for the final [issue #27](https://github.com/tseguine/grunkalunka/issues/27)
+integration. These are not browser APIs, writable vault confinement, general
+source-language document imports or a complete A1 application.
 
 Evaluate existing parsers before implementing new ones: html5ever for HTML,
 Lightning CSS/cssparser for CSS, quick-xml for XML-family syntax, and kdl for KDL.
