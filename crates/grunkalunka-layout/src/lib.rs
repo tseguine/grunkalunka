@@ -121,10 +121,7 @@ fn add(a: u32, b: u32) -> Result<u32, LayoutError> {
 }
 
 fn insets(edges: Edges) -> Result<(u32, u32), LayoutError> {
-    Ok((
-        add(edges.left, edges.right)?,
-        add(edges.top, edges.bottom)?,
-    ))
+    Ok((add(edges.left, edges.right)?, add(edges.top, edges.bottom)?))
 }
 
 struct Engine<'a> {

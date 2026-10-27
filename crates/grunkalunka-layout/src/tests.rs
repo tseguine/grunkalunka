@@ -142,10 +142,14 @@ fn input_tree_and_resource_quotas_fail_closed() {
         Err(LayoutError::InvalidViewport)
     );
     assert_eq!(
-        layout(&[Block {
-            parent: Some(0),
-            ..Block::default()
-        }], 10, 10),
+        layout(
+            &[Block {
+                parent: Some(0),
+                ..Block::default()
+            }],
+            10,
+            10
+        ),
         Err(LayoutError::InvalidRoot)
     );
     assert_eq!(
