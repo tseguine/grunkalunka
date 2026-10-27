@@ -54,6 +54,11 @@ Compare only matched workloads/inputs, binaries, harness hashes and documented
 machine/build settings. Capture does **not** calculate a ratio, enforce
 same-host identity or compare different runs. Report comparison needs its own
 explicit compatibility gate, rather than silently treating equal OS/arch as
-comparable host performance. CI runs a tiny sample to validate the capture path,
+comparable host performance. To compare saved repeat observations without trusting CPU-model matches across
+machines, use the [strict same-process receipt pair](markdown-comparison.md).
+It refuses unrelated captures and different binaries; it does not establish
+verified compiler flags or cross-build/cross-host comparisons.
+
+CI runs a tiny sample to validate the capture path,
 but deliberately does not persist timing reports or compare latency across
 Linux, Windows and macOS.
