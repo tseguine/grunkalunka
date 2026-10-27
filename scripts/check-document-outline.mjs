@@ -92,5 +92,23 @@ for (const field of ['workload', 'schemaVersion', 'configuration', 'environment'
     `separate Unicode report must repeat ${field} before any timing comparison`);
 }
 assert.equal(guestHash(), initialGuestHash, 'Markdown guest binary changed across report collection');
+run(process.execPath, ['--test', 'tests/build/markdown-capture.test.mjs']);
+const captured = JSON.parse(run(process.execPath, [
+  'tools/bench/capture-markdown.mjs', executable('markdown_cost'), wasm,
+  '--workload', 'unicode', '--samples', '2', '--iterations', '2', '--warmup', '1',
+  '--build-label', 'ci-debug',
+], true));
+assert.equal(captured.schemaVersion, 1);
+assert.equal(captured.workload, 'markdown-wit-capture');
+assert.equal(captured.provenance.guest.sha256, initialGuestHash);
+assert.equal(captured.provenance.guest.bytes, readFileSync(wasm).byteLength);
+assert.match(captured.provenance.runner.sha256, /^[0-9a-f]{64}$/);
+assert.match(captured.provenance.gitCommit, /^[0-9a-f]{40}$/);
+assert.equal(captured.provenance.buildLabel, 'ci-debug');
+assert.equal(typeof captured.provenance.trackedChangesPresent, 'boolean');
+assert.match(captured.provenance.harnessSha256['tools/bench/capture-markdown.mjs'], /^[0-9a-f]{64}$/);
+assert.deepEqual(captured.report.configuration, repeatedUnicode.configuration);
+assert.deepEqual(captured.report.fixture, repeatedUnicode.fixture);
+assert.equal(captured.report.outcomes.deniedBackingReads, 0);
 console.log('PASS capability-backed Markdown outlines: 9 native/component comparisons, policy errors, cleanup and fuel isolation; 4 cost fixtures with native parity; repeated Unicode report identity; guest sha256 ' + initialGuestHash);
 
