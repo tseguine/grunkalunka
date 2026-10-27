@@ -151,6 +151,20 @@ fn immediate_selections_join_private_primitive_inputs() {
 }
 
 #[test]
+fn fulfilled_promise_construction_preserves_synchronous_prefixes() {
+    compare_function_programs(
+        &[
+            "const p=Promise.resolve(a);return b;",
+            "let x=a;const p=Promise.resolve(x++);return x;",
+            "let n=0;const p=Promise.resolve((n++,a));const q=p;return n;",
+            "const f=()=>{const p=Promise.resolve(a);return b;};return f();",
+            "const p=Promise.resolve(false);const q=Promise.resolve(p);return a;",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn lone_factories_infer_unused_returned_constructor_groups() {
     compare_function_programs(
         &[

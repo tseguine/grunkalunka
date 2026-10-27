@@ -55,7 +55,9 @@ direct async arrow calls and pristine
 `Promise.resolve` wrapping preserve that behavior. Existing exact-arity,
 Number/numeric-leaf callback argument and source/resource checks still apply.
 
-Async function values and Promise objects are not reified. Unawaited calls,
+General async function values and Promise object identity are not reified.
+[Stored fulfilled primitive locals](fulfilled-promise-locals.md) have a distinct
+bounded internal representation. Unawaited async-arrow calls,
 mutable/dynamic async function selections and Promise/function
 outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
 the reason would be the Promise object, rather than its eventual primitive value.
@@ -160,8 +162,9 @@ are cooperating generated-module adapters, not arbitrary-module execution servic
 
 ## Admission and remaining work
 
-Await operands can be the four represented primitive kinds or direct one-argument
-calls to unshadowed `Promise.resolve`/`Promise.reject` over such expressions. Implicit await uses
+Await operands can be the four represented primitive kinds, admitted stored
+fulfilled Promise locals, or direct one-argument calls to unshadowed
+`Promise.resolve`/`Promise.reject` over primitive expressions. Implicit await uses
 intrinsic Promise behavior even if a local variable is named `Promise`.
 Parentheses and erased operand wrappers retain depth charges. Numeric blocks,
 `if`, conditional/logical expressions, `while`, `for` and `do...while` can suspend,

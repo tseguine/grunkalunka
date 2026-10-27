@@ -614,3 +614,14 @@ scalar Number and Closure values use a constant non-nullish predicate. Predicate
 source contexts select the actual value before ToBoolean. Both source operands
 remain validated; only the selected RHS executes. Existing async splitting emits
 the same typed leaf operation and preserves selected suspension boundaries.
+
+### Fulfilled Promise locals
+
+`FulfilledPromise` distinguishes a stored fulfilled primitive Promise from its
+General completion. `FulfillPromise` requires a visible General input and defines
+that Promise type; `PromiseValue` requires a visible Promise input and defines
+General. Source aliases retain the Promise type and snapshot. Existing typed
+loads, stores, captures and suspension storage preserve it, while source/callback
+parameters and exported result profiles reject it. Projection precedes the
+existing await operation, so construction adds no job and each await keeps its
+reaction boundary. See [the bounded source contract](fulfilled-promise-locals.md).

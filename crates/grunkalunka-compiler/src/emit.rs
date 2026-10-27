@@ -97,6 +97,10 @@ impl Emitter<'_> {
             match &operation.kind {
                 Op::CaptureCells { .. } => (),
                 Op::ClosureEntry { .. } => (),
+                Op::FulfillPromise { result, input } | Op::PromiseValue { result, input } => {
+                    self.get(*input);
+                    self.set(*result);
+                }
                 Op::MakeClosure {
                     result,
                     function,

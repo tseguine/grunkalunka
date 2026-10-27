@@ -50,7 +50,7 @@ pub(super) fn value(ty: Type) -> Layout {
             wat: "i32",
             local: "(local i32)\n",
         },
-        Type::General => Layout {
+        Type::General | Type::FulfilledPromise => Layout {
             parts: &[
                 Part {
                     lane: I32,
@@ -86,6 +86,8 @@ pub(super) fn argument_bytes(ty: Type) -> usize {
     match ty {
         Type::Number | Type::Closure(_) => 8,
         Type::General => 16,
-        Type::Predicate => unreachable!("Predicate closure parameters are not admitted"),
+        Type::Predicate | Type::FulfilledPromise => {
+            unreachable!("Predicate and Promise closure parameters are not admitted")
+        }
     }
 }

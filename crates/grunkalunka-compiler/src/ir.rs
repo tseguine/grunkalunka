@@ -3,6 +3,8 @@ use oxc_span::Span;
 use std::collections::BTreeSet;
 
 #[cfg(test)]
+mod fulfilled_promise_tests;
+#[cfg(test)]
 mod runtime_closure_tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -19,6 +21,8 @@ pub(crate) enum Type {
     Number,
     Predicate,
     General,
+    // A nonescaping fulfilled primitive Promise; distinct from its completion.
+    FulfilledPromise,
     // Module-local signature ID; numeric leaf IDs equal their arity.
     Closure(usize),
 }
@@ -329,6 +333,14 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
         rejected: bool,
+    },
+    FulfillPromise {
+        result: ValueId,
+        input: ValueId,
+    },
+    PromiseValue {
+        result: ValueId,
+        input: ValueId,
     },
     PrimitiveStrictEqual {
         result: ValueId,
@@ -801,6 +813,14 @@ impl Verifier<'_> {
                 self.define(*result, ty, visible, span)?;
             }
             Op::Nullish { result, .. } => {
+                self.define(*result, Type::General, visible, span)?;
+            }
+            Op::FulfillPromise { result, input } => {
+                self.value(*input, Type::General, visible, span)?;
+                self.define(*result, Type::FulfilledPromise, visible, span)?;
+            }
+            Op::PromiseValue { result, input } => {
+                self.value(*input, Type::FulfilledPromise, visible, span)?;
                 self.define(*result, Type::General, visible, span)?;
             }
             Op::Call {
@@ -1301,6 +1321,9 @@ pub(crate) fn verify_module_with_entry_type(
     module: &Module,
     entry_type: Type,
 ) -> Result<(), String> {
+    if !matches!(entry_type, Type::Number | Type::General) {
+        return Err("internal IR: entry profile must return Number or General".into());
+    }
     for (index, signature) in module.closure_signatures.higher.iter().enumerate() {
         if signature.parameters.len() > 1000
             || (signature.result == Type::Number

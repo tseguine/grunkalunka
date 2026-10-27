@@ -109,3 +109,16 @@ Callers box Number values only when their callee's logical input is General;
 function pairs remain separate. No layout, exported ABI, arena or default fuel
 change was needed. Maintained source oracles cover the frontend admission apart
 from the earlier IR representation evidence.
+
+## Fulfilled primitive Promise follow-up
+
+The internal `FulfilledPromise` type reuses the sixteen-byte General tag/f64
+physical encoding for a nonescaping fulfilled completion snapshot. Explicit IR
+construction and projection keep it logically distinct from General; source
+aliases, captured cells and suspended storage use the shared layout policy.
+Promise parameters and exported Promise results remain invalid, so the public
+and private call ABIs are unchanged. This permits stored fulfilled primitive
+locals without prematurely choosing general Promise object identity, settlement,
+ownership or scheduler layouts. A general Promise representation can replace
+this virtual encoding when those observable operations are implemented. See
+[the contract and evidence](../fulfilled-promise-locals.md).

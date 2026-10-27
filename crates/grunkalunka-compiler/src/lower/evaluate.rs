@@ -1180,6 +1180,7 @@ impl Lowering<'_, '_> {
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
+                        Type::FulfilledPromise => unreachable!("dedicated Promise cursor"),
                     });
                 }
                 Work::LogicalLeft {
@@ -1307,6 +1308,7 @@ impl Lowering<'_, '_> {
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
+                        Type::FulfilledPromise => unreachable!("dedicated Promise cursor"),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
@@ -1513,6 +1515,50 @@ impl Lowering<'_, '_> {
                         };
                         let (argument, argument_depth, rejected) =
                             awaited::operand(awaited, depth, self.semantic)?;
+                        if let Some(slot) = self.fulfilled_promise_slot(argument, argument_depth) {
+                            if rejected {
+                                return Err(unsupported(
+                                    node,
+                                    "Promise-valued rejection reasons are not admitted",
+                                ));
+                            }
+                            if !matches!(mode, Mode::General) {
+                                return Err(unsupported(
+                                    node,
+                                    "stored Promise completions require a primitive value or coercion position",
+                                ));
+                            }
+                            let promise = self.value(Type::FulfilledPromise);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Load {
+                                    result: promise,
+                                    slot,
+                                },
+                            );
+                            let input = self.value(Type::General);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::PromiseValue {
+                                    result: input,
+                                    input: promise,
+                                },
+                            );
+                            let result = self.value(Type::General);
+                            Self::push(
+                                regions.current(),
+                                node,
+                                Op::Await {
+                                    result,
+                                    input,
+                                    rejected: false,
+                                },
+                            );
+                            values.push(Value::General(result));
+                            continue;
+                        }
                         let ty = if matches!(mode, Mode::General) {
                             Type::General
                         } else {
@@ -1672,6 +1718,12 @@ impl Lowering<'_, '_> {
                             depth: depth + 1,
                         });
                         continue;
+                    }
+                    if self.fulfilled_promise_slot(node, depth).is_some() {
+                        return Err(unsupported(
+                            node,
+                            "fulfilled Promise values require an await or Promise-alias initializer",
+                        ));
                     }
                     if matches!(mode, Mode::General) {
                         if let Expression::Identifier(identifier) = node

@@ -204,6 +204,109 @@ fn joined_private_inputs_preserve_async_results_and_snapshots() {
 }
 
 #[test]
+fn stored_fulfilled_promises_snapshot_primitive_values() {
+    compare_promises(
+        &[
+            "const p=Promise.resolve(a);return await p;",
+            "const p=Promise.resolve(null);return await p;",
+            "const p=Promise.resolve(false);return await p;",
+            "const p=Promise.resolve(undefined);return await p;",
+            "const p=Promise.resolve(a);a=b;return await p;",
+            "const p=Promise.resolve(b);const q=p;const r=Promise.resolve(q);await a;return await r;",
+            "const p=Promise.resolve(a);const first=await p;await b;return first+await p;",
+            "let n=0;const p=Promise.resolve((n++,a));await p;await p;return n;",
+            "const p=Promise.resolve(a?null:b);return (await p)?a:b;",
+            "const p=Promise.resolve(a?undefined:b);try{await Promise.reject(await p);}catch(x){await a;return x;}return b;",
+            "const p=Promise.resolve(b);const f=async()=>await p;return await f();",
+            "const p=Promise.resolve(await b);return await p;",
+            "const p=Promise.resolve(a?false:b);return +(await p);",
+            "const p=Promise.resolve(b);{const Promise=a;return await p;}",
+            "const p=Promise.resolve(a);return await Promise.resolve(p);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn stored_fulfilled_promises_keep_object_and_intrinsic_boundaries() {
+    for body in [
+        "let p=Promise.resolve(a);return await p;",
+        "const p=Promise.reject(a);return await p;",
+        "const p=Promise.resolve(a);return p;",
+        "const p=Promise.resolve(a);return p===p;",
+        "const p=Promise.resolve(a);return +p;",
+        "const p=Promise.resolve(a);return await Promise.reject(p);",
+        "const Promise=a;const p=Promise.resolve(b);return await p;",
+        "const p=Promise.resolve();return await p;",
+        "const p=Promise.resolve(a,b);return await p;",
+        "const p=Promise.resolve(...a);return await p;",
+        "const p=Promise.resolve?.(a);return await p;",
+        "const p=Promise.resolve(()=>a);return await p;",
+        "const p=Promise.resolve({});return await p;",
+        "const p=Promise.resolve('x');return await p;",
+    ] {
+        for ts in [false, true] {
+            let source = source_for(body);
+            assert!(compile_async(&source, ts).is_err(), "{source}");
+        }
+    }
+    let generic =
+        "export async function run(a,b){const p=Promise.resolve<number>(a);return await p;}";
+    assert!(compile_async(generic, true).is_err());
+}
+
+#[test]
+fn stored_fulfilled_promises_keep_erasure_and_source_job_bounds() {
+    let plain =
+        "export async function run(a,b){const p=Promise.resolve(a);const q=p;return await q;}";
+    let typed = "export async function run(a:never,b:Missing):Promise<Wrong>{const p:Promise<any>=(Promise.resolve(a) as any);const q=(p as never);return await (q as any) as Wrong;}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    for (count, admitted) in [(127, true), (128, false)] {
+        for body in [
+            format!(
+                "const p={}Promise.resolve(a){};return await p;",
+                "(".repeat(count),
+                ")".repeat(count)
+            ),
+            format!(
+                "const p=Promise.resolve(a);return await {}p{};",
+                "(".repeat(count),
+                ")".repeat(count)
+            ),
+        ] {
+            assert_eq!(
+                compile_async(&source_for(&body), false).is_ok(),
+                admitted,
+                "{count} wrappers: {body}"
+            );
+        }
+    }
+    let body = format!(
+        "const p=Promise.resolve(a);{}return await p;",
+        "await p;".repeat(31)
+    );
+    compare_promises(&[&body], &[(4.0, 2.0)]);
+    let over = format!(
+        "const p=Promise.resolve(a);{}return await p;",
+        "await p;".repeat(32)
+    );
+    assert!(
+        compile_async(&source_for(&over), false)
+            .err()
+            .unwrap()
+            .contains("32 await sites")
+    );
+}
+
+#[test]
 fn lone_factory_return_groups_preserve_async_captures_and_jobs() {
     compare_promises(
         &[

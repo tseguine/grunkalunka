@@ -679,7 +679,20 @@ impl Lowering<'_, '_> {
                 });
                 continue;
             }
-            let (ty, value) = if let Some(initializer) = local.init.as_ref() {
+            let promise = if let Some(initializer) = local.init.as_ref() {
+                self.fulfilled_promise_initializer(initializer, region)?
+            } else {
+                None
+            };
+            let (ty, value) = if let Some(value) = promise {
+                if mutable {
+                    return Err(unsupported(
+                        local,
+                        "stored fulfilled Promises require const bindings",
+                    ));
+                }
+                (Type::FulfilledPromise, value)
+            } else if let Some(initializer) = local.init.as_ref() {
                 let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
                     Type::Predicate
                 } else if identifier
@@ -699,6 +712,7 @@ impl Lowering<'_, '_> {
                     Type::Predicate => self.predicate(initializer, region, 0)?,
                     Type::Number => self.expression(initializer, region, 0)?,
                     Type::Closure(_) => unreachable!("function values use their own cursor"),
+                    Type::FulfilledPromise => unreachable!("Promise initializer handled above"),
                 };
                 (ty, value)
             } else if mutable {
