@@ -29,6 +29,25 @@ fn known_local_results_follow_primitive_inputs() {
     ]);
 }
 
+#[test]
+fn runtime_primitive_inputs_preserve_value_tags_and_payloads() {
+    compare_primitive_closure_programs(&[
+        "const f=a?x=>+x:x=>-x;return f(null);",
+        "const f=a?x=>+x:x=>-x;return f(undefined);",
+        "const f=a?x=>+x:x=>-x;return f(true);",
+        "const f=a?x=>x:x=>x;return f(null);",
+        "const f=a?x=>x:x=>x;return f(undefined);",
+        "const f=a?x=>x:x=>x;return f(true);",
+        "const f=a?x=>x:x=>x;return f(false);",
+        "const f=a?x=>x:x=>x;return f(a?null:b);",
+        "let f=x=>x;const old=f;f=x=>!x;return old(true);",
+        "let make=x=>()=>x;const f=make(null);return f();",
+        "let make=x=>{return ()=>x;};return make(false)();",
+        "let f=x=>{x=null;return x;};return f(a);",
+        "let x=null;const f=a?(x,y)=>+x+y:(x,y)=>-x-y;return f(x,x=a);",
+    ]);
+}
+
 fn encode(value: Value) -> String {
     match value {
         Value::Undefined => "[0]".into(),

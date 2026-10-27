@@ -6,6 +6,93 @@ use std::{
 };
 use wasmtime::{Engine, Instance, Module, Store, Trap};
 
+#[test]
+fn runtime_closures_preserve_primitive_argument_frames() {
+    compare_functions(&[
+        "const f=a?x=>+x:x=>-x;return f(null);",
+        "const f=a?x=>+x:x=>-x;return f(undefined);",
+        "const f=a?x=>+x:x=>-x;return f(true);",
+        "const f=a?x=>+x:x=>-x;return f(false);",
+        "const f=a?x=>+x:x=>-x;f(null);return f(b);",
+        "const f=a?(x,y,z)=>+x+y+(+z):(x,y,z)=>-x-y-(+z);return f(true,a,false);",
+        "const h=a?(fn,x,z)=>fn(+x)+(+z):(fn,x,z)=>fn(-x)-(+z);return h(y=>y+b,null,true);",
+        "const h=a?(x,fn,z)=>fn(+x)+(+z):(x,fn,z)=>fn(-x)-(+z);return h(null,y=>y+b,true);",
+        "let x=null;const f=a?(x,y)=>+x+y:(x,y)=>-x-y;return f(x,(x=a,a))+(+x);",
+        "let f=x=>+x;return 1/f((f=x=>-x,null));",
+        "let f=x=>+x;const old=f;f=x=>-x;return old(true)+f(false);",
+        "let f=x=>{const old=+x;x=null;return old+(+x);};return f(a);",
+        "const f=a?x=>{const read=()=>+x;const old=read();x=b;return old+read();}:x=>+x;return f(null);",
+        "const make=a?x=>()=>+x:x=>()=>-x;return make(null)();",
+        "const make=a?x=>{return ()=>+x;}:x=>{return ()=>-x;};return make(true)();",
+        "const make=a?()=>x=>+x:()=>x=>-x;const f=make();return f(null);",
+        "let make=x=>()=>{const old=+x;x=b;return old;};const f=make(true),g=make(null);return f()*100+f()*10+g();",
+        "let f=x=>+x;f(null);const apply=fn=>fn(a);return apply(f);",
+        "const f=x=>+x;const g=x=>-x;f(null);let h=a?f:g;return h(b);",
+        "const make=()=>x=>+x;const f=make();const g=x=>-x;f(null);let h=a?f:g;return h(b);",
+    ]);
+}
+
+#[test]
+fn runtime_general_frames_retain_width_and_input_guards() {
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut inputs = vec!["null"; 1000];
+    inputs[999] = "true";
+    let arguments = inputs.join(",");
+    let body = format!(
+        "const f=a?({parameters})=>+p0+(+p999):({parameters})=>+p0+(+p999);return f({arguments});"
+    );
+    // This is a frame/arity boundary, not a promise about the default fuel quota.
+    let mut config = wasmtime::Config::new();
+    config.consume_fuel(true);
+    let engine = Engine::new(&config).unwrap();
+    for ts in [false, true] {
+        let source = format!("export function run(a,b){{{body}}}");
+        let artifact = compile(&source, ts).unwrap();
+        let module = Module::new(&engine, &artifact.wasm).unwrap();
+        let mut store = Store::new(&engine, ());
+        store.set_fuel(1_000_000).unwrap();
+        let instance = Instance::new(&mut store, &module, &[]).unwrap();
+        let run = instance
+            .get_typed_func::<(f64, f64), f64>(&mut store, "run")
+            .unwrap();
+        for (a, b) in [
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ] {
+            store.set_fuel(1_000_000).unwrap();
+            assert_eq!(run.call(&mut store, (a, b)).unwrap(), 1.0);
+        }
+        node(&format!(
+            "const assert=require('node:assert/strict'),native=(a,b)=>{{{body}}},run=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from({:?}))).exports.run;for(const[a,b]of[[4,2],[0,-0],[-0,-2],[NaN,Infinity]]){{assert.equal(native(a,b),1);assert.equal(run(a,b),1);}}",
+            artifact.wasm
+        ));
+    }
+    for source in [
+        format!(
+            "export function run(a,b){{let f=({parameters},extra)=>+extra;return f({arguments},true);}}"
+        ),
+        "export function run(a,b){let f=x=>+x;f(null);return f();}".into(),
+        "export function run(a,b){let f=(x=null)=>+x;return f(null);}".into(),
+        "export function run(a,b){let f=x=>+x;return f('text');}".into(),
+        "export function run(a,b){let f=x=>+x;return f({});}".into(),
+        "export function run(a,b){let f=x=>+x;return f([]);}".into(),
+        "export function run(a,b){let f=x=>+x;return f(...a);}".into(),
+    ] {
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+            assert!(compile_value(&source, ts).is_err(), "{source}");
+        }
+    }
+    for ts in [false, true] {
+        assert!(compile("export function run(a,b){let f=x=>x;return f(null);}", ts).is_err());
+    }
+}
+
 fn bits(value: f64) -> String {
     if value.is_nan() {
         "nan".into()

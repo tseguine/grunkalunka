@@ -1691,8 +1691,13 @@ formal. These facts propagate through known aliases, calls, writes and captures;
 function-valued inputs retain separate call-site specialization. Number entries
 still require an explicit conversion, such as `+(x=>x)(null)`, for a General result.
 Ordinary helpers and exported parameters retain their Number contracts. Runtime
-closure General-input inference remains a separate frontend gap. Strings, arrays
-and objects are outside this primitive domain.
+closure signatures and lifted parameter slots now use the separately inferred
+input kinds. Their callers preserve General argument snapshots and box Number
+values when required by the callee. Storage after a parameter write is a separate
+fact: a Number input can keep its original ABI and be copied into a General cell.
+Known inlined calls contribute storage/result facts without widening the private
+ABI; its input kinds follow runtime call requirements.
+Strings, arrays and objects are outside this primitive domain.
 Argument expressions with unresolved call-result shapes do not establish General
 formal facts. Their input-dependent result inference remains separate work; the
 existing Number factory depth boundaries and actual value checks are retained.
@@ -1729,7 +1734,7 @@ forwarding; actual specialization initializes typed function parameter cells.
 See [local callback arguments](local-callback-arguments.md) for snapshot order,
 factory capture and definition checking. Runtime-selected higher-order functions
 accept finite scalar-result callbacks, including callbacks taking callbacks; [runtime factories](runtime-function-results.md)
-return function pairs with Number or these callback parameters through a separate private pair-return call
+return function pairs with Number, General or these callback parameters through a separate private pair-return call
 type. Selected and assigned signatures include both parameter and result kinds.
 Complete block creators use the existing owned-return query and typed `InlineCall`
 boundary for branches, loops and early returns; their implicit/bare or mixed-kind
@@ -1748,8 +1753,8 @@ concrete constructors and demanded formal forwarding without forcing generic ide
 are bounded to eight rounds. The IR verifier walks callback parameter graphs
 iteratively, checking earlier signature references, Number/General results and widths.
 General-result callback facts propagate through storage planning and constructor
-signatures rather than retaining a Number assumption. Async callbacks, ordinary
-General parameters and cyclic callback type metadata remain unsupported.
+signatures rather than retaining a Number assumption. Async callbacks,
+General parameters on ordinary helpers/exports and cyclic callback type metadata remain unsupported.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call

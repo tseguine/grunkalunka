@@ -576,7 +576,7 @@ impl Lowering<'_, '_> {
                         .parameter_count(signature)
                         .expect("checked signature");
                     if index <= parameter_count && arguments.len() < index {
-                        arguments.push(values.pop().expect("runtime closure argument").number());
+                        arguments.push(values.pop().expect("runtime closure argument").id());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
@@ -625,7 +625,12 @@ impl Lowering<'_, '_> {
                             depth,
                         });
                         if !callback {
-                            work.push(Work::Eval(argument, depth, Mode::Number));
+                            let mode = if parameter == Type::General {
+                                Mode::General
+                            } else {
+                                Mode::Number
+                            };
+                            work.push(Work::Eval(argument, depth, mode));
                         }
                     } else {
                         self.charge_closure_expansion(node)?;

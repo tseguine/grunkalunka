@@ -67,6 +67,29 @@ fn known_local_input_result_facts_preserve_async_kinds_and_jobs() {
     );
 }
 
+#[test]
+fn runtime_primitive_inputs_keep_callee_snapshots_and_async_jobs() {
+    compare_promises(
+        &[
+            "const f=a?x=>+x:x=>-x;return f(await null);",
+            "const f=a?x=>x:x=>x;return f(await true);",
+            "let x=null;const f=a?(x,y)=>+x+y:(x,y)=>-x-y;return f(x,(x=await a,a))+(+x);",
+            "let f=x=>+x;return 1/f((f=x=>-x,await null));",
+            "let make=x=>()=>x;const f=make(await null);await b;return f();",
+            "let n=0;let f=x=>(n++,+x);f(null);try{return f(await Promise.reject(null));}catch(e){return +e+n;}",
+            "let f=x=>+x;try{throw a?null:false;}catch(e){return f(e);}",
+            "let f=x=>x;try{throw a?null:false;}catch(e){return f(e);}",
+            "let f=x=>x;try{throw a;}catch(e){return f(e);}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()

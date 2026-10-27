@@ -216,6 +216,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub semantic: &'s Semantic<'a>,
     pub functions: &'s [NumericFunction],
     pub general_bindings: &'s std::collections::BTreeSet<SymbolId>,
+    pub general_parameters: &'s std::collections::BTreeSet<SymbolId>,
     pub callback_parameters: &'s callbacks::Parameters,
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,

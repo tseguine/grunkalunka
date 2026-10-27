@@ -1,6 +1,7 @@
 //! Readonly storage planning over the original semantic AST. Planning never publishes a binding.
 use super::*;
 use oxc_ast::AstKind;
+use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
 
 // The same completion algebra as statement lowering, without evaluating source
@@ -224,12 +225,18 @@ pub(super) fn number_result_shape(
     true
 }
 
+#[derive(Default)]
+pub(crate) struct BindingKinds {
+    pub(crate) storage: BTreeSet<SymbolId>,
+    pub(crate) inputs: BTreeSet<SymbolId>,
+}
+
 pub(crate) fn general_mutable_bindings(
     semantic: &Semantic<'_>,
     functions: &[NumericFunction],
     callback_parameters: &super::callbacks::Parameters,
     signatures: &ir::ClosureSignatures,
-) -> BTreeSet<SymbolId> {
+) -> BindingKinds {
     // Also retain non-Number facts for immutable definitions: nested signature
     // queries may inspect their captures before those definitions are lowered.
     // Function constructors still use their separate, checked binding path.
@@ -280,7 +287,7 @@ pub(crate) fn general_mutable_bindings(
     }
     if mutable.is_empty() || definitions.len() > 128 {
         // Invalid oversized modules retain ordinary lowering's source-local diagnostics.
-        return BTreeSet::new();
+        return BindingKinds::default();
     }
     let mut writes: BTreeMap<SymbolId, Vec<&Expression<'_>>> = BTreeMap::new();
     for node in semantic.nodes().iter() {
@@ -341,6 +348,49 @@ pub(crate) fn general_mutable_bindings(
             break;
         }
     }
+    // Known local calls specialize their actuals without using the private ABI.
+    // Match immutable arrows/aliases and concise known factory results, rather
+    // than widening a shared private signature because of an inlined call.
+    let static_constructor = |expression: &Expression<'_>, known: &BTreeMap<SymbolId, NodeId>| {
+        match closures::unwrapped(expression, 0)? {
+            Expression::ArrowFunctionExpression(arrow) => Some(arrow.node_id.get()),
+            Expression::Identifier(identifier) => identifier
+                .reference_id
+                .get()
+                .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
+                .and_then(|symbol| known.get(&symbol).copied()),
+            _ => None,
+        }
+    };
+    let mut static_targets = BTreeMap::new();
+    loop {
+        let mut additions = Vec::new();
+        for (&symbol, initializer) in &definitions {
+            if mutable.contains(&symbol) {
+                continue;
+            }
+            let Some(initializer) = initializer else {
+                continue;
+            };
+            let target = static_constructor(initializer, &static_targets).or_else(|| {
+                let Expression::CallExpression(call) = closures::unwrapped(initializer, 0)? else {
+                    return None;
+                };
+                let creator = static_constructor(&call.callee, &static_targets)?;
+                static_constructor(arrows[&creator].get_expression()?, &static_targets)
+            });
+            if let Some(target) = target {
+                additions.push((symbol, target));
+            }
+        }
+        let mut changed = false;
+        for (symbol, target) in additions {
+            changed |= static_targets.insert(symbol, target) != Some(target);
+        }
+        if !changed {
+            break;
+        }
+    }
     // Known scalar actuals are initial writes to the arrow's formal cells.
     // Function inputs retain their separate call-site specialization instead of
     // turning a generic identity formal into one monomorphic scalar kind.
@@ -366,10 +416,12 @@ pub(crate) fn general_mutable_bindings(
             .then_some(call.span())
         })
         .collect();
+    let mut incoming = Vec::new();
     for node in semantic.nodes().iter() {
         let AstKind::CallExpression(call) = node.kind() else {
             continue;
         };
+        let runtime_input = static_constructor(&call.callee, &static_targets).is_none();
         let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
         for source in sources {
             if let Some(known) = targets.get(&source) {
@@ -405,6 +457,9 @@ pub(crate) fn general_mutable_bindings(
                     continue;
                 }
                 writes.entry(symbol).or_default().push(actual);
+                if runtime_input {
+                    incoming.push((symbol, actual));
+                }
             }
         }
     }
@@ -495,5 +550,25 @@ pub(crate) fn general_mutable_bindings(
             pending.extend(readers.iter().copied());
         }
     }
-    candidates.difference(&numbers).copied().collect()
+    let storage: BTreeSet<_> = candidates.difference(&numbers).copied().collect();
+    // Source writes choose cell storage; only actual argument kinds choose the
+    // input ABI. A Number input may still be copied into a General local cell.
+    let inputs = incoming
+        .into_iter()
+        .filter_map(|(symbol, actual)| {
+            (!number_result_shape(
+                actual,
+                0,
+                semantic,
+                functions,
+                |callee| {
+                    !storage.contains(&callee)
+                        && (targets.contains_key(&callee) || numeric_callbacks.contains(&callee))
+                },
+                |input| numbers.contains(&input),
+            ))
+            .then_some(symbol)
+        })
+        .collect();
+    BindingKinds { storage, inputs }
 }

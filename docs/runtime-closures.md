@@ -8,10 +8,10 @@ Known primitive async arrows have a separate [directly awaited call slice](async
 they are not ordinary runtime closure values.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
 Scalar side effects can precede a constructor in a comma expression. Calls through
-the resulting identifier or alias use an exact logical signature with Number and
-finite scalar-result callback arguments. Concise synchronous bodies can return Number,
+the resulting identifier or alias use an exact logical signature with Number,
+represented primitive General and finite scalar-result callback arguments. Concise synchronous bodies can return Number,
 Undefined, Null or Boolean, retaining the selected kind and payload. Runtime
-factories return function pairs with Number or finite scalar-result callback parameters
+factories return function pairs with Number, General or finite scalar-result callback parameters
 and primitive or further function results. Leaf arrows may have concise
 or block bodies. Bare returns and normal completion of local primitive block
 bodies produce Undefined. Early returns and loops retain their existing completion
@@ -105,9 +105,11 @@ results, and `(environment: i32, arguments: i32) -> (i32, i32)` for
 [runtime factory results](runtime-function-results.md). A packed argument frame contains the
 ordered typed snapshots. Number and two-i32 callback entries occupy eight bytes;
 General tag/f64 entries occupy sixteen bytes. Caller stores and callee loads share
-prefix offsets from that backend policy. General parameters are currently an IR
-capability; source inference still admits Number/function parameters only. The
-body copies its typed logical parameters before execution. This supports zero
+prefix offsets from that backend policy. Source-known runtime closures and
+factories now use General input kinds when their actual scalar arguments require
+them. Number arguments are boxed when the callee expects General, while callback
+pairs retain their separate kind. The body copies its typed logical parameters
+before execution. This supports zero
 through 1,000 parameters without expanding the physical Wasm signature. An
 environment contains ordered captured-cell addresses. Imported pointers remain valid after creator return. Static callbacks
 inside lifted bodies have their captures remapped to those imports. Source
@@ -152,7 +154,7 @@ Existing static closure specialization across await remains available.
 with finite scalar-result signatures, including captured callback cells after creator return.
 [Runtime-selected functions also accept callbacks taking further callbacks](higher-order-callbacks.md).
 Concise and complete block runtime factories can return further factories through
-acyclic result signatures with Number or finite scalar-result callback parameters.
+acyclic result signatures with Number, General or finite scalar-result callback parameters.
 Cyclic callback types, unrepresented leaf
 return kinds, function coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
@@ -174,9 +176,21 @@ also applies to known concise and block-bodied factories with independently
 established returned signatures. Known scalar actuals now feed formal storage and
 result facts, so `(x=>x)(null)` returns Null in the primitive-value profile. Known
 aliases, forwarding calls and captures preserve these facts; generic function
-inputs keep their separate specialization. This does not infer General-input
-signatures for runtime function values, or argument facts from unresolved
-call-result shapes. Existing Number factory depth boundaries remain unchanged.
+inputs keep their separate specialization. Runtime signatures, lifted parameter
+slots and caller evaluation share those input facts, enabling primitive arguments
+through indirect calls and returned factories. Input kinds are separate from
+storage kinds: a Number input that is later assigned Null keeps its Number input
+ABI and receives a General local cell. This preserves selection with another
+Number-input function. Inlined known calls specialize their arguments and do not
+widen the shared private ABI; runtime call sites establish that input requirement.
+Argument facts from unresolved call-result shapes and
+unresolved higher-order callback origins remain separate work. Existing Number
+factory depth boundaries remain unchanged.
 The runtime arena and frame alignment are unchanged;
 new General arguments simply
 consume sixteen-byte entries within the existing allocation limit.
+Maintained source tests cover mixed General/Number/callback entries, saved callees,
+parameter writes/captures and async job order in both engines. A frame with 1,000
+General parameters executes with an explicit bounded Wasmtime test fuel budget and
+Node; this does not raise the default host fuel allowance. Missing inputs,
+defaults, rest/spread and unrepresented String/object values retain their guards.
