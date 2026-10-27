@@ -32,7 +32,9 @@ The check compares eight real component projections with direct native-library
 results, covering Unicode, combining marks, BOM/NUL, CRLF, empty/duplicate headings,
 container headings, literal code and exact limits. It also exercises repeated
 calls, denied-to-permitted transitions, oversized input/results, correction,
-separate instances and fuel exhaustion. The existing CI hosts run the command.
+separate instances and fuel exhaustion. NUL-to-U+FFFD projection also tests exact
+4,096-byte labels and overflow from a source below the input quota. The existing
+CI hosts run the command.
 Builds and driver invocations have outer watchdogs; no timing ratio is asserted.
 
 This advances issue #27 but does not establish a general vault or filesystem API,
@@ -43,3 +45,5 @@ cover broader handle ownership rules. No WASI, network, persistence, release or
 deployment is added. See [text transport](document-transport.md),
 [core outline guest](markdown-outline-guest.md), and the
 [canonical ABI](https://github.com/WebAssembly/component-model/blob/main/design/mvp/CanonicalABI.md).
+
+The expanding-label golden follows [CommonMark 0.31.2, insecure characters](https://spec.commonmark.org/0.31.2/#insecure-characters).

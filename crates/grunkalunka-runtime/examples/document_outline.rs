@@ -23,7 +23,10 @@ struct Host {
 
 impl grunkalunka::markdown::documents::Host for Host {}
 impl grunkalunka::markdown::documents::HostDocument for Host {
-    fn read(&mut self, document: Resource<Document>) -> wasmtime::Result<Result<String, ReadError>> {
+    fn read(
+        &mut self,
+        document: Resource<Document>,
+    ) -> wasmtime::Result<Result<String, ReadError>> {
         self.attempts += 1;
         if !self.allowed {
             return Ok(Err(ReadError::Denied));
@@ -62,7 +65,10 @@ fn inspect(
     let result = inspector
         .call_inspect(&mut *store, Resource::new_borrow(rep))
         .unwrap();
-    assert_eq!(inspector.call_cleanup_count(&mut *store).unwrap(), before + 1);
+    assert_eq!(
+        inspector.call_cleanup_count(&mut *store).unwrap(),
+        before + 1
+    );
     result
 }
 
@@ -168,7 +174,10 @@ fn main() -> wasmtime::Result<()> {
     assert_eq!(sibling.data().reads, 0);
     sibling.data_mut().allowed = true;
     sibling.data_mut().text = "# Separate".into();
-    assert_eq!(inspect(&mut sibling, &other, 7).unwrap()[0].text, "Separate");
+    assert_eq!(
+        inspect(&mut sibling, &other, 7).unwrap()[0].text,
+        "Separate"
+    );
     for _ in 0..2 {
         for (source, expected) in sources.iter().zip(&held) {
             store.data_mut().text.clone_from(source);
@@ -190,6 +199,18 @@ fn main() -> wasmtime::Result<()> {
         inspect(&mut store, &inspector, 7).unwrap_err(),
         InspectError::OutlineTooLarge
     );
+    // CommonMark replaces each NUL with U+FFFD: small input can expand its label.
+    store.data_mut().text = format!("# {}x", "\0".repeat(1365));
+    let expanded = inspect(&mut store, &inspector, 7).unwrap();
+    assert_eq!(expanded.len(), 1);
+    assert_eq!(expanded[0].text, format!("{}x", "\u{fffd}".repeat(1365)));
+    assert_eq!(expanded[0].text.len(), 4096);
+    store.data_mut().text = format!("# {}", "\0".repeat(1366));
+    assert_eq!(
+        inspect(&mut store, &inspector, 7).unwrap_err(),
+        InspectError::OutlineTooLarge
+    );
+    assert_eq!(expanded[0].text.len(), 4096, "owned label survives rejection");
     let reads = store.data().reads;
     store.data_mut().allowed = false;
     assert_eq!(
