@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Grunkalunka shadow boundary event oracle</title>
+<pre id="output" hidden></pre>
+<script>
+(() => {
+  "use strict";
+  const observations = [];
+  for (const mode of ["open", "closed"]) {
+    for (const composed of [false, true]) {
+      for (const bubbles of [false, true]) {
+        const id = `${mode}-${composed ? "composed" : "scoped"}-${bubbles ? "bubble" : "no-bubble"}`;
+        const outer = document.createElement("section"); outer.id = "outer";
+        const host = document.createElement("article"); host.id = "host";
+        outer.append(host);
+        const root = host.attachShadow({ mode });
+        const inner = document.createElement("span"); inner.id = "inner";
+        root.append(inner);
+        const name = n => n === outer ? "outer" : n === host ? "host" :
+          n === root ? "shadow" : n === inner ? "inner" : n == null ? null : "unknown";
+        const trace = [];
+        const observe = (listener, event) => trace.push({ listener,
+          target: name(event.target), currentTarget: name(event.currentTarget),
+          phase: event.eventPhase, composed: event.composed, bubbles: event.bubbles,
+          isTrusted: event.isTrusted, path: event.composedPath().map(name) });
+        for (const [node, label] of [[outer, "outer"], [host, "host"], [root, "shadow"], [inner, "inner"]]) {
+          node.addEventListener("probe", event => observe(`${label}-capture`, event), { capture: true });
+          node.addEventListener("probe", event => observe(`${label}-bubble`, event));
+        }
+        const event = new Event("probe", { composed, bubbles });
+        const returned = inner.dispatchEvent(event);
+        observations.push({ id, mode, composed, bubbles, trace, returned,
+          after: { target: name(event.target), currentTarget: name(event.currentTarget),
+            phase: event.eventPhase, path: event.composedPath().map(name) } });
+      }
+    }
+  }
+  document.getElementById("output").textContent = JSON.stringify({
+    schemaVersion: 1, fixtureId: "shadow-event-boundary-v1", observationKind: "shadow-events",
+    environment: { userAgent: navigator.userAgent, viewportWidth: innerWidth,
+      viewportHeight: innerHeight, devicePixelRatio, url: location.href,
+      timestamp: new Date().toISOString() }, observations });
+})();
+</script></html>
