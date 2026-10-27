@@ -102,8 +102,7 @@ String-literal-origin expressions and nested `JSON.parse`/`JSON.stringify` calls
 This does not admit general source arrays, objects, arbitrary JSON value returns
 or integration into the shared General-value lowerer. The main General kind
 still represents only Undefined, Null, Boolean and Number; guest JSON support
-alone does not close those
-source-lowering gaps.
+alone does not close those source-lowering gaps.
 
 | Order | Question and bounded experiment | Evidence required to move on |
 | --- | --- | --- |
@@ -261,8 +260,9 @@ browser feature set remain unselected. An independent, experimental Rust
 block geometry and inert text anchors. They do **not** parse HTML, resolve CSS,
 shape text, paint pixels or run script, and are not an A1 application. Profile
 composition, individual grants and defaults still need concrete experiments.
-Start with a useful embedded application slice once the platform seams can support it, and demonstrate that changing the
-profile changes authority without replacing the environment implementation.
+Start with a useful embedded application slice once the platform seams can
+support it, and demonstrate that changing the profile changes authority without
+replacing the environment implementation.
 
 ### Reusable implementation pieces
 
@@ -340,9 +340,10 @@ Pin imported test/data versions and inspect applicable licenses before copying o
 redistributing them. Can I Use's [data repository](https://github.com/Fyrd/caniuse)
 states CC BY 4.0 and requests attribution to caniuse.com. A reference link alone
 does not require importing the corpus. No external browser standards corpus or
-support dataset has been vendored or run through its upstream harness. The repository's separately implemented
-[original browser-oracle fixtures](browser-oracles.md) do execute in managed
-Chromium, Firefox and WebKit; they are reference evidence, not Grunkalunka rendering.
+support dataset has been vendored or run through its upstream harness. The
+repository's separately implemented [original browser-oracle fixtures](browser-oracles.md)
+do execute in managed Chromium, Firefox and WebKit; they are reference evidence,
+not Grunkalunka rendering.
 
 Electron's [MIT license](https://github.com/electron/electron/blob/main/LICENSE)
 permits reuse with its copyright and permission notices retained. Before adapting
