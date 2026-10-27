@@ -55,7 +55,7 @@ exercised by a headless caller. This step does not authorize editing the
 compiler, Markdown/WIT code or the unselected application pilot.
 
 
-## Minimal semantic-tree projection (next experiment)
+## Implemented minimal semantic-tree projection
 
 `crates/grunkalunka-layout/src/semantic.rs` accepts an **already structured**
 parent-before-child tree of `Body`, `Main`, `Heading(1..6)`, `OrderedList`,
