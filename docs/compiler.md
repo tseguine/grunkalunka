@@ -59,15 +59,16 @@ No servers, ports or background services are used.
 
 ### Compatibility corpus and report
 
-[corpus.mjs](../tests/compatibility/corpus.mjs) versions the selected programs, expected rejections and
-unimplemented surfaces independently of the replay harness. Corpus version 65
-contains 1781 paired programs, 919 rejection fixtures and five unexecuted feature
-groups linked to milestone IDs. These are selected evidence and gaps, not an
-inventory of the entire language or a compatibility percentage.
+[corpus.mjs](../tests/compatibility/corpus.mjs) is the executable source of truth
+for the corpus version, admitted fixtures and recorded gaps; an executed
+`report.json` supplies the replay counts and provenance. For a dated reference,
+**corpus 84 (2026-10-27)** contained 1,949 numeric JS/TS pairs, 175 primitive-profile
+pairs, 849 rejection fixtures and five explicitly unexecuted feature groups.
+These counts are a historical snapshot, not a live compatibility percentage.
 
-The source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
-classifies all 919 rejections in 56 groups: 31 invalid sources in their selected
-strict Module dialect, 144 explicit resource restrictions and 744 open requirements.
+At that snapshot, the source-bound [rejection inventory](../tests/compatibility/rejection-inventory.json)
+classified 849 rejections in 54 groups: 31 invalid sources in the selected strict
+Module dialect, 144 explicit resource restrictions and 674 open requirements.
 Each record pins its fixture ID, JS/TS extension, `module-strict` source mode and
 original UTF-8 source hash. Group evidence names the applicable ECMAScript rule,
 official TypeScript syntax reference or explicit source-budget contract. A compiler
@@ -80,8 +81,9 @@ descriptive feature dependencies, harness needs and observable completion criter
 Each rejection result records its resolved `classification` and a separate
 `lowering: { executed: false, outcome: 'not-executed' }`; a passing rejection check
 is not compiled language support. Final report validation rejects missing or changed
-classification. Only the remaining 39 explicit curated oracle opt-ins execute in Node.
-Other rejection sources may throw or diverge and are never executed as JS.
+classification. Only explicitly opted-in curated gap oracles execute independently in Node.
+Other rejection sources may be invalid, effectful or nonterminating and are not
+executed as JavaScript; rejection success never establishes lowering support.
 
 Corpus 5 includes 24 executed pairs and eight specific admission rejections adapted
 from a pinned [TypeScript arithmetic fixture](../tests/compatibility/typescript/README.md).

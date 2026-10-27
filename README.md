@@ -124,9 +124,12 @@ for the remaining P1 and A1 goals.
 ## Workspace
 
 - `crates/grunkalunka-compiler`: source text to portable typed Wasm; independent of Wasmtime.
-- `crates/grunkalunka-runtime`: numeric module instantiation and execution.
+- `crates/grunkalunka-runtime`: experimental Wasmtime execution of numeric, primitive, async and heap modules, with bounded capability-host examples.
 - `crates/grunkalunka-cli`: file and standard-input handling, compile/inspect/evaluate commands.
 - `crates/grunkalunka-markdown`: CommonMark summaries, code blocks, heading outlines and prose projection.
+- `crates/grunkalunka-json` / `crates/grunkalunka-json-guest`: bounded JSON data operations and a separate guest transport, not a general JS heap.
+- `crates/grunkalunka-wasm-link`: bounded core-Wasm composition, not a general linker.
+- `crates/grunkalunka-layout`: independent headless block geometry and typed semantic-tree projection, not an HTML/CSS renderer. See the [layout experiment](docs/block-layout.md).
 - `tests/compatibility`: maintained JS/TS differential fixtures and evidence reports.
 - `tools`: repository-local build, execution and measurement adapters.
 

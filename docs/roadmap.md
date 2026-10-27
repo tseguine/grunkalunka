@@ -96,11 +96,13 @@ the [current execution summary](milestones.md#execution-scope-and-quality) names
 the next owned demonstration and its observable exit criterion. This work improves
 the typed value/call/suspension foundation without claiming that JSON lowering is
 complete or adopting a wholesale IR replacement.
-The [JSON notes](json.md) distinguish verified native/guest operations and the
-separate String-literal source bridge from general source arrays, objects and
-arbitrary JSON value returns. The main General kind still represents only
-Undefined, Null, Boolean and Number; guest JSON support alone does not close those
-source-lowering gaps.
+The [JSON notes](json.md) distinguish verified native/guest operations, while
+the separate [experimental source heap profile](heap-literals.md) admits limited
+String-literal-origin expressions and nested `JSON.parse`/`JSON.stringify` calls.
+This does not admit general source arrays, objects, arbitrary JSON value returns
+or integration into the shared General-value lowerer. The main General kind
+still represents only Undefined, Null, Boolean and Number; guest JSON support
+alone does not close those source-lowering gaps.
 
 | Order | Question and bounded experiment | Evidence required to move on |
 | --- | --- | --- |
@@ -211,13 +213,17 @@ components yet.
   checks outside timed loops. A debug frontend probe or empty component cannot
   establish production speed, memory use, startup cost or platform footprint.
 
-The [numeric cost probe](numeric-benchmark.md) is a first P1 measurement harness,
-not a cross-engine cost conclusion. The next independent bounded P1 experiment
-will measure a real typed WIT document read under granted and denied profiles,
-distinguishing component construction/instantiation, host-call round trips and
-guest work. Keep profiles, input bytes, environment provenance and raw dispersion
-visible, and check correctness outside timed loops. Do not infer total memory
-use or production throughput from this small in-memory fixture.
+The [numeric cost probe](numeric-benchmark.md) was an initial P1 harness, not a
+cross-engine cost conclusion. Subsequently implemented bounded measurements cover
+[typed WIT document access](document-cost.md), [real Markdown component work](markdown-component-cost.md),
+[same-host capture provenance](markdown-capture.md), [paired repeat comparisons](markdown-comparison.md),
+[core Wasm replay across Node/V8 and Wasmtime](core-engine-cost.md), and
+[whole-Node-process memory checkpoints](core-engine-cost.md). The last are **not**
+Wasm-attributed or Wasmtime memory measurements. These experiments do not supply
+production throughput, retained comparable multi-host performance rankings or a
+completed P1 milestone; see [status and remaining gaps](milestones.md#compatibility-runtime-and-application-tracks).
+Keep profiles, input bytes, environment provenance and raw dispersion visible,
+and check correctness outside timed loops.
 
 The numeric PoC uses an internal [verified region IR](ir.md). A full-language
 production IR, object/GC strategy, scheduler, package distribution scheme, and
@@ -248,11 +254,15 @@ guest content cannot promote itself to broader authority. UI/shell choices can
 vary around that same environment. Single-application embedding assumptions should
 not quietly prevent independent contexts, untrusted sites or browser user controls.
 
-The renderer, rendering architecture, compatibility target, UI toolkit and full
-browser feature set remain unselected. Profile composition, individual grants and
-defaults still need concrete experiments. Start with a useful embedded application
-slice once the platform seams can support it, and demonstrate that changing the
-profile changes authority without replacing the environment implementation.
+The final renderer architecture, compatibility target, UI toolkit and full
+browser feature set remain unselected. An independent, experimental Rust
+[headless layout core and semantic adapter](block-layout.md) now provide bounded
+block geometry and inert text anchors. They do **not** parse HTML, resolve CSS,
+shape text, paint pixels or run script, and are not an A1 application. Profile
+composition, individual grants and defaults still need concrete experiments.
+Start with a useful embedded application slice once the platform seams can
+support it, and demonstrate that changing the profile changes authority without
+replacing the environment implementation.
 
 ### Reusable implementation pieces
 
@@ -329,8 +339,11 @@ our own measured support; do not substitute another browser's support label for 
 Pin imported test/data versions and inspect applicable licenses before copying or
 redistributing them. Can I Use's [data repository](https://github.com/Fyrd/caniuse)
 states CC BY 4.0 and requests attribution to caniuse.com. A reference link alone
-does not require importing the corpus. No browser test corpus or support dataset
-has been vendored or executed at this stage.
+does not require importing the corpus. No external browser standards corpus or
+support dataset has been vendored or run through its upstream harness. The
+repository's separately implemented [original browser-oracle fixtures](browser-oracles.md)
+do execute in managed Chromium, Firefox and WebKit; they are reference evidence,
+not Grunkalunka rendering.
 
 Electron's [MIT license](https://github.com/electron/electron/blob/main/LICENSE)
 permits reuse with its copyright and permission notices retained. Before adapting
