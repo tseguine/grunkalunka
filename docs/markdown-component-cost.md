@@ -106,3 +106,5 @@ confinement, a public document API or a measured general framework application.
 For independently saved reports with the actual guest/runner binary hashes,
 source-revision and host metadata, use the [P1 receipt capture](markdown-capture.md).
 This adds provenance checks, not performance rankings or certified comparability.
+The [bounded same-process comparison](markdown-comparison.md) admits only
+binary-identical paired captures, not arbitrary saved reports or host rankings.
