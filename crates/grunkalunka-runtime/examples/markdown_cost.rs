@@ -288,7 +288,7 @@ impl Series {
         }
     }
 
-    fn json(&self) -> String {
+    pub fn json(&self) -> String {
         let samples = self
             .samples_ms
             .iter()
@@ -411,16 +411,20 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         instantiate(&engine, &component, &linker, false, &source)?;
 
     // Validate typed results and error distinctions before sampling.
-    let original = granted_guest.call_inspect(&mut granted_store, Resource::new_borrow(7))??;
+    let original = granted_guest
+        .call_inspect(&mut granted_store, Resource::new_borrow(7))?
+        .map_err(|error| wasmtime::Error::msg(format!("granted Markdown inspection: {error:?}")))?;
     validate_projection(options.workload, &original)?;
-    if denied_guest.call_inspect(&mut denied_store, Resource::new_borrow(7))?
-        != Err(InspectError::Denied)
-    {
+    if !matches!(
+        denied_guest.call_inspect(&mut denied_store, Resource::new_borrow(7))?,
+        Err(InspectError::Denied)
+    ) {
         wasmtime::bail!("denied profile was not a structured policy error");
     }
-    if granted_guest.call_inspect(&mut granted_store, Resource::new_borrow(8))?
-        != Err(InspectError::UnknownGrant)
-    {
+    if !matches!(
+        granted_guest.call_inspect(&mut granted_store, Resource::new_borrow(8))?,
+        Err(InspectError::UnknownGrant)
+    ) {
         wasmtime::bail!("unknown grant was not rejected");
     }
     if granted_store.data().reads != 1 || denied_store.data().reads != 0 {
