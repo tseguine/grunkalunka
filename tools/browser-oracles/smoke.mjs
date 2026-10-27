@@ -9,6 +9,7 @@ import { collectOne } from "./collect.mjs";
 import { verifyBaseline } from "./verify-baseline.mjs";
 import { runCascade } from "./cascade.mjs";
 import { runEvents } from "./events.mjs";
+import { runLifecycle } from "./listener-lifecycle.mjs";
 import { probeDiagnosticIsolation, verifyDiagnosticIsolation } from "./diagnostic-isolation.mjs";
 
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -56,8 +57,10 @@ export async function runSmoke(engine, { browserTypes, playwrightVersion, output
     collect: fixturePath => collectOne(engine, { browserTypes, playwrightVersion, fixturePath }) });
   await runEvents(engine, { outputDir: join(outputDir, "events"),
     collect: fixturePath => collectOne(engine, { browserTypes, playwrightVersion, fixturePath }) });
+  await runLifecycle(engine, { outputDir: join(outputDir, "listeners"),
+    collect: fixturePath => collectOne(engine, { browserTypes, playwrightVersion, fixturePath }) });
   const summary = { engine, browserVersion: first.provenance.browserVersion, sourceHash,
-    repeat: stable.status, mutation: sensitivity.status, selectedBaseline: "passed", diagnosticIsolation: "passed", cascade: "passed", events: "passed" };
+    repeat: stable.status, mutation: sensitivity.status, selectedBaseline: "passed", diagnosticIsolation: "passed", cascade: "passed", events: "passed", listeners: "passed" };
   await save("summary.json", summary);
   return summary;
 }
