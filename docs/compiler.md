@@ -1661,8 +1661,9 @@ are bound. Discarded primitives/functions retain their effects and validation.
 This includes known factories and awaited known async calls; an argument rejection
 occurs outside the callee's rejection boundary. Runtime function values and factories
 also admit surplus arguments, preserving the saved callee pair and passing only
-declared inputs through their frames. Top-level numeric helpers retain exact arity.
-Missing, spread, optional and generic local arguments remain unsupported. Body results retain their existing typed contract.
+declared inputs through their frames. Top-level numeric helpers follow the same
+supplied-count rule while keeping Number declared inputs and results. Missing,
+spread, optional and generic local arguments remain unsupported. Body results retain their existing typed contract.
 Parentheses and erased TypeScript wrappers preserve the underlying function; annotations do not coerce values.
 
 Known concise arrow factories can also return an arrow or immutable closure
@@ -1944,3 +1945,15 @@ in [runtime closures](runtime-closures.md). The existing nullish predicate, type
 regions and stores suffice; no IR schema, emitter or host ABI changed. The original
 `unsupported-compound-10` source and Number golden execute unchanged. Corpus 68
 has 1,807 numeric pairs and 914 rejections; the primitive profile has 121 pairs.
+
+
+Top-level numeric helper calls now evaluate ordinary surplus arguments in caller
+order, preserving declared Number snapshots and discarding only surplus values.
+Ignored primitive/function expressions still retain their effects and validation,
+including waits in an async caller. Forward, recursive and entry-recursive calls
+use their existing physical call ABI; only declared inputs are passed. Supplied
+lists remain bounded to 1,000. Missing inputs, unsupported required argument kinds,
+spread/optional/generic calls and builtin argument rules remain separate limits.
+The exact former `direct-call-extra` source is promoted and pinned by SHA256;
+`direct-call-missing` keeps its source with an accurate missing-input diagnostic.
+Corpus 78 has 1,867 numeric pairs and 913 rejections; the primitive corpus has 175 pairs.

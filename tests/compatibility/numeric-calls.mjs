@@ -1,4 +1,4 @@
-// Exact-arity numeric calls; counters bound recursion/loops independently of inputs.
+// Numeric calls with declared inputs and evaluated surplus arguments; counters bound recursion/loops independently of inputs.
 // https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-evaluatecall
 export const numericCalls = [];
 function full(id, sourceJS, sourceTS = sourceJS) {
@@ -10,6 +10,12 @@ function add(id, helpers, body, helpersTS = helpers, bodyTS = body) {
 }
 const identity = 'function identity(x) { return x; }';
 const pack = 'function pack(x,y) { return x*10+y; }';
+full('extra', 'function identity(x) { return x; } export function run(a,b) { return identity(a,b); }', 'function identity(x:string):never { return x as never; } export function run(a:never,b:Missing):Wrong { return identity(a,b); }');
+add('extra-snapshot', identity, 'return identity(a,(a=b,null))+a;');
+add('extra-zero', 'function value(){return 3;}', 'const n=value(a=b,undefined,false);return n+a;');
+add('extra-forward', 'function first(x){return second(x,x=2,null);} function second(x){return x+1;}', 'return first(a,b);');
+add('extra-recursion', 'function fold(n,x){if(n<=0)return x;return fold(n-1,x+1,null);}', 'return fold(3,a,b);');
+full('extra-entry-recursion','export function run(a,b){if(b===12345)return a;return run(a,12345,a=b);}');
 add('zero-arity', 'function value() { return 7; }', 'return value();');
 add('one-arity', identity, 'return identity(a);');
 add('two-arity', pack, 'return pack(a,b);');
@@ -67,7 +73,7 @@ const top='exactly one exported function is admitted';
 const rejected=[];
 function reject(id,source,diagnostic,extension='js') { rejected.push([`direct-call-${id}`,source,extension,diagnostic]); }
 function bad(id,helpers,body,diagnostic,extension='js') { reject(id,`${helpers} export function run(a,b) { ${body} }`,diagnostic,extension); }
-for(const [id,body] of [['missing','return identity();'],['extra','return identity(a,b);']]) bad(id,identity,body,'exactly the declared number');
+bad('missing',identity,'return identity();','call is missing declared arguments');
 bad('spread', identity, 'return identity(...a);', 'spread call arguments');
 bad('optional', identity, 'return identity?.(a);', expression);
 bad('property', identity, 'return identity.call(a);', expression);

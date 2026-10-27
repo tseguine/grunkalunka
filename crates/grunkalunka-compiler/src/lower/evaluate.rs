@@ -971,7 +971,8 @@ impl Lowering<'_, '_> {
                     mut arguments,
                     depth,
                 } => {
-                    if index != 0 {
+                    let parameter_count = self.functions[function.0].parameter_count;
+                    if index != 0 && index <= parameter_count {
                         arguments.push(values.pop().expect("call argument").number());
                     }
                     if index == call.arguments.len() {
@@ -1007,7 +1008,15 @@ impl Lowering<'_, '_> {
                             arguments,
                             depth,
                         });
-                        work.push(Work::Eval(argument, depth, Mode::Number));
+                        work.push(Work::Eval(
+                            argument,
+                            depth,
+                            if index < parameter_count {
+                                Mode::Number
+                            } else {
+                                Mode::Discard
+                            },
+                        ));
                     }
                 }
                 Work::Sequence {
@@ -1869,10 +1878,16 @@ impl Lowering<'_, '_> {
                                         "optional and generic calls are not admitted",
                                     ));
                                 }
-                                if call.arguments.len() != function.parameter_count {
+                                if call.arguments.len() > 1000 {
                                     return Err(unsupported(
                                         node,
-                                        "call requires exactly the declared number of arguments",
+                                        "at most 1000 ordinary direct call arguments are admitted",
+                                    ));
+                                }
+                                if call.arguments.len() < function.parameter_count {
+                                    return Err(unsupported(
+                                        node,
+                                        "call is missing declared arguments",
                                     ));
                                 }
                                 if function.return_type == Type::General

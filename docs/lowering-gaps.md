@@ -235,8 +235,8 @@ separate gaps. The four ordinary TS module-item promotions transfer no curated
 reference; the type-module group remains open. See [the bounded contract](compiler.md#type-only-module-items).
 
 Direct top-level numeric helper calls, including self/mutual recursion, are covered
-in [`numeric-calls.mjs`](../tests/compatibility/numeric-calls.mjs). They promote no
-existing rejection. `gap-call` still needs an arrow function value/capture;
+in [`numeric-calls.mjs`](../tests/compatibility/numeric-calls.mjs). Their initial
+call-only slice promoted no existing rejection. `gap-call` still needs an arrow function value/capture;
 `gap-nested-function` and `gap-recursion` still contain nested declarations.
 That call-only unit retained all 41 reference sources, oracles and diagnostics.
 
@@ -627,8 +627,11 @@ supplied arguments remain bounded to 1,000. Runtime indirect calls, callbacks an
 factories now use the same surplus-argument behavior, saving the callee pair first
 and passing only declared inputs through unchanged typed frames. Callback analysis
 uses minimum supplied counts and concrete signatures rather than requiring equal
-source call counts. Top-level numeric helpers still require exact arity;
-missing/spread/optional/generic forms stay guarded.
+source call counts. Top-level numeric helpers also evaluate surplus arguments
+and pass only declared Number inputs through their unchanged ABI, including
+recursive calls and async caller waits. The original `direct-call-extra` source
+now executes unchanged; `direct-call-missing` remains rejected with updated wording.
+Missing/spread/optional/generic forms and builtin argument rules stay guarded.
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls

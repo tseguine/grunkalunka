@@ -305,6 +305,35 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn numeric_helper_surplus_arguments_preserve_async_snapshots_and_jobs() {
+    let sources=[
+        "function identity(x){return x;} export async function run(a,b){return identity(a,await(a=b,null))+a;}",
+        "function value(){return 3;} export async function run(a,b){return value(await(a=b,null),await false)+a;}",
+        "function choose(a){return a;} export async function run(a,b){return choose(await a,await(a=b,undefined));}",
+        "function fold(n,x){if(n<=0)return x;return fold(n-1,x+1,null);} export async function run(a,b){return fold(3,await a,await null);}",
+        "function identity(x){return x;} export async function run(a,b){try{return identity(a,await Promise.reject(b));}catch(e){return e;}}",
+        "function identity(x){return x;} export async function run(a,b){const invoke=async x=>identity(x,await(a=b,null));return await invoke(a);}",
+        "function identity(x){return x;} export async function run(a,b){const make=x=>(a=x,()=>x);return identity(a,await null,make(b));}",
+        "function identity(x){return x;} export async function run(a,b){try{return await Promise.reject(identity(a,await null,b));}catch(e){return e;}}",
+    ].map(str::to_string);
+    compare_async_sources(
+        &sources,
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "function identity(x){return x;} export async function run(a,b){return identity(a,await(a=b,null));}";
+    let typed = "function identity(x:string):never{return x as never;} export async function run(a:never,b:Missing):Wrong{return identity(a as never,await(a=b,null as never));}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn runtime_surplus_arguments_preserve_async_pairs_and_job_order() {
     compare_promises(
         &[

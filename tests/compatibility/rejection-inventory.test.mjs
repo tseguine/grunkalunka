@@ -1,3 +1,4 @@
+import { numericCalls } from './numeric-calls.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
 import { nullishAssignment, promotedNullishAssignment } from './nullish-assignment.mjs';
@@ -207,7 +208,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 914);
+  assert.equal(inventory.records.size, 913);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -454,4 +455,13 @@ test('primitive relational conversions retain two exact numeric promotion source
 test('General logical assignments retain two exact numeric rejection sources in the Value profile',()=>{
  assert.equal(generalLogicalAssignment.length,20);assert.equal(generalLogicalAssignmentNumericOrigins.length,2);
  for(const [id,origin,source,hash] of generalLogicalAssignmentNumericOrigins){const value=valuePrograms.find(p=>p.id===id);const negative=rejected.find(p=>p[0]===origin);assert.equal(value.numericOrigin,origin);assert.equal(value.sourceJS,source);assert.equal(negative[1],source);assert.equal(negative[3],'General logical assignments require a primitive value position');assert.equal(createHash('sha256').update(source).digest('hex'),hash);}
+});
+
+
+test('numeric helper surplus arguments retain the exact prior rejection source', () => {
+  const fixture=numericCalls.find(([id])=>id==='direct-call-extra');
+  assert.ok(fixture);
+  assert.ok(!rejected.some(([id])=>id==='direct-call-extra'));
+  assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),
+    '44f9f34913c1811b2c675bb230c2a191b500232dedd3e13284c7a7e6e26a0356');
 });

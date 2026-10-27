@@ -1,5 +1,5 @@
-use grunkalunka_compiler::compile;
-use grunkalunka_runtime::NumericInstance;
+use grunkalunka_compiler::{compile, compile_value};
+use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 use wasmtime::Trap;
 
 #[test]
@@ -10,6 +10,133 @@ fn direct_calls_preserve_argument_snapshots_and_parameter_isolation() {
     ).unwrap();
     let mut instance = NumericInstance::new(&artifact.wasm).unwrap();
     assert_eq!(instance.run(0.0, 0.0).unwrap(), 533.0);
+}
+
+#[test]
+fn helpers_evaluate_and_ignore_surplus_arguments() {
+    compare_helper_sources(&[
+        "function identity(x) { return x; } export function run(a,b) { return identity(a,b); }",
+        "function identity(x){return x;} export function run(a,b){return identity(a,(a=b,null))+a;}",
+        "function value(){return 3;} export function run(a,b){const n=value(a=b,undefined,false);return n+a;}",
+        "function choose(a){return a;} export function run(a,b){return choose(a,a=b);}",
+        "function first(x){return second(x,x=2,null);} function second(x){return x+1;} export function run(a,b){return first(a,b);}",
+        "function fold(n,x){if(n<=0)return x;return fold(n-1,x+1,null);} export function run(a,b){return fold(3,a,b);}",
+        "export function run(a,b){if(b===12345)return a;return run(a,12345,a=b);}",
+        "function identity(x){return x;} export function run(a,b){const make=offset=>(a=offset,()=>offset);return identity(a,make(b))+a;}",
+        "function identity(x){return x;} export function run(a,b){return identity(a,()=>null);}",
+        "function identity(x){return x;} function pack(x,y){return x*10+y;} export function run(a,b){return pack(a,b,identity(a=b))+a;}",
+    ]);
+}
+
+fn compare_helper_sources(sources: &[&str]) {
+    use std::{
+        io::Write,
+        process::{Command, Stdio},
+    };
+    let mut script = String::from(
+        "const assert=require('node:assert/strict'),view=new DataView(new ArrayBuffer(8));function bits(n){if(Number.isNaN(n))return 'nan';view.setFloat64(0,n);return view.getBigUint64(0).toString(16).padStart(16,'0');}\n",
+    );
+    for original in sources {
+        for ts in [false, true] {
+            let source = if ts {
+                original.replace("run(a,b)", "run(a:never,b:Missing)")
+            } else {
+                original.to_string()
+            };
+            for general in [false, true] {
+                let artifact = if general {
+                    compile_value(&source, ts)
+                } else {
+                    compile(&source, ts)
+                }
+                .unwrap_or_else(|e| panic!("{source}: {e}"));
+                let mut numbers = Vec::new();
+                if general {
+                    let mut instance = ValueInstance::new(&artifact.wasm).unwrap();
+                    for (a, b) in [
+                        (4.0, 2.0),
+                        (0.0, -0.0),
+                        (-0.0, -2.0),
+                        (f64::NAN, f64::INFINITY),
+                    ] {
+                        let Value::Number(n) = instance.run(a, b).unwrap() else {
+                            panic!("helper Number result")
+                        };
+                        numbers.push(n);
+                    }
+                } else {
+                    let mut instance = NumericInstance::new(&artifact.wasm).unwrap();
+                    for (a, b) in [
+                        (4.0, 2.0),
+                        (0.0, -0.0),
+                        (-0.0, -2.0),
+                        (f64::NAN, f64::INFINITY),
+                    ] {
+                        numbers.push(instance.run(a, b).unwrap());
+                    }
+                }
+                let rust = numbers
+                    .into_iter()
+                    .map(|n| {
+                        if n.is_nan() {
+                            "nan".into()
+                        } else {
+                            format!("{:016x}", n.to_bits())
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                script.push_str(&format!("{{const source={original:?},native=Function(\"'use strict';\"+source.replace('export function','function')+';return run;')(),run=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from({:?}))).exports.run,rust={rust:?};let i=0;for(const [a,b]of[[4,2],[0,-0],[-0,-2],[NaN,Infinity]]){{const expected=bits(native(a,b)),result=run(a,b);if({general})assert.equal(result[0],3);assert.equal(bits({general}?result[1]:result),expected,source);assert.equal(rust[i++],expected,source);}}}}\n",artifact.wasm));
+            }
+        }
+    }
+    let mut child = Command::new("node")
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(script.as_bytes())
+        .unwrap();
+    let result = child.wait_with_output().unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[test]
+fn helper_surplus_arguments_keep_width_input_and_source_guards() {
+    let arguments = vec!["a"; 1000].join(",");
+    let source = format!(
+        "function value(){{return 7;}} export function run(a,b){{return value({arguments});}}"
+    );
+    compare_helper_sources(&[&source]);
+    for source in [
+        format!(
+            "function value(){{return 7;}} export function run(a,b){{return value({arguments},a);}}"
+        ),
+        "function identity(x){return x;} export function run(a,b){return identity();}".into(),
+        "function identity(x){return x;} export function run(a,b){return identity(null,a);}".into(),
+        "function identity(x){return x;} export function run(a,b){return identity(a,...b);}".into(),
+        "function identity(x){return x;} export function run(a,b){return identity?.(a,b);}".into(),
+        "function identity(x){return x;} export function run(a,b){return identity(a,missing);}"
+            .into(),
+        "function identity(x){return x;} export function run(a,b){return identity(a,()=>missing);}"
+            .into(),
+        "function identity(x){return x;} export function run(a,b){return identity(a,a**b);}".into(),
+        "export function run(a,b){return Math.abs(a,b);}".into(),
+    ] {
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+            assert!(compile_value(&source, ts).is_err(), "{source}");
+        }
+    }
 }
 
 #[test]

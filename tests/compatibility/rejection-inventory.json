@@ -479,7 +479,7 @@
     {
       "id": "function-calls",
       "kind": "open-requirement",
-      "assessment": "Indirect, property, wrapped-callee, spread, generic and non-exact-arity calls remain outside the direct numeric call subset; unsupported calls in unselected source still reject.",
+      "assessment": "Top-level numeric helpers evaluate all supplied ordinary arguments and discard surplus values after retaining declared Number inputs. Missing or over-limit arguments, indirect, property, wrapped-callee, spread and generic calls remain outside the direct numeric helper subset; unsupported calls in unselected source still reject.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-function-calls",
@@ -4832,13 +4832,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "c0df3411b897836d1c1c48d95d0d83421d0f466aa2d65a66bcc9137c71bba984",
-      "group": "function-calls"
-    },
-    {
-      "id": "direct-call-extra",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "44f9f34913c1811b2c675bb230c2a191b500232dedd3e13284c7a7e6e26a0356",
       "group": "function-calls"
     },
     {

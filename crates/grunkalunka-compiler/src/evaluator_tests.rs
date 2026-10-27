@@ -259,8 +259,14 @@ const CASES: &[(&str, &str, bool, bool)] = &[
         false,
     ),
     (
-        "arity-before-child",
+        "surplus-argument-child",
         "function f(x) { return x; } export function run(a,b) { return f(a ** b,a); }",
+        false,
+        false,
+    ),
+    (
+        "missing-arity-before-child",
+        "function f(x,y,z) { return x; } export function run(a,b) { return f(a ** b,a); }",
         false,
         false,
     ),
@@ -344,8 +350,11 @@ fn evaluator_control_characterization() {
                     "invalid-call-before-child" => {
                         "unsupported at bytes 34..53: expression is outside the numeric experiment"
                     }
-                    "arity-before-child" => {
-                        "unsupported at bytes 62..73: call requires exactly the declared number of arguments"
+                    "surplus-argument-child" => {
+                        "unsupported at bytes 64..70: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
+                    }
+                    "missing-arity-before-child" => {
+                        "unsupported at bytes 66..77: call is missing declared arguments"
                     }
                     "argument-before-spread" => {
                         "unsupported at bytes 68..74: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
