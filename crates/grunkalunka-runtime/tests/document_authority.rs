@@ -93,10 +93,7 @@ fn backing_indices_are_not_grants_and_policy_denial_is_recoverable() {
         Err(ReadError::Denied)
     );
     store.data_mut().allowed = true;
-    assert_eq!(
-        read(&mut store, &reader, &public).unwrap().unwrap(),
-        text
-    );
+    assert_eq!(read(&mut store, &reader, &public).unwrap().unwrap(), text);
     assert_eq!(store.data().reads, vec![0, 0]);
     assert_eq!(store.data().attempts, 5);
     drop(store);
