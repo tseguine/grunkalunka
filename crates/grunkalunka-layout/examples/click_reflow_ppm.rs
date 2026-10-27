@@ -47,6 +47,9 @@ fn main() -> io::Result<()> {
         })
         .collect();
     let image = paint(&updated.frame, &layers, Rgb::WHITE).expect("bounded RGB repaint");
-    eprintln!("selected={selected:?}; visible anchors={}", updated.text_boxes.len());
+    eprintln!(
+        "selected={selected:?}; visible anchors={}",
+        updated.text_boxes.len()
+    );
     io::stdout().write_all(&image.ppm())
 }

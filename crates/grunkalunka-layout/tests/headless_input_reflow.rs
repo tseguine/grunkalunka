@@ -51,9 +51,18 @@ fn caller_action_on_selected_list_item_reflows_text_and_pixels() {
     let first_layout = layout_semantic(&elements, 320, 120).unwrap();
     let first_targets = targets(&elements);
     let original = colors(&elements, &first_layout);
-    assert_eq!(hit_test(&first_layout.frame, &first_targets, 26, 42), Ok(Some(4)));
-    assert_eq!(hit_test(&first_layout.frame, &first_targets, 10, 35), Ok(Some(1)));
-    assert_eq!(hit_test(&first_layout.frame, &first_targets, 26, 120), Ok(None));
+    assert_eq!(
+        hit_test(&first_layout.frame, &first_targets, 26, 42),
+        Ok(Some(4))
+    );
+    assert_eq!(
+        hit_test(&first_layout.frame, &first_targets, 10, 35),
+        Ok(Some(1))
+    );
+    assert_eq!(
+        hit_test(&first_layout.frame, &first_targets, 26, 120),
+        Ok(None)
+    );
     assert_eq!(
         first_layout
             .text_boxes
@@ -80,7 +89,10 @@ fn caller_action_on_selected_list_item_reflows_text_and_pixels() {
     let collapsed = layout_semantic(&elements, 320, 120).unwrap();
     let collapsed_targets = targets(&elements);
     let redrawn = colors(&elements, &collapsed);
-    assert_eq!(hit_test(&collapsed.frame, &collapsed_targets, 26, 42), Ok(Some(6)));
+    assert_eq!(
+        hit_test(&collapsed.frame, &collapsed_targets, 26, 42),
+        Ok(Some(6))
+    );
     assert_eq!(collapsed.frame.boxes[6].unwrap().content.y, 40);
     assert_eq!(
         collapsed
