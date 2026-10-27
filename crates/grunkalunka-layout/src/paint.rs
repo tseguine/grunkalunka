@@ -5,6 +5,8 @@
 
 use crate::{Frame, MAX_BLOCKS, MAX_DEPTH, MAX_VIEWPORT, Rect};
 
+mod bitmap;
+
 pub const MAX_CANVAS_PIXELS: usize = 4_000_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,6 +47,8 @@ pub struct PaintNode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PaintError {
     InvalidViewport,
+    /// Malformed caller-supplied bitpacked monochrome mask.
+    InvalidBitmap,
     TooManyPixels,
     NodeCountMismatch,
     InvalidParent { node: usize },
