@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import test from 'node:test';
+import { compareReports } from '../../tools/bench/compare.mjs';
 
 const entry = fileURLToPath(new URL('../../tools/bench/numeric.mjs', import.meta.url));
 const binary = fileURLToPath(new URL(
@@ -39,5 +40,11 @@ test('numeric timing probe compiles real source and emits a complete report outs
   assert.equal(report.provenance.node, process.version);
   assert.equal(report.provenance.platform, process.platform);
   for (const engine of ['js', 'wasm']) assert.equal(report.batches[engine].samplesMs.length, 2);
+  const comparison = compareReports(report, structuredClone(report));
+  assert.equal(comparison.buildApiMs.delta, 0);
+  for (const engine of ['js', 'wasm']) {
+    assert.equal(comparison.batches[engine].medianMs.delta, 0);
+    assert.deepEqual(comparison.batches[engine].baseline.samplesMs, report.batches[engine].samplesMs);
+  }
   assert.deepEqual(await readdir(cwd), []);
 });
