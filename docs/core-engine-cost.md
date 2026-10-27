@@ -66,6 +66,42 @@ test executes the actual Node subprocess and checks that these fields are presen
 The Node benchmark tests exercise well-formed observations and rejection of
 missing, negative, nonintegral or inconsistent byte values.
 
+## Rust/Wasmtime process memory observation (Linux)
+
+On Linux, the Rust-side replay also records process-wide resident memory at
+five phase boundaries: after the original JS source has been compiled and the
+Wasmtime Engine created but before compiling the Wasm module, after module
+compilation, after instance creation, after independent goldens and warmup, and
+after the measured batches but **before launching the separate Node subprocess**.
+The observations use `/proc/self/status`: `VmRSS` for current resident bytes
+and `VmHWM` for the process-lifetime peak resident bytes (both converted from
+kibibytes). Reports retain the raw five phase snapshots in
+`wasmtime.processMemory`.
+
+These are whole **Rust process** observations. In particular, the first sample
+occurs *after* frontend/lowering compilation and engine initialization, so even
+the high-water mark can reflect earlier work. Its peak is a Linux process-lifetime
+counter, **not** the maximum memory consumed by one Wasmtime invocation or a
+guest allocation. Taking samples allocates temporary strings; caches, OS
+accounting, allocator behavior, concurrent threads and previous compilation are
+uncontrolled. The five reported `VmHWM` readings must be nondecreasing, while
+`VmRSS` may rise or fall.
+
+On Windows and macOS, where this narrow implementation does not support
+equivalent measurements, the `wasmtime.processMemory` envelope explicitly
+reports `source: "unsupported-on-this-host"` and `snapshots: null`; zero is
+**never** substituted for unavailable data. The cross-platform checks confirm
+the explicit unsupported result rather than claiming cross-host RSS
+comparability. The existing Node subprocess snapshots use different APIs,
+lifecycle phases and process workloads; they are **not directly comparable**
+to these Rust process observations.
+
+No OS-monitoring package, syscall binding, Wasm memory tracker or benchmark
+performance gate is added. Native tests validate Linux status parsing, units,
+missing/duplicate/overflow values, complete phase sets and peak ordering.
+Actual Linux CI executes the same Wasmtime replay and requires non-null
+Rust-process samples; Windows and macOS require explicit absence.
+
 ## Provenance and limits
 
 The output includes OS and architecture observed by Rust and by Node; Node
@@ -78,10 +114,10 @@ report. The Wasmtime version declaration must follow the workspace pin.
 
 Neither subprocess creation nor Node's input transfer is timed as startup.
 Wasm decoding/JIT cache and CPU scheduling are not controlled. Wasmtime
-engine creation, Rust process startup, code cache, **Wasmtime host memory
-footprint**, frontend-only cost, nonnumeric values and representative application
-costs remain outside this slice. The Node-only snapshots above are not portable
-memory comparisons. Collect multiple reports under stable conditions
+engine creation, Rust process startup, code cache, **cross-platform and
+guest-attributable Wasmtime memory**, frontend-only cost, nonnumeric values and
+representative application costs remain outside this slice. The process
+snapshots above do not create portable engine memory comparisons. Collect multiple reports under stable conditions
 before examining relative changes; the tool does not rank engines.
 
 To check the real two-engine replay with minimal work:
