@@ -52,12 +52,12 @@ consume the existing 256-expansion budget.
 Function-valued results remain internal. Exported Number/primitive signatures stay
 unchanged. [Runtime factories](runtime-function-results.md), including complete
 block bodies, additionally return function pairs through typed indirect calls,
-including further Number-parameter factories; ordinary leaf closures
+including further factories accepting Numbers and numeric-leaf callbacks; ordinary leaf closures
 also support [primitive results](runtime-closures.md) from concise bodies and
 block returns and Undefined normal completion. This does not add
 function-valued host results, function coercion/equality, mixed function/primitive
 returns or incompatible logical signatures, async local arrows, optional/spread local calls,
-or returned functions with callback parameters.
+callbacks taking callbacks, or primitive-result callback arguments.
 TypeScript annotations remain erased.
 
 Focused coverage lives in `grunkalunka-runtime`'s `runtime-closures`, `local-arrows`

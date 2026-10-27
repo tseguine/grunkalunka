@@ -79,7 +79,10 @@ impl ClosureSignatures {
                 return false;
             };
             if signature.parameters.len() > 1000
-                || signature.parameters.iter().any(|ty| *ty != Type::Number)
+                || signature
+                    .parameters
+                    .iter()
+                    .any(|ty| !matches!(ty, Type::Number | Type::Closure(0..=1000)))
             {
                 return false;
             }
@@ -1318,7 +1321,7 @@ pub(crate) fn verify_module_with_entry_type(
             } {
                 return Err(invalid(
                     function.body.span,
-                    "runtime closure results require Number, General or acyclic Number-parameter functions",
+                    "runtime closure results require Number, General or acyclic supported function signatures",
                 ));
             }
             function.return_type

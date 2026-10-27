@@ -1413,7 +1413,6 @@ fn runtime_block_factories_keep_completion_signature_and_target_guards() {
         "let make=x=>{while(x){return ()=>a;}};return a;",
         "let make=x=>{return later;const later=()=>a;};return a;",
         "let make=x=>{return async()=>x;};return a;",
-        "let make=x=>{return (fn,y)=>fn(y);};return a;",
         "let make=async x=>{return ()=>x;};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
@@ -1532,7 +1531,31 @@ fn nested_runtime_factory_signatures_keep_small_stack_and_width_bounds() {
 }
 
 #[test]
-fn runtime_factory_results_require_matching_number_parameter_result_chains() {
+fn returned_functions_receive_numeric_leaf_callbacks() {
+    compare_function_programs(
+        &[
+            "let make=x=>{return (fn,y)=>fn(y);};return a;",
+            "let make=x=>(fn,y)=>()=>fn(y);return a;",
+        ],
+        false,
+    );
+    compare_functions(&[
+        "let make=x=>{return (fn,y)=>fn(y)+x;};return make(a)(z=>z+b,a);",
+        "let make=x=>(fn,y)=>fn(y)+x;const apply=make(a);return apply(z=>z+b,a);",
+        "let make=a?(x=>(fn,y)=>fn(y)+x):(x=>(fn,y)=>fn(y)-x);return make(a)(z=>z+b,b);",
+        "let make=x=>(fn,y)=>()=>fn(y)+x;const f=make(a)(z=>z+b,a);return f();",
+        "let make=x=>{return (fn,y)=>{return ()=>fn(y)+x;};};return make(a)(z=>z+b,b)();",
+        "let make=x=>(fn,y)=>{const old=fn;fn=z=>z+b;return old(y)+fn(y)+x;};return make(a)(z=>z+a,b);",
+        "let make=x=>(fn,y)=>{const read=()=>fn(y);fn=z=>z+b;return read()+x;};return make(a)(z=>z+a,b);",
+        "let make=x=>(f,g,y)=>f(y)+g(y)+x;return make(a)(z=>z+a,z=>z-b,b);",
+        "let make=x=>(fn,y)=>()=>fn(y);let fn=z=>z+a;const f=make(a)(fn,(fn=z=>z-b,b));return f()+fn(a);",
+        "let make=x=>(fn,y)=>()=>fn(y);const apply=make(a);const f=apply(z=>z+a,b);make=x=>(fn,y)=>()=>fn(y)+x;return f()+make(a)(z=>z-b,b)();",
+        "let make=x=>(fn,y)=>fn(y)+x;let apply=make(a);return (apply&&=(fn,y)=>fn(y)-b)(z=>z+a,b);",
+    ]);
+}
+
+#[test]
+fn runtime_factory_results_require_matching_parameter_and_result_chains() {
     for body in [
         "const make=a?()=>()=>a:()=>x=>x;return make()();",
         "const make=a?()=>()=>a:()=>b;return make()();",
@@ -1542,7 +1565,6 @@ fn runtime_factory_results_require_matching_number_parameter_result_chains() {
         "let make=x=>()=>null;make=x=>y=>false;return make(a)();",
         "let make=x=>y=>()=>x+y;make=x=>()=>()=>x;return a;",
         "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",
-        "let make=x=>(fn,y)=>()=>fn(y);return a;",
         "let make=x=>async()=>x;return make(a)();",
         "let make=x=>()=>x;return make(a);",
         "let make=x=>()=>x;return +make(a);",
@@ -1557,6 +1579,42 @@ fn runtime_factory_results_require_matching_number_parameter_result_chains() {
             let source = source.replace("export function", "export async function");
             assert!(compile_async(&source, typescript).is_err(), "{source}");
         }
+    }
+}
+
+#[test]
+fn returned_function_callbacks_keep_numeric_leaf_kind_and_arity_guards() {
+    for body in [
+        "let make=x=>(fn,y)=>fn(y);return make(a)(()=>b,a);",
+        "let make=x=>(fn,y)=>fn(y);return make(a)(z=>null,a);",
+        "let make=x=>(fn,y)=>fn(y);return make(a)(a,b);",
+        "let make=x=>(fn,y)=>fn(y);return make(a)(async z=>z,a);",
+        "let make=x=>fn=>fn(1);const apply=g=>g(1);return make(a)(apply);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
+fn returned_callback_argument_frames_keep_the_existing_width_limit() {
+    let parameters = (0..999)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = vec!["a"; 999].join(",");
+    compare_functions(&[&format!(
+        "let make=x=>(fn,{parameters})=>fn(p998)+x;return make(a)(z=>z+b,{arguments});"
+    )]);
+    let source = format!(
+        "export function run(a,b){{let make=x=>(fn,{parameters},extra)=>fn(p998)+x;return a;}}"
+    );
+    for typescript in [false, true] {
+        assert!(compile(&source, typescript).is_err());
+        assert!(compile_value(&source, typescript).is_err());
     }
 }
 

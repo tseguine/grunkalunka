@@ -581,7 +581,7 @@ impl Lowering<'_, '_> {
         } {
             return Err(unsupported(
                 node,
-                "runtime factories require returned functions with only Number parameters",
+                "runtime factories require Number or numeric-leaf callback parameters in returned functions",
             ));
         }
         self.charge_closure_expansion(node)?;

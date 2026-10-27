@@ -650,15 +650,16 @@ recursive rebinding and async callers. Result-aware logical signatures and a
 private pair-return table call preserve the existing host ABI and wide argument
 bounds. See [runtime function results](runtime-function-results.md). General recursive
 callback/result signatures, unrepresented leaf results and async bodies remain open.
-Returned leaves keep Number parameters; primitive tags and payloads survive factory
+Returned functions keep Number or numeric-leaf callback parameters; primitive tags and payloads survive factory
 selection, captures, rebinding and async callers without a new physical ABI.
 Block creators retain early returns, loops, lexical aliases and fresh creator
 cells; every structural return must produce the same full function signature.
 Normal/bare creator completion and async bodies remain guarded. Further factory
-results now use the same pair representation with acyclic, Number-parameter
+results now use the same pair representation with acyclic
 signature chains. Captured cells and middle/leaf snapshots survive later calls and
-async jobs; returned functions with callback parameters and cyclic type metadata
-remain outside this slice.
+async jobs. Callback parameter pairs also retain caller argument snapshots and
+shared mutable cells across returned layers. Primitive-result callback arguments,
+callbacks taking callbacks and cyclic type metadata remain outside this slice.
 
 Represented synchronous function values now support Boolean contexts: conditions,
 negation, loops and Boolean-position short-circuit expressions. Existing higher-order

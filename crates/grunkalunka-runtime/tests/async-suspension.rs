@@ -305,6 +305,42 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn returned_function_callbacks_keep_argument_snapshots_and_async_jobs() {
+    compare_promises(
+        &[
+            "let make=x=>(fn,y)=>fn(y)+x;const apply=make(await a);await null;return apply(z=>z+b,b);",
+            "let make=x=>(fn,y)=>fn(y)+x;const apply=make(a);return apply((await null,z=>z+b),await b);",
+            "let make=x=>(fn,y)=>fn(y);let fn=z=>z+a;const apply=make(a);return apply(fn,await(fn=z=>z-b,b))+fn(a);",
+            "let make=x=>(fn,y)=>()=>fn(y)+x;const f=make(a)(z=>z+b,await b);await null;return f();",
+            "let make=x=>{return (fn,y)=>{return ()=>fn(y)+x;};};const middle=make(await a);await null;return middle(z=>z+b,await b)();",
+            "let make=x=>(fn,y)=>()=>{const old=fn(y);fn=z=>z+b;return old+fn(y)+x;};const f=make(a)(z=>z+a,b);await null;f();await false;return f();",
+            "let make=x=>(fn,y)=>x?null:fn(y);const apply=make(await a);await null;return apply(z=>z+b,b);",
+            "let make=x=>fn=>x?null:fn();const apply=make(a);await false;return apply(()=>-0);",
+            "let make=x=>(fn,y)=>{fn(y);};return make(a)(z=>z+b,await b);",
+            "let make=x=>(fn,y)=>x?null:fn(y);const apply=make(a);try{return await Promise.reject(apply(z=>z+b,b));}catch(e){return e;}",
+            "let make=x=>(fn,y)=>()=>fn(y);let fn=z=>z+a;const f=make(a)(fn,await(fn=z=>z-b,b));await null;return f();",
+            "let make=x=>(fn,y)=>fn(y);const original=make(a);await null;make=x=>(fn,y)=>fn(y)+x;return original(z=>z+b,b);",
+            "let make=x=>(fn,y)=>fn(y)+x;make??=(await Promise.reject(a),x=>(fn,y)=>fn(y)-x);return make(a)(z=>z+b,b);",
+            "let make=x=>(fn,y)=>fn(y)+x;make&&=(await null,x=>(fn,y)=>fn(y)-x);return make(a)(z=>z+b,b);",
+            "let make=x=>{return (fn,y)=>fn(y);};return a;",
+            "let make=x=>(fn,y)=>()=>fn(y);return a;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){let make=x=>(fn,y)=>fn(y)+x;const apply=make(await a);await false;return apply(z=>z+b,b);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let make:Wrong=((x:Missing)=>(fn:string,y:never)=>(fn as any)(y)+x) as any;const apply=make(await(a as never));await(false as number);return (apply as any)(((z:number)=>z+b) as any,b);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn nested_runtime_factories_retain_pairs_values_and_job_order() {
     compare_promises(
         &[

@@ -8,6 +8,12 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['returned-callback-null', 'let make=x=>(fn,y)=>x?null:fn(y);return make(a)(z=>z+b,b);'],
+  ['returned-callback-negative-zero', 'let make=x=>fn=>x?null:fn();return make(a)(()=>-0);'],
+  ['returned-callback-boolean', 'let make=x=>(fn,y)=>{fn(y);return false;};return make(a)(z=>z+b,b);'],
+  ['returned-callback-undefined', 'let make=x=>(fn,y)=>{fn(y);};return make(a)(z=>z+b,b);'],
+  ['returned-callback-retained', 'let make=x=>(fn,y)=>()=>x?false:fn(y);return make(a)(z=>z+b,b)();'],
+  ['returned-callback-cells', 'let make=x=>(fn,y)=>{const old=fn;fn=z=>z+b;return ()=>x?null:old(y)+fn(y);};return make(a)(z=>z+a,b)();'],
   ['nested-factory-null', 'let make=x=>()=>()=>null;return make(a)()();'],
   ['nested-factory-boolean', 'let make=x=>()=>()=>true;return make(a)()();'],
   ['nested-factory-undefined', 'let make=x=>{return y=>{return ()=>undefined;};};return make(a)(b)();'],

@@ -85,6 +85,20 @@ fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
 }
 
 #[test]
+fn returned_callbacks_preserve_general_results_and_retained_function_cells() {
+    compare_primitive_closure_programs(&[
+        "let make=x=>(fn,y)=>x?null:fn(y);return make(a)(z=>z+b,b);",
+        "let make=x=>fn=>x?null:fn();return make(a)(()=>-0);",
+        "let make=x=>(fn,y)=>{fn(y);return false;};return make(a)(z=>z+b,b);",
+        "let make=x=>(fn,y)=>{fn(y);};return make(a)(z=>z+b,b);",
+        "let make=x=>(fn,y)=>()=>x?false:fn(y);const f=make(a)(z=>z+b,b);return f();",
+        "let make=x=>(fn,y)=>{const old=fn;fn=z=>z+b;return ()=>x?null:old(y)+fn(y);};return make(a)(z=>z+a,b)();",
+        "let make=x=>{return (fn,y)=>fn(y);};return a;",
+        "let make=x=>(fn,y)=>()=>fn(y);return a;",
+    ]);
+}
+
+#[test]
 fn nested_runtime_factories_keep_primitive_leaf_kinds_and_captures() {
     compare_primitive_closure_programs(&[
         "let make=x=>()=>()=>true;return make(a)()();",

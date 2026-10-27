@@ -354,7 +354,7 @@ fn primitive_factory_leaf_signatures_and_metadata_are_verified() {
 #[test]
 fn nested_factory_result_chains_reject_cycles_parameters_and_wrong_pairs() {
     let source = "export function run(a,b){let make=x=>y=>()=>x+y;return make(a)(b)();}";
-    for change in 0..9 {
+    for change in 0..10 {
         let mut module = crate::lower_source(source, false).unwrap();
         verify_module(&module).unwrap();
         let factory=module.functions.iter().position(|f| matches!(f.return_type,Type::Closure(id) if matches!(module.closure_signatures.result(id),Some(Type::Closure(_))))).unwrap();
@@ -393,6 +393,10 @@ fn nested_factory_result_chains_reject_cycles_parameters_and_wrong_pairs() {
                     .return_type = Type::General;
             }
             7 => module.functions[factory].return_type = Type::Closure(0),
+            8 => {
+                module.closure_signatures.higher[signature - 1001].parameters =
+                    vec![Type::Closure(1001)]
+            }
             _ => {
                 let entry = &mut module.functions[0];
                 let result = entry
