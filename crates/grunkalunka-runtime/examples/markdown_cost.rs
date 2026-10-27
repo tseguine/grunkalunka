@@ -114,8 +114,8 @@ pub fn parse_options(args: &[String]) -> Result<Options, String> {
             return Err(format!("duplicate option {name}"));
         }
         if name == "--workload" {
-            options.workload = Workload::parse(&pair[1])
-                .ok_or_else(|| format!("unknown workload {}", pair[1]))?;
+            options.workload =
+                Workload::parse(&pair[1]).ok_or_else(|| format!("unknown workload {}", pair[1]))?;
             continue;
         }
         let slot = match name {
@@ -321,7 +321,8 @@ pub struct Report {
 
 impl Report {
     pub fn json(&self) -> String {
-        let mut out = String::from("{\"schemaVersion\":1,\"workload\":\"markdown-wit-inspection\",");
+        let mut out =
+            String::from("{\"schemaVersion\":1,\"workload\":\"markdown-wit-inspection\",");
         write!(
             out,
             "\"configuration\":{{\"case\":\"{}\",\"samples\":{},\"iterations\":{},\"warmup\":{}}},",
@@ -344,7 +345,7 @@ impl Report {
             self.guest_bytes, self.component_bytes
         )
         .unwrap();
-        out.push_str("\"timings\":{\"unit\":\"milliseconds per batch\",\"order\":\"alternating\",");
+        out.push_str("\"timings\":{\"unit\":\"milliseconds\",\"order\":\"alternating\",");
         write!(
             out,
             "\"embedMs\":{:.9},\"componentCompileMs\":{:.9},\"instantiation\":{},\"granted\":{},\"denied\":{}",
