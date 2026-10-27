@@ -12,7 +12,6 @@ wasmtime::component::bindgen!({
     with: { "grunkalunka:documents/documents.document": BackingDocument },
     imports: { default: trappable },
 });
-use grunkalunka::documents::documents::ReadError;
 
 pub struct BackingDocument;
 const WAT: &str = include_str!("../tests/fixtures/document-transport/reader.wat");
