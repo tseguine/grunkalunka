@@ -1,0 +1,122 @@
+// Replay the exact core Wasm bytes supplied on stdin; no compiler or JS oracle runs here.
+import { createHash } from 'node:crypto';
+import { arch, cpus, platform } from 'node:os';
+import { performance } from 'node:perf_hooks';
+
+const cases = [[1071, 462, 21], [84, 30, 6], [-84, 30, 6], [0, 0, 0],
+  [0, -9, 9], [13, 17, 1], [81, 27, 27], [-55, -34, 1]];
+
+function controls(values) {
+  if (values.length !== 3) throw new Error('Expected samples iterations warmup');
+  const numbers = values.map(value => {
+    if (!/^\d+$/.test(value)) throw new Error('Invalid integer');
+    return Number(value);
+  });
+  const [samples, iterations, warmup] = numbers;
+  for (const [value, min, max] of [[samples, 2, 20], [iterations, 1, 10000],
+    [warmup, 0, 10000]]) {
+    if (!Number.isSafeInteger(value) || value < min || value > max) {
+      throw new Error('Cost replay option is out of bounds');
+    }
+  }
+  return { samples, iterations, warmup };
+}
+
+async function input() {
+  const chunks = [];
+  let length = 0;
+  for await (const chunk of process.stdin) {
+    length += chunk.length;
+    if (length > 1024 * 1024) throw new Error('Wasm input exceeds 1 MiB');
+    chunks.push(chunk);
+  }
+  if (length === 0) throw new Error('Missing core Wasm input');
+  return Buffer.concat(chunks, length);
+}
+
+function checksum(iterations) {
+  const full = Math.floor(iterations / cases.length);
+  const part = iterations % cases.length;
+  return full * cases.reduce((sum, entry) => sum + entry[2], 0) +
+    cases.slice(0, part).reduce((sum, entry) => sum + entry[2], 0);
+}
+
+function batch(fn, iterations) {
+  let total = 0;
+  for (let i = 0; i < iterations; i++) {
+    const [a, b] = cases[i % cases.length];
+    total += fn(a, b);
+  }
+  return total;
+}
+
+function statistics(samplesMs) {
+  const sorted = [...samplesMs].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return {
+    samplesMs,
+    minMs: sorted[0],
+    medianMs: sorted.length % 2 ? sorted[middle] :
+      sorted[middle - 1] / 2 + sorted[middle] / 2,
+    maxMs: sorted.at(-1),
+  };
+}
+
+async function main() {
+  const config = controls(process.argv.slice(2));
+  const wasm = await input();
+  const startedCompile = performance.now();
+  const module = new WebAssembly.Module(wasm);
+  const moduleCompileMs = performance.now() - startedCompile;
+  if (WebAssembly.Module.imports(module).length !== 0) {
+    throw new Error('Core cost replay must not grant imports');
+  }
+  const startedInstantiate = performance.now();
+  const instance = new WebAssembly.Instance(module);
+  const instantiationMs = performance.now() - startedInstantiate;
+  const run = instance.exports.run;
+  if (typeof run !== 'function') throw new Error('Missing run export');
+  const startedFirst = performance.now();
+  const first = run(cases[0][0], cases[0][1]);
+  const firstCallMs = performance.now() - startedFirst;
+  if (!Object.is(first, cases[0][2])) throw new Error('Incorrect first result');
+  for (const [a, b, expected] of cases) {
+    if (!Object.is(run(a, b), expected)) throw new Error('Incorrect fixed golden');
+  }
+  if (batch(run, config.warmup) !== checksum(config.warmup)) {
+    throw new Error('Incorrect warmup checksum');
+  }
+  const samplesMs = [];
+  for (let i = 0; i < config.samples; i++) {
+    const started = performance.now();
+    const value = batch(run, config.iterations);
+    samplesMs.push(performance.now() - started);
+    if (value !== checksum(config.iterations)) {
+      throw new Error('Incorrect measured checksum');
+    }
+  }
+  const report = {
+    schemaVersion: 1,
+    engine: 'node-v8',
+    environment: {
+      node: process.version, v8: process.versions.v8,
+      os: platform(), arch: arch(), cpuModel: cpus()[0]?.model ?? null,
+      nodeOptions: process.env.NODE_OPTIONS ?? '', execArgv: process.execArgv,
+    },
+    artifact: {
+      bytes: wasm.length, sha256: createHash('sha256').update(wasm).digest('hex'),
+      imports: 0,
+    },
+    configuration: config, goldenCases: cases.length, checksum: checksum(config.iterations),
+    startup: { moduleCompileMs, instantiationMs, firstCallMs },
+    batches: { unit: 'milliseconds per batch', ...statistics(samplesMs) },
+  };
+  process.stdout.write(JSON.stringify(report) + '\n');
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error(error.stack ?? String(error));
+  process.exitCode = 1;
+}
