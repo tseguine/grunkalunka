@@ -50,7 +50,11 @@ fn semantic_outline_paints_exact_boxes_and_reflows_when_hidden() {
         assert_eq!(painted.pixel(x, y), Some(expected), "pixel {x},{y}");
     }
     assert_eq!(
-        expanded.text_boxes.iter().map(|x| x.node).collect::<Vec<_>>(),
+        expanded
+            .text_boxes
+            .iter()
+            .map(|x| x.node)
+            .collect::<Vec<_>>(),
         vec![2, 4, 5, 6]
     );
 
@@ -58,7 +62,11 @@ fn semantic_outline_paints_exact_boxes_and_reflows_when_hidden() {
     let collapsed = layout_semantic(&elements, 320, 120).unwrap();
     let smaller = paint(&collapsed.frame, &paints, CLEAR).unwrap();
     assert_eq!(
-        collapsed.text_boxes.iter().map(|x| x.node).collect::<Vec<_>>(),
+        collapsed
+            .text_boxes
+            .iter()
+            .map(|x| x.node)
+            .collect::<Vec<_>>(),
         vec![2, 6]
     );
     for ((x, y), expected) in [
@@ -67,7 +75,11 @@ fn semantic_outline_paints_exact_boxes_and_reflows_when_hidden() {
         ((24, 70), CLEAR),
         ((8, 86), CLEAR),
     ] {
-        assert_eq!(smaller.pixel(x, y), Some(expected), "collapsed pixel {x},{y}");
+        assert_eq!(
+            smaller.pixel(x, y),
+            Some(expected),
+            "collapsed pixel {x},{y}"
+        );
     }
     assert_ne!(painted.ppm(), smaller.ppm());
 }
