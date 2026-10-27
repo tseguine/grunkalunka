@@ -321,8 +321,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     native_batch(&mut native_denied, options.warmup)?;
     component_batch(&mut denied, &denied_reader, options.warmup)?;
 
-    let mut samples: [Vec<f64>; 4] =
-        std::array::from_fn(|_| Vec::with_capacity(options.samples));
+    let mut samples: [Vec<f64>; 4] = std::array::from_fn(|_| Vec::with_capacity(options.samples));
     for index in 0..options.samples {
         let order = if index % 2 == 0 {
             [0, 1, 2, 3]

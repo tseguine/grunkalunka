@@ -14,7 +14,14 @@ fn options_bound_total_work_and_reject_malformed_requests() {
     assert_eq!(parse_options(&[]).unwrap(), Options::default());
     assert_eq!(
         parse_options(&args(&[
-            "--samples", "2", "--iterations", "1", "--warmup", "0", "--bytes", "4096"
+            "--samples",
+            "2",
+            "--iterations",
+            "1",
+            "--warmup",
+            "0",
+            "--bytes",
+            "4096"
         ]))
         .unwrap(),
         Options {
@@ -43,7 +50,11 @@ fn options_bound_total_work_and_reject_malformed_requests() {
 
 fn verify_series(values: &[f64], count: usize) {
     assert_eq!(values.len(), count);
-    assert!(values.iter().all(|value| value.is_finite() && *value >= 0.0));
+    assert!(
+        values
+            .iter()
+            .all(|value| value.is_finite() && *value >= 0.0)
+    );
 }
 
 #[test]
@@ -105,14 +116,18 @@ fn empty_and_maximum_utf8_payloads_are_valid_in_both_profiles() {
 
 #[test]
 fn direct_probes_cannot_bypass_configuration_bounds() {
-    assert!(probe(Options {
-        samples: 0,
-        ..Options::default()
-    })
-    .is_err());
-    assert!(probe(Options {
-        bytes: 4097,
-        ..Options::default()
-    })
-    .is_err());
+    assert!(
+        probe(Options {
+            samples: 0,
+            ..Options::default()
+        })
+        .is_err()
+    );
+    assert!(
+        probe(Options {
+            bytes: 4097,
+            ..Options::default()
+        })
+        .is_err()
+    );
 }
