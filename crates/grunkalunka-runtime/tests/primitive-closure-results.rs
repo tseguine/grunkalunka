@@ -569,6 +569,18 @@ fn selected_identity_functions_share_joined_primitive_inputs() {
 }
 
 #[test]
+fn immediate_selections_preserve_joined_input_and_result_kinds() {
+    compare_primitive_closure_programs(&[
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;return (a?f:g)(b);",
+        "const f=x=>x;let p=f;p(null);const g=x=>x;return (a?f:g)(b);",
+        "const f=x=>x;let p=f;p(false);const g=x=>x;return (a?f:g)(null);",
+        "const f=x=>x;let p=f;p(undefined);const g=x=>x;const id=x=>x;return id(a?f:g)(b);",
+        "const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;return (a?f:g)(b)();",
+        "const f=x=>{const read=()=>x;return read();};let p=f;p(null);const g=x=>{const read=()=>x;return read();};return (a?f:g)(b);",
+    ]);
+}
+
+#[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>{if(a)return ()=>b;return null;};return a;",

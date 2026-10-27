@@ -191,6 +191,12 @@ also keeps identity results and captured parameters consistent with the entry
 kind. Callback positions retain their separate signatures. General local writes
 or inlined actuals alone do not seed this join, and the other result/signature
 guards remain unchanged.
+The same constructor relation includes immediately invoked conditional/logical
+callees, comma-wrapped selections and known forwarded/factory results, without
+requiring an intermediate binding. For example, after a General call establishes
+`f`'s input kind, `(a ? f : g)(b)` joins the peer input kinds just like calling a
+binding initialized from `a ? f : g`. This analysis executes no callee or argument
+effects; the evaluator retains the callee snapshot before evaluating arguments.
 Actual constructors also propagate through demanded callback parameters, aliases,
 forwarding and captured callbacks. Calls through those parameters establish the
 constructor's primitive input requirements. Generic identity parameters retain

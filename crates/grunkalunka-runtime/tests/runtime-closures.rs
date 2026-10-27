@@ -136,6 +136,31 @@ fn runtime_selection_joins_primitive_input_requirements() {
     ]);
 }
 
+#[test]
+fn immediate_selections_join_private_primitive_inputs() {
+    compare_functions(&[
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;return (a?f:g)(b);",
+        "const f=x=>+x;let p=f;p(undefined);const g=x=>-x;return (f&&g)(b);",
+        "const f=x=>+x;let p=f;p(false);const g=x=>-x;return (f??g)(b);",
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;return (a,(a?f:g))(b);",
+        "const f=x=>+x;let p=f;p(null);const g=x=>-x;const id=x=>x;return id(a?f:g)(b);",
+        "let n=a;const f=x=>+x;let p=f;p(null);const g=x=>-x;return (a?(n++,f):(n+=b,g))(b)+n;",
+        "let f=x=>+x;let p=f;p(null);const g=x=>-x;return 1/(a?f:g)((f=g,null));",
+        "const f=(cb,x)=>cb(x);let p=f;p(y=>+y,null);const g=(cb,x)=>cb(x)-b;return (a?f:g)(y=>+y,b);",
+    ]);
+}
+
+#[test]
+fn immediate_join_callee_and_argument_type_wrappers_erase() {
+    let plain =
+        "export function run(a,b){const f=x=>+x;let p=f;p(null);const g=x=>-x;return (a?f:g)(b);}";
+    let typed = "export function run(a:never,b:Missing):Wrong{const f=(x:any)=>+x;let p=f;p(null);const g=(x:any)=>-x;return ((a?f:g) as any)(b as never) as Wrong;}";
+    assert_eq!(
+        compile(plain, false).unwrap().wasm,
+        compile(typed, true).unwrap().wasm
+    );
+}
+
 fn bits(value: f64) -> String {
     if value.is_nan() {
         "nan".into()

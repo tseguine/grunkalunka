@@ -203,6 +203,25 @@ fn joined_private_inputs_preserve_async_results_and_snapshots() {
     );
 }
 
+#[test]
+fn immediate_selections_keep_async_values_and_callee_snapshots() {
+    compare_promises(
+        &[
+            "const f=x=>+x;let p=f;p(await null);const g=x=>-x;return (a?f:g)(await b);",
+            "const f=x=>x;let p=f;p(null);const g=x=>x;return await (a?f:g)(b);",
+            "const f=x=>()=>x;let p=f;const keep=p(null);const g=x=>()=>x;const h=(a?f:g)(await b);await a;return h();",
+            "let f=x=>+x;let p=f;p(null);const g=x=>-x;return 1/(a?f:g)((f=g,await null));",
+            "const f=(cb,x)=>cb(x);let p=f;p(y=>+y,null);const g=(cb,x)=>cb(x)-b;return (a?f:g)(y=>+y,await b);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()

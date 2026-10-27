@@ -1773,6 +1773,11 @@ affect downstream callers. Callback positions stay on their separate signature
 path. Source writes and known inlined calls still affect storage without seeding
 a General private input requirement. Other complete-signature, result-kind and
 resource guards remain in force; no new IR operation or calling convention is used.
+Resolved callee constructor groups participate even without a bound symbol, so
+immediate conditional/logical calls and known factory/forwarded results reuse the
+same input-kind join. Groups are deduplicated by constructor identity. Original
+semantic bindings, erased wrappers and the existing return-origin query limits
+remain authoritative; discovery does not run callee or argument effects.
 
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call

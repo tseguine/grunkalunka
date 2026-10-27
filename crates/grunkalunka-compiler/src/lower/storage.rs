@@ -548,6 +548,11 @@ pub(crate) fn general_mutable_bindings(
         })
         .collect();
     let mut incoming = Vec::new();
+    let mut input_groups: BTreeSet<_> = targets
+        .values()
+        .filter(|bodies| bodies.len() > 1)
+        .cloned()
+        .collect();
     for node in semantic.nodes().iter() {
         let AstKind::CallExpression(call) = node.kind() else {
             continue;
@@ -558,6 +563,9 @@ pub(crate) fn general_mutable_bindings(
             if let Some(known) = targets.get(&source) {
                 bodies.extend(known);
             }
+        }
+        if bodies.len() > 1 {
+            input_groups.insert(bodies.clone());
         }
         for body in bodies {
             for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments) {
@@ -705,7 +713,7 @@ pub(crate) fn general_mutable_bindings(
         }));
         // Constructors sharing a value need one scalar entry interface. Keep
         // callback parameters on their separate signature path.
-        for bodies in targets.values().filter(|bodies| bodies.len() > 1) {
+        for bodies in &input_groups {
             let count = arrows[bodies.first().unwrap()].params.items.len();
             if bodies
                 .iter()
