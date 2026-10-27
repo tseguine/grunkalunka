@@ -20,7 +20,10 @@ fn project(source: &str) -> String {
     let positions: Vec<_> = (0..=source.len())
         .map(|offset| {
             let position = index.position(offset);
-            (position, position.and_then(|value| index.byte_offset(value)))
+            (
+                position,
+                position.and_then(|value| index.byte_offset(value)),
+            )
         })
         .collect();
     let lines: Vec<_> = (0..index.line_count())
