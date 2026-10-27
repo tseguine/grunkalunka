@@ -24,6 +24,11 @@ jobs:
   smoke:
     name: Real ${{ matrix.engine }} observations
     runs-on: ubuntu-24.04
+    # Official Playwright image includes all three managed engines and their OS deps.
+    # Avoid variable Ubuntu apt mirrors on every new hosted runner.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -43,11 +48,14 @@ jobs:
       - name: Verify pinned Node runtime
         run: node -e 'require("node:assert/strict").equal(process.versions.node, process.env.BROWSER_NODE_VERSION)'
       - name: Test workflow and receipt contracts offline
-        run: node --test tests/browser-oracles/workflow-node-version.test.mjs tools/browser-oracles/verify-baseline.test.mjs
+        run: node --test tests/browser-oracles/workflow-node-version.test.mjs tests/browser-oracles/workflow-browser-image.test.mjs tools/browser-oracles/verify-baseline.test.mjs
       - name: Install isolated optional automation dependency
         run: npm --prefix tools/browser-oracles install --ignore-scripts --no-audit --no-fund
-      - name: Install the selected managed browser and system dependencies
-        run: node tools/browser-oracles/node_modules/playwright/cli.js install --with-deps ${{ matrix.engine }}
+      - name: Verify version-matched browser image
+        run: |
+          test "${PLAYWRIGHT_BROWSERS_PATH:-}" = /ms-playwright
+          test -d "$PLAYWRIGHT_BROWSERS_PATH"
+          node -e 'require("node:assert/strict").equal(require("./tools/browser-oracles/package.json").dependencies.playwright, "1.64.1")'
       - name: Record font and host inventory
         run: |
           mkdir -p target/browser-smoke/${{ matrix.engine }}
