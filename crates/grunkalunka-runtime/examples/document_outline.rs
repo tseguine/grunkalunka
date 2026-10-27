@@ -210,7 +210,11 @@ fn main() -> wasmtime::Result<()> {
         inspect(&mut store, &inspector, 7).unwrap_err(),
         InspectError::OutlineTooLarge
     );
-    assert_eq!(expanded[0].text.len(), 4096, "owned label survives rejection");
+    assert_eq!(
+        expanded[0].text.len(),
+        4096,
+        "owned label survives rejection"
+    );
     let reads = store.data().reads;
     store.data_mut().allowed = false;
     assert_eq!(
