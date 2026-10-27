@@ -75,3 +75,11 @@ and that the PPM bytes change. Its expected coordinates/colors are manually
 specified, not copied from the rendered frame. This is an implementation-side
 integration demonstration, **not** CSS screenshot conformance, glyph display
 or a selected A1 application.
+
+## Explicit packed monochrome ink
+
+The standalone [bitpacked ink contract](mono-bitmap-ink.md) adds an optional
+Canvas::blit_mono method for **caller-supplied** MSB-first row-padded 1-bit masks.
+It overlays opaque RGB ink at selected bits while leaving zero bits and earlier
+box paint intact, with validated input and viewport clipping. This does not
+implement fonts, Unicode shaping, text measurement or glyph rasterization.
