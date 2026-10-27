@@ -1,0 +1,24 @@
+package grunkalunka:markdown;
+
+interface documents {
+    enum read-error { denied, too-large, unknown-grant }
+    resource document {
+        read: func() -> result<string, read-error>;
+    }
+}
+
+world inspector {
+    import documents;
+    use documents.{document};
+    enum inspect-error { denied, too-large, unknown-grant, outline-too-large }
+    record heading {
+        level: u8,
+        start: u32,
+        end: u32,
+        section-end: u32,
+        parent: option<u32>,
+        text: string,
+    }
+    export inspect: func(document: borrow<document>) -> result<list<heading>, inspect-error>;
+    export cleanup-count: func() -> u32;
+}
