@@ -18,13 +18,14 @@ function pairs, represented primitive arguments/results, captures and limited
 [async catch/source throw](async-catch.md) are implemented; these do not establish
 general functions, synchronous exceptions, `finally` or Promise-object support.
 
-The next bounded lowering demonstration is primitive input inference through an
-awaited `Promise.resolve`/`Promise.reject` used as a callback argument, without a
-prior successful call establishing its kind. Native JS, Node Wasm and Wasmtime
-must agree on primitive results, skipped callback effects and reaction-job traces
-for JS/TS sources. Joining Number/General private input interfaces is a separate
-following unit. [Runtime closure contracts](runtime-closures.md) and the maintained
-`async-suspension` tests supply the existing behavior and guards to preserve.
+Primitive input inference through validated awaited `Promise.resolve`/`Promise.reject`
+callback arguments now has native JS, Node Wasm and Wasmtime result/effect/job-trace
+coverage, without a prior successful call establishing the kind. The next bounded
+lowering demonstration is selecting between private Number and General input
+interfaces. JS/TS sources must compile and match native results and argument
+snapshots in both engines while preserving existing Number-only selections.
+[Runtime closure contracts](runtime-closures.md) and the maintained
+`async-suspension` tests supply existing behavior and guards to preserve.
 
 General JSON-compatible source values and parse/stringify remain a broader
 unfinished goal; current IR/closure work supports their eventual typed integration,

@@ -193,6 +193,11 @@ storage, argument specialization and signature queries. Missing or fallthrough
 returns do not prove Number; unresolved callees still contribute no result fact.
 Return queries retain source-depth and bounded expansion guards. Existing Number
 factory depth boundaries remain unchanged.
+Validated awaited `Promise.resolve`/`Promise.reject` calls also contribute their
+payload's scalar facts. This permits a callback's primitive input kind to be
+established by its first awaited call. Unknown callees and ordinary Promise-object
+arguments remain outside that exemption; await validation and reaction jobs are
+unchanged.
 The runtime arena and frame alignment are unchanged;
 new General arguments simply
 consume sixteen-byte entries within the existing allocation limit.

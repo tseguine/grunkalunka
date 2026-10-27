@@ -512,6 +512,23 @@ pub(crate) fn general_mutable_bindings(
     }
     // Resolve computed callees before admitting their result as an input fact.
     // Unknown callees still supply no scalar-kind evidence.
+    let awaited_intrinsics: BTreeSet<_> = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let AstKind::AwaitExpression(awaited) = node.kind() else {
+                return None;
+            };
+            let Expression::CallExpression(call) = closures::unwrapped(&awaited.argument, 0)?
+            else {
+                return None;
+            };
+            let (payload, _, _) = awaited::operand(awaited, 0, semantic).ok()?;
+            // Only a validated Promise.resolve/reject unwraps the call to its
+            // payload. An ordinary awaited call retains its complete span.
+            (payload.span() != call.span()).then_some(call.node_id.get())
+        })
+        .collect();
     let opaque_calls: Vec<_> = semantic
         .nodes()
         .iter()
@@ -521,6 +538,7 @@ pub(crate) fn general_mutable_bindings(
             };
             let known = call_results.contains_key(&call.node_id.get());
             (!known
+                && !awaited_intrinsics.contains(&call.node_id.get())
                 && !matches!(
                     closures::unwrapped(&call.callee, 0),
                     Some(Expression::Identifier(_) | Expression::ArrowFunctionExpression(_))
