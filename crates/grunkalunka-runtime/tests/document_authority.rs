@@ -187,9 +187,11 @@ fn a_guest_cannot_turn_another_host_grant_representation_into_a_borrow() {
 
     let (documents, a, b) = make_documents();
     let rep = documents.representation(&b).unwrap();
+    // Normalize checked-out WAT formatting, never the document payload.
+    let reader_source = READER.replace("\r\n", "\n");
     let original = "local.get $document\n      i32.const 0\n      call $read";
-    assert_eq!(READER.matches(original).count(), 1);
-    let forged = READER.replacen(
+    assert_eq!(reader_source.matches(original).count(), 1);
+    let forged = reader_source.replacen(
         original,
         &format!("i32.const {rep}\n      i32.const 0\n      call $read"),
         1,
