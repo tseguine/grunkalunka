@@ -51,3 +51,27 @@ elements, text/glyph selection, or web platform conformance. The existing
 browser-oracle Event tests remain reference behavior, not implementation tests.
 Actual mouse/touch input, coordinate translation, event paths and dispatch
 would be separate explicitly measured components.
+
+
+## Host-controlled selection and repaint
+
+The additional `click_reflow_ppm` example composes the existing, independently
+tested typed semantic tree, headless hit tester, block layout and RGB painter.
+It first lays out a heading/list/paragraph at 320×120; a fixed synthetic input
+at (26,42) selects the first list item. An explicit **caller policy** then hides
+the parent list, relays out the same tree and writes the recomputed PPM image.
+This intentionally has no DOM event dispatcher, JS callback, trusted OS input,
+CSS selector, browser shell or capability-grant semantics.
+
+```sh
+cargo test -p grunkalunka-layout --locked --offline
+cargo run -q -p grunkalunka-layout --example click_reflow_ppm --locked --offline > toggled.ppm
+```
+
+The independent `tests/headless_input_reflow.rs` checks literal pre/post hit
+targets, full visible text-anchor indices, five explicitly chosen pixel colors
+in both layouts, the paragraph's new y coordinate and changed PPM bytes. A
+second test disables hit targets while checking that painting remains unchanged.
+Expected values are specified outside the implementations; no reference-browser
+results are imported. This is a **toy host interaction** rather than DOM dispatch,
+script-lowered source behavior, or an accepted A1 application.
