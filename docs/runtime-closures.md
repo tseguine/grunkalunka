@@ -254,3 +254,11 @@ evaluation. Calling adds no reaction job; an explicit await adds its ordinary jo
 Promise parameters, mixed primitive/Promise result interfaces, pending/rejected
 Promise objects and async-return adoption remain outside this slice. See
 [fulfilled Promise values](fulfilled-promise-locals.md) for evidence and guards.
+
+The private IR can now describe fulfilled Promise parameters and uses sixteen-byte
+tag/f64 argument entries. Indirect calls and callback signatures check that logical
+kind rather than treating the pair as a primitive General value. Executable IR
+fixtures cover mixed argument widths, Promise-consuming callbacks, captured
+parameter cells and the 1,000/1,001 limit. Source argument inference and binding
+remain a separate unfinished step; this does not yet admit Promise arguments in
+JS/TS closure calls.

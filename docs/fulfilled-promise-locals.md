@@ -65,10 +65,19 @@ Promise/primitive result signatures remain rejected.
 `FulfilledPromise` is a distinct internal IR type. `FulfillPromise` wraps a visible
 General completion snapshot; `PromiseValue` projects only that Promise type back
 to General before the existing await operation. The verifier rejects scalar
-substitution and Promise parameter/entry-result profiles. The backend uses the
+substitution and exported Promise parameter/entry-result profiles. The backend uses the
 existing sixteen-byte tag/f64 encoding for this virtual, nonescaping value,
 including captured cells and suspended storage. No Promise object identity, new
 host ABI, job scheduler or allocation allowance is introduced.
+
+The private IR also permits fulfilled Promise parameters on closure signatures,
+including callback parameters and returned-function signatures. Each argument
+occupies a sixteen-byte tag/f64 frame entry, using the shared caller/callee offset
+policy. General and Promise entries retain distinct logical types despite their
+matching physical layout. Parameter cells can be captured and mutated without
+changing earlier loaded snapshots. Public entries and ordinary helpers still
+require Number parameters. Source argument inference and binding do not yet
+admit Promise parameters; the IR representation is a prerequisite for that work.
 
 This is a bounded fulfilled-value slice. Bindings require a fulfilled initializer;
 payloads are represented primitives or other admitted fulfilled values.
@@ -99,4 +108,9 @@ kind. Maintained source cases cover reassignment, returned functions, callbacks,
 all primitive payload tags, callee/argument ordering, captures and 1,000/1,001
 parameters. Malformed IR cases check logical result mismatches even though the
 physical encodings coincide.
+Private-parameter IR tests separately execute mixed Promise/Number/General/function
+frames, Promise-consuming callbacks, captured parameter writes and the 1,000-argument
+boundary in Node-Wasm. Fresh emitted fixtures were also replayed in Wasmtime with
+an explicit test fuel budget; the default runtime budget is unchanged. These IR
+fixtures do not demonstrate source-level Promise argument admission or new jobs.
 These are not general Promise conformance.

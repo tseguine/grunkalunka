@@ -621,8 +621,8 @@ the same typed leaf operation and preserves selected suspension boundaries.
 General completion. `FulfillPromise` requires a visible General input and defines
 that Promise type; `PromiseValue` requires a visible Promise input and defines
 General. Source aliases retain the Promise type and snapshot. Existing typed
-loads, stores, captures and suspension storage preserve it, while source/callback
-parameters and exported result profiles reject it. Projection precedes the
+loads, stores, captures and suspension storage preserve it. Exported parameters
+and result profiles reject it. Projection precedes the
 existing await operation, so construction adds no job and each await keeps its
 reaction boundary. The source evaluator has a distinct Promise mode for initialized
 mutable cells, typed assignments and same-kind selections. It uses the existing
@@ -636,5 +636,9 @@ projects the returned Promise before using the existing suspension protocol.
 Private closure signatures may also return `FulfilledPromise`; lifted definitions,
 returned-function chains, callback signatures and `ClosureCall` preserve that
 logical kind. It remains distinct from General even though the backend reuses
-the existing tag/f64 return pair. Promise parameters and mixed primitive/Promise
-result interfaces remain invalid.
+the existing tag/f64 return pair. Private closure parameters may also use this
+type, including acyclic callback and returned-function signatures; ordinary
+helpers and exported entries retain Number inputs. The shared frame policy uses
+sixteen-byte Promise entries, with logical type checks independent of their
+General-compatible physical encoding. Source Promise argument inference/binding
+and mixed primitive/Promise result interfaces remain separate work.

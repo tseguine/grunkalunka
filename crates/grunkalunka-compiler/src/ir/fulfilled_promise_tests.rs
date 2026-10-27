@@ -187,7 +187,7 @@ fn fulfilled_promises_cannot_be_public_entry_results() {
 }
 
 #[test]
-fn fulfilled_promises_cannot_be_source_or_callback_parameters() {
+fn fulfilled_promises_cannot_be_public_parameters() {
     let mut module = crate::lower_source_profile(
         "export function run(a,b){return b;}",
         false,
@@ -199,6 +199,6 @@ fn fulfilled_promises_cannot_be_source_or_callback_parameters() {
     assert!(verify_module_with_entry_type(&module, Type::General).is_err());
     let mut signatures = ClosureSignatures::default();
     let signature = signatures.intern(vec![Type::FulfilledPromise], Type::General);
-    assert!(!signatures.is_callback_signature(signature));
-    assert!(!signatures.is_returned_function(signature));
+    assert!(signatures.is_callback_signature(signature));
+    assert!(signatures.is_returned_function(signature));
 }

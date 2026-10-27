@@ -526,6 +526,23 @@ fn higher_callback_graphs_are_bounded_and_keep_scalar_results() {
 }
 
 #[test]
+fn fulfilled_promise_parameters_form_valid_private_closure_signatures() {
+    let mut signatures = ClosureSignatures::default();
+    let callback = signatures.intern(vec![Type::FulfilledPromise], Type::FulfilledPromise);
+    assert!(signatures.is_callback_signature(callback));
+    assert!(signatures.is_returned_function(callback));
+    let outer = signatures.intern(
+        vec![Type::Closure(callback), Type::FulfilledPromise],
+        Type::Closure(callback),
+    );
+    assert!(signatures.is_returned_function(outer));
+    assert_ne!(
+        callback,
+        signatures.intern(vec![Type::General], Type::FulfilledPromise)
+    );
+}
+
+#[test]
 fn general_parameters_form_valid_private_closure_signatures() {
     let mut signatures = ClosureSignatures::default();
     let id = signatures.intern(
@@ -751,6 +768,496 @@ fn primitive_argument_module(kind: u8, callback: bool, general_result: bool) -> 
         module.functions[1].body.exit = Exit::Return(ValueId(0));
     }
     module
+}
+
+fn promise_argument_module(kind: u8, callback: bool, promise_result: bool) -> Module {
+    let mut module = primitive_argument_module(kind, callback, promise_result);
+    let span = module.functions[0].body.span;
+    let op = |kind| Operation { span, kind };
+    let callback_signature = if callback {
+        let mut signatures = ClosureSignatures::default();
+        let callback = signatures.intern(vec![Type::FulfilledPromise], Type::Number);
+        let outer = signatures.intern(
+            vec![
+                Type::FulfilledPromise,
+                Type::Closure(callback),
+                Type::FulfilledPromise,
+            ],
+            if promise_result {
+                Type::FulfilledPromise
+            } else {
+                Type::Number
+            },
+        );
+        module.closure_signatures = signatures;
+        module.functions[0].values[4] = Type::Closure(outer);
+        module.functions[0].values[7] = Type::Closure(callback);
+        module.functions[1].slots[1].ty = Type::Closure(callback);
+        module.functions[1].values[1] = Type::Closure(callback);
+        Some(callback)
+    } else {
+        let signature = &mut module.closure_signatures.higher[0];
+        signature.parameters[0] = Type::FulfilledPromise;
+        signature.parameters[2] = Type::FulfilledPromise;
+        if promise_result {
+            signature.result = Type::FulfilledPromise;
+        }
+        None
+    };
+    let caller = &mut module.functions[0];
+    let first = ValueId(caller.values.len());
+    let last = ValueId(first.0 + 1);
+    caller.values.extend([Type::FulfilledPromise; 2]);
+    let at = caller
+        .body
+        .operations
+        .iter()
+        .position(|op| matches!(op.kind, Op::ClosureCall { .. }))
+        .unwrap();
+    let Op::ClosureCall { arguments, .. } = &mut caller.body.operations[at].kind else {
+        unreachable!()
+    };
+    arguments[0] = first;
+    arguments[2] = last;
+    caller.body.operations.splice(
+        at..at,
+        [
+            op(Op::FulfillPromise {
+                result: first,
+                input: ValueId(2),
+            }),
+            op(Op::FulfillPromise {
+                result: last,
+                input: ValueId(3),
+            }),
+        ],
+    );
+    if promise_result {
+        caller.values[5] = Type::FulfilledPromise;
+        let projected = ValueId(caller.values.len());
+        caller.values.push(Type::General);
+        caller.body.operations.push(op(Op::PromiseValue {
+            result: projected,
+            input: ValueId(5),
+        }));
+        caller.body.exit = Exit::Return(projected);
+    }
+    let callee = &mut module.functions[1];
+    callee.slots[0].ty = Type::FulfilledPromise;
+    callee.slots[2].ty = Type::FulfilledPromise;
+    callee.values[0] = Type::FulfilledPromise;
+    callee.values[2] = Type::FulfilledPromise;
+    let first = ValueId(callee.values.len());
+    let last = ValueId(first.0 + 1);
+    callee.values.extend([Type::General; 2]);
+    for operation in &mut callee.body.operations {
+        match &mut operation.kind {
+            Op::NumberFromGeneral { input, .. } if *input == ValueId(0) => *input = first,
+            Op::NumberFromGeneral { input, .. } if *input == ValueId(2) => *input = last,
+            Op::ClosureCall { arguments, .. } => *arguments = vec![ValueId(0)],
+            _ => (),
+        }
+    }
+    let at = callee
+        .body
+        .operations
+        .iter()
+        .position(|op| matches!(op.kind, Op::NumberFromGeneral { .. }))
+        .unwrap();
+    callee.body.operations.splice(
+        at..at,
+        [
+            op(Op::PromiseValue {
+                result: first,
+                input: ValueId(0),
+            }),
+            op(Op::PromiseValue {
+                result: last,
+                input: ValueId(2),
+            }),
+        ],
+    );
+    if promise_result {
+        callee.return_type = Type::FulfilledPromise;
+    }
+    if callback_signature.is_some() {
+        let callback = &mut module.functions[2];
+        callback.parameter_count = 1;
+        callback.slots.push(Slot {
+            ty: Type::FulfilledPromise,
+            owner: callback.body.id,
+            mutable: true,
+            parameter: true,
+            span,
+        });
+        callback.values = vec![Type::FulfilledPromise, Type::General, Type::Number];
+        callback.body.operations = vec![
+            op(Op::ClosureEntry { captures: vec![] }),
+            op(Op::Load {
+                result: ValueId(0),
+                slot: SlotId(0),
+            }),
+            op(Op::PromiseValue {
+                result: ValueId(1),
+                input: ValueId(0),
+            }),
+            op(Op::NumberFromGeneral {
+                result: ValueId(2),
+                input: ValueId(1),
+            }),
+        ];
+        callback.body.exit = Exit::Return(ValueId(2));
+    }
+    module
+}
+
+fn captured_promise_argument_module(kind: u8) -> Module {
+    let mut module = promise_argument_module(kind, false, false);
+    let callee = &mut module.functions[1];
+    let span = callee.body.span;
+    let op = |kind| Operation { span, kind };
+    let closure = ValueId(callee.values.len());
+    callee.values.push(Type::Closure(0));
+    callee.body.operations.splice(
+        1..1,
+        [
+            op(Op::CaptureCells {
+                cells: vec![SlotId(0)],
+            }),
+            op(Op::MakeClosure {
+                result: closure,
+                function: FunctionId(2),
+                captures: vec![SlotId(0)],
+            }),
+        ],
+    );
+    let at = callee
+        .body
+        .operations
+        .iter()
+        .position(|op| {
+            matches!(
+                op.kind,
+                Op::NumberFromGeneral {
+                    result: ValueId(4),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    callee.body.operations[at].kind = Op::ClosureCall {
+        result: ValueId(4),
+        callee: closure,
+        arguments: vec![],
+    };
+    callee.body.operations.insert(
+        at,
+        op(Op::Store {
+            slot: SlotId(0),
+            value: ValueId(2),
+        }),
+    );
+    module.functions.push(Function {
+        return_type: Type::Number,
+        parameter_count: 0,
+        slots: vec![Slot {
+            ty: Type::FulfilledPromise,
+            owner: RegionId(2),
+            mutable: true,
+            parameter: false,
+            span,
+        }],
+        values: vec![Type::FulfilledPromise, Type::General, Type::Number],
+        body: Region {
+            id: RegionId(2),
+            span,
+            operations: vec![
+                op(Op::ClosureEntry {
+                    captures: vec![SlotId(0)],
+                }),
+                op(Op::Load {
+                    result: ValueId(0),
+                    slot: SlotId(0),
+                }),
+                op(Op::PromiseValue {
+                    result: ValueId(1),
+                    input: ValueId(0),
+                }),
+                op(Op::NumberFromGeneral {
+                    result: ValueId(2),
+                    input: ValueId(1),
+                }),
+            ],
+            exit: Exit::Return(ValueId(2)),
+        },
+    });
+    module
+}
+
+fn wide_promise_argument_module(count: usize) -> Module {
+    let mut module = promise_argument_module(3, false, false);
+    module.closure_signatures.higher[0].parameters = vec![Type::FulfilledPromise; count];
+    let callee = &mut module.functions[1];
+    callee.parameter_count = count;
+    let span = callee.body.span;
+    callee.slots = (0..count)
+        .map(|_| Slot {
+            ty: Type::FulfilledPromise,
+            owner: callee.body.id,
+            mutable: true,
+            parameter: true,
+            span,
+        })
+        .collect();
+    for operation in &mut callee.body.operations {
+        if let Op::Load { result, slot } = &mut operation.kind {
+            if *result == ValueId(1) {
+                operation.kind = Op::Constant {
+                    result: ValueId(1),
+                    value: 0.0,
+                };
+            } else if *result == ValueId(2) {
+                *slot = SlotId(count - 1);
+            }
+        }
+    }
+    let caller = &mut module.functions[0];
+    let arguments = caller
+        .body
+        .operations
+        .iter_mut()
+        .find_map(|op| match &mut op.kind {
+            Op::ClosureCall { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    *arguments = vec![ValueId(7); count];
+    *arguments.last_mut().unwrap() = ValueId(8);
+    module
+}
+
+fn promise_argument_wasm_in_node(
+    module: &Module,
+    name: &str,
+    kind: u8,
+    promise_result: bool,
+    expected: &str,
+) {
+    use std::{
+        io::Write,
+        process::{Command, Stdio},
+    };
+    let profile = if promise_result {
+        Type::General
+    } else {
+        Type::Number
+    };
+    verify_module_with_entry_type(module, profile).unwrap();
+    let wasm = wat::parse_str(crate::emit::emit_with_entry_type(module, profile).unwrap()).unwrap();
+    let script = format!(
+        r#"const assert=require('node:assert/strict'),view=new DataView(new ArrayBuffer(8)),run=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from({wasm:?}))).exports.run;
+function bits(x){{if(Number.isNaN(x))return 'nan';view.setFloat64(0,x);return view.getBigUint64(0).toString(16);}}
+function encode(x){{if(x===undefined)return [0,bits(0)];if(x===null)return [1,bits(0)];if(typeof x==='boolean')return [2,bits(+x)];return [3,bits(x)];}}
+for(const[a,b]of[[4,2],[0,-0],[-0,-0],[-3.25,1.5],[NaN,Infinity],[Infinity,-Infinity],[5e-324,0]]){{const x=[undefined,null,true,a,false][{kind}],last={kind}===4?false:true,expected={promise_result}?x:({expected}),actual=run(a,b);if({promise_result})assert.deepEqual([actual[0],bits(actual[1])],encode(expected));else assert.equal(bits(actual),bits(expected),'kind '+{kind}+' inputs '+a+','+b);}}
+"#
+    );
+    let mut child = Command::new("node")
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(script.as_bytes())
+        .unwrap();
+    let result = child.wait_with_output().unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let hex = wasm
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    println!("IR_PROMISE_ARGUMENT_WASM|{name}|{hex}");
+}
+
+#[test]
+fn fulfilled_promise_and_general_arguments_remain_distinct_in_one_frame() {
+    for kind in 0..=4 {
+        let mut module = promise_argument_module(kind, false, false);
+        module.closure_signatures.higher[0]
+            .parameters
+            .insert(1, Type::General);
+        let caller = &mut module.functions[0];
+        let arguments = caller
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| match &mut op.kind {
+                Op::ClosureCall { arguments, .. } => Some(arguments),
+                _ => None,
+            })
+            .unwrap();
+        arguments.insert(1, ValueId(2));
+        let callee = &mut module.functions[1];
+        callee.parameter_count = 4;
+        let span = callee.body.span;
+        let op = |kind| Operation { span, kind };
+        callee.slots.insert(
+            1,
+            Slot {
+                ty: Type::General,
+                owner: callee.body.id,
+                mutable: true,
+                parameter: true,
+                span,
+            },
+        );
+        for operation in &mut callee.body.operations {
+            if let Op::Load { slot, .. } = &mut operation.kind
+                && slot.0 >= 1
+            {
+                slot.0 += 1;
+            }
+        }
+        let input = ValueId(callee.values.len());
+        let number = ValueId(input.0 + 1);
+        let sum = ValueId(input.0 + 2);
+        callee
+            .values
+            .extend([Type::General, Type::Number, Type::Number]);
+        callee.body.operations.extend([
+            op(Op::Load {
+                result: input,
+                slot: SlotId(1),
+            }),
+            op(Op::NumberFromGeneral {
+                result: number,
+                input,
+            }),
+            op(Op::Binary {
+                result: sum,
+                operator: Binary::Add,
+                left: ValueId(6),
+                right: number,
+            }),
+        ]);
+        callee.body.exit = Exit::Return(sum);
+        promise_argument_wasm_in_node(
+            &module,
+            &format!("general-{kind}"),
+            kind,
+            false,
+            "((+x+b)+(+last))+(+x)",
+        );
+    }
+}
+
+#[test]
+fn fulfilled_promise_parameter_cells_preserve_load_snapshots_and_later_capture_writes() {
+    for kind in 0..=4 {
+        promise_argument_wasm_in_node(
+            &captured_promise_argument_module(kind),
+            &format!("capture-{kind}"),
+            kind,
+            false,
+            "(+x+b)+(+last)",
+        );
+    }
+}
+
+#[test]
+fn thousand_fulfilled_promise_parameters_keep_private_frame_and_arity_limits() {
+    promise_argument_wasm_in_node(
+        &wide_promise_argument_module(1000),
+        "wide",
+        3,
+        false,
+        "(+x+0)+(+last)",
+    );
+    assert!(verify_module(&wide_promise_argument_module(1001)).is_err());
+}
+
+#[test]
+fn fulfilled_promise_parameters_keep_private_abi_and_logical_type_guards() {
+    for change in 0..9 {
+        let mut module = promise_argument_module(3, false, false);
+        verify_module(&module).unwrap();
+        match change {
+            0 => module.functions[0].slots[0].ty = Type::FulfilledPromise,
+            1 => module.functions[1].slots[1].ty = Type::Predicate,
+            2 => {
+                let arguments = module.functions[0]
+                    .body
+                    .operations
+                    .iter_mut()
+                    .find_map(|op| match &mut op.kind {
+                        Op::ClosureCall { arguments, .. } => Some(arguments),
+                        _ => None,
+                    })
+                    .unwrap();
+                arguments[0] = ValueId(2); // Same physical pair, wrong logical General type.
+            }
+            3 => {
+                let arguments = module.functions[0]
+                    .body
+                    .operations
+                    .iter_mut()
+                    .find_map(|op| match &mut op.kind {
+                        Op::ClosureCall { arguments, .. } => Some(arguments),
+                        _ => None,
+                    })
+                    .unwrap();
+                arguments.pop();
+            }
+            4 => module.functions[1].values[0] = Type::General,
+            5 => module.functions[1].slots[0].mutable = false,
+            6 => module.closure_signatures.higher[0].parameters[0] = Type::General,
+            7 => module.closure_signatures.higher[0].parameters[0] = Type::Closure(1001),
+            _ => {
+                module.functions[1].body.operations.remove(0);
+            }
+        }
+        assert!(
+            verify_module(&module).is_err(),
+            "invalid Promise parameter variant {change}"
+        );
+    }
+    let mut ordinary = promise_argument_module(3, false, false).functions.remove(1);
+    ordinary.body.operations.remove(0);
+    assert!(
+        verify(&ordinary)
+            .unwrap_err()
+            .contains("parameter slots must be Number")
+    );
+}
+
+#[test]
+fn fulfilled_promise_arguments_execute_in_mixed_private_frames() {
+    for kind in 0..=4 {
+        for callback in [false, true] {
+            for promise_result in [false, true] {
+                let module = promise_argument_module(kind, callback, promise_result);
+                promise_argument_wasm_in_node(
+                    &module,
+                    &format!("{kind}-{callback}-{promise_result}"),
+                    kind,
+                    promise_result,
+                    if callback {
+                        "(+x+(+x))+(+last)"
+                    } else {
+                        "(+x+b)+(+last)"
+                    },
+                );
+            }
+        }
+    }
 }
 
 #[test]

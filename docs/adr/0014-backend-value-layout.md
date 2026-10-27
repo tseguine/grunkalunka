@@ -116,7 +116,7 @@ The internal `FulfilledPromise` type reuses the sixteen-byte General tag/f64
 physical encoding for a nonescaping fulfilled completion snapshot. Explicit IR
 construction and projection keep it logically distinct from General; source
 aliases, captured cells and suspended storage use the shared layout policy.
-Promise parameters and exported Promise results remain invalid. This permits stored fulfilled primitive
+Exported Promise parameters and results remain invalid. This permits stored fulfilled primitive
 locals without prematurely choosing general Promise object identity, settlement,
 ownership or scheduler layouts. A general Promise representation can replace
 this virtual encoding when those observable operations are implemented. See
@@ -127,5 +127,12 @@ regions. This preserves the sixteen-byte snapshot without adding a physical
 call ABI. Private runtime closure signatures now also permit this distinct logical
 result kind through the established tag/f64 physical return pair. Indirect calls,
 callback contracts and returned-function chains check the logical kind separately
-from that encoding. Promise parameters and exported Promise results remain invalid;
-the public ABI and existing argument frame policy are unchanged.
+from that encoding. Private closure signatures now also allow Promise parameters,
+using sixteen-byte entries through the same caller-store/callee-load policy as
+General parameters. Mixed Promise, General, Number and function entries retain
+their logical types and ordered offsets; captured parameter cells retain the
+existing sixteen-byte allocation policy. Maintained IR fixtures execute callback
+forwarding, captures and 1,000 parameters. Source Promise argument inference remains
+unfinished; this IR contract does not itself admit those JS/TS calls. Exported
+Promise parameters/results and ordinary-helper Promise parameters remain invalid.
+The public ABI, arena limit and default fuel budget are unchanged.

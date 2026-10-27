@@ -53,6 +53,10 @@ its reaction. Runtime-selected/reassigned closures, returned functions and suppo
 callbacks now return the same fulfilled snapshots through distinct logical
 signatures and the existing physical pair. Promise parameters, mixed result
 interfaces and async-return adoption remain open.
+The private IR now supports fulfilled Promise parameters with sixteen-byte frame
+entries and distinct logical callback/return signatures. Mixed-frame, captured-cell
+and 1,000-parameter executable IR checks cover that representation. Source Promise
+argument inference/binding remains unfinished and is the next required step.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

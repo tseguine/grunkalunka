@@ -84,7 +84,7 @@ impl ClosureSignatures {
             };
             if signature.parameters.len() > 1000
                 || signature.parameters.iter().any(|ty| match ty {
-                    Type::Number | Type::General => false,
+                    Type::Number | Type::General | Type::FulfilledPromise => false,
                     Type::Closure(callback) => {
                         *callback >= id || !self.is_callback_signature(*callback)
                     }
@@ -120,7 +120,7 @@ impl ClosureSignatures {
             }
             for parameter in &signature.parameters {
                 match parameter {
-                    Type::Number | Type::General => (),
+                    Type::Number | Type::General | Type::FulfilledPromise => (),
                     Type::Closure(callback) if *callback < id => pending.push(*callback),
                     _ => return false,
                 }
@@ -1332,12 +1332,14 @@ pub(crate) fn verify_module_with_entry_type(
     for (index, signature) in module.closure_signatures.higher.iter().enumerate() {
         if signature.parameters.len() > 1000
             || (signature.result == Type::Number
-                && !signature
-                    .parameters
-                    .iter()
-                    .any(|ty| matches!(ty, Type::General | Type::Closure(_))))
+                && !signature.parameters.iter().any(|ty| {
+                    matches!(
+                        ty,
+                        Type::General | Type::Closure(_) | Type::FulfilledPromise
+                    )
+                }))
             || signature.parameters.iter().any(|ty| match ty {
-                Type::Number | Type::General => false,
+                Type::Number | Type::General | Type::FulfilledPromise => false,
                 Type::Closure(callback) => {
                     *callback >= 1001 + index
                         || !module.closure_signatures.is_callback_signature(*callback)
@@ -1443,7 +1445,7 @@ fn verify_function(
         if slot.parameter
             && slot.ty != Type::Number
             && !(closure_environment(function).is_some()
-                && (slot.ty == Type::General
+                && (matches!(slot.ty, Type::General | Type::FulfilledPromise)
                     || matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback))))
         {
             return Err(invalid(slot.span, "parameter slots must be Number"));

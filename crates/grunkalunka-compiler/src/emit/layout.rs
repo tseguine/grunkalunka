@@ -85,9 +85,7 @@ pub(super) fn value(ty: Type) -> Layout {
 pub(super) fn argument_bytes(ty: Type) -> usize {
     match ty {
         Type::Number | Type::Closure(_) => 8,
-        Type::General => 16,
-        Type::Predicate | Type::FulfilledPromise => {
-            unreachable!("Predicate and Promise closure parameters are not admitted")
-        }
+        Type::General | Type::FulfilledPromise => 16,
+        Type::Predicate => unreachable!("Predicate closure parameters are not admitted"),
     }
 }
