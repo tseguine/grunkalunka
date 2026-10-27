@@ -517,7 +517,9 @@ impl Lowering<'_, '_> {
                 let value = if let Some(kind) = self.function_arity(expression, depth + 1) {
                     self.callback_argument(expression, region, kind, depth + 1)?
                 } else {
-                    self.expression(expression, region, depth + 1)?
+                    let mode = self.local_scalar_argument_mode(expression, depth + 1);
+                    self.evaluate(expression, region, depth + 1, mode)?
+                        .expect("factory scalar argument")
                 };
                 arguments.push(value);
             }

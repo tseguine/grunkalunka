@@ -1686,9 +1686,15 @@ cells, including cells captured by nested arrows. Awaited known async calls shar
 this argument path. Inputs with a positive Number shape proof retain their
 original representation.
 Body results retain their existing typed contract: input-dependent result inference
-such as `(x=>x)(null)`, primitive factory inputs and runtime closure General-input
+such as `(x=>x)(null)` and runtime closure General-input
 inference remain separate frontend gaps. Strings, arrays and objects are outside
 this primitive domain.
+Known concise and block-bodied factories also accept these primitive inputs when
+their returned function signatures are independently established. For example,
+`(x=>()=>+x)(null)()` yields Number zero. Each application retains fresh parameter
+cells for its returned closure; argument effects finish before those cells are
+bound. Callback inputs and ordinary scalar inputs can be mixed without coercing
+the function pair or the primitive value. See [returned closures](returned-closures.md).
 Parentheses and erased TypeScript wrappers preserve the underlying function; annotations do not coerce values.
 
 Known concise arrow factories can also return an arrow or immutable closure

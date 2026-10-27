@@ -382,6 +382,18 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
+    pub(super) fn local_scalar_argument_mode(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> Mode {
+        if self.numeric_result_shape(expression, depth) {
+            Mode::Number
+        } else {
+            Mode::General
+        }
+    }
+
     pub(super) fn evaluate<'e, 'a>(
         &mut self,
         expression: &'e Expression<'a>,
@@ -486,11 +498,7 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(argument, depth, Mode::Discard));
                             continue;
                         }
-                        let scalar_mode = if self.numeric_result_shape(argument, depth) {
-                            Mode::Number
-                        } else {
-                            Mode::General
-                        };
+                        let scalar_mode = self.local_scalar_argument_mode(argument, depth);
                         let function = self.function_arity(argument, depth);
                         if let Some(arity) = function {
                             let outer = self.function_result_depth;

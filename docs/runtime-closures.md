@@ -170,8 +170,9 @@ Number returns, a captured General parameter, and the unchanged 1,000 parameter
 limit. Known scalar-result local source calls such as `(x=>+x)(null)` now specialize
 primitive inputs into their caller's regions, including awaited known async calls. Their
 parameter cells preserve primitive kinds, snapshots and captured writes. This
-does not infer input-dependent results such as `(x=>x)(null)`, primitive factory
-inputs, or General-input signatures for runtime function values; those remain
+also applies to known concise and block-bodied factories with independently
+established returned signatures. It does not infer input-dependent results such
+as `(x=>x)(null)`, or General-input signatures for runtime function values; those remain
 separate frontend gaps. The runtime arena and frame alignment are unchanged;
 new General arguments simply
 consume sixteen-byte entries within the existing allocation limit.

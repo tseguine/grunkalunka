@@ -27,6 +27,26 @@ fn known_local_primitive_inputs_preserve_async_values_and_jobs() {
     );
 }
 
+#[test]
+fn known_factory_primitive_inputs_preserve_cells_and_jobs() {
+    compare_promises(
+        &[
+            "const make=x=>()=>+x;const f=make(await null);await b;return f();",
+            "const make=x=>()=>+x;const f=make(await true);return await f();",
+            "const make=x=>{return ()=>+x;};const f=make(await null);await b;return f();",
+            "const make=x=>{if(a)return ()=>+x;return ()=>-x;};const f=make(await true);return await f();",
+            "let x=null;const make=(x,y)=>()=>+x+(+y);const f=make(x,x=await a);await b;return f()+x;",
+            "const make=x=>()=>+x;try{const f=make(await Promise.reject(null));return f();}catch(e){return e;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()

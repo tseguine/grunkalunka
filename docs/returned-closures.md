@@ -2,8 +2,20 @@
 
 Local synchronous arrow factories can have a concise body returning another
 known arrow or an existing immutable closure alias. Their results can initialize
-`const` closure bindings. Arguments remain ordered and leaf calls return Numbers;
+`const` closure bindings. Arguments remain ordered and leaf calls retain their
+independently inferred scalar result kinds;
 a returned arrow can itself be a factory. Parentheses and erased TypeScript wrappers preserve the underlying functions.
+
+Known concise and block-bodied factories accept represented primitive arguments
+(Undefined, Null, Boolean and Number) when their returned signatures are already
+established. For example, `const make=x=>()=>+x; const f=make(null); return f();`
+returns Number zero. The input's kind is preserved in its fresh mutable captured
+cell; a later argument cannot overwrite an earlier argument's saved value.
+Separate factory applications retain separate cells, while aliases share their
+original cell. This includes primitive inputs obtained by awaiting in an async
+caller, without adding a reaction job at factory invocation. Runtime-selected
+factories still require their existing Number/callback input signatures;
+input-dependent signature inference remains separate work.
 
 ```js
 export function run(a, b) {

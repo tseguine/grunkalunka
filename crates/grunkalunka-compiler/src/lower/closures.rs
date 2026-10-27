@@ -383,7 +383,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
             let value = if let Some(arity) = self.function_arity(argument, call_depth + 1) {
                 self.callback_argument(argument, region, arity, call_depth + 1)?
             } else {
-                self.expression(argument, region, call_depth + 1)?
+                let mode = self.local_scalar_argument_mode(argument, call_depth + 1);
+                self.evaluate(argument, region, call_depth + 1, mode)?
+                    .expect("factory scalar argument")
             };
             arguments.push(value);
         }

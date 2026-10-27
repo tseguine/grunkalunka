@@ -75,6 +75,41 @@ fn local_primitive_inputs_keep_existing_call_and_result_guards() {
     }
 }
 
+#[test]
+fn known_factories_capture_primitive_inputs() {
+    compare_helper_sources(&[
+        "export function run(a,b){const make=x=>()=>+x;return make(null)();}",
+        "export function run(a,b){const make=x=>()=>+x;return make(undefined)();}",
+        "export function run(a,b){const make=x=>()=>+x;return make(true)()+make(false)();}",
+        "export function run(a,b){const make=x=>()=>x===null?1:2;return make(null)();}",
+        "export function run(a,b){const make=x=>()=>x===undefined?1:2;return make(undefined)();}",
+        "export function run(a,b){const make=x=>()=>+x;const f=make(a?null:false);return f();}",
+        "export function run(a,b){const make=x=>()=>+x;const alias=make;const f=alias(a<b);return f();}",
+        "export function run(a,b){let x=null;const make=(x,y)=>()=>+x+(+y);const f=make(x,x=a);return f()+x;}",
+        "export function run(a,b){const make=x=>()=>{const old=+x;x=b;return old;};const f=make(true),g=make(null);return f()*100+f()*10+g();}",
+        "export function run(a,b){const make=(fn,x)=>()=>fn(+x);return make(y=>y+b,null)();}",
+        "export function run(a,b){const make=x=>()=>-x;return make(null)();}",
+        "export function run(a,b){const make=x=>()=>+x;return make(a)();}",
+        "export function run(a,b){const make=x=>()=>+x;const f=make(null,a=b,undefined);return f()+a;}",
+        "export function run(a,b){const make=x=>()=>x===null;return +make(null)();}",
+    ]);
+}
+
+#[test]
+fn known_block_factories_capture_primitive_inputs() {
+    compare_helper_sources(&[
+        "export function run(a,b){const make=x=>{return ()=>+x;};return make(null)();}",
+        "export function run(a,b){const make=x=>{return ()=>+x;};return make(undefined)();}",
+        "export function run(a,b){const make=x=>{return ()=>+x;};return make(true)()+make(false)();}",
+        "export function run(a,b){const make=x=>{if(a)return ()=>+x;return ()=>-x;};return make(null)();}",
+        "export function run(a,b){const make=x=>{const read=()=>+x;return read;};const f=make(true);return f();}",
+        "export function run(a,b){let x=null;const make=(x,y)=>{return ()=>+x+(+y);};const f=make(x,x=a);return f()+x;}",
+        "export function run(a,b){const make=x=>{return ()=>{const old=+x;x=b;return old;};};const f=make(true),g=make(null);return f()*100+f()*10+g();}",
+        "export function run(a,b){const make=(fn,x)=>{return ()=>fn(+x);};return make(y=>y+b,null)();}",
+        "export function run(a,b){const make=x=>{return ()=>x===null;};return +make(null)();}",
+    ]);
+}
+
 fn compare_helper_sources(sources: &[&str]) {
     use std::{
         io::Write,
