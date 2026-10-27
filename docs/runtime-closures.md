@@ -233,3 +233,10 @@ or explicit coercion position. Callee snapshots, argument effects, captures and
 async reaction order retain their existing behavior. Function-valued results
 retain their separate signatures; this does not join functions with primitives
 or add String/object result support.
+
+Constructor groups also follow complete factory returns without requiring a source
+call. An unused nested factory can therefore change between Number and Null leaf
+results using the same common General interface as its called form. Returned
+aliases, block returns and intervening shared constructors retain their original
+symbols. Traversal uses the existing eight-frame signature-query bound, evaluates
+no body or argument, and leaves recursive/unrepresented result guards in place.

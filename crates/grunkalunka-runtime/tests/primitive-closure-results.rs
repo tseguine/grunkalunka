@@ -579,6 +579,19 @@ fn immediate_selections_preserve_joined_input_and_result_kinds() {
 }
 
 #[test]
+fn nested_factory_result_groups_preserve_leaf_kinds_and_captures() {
+    compare_primitive_closure_programs(&[
+        "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",
+        "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return make(a)(b)();",
+        "const one=x=>y=>()=>x+y;const two=x=>y=>()=>null;let make=a?one:two;return make(a)(b)();",
+        "let make=x=>y=>()=>x+y;const old=make;make=x=>y=>()=>null;return old(a)(b)();",
+        "let make=x=>{return y=>{return ()=>x+y;};};make=x=>{return y=>{return ()=>null;};};return a;",
+        "let n=0;let make=x=>y=>()=>(n++,x+y);make=x=>y=>()=>(n++,null);return n;",
+        "const read=()=>a?()=>null:()=>b;const same=()=>read;let make=a?(()=>same):(()=>same);return make()()()();",
+    ]);
+}
+
+#[test]
 fn selections_join_number_and_general_result_interfaces() {
     compare_primitive_closure_programs(&[
         "const f=()=>null;const g=()=>b;let h=a?f:g;return h();",

@@ -151,6 +151,29 @@ fn immediate_selections_join_private_primitive_inputs() {
 }
 
 #[test]
+fn unused_nested_factory_results_share_scalar_leaf_interfaces() {
+    compare_function_programs(
+        &[
+            "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",
+            "const one=x=>y=>()=>x+y;const two=x=>y=>()=>null;let make=a?one:two;return a;",
+            "let make=x=>y=>()=>x+y;make&&=x=>y=>()=>null;return a;",
+            "let make=x=>y=>()=>x+y;make||=x=>y=>()=>null;return a;",
+            "let make=x=>y=>()=>x+y;make??=x=>y=>()=>null;return a;",
+            "let make=x=>{return y=>{return ()=>x+y;};};make=x=>{return y=>{return ()=>null;};};return a;",
+            "const read=()=>a?()=>null:()=>b;const same=()=>read;let make=a?(()=>same):(()=>same);return a;",
+            "let n=0;let make=x=>y=>()=>(n++,x+y);make=x=>y=>()=>(n++,null);return n;",
+        ],
+        false,
+    );
+    let plain = "export function run(a,b){let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;}";
+    let typed = "export function run(a:never,b:Missing):Wrong{let make=(x:any)=>(y:any)=>()=>x+y;make=(x:any)=>(y:any)=>()=>null;return a as Wrong;}";
+    assert_eq!(
+        compile(plain, false).unwrap().wasm,
+        compile(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn joined_result_interfaces_keep_number_only_call_sites() {
     compare_function_programs(
         &[
@@ -1893,7 +1916,6 @@ fn runtime_factory_results_require_matching_parameter_and_result_chains() {
         "let make=x=>()=>x;make=x=>x;return make(a)();",
         "let make=x=>()=>null;make=x=>y=>false;return make(a)();",
         "let make=x=>y=>()=>x+y;make=x=>()=>()=>x;return a;",
-        "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",
         "let make=x=>async()=>x;return make(a)();",
         "let make=x=>()=>x;return make(a);",
         "let make=x=>()=>x;return +make(a);",

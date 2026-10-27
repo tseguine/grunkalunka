@@ -44,6 +44,12 @@ Number/General-result callbacks, which may themselves accept further callbacks. 
 Undefined, Null, Boolean or Number, including mixed primitive results from block
 bodies, or another function satisfying the same contract. Selected or assigned
 factory values must agree on the complete signature at every returned layer.
+Source-known constructor groups now follow complete factory returns even when no
+source call establishes the nested result signature. Corresponding primitive leaves
+join through the existing General result interface; unused definitions, returned
+aliases and complete block bodies receive the same result-kind checks as called
+factories. This bounded query executes no source effects and preserves the
+eight-frame signature limit and function/primitive signature boundaries.
 
 Each IR function records its result type. The verifier checks it against the
 entry profile, lifted-body contract, constructor signature and call result.

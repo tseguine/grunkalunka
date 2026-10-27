@@ -30,6 +30,9 @@ result interfaces, preserving primitive tags, Number bits and source evaluation
 order in both engines. Source-local Number proofs remain independent of the
 private tagged result interface. General function-valued result joins and
 unrepresented String/object results remain separate work.
+Nested factory constructor groups now follow complete returns even for unused
+definitions, retaining tagged leaf results, returned aliases, captured cells and
+async caller snapshots within the existing signature-query bounds.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

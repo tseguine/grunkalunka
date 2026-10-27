@@ -2163,3 +2163,8 @@ backend layout, public host ABI, dependency or resource allowance is introduced.
 JS/TS differential execution covers both engines, native JavaScript, captured
 cells, ordered argument snapshots, numeric callers and async jobs. Function/primitive
 signature mismatches and unrepresented String/object results remain guarded.
+Constructor groups follow complete factory returns through the existing
+eight-frame signature-query horizon, independently of source call demand. This
+also admits unused nested factories whose corresponding leaves return Number or
+another represented primitive, without evaluating dormant bodies. Shared
+intermediate constructors and returned aliases retain the same bounded traversal.

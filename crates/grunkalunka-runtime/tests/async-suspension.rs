@@ -204,6 +204,25 @@ fn joined_private_inputs_preserve_async_results_and_snapshots() {
 }
 
 #[test]
+fn nested_factory_result_groups_preserve_async_snapshots_and_jobs() {
+    compare_promises(
+        &[
+            "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",
+            "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return await a;",
+            "let make=x=>y=>()=>x+y;const old=make;make=x=>y=>()=>null;const f=old(await a)(await b);return f();",
+            "let make=x=>y=>()=>x+y;const next=x=>y=>()=>null;const f=make((make=next,await a));return f(await b)();",
+            "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;try{await Promise.reject(make(a)(b)());}catch(x){await a;return x;}return b;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn joined_result_interfaces_preserve_async_values_and_snapshots() {
     compare_promises(
         &[

@@ -550,7 +550,7 @@ pub(crate) fn general_mutable_bindings(
         })
         .collect();
     let mut incoming = Vec::new();
-    let mut input_groups: BTreeSet<_> = targets
+    let mut constructor_groups: BTreeSet<_> = targets
         .values()
         .filter(|bodies| bodies.len() > 1)
         .cloned()
@@ -567,7 +567,7 @@ pub(crate) fn general_mutable_bindings(
             }
         }
         if bodies.len() > 1 {
-            input_groups.insert(bodies.clone());
+            constructor_groups.insert(bodies.clone());
         }
         for body in bodies {
             for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments) {
@@ -603,6 +603,41 @@ pub(crate) fn general_mutable_bindings(
                 }
             }
         }
+    }
+    // A factory selection also selects its returned constructors, even without
+    // a source call. Follow complete returns within the existing eight-frame
+    // signature-query bound; retain singleton frontiers because the next layer
+    // can contain a conditional selection again. This query executes no body.
+    let mut frontier = constructor_groups.clone();
+    for _ in 0..8 {
+        let mut next = BTreeSet::new();
+        for group in &frontier {
+            let mut returned = BTreeSet::new();
+            for body in group {
+                if let Some(expressions) = arrow_returns(arrows[body], semantic) {
+                    for expression in expressions {
+                        let (sources, constructors) =
+                            returns.expression(expression, &BTreeMap::new(), 0, 0);
+                        returned.extend(constructors);
+                        for source in sources {
+                            if let Some(known) = targets.get(&source) {
+                                returned.extend(known);
+                            }
+                        }
+                    }
+                }
+            }
+            if returned.len() > 1 {
+                constructor_groups.insert(returned.clone());
+            }
+            if !returned.is_empty() {
+                next.insert(returned);
+            }
+        }
+        if next == frontier {
+            break;
+        }
+        frontier = next;
     }
     // A candidate stays Number exactly when its initial value and every plain/logical RHS write
     // have Number shape and all symbol dependencies stay Number. Start with the
@@ -715,7 +750,7 @@ pub(crate) fn general_mutable_bindings(
         }));
         // Constructors sharing a value need one scalar entry interface. Keep
         // callback parameters on their separate signature path.
-        for bodies in &input_groups {
+        for bodies in &constructor_groups {
             let count = arrows[bodies.first().unwrap()].params.items.len();
             if bodies
                 .iter()
@@ -779,7 +814,7 @@ pub(crate) fn general_mutable_bindings(
     let mut general_results = BTreeSet::new();
     loop {
         let previous = general_results.len();
-        for bodies in &input_groups {
+        for bodies in &constructor_groups {
             if bodies.iter().any(|body| {
                 general_results.contains(body)
                     || !arrow_number_result_shape(
