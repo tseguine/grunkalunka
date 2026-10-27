@@ -5,14 +5,16 @@ Firefox/Gecko and WebKit in independent, non-fail-fast Linux jobs. Missing
 binaries or failed launches fail the job; no engine is silently skipped.
 It leaves the root compiler/runtime dependencies and canonical workflow alone.
 
-Hosted smoke jobs now run in the official `mcr.microsoft.com/playwright:v1.64.1-noble`
-container, which includes the three Playwright browsers and Linux dependencies.
+Hosted smoke jobs now run in the official Playwright v1.64.1 Noble
+container (version tag plus immutable digest, see the workflow), which includes the three Playwright browsers and Linux dependencies.
 The workflow still installs its optional pinned Playwright **Node package** and
 checks the browser path; it no longer invokes `install --with-deps` and downloads
 Ubuntu packages afresh on every runner. The container runs as UID 1001 rather
 than root. See [Playwright's CI guidance](https://playwright.dev/docs/ci).
 The image tag must match `tools/browser-oracles/package.json` (enforced by a
-workflow regression test), but the tag is not pinned to an immutable image digest.
+workflow regression test), and the digest is pinned to the exact image observed in all three successful
+hosted jobs on the first image trial. Future image changes require an explicit
+review and fresh hosted browser evidence.
 Actual launches and tests, not the existence of the image, are the execution gate.
 The change is subject to hosted validation, including cold image retrieval;
 preprovisioning is intended to avoid flaky apt mirrors, not a promised speedup.
