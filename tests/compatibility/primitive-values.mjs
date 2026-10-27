@@ -8,6 +8,12 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['block-factory-branch', 'let make=x=>{if(x)return ()=>null;return ()=>false;};return make(a)();'],
+  ['block-factory-undefined', 'const make=a?(x=>{return ()=>false;}):(x=>{return ()=>undefined;});return make(b)();'],
+  ['block-factory-leaf-block', 'let make=x=>{return ()=>{if(x)return b;};};return make(a)();'],
+  ['block-factory-cell', 'let make=x=>{let y=x;return ()=>{const old=y;y=null;return old;};};const f=make(a);f();return f();'],
+  ['block-factory-snapshot', 'let make=x=>{return ()=>null;};const old=make;make=x=>{return ()=>false;};return old(a)();'],
+  ['block-factory-loop', 'let make=x=>{let i=0;while(i<3){i++;if(x)return ()=>null;}return ()=>false;};return make(a)();'],
   ['factory-leaf-null', 'let make=x=>()=>null;return make(a)();'],
   ['factory-leaf-boolean', 'let make=x=>()=>true;return make(a)();'],
   ['factory-leaf-undefined', 'let make=x=>()=>undefined;return make(a)();'],

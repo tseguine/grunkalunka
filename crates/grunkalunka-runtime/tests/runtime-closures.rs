@@ -1380,6 +1380,95 @@ fn runtime_selected_factories_return_fresh_closure_pairs() {
 }
 
 #[test]
+fn runtime_block_factories_return_selected_function_pairs() {
+    compare_functions(&[
+        "let make=x=>{return ()=>x+a;};return make(b)();",
+        "const make=a?(x=>{return ()=>x+a;}):(x=>{return ()=>x-b;});return make(b)();",
+        "let make=x=>{if(x)return ()=>x+a;return ()=>x-b;};return make(a)();",
+        "let make=x=>{let y=x;return ()=>++y;};const f=make(a),g=make(b);return f()+g()+f();",
+        "let make=x=>{const f=()=>x+a;return f;};return make(b)();",
+        "let make=x=>{let f=()=>x+a;const old=f;f=()=>x-b;return old;};return make(b)();",
+        "let make=x=>{let i=0;while(i<3){i++;if(x)return ()=>i+b;}return ()=>i;};return make(a)();",
+        "let make=x=>{for(let i=0;i<3;i++){if(x)return ()=>i+b;}return ()=>x;};return make(a)();",
+        "let make=x=>{do{return ()=>x+b;}while(x);};return make(a)();",
+        "let make=x=>{{const y=x+b;return ()=>y;}};return make(a)();",
+        "let make=x=>{const f=()=>{return x+b;};return ()=>f();};return make(a)();",
+        "let make=(fn,x)=>{return ()=>fn(x);};return make(y=>y+b,a)();",
+        "let make=x=>{return ()=>x+a;};const old=make;const f=make((make=x=>{return ()=>x-b;},b));return f()+make(a)()+old(b)();",
+        "let n=0;let make=x=>{n++;if(x)return ()=>n+x;return ()=>n-x;};const f=make(a),g=make(b);return f()+g()+n;",
+        "let make=x=>{return ()=>x+a;};make&&=x=>{return ()=>x-b;};return make(b)();",
+        "let make=x=>{return ()=>x+a;};make??=x=>{return ()=>x-b;};return make(b)();",
+        "const first=x=>{return ()=>x+a;};const second=x=>()=>x-b;let make=a?first:second;return make(b)();",
+    ]);
+}
+
+#[test]
+fn runtime_block_factories_keep_completion_signature_and_target_guards() {
+    for body in [
+        "let make=x=>{if(x)return ()=>a;};return a;",
+        "let make=x=>{if(x)return ()=>a;return;};return a;",
+        "let make=x=>{if(x)return ()=>a;return b;};return a;",
+        "let make=x=>{if(x)return ()=>a;return y=>y;};return a;",
+        "let make=x=>{if(x)return ()=>a;return ()=>null;};return a;",
+        "let make=x=>{while(x){return ()=>a;}};return a;",
+        "let make=x=>{return later;const later=()=>a;};return a;",
+        "let make=x=>{return ()=>()=>x;};return a;",
+        "let make=x=>{return async()=>x;};return a;",
+        "let make=x=>{return (fn,y)=>fn(y);};return a;",
+        "let make=async x=>{return ()=>x;};return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typescript in [false, true] {
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
+            assert!(
+                compile_async(
+                    &source.replace("export function", "export async function"),
+                    typescript
+                )
+                .is_err(),
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn runtime_block_factory_result_cursors_remain_bounded_on_a_small_stack() {
+    for (count, admitted) in [(1, true), (8, true), (9, false)] {
+        let mut expression = "a".to_string();
+        for _ in 0..count {
+            expression = format!("make({expression})()");
+        }
+        let source = format!(
+            "export function run(a,b){{let make=x=>{{return ()=>x;}};return {expression};}}"
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(
+            result.is_ok(),
+            admitted,
+            "{count} nested block factory results"
+        );
+        if let Ok(artifact) = result {
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                4.0
+            );
+        } else {
+            assert!(result.err().unwrap().contains("8 active"));
+        }
+    }
+}
+
+#[test]
 fn runtime_factory_results_require_one_primitive_leaf_signature() {
     for body in [
         "const make=a?()=>()=>a:()=>x=>x;return make()();",

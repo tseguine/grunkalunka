@@ -1,6 +1,6 @@
-# Runtime-selected concise factory results
+# Runtime-selected factory results
 
-Synchronous concise factories selected at runtime return primitive-leaf function
+Synchronous concise or complete block factories selected at runtime return primitive-leaf function
 pairs in the Number, primitive-return and primitive async entry profiles:
 
 ```js
@@ -25,6 +25,13 @@ order. The callee pair is saved before arguments; arguments finish left-to-right
 before the runtime creator runs. Runtime factories may also receive numeric-leaf
 callback parameters. Their returned leaf can retain those fresh parameter cells.
 Async callers preserve factories and returned pairs across awaits and catch jobs.
+
+Block creators may return pairs from branches, nested blocks, loops and early
+returns. Every structural path must return the same full function signature;
+normal completion, bare returns and mixed primitive/function returns stay rejected.
+The existing owned-return query excludes nested arrows' returns, while the typed
+`InlineCall` boundary retains the creator's early returns without leaving its caller.
+Local initializer aliases and captured mutable cells retain their lexical identity.
 
 Logical signatures now include ordered parameter types and a result type. Numeric
 leaf IDs 0 through 1,000 keep their prior meaning: Number inputs and Number result.
@@ -64,5 +71,5 @@ physical type causes the behavioral test to fail with a Wasm type error.
 
 General function host transport, callbacks taking callbacks, factories returning
 factories, unrepresented leaf results, async factory/leaf bodies and Promise callbacks
-remain outside this slice. This feature initially admits concise runtime factories;
-known local block-result specialization is a separate source path.
+remain outside this slice. Known local block-result specialization and runtime
+block lifting share the existing typed completion machinery.

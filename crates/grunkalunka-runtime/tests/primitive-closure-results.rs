@@ -85,6 +85,22 @@ fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
 }
 
 #[test]
+fn runtime_block_factories_preserve_primitive_leaf_kinds() {
+    compare_primitive_closure_programs(&[
+        "let make=x=>{return ()=>null;};return make(a)();",
+        "let make=x=>{if(x)return ()=>null;return ()=>false;};return make(a)();",
+        "const make=a?(x=>{return ()=>null;}):(x=>{return ()=>false;});return make(b)();",
+        "let make=x=>{return ()=>{if(x)return b;};};return make(a)();",
+        "let make=x=>{return ()=>{};};return make(a)();",
+        "let make=x=>{let y=x;return ()=>{const old=y;y=null;return old;};};const f=make(a);f();return f();",
+        "let make=x=>{const y=null;return ()=>y;};return make(a)();",
+        "let make=x=>{let i=0;while(i<3){i++;if(x)return ()=>null;}return ()=>false;};return make(a)();",
+        "let make=x=>{return ()=>null;};const old=make;make=x=>{return ()=>false;};return old(a)();",
+        "let make=x=>{return ()=>null;};const f=make((make=x=>{return ()=>false;},a));return f();",
+    ]);
+}
+
+#[test]
 fn primitive_factory_leaves_keep_wide_argument_frames_and_arity_limits() {
     let body = |creators, leaves| {
         let parameters = |prefix, count| {

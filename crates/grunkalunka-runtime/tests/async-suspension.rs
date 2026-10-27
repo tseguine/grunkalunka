@@ -305,6 +305,40 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn runtime_block_factories_keep_synchronous_bodies_and_async_caller_jobs() {
+    compare_promises(
+        &[
+            "let make=x=>{return ()=>x+b;};const f=make(await a);await null;return f();",
+            "const make=a?(x=>{return ()=>x+a;}):(x=>{return ()=>x-b;});return make(await b)();",
+            "let make=x=>{let y=x;return ()=>++y;};const f=make(a);await null;const g=make(b);return f()+g()+f();",
+            "let make=x=>{let i=0;while(i<3){i++;if(x)return ()=>i+b;}return ()=>i;};const f=make(await a);await false;return f();",
+            "let make=x=>{return ()=>null;};const f=make(a);await null;return f();",
+            "let make=x=>{if(x)return ()=>null;return ()=>false;};const f=make(await a);await true;return f();",
+            "let make=x=>{return ()=>{if(x)return b;};};return await make(await a)();",
+            "let make=x=>{return ()=>null;};const old=make;await null;make=x=>{return ()=>false;};return old(a)();",
+            "let make=x=>{return ()=>x+a;};const f=make((await null,make=x=>{return ()=>x-b;},a));return f();",
+            "let n=0;let make=x=>{n++;return ()=>x+n;};const f=make(a);await null;const g=make(b);return f()+g()+n;",
+            "let make=x=>{return ()=>null;};make&&=(await null,x=>{return ()=>false;});return make(a)();",
+            "let make=x=>{return ()=>null;};make??=(await Promise.reject(a),x=>{return ()=>false;});return make(a)();",
+            "let make=(fn,x)=>{return ()=>fn(x);};const f=make(y=>y+b,await a);await null;return f();",
+            "let make=x=>{return ()=>null;};const f=make(a);try{return await Promise.reject(f());}catch(e){return e;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){let make=x=>{if(x)return ()=>null;return ()=>false;};const f=make(await a);return f();}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let make:Wrong=((x:Missing)=>{if(x)return (()=>null) as any;return (()=>false) as any;}) as any;const f=make(await(a as never));return (f as any)();}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn primitive_factory_leaves_keep_async_pairs_values_and_jobs() {
     compare_promises(
         &[

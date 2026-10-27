@@ -50,13 +50,14 @@ is rejected. A creator call and each emitted returned constructor independently
 consume the existing 256-expansion budget.
 
 Function-valued results remain internal. Exported Number/primitive signatures stay
-unchanged. [Concise runtime factories](runtime-function-results.md) additionally
-return numeric-leaf pairs through typed indirect calls; ordinary leaf closures
+unchanged. [Runtime factories](runtime-function-results.md), including complete
+block bodies, additionally return primitive-leaf pairs through typed indirect calls; ordinary leaf closures
 also support [primitive results](runtime-closures.md) from concise bodies and
 block returns and Undefined normal completion. This does not add
 function-valued host results, function coercion/equality, mixed function/primitive
-returns or incompatible logical signatures, async local arrows, optional/spread local calls, or arbitrary
-runtime functions returning functions. TypeScript annotations remain erased.
+returns or incompatible logical signatures, async local arrows, optional/spread local calls,
+factories returning factories, or returned leaves with callback parameters.
+TypeScript annotations remain erased.
 
 Focused coverage lives in `grunkalunka-runtime`'s `runtime-closures`, `local-arrows`
 and `async-suspension` suites, plus compiler IR mutation tests. The runtime cases

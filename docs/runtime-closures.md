@@ -143,7 +143,7 @@ Existing static closure specialization across await remains available.
 [Known local helpers and factories accept callback arguments](local-callback-arguments.md)
 with numeric leaf signatures, including captured callback cells after creator return.
 [Runtime-selected functions also accept numeric-leaf callbacks](higher-order-callbacks.md).
-Concise runtime factories now return primitive-leaf pairs. Callbacks taking
+Concise and complete block runtime factories now return primitive-leaf pairs. Callbacks taking
 callbacks, factories returning factories, unrepresented leaf
 return kinds, function coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.

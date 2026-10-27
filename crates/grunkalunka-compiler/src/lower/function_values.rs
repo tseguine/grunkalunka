@@ -53,6 +53,7 @@ impl Lowering<'_, '_> {
         let result = arrow
             .get_expression()
             .and_then(|body| self.function_arity_in(body, 0, &bindings, calls + 1))
+            .or_else(|| self.block_function_arity_in(arrow, 0, &bindings, calls + 1))
             .map_or_else(|| self.arrow_scalar_result(arrow, &bindings), Type::Closure);
         Some(
             self.closure_signatures
@@ -581,12 +582,6 @@ impl Lowering<'_, '_> {
             return Err(unsupported(
                 node,
                 "runtime factories return only primitive-leaf functions",
-            ));
-        }
-        if matches!(return_type, Type::Closure(_)) && arrow.get_expression().is_none() {
-            return Err(unsupported(
-                node,
-                "runtime factories currently require concise bodies",
             ));
         }
         self.charge_closure_expansion(node)?;
