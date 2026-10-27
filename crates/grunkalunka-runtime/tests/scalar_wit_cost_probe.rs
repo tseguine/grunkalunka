@@ -46,7 +46,11 @@ fn options_are_bounded_and_unknown_or_duplicate_values_reject() {
 
 fn assert_series(samples: &[f64], count: usize) {
     assert_eq!(samples.len(), count);
-    assert!(samples.iter().all(|value| value.is_finite() && *value >= 0.0));
+    assert!(
+        samples
+            .iter()
+            .all(|value| value.is_finite() && *value >= 0.0)
+    );
 }
 
 #[test]

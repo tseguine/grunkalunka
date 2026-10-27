@@ -15,11 +15,7 @@ wasmtime::component::bindgen!({
 
 pub struct BackingCell;
 const WAT: &str = include_str!("../tests/fixtures/capabilities/reader.wat");
-const CASES: [(f64, f64, f64); 3] = [
-    (4.0, 1.0, 14.0),
-    (-2.0, 3.0, 10.0),
-    (0.0, 0.0, 9.0),
-];
+const CASES: [(f64, f64, f64); 3] = [(4.0, 1.0, 14.0), (-2.0, 3.0, 10.0), (0.0, 0.0, 9.0)];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Options {
@@ -247,7 +243,9 @@ impl Report {
         write!(
             out,
             r#""outcomes":{{"grantedReads":{},"deniedReads":{},"goldenCases":{}}}}}"#,
-            self.granted_reads, self.denied_reads, CASES.len()
+            self.granted_reads,
+            self.denied_reads,
+            CASES.len()
         )
         .unwrap();
         out
