@@ -48,6 +48,15 @@ Promise/thenable values remain excluded. Async paths must return or throw;
 implicit fallthrough and existing primitive operator limits remain.
 It does not establish general exception or async conformance.
 
+Validated awaited `Promise.resolve`/`Promise.reject` payloads participate in scalar
+input analysis for known calls, runtime closures, factories and callbacks. A
+callback argument such as `await Promise.resolve(null)` can establish a General
+input without a prior call. A rejected argument skips the callback body; callee
+and earlier argument effects still occur before the await. Payload kinds and
+reaction-job order use the existing protocol. This does not admit Promise objects
+outside await or relax the unshadowed intrinsic, arity, optional-call, spread or
+type-argument guards.
+
 The maintained `async-suspension` suite compares Wasmtime and the JS adapter with
 native JS results, primitive kinds and Number bits, complete FIFO marker traces,
 and interleaved activations. Catch cases cover all represented reasons, shadowing,

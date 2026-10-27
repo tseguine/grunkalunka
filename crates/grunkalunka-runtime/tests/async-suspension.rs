@@ -128,6 +128,61 @@ fn computed_call_inputs_preserve_async_values_and_jobs() {
     );
 }
 
+#[test]
+fn awaited_intrinsic_inputs_do_not_need_a_prior_successful_call() {
+    compare_promises(
+        &[
+            "let n=0;const apply=(fn,x)=>fn(x);try{return apply(y=>(n++,+y),await Promise.reject(null));}catch(e){return n+(+e);}",
+            "const apply=(fn,x)=>fn(x);return apply(y=>y,await Promise.resolve(null));",
+            "const apply=(fn,x)=>fn(x);return apply(y=>y,await Promise.resolve(false));",
+            "const apply=(fn,x)=>fn(x);return apply(y=>y,await Promise.resolve(undefined));",
+            "const apply=(fn,x)=>fn(x);return apply(y=>y,await Promise.resolve(a));",
+            "const apply=(fn,x)=>fn(x);try{return apply(y=>y,await Promise.reject(null));}catch(e){return e;}",
+            "const apply=(fn,x)=>fn(x);try{return apply(y=>y,await Promise.reject(false));}catch(e){return e;}",
+            "const apply=(fn,x)=>fn(x);try{return apply(y=>y,await Promise.reject(undefined));}catch(e){return e;}",
+            "const apply=(fn,x)=>fn(x);try{return apply(y=>y,await Promise.reject(a));}catch(e){return e;}",
+            "let n=0;const apply=(fn,x)=>fn(x);try{return apply((n++,y=>+y),await Promise.reject(null));}catch(e){return n+(+e);}",
+            "const apply=(fn,x)=>fn(x);const relay=(f,x)=>apply(f,x);return relay(y=>y,await Promise.resolve(true));",
+            "let f=x=>x;return f(await Promise.resolve(null));",
+            "let make=x=>()=>x;const f=make(await Promise.resolve(false));await b;return f();",
+            "const f=async x=>{await b;return x;};return await f(await Promise.resolve(null));",
+            "let f=x=>+x;return 1/f(await Promise.resolve(null));",
+            "let f=x=>x;return f(await (Promise.resolve((null))));",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn awaited_input_facts_keep_intrinsic_and_promise_object_guards() {
+    for body in [
+        "const f=x=>x;return f(Promise.resolve(null));",
+        "const Promise=a;const f=x=>x;return f(await Promise.resolve(null));",
+        "const f=x=>x;return f(await Promise.resolve?.(null));",
+        "const f=x=>x;return f(await Promise.resolve(null,a));",
+        "const f=x=>x;return f(await Promise.resolve(...a));",
+        "const f=x=>x;return f(await Promise.resolve());",
+        "const f=x=>x;return f(await Promise.other(null));",
+    ] {
+        let source = source_for(body);
+        for typescript in [false, true] {
+            assert!(compile_async(&source, typescript).is_err(), "{source}");
+        }
+    }
+    assert!(
+        compile_async(
+            &source_for("const f=x=>x;return f(await Promise.resolve<number>(null));"),
+            true
+        )
+        .is_err()
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()
