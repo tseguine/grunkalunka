@@ -1,3 +1,4 @@
+import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
 import { numericBitNot } from './numeric-bit-not.mjs';
 import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
@@ -212,7 +213,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 852);
+  assert.equal(inventory.records.size, 849);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -662,6 +663,19 @@ test('primitive unary bitwise not retains both exact prior rejection sources',()
 };
   for(const [id,hash] of Object.entries(expected)){
     const fixture=numericBitNot.find(([name])=>name===id);
+    assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
+    assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
+  }
+});
+
+test('primitive bitwise compounds retain three exact prior rejection sources',()=>{
+  const expected={
+    "compound-boolean-rhs": "cf12a79979695569d2e1a6c85d48e9560c1f8d12289ffe2396b28dce45e62ef1",
+    "compound-null-rhs": "8eda9e1c4b3fc6ba33b7300fa162d6c7f5082ff4b48aea3bed79ddf7fdb3b189",
+    "compound-predicate-rhs": "11d7797132e5f36c7bc0ffa821d727722227a7d7d1c2ae881c0b7ed0dca5b748"
+};
+  for(const [id,hash] of Object.entries(expected)){
+    const fixture=numericBitwiseCompounds.find(([name])=>name===id);
     assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
     assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
   }

@@ -305,6 +305,37 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn bitwise_compounds_preserve_async_snapshots_stores_and_jobs() {
+    let mut bodies = Vec::new();
+    for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
+        bodies.push(format!("return a{operator}=(await null);"));
+        bodies.push(format!(
+            "let x=null;const r=(x{operator}=(await(x=a,b)));return x===r?r:NaN;"
+        ));
+        bodies.push(format!(
+            "let x=a;const r=(x{operator}=(await(x=false,b)));return x===r?r:NaN;"
+        ));
+        bodies.push(format!("let x=undefined;return x{operator}=(await(a<b));"));
+        bodies.push(format!("let x=null;try{{x{operator}=(await Promise.reject(b));}}catch(e){{return x===null?e:NaN;}}return a;"));
+    }
+    compare_promises(
+        &bodies.iter().map(String::as_str).collect::<Vec<_>>(),
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){let x=null;return x|=(await(a<b));}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let x:Wrong=null;return (x|=(await(a<b))) satisfies Wrong;}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn bitwise_not_primitive_inputs_preserve_async_results_and_jobs() {
     compare_promises(
         &[

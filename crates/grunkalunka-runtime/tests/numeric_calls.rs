@@ -111,6 +111,74 @@ fn compare_helper_sources(sources: &[&str]) {
 }
 
 #[test]
+fn bitwise_compounds_convert_primitive_operands() {
+    let mut sources = vec![
+        "export function run(a,b) {let value=null; value&=a; return a;}".to_string(),
+        "export function run(a,b) {let value=null; value<<=a; return a;}".to_string(),
+        "export function run(a,b) {a&=true; return a;}".to_string(),
+        "export function run(a,b) {a>>>=false; return a;}".to_string(),
+        "export function run(a,b) { a&=true; return a; }".to_string(),
+        "export function run(a,b) { return a&=true; }".to_string(),
+        "export function run(a,b) { return a>>=null; }".to_string(),
+        "export function run(a,b) { return a|=(a<b); }".to_string(),
+    ];
+    for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
+        for primitive in ["undefined", "null", "true", "false", "a<b"] {
+            for body in [
+                format!("return a{operator}=({primitive});"),
+                format!("let x={primitive};const r=(x{operator}=b);return x===r?r:NaN;"),
+            ] {
+                sources.push(format!("export function run(a,b){{{body}}}"));
+            }
+        }
+        for body in [
+            format!("let x=null;const r=(x{operator}=(x=a,b));return x===r?r:NaN;"),
+            format!("let x=a;const r=(x{operator}=(x=false,b));return x===r?r:NaN;"),
+            format!(
+                "let x=undefined;const mutate=()=>x=a;const r=(x{operator}=mutate());return x===r?r:NaN;"
+            ),
+            format!("let x=null;const read=()=>x;x{operator}=b;return +read();"),
+            format!("let x=null;x=4294967297.9;return x{operator}=b;"),
+            format!("let x=a;return x{operator}=4294967329.5;"),
+            format!("a{operator}=null;return a;"),
+        ] {
+            sources.push(format!("export function run(a,b){{{body}}}"));
+        }
+    }
+    compare_helper_sources(&sources.iter().map(String::as_str).collect::<Vec<_>>());
+}
+
+#[test]
+fn bitwise_compounds_keep_target_and_unsupported_operand_guards() {
+    for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
+        for rhs in ["\"3\"", "{}", "1n", "()=>a", "missing", "a**b"] {
+            for body in [
+                format!("return a{operator}=({rhs});"),
+                format!("let x=null;return x{operator}=({rhs});"),
+            ] {
+                let source = format!("export function run(a,b){{{body}}}");
+                for ts in [false, true] {
+                    assert!(compile(&source, ts).is_err(), "{source}");
+                    assert!(compile_value(&source, ts).is_err(), "{source}");
+                }
+            }
+        }
+        for body in [
+            format!("const x=null;return x{operator}=a;"),
+            format!("return x{operator}=a;let x=null;"),
+            format!("return a.x{operator}=null;"),
+            format!("let f=()=>a;return f{operator}=null;"),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                assert!(compile(&source, ts).is_err(), "{source}");
+                assert!(compile_value(&source, ts).is_err(), "{source}");
+            }
+        }
+    }
+}
+
+#[test]
 fn bitwise_not_converts_primitive_operands() {
     let mut sources = vec!["export function run(a,b) { return ~null; }".to_string()];
     for body in [
@@ -194,7 +262,7 @@ fn binary_bitwise_converts_primitive_operands() {
 }
 
 #[test]
-fn binary_bitwise_primitive_inputs_keep_unsupported_and_compound_guards() {
+fn binary_bitwise_primitive_inputs_keep_unsupported_operand_guards() {
     for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
         for operand in ["\"3\"", "{}", "1n", "()=>a"] {
             for body in [
@@ -212,7 +280,6 @@ fn binary_bitwise_primitive_inputs_keep_unsupported_and_compound_guards() {
             format!("return a{operator}missing;"),
             format!("return a{operator}(b**2);"),
             format!("return a{operator}(a+\"3\");"),
-            format!("a{operator}=null;return a;"),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for ts in [false, true] {

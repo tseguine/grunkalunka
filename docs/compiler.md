@@ -592,8 +592,11 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   expressions write to an initialized parameter or
   `let` binding and return the assigned number. Compound operations snapshot the
   target before evaluating the RHS once, apply the corresponding numeric Binary
-  operation, then store and yield the computed result. `>>>=` retains unsigned
-  Number results. Prefix/postfix `++` and `--` store the updated
+  operation, then store and yield the computed result. Arithmetic and bitwise/shift
+  compounds accept represented Undefined, Null, Boolean and Number operands;
+  General target cells receive a packed Number result. Plain assignment keeps its
+  separate source contract. `>>>=` retains unsigned Number results. Prefix/postfix
+  `++` and `--` store the updated
   number and return the new/old snapshot respectively. The RHS runs once; a typed
   IR value and separate
   Wasm temporary preserve its snapshot across the store. Numeric expression
@@ -2051,3 +2054,27 @@ guards and the runtime null-binding guard are retained as positives. Corpus 83
 promotes `bit-not-null` and `bit-not-undefined` with exact original source hashes,
 and adds the two exact compiler selection sources and a General snapshot pair.
 It has 1,940 numeric pairs, 175 primitive pairs and 852 rejections.
+
+### Primitive bitwise and shift compound assignments
+
+`&=`, `|=`, `^=`, `<<=`, `>>=` and `>>>=` now reuse the arithmetic compound path
+for represented Undefined, Null, Boolean and Number operands. Mutable Number and
+General identifier targets capture their old value before evaluating the RHS once,
+including RHS writes and waits. Existing integer operations compute a Number,
+store it in the same target, and yield that result. General cells receive the
+existing canonical Number packing. Conversion is pure for the admitted primitive
+kinds; effectful object conversion is outside this contract. No IR, emitter,
+runtime ABI or dependency change is needed.
+
+One hundred and ten full-source cases compare JS/TS, Number/Value profiles and
+native JS, Node-Wasm and Wasmtime. Thirty async bodies check saved left values, stored kind,
+rejections without a store and job ordering; an erased TS example has identical
+Wasm. Strict equality between the assignment result and stored General cell checks
+that a Number kind is stored, and closure reads observe the new value. Const,
+property, function and invalid binding targets and unsupported RHS kinds stay guarded.
+The exact old compiler `a&=true; return a;` source is now positive coverage.
+
+Corpus 84 promotes three exact former Boolean, Null and predicate RHS sources,
+pins their original hashes and adds six General-cell snapshot pairs. It has 1,949
+numeric pairs, 175 primitive pairs and 849 rejections. Plain assignment and other
+operator admission remain unchanged.

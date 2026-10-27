@@ -1215,14 +1215,12 @@ mod tests {
     }
 
     #[test]
-    fn boolean_arithmetic_keeps_other_operand_boundaries() {
+    fn bitwise_compound_original_boolean_guard_is_admitted() {
         let source = "export function run(a,b) { a&=true; return a; }";
-        assert!(
-            compile(source, false)
-                .err()
-                .unwrap()
-                .contains("expression is outside")
-        );
+        for typescript in [false, true] {
+            compile(source, typescript).unwrap();
+            crate::compile_value(source, typescript).unwrap();
+        }
     }
 }
 

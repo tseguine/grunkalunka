@@ -3274,13 +3274,6 @@
       "group": "invalid-compound-target"
     },
     {
-      "id": "compound-boolean-rhs",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "cf12a79979695569d2e1a6c85d48e9560c1f8d12289ffe2396b28dce45e62ef1",
-      "group": "boolean-values"
-    },
-    {
       "id": "compound-string-rhs",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -3302,13 +3295,6 @@
       "group": "bigint-values"
     },
     {
-      "id": "compound-null-rhs",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "8eda9e1c4b3fc6ba33b7300fa162d6c7f5082ff4b48aea3bed79ddf7fdb3b189",
-      "group": "nullish-values"
-    },
-    {
       "id": "compound-call-rhs",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -3321,13 +3307,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "421cade2d382faebd65d7f00c1cd9c8c8e3dfdb9d2d8324ac71ec68b579bccc4",
       "group": "function-calls"
-    },
-    {
-      "id": "compound-predicate-rhs",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "11d7797132e5f36c7bc0ffa821d727722227a7d7d1c2ae881c0b7ed0dca5b748",
-      "group": "boolean-values"
     },
     {
       "id": "compound-depth-limit",

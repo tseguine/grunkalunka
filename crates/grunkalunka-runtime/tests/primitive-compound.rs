@@ -225,6 +225,22 @@ for(const c of cases){{const original=Function('"use strict";'+c.source.replace(
 fn exact_previous_compound_guards_execute_original_sources() {
     let cases = [
         (
+            "export function run(a,b) {let value=null; value&=a; return a;}",
+            4.0,
+            false,
+        ),
+        (
+            "export function run(a,b) {let value=null; value<<=a; return a;}",
+            4.0,
+            false,
+        ),
+        ("export function run(a,b) {a&=true; return a;}", 0.0, false),
+        (
+            "export function run(a,b) {a>>>=false; return a;}",
+            4.0,
+            false,
+        ),
+        (
             "export function run(a,b) { const flag=true; a+=flag; return a; }",
             5.0,
             false,
@@ -297,20 +313,16 @@ fn exact_previous_compound_guards_execute_original_sources() {
     }
     node(
         &format!(
-            r#"const assert=require('node:assert/strict'); for(const c of [{}]){{const original=Function('"use strict";'+c.source.replace('export function','function')+';return run;')();assert.equal(original(4,2),c.expected);let n=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from(c.bytes))).exports.run(4,2);if(c.value){{assert.equal(n[0],3);n=n[1];}}assert.equal(n,c.expected);}}console.log('PASS 26 exact compound guard modules');"#,
+            r#"const assert=require('node:assert/strict'); for(const c of [{}]){{const original=Function('"use strict";'+c.source.replace('export function','function')+';return run;')();assert.equal(original(4,2),c.expected);let n=new WebAssembly.Instance(new WebAssembly.Module(Uint8Array.from(c.bytes))).exports.run(4,2);if(c.value){{assert.equal(n[0],3);n=n[1];}}assert.equal(n,c.expected);}}console.log('PASS 42 exact compound guard modules');"#,
             records.join(",")
         ),
-        "PASS 26 exact compound guard modules",
+        "PASS 42 exact compound guard modules",
     );
 }
 
 #[test]
 fn arithmetic_compounds_keep_other_operator_kind_and_binding_boundaries() {
     for body in [
-        "let value=null; value&=a; return a;",
-        "let value=null; value<<=a; return a;",
-        "a&=true; return a;",
-        "a>>>=false; return a;",
         "let value=null; value**=a; return a;",
         "const value=null; value+=a; return a;",
         "value+=a; let value=null; return a;",

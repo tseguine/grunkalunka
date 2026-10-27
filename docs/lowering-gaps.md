@@ -728,14 +728,22 @@ and Number values with the existing ToNumber lowering. Existing integer conversi
 and shift masking are unchanged. Corpus 82 promotes 32 exact old sources, preserving
 their original JS or TS source hashes, and retains 854 rejection observations.
 General-binding values are captured before later writes and async waits. Strings,
-objects, BigInts, functions and compound assignments with primitive RHS values
-remain separate gaps; the following unit supplies broader unary bitwise-not
-conversion. See
+objects, BigInts and functions remain separate gaps. Subsequent units supply
+broader unary bitwise-not and primitive compound conversion. See
 [primitive bitwise operands](compiler.md#primitive-operands-to-binary-bitwise-and-shift-operators).
 
 Unary `~` now converts represented Undefined, Null, Boolean and Number operands
 using the same shared operand evaluator as unary plus/minus. General primitive
 results, including Boolean logical/conditional values and awaited values, are
 admitted. Corpus 83 promotes both exact original nullish bit-not sources and keeps
-852 rejection observations. Unsupported source kinds and compound assignments
-remain separate. See [primitive bitwise not](compiler.md#primitive-operands-to-unary-bitwise-not).
+852 rejection observations. Unsupported source kinds remain separate; the next
+unit supplies primitive bitwise/shift compounds. See
+[primitive bitwise not](compiler.md#primitive-operands-to-unary-bitwise-not).
+
+Bitwise and shift compound assignments now also convert the represented primitive
+domain. Mutable Number/General identifier targets preserve their old value before
+RHS effects and waits, then store and yield a Number. General cells receive the
+existing Number packing. Corpus 84 promotes three exact original RHS sources and
+retains 849 rejection observations. Const/property/function targets, unsupported
+source kinds and effectful object conversions remain gaps. See
+[primitive compounds](compiler.md#primitive-bitwise-and-shift-compound-assignments).

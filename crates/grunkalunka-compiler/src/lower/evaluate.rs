@@ -2040,36 +2040,18 @@ impl Lowering<'_, '_> {
                                 ));
                             }
                             let general = self.slots[slot.0].ty == Type::General;
-                            let arithmetic = matches!(
-                                operator,
-                                Some(
-                                    Binary::Add
-                                        | Binary::Subtract
-                                        | Binary::Multiply
-                                        | Binary::Divide
-                                        | Binary::Remainder
-                                )
-                            );
-                            if general {
-                                if operator.is_some() && !arithmetic {
-                                    return Err(unsupported(
-                                        node,
-                                        "General compound assignments require numeric coercion support",
-                                    ));
-                                }
-                                if operator.is_none() {
-                                    work.push(Work::StoreGeneral { node, slot });
-                                    work.push(Work::Eval(
-                                        &assignment.right,
-                                        depth + 1,
-                                        if matches!(mode, Mode::Number) {
-                                            Mode::Number
-                                        } else {
-                                            Mode::General
-                                        },
-                                    ));
-                                    continue;
-                                }
+                            if general && operator.is_none() {
+                                work.push(Work::StoreGeneral { node, slot });
+                                work.push(Work::Eval(
+                                    &assignment.right,
+                                    depth + 1,
+                                    if matches!(mode, Mode::Number) {
+                                        Mode::Number
+                                    } else {
+                                        Mode::General
+                                    },
+                                ));
+                                continue;
                             }
                             let previous = if operator.is_some() {
                                 let result =
@@ -2088,7 +2070,7 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(
                                 &assignment.right,
                                 depth + 1,
-                                if arithmetic {
+                                if operator.is_some() {
                                     Mode::Arithmetic
                                 } else {
                                     Mode::Number

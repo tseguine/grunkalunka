@@ -38,8 +38,17 @@ numericBitwiseCompounds.push(
   ['compound-ts-local-wrapper', 'let x=a; return x >>>= b;', 'let x:number=a; return <number>(x>>>=b);'],
 );
 
+for(const [id,sourceJS] of [
+ ["compound-boolean-rhs", "export function run(a,b) { return a&=true; }"],
+ ["compound-null-rhs", "export function run(a,b) { return a>>=null; }"],
+ ["compound-predicate-rhs", "export function run(a,b) { return a|=(a<b); }"],
+])numericBitwiseCompounds.push([id,'','',undefined,undefined,{sourceJS,sourceTS:sourceJS}]);
+for(const [op,name] of [['&','and'],['|','or'],['^','xor'],['<<','left'],['>>','right'],['>>>','unsigned']]){
+ const body=`let x=a;const r=(x${op}=(x=false,b));return x===r?r:NaN;`;
+ numericBitwiseCompounds.push([`primitive-compound-snapshot-${name}`,body,body]);
+}
+
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const assignment = 'only =, +=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>= and >>>= assignments are admitted';
 const target = 'assignment target must be an initialized identifier';
@@ -55,14 +64,11 @@ const negatives = [
   ['compound-nan-target', 'return NaN&=a;', reference],
   ['compound-property-target', 'return a.x|=b;', target],
   ['compound-destructuring-target', 'return [a]^=b;', 'parse diagnostics'],
-  ['compound-boolean-rhs', 'return a&=true;', expression],
   ['compound-string-rhs', 'return a|="3";', expression],
   ['compound-object-rhs', 'return a^=({});', expression],
   ['compound-bigint-rhs', 'return a<<=1n;', expression],
-  ['compound-null-rhs', 'return a>>=null;', expression],
   ['compound-call-rhs', 'return a>>>=Math.random();', expression],
   ['compound-unselected-call', 'return 1?a:(a&=Math.random());', expression],
-  ['compound-predicate-rhs', 'return a|=(a<b);', binary],
   ['compound-depth-limit', `return ${'a&='.repeat(129)}b;`, 'expression nesting exceeds'],
   ['compound-statement-limit', `${'a&=b;'.repeat(256)} return a;`, 'at most 256 statements'],
   ['compound-local-limit', `const ${Array.from({length:129},(_,i)=>`x${i}=(a&=b)`).join(',')}; return x128;`, 'at most 128 source locals'],
