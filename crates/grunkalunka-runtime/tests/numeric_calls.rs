@@ -111,6 +111,59 @@ fn compare_helper_sources(sources: &[&str]) {
 }
 
 #[test]
+fn unary_math_evaluates_surplus_arguments() {
+    let mut sources = vec![
+        "export function run(a,b) { return Math.abs(a,b); }".to_string(),
+        "export function run(a,b){return Math.abs(a,b);}".to_string(),
+    ];
+    for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
+        if method != "abs" {
+            sources.push(format!(
+                "export function run(a,b) {{ return Math.{method}(a,b); }}"
+            ));
+        }
+        for body in [
+            format!("let x=a;return Math.{method}(x,x=b)+x;"),
+            format!("return Math.{method}(a,(a=b,null),false,undefined)+a;"),
+            format!("const make=offset=>(a=offset,()=>offset);return Math.{method}(a,make(b))+a;"),
+            format!("return Math.{method}(a,()=>null);"),
+            format!("return Math.{method}(a,Math.abs(b,a=b))+a;"),
+            format!("const p=a<b;return Math.{method}(a,p);"),
+        ] {
+            sources.push(format!("export function run(a,b){{{body}}}"));
+        }
+    }
+    compare_helper_sources(&sources.iter().map(String::as_str).collect::<Vec<_>>());
+}
+
+#[test]
+fn unary_math_surplus_arguments_keep_width_type_and_namespace_guards() {
+    let extras = vec!["b"; 999].join(",");
+    for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
+        let source = format!("export function run(a,b){{return Math.{method}(a,{extras});}}");
+        compare_helper_sources(&[&source]);
+        for body in [
+            format!("return Math.{method}(a,{extras},b);"),
+            format!("return Math.{method}();"),
+            format!("return Math.{method}(true,a);"),
+            format!("return Math.{method}(null,a);"),
+            format!("return Math.{method}(a,...b);"),
+            format!("return Math.{method}?.(a,b);"),
+            format!("let Math=a;return Math.{method}(a,b);"),
+            format!("return Math.{method}(a,missing);"),
+            format!("return Math.{method}(a,()=>missing);"),
+            format!("return Math.{method}(a,Math.{method}=b);"),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                assert!(compile(&source, ts).is_err(), "{source}");
+                assert!(compile_value(&source, ts).is_err(), "{source}");
+            }
+        }
+    }
+}
+
+#[test]
 fn helper_surplus_arguments_keep_width_input_and_source_guards() {
     let arguments = vec!["a"; 1000].join(",");
     let source = format!(
@@ -130,7 +183,6 @@ fn helper_surplus_arguments_keep_width_input_and_source_guards() {
         "function identity(x){return x;} export function run(a,b){return identity(a,()=>missing);}"
             .into(),
         "function identity(x){return x;} export function run(a,b){return identity(a,a**b);}".into(),
-        "export function run(a,b){return Math.abs(a,b);}".into(),
     ] {
         for ts in [false, true] {
             assert!(compile(&source, ts).is_err(), "{source}");

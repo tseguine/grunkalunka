@@ -462,11 +462,14 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
 - The self-contained numeric execution profile provides pristine specified
   Math.abs, Math.sqrt, Math.floor, Math.ceil and Math.trunc intrinsics, rather than
   references to an external JavaScript realm's mutable Math object. Each requires
-  a nonoptional static call, exactly one Number argument and an actual unresolved
-  semantic value reference for Math. Resolved parameter/local/TDZ/module-helper
-  shadows never fall back by spelling. Ordinary numeric bindings named Math may
-  still mutate; type-only Math names do not create value bindings. Arguments run
-  eagerly once and produce captured Number snapshots. Abs emits `f64.abs`;
+  a nonoptional static call, a first Number argument and an actual unresolved
+  semantic value reference for Math. Up to 1,000 ordinary arguments may be
+  supplied; surplus expressions run left-to-right and discard their values. Resolved
+  parameter/local/TDZ/module-helper shadows never fall back by spelling. Ordinary numeric bindings named Math may
+  still mutate; type-only Math names do not create value bindings. The first
+  Number is saved before surplus argument effects and waits; the intrinsic runs
+  after all arguments finish. Missing inputs remain guarded separately.
+  Abs emits `f64.abs`;
   sqrt/floor/ceil/trunc emit their corresponding `f64` opcode directly. There is
   no ToNumber coercion, integer conversion or generated arithmetic helper.
   Non-NaNs compare exact binary64 bits; NaNs compare by class, not payload/sign.
@@ -1957,3 +1960,14 @@ spread/optional/generic calls and builtin argument rules remain separate limits.
 The exact former `direct-call-extra` source is promoted and pinned by SHA256;
 `direct-call-missing` keeps its source with an accurate missing-input diagnostic.
 Corpus 78 has 1,867 numeric pairs and 913 rejections; the primitive corpus has 175 pairs.
+
+
+The five pristine unary Math intrinsics now evaluate surplus ordinary arguments
+without changing their first-argument Number contract. The shared evaluator retains
+that snapshot, discards later values after their effects/validation and applies the
+existing unary IR operation. Async caller waits and rejection order are preserved;
+there is no new IR operation, calling convention or dependency. Five exact former
+extra-argument rejection sources are promoted and pinned by SHA256. Missing-input
+diagnostics now say at least one Number argument; default-Undefined behavior and
+primitive coercion remain separate work. Corpus 79 has 1,873 numeric pairs and
+908 rejections; primitive coverage remains 175 pairs.

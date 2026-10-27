@@ -631,7 +631,11 @@ source call counts. Top-level numeric helpers also evaluate surplus arguments
 and pass only declared Number inputs through their unchanged ABI, including
 recursive calls and async caller waits. The original `direct-call-extra` source
 now executes unchanged; `direct-call-missing` remains rejected with updated wording.
-Missing/spread/optional/generic forms and builtin argument rules stay guarded.
+Missing/spread/optional/generic forms stay guarded. The five supported pristine
+unary Math functions also evaluate surplus arguments and preserve their first
+Number snapshot before effects/awaits. Their five original extra-argument guards
+now execute unchanged; missing operands and primitive coercions remain open,
+along with namespace, unsupported operand and builtin shape rules.
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls

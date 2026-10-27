@@ -283,8 +283,14 @@ const CASES: &[(&str, &str, bool, bool)] = &[
         false,
     ),
     (
-        "math-arity",
+        "math-surplus-child",
         "export function run(a,b) { return Math.abs(a ** b,b); }",
+        false,
+        false,
+    ),
+    (
+        "math-missing",
+        "export function run(a,b) { return Math.abs(); }",
         false,
         false,
     ),
@@ -362,8 +368,11 @@ fn evaluator_control_characterization() {
                     "spread-before-next" => {
                         "unsupported at bytes 66..80: spread call arguments are not admitted"
                     }
-                    "math-arity" => {
-                        "unsupported at bytes 34..52: Math.abs requires exactly one numeric argument"
+                    "math-surplus-child" => {
+                        "unsupported at bytes 43..49: only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted"
+                    }
+                    "math-missing" => {
+                        "unsupported at bytes 34..44: Math.abs requires at least one numeric argument"
                     }
                     "math-spread" => {
                         "unsupported at bytes 34..48: spread call arguments are not admitted"

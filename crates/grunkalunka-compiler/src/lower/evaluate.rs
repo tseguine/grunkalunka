@@ -162,6 +162,14 @@ enum Work<'e, 'a> {
         arguments: Vec<ValueId>,
         depth: usize,
     },
+    MathCall {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        operator: Unary,
+        index: usize,
+        input: Option<ValueId>,
+        depth: usize,
+    },
     LocalCall {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
@@ -1019,6 +1027,52 @@ impl Lowering<'_, '_> {
                         ));
                     }
                 }
+                Work::MathCall {
+                    node,
+                    call,
+                    operator,
+                    index,
+                    mut input,
+                    depth,
+                } => {
+                    if index == 1 {
+                        input = Some(values.pop().expect("Math argument").number());
+                    }
+                    if index == call.arguments.len() {
+                        let result = self.value(Type::Number);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::Unary {
+                                result,
+                                operator,
+                                input: input.expect("checked Math argument"),
+                            },
+                        );
+                        values.push(Value::Number(result));
+                    } else {
+                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
+                            unsupported(node, "spread call arguments are not admitted")
+                        })?;
+                        work.push(Work::MathCall {
+                            node,
+                            call,
+                            operator,
+                            index: index + 1,
+                            input,
+                            depth,
+                        });
+                        work.push(Work::Eval(
+                            argument,
+                            depth,
+                            if index == 0 {
+                                Mode::Number
+                            } else {
+                                Mode::Discard
+                            },
+                        ));
+                    }
+                }
                 Work::Sequence {
                     remaining,
                     last,
@@ -1836,22 +1890,28 @@ impl Lowering<'_, '_> {
                         }
                         Expression::CallExpression(call) => {
                             if let Some((operator, method)) = math_unary(call, self.semantic) {
-                                if call.arguments.len() != 1 {
+                                if call.arguments.is_empty() {
                                     return Err(unsupported(
                                         node,
                                         &format!(
-                                            "Math.{method} requires exactly one numeric argument"
+                                            "Math.{method} requires at least one numeric argument"
                                         ),
                                     ));
                                 }
-                                let Some(argument) = call.arguments[0].as_expression() else {
+                                if call.arguments.len() > 1000 {
                                     return Err(unsupported(
                                         node,
-                                        "spread call arguments are not admitted",
+                                        "at most 1000 ordinary Math arguments are admitted",
                                     ));
-                                };
-                                work.push(Work::Unary(node, operator));
-                                work.push(Work::Eval(argument, depth + 1, Mode::Number));
+                                }
+                                work.push(Work::MathCall {
+                                    node,
+                                    call,
+                                    operator,
+                                    index: 0,
+                                    input: None,
+                                    depth: depth + 1,
+                                });
                             } else {
                                 let Expression::Identifier(identifier) = &call.callee else {
                                     return Err(unsupported(

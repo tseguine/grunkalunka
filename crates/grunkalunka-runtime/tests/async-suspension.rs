@@ -305,6 +305,37 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn unary_math_surplus_arguments_preserve_async_snapshots_and_jobs() {
+    let mut bodies = Vec::new();
+    for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
+        bodies.push(format!(
+            "let x=a;return Math.{method}(x,await(x=b,null))+x;"
+        ));
+        bodies.push(format!(
+            "return Math.{method}(await a,await(a=b,null),await false)+a;"
+        ));
+        bodies.push(format!(
+            "try{{return Math.{method}(a,await Promise.reject(b));}}catch(e){{return e;}}"
+        ));
+    }
+    compare_promises(
+        &bodies.iter().map(String::as_str).collect::<Vec<_>>(),
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){return Math.abs(a,await(a=b,null));}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{return (Math.abs(a as never,await(a=b,null as never)) satisfies Wrong);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn numeric_helper_surplus_arguments_preserve_async_snapshots_and_jobs() {
     let sources=[
         "function identity(x){return x;} export async function run(a,b){return identity(a,await(a=b,null))+a;}",

@@ -1,3 +1,5 @@
+import { numericMathAbs } from './numeric-math-abs.mjs';
+import { numericMathUnary } from './numeric-math-unary.mjs';
 import { numericCalls } from './numeric-calls.mjs';
 import { localArrows, localArrowNumericOrigins } from './local-arrows.mjs';
 import { voidPrograms, promotedVoidGap } from './void.mjs';
@@ -208,7 +210,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 913);
+  assert.equal(inventory.records.size, 908);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -464,4 +466,14 @@ test('numeric helper surplus arguments retain the exact prior rejection source',
   assert.ok(!rejected.some(([id])=>id==='direct-call-extra'));
   assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),
     '44f9f34913c1811b2c675bb230c2a191b500232dedd3e13284c7a7e6e26a0356');
+});
+
+
+test('unary Math surplus calls retain five exact prior rejection sources',()=>{
+  const expected={"math-abs-extra": "b3cc7508e2f1fa4daad8ce46a99444d712dd956618b080e646432aac0d459e9c", "math-unary-sqrt-extra": "8387140f9ceadb91217f64f7f6668821ec9c482f10d36a06846d21b268719f82", "math-unary-floor-extra": "0bbe82c0665e7515d002b3961a125f03fba1c20506953e0c9ab90ef1158022f1", "math-unary-ceil-extra": "1b90c68e6b93972f115805af5a67847d5b0776e0a4a3e84f54c6c866812e2a0a", "math-unary-trunc-extra": "eb8e75271322d360dd7d902529cccba246aeec17cc2a8b7bf20cc653a50fd452"};
+  for(const [id,hash] of Object.entries(expected)){
+    const fixture=[...numericMathAbs,...numericMathUnary].find(([name])=>name===id);
+    assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
+    assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
+  }
 });
