@@ -1,0 +1,63 @@
+name: Browser engine smoke
+
+on:
+  pull_request:
+    branches: [master]
+    paths: ['tests/browser-oracles/**', 'tools/browser-oracles/**', '.github/workflows/browser-smoke.yml']
+  push:
+    branches: [master]
+    paths: ['tests/browser-oracles/**', 'tools/browser-oracles/**', '.github/workflows/browser-smoke.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Real ${{ matrix.engine }} observations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, firefox, webkit]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Test the independent receipt verifier offline
+        run: node --test tools/browser-oracles/verify-baseline.test.mjs
+      - name: Install isolated optional automation dependency
+        run: npm --prefix tools/browser-oracles install --ignore-scripts --no-audit --no-fund
+      - name: Install the selected managed browser and system dependencies
+        run: node tools/browser-oracles/node_modules/playwright/cli.js install --with-deps ${{ matrix.engine }}
+      - name: Record font and host inventory
+        run: |
+          mkdir -p target/browser-smoke/${{ matrix.engine }}
+          fc-list | LC_ALL=C sort > target/browser-smoke/${{ matrix.engine }}/fonts.txt
+          uname -a > target/browser-smoke/${{ matrix.engine }}/host.txt
+          cat /etc/os-release >> target/browser-smoke/${{ matrix.engine }}/host.txt
+      - name: Capture, verify and mutation-test real browser observations
+        run: timeout --kill-after=10s 240s node tools/browser-oracles/smoke.mjs ${{ matrix.engine }} target/browser-smoke/${{ matrix.engine }}/captures
+      - name: Retain raw evidence and resolved dependency inventory
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: browser-smoke-${{ matrix.engine }}
+          path: |
+            target/browser-smoke/${{ matrix.engine }}/
+            tools/browser-oracles/package-lock.json
+            tools/browser-oracles/node_modules/playwright-core/browsers.json
+          if-no-files-found: error
+          retention-days: 7
