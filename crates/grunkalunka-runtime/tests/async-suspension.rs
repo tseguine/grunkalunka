@@ -8,6 +8,72 @@ use std::{
 const ORIGINAL: &str = "export async function run(a,b) { return a + await Promise.resolve(b); }";
 
 #[test]
+fn eager_async_closures_preserve_values_and_jobs() {
+    compare_promises(
+        &[
+            "const f=a?async x=>x:async x=>-x;return await f(b);",
+            "const f=a?async()=>a:async()=>b;return await f();",
+            "let f=async x=>x;const p=f(b);await a;return await p;",
+            "const f=async x=>x;const p=f(b);return await p;",
+            "const f=a?async()=>undefined:async()=>null;return await f();",
+            "const f=a?async()=>true:async()=>false;return await f();",
+            "const f=a?async x=>{if(x)return null;return false;}:async x=>{x++;};return await f(b);",
+            "let x=a;const f=a?async()=>x++:async()=>++x;const p=f();x=b;return (+(await p))+x;",
+            "let f=async x=>x;return await f((f=async x=>-x,await b));",
+            "let f=async x=>x;const old=f;f=async x=>-x;return (+(await old(a)))+(+(await f(b)));",
+            "const apply=(fn,x)=>fn(x);return await apply(async x=>x,b);",
+            "const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(-x);return await apply(async x=>x,b);",
+            "const apply=(fn,x)=>fn(x);const relay=(fn,x)=>apply(fn,x);return await relay(async x=>x,null);",
+            "const make=x=>async()=>x;const f=make(a);await b;return await f();",
+            "const make=a?x=>async()=>x:x=>async()=>-x;const f=make(b);return await f();",
+            "const make=()=>{return async()=>a;};const f=make();return await f();",
+            "const make=async x=>{const id=y=>y;return id(x);};const p=make(false);return await p;",
+            "const f=a?async x=>x:x=>Promise.resolve(x);return await f(b);",
+            "let n=0;const f=a?async x=>(n++,x):async x=>(n+=2,x);const p=f(b,n+=4);return (+(await p))+n;",
+            "let n=0;const f=a?async x=>(n++,x):async x=>(n+=2,x);try{return await f(await Promise.reject(b));}catch(e){return +e+n;}",
+            "const f=a?async x=>x:async x=>x;const take=a?p=>p:p=>p;return await take(f(false));",
+            "const f=async x=>x;const take=p=>p;return await take(f(null));",
+            "const f=async()=>a;f();return a;",
+            "let f=async()=>a;return await f();",
+            "const f=async()=>a;return void f();",
+            "const f=async()=>a;return void f;",
+            "const f=async()=>a;return await Promise.resolve(f(),b);",
+            "let n=0;const f=async()=>{n++;return a;};const out=await Promise.resolve(f(),n+=2);return out+n;",
+            "const f=async()=>a;return await Promise.resolve(f(),await b);",
+            "const f=async()=>a;const relay=a?()=>f():()=>f();return await relay();",
+            "const f=async()=>false;const apply=(fn,x)=>fn(x);const relay=x=>f();return await apply(relay,b);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn eager_async_closures_keep_completion_and_domain_guards() {
+    for body in [
+        "const f=a?async()=>{await a;return b;}:async()=>b;return await f();",
+        "const f=a?async()=>{throw a;}:async()=>b;return await f();",
+        "const f=a?async()=>Promise.resolve(a):async()=>Promise.resolve(b);return await f();",
+        "const f=a?async()=>()=>a:async()=>()=>b;return await f();",
+        "const f=a?async()=>({}):async()=>({});return await f();",
+        "const f=a?async()=>a:async()=>b;return f();",
+        "const f=a?async x=>x:async x=>x;return await f();",
+        "const f=a?async x=>x:async x=>x;return await f(...a);",
+        "const f=a?async x=>x:async x=>x;return await f?.(b);",
+        "const f=a?async(x=a)=>x:async(x=a)=>x;return await f(b);",
+        "let f=async x=>x;f=x=>x;return await f(b);",
+    ] {
+        for ts in [false, true] {
+            assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
+        }
+    }
+}
+
+#[test]
 fn known_local_primitive_inputs_preserve_async_values_and_jobs() {
     compare_promises(
         &[
@@ -832,7 +898,7 @@ fn promise_intrinsic_arguments_keep_erasure_and_resource_boundaries() {
         }
     }
     for body in [
-        "const f=async()=>a;return await Promise.resolve(f(),b);",
+        "const f=async()=>{await b;return a;};return await Promise.resolve(f(),b);",
         "const Promise=a;return await Promise.resolve(b,a);",
         "return await Promise.resolve?.(a,b);",
         "return await Promise.resolve(a,...b);",
@@ -2842,10 +2908,7 @@ fn known_async_arrows_fulfill_primitives_without_extra_jobs() {
 fn known_async_arrows_keep_promise_object_and_body_boundaries() {
     for body in [
         "const f=async()=>a;return f();",
-        "const f=async()=>a;f();return a;",
         "const f=async()=>a;return f;",
-        "const f=a?async()=>a:async()=>b;return await f();",
-        "let f=async()=>a;return await f();",
         "const f=async()=>Promise.reject(b);return await f();",
         "const f=async()=>()=>a;return await f();",
         "const f=async()=>{return ()=>a;};return await f();",
@@ -2866,9 +2929,6 @@ fn known_async_arrows_keep_promise_object_and_body_boundaries() {
             .unwrap()
             .contains("Promise-valued reason")
     );
-    let source = "export function run(a,b){const f=async()=>a;return a;}";
-    assert!(grunkalunka_compiler::compile(source, false).is_err());
-    assert!(grunkalunka_compiler::compile_value(source, false).is_err());
 }
 
 #[test]
@@ -3285,13 +3345,8 @@ fn void_preserves_async_jobs_effects_and_rejection() {
             (f64::NAN, f64::INFINITY),
         ],
     );
-    for body in [
-        "const f=async()=>a;return void f();",
-        "const f=async()=>a;return void f;",
-        "const f=async()=>Promise.reject(a);return void await f();",
-    ] {
-        assert!(compile_async(&source_for(body), false).is_err(), "{body}");
-    }
+    let body = "const f=async()=>Promise.reject(a);return void await f();";
+    assert!(compile_async(&source_for(body), false).is_err(), "{body}");
 }
 
 #[test]

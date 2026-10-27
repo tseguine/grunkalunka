@@ -7,6 +7,46 @@ use std::{
 use wasmtime::{Engine, Instance, Module, Store, Trap};
 
 #[test]
+fn eager_async_closures_keep_synchronous_prefix_effects() {
+    compare_functions(&[
+        "let n=a;const f=a?async x=>(n+=x,x):async x=>(n-=x,x);f(b);return n;",
+        "const f=a?async()=>false:async()=>null;return f()?a:b;",
+        "const f=a?async()=>false:async()=>null;const p=f();return p?a:b;",
+        "let n=0;const f=a?async x=>(n++,x):async x=>(n+=2,x);f(b,n+=4);return n;",
+        "let f=async x=>(a++,x);f((f=async x=>(a+=2,x),b));return a;",
+        "const make=x=>async()=>x;const f=make(a);f();return b;",
+        "const apply=(fn,x)=>fn(x);apply(async x=>(a++,x),b);return a;",
+    ]);
+}
+
+#[test]
+fn unused_eager_async_constructors_preserve_their_original_sources() {
+    compare_function_programs(
+        &[
+            "const f=async()=>a;return a;",
+            "let make=x=>{return async()=>x;};return a;",
+        ],
+        false,
+    );
+    for body in [
+        "const f=async()=>a;return a;",
+        "let make=x=>{return async()=>x;};return a;",
+    ] {
+        for ts in [false, true] {
+            let artifact =
+                compile_value(&format!("export function run(a,b){{{body}}}"), ts).unwrap();
+            let mut instance = ValueInstance::new(&artifact.wasm).unwrap();
+            for a in [4.0f64, 0.0, -0.0, f64::NAN] {
+                let Value::Number(actual) = instance.run(a, 2.0).unwrap() else {
+                    panic!("unused constructor changed Number result");
+                };
+                assert_eq!(bits(actual), bits(a));
+            }
+        }
+    }
+}
+
+#[test]
 fn selected_unused_callback_peers_preserve_numeric_inputs() {
     compare_functions(&[
         "const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>p;return f(b,a,p=>p,false);",
@@ -1069,7 +1109,6 @@ fn unsupported_runtime_function_kinds_and_profiles_remain_explicit() {
         "const f=a?()=>a:()=>b;return await Promise.resolve(f);",
         "const f=a?()=>a:()=>b;return await Promise.reject(f);",
         "const f=a?()=>a:()=>b;return f;",
-        "const f=a?async()=>a:async()=>b;return await f();",
     ] {
         let source = format!("export async function run(a,b){{{body}}}");
         assert!(compile_async(&source, false).is_err(), "{source}");
@@ -1921,7 +1960,6 @@ fn runtime_block_factories_keep_completion_signature_and_target_guards() {
         "let make=x=>{if(x)return ()=>a;return y=>y;};return a;",
         "let make=x=>{while(x){return ()=>a;}};return a;",
         "let make=x=>{return later;const later=()=>a;};return a;",
-        "let make=x=>{return async()=>x;};return a;",
         "let make=async x=>{return ()=>x;};return a;",
     ] {
         let source = format!("export function run(a,b){{{body}}}");

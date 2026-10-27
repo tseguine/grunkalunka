@@ -25,6 +25,7 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
         match node.kind() {
             AstKind::ArrowFunctionExpression(arrow) => {
                 arrows.insert(arrow.node_id.get(), arrow);
+                has_constructor |= awaited::eager_async_arrow(arrow, semantic);
             }
             AstKind::VariableDeclaration(declaration) => {
                 for local in &declaration.declarations {
@@ -66,7 +67,7 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
             _ => (),
         }
     }
-    // No represented Promise input can originate without a fulfilled constructor.
+    // Inputs originate from explicit fulfilled constructors or eager async calls.
     // Facts below grow monotonically over finite original symbol/arrow sets;
     // source budgets remain the actual lowerer's responsibility.
     if !has_constructor {
@@ -152,6 +153,9 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> BTreeSet<SymbolId> {
                             for body in callees(&call.callee, &returns)? {
                                 let arrow = arrows[&body];
                                 if arrow.r#async {
+                                    if awaited::eager_async_arrow(arrow, semantic) {
+                                        continue;
+                                    }
                                     return None;
                                 }
                                 let returned = storage::arrow_returns(arrow, semantic)?;

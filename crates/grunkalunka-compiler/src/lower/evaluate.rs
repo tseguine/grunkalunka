@@ -1713,14 +1713,31 @@ impl Lowering<'_, '_> {
                         };
                         let argument_depth = operand.depth;
                         let rejected = operand.rejected;
-                        if self.fulfilled_promise_shape(argument, argument_depth) {
+                        let known_async = closures::unwrapped_at(argument, argument_depth)
+                            .and_then(|(node, depth)| match node {
+                                Expression::CallExpression(call) => {
+                                    self.closure_target(&call.callee, depth + 1)
+                                }
+                                _ => None,
+                            })
+                            .is_some_and(|closure| {
+                                let arrow = self.arrow(closure.arrow);
+                                arrow.r#async
+                                    && (operand.extras.is_empty()
+                                        || !awaited::eager_async_arrow(arrow, self.semantic))
+                            });
+                        if !known_async && self.fulfilled_promise_shape(argument, argument_depth) {
                             if rejected {
                                 return Err(unsupported(
                                     node,
                                     "Promise-valued rejection reasons are not admitted",
                                 ));
                             }
-                            if !matches!(mode, Mode::General) {
+                            if matches!(mode, Mode::Number)
+                                && self.numeric_result_shape(node, depth)
+                            {
+                                work.push(Work::NumberFromGeneral(node));
+                            } else if !matches!(mode, Mode::General) {
                                 return Err(unsupported(
                                     node,
                                     "stored Promise completions require a primitive value or coercion position",
@@ -1796,7 +1813,11 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
-                        && self.closure_target(&call.callee, depth + 1).is_none()
+                        && self
+                            .closure_target(&call.callee, depth + 1)
+                            .is_none_or(|closure| {
+                                awaited::eager_async_arrow(self.arrow(closure.arrow), self.semantic)
+                            })
                         && let Some(arity) = self.function_arity(&call.callee, depth + 1)
                     {
                         if call.optional || call.type_arguments.is_some() {

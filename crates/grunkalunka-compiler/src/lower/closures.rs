@@ -202,7 +202,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 "at most 8 nested factory results are admitted",
             ));
         }
-        self.check_arrow_kind(arrow, self.allow_await && factory_depth == 0)?;
+        self.check_arrow_kind(
+            arrow,
+            (self.allow_await && factory_depth == 0)
+                || awaited::eager_async_arrow(arrow, self.semantic),
+        )?;
         // Validate unused bodies too, without running effects or publishing their
         // scratch values/slots in the real function's verified IR.
         let mut check = self.clone();

@@ -62,6 +62,18 @@ the call adds no job, and awaiting its result adds the usual caller reaction.
 Concise and complete block bodies use the same result-kind proof. Mixed
 Promise/primitive result signatures remain rejected.
 
+Async arrows with admitted non-suspending primitive bodies produce the same
+represented fulfilled snapshots. Known calls, runtime selections/reassignment,
+callbacks and returned async closures use the existing distinct Promise result
+signature. Body effects run during the call; wrapping adds no job. Explicit and
+fallthrough Undefined, Null, Boolean and Number completions retain their tags and
+snapshots. Caller awaits still enqueue reactions. Synchronous wrappers can forward
+these results, and represented Promise parameters accept them. Actual body checking
+rejects Promise-return adoption and function/object/string payloads; runtime async
+closures with their own await or throw still need separate continuation/rejection
+support. Existing known directly awaited async calls retain that support through
+their separate `AwaitCall` path.
+
 `FulfilledPromise` is a distinct internal IR type. `FulfillPromise` wraps a visible
 General completion snapshot; `PromiseValue` projects only that Promise type back
 to General before the existing await operation. The verifier rejects scalar

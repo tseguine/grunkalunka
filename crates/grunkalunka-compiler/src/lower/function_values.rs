@@ -17,9 +17,8 @@ impl Lowering<'_, '_> {
         calls: usize,
         outer: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Option<usize> {
-        // Awaited known async calls are handled before function-value lowering;
-        // their Promise results are not ordinary scalar closure signatures.
-        if calls >= 8 || arrow.r#async {
+        // Suspending known async calls retain their separate AwaitCall path.
+        if calls >= 8 || (arrow.r#async && !awaited::eager_async_arrow(arrow, self.semantic)) {
             return None;
         }
         let parameters = callbacks::parameter_types(
@@ -55,14 +54,18 @@ impl Lowering<'_, '_> {
                 );
             }
         }
-        let result = arrow
-            .get_expression()
-            .and_then(|body| self.function_arity_in(body, 0, &bindings, calls + 1))
-            .or_else(|| self.block_function_arity_in(arrow, 0, &bindings, calls + 1))
-            .map_or_else(
-                || self.arrow_scalar_result_at(arrow, &bindings, calls),
-                Type::Closure,
-            );
+        let result = if arrow.r#async {
+            Type::FulfilledPromise
+        } else {
+            arrow
+                .get_expression()
+                .and_then(|body| self.function_arity_in(body, 0, &bindings, calls + 1))
+                .or_else(|| self.block_function_arity_in(arrow, 0, &bindings, calls + 1))
+                .map_or_else(
+                    || self.arrow_scalar_result_at(arrow, &bindings, calls),
+                    Type::Closure,
+                )
+        };
         Some(
             self.closure_signatures
                 .borrow_mut()
@@ -713,7 +716,28 @@ impl Lowering<'_, '_> {
         Self::push(&mut body, arrow, Op::ClosureEntry { captures: imported });
         child.initialize_general_parameters(&mut body);
         child.bindings.extend(capture_bindings);
-        let returned = if let Some(expression) = arrow.get_expression() {
+        let returned = if arrow.r#async {
+            let input = if let Some(expression) = arrow.get_expression() {
+                child
+                    .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
+                    .expect("eager async primitive completion")
+            } else {
+                let region = child.arrow_block_result(arrow, 0, Type::General)?;
+                let result = child.value(Type::General);
+                Self::push(
+                    &mut body,
+                    arrow,
+                    Op::InlineCall {
+                        result,
+                        body: region,
+                    },
+                );
+                result
+            };
+            let result = child.value(Type::FulfilledPromise);
+            Self::push(&mut body, arrow, Op::FulfillPromise { result, input });
+            result
+        } else if let Some(expression) = arrow.get_expression() {
             if let Type::Closure(signature) = return_type {
                 child.function_value(expression, &mut body, signature, 0)?
             } else if return_type == Type::FulfilledPromise {

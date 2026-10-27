@@ -2,6 +2,32 @@
 use super::*;
 use oxc_ast::ast::{Argument, AwaitExpression};
 
+// This query only selects the existing fulfilled representation. Actual body
+// lowering must still prove a primitive result, without suspension or rejection.
+// A nested function owns its own awaits/throws; it cannot suspend this creator.
+pub(super) fn eager_async_arrow(
+    arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    semantic: &Semantic<'_>,
+) -> bool {
+    arrow.r#async
+        && !semantic.nodes().iter().any(|node| {
+            matches!(
+                node.kind(),
+                oxc_ast::AstKind::AwaitExpression(_) | oxc_ast::AstKind::ThrowStatement(_)
+            ) && semantic
+                .nodes()
+                .ancestor_kinds(node.id())
+                .find_map(|kind| match kind {
+                    oxc_ast::AstKind::ArrowFunctionExpression(owner) => {
+                        Some(Some(owner.node_id.get()))
+                    }
+                    oxc_ast::AstKind::Function(_) => Some(None),
+                    _ => None,
+                })
+                == Some(Some(arrow.node_id.get()))
+        })
+}
+
 pub(super) struct Operand<'e, 'a> {
     pub argument: Option<&'e Expression<'a>>,
     pub depth: usize,
@@ -93,7 +119,7 @@ impl Lowering<'_, '_> {
                 if let Some(closure) = self.closure_target(&call.callee, depth + 1) {
                     let arrow = self.arrow(closure.arrow);
                     if arrow.r#async {
-                        return None;
+                        return eager_async_arrow(arrow, self.semantic).then(Vec::new);
                     }
                     if closure.checked {
                         return (closure.result == Type::FulfilledPromise).then(Vec::new);

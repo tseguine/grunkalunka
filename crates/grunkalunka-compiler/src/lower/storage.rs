@@ -570,7 +570,8 @@ pub(crate) fn general_mutable_bindings(
         let AstKind::CallExpression(call) = node.kind() else {
             continue;
         };
-        let runtime_input = static_constructor(&call.callee, &static_targets).is_none();
+        let runtime_input = static_constructor(&call.callee, &static_targets)
+            .is_none_or(|body| awaited::eager_async_arrow(arrows[&body], semantic));
         let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
         for source in sources {
             if let Some(known) = targets.get(&source) {

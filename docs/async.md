@@ -60,8 +60,14 @@ General async function values and Promise object identity are not reified.
 bounded internal representation, including initialized mutable bindings, typed
 assignments/selections and captured-cell writes across suspension. Aliases keep
 their earlier values, failed RHS work skips the store, and object truthiness is
-independent of the primitive payload. Unawaited async-arrow calls,
-mutable/dynamic async function selections and Promise/function
+independent of the primitive payload. Async arrows with admitted non-suspending
+primitive bodies can now be selected, reassigned, returned by factories and passed
+as callbacks. Their arguments and body execute before returning a fulfilled
+snapshot; the call adds no reaction, and the caller's await retains its job.
+Results can be stored, aliased, forwarded, discarded or tested for object truthiness.
+The body must actually lower to a primitive completion, including explicit or
+fallthrough Undefined; annotations establish no kind. Own-scope await/throw in
+runtime async closures, async-return adoption and general Promise/function
 outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
 the reason would be the Promise object, rather than its eventual primitive value.
 `await Promise.reject(await f())` uses a primitive reason and remains supported.
@@ -134,6 +140,13 @@ two-pointer numeric calling convention; they do not share the dispatcher's saved
 slot offsets. The private table maps logical closure IDs to named lifted bodies,
 because `advance`, `start` and `resume` occupy separate physical function indices.
 Only the async entry suspends; lifted function bodies remain synchronous.
+An admitted eager async closure wraps its checked General completion with
+`FulfillPromise` before returning through the existing private pair ABI. A known
+directly awaited async call retains its `AwaitCall` boundary, including previously
+supported suspension, catches and rejection; this does not make those bodies
+runtime closure values. Known eager calls inside `Promise.resolve` with extra
+arguments use the fulfilled snapshot path so prefix and argument order remain
+observable without inventing a pending Promise.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;

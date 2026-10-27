@@ -485,7 +485,7 @@ fn refine_shapes<'a>(
                             parameters: &Parameters,
                             kinds: &storage::BindingKinds| {
         let arrow = arrows[&body];
-        let promise = !arrow.r#async
+        let synchronous_promise = !arrow.r#async
             && storage::arrow_returns(arrow, semantic).is_some_and(|results| {
                 !results.is_empty()
                     && results.into_iter().all(|expression| {
@@ -525,6 +525,9 @@ fn refine_shapes<'a>(
                                 for body in bodies {
                                     let arrow = arrows[&body];
                                     if arrow.r#async {
+                                        if awaited::eager_async_arrow(arrow, semantic) {
+                                            continue;
+                                        }
                                         return None;
                                     }
                                     let returned = storage::arrow_returns(arrow, semantic)?;
@@ -538,6 +541,7 @@ fn refine_shapes<'a>(
                         )
                     })
             });
+        let promise = synchronous_promise || awaited::eager_async_arrow(arrow, semantic);
         let number = !kinds.general_results.contains(&body)
             && storage::arrow_number_result_shape(
                 arrow,

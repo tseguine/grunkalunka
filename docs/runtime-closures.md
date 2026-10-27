@@ -290,3 +290,16 @@ JavaScript with Node-Wasm and Wasmtime, including snapshots, captures, primitive
 and Promise inputs, and reaction jobs. Callback coercions, kind-changing stores,
 incompatible complete signatures and existing missing/spread-input restrictions
 remain rejected. This is bounded callback admission, not general function support.
+
+Async arrows with admitted primitive bodies and no own-scope await/throw can be
+represented by these same runtime closure pairs. Their private result signature
+is `FulfilledPromise`; the lifted body computes a General primitive completion
+and then wraps it. This keeps call-prefix effects synchronous and defers only the
+caller's await reaction. Concise bodies and blocks with explicit or fallthrough
+Undefined are checked by the existing primitive lowerer. Selection, reassignment,
+returned factories, callback forwarding, stored results and fulfilled-Promise
+parameters preserve the same callee/argument/capture snapshots. Unused async
+constructors do not run their bodies. Mixed async/synchronous primitive result
+interfaces, Promise-return adoption, async function/object/string outcomes and
+runtime suspension/rejection remain unsupported. Known directly awaited async
+calls still use their existing suspension and rejection boundary.
