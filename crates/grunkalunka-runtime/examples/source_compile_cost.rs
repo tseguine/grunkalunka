@@ -112,8 +112,8 @@ pub fn parse_options(args: &[String]) -> Result<Options, String> {
             return Err(format!("duplicate option {name}"));
         }
         if name == "--workload" {
-            options.workload = Workload::parse(&pair[1])
-                .ok_or_else(|| format!("unknown workload {}", pair[1]))?;
+            options.workload =
+                Workload::parse(&pair[1]).ok_or_else(|| format!("unknown workload {}", pair[1]))?;
             continue;
         }
         let slot = match name {
@@ -131,7 +131,9 @@ pub fn parse_options(args: &[String]) -> Result<Options, String> {
 }
 
 fn compile_one(source: &str, ts: bool) -> wasmtime::Result<Artifact> {
-    compile(source, ts).map_err(std::io::Error::other).map_err(Into::into)
+    compile(source, ts)
+        .map_err(std::io::Error::other)
+        .map_err(Into::into)
 }
 
 fn verify_golden(artifact: &Artifact, workload: Workload) -> wasmtime::Result<()> {
@@ -200,7 +202,11 @@ impl Report {
         } else {
             "js"
         };
-        let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
+        let profile = if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        };
         format!(
             r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"watBytes":{wat_bytes},"wasmBytes":{wasm_bytes}}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"goldenCases":{golden_cases}}}"#,
             case = self.options.workload.name(),

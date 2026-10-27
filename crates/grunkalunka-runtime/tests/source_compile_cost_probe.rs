@@ -60,9 +60,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         let report = probe(options).unwrap();
         assert_eq!(report.options, options);
         assert!(report.source_bytes > 0 && report.source_bytes < 16_384);
-        assert!(
-            report.wat_bytes > 0 && report.wasm_bytes >= 8 && report.wasm_bytes <= 1024 * 1024
-        );
+        assert!(report.wat_bytes > 0 && report.wasm_bytes >= 8 && report.wasm_bytes <= 1024 * 1024);
         assert!(report.first_compile_ms.is_finite() && report.first_compile_ms >= 0.0);
         assert_eq!(report.samples_ms.len(), options.samples);
         assert!(
