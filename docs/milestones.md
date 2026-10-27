@@ -71,7 +71,8 @@ three-platform [final CI run](https://github.com/tseguine/grunkalunka/actions/ru
 cover this experimental boundary, not a writable vault or an A1 application.
 The document/runtime stream has since demonstrated bounded P1 cost, provenance
 and comparison experiments (summarized below); browser work remains separate.
-This status is not a new assignment or application-integration mandate. This summary addresses the coordination finding
+This status does not assign new application-integration work. The summary
+also addresses the coordination finding
 in [steering #37](https://github.com/tseguine/grunkalunka/issues/37) without
 changing those streams' scope or the maintainer's priorities.
 
