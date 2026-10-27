@@ -1,4 +1,4 @@
-// Pristine Number-only intrinsics, not mutable external-realm builtin objects.
+// Pristine intrinsics convert represented primitives; external realm objects remain separate.
 // https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.sqrt
 // https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.floor
 // https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.ceil
@@ -12,6 +12,8 @@ for(const method of mathUnaryMethods){
  add(`${method}-input`,`return Math.${method}(a);`);
  full(`${method}-extra`,`export function run(a,b) { return Math.${method}(a,b); }`);
  full(`${method}-missing`,`export function run(a,b) { return Math.${method}(); }`);
+ full(`${method}-boolean`,`export function run(a,b) { return Math.${method}(true); }`);
+ full(`${method}-predicate`,`export function run(a,b) { return Math.${method}(a<b); }`);
  add(`${method}-witness`,`return Math.${method}(${witnesses[method]});`);
  add(`${method}-negative-zero`,`return Math.${method}(-0);`);
  add(`${method}-postfix-once`,`return Math.${method}(a++)+a;`);
@@ -32,9 +34,9 @@ full('type-only-math','export function run(a,b) { return Math.floor(a); }','type
 full('interface-only-math','export function run(a,b) { return Math.ceil(a); }','interface Math {} export function run(a,b) { return Math.ceil(a); }');
 export const promotedMathUnaryReference={id:'math-abs-other-method',source:'export function run(a,b) { return Math.floor(a); }',extension:'js',sourceMode:'module-strict',previousGroup:'function-calls'};
 numericMathUnary.push([promotedMathUnaryReference.id,'','',undefined,undefined,{sourceJS:promotedMathUnaryReference.source,sourceTS:promotedMathUnaryReference.source}]);
+full('undefined','export function run(a,b) { return Math.trunc(undefined); }');
 const expression='expression is outside the numeric experiment';
 const reference='reference is not an initialized numeric parameter or local';
-const binary='only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const bad=[];
 function reject(id,body,diagnostic=expression,extension='js'){bad.push([`math-unary-${id}`,`export function run(a,b) { ${body} }`,extension,diagnostic]);}
 for(const method of mathUnaryMethods){
@@ -47,13 +49,10 @@ for(const method of mathUnaryMethods){
  reject(`${method}-computed`,`return Math["${method}"](a);`);
  reject(`${method}-optional`,`return Math.${method}?.(a);`);
  reject(`${method}-wrapped-callee`,`return (Math.${method})(a);`);
- reject(`${method}-boolean`,`return Math.${method}(true);`);
- reject(`${method}-predicate`,`return Math.${method}(a<b);`,binary);
  reject(`${method}-string`,`return Math.${method}("3");`);
  reject(`${method}-const-write`,`const x=a; return Math.${method}(x=b);`,'assignment to a const');
  reject(`${method}-dead-patch`,`if(false) Math.${method}=a; return Math.${method}(b);`,'assignment target must be an initialized identifier');
 }
-reject('undefined','return Math.trunc(undefined);',reference);
 reject('negative-object','return Math.sqrt({});');
 reject('bigint','return Math.floor(1n);');
 reject('global-write','Math=a; return Math.ceil(b);',reference);

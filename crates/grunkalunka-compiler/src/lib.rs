@@ -531,10 +531,22 @@ mod tests {
     }
 
     #[test]
+    fn unary_math_converts_original_boolean_guard_sources() {
+        for source in [
+            "export function run(a,b) { return Math.abs(true); }",
+            "export function run(a,b) { const flag=true; return Math.abs(flag); }",
+        ] {
+            for typescript in [false, true] {
+                compile(source, typescript).unwrap();
+                crate::compile_value(source, typescript).unwrap();
+            }
+        }
+    }
+
+    #[test]
     fn unary_predicate_binding_bridge_keeps_scope_and_value_boundaries() {
         for body in [
             "const flag=true; return flag;",
-            "const flag=true; return Math.abs(flag);",
             "const flag=true; return flag|a;",
             "const flag=true; return flag<<a;",
             "const flag=+flag; return a;",
@@ -634,7 +646,6 @@ mod tests {
             "return ~(a?true:false);",
             "return ~(true&&false);",
             "return ~!(0&&Math.random());",
-            "return Math.abs(true);",
         ] {
             assert!(
                 compile(&format!("export function run(a,b) {{ {body} }}"), true).is_err(),

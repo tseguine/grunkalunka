@@ -1,4 +1,4 @@
-// Number-only pristine intrinsic profile; no external realm or coercive operands.
+// Pristine intrinsic profile with represented primitive ToNumber operands.
 // https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.abs
 const cases = [
  ['zero','return Math.abs(0);'], ['negative-zero','return Math.abs(-0);'],
@@ -24,6 +24,8 @@ export const numericMathAbs=cases.map(([id,body])=>[`math-abs-${id}`,body,body])
 function full(id,sourceJS,sourceTS=sourceJS){numericMathAbs.push([`math-abs-${id}`,'','',undefined,undefined,{sourceJS,sourceTS}]);}
 full('extra','export function run(a,b) { return Math.abs(a,b); }');
 full('missing','export function run(a,b) { return Math.abs(); }');
+for(const [id,first] of [['boolean','true'],['null','null'],['undefined','undefined']])full(id,`export function run(a,b) { return Math.abs(${first}); }`);
+numericMathAbs.push(['math-abs-general-first-snapshot','let x=a;return Math.abs(x,x=false)+(+x);','let x=a;return Math.abs(x,x=false)+(+x);']);
 numericMathAbs.push(['math-abs-missing-shadowed-undefined','const undefined=a;return Math.abs();','const undefined=a;return Math.abs();']);
 numericMathAbs.push(['math-abs-extra-effects','let x=a;return Math.abs(x,x=b)+x;','let x=a;return Math.abs(x,x=b)+x;']);
 const promoted='export function run(a,b) { return Math.abs(a); }';
@@ -49,13 +51,12 @@ for(const [id,body] of [
  ['optional-call','return Math.abs?.(a);'], ['wrapped-callee','return (Math.abs)(a);'],
  ['constructor','return new Math.abs(a);'], ['first-class','return Math.abs;'],
  ['alias','const f=Math.abs; return f(a);'],
- ['boolean','return Math.abs(true);'], ['string','return Math.abs("3");'],
+ ['string','return Math.abs("3");'],
  ['object','return Math.abs({});'], ['bigint','return Math.abs(1n);'],
- ['null','return Math.abs(null);'], ['dead-unsupported','return 1?a:Math.abs(Math.random());'],
+ ['dead-unsupported','return 1?a:Math.abs(Math.random());'],
  ]) reject(id,body);
 reject('spread','return Math.abs(...a);','spread call arguments');
 reject('generic','return Math.abs<number>(a);',expression,'ts');
-reject('undefined','return Math.abs(undefined);',reference);
 reject('global-write','Math=a; return Math.abs(b);',reference);
 reject('global-update','Math++; return Math.abs(a);',reference);
 reject('property-write','Math.abs=a; return Math.abs(b);',assignment);
@@ -71,3 +72,12 @@ for(const [id,source] of [
  ['unused-helper-patch','function unused(x) { Math.abs=x; return x; } export function run(a,b) { return Math.abs(a); }'],
  ]) bad.push([`math-abs-${id}`,source,'js',id==='unused-helper-patch'?assignment:expression]);
 export const numericMathAbsRejected=bad;
+
+// The same Math calls previously appeared under other operand contexts.
+for(const [id,sourceJS] of [
+ ["discarded-number-argument", "export function run(a,b) { return Math.abs(true); }"],
+ ["const-boolean-argument", "export function run(a,b) { const flag=true; return Math.abs(flag); }"],
+ ["unary-predicate-binding-reject-call", "export function run(a,b) { const flag=true; return Math.abs(flag); }"],
+ ["arithmetic-predicate-binding-reject-call", "export function run(a,b) { const flag=true; return Math.abs(flag); }"],
+ ["discarded-predicate-binding-reject-call", "export function run(a,b) { const flag=true; return Math.abs(flag); }"],
+])numericMathAbs.push([id,'','',undefined,undefined,{sourceJS,sourceTS:sourceJS}]);

@@ -111,6 +111,35 @@ fn compare_helper_sources(sources: &[&str]) {
 }
 
 #[test]
+fn unary_math_converts_primitive_first_inputs() {
+    let mut sources =
+        vec!["export function run(a,b) { const flag=true; return Math.abs(flag); }".to_string()];
+    for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
+        for first in ["true", "false", "null", "undefined", "a<b"] {
+            sources.push(format!(
+                "export function run(a,b) {{ return Math.{method}({first}); }}"
+            ));
+        }
+        for body in [
+            format!("return Math.{method}(true,a);"),
+            format!("return Math.{method}(null,a);"),
+            format!("const undefined=a;return Math.{method}(undefined);"),
+            format!("return Math.{method}(void(a=b))+a;"),
+            format!("const p=a<b;return Math.{method}(p);"),
+            format!("let x=a;return Math.{method}(x,x=false)+(+x);"),
+            format!("let x=null;return Math.{method}(x,x=a)+x;"),
+            format!("let x=undefined;return Math.{method}(x,x=a)||(+x);"),
+            format!("let x=a?undefined:null;return Math.{method}(x);"),
+            format!("let x=null;const mutate=()=>x=a;return Math.{method}(x,mutate())+x;"),
+            format!("const f=()=>null;return Math.{method}(f());"),
+        ] {
+            sources.push(format!("export function run(a,b){{{body}}}"));
+        }
+    }
+    compare_helper_sources(&sources.iter().map(String::as_str).collect::<Vec<_>>());
+}
+
+#[test]
 fn unary_math_defaults_missing_input_to_nan() {
     let mut sources = Vec::new();
     for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
@@ -166,8 +195,10 @@ fn unary_math_surplus_arguments_keep_width_type_and_namespace_guards() {
         compare_helper_sources(&[&source]);
         for body in [
             format!("return Math.{method}(a,{extras},b);"),
-            format!("return Math.{method}(true,a);"),
-            format!("return Math.{method}(null,a);"),
+            format!("return Math.{method}(\"3\",a);"),
+            format!("return Math.{method}({{}},a);"),
+            format!("return Math.{method}(1n,a);"),
+            format!("return Math.{method}(()=>a,b);"),
             format!("return Math.{method}(a,...b);"),
             format!("return Math.{method}?.(a,b);"),
             format!("let Math=a;return Math.{method}(a,b);"),

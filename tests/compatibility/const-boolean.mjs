@@ -66,7 +66,6 @@ const reference='reference is not an initialized numeric parameter or local';
 const expression='expression is outside the numeric experiment';
 const negatives=[
   ['return','const flag=true; return flag;',numeric],
-  ['argument','const flag=true; return Math.abs(flag);',numeric],
   ['assignment-rhs','const flag=true; a=flag; return a;','General bindings require a primitive value position'],
   ['const-write','const flag=true; flag=a; return a;','assignment to a const binding'],
   ['const-update','const flag=true; flag++; return a;','update to a const binding'],

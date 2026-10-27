@@ -305,6 +305,38 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn unary_math_primitive_inputs_preserve_async_snapshots_and_jobs() {
+    let mut bodies = Vec::new();
+    for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
+        bodies.push(format!("return Math.{method}(await null);"));
+        bodies.push(format!("return Math.{method}(await(a<b));"));
+        bodies.push(format!("return Math.{method}(await undefined);"));
+        bodies.push(format!("let x=null;return Math.{method}(x,await(x=a))+x;"));
+        bodies.push(format!(
+            "let x=a;return Math.{method}(x,await(x=false))+(+x);"
+        ));
+        bodies.push(format!(
+            "try{{return Math.{method}(await Promise.reject(b));}}catch(e){{return e;}}"
+        ));
+    }
+    compare_promises(
+        &bodies.iter().map(String::as_str).collect::<Vec<_>>(),
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){return Math.abs(await null,await(a=b));}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{return (Math.abs(await(null as never),await(a=b)) satisfies Wrong);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn unary_math_missing_inputs_preserve_async_results_and_jobs() {
     let mut bodies = Vec::new();
     for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {

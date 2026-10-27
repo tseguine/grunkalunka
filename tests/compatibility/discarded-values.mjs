@@ -52,7 +52,6 @@ const negatives=[
   ['call','Math.random(); return a;',expression],
   ['number-return','return true;',expression],
   ['number-rhs','a=true; return a;','General bindings require a primitive value position'],
-  ['number-argument','return Math.abs(true);',expression],
   ['final-comma-boolean','return (a,true);',expression],
   ['dead-logical-call','false&&Math.random(); return a;',expression],
   ['dead-conditional-call','true?a:Math.random(); return a;',expression],

@@ -479,7 +479,7 @@
     {
       "id": "function-calls",
       "kind": "open-requirement",
-      "assessment": "Top-level numeric helpers and the five supported pristine unary Math calls evaluate supplied ordinary surplus arguments and discard their values after retaining declared Number inputs. Missing helper or over-limit arguments, indirect, property, wrapped-callee, spread and generic calls remain outside the direct numeric helper subset; unsupported calls in unselected source still reject. The five pristine unary Math intrinsics produce Number NaN for missing inputs; non-Number first operands remain separate work.",
+      "assessment": "Top-level numeric helpers and the five supported pristine unary Math calls evaluate supplied ordinary surplus arguments and discard their values after retaining declared inputs. Missing helper or over-limit arguments, indirect, property, wrapped-callee, spread and generic calls remain outside the direct numeric helper subset; unsupported calls in unselected source still reject. The five pristine unary Math intrinsics produce Number NaN for missing inputs and convert represented Undefined/Null/Boolean/Number first operands with ToNumber. Strings, objects, BigInts, functions and external mutable Math objects remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-function-calls",
@@ -5248,13 +5248,6 @@
       "group": "function-context"
     },
     {
-      "id": "math-abs-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "3cf40a6bc77cd03c9c03214b4ffc051cde4a524ecef0007d4b0cb75b16d27181",
-      "group": "boolean-values"
-    },
-    {
       "id": "math-abs-string",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5276,13 +5269,6 @@
       "group": "bigint-values"
     },
     {
-      "id": "math-abs-null",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "170f0f5249a9e0723dca1c92ee84e0c8f39acf4cb42fbaa876c4eada2a2809c6",
-      "group": "nullish-values"
-    },
-    {
       "id": "math-abs-dead-unsupported",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5302,13 +5288,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "563de76a79db6b7ebbd91df53c2f28dd1a8086ab8632483e8b1057e3ea39722e",
       "group": "function-calls"
-    },
-    {
-      "id": "math-abs-undefined",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ea6373fadd7cfef7e67f7ee822dbdaba72df641754f1130438c5fbea922cd43e",
-      "group": "nullish-values"
     },
     {
       "id": "math-abs-global-write",
@@ -5458,20 +5437,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-sqrt-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "4cfa630afff62cef400a534e24ccad4f34c7311609798858e6c4f6c877691f8b",
-      "group": "boolean-values"
-    },
-    {
-      "id": "math-unary-sqrt-predicate",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "8a8e7522fd26499712dc60e470bedd86dc7ade50b8370c357922d12c09982b6d",
-      "group": "boolean-values"
-    },
-    {
       "id": "math-unary-sqrt-string",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5554,20 +5519,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "9399050e01155f1a728f479c709e283969fe91c35be1d068c4d089173dd296e5",
       "group": "function-calls"
-    },
-    {
-      "id": "math-unary-floor-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "eb3fac2e7674a64f702154d281486ca45e84b9149475c236b19d87da266caa92",
-      "group": "boolean-values"
-    },
-    {
-      "id": "math-unary-floor-predicate",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "32a21160df9dde53c687117037da24d26097a733e7321c888b7d7ac4a3d20156",
-      "group": "boolean-values"
     },
     {
       "id": "math-unary-floor-string",
@@ -5654,20 +5605,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-ceil-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "843ff6dd6ab1ea6b3b64b6882d4e1e2726061f654cd68e5cfb96634a7b048f89",
-      "group": "boolean-values"
-    },
-    {
-      "id": "math-unary-ceil-predicate",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "ea20ec576cbe0a869a2448eb6d05a8f6772042b252ad56e9906bc47a33f9e1fc",
-      "group": "boolean-values"
-    },
-    {
       "id": "math-unary-ceil-string",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5752,20 +5689,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-trunc-boolean",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "fdb362e5a776e416fa685f26158b3756255b8d7b73d6dcbd0935d5f5d0e625d3",
-      "group": "boolean-values"
-    },
-    {
-      "id": "math-unary-trunc-predicate",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "f2b8548a63b80134f0feb54ea4825892262a1c9f0a58445aeedd6fc55304b88d",
-      "group": "boolean-values"
-    },
-    {
       "id": "math-unary-trunc-string",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5785,13 +5708,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "fd218db54a914f7f829bd4a5d40dabeda6a86bee9685643a4d34b8fbcd80aacb",
       "group": "property-targets"
-    },
-    {
-      "id": "math-unary-undefined",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "65d5622e3d523544b17daac6df3daf081ff1f29692bb11c76fd5c6e12675d46d",
-      "group": "nullish-values"
     },
     {
       "id": "math-unary-negative-object",
@@ -5875,13 +5791,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "ef0b79f16aaa5d562dc6944d161d99fed7ef9aafe473605e9fa517d37e92314f",
-      "group": "boolean-values"
-    },
-    {
-      "id": "discarded-number-argument",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "3cf40a6bc77cd03c9c03214b4ffc051cde4a524ecef0007d4b0cb75b16d27181",
       "group": "boolean-values"
     },
     {
@@ -5994,13 +5903,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "af7f4950684c593128dca8bc5a5447498fd7b73436cf2063eeee1e36dd7745bb",
-      "group": "boolean-values"
-    },
-    {
-      "id": "const-boolean-argument",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
       "group": "boolean-values"
     },
     {
@@ -6354,13 +6256,6 @@
       "group": "boolean-values"
     },
     {
-      "id": "unary-predicate-binding-reject-call",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
-      "group": "boolean-values"
-    },
-    {
       "id": "unary-predicate-binding-reject-assignment",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6470,13 +6365,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "af7f4950684c593128dca8bc5a5447498fd7b73436cf2063eeee1e36dd7745bb",
-      "group": "boolean-values"
-    },
-    {
-      "id": "arithmetic-predicate-binding-reject-call",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
       "group": "boolean-values"
     },
     {
@@ -6610,13 +6498,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "af7f4950684c593128dca8bc5a5447498fd7b73436cf2063eeee1e36dd7745bb",
-      "group": "boolean-values"
-    },
-    {
-      "id": "discarded-predicate-binding-reject-call",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
       "group": "boolean-values"
     },
     {

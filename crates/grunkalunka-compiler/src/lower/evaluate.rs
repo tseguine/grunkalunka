@@ -1066,7 +1066,7 @@ impl Lowering<'_, '_> {
                             argument,
                             depth,
                             if index == 0 {
-                                Mode::Number
+                                Mode::Arithmetic
                             } else {
                                 Mode::Discard
                             },

@@ -54,7 +54,6 @@ const reference='reference is not an initialized numeric parameter or local';
 const expression='expression is outside the numeric experiment';
 const negatives=[
  ['return','const flag=true; return flag;',numeric,'boolean-values'],
- ['call','const flag=true; return Math.abs(flag);',numeric,'boolean-values'],
  ['assignment','const flag=true; a=flag; return a;','General bindings require a primitive value position','boolean-values'],
  ['assignment-result','const flag=true; (a=flag); return a;','General bindings require a primitive value position','boolean-values'],
  ['bitwise','const flag=true; return flag|a;',numeric,'boolean-values'],

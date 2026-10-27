@@ -210,7 +210,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 903);
+  assert.equal(inventory.records.size, 886);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -480,6 +480,33 @@ test('unary Math surplus calls retain five exact prior rejection sources',()=>{
 
 test('unary Math missing inputs retain five exact prior rejection sources',()=>{
   const expected={"math-abs-missing": "d72df3382d9d9832fe8eddfc6c27b8489628d2099a72bbd2457688754ea864fd", "math-unary-sqrt-missing": "507dbcac1069b5c9f96db815f64fa11c681203a5ace9124273092de72a36be91", "math-unary-floor-missing": "1299d581903789cd61bc96801f46ca358bc1f8c9e4a6eaa1778bdbd5f371047c", "math-unary-ceil-missing": "5ac8797a02b610d2c19114aa71831f6d472ecfa5bc4f14d974dcb2170b3bf2b4", "math-unary-trunc-missing": "c647c8d098bc588c564e3499f4caeab05ba2fc20188fd896c3dd2da4f6c3e241"};
+  for(const [id,hash] of Object.entries(expected)){
+    const fixture=[...numericMathAbs,...numericMathUnary].find(([name])=>name===id);
+    assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
+    assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
+  }
+});
+
+test('primitive unary Math inputs retain seventeen exact prior rejection sources',()=>{
+  const expected={
+    "math-abs-boolean": "3cf40a6bc77cd03c9c03214b4ffc051cde4a524ecef0007d4b0cb75b16d27181",
+    "math-abs-null": "170f0f5249a9e0723dca1c92ee84e0c8f39acf4cb42fbaa876c4eada2a2809c6",
+    "math-abs-undefined": "ea6373fadd7cfef7e67f7ee822dbdaba72df641754f1130438c5fbea922cd43e",
+    "math-unary-sqrt-boolean": "4cfa630afff62cef400a534e24ccad4f34c7311609798858e6c4f6c877691f8b",
+    "math-unary-sqrt-predicate": "8a8e7522fd26499712dc60e470bedd86dc7ade50b8370c357922d12c09982b6d",
+    "math-unary-floor-boolean": "eb3fac2e7674a64f702154d281486ca45e84b9149475c236b19d87da266caa92",
+    "math-unary-floor-predicate": "32a21160df9dde53c687117037da24d26097a733e7321c888b7d7ac4a3d20156",
+    "math-unary-ceil-boolean": "843ff6dd6ab1ea6b3b64b6882d4e1e2726061f654cd68e5cfb96634a7b048f89",
+    "math-unary-ceil-predicate": "ea20ec576cbe0a869a2448eb6d05a8f6772042b252ad56e9906bc47a33f9e1fc",
+    "math-unary-trunc-boolean": "fdb362e5a776e416fa685f26158b3756255b8d7b73d6dcbd0935d5f5d0e625d3",
+    "math-unary-trunc-predicate": "f2b8548a63b80134f0feb54ea4825892262a1c9f0a58445aeedd6fc55304b88d",
+    "math-unary-undefined": "65d5622e3d523544b17daac6df3daf081ff1f29692bb11c76fd5c6e12675d46d",
+    "discarded-number-argument": "3cf40a6bc77cd03c9c03214b4ffc051cde4a524ecef0007d4b0cb75b16d27181",
+    "const-boolean-argument": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
+    "unary-predicate-binding-reject-call": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
+    "arithmetic-predicate-binding-reject-call": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc",
+    "discarded-predicate-binding-reject-call": "b5a82a418e290df57abc763986bf4f5f8d68e59fe6651e0754d727d2c51becdc"
+};
   for(const [id,hash] of Object.entries(expected)){
     const fixture=[...numericMathAbs,...numericMathUnary].find(([name])=>name===id);
     assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);

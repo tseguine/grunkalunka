@@ -463,17 +463,19 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Math.abs, Math.sqrt, Math.floor, Math.ceil and Math.trunc intrinsics, rather than
   references to an external JavaScript realm's mutable Math object. Each requires
   a nonoptional static call and an actual unresolved semantic value reference for
-  Math. An omitted first argument produces Number NaN; a supplied first argument
-  must currently be a Number. Up to 1,000 ordinary arguments may be
+  Math. An omitted first argument produces Number NaN. A supplied first operand
+  may be Undefined, Null, Boolean or Number and uses the existing primitive ToNumber
+  lowering. Up to 1,000 ordinary arguments may be
   supplied; surplus expressions run left-to-right and discard their values. Resolved
   parameter/local/TDZ/module-helper shadows never fall back by spelling. Ordinary numeric bindings named Math may
-  still mutate; type-only Math names do not create value bindings. The first
+  still mutate; type-only Math names do not create value bindings. The converted
   Number is saved before surplus argument effects and waits; the intrinsic runs
   after all arguments finish. Missing inputs do not read a source `undefined` or
   `NaN` binding.
-  With a supplied Number, abs emits `f64.abs`;
-  sqrt/floor/ceil/trunc emit their corresponding `f64` opcode directly. There is
-  no ToNumber coercion, integer conversion or generated arithmetic helper.
+  With a supplied primitive, abs emits `f64.abs` after conversion;
+  sqrt/floor/ceil/trunc emit their corresponding `f64` opcode. Conversion is pure
+  for these admitted primitive kinds; effectful object conversion is not admitted.
+  No integer conversion or generated arithmetic helper is added.
   Non-NaNs compare exact binary64 bits; NaNs compare by class, not payload/sign.
   Abs maps negative zero to positive zero; the other four preserve input negative
   zero. Ceil/trunc may also return negative zero for negative fractions. Negative
@@ -1978,8 +1980,8 @@ primitive coercion remain separate work. Corpus 79 has 1,873 numeric pairs and
 
 The five pristine unary Math calls return Number NaN when no argument is supplied.
 The evaluator emits an existing Number constant; there is no source lookup of
-`undefined` or `NaN`, new IR operation, emitter path or runtime ABI. Explicit
-non-Number first arguments remain separate conversion work. Surplus argument
+`undefined` or `NaN`, new IR operation, emitter path or runtime ABI. The subsequent
+primitive-input unit supplies explicit primitive conversion. Surplus argument
 ordering and the existing namespace, patch, spread and width guards are unchanged.
 
 Native JavaScript, Node-Wasm and Wasmtime oracles cover all five methods in both
@@ -1988,3 +1990,22 @@ discarded calls, nested calls and async job traces. Five exact former missing-in
 rejection sources are promoted with their original hashes pinned by a Node test.
 Corpus 80 has 1,879 numeric pairs and 903 rejections; primitive coverage remains
 175 pairs.
+
+### Primitive inputs to unary Math intrinsics
+
+The five supported pristine unary Math intrinsics now reuse primitive arithmetic
+operand lowering for a supplied first argument. Undefined converts to NaN, Null
+to positive zero, Boolean to zero or one, and Number preserves its value. The
+existing unary opcode then applies. General bindings and predicate operands use
+the same conversion rules. The first converted Number is retained across surplus
+argument writes and waits, even when those writes change the source binding's kind.
+Conversion is pure for the admitted kinds; no effectful object conversion is claimed.
+
+Eighty-one full-source cases compare JS/TS, Number/Value profiles and native JavaScript,
+Node-Wasm and Wasmtime. Thirty async bodies check argument snapshots, resolution,
+rejection and job ordering; an erased TypeScript example retains identical Wasm.
+The seventeen original Boolean, Null, Undefined and predicate rejection sources now
+execute unchanged and are pinned by SHA256. Unsupported String/object/BigInt/function
+operands and the existing namespace and width guards remain rejected. This changes
+one evaluator mode selection, with no IR operation, emitter, ABI or dependency change.
+Corpus 81 has 1,897 numeric pairs, 175 primitive pairs and 886 rejections.

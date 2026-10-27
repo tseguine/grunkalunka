@@ -635,8 +635,8 @@ Missing/spread/optional/generic forms stay guarded. The five supported pristine
 unary Math functions also evaluate surplus arguments and preserve their first
 Number snapshot before effects/awaits. Their five original extra-argument guards
 now execute unchanged. Missing operands also produce Number NaN in the subsequent
-unit; primitive coercions remain open, along with namespace, unsupported operand
-and builtin shape rules.
+unit. The later primitive-input unit also supplies ToNumber for represented
+primitive kinds; namespace, unsupported operand and builtin shape rules remain.
 
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls
@@ -712,7 +712,13 @@ targets and mixed function/primitive joins remain gaps. See
 
 Missing inputs to the five supported pristine unary Math intrinsics now produce
 Number NaN, independently of local `undefined` and `NaN` bindings. Corpus 80
-promotes the five exact former missing-input sources unchanged. A supplied first
-argument still requires a Number; primitive ToNumber conversion remains the next
-bounded Math gap. Namespace shadowing, property patches, reification and external
-realm integration remain open.
+promotes the five exact former missing-input sources unchanged. Corpus 81 then
+promotes seventeen exact explicit primitive-input sources: the first argument now
+converts Undefined, Null, Boolean or Number with the existing ToNumber lowering.
+Namespace shadowing, property patches, reification and external realm integration
+remain open.
+
+Unary Math primitive-input conversion preserves the saved first value across later
+argument writes and async waits, including General bindings whose kind changes.
+String, object, BigInt and function operands remain unsupported. The arithmetic
+conversion machinery is reused; no new IR operation or runtime ABI is introduced.
