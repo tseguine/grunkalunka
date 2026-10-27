@@ -604,11 +604,12 @@ pub(crate) fn general_mutable_bindings(
             }
         }
     }
-    // A factory selection also selects its returned constructors, even without
-    // a source call. Follow complete returns within the existing eight-frame
+    // Each factory selects its returned constructors, even without a source
+    // call or peer constructor. Follow complete returns within the eight-frame
     // signature-query bound; retain singleton frontiers because the next layer
     // can contain a conditional selection again. This query executes no body.
     let mut frontier = constructor_groups.clone();
+    frontier.extend(arrows.keys().map(|body| BTreeSet::from([*body])));
     for _ in 0..8 {
         let mut next = BTreeSet::new();
         for group in &frontier {

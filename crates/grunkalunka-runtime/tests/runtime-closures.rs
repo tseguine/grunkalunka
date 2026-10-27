@@ -151,6 +151,25 @@ fn immediate_selections_join_private_primitive_inputs() {
 }
 
 #[test]
+fn lone_factories_infer_unused_returned_constructor_groups() {
+    compare_function_programs(
+        &[
+            "const make=()=>a?()=>null:()=>b;return a;",
+            "let make=x=>{if(x)return ()=>a;return ()=>null;};return a;",
+            "const make=()=>{if(a)return ()=>null;return ()=>b;};return a;",
+            "const make=()=>{const f=()=>null;const g=()=>b;return a?f:g;};return a;",
+            "const make=()=> (()=>null)||(()=>b);return a;",
+            "const make=()=> (()=>null)??(()=>b);return a;",
+            "let n=0;const make=()=>(n++,a?()=>null:()=>b);return n;",
+            "const id=x=>x;const make=()=>a?()=>null:()=>b;return id(a)+id(b);",
+            "const id=x=>x;const make=()=>a?()=>null:()=>b;const apply=(fn,x)=>fn(x);return apply(id(x=>x+a),b);",
+            "const make=()=>a?()=>null:()=>b;return +make()();",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn unused_nested_factory_results_share_scalar_leaf_interfaces() {
     compare_function_programs(
         &[
@@ -1762,7 +1781,6 @@ fn runtime_block_factories_keep_completion_signature_and_target_guards() {
         "let make=x=>{if(x)return ()=>a;return;};return a;",
         "let make=x=>{if(x)return ()=>a;return b;};return a;",
         "let make=x=>{if(x)return ()=>a;return y=>y;};return a;",
-        "let make=x=>{if(x)return ()=>a;return ()=>null;};return a;",
         "let make=x=>{while(x){return ()=>a;}};return a;",
         "let make=x=>{return later;const later=()=>a;};return a;",
         "let make=x=>{return async()=>x;};return a;",

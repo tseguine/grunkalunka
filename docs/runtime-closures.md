@@ -240,3 +240,7 @@ results using the same common General interface as its called form. Returned
 aliases, block returns and intervening shared constructors retain their original
 symbols. Traversal uses the existing eight-frame signature-query bound, evaluates
 no body or argument, and leaves recursive/unrepresented result guards in place.
+Lone factories also seed the query, including unused conditional/logical and
+complete block returns. Dormant constructor effects stay dormant, and generic
+identity calls retain their separate specialization. Returned functions continue
+to use the existing scalar-kind, capture and async caller protocols.

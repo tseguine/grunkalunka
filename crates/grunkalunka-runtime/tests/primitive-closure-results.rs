@@ -579,6 +579,20 @@ fn immediate_selections_preserve_joined_input_and_result_kinds() {
 }
 
 #[test]
+fn lone_factory_return_groups_preserve_primitive_leaf_kinds() {
+    compare_primitive_closure_programs(&[
+        "const make=()=>a?()=>null:()=>b;return a;",
+        "let make=x=>{if(x)return ()=>a;return ()=>null;};return a;",
+        "const make=()=>a?()=>null:()=>b;return make()();",
+        "const make=()=>{if(a)return ()=>null;return ()=>b;};return a;",
+        "const make=()=>{if(a)return ()=>null;return ()=>b;};return make()();",
+        "const make=()=>{const f=()=>undefined;const g=()=>b;return a?f:g;};return make()();",
+        "let n=0;const make=()=>(n++,a?()=>null:()=>b);return n;",
+        "const make=x=>()=>a?()=>null:()=>x;const keep=make(b);return keep()();",
+    ]);
+}
+
+#[test]
 fn nested_factory_result_groups_preserve_leaf_kinds_and_captures() {
     compare_primitive_closure_programs(&[
         "let make=x=>y=>()=>x+y;make=x=>y=>()=>null;return a;",

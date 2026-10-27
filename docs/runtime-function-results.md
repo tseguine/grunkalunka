@@ -50,6 +50,10 @@ join through the existing General result interface; unused definitions, returned
 aliases and complete block bodies receive the same result-kind checks as called
 factories. This bounded query executes no source effects and preserves the
 eight-frame signature limit and function/primitive signature boundaries.
+This also applies to a single unused factory: every source arrow starts the
+complete-return query, without inserting singleton shared signatures or executing
+its body. Conditional, logical, aliased and complete block return selections retain
+primitive leaf kinds and existing source/resource guards.
 
 Each IR function records its result type. The verifier checks it against the
 entry profile, lifted-body contract, constructor signature and call result.

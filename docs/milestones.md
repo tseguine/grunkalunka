@@ -33,6 +33,9 @@ unrepresented String/object results remain separate work.
 Nested factory constructor groups now follow complete returns even for unused
 definitions, retaining tagged leaf results, returned aliases, captured cells and
 async caller snapshots within the existing signature-query bounds.
+Lone unused factories now infer their returned constructor groups too, without
+requiring a call or another factory peer. Differential tests preserve dormant
+effects, generic identities, primitive leaf kinds and async reaction order.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

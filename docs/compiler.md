@@ -2168,3 +2168,7 @@ eight-frame signature-query horizon, independently of source call demand. This
 also admits unused nested factories whose corresponding leaves return Number or
 another represented primitive, without evaluating dormant bodies. Shared
 intermediate constructors and returned aliases retain the same bounded traversal.
+Every source arrow seeds this query independently, so a lone unused factory may
+return a conditional or logical choice of primitive-result functions without a
+call first establishing their shared interface. Singleton seeds do not themselves
+become shared ABI groups; ordinary generic identity specialization is preserved.
