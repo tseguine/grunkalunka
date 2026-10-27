@@ -6,6 +6,7 @@ import { primitiveFactoryLeaves } from './primitive-factory-leaves.mjs';
 import { runtimeBlockFactories } from './runtime-block-factories.mjs';
 import { nestedRuntimeFactories } from './nested-runtime-factories.mjs';
 import { returnedFunctionCallbacks } from './returned-function-callbacks.mjs';
+import { knownLocalExtraArguments } from './known-local-extra-arguments.mjs';
 import { primitiveResultCallbacks } from './primitive-result-callbacks.mjs';
 import { higherCallbackShapes } from './higher-callback-shapes.mjs';
 import { primitiveNullish } from './primitive-nullish.mjs';
@@ -77,7 +78,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 75;
+export const corpusVersion = 76;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -113,6 +114,7 @@ programs.push(...nestedRuntimeFactories);
 programs.push(...returnedFunctionCallbacks);
 programs.push(...higherCallbackShapes);
 programs.push(...primitiveResultCallbacks);
+programs.push(...knownLocalExtraArguments);
 programs.push(...primitiveNullish);
 programs.push(...typescriptPrograms);
 programs.push(...test262Programs);

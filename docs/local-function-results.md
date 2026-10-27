@@ -23,9 +23,10 @@ Read-only callback-demand analysis follows concise and block returned constructo
 through aliases and known calls, including constructors assigned to a formal parameter.
 Erased TypeScript annotations do not determine a runtime kind.
 
-Actual arguments execute once, left-to-right, in the caller's scope. Fresh formal
-bindings are installed only after all arguments finish. The result snapshots the
-code/environment pair; captured cell contents remain shared. Conditional and
+Actual arguments execute once, left-to-right, in the caller's scope. Surplus
+ordinary arguments also finish and discard their values before fresh formal bindings are installed.
+All declared inputs are still required; at most 1,000 arguments may be supplied.
+The result snapshots the code/environment pair; captured cell contents remain shared. Conditional and
 assignment callees are evaluated before their ordered Number arguments. These
 rules also hold when an argument suspends in the primitive async profile.
 

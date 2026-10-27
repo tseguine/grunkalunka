@@ -619,6 +619,13 @@ shared cells and ordered arguments across async suspension; packed frames retain
 the 1,000 logical-argument bound. Finite callbacks taking callbacks and factories
 returning factories are supported; async callback bodies remain open. See [higher-order callbacks](higher-order-callbacks.md).
 
+Source-known local arrows now evaluate surplus ordinary arguments in caller order
+before binding declared inputs, preserving effects, captures, function/primitive
+discard and async caller rejection boundaries. Known concise/block creators retain
+function results through these calls. All declared inputs are still required and
+supplied arguments remain bounded to 1,000. Runtime indirect calls and top-level
+numeric helper calls retain exact arity; spread/optional/generic forms stay guarded.
+
 Concise known local calls now return existing same-arity function pairs through
 identity, selection, forwarding and plain assignment, including immediate calls
 and async caller arguments. This changes no canonical rejection source or host

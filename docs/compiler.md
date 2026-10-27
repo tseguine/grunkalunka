@@ -1654,9 +1654,15 @@ mutations detect a missing selected Store and reversed branch selection.
 ## Local arrow calls and shared captures
 
 Synchronous arrows with expression or block bodies can be bound to `const`, aliased by another
-`const`, or called immediately. Calls require exactly the declared number of
-numeric arguments and a numeric body result. Parentheses and erased TypeScript
-wrappers preserve the underlying function; annotations do not coerce values.
+`const`, or called immediately. Source-known calls require all declared inputs and
+admit up to 1,000 supplied ordinary arguments. Surplus arguments evaluate once,
+left-to-right in caller scope, then their values are discarded before formal cells
+are bound. Discarded primitives/functions retain their effects and validation.
+This includes known factories and awaited known async calls; an argument rejection
+occurs outside the callee's rejection boundary. Runtime indirect calls and top-level
+numeric helpers still require exact arity. Missing, spread, optional and generic
+local arguments remain unsupported. Body results retain their existing typed contract.
+Parentheses and erased TypeScript wrappers preserve the underlying function; annotations do not coerce values.
 
 Known concise arrow factories can also return an arrow or immutable closure
 alias into a `const` binding. New arrows retain fresh creator parameter cells;

@@ -79,7 +79,7 @@ impl ReturnOrigins<'_, '_, '_> {
                 let mut result = Origins::default();
                 for body in bodies {
                     let arrow = self.arrows[&body];
-                    if arrow.params.items.len() != call.arguments.len() {
+                    if arrow.params.items.len() > call.arguments.len() {
                         continue;
                     }
                     let expressions = if let Some(expression) = arrow.get_expression() {

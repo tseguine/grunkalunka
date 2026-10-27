@@ -8,6 +8,13 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['local-extra-original','const apply=(fn,x)=>fn(x);return apply(x=>null,a,b);'],
+  ['local-extra-null','const f=x=>x?null:b;return f(a,(a=b,null));'],
+  ['local-extra-boolean','const f=x=>{if(x)return true;};return f(a,(a=b,false));'],
+  ['local-extra-concise-factory','const make=x=>()=>x?null:b;const f=make(a,(a=b,null));return f();'],
+  ['local-extra-block-factory','const make=x=>{const f=()=>x?false:b;return f;};return make(a,(a=b,null))();'],
+  ['local-extra-identity','const id=x=>x;const leaf=()=>null;return id(leaf,(a=b,undefined))();'],
+
   ['primitive-callback-null','const apply=(fn,x)=>fn(x);return apply(x=>null,a);'],
   ['primitive-callback-boolean','const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>true,b);'],
   ['primitive-callback-undefined','const apply=(fn,x)=>fn(x);return apply(x=>undefined,a);'],

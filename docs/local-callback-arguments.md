@@ -13,6 +13,10 @@ export function run(a,b) {
 }
 ```
 
+Source-known calls may supply extra ordinary arguments, up to 1,000 in total.
+These evaluate in caller scope and discard their values; all declared inputs are
+still required. Runtime indirect calls retain their exact signature arity.
+
 Arguments finish left-to-right before the helper's parameter bindings replace
 the caller's. Function arguments snapshot both code and environment fields;
 capture contents remain shared cells. An argument may suspend or mutate the

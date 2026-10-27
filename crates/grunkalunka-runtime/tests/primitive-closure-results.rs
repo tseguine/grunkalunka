@@ -85,6 +85,19 @@ fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
 }
 
 #[test]
+fn known_local_surplus_values_preserve_primitive_results() {
+    compare_primitive_closure_programs(&[
+        "const apply=(fn,x)=>fn(x);return apply(x=>null,a,b);",
+        "const f=x=>x?null:b;return f(a,(a=b,null));",
+        "const f=()=>null;return f(false,undefined,a=b);",
+        "const f=x=>{if(x)return true;};return f(a,(a=b,false));",
+        "const make=x=>()=>x?null:b;const f=make(a,(a=b,null));return f();",
+        "const make=x=>{const f=()=>x?false:b;return f;};return make(a,(a=b,null))();",
+        "const id=x=>x;const leaf=()=>null;return id(leaf,(a=b,undefined))();",
+    ]);
+}
+
+#[test]
 fn callbacks_return_represented_primitives() {
     compare_primitive_closure_programs(&[
         "const apply=(fn,x)=>fn(x);return apply(x=>null,a);",
@@ -123,7 +136,6 @@ fn primitive_callback_width_and_signature_guards() {
         "const apply=(fn,x)=>fn(x);return apply(a?(x=>null):(x=>x),b);".into(),
         "const apply=(fn,x)=>fn(x);let f=x=>null;f=x=>x;return apply(f,a);".into(),
         "const apply=(fn,x)=>fn(x);return apply(async x=>null,a);".into(),
-        "const apply=(fn,x)=>fn(x);return apply(x=>null,a,b);".into(),
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {

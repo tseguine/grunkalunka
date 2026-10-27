@@ -311,10 +311,16 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 "optional and generic local calls are not admitted",
             ));
         }
-        if call.arguments.len() != self.arrow(closure.arrow).params.items.len() {
+        if call.arguments.len() > 1000 {
             return Err(unsupported(
                 call,
-                "local call requires exactly the declared number of arguments",
+                "at most 1000 ordinary local call arguments are admitted",
+            ));
+        }
+        if call.arguments.len() < self.arrow(closure.arrow).params.items.len() {
+            return Err(unsupported(
+                call,
+                "local call is missing declared arguments",
             ));
         }
         Ok(())
@@ -366,10 +372,14 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // Source arguments finish left-to-right before the creator's bindings
         // replace the caller's. Every specialization gets fresh parameter slots.
         let mut arguments = Vec::new();
-        for argument in &call.arguments {
+        for (index, argument) in call.arguments.iter().enumerate() {
             let argument = argument.as_expression().ok_or_else(|| {
                 unsupported(call.as_ref(), "spread call arguments are not admitted")
             })?;
+            if index >= self.arrow(factory.arrow).params.items.len() {
+                self.evaluate(argument, region, call_depth + 1, evaluate::Mode::Discard)?;
+                continue;
+            }
             let value = if let Some(arity) = self.function_arity(argument, call_depth + 1) {
                 self.callback_argument(argument, region, arity, call_depth + 1)?
             } else {

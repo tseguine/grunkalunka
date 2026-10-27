@@ -230,7 +230,6 @@ fn unsupported_closure_lifetimes_and_call_shapes_remain_explicit() {
         "const f=(x=1)=>x; return f();",
         "const f=(...x)=>a; return f();",
         "const f=x=>x; return f();",
-        "const f=x=>x; return f(a,b);",
         "const f=x=>x; return f(...a);",
         "const f=()=>a; return f?.();",
         "const f=()=>f(); return f();",

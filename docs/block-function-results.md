@@ -21,8 +21,10 @@ so a return after the loop is still required. A nested arrow's own returns do no
 participate in its creator's return contract.
 
 The returned value is the existing code/environment pair. Arguments finish once,
-left to right, before fresh parameter cells are bound. Returned functions retain
-captured lexical cells after their creator returns; different creator calls receive
+left to right, before fresh parameter cells are bound. Surplus ordinary arguments
+retain their effects and discard their values in caller scope; all declared inputs
+are still required and supplied arguments are bounded to 1,000. Returned functions
+retain captured lexical cells after their creator returns; different creator calls receive
 independent local cells. Returning a mutable function binding snapshots its current
 pair while preserving the captured cells shared by that pair. Local initializer
 aliases are recognized through original semantic symbols, preserving shadowing.

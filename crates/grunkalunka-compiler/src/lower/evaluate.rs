@@ -456,15 +456,28 @@ impl Lowering<'_, '_> {
                     mut arguments,
                     depth,
                 } => {
-                    // Function arguments are completed directly into this vector;
-                    // only a pending Number argument needs the scalar value stack.
-                    if arguments.len() < index {
+                    // Only declared inputs need values. Surplus expressions use
+                    // Discard, which consumes its own temporary scalar result.
+                    let parameter_count = self.arrow(closure.arrow).params.items.len();
+                    if index <= parameter_count && arguments.len() < index {
                         arguments.push(values.pop().expect("local call argument").number());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
                             unsupported(node, "spread call arguments are not admitted")
                         })?;
+                        if index >= parameter_count {
+                            work.push(Work::LocalCall {
+                                node,
+                                call,
+                                closure,
+                                index: index + 1,
+                                arguments,
+                                depth,
+                            });
+                            work.push(Work::Eval(argument, depth, Mode::Discard));
+                            continue;
+                        }
                         let function = self.function_arity(argument, depth);
                         if let Some(arity) = function {
                             let outer = self.function_result_depth;

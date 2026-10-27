@@ -275,7 +275,7 @@ impl Lowering<'_, '_> {
                     {
                         self.arrow_signature_at(self.arrow(returned.arrow), calls, bindings)?
                     } else {
-                        if calls >= 8 || arrow.params.items.len() != call.arguments.len() {
+                        if calls >= 8 || arrow.params.items.len() > call.arguments.len() {
                             return None;
                         }
                         let mut parameters = BTreeMap::new();
@@ -501,10 +501,14 @@ impl Lowering<'_, '_> {
             self.charge_closure_expansion(call)?;
             let arrow = self.arrow(closure.arrow);
             let mut arguments = Vec::new();
-            for argument in &call.arguments {
+            for (index, argument) in call.arguments.iter().enumerate() {
                 let expression = argument
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
+                if index >= arrow.params.items.len() {
+                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
+                    continue;
+                }
                 let value = if let Some(kind) = self.function_arity(expression, depth + 1) {
                     self.callback_argument(expression, region, kind, depth + 1)?
                 } else {

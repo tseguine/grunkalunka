@@ -1131,6 +1131,51 @@ fn selected_higher_order_functions_receive_callback_pairs() {
 }
 
 #[test]
+fn known_local_calls_evaluate_surplus_arguments_before_binding() {
+    compare_function_programs(
+        &[
+            "const f=x=>x+a;return f(b,a=b);",
+            "const f=x=>x; return f(a,b);",
+            "const pick=()=>{return ()=>a;};const f=pick(a);return f();",
+            "const f=x=>x+a;return f(a,a=b);",
+            "const f=a=>a;return f(a,a=b);",
+            "const f=x=>x+a;return f(a,(a=b,null));",
+            "const f=()=>a;return f(a=b,undefined,false);",
+            "let x=a;const f=x=>x+a;return f(b,x=a+1,a=x);",
+            "const f=x=>{return x+a;};return f(a,a=b,null);",
+            "const call=(fn,x)=>fn(x);return call(y=>y+b,a,b);",
+            "const make=x=>()=>x+a;const f=make(a,a=b);return f();",
+            "const make=x=>{const f=()=>x+a;return f;};return make(a,a=b)();",
+            "const make=x=>y=>()=>x+y+a;return make(a,a=b)(b)();",
+            "const id=x=>x;const f=id(()=>a,a=b,null);return f()+id(a,undefined);",
+            "const f=x=>x+a;const make=y=>(a=y,()=>y);return f(a,make(b));",
+            "const f=x=>x+a;return f(a,(a=b,x=>null));",
+        ],
+        false,
+    );
+}
+
+#[test]
+fn known_local_surplus_arguments_keep_width_and_source_guards() {
+    let arguments = vec!["a"; 1000].join(",");
+    compare_function_programs(&[&format!("const f=()=>a;return f({arguments});")], false);
+    for body in [
+        format!("const f=()=>a;return f({arguments},a);"),
+        "const f=x=>x+a;return f();".into(),
+        "const f=x=>x+a;return f(a,...b);".into(),
+        "const f=x=>x+a;return f?.(a,b);".into(),
+        "const f=()=>a;return f(()=>missing);".into(),
+        "const f=a?(()=>a):(()=>b);return f(a);".into(),
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            assert!(compile(&source, ts).is_err(), "{source}");
+            assert!(compile_value(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn primitive_callbacks_keep_numeric_consumers_and_identity() {
     compare_functions(&[
         "const apply=(fn,x)=>fn(x);return +apply(x=>null,a);",
@@ -1329,7 +1374,6 @@ fn block_function_results_keep_return_kind_and_export_boundaries() {
         "const pick=flag=>{if(flag)return ()=>a;return x=>x;};return a;",
         "const pick=flag=>{if(flag)return ()=>a;};return a;",
         "const pick=()=>{return async()=>a;};const f=pick();return f();",
-        "const pick=()=>{return ()=>a;};const f=pick(a);return f();",
         "const pick=()=>{return ()=>a;};const f=pick?.();return f();",
         "const pick=()=>{return ()=>a;};const f=pick(...a);return f();",
         "const pick=()=>{return later;const later=()=>a;};return a;",
