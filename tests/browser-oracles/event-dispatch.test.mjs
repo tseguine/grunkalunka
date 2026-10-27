@@ -92,7 +92,8 @@ test("runner retains sources and failures, rejects reused directories and no-op 
     assert.equal(await readFile(join(outputDir, "first.html"), "utf8"), source);
     await assert.rejects(runEvents("chromium", { collect, outputDir }), { code: "EEXIST" });
     for (const [i, fault] of [c => c.fixtureId = "wrong", c => c.provenance.fixtureSha256 = "b".repeat(64),
-      c => c.observations = receipt().observations, c => c.observations[0].dispatches[0].returned = false].entries()) {
+      c => c.observations = receipt().observations, c => c.observations[0].dispatches[0].returned = false,
+      c => c.observations[6].dispatches[1].trace[0].isTrusted = true].entries()) {
       const out = join(dir, `bad-${i}`);
       await assert.rejects(runEvents("chromium", { outputDir: out, collect: async path => {
         const c = await collect(path); if (path.endsWith("skip-stop.html")) fault(c); return c;
