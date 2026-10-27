@@ -113,12 +113,14 @@ bindings and selections between Promise and primitive values remain separate.
 Existing intrinsic shadowing and optional/generic/spread-call guards remain.
 Type annotations and wrappers establish no runtime Promise or payload kind.
 
-A separate, IR-only `SettledPromise` type now captures immediate primitive
-fulfillment or rejection for later source admission. It does not weaken this
-source fulfilled-only contract. Explicit conversion preserves the distinct kinds;
-an await of a settled IR snapshot adds one caller reaction and handles rejection
-through the existing lexical catch protocol. Pending/adoption and unhandled
-rejection tracking remain separate requirements.
+A separate `SettledPromise` type captures immediate primitive fulfillment or
+rejection. Source non-suspending throwing async closures now use it for immediate
+await and supported synchronous result forwarding. It does not weaken this
+stored fulfilled-only contract: potentially rejected snapshots cannot yet be
+stored, discarded, coerced or passed as source Promise parameters. Explicit
+conversion preserves the distinct kinds; settled await adds one caller reaction
+and handles rejection through the existing lexical catch protocol. Pending,
+adoption and unhandled-rejection tracking remain separate requirements.
 
 The maintained `async-suspension` and `runtime-closures` source tests compare
 JS/TS, native JavaScript, Node-Wasm and Wasmtime values, effects and job order.

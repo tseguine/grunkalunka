@@ -8,6 +8,149 @@ use std::{
 const ORIGINAL: &str = "export async function run(a,b) { return a + await Promise.resolve(b); }";
 
 #[test]
+fn throwing_async_closures_keep_settlement_and_caller_reactions() {
+    compare_promises(
+        &[
+            "const f=a?async()=>{throw a;}:async()=>b;return await f();",
+            "const f=a?async()=>{throw b;}:async()=>{throw a;};return await f();",
+            "const f=a?async()=>{throw undefined;}:async()=>{throw null;};return await f();",
+            "const f=a?async()=>{throw true;}:async()=>{throw false;};return await f();",
+            "const f=a?async()=>{if(a)throw b;}:async()=>false;return await f();",
+            "const f=a?async()=>{try{throw b;}catch(e){return e;}}:async()=>null;return await f();",
+            "const f=a?async()=>{try{throw a;}catch(e){throw b;}}:async()=>b;try{return await f();}catch(e){return e;}",
+            "let n=0;const f=a?async()=>{n++;throw b;}:async()=>{n+=2;return false;};try{return +(await f())+n;}catch(e){return +e+n;}",
+            "let f=async()=>a;f=async()=>{throw b;};try{return await f();}catch(e){return e;}",
+            "let f=async()=>{throw a;};const old=f;f=async()=>b;try{return await old();}catch(e){return +e+(+(await f()));}",
+            "let x=a;let f=async y=>{x++;throw y;};try{return await f((f=async y=>y,await b));}catch(e){return +e+x;}",
+            "let n=0;const f=a?async x=>{n++;throw x;}:async x=>x;try{return await f(await Promise.reject(b));}catch(e){return +e+n;}",
+            "let n=0;const f=a?async x=>{n++;throw x;}:async x=>x;try{return +(await f(b,n+=4))+n;}catch(e){return +e+n;}",
+            "const f=a?async()=>{let x=3;while(x){if(--x===1)throw b;}return x;}:async()=>a;return await f();",
+            "const make=x=>async()=>{throw x;};const f=make(b);return await f();",
+            "const make=a?x=>async()=>{throw x;}:x=>async()=>-x;const f=make(b);try{return await f();}catch(e){return e;}",
+            "let x=a;const make=()=>{return async()=>{throw x;};};const f=make();await b;x=b;return await f();",
+            "const f=a?async()=>{const g=()=>b;throw g();}:async()=>a;try{return await f();}catch(e){try{throw e;}catch(x){return x;}}",
+            "const f=a?async()=>{throw b;}:()=>Promise.resolve(a);return await f();",
+            "let f=async()=>{throw a;};f=()=>{return Promise.resolve(b);};return await f();",
+            "let f=async()=>{throw a;};return await(a?f():Promise.resolve(b));",
+            "let f=async()=>{throw a;};try{return await(a?Promise.resolve(b):f());}catch(e){return e;}",
+            "const f=async x=>{throw x;};const h=()=>f(null);return await(a?h:h)();",
+            "const f=async x=>{throw x;};const h=()=>f(false);try{return await(a?h:h)();}catch(e){return e;}",
+            "let f=async()=>{throw b;};return await Promise.resolve(f());",
+            "let f=async()=>{throw b;};return await(0,f());",
+            "let f=async()=>{throw b;};return await(f||(async()=>a))();",
+            "let f=async()=>{throw b;};return await(f??(async()=>a))();",
+            "let f=async()=>{throw a;};f&&=async()=>b;return await f();",
+            "const f=async()=>{const fail=async()=>{throw a;};return b;};const h=a?f:f;return await h();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn throwing_async_closures_preserve_source_budgets_and_erased_types() {
+    let parameters = (0..1000)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = (0..1000)
+        .map(|i| if i == 999 { "b" } else { "a" })
+        .collect::<Vec<_>>()
+        .join(",");
+    let wide = format!(
+        "const f=a?async({parameters})=>{{throw p999;}}:async({parameters})=>p0;return await f({arguments});"
+    );
+    compare_promises(
+        &[&wide],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+    let too_wide = wide.replace(&parameters, &format!("{parameters},extra"));
+    for ts in [false, true] {
+        assert!(compile_async(&source_for(&too_wide), ts).is_err());
+    }
+    let prefix = "let f=async x=>{if(a)throw x;return x;};let n=0;";
+    let site = "try{n+=+(await f(b));}catch(e){n+=+e;}";
+    let repeated = format!("{prefix}{}return n;", site.repeat(32));
+    compare_promises(
+        &[&repeated],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+    for ts in [false, true] {
+        let over = source_for(&format!("{prefix}{}return n;", site.repeat(33)));
+        assert!(
+            compile_async(&over, ts)
+                .err()
+                .expect("33 logical awaits must reject")
+                .contains("32 await sites")
+        );
+    }
+    let plain = "export async function run(a,b){const f=a?async x=>{throw x;}:async x=>null;try{return await f(b);}catch(e){return e;}}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{const f=(a?async(x:unknown):Promise<string>=>{throw(x as number);}:async(x:unknown):Promise<number>=>null) as any;try{return await(f as never)(b as unknown);}catch(e:unknown){return e as string;}}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    compare_async_sources(
+        &[plain.to_string()],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn throwing_async_closures_forward_through_private_callbacks() {
+    compare_promises(
+        &[
+            "const apply=(fn,x)=>fn(x);return await apply(async x=>{throw x;},b);",
+            "const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(-x);return await apply(async x=>{throw x;},b);",
+            "const apply=(fn,x)=>fn(x);const relay=(fn,x)=>apply(fn,x);return await relay(async x=>{throw x;},null);",
+            "const f=a?async x=>{throw x;}:async x=>false;const apply=(fn,x)=>fn(x);try{return await apply(f,b);}catch(e){return e;}",
+            "const apply=(fn,x)=>{return fn(x);};return await apply(async x=>{throw x;},false);",
+            "const invoke=fn=>fn(async x=>{throw x;},b);const apply=(fn,x)=>fn(x);return await invoke(apply);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn throwing_async_closures_keep_unobserved_rejections_guarded() {
+    for body in [
+        "let f=async()=>{throw a;};const p=f();return await p;",
+        "let f=async()=>{throw a;};f();return b;",
+        "let f=async()=>{throw a;};return void f();",
+        "let f=async()=>{throw a;};return +f();",
+        "let f=async()=>{throw a;};if(f())return a;return b;",
+        "let f=async()=>{throw a;};return f();",
+        "let f=async()=>{throw a;};return await Promise.reject(f());",
+        "let f=async()=>{throw a;};return await Promise.resolve(f(),await b);",
+        "let f=async()=>{throw a;};return await(f()&&Promise.resolve(b));",
+        "let f=async()=>{throw a;};return await(f()||Promise.resolve(b));",
+        "let f=async()=>{throw a;};const take=p=>p;return await take(f());",
+        "let f=async()=>{throw a;};const g=async()=>f();return await g();",
+        "let f=async()=>{throw a;};const g=()=>{f();return b;};return g();",
+        "const f=a?async()=>{await a;throw b;}:async()=>b;return await f();",
+        "const f=a?async()=>{throw 'x';}:async()=>b;return await f();",
+        "const f=a?async()=>{throw {};}:async()=>b;return await f();",
+        "const f=a?async()=>{throw ()=>a;}:async()=>b;return await f();",
+        "const f=a?async()=>{throw Promise.resolve(a);}:async()=>b;return await f();",
+        "let f=async()=>{throw a;};return await f?.();",
+        "let f=async()=>{throw a;};return await f(...a);",
+    ] {
+        for ts in [false, true] {
+            assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
+        }
+    }
+}
+
+#[test]
 fn eager_async_closures_preserve_values_and_jobs() {
     compare_promises(
         &[
@@ -56,7 +199,6 @@ fn eager_async_closures_preserve_values_and_jobs() {
 fn eager_async_closures_keep_completion_and_domain_guards() {
     for body in [
         "const f=a?async()=>{await a;return b;}:async()=>b;return await f();",
-        "const f=a?async()=>{throw a;}:async()=>b;return await f();",
         "const f=a?async()=>Promise.resolve(a):async()=>Promise.resolve(b);return await f();",
         "const f=a?async()=>()=>a:async()=>()=>b;return await f();",
         "const f=a?async()=>({}):async()=>({});return await f();",

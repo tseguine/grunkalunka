@@ -301,5 +301,29 @@ returned factories, callback forwarding, stored results and fulfilled-Promise
 parameters preserve the same callee/argument/capture snapshots. Unused async
 constructors do not run their bodies. Mixed async/synchronous primitive result
 interfaces, Promise-return adoption, async function/object/string outcomes and
-runtime suspension/rejection remain unsupported. Known directly awaited async
+runtime suspension remain unsupported. Known directly awaited async
 calls still use their existing suspension and rejection boundary.
+
+Non-suspending async arrows that throw primitive reasons now return the distinct
+`SettledPromise` kind. Constructor groups share that interface across throwing
+and fulfilling peers, including synchronous fulfilled-Promise-returning arrows.
+Closed body capture preserves primitive catches, rethrows, loops, early returns,
+fallthrough Undefined and synchronous prefix effects. Private calls can forward
+the snapshot through supported synchronous callbacks and factories; its immediate
+await adds one caller reaction and delivers rejection to the nearest caller catch.
+The physical closure pair and private tag/f64 result layout are unchanged.
+
+```js
+export async function run(a, b) {
+  const f = a ? async () => { throw b; } : async () => null;
+  try { return await f(); } catch (reason) { return reason; }
+}
+```
+
+Potentially rejected results cannot yet be stored, discarded, coerced, tested
+or passed as source Promise parameters. Those uses require unhandled-rejection
+tracking; async-return adoption and real pending objects also remain open.
+Maintained source tests compare JS/TS native execution with Node-Wasm and Wasmtime
+outcomes, primitive bits, callee/actual/capture snapshots and complete reaction
+traces. They retain 1,000/1,001 parameter and 32/33 await boundaries and compare
+erased typed syntax against the corresponding JS artifact.

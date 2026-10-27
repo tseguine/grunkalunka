@@ -144,7 +144,7 @@ The public ABI, arena limit and default fuel budget are unchanged.
 
 ## Settled primitive snapshot follow-up
 
-The separate IR-only `SettledPromise` kind preserves an immediate fulfillment or
+The separate `SettledPromise` kind preserves an immediate fulfillment or
 rejection and a primitive payload. It shares the sixteen-byte pair policy for
 locals, private results/arguments, captured cells and suspended storage. The
 backend uses rejection mask 4 in its tag word; the primitive tag remains
@@ -167,9 +167,13 @@ uses one existing host reaction for either settlement, entering the caller's
 catch or rejecting the entry when needed. Public/helper input and entry-result
 profiles, arenas, default fuel and dependencies remain unchanged.
 
-This is an executable IR prerequisite, with private calls, snapshots, mutable
-captures, all primitive tags, reaction order and 1,000-parameter/32-await limits
-covered separately from source admission. The five IR operations have narrowly
-scoped non-test dead-code expectations until a production source consumer exists;
-an expectation becoming unnecessary is a compiler warning. Source rejecting async
-closures, pending/adoption, identity and unhandled-rejection tracking remain open.
+Executable IR tests cover private calls, snapshots, mutable
+captures, all primitive tags, reaction order and 1,000-parameter/32-await limits,
+with evidence kept separate from source admission. Non-suspending source throwing async
+closures now consume capture, promotion and await. Only payload/status queries
+retain narrow non-test dead-code expectations; an unnecessary expectation is a
+compiler warning. Source results are restricted to immediate await and supported
+synchronous forwarding while source rejected slots/parameters and unobserved
+rejections remain guarded. Runtime async suspension, pending/adoption, identity
+and unhandled-rejection tracking remain open. This uses the existing representation,
+without a scheduler or host protocol extension.

@@ -205,7 +205,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.check_arrow_kind(
             arrow,
             (self.allow_await && factory_depth == 0)
-                || awaited::eager_async_arrow(arrow, self.semantic),
+                || awaited::immediate_async_arrow(arrow, self.semantic),
         )?;
         // Validate unused bodies too, without running effects or publishing their
         // scratch values/slots in the real function's verified IR.
@@ -276,7 +276,20 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else if let Some(arity) = check.function_arity(expression, 0) {
                 check.function_value(expression, &mut region, arity, 0)?;
             } else {
-                closure.result = if check.fulfilled_promise_shape(expression, 0) {
+                closure.result = if check.settled_promise_shape_in(
+                    expression,
+                    0,
+                    &std::collections::BTreeMap::new(),
+                    0,
+                ) {
+                    if arrow.r#async {
+                        return Err(unsupported(
+                            expression,
+                            "async Promise-valued returns require Promise adoption",
+                        ));
+                    }
+                    Type::SettledPromise
+                } else if check.fulfilled_promise_shape(expression, 0) {
                     if arrow.r#async {
                         return Err(unsupported(
                             expression,
@@ -293,7 +306,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     expression,
                     &mut region,
                     0,
-                    if closure.result == Type::FulfilledPromise {
+                    if closure.result == Type::SettledPromise {
+                        evaluate::Mode::Settled
+                    } else if closure.result == Type::FulfilledPromise {
                         evaluate::Mode::Promise
                     } else if closure.result == Type::General {
                         evaluate::Mode::General

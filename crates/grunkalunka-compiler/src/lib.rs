@@ -295,6 +295,7 @@ fn lower_source_profile(
             general_parameters: &general_bindings.inputs,
             number_calls: &general_bindings.number_calls,
             general_results: &general_bindings.general_results,
+            settled_results: &general_bindings.settled_results,
             callback_parameters: &callback_parameters,
             promise_parameters: &promise_parameters,
             closure_signatures: &closure_signatures,

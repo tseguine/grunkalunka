@@ -358,18 +358,10 @@ pub(crate) enum Op {
         input: ValueId,
     },
     // Capture a synchronous primitive return/throw without adding a reaction.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     SettlePromise {
         result: ValueId,
         body: Region,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     PromotePromise {
         result: ValueId,
         input: ValueId,
@@ -391,10 +383,6 @@ pub(crate) enum Op {
         input: ValueId,
     },
     // One caller reaction, regardless of which settlement is represented.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     AwaitSettled {
         result: ValueId,
         input: ValueId,

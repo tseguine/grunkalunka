@@ -12,6 +12,7 @@ pub(super) enum Mode {
     General,
     Function(usize),
     Promise,
+    Settled,
 }
 
 #[derive(Clone, Copy)]
@@ -21,6 +22,7 @@ enum Value {
     General(ValueId),
     Function(ValueId),
     Promise(ValueId),
+    Settled(ValueId),
 }
 impl Value {
     fn id(self) -> ValueId {
@@ -29,7 +31,8 @@ impl Value {
             | Self::Predicate(id)
             | Self::General(id)
             | Self::Function(id)
-            | Self::Promise(id) => id,
+            | Self::Promise(id)
+            | Self::Settled(id) => id,
         }
     }
     fn general(self) -> ValueId {
@@ -85,6 +88,20 @@ fn call_result<'e, 'a>(
         }
         (Type::Number, Mode::Number) | (Type::General, Mode::General) => (),
         (Type::FulfilledPromise, Mode::Promise) => (),
+        (Type::FulfilledPromise, Mode::Settled) => work.push(Work::PromotePromise(node)),
+        (Type::SettledPromise, Mode::Settled) => (),
+        (Type::SettledPromise, _) => {
+            return Err(unsupported(
+                node,
+                "rejected Promise call results require an immediate await or synchronous forwarding position",
+            ));
+        }
+        (_, Mode::Settled) => {
+            return Err(unsupported(
+                node,
+                "settled Promise positions require a settled call result",
+            ));
+        }
         (Type::FulfilledPromise, _) => {
             return Err(unsupported(
                 node,
@@ -116,7 +133,9 @@ enum Work<'e, 'a> {
     Eval(&'e Expression<'a>, usize, Mode),
     Forget,
     Await(&'e Expression<'a>, bool, Type),
+    AwaitSettled(&'e Expression<'a>),
     FulfillPromise(&'e Expression<'a>),
+    PromotePromise(&'e Expression<'a>),
     PromiseValue(&'e Expression<'a>),
     PromiseTruthy(&'e Expression<'a>),
     FinishAwaitCall(&'e Expression<'a>, Type),
@@ -486,6 +505,16 @@ impl Lowering<'_, '_> {
                     Self::push(regions.current(), node, Op::AwaitCall { result, body });
                     values.push(Value::General(result));
                 }
+                Work::PromotePromise(node) => {
+                    let input = values.pop().expect("fulfilled promotion").promise();
+                    let result = self.value(Type::SettledPromise);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::PromotePromise { result, input },
+                    );
+                    values.push(Value::Settled(result));
+                }
                 Work::FulfillPromise(node) => {
                     let input = values.pop().expect("fulfilled payload").general();
                     let result = self.value(Type::FulfilledPromise);
@@ -514,6 +543,14 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(Value::Predicate(result));
+                }
+                Work::AwaitSettled(node) => {
+                    let Value::Settled(input) = values.pop().expect("settled await input") else {
+                        unreachable!()
+                    };
+                    let result = self.value(Type::General);
+                    Self::push(regions.current(), node, Op::AwaitSettled { result, input });
+                    values.push(Value::General(result));
                 }
                 Work::Await(node, rejected, ty) => {
                     let input = values.pop().expect("await operand").id();
@@ -607,7 +644,9 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(
                                 expression,
                                 0,
-                                if closure.result == Type::FulfilledPromise {
+                                if closure.result == Type::SettledPromise {
+                                    Mode::Settled
+                                } else if closure.result == Type::FulfilledPromise {
                                     Mode::Promise
                                 } else if closure.result == Type::General {
                                     Mode::General
@@ -623,7 +662,9 @@ impl Lowering<'_, '_> {
                             let body = self.arrow_block_result(arrow, depth, closure.result)?;
                             let result = self.value(closure.result);
                             Self::push(regions.current(), node, Op::InlineCall { result, body });
-                            values.push(if closure.result == Type::FulfilledPromise {
+                            values.push(if closure.result == Type::SettledPromise {
+                                Value::Settled(result)
+                            } else if closure.result == Type::FulfilledPromise {
                                 Value::Promise(result)
                             } else if closure.result == Type::General {
                                 Value::General(result)
@@ -728,7 +769,9 @@ impl Lowering<'_, '_> {
                                 arguments,
                             },
                         );
-                        values.push(if ty == Type::FulfilledPromise {
+                        values.push(if ty == Type::SettledPromise {
+                            Value::Settled(result)
+                        } else if ty == Type::FulfilledPromise {
                             Value::Promise(result)
                         } else if ty == Type::General {
                             Value::General(result)
@@ -998,7 +1041,10 @@ impl Lowering<'_, '_> {
                             Self::push(regions.current(), node, Op::Pack { result, input });
                             result
                         }
-                        Value::Predicate(_) | Value::Function(_) | Value::Promise(_) => {
+                        Value::Predicate(_)
+                        | Value::Function(_)
+                        | Value::Promise(_)
+                        | Value::Settled(_) => {
                             unreachable!("typed General assignment RHS")
                         }
                     };
@@ -1241,6 +1287,7 @@ impl Lowering<'_, '_> {
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Promise => Type::FulfilledPromise,
+                        Mode::Settled => Type::SettledPromise,
                         _ => Type::Number,
                     };
                     let result = self.value(ty);
@@ -1260,12 +1307,7 @@ impl Lowering<'_, '_> {
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
-                        Type::SettledPromise => {
-                            return Err(unsupported(
-                                node,
-                                "settled Promise source values are not admitted",
-                            ));
-                        }
+                        Type::SettledPromise => Value::Settled(result),
                     });
                 }
                 Work::LogicalLeft {
@@ -1328,6 +1370,12 @@ impl Lowering<'_, '_> {
                             Self::push(regions.current(), node, Op::Truthy { result, input });
                             result
                         }
+                        Value::Settled(_) => {
+                            return Err(unsupported(
+                                node,
+                                "settled Promise logical selection requires rejection tracking",
+                            ));
+                        }
                         Value::Function(_) | Value::Promise(_) => {
                             // Functions and Promises are truthy and non-nullish,
                             // so || and ?? keep this evaluated left snapshot.
@@ -1376,6 +1424,7 @@ impl Lowering<'_, '_> {
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Promise => Type::FulfilledPromise,
+                        Mode::Settled => Type::SettledPromise,
                         _ => Type::Number,
                     };
                     let result = self.value(ty);
@@ -1395,12 +1444,7 @@ impl Lowering<'_, '_> {
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
-                        Type::SettledPromise => {
-                            return Err(unsupported(
-                                node,
-                                "settled Promise source values are not admitted",
-                            ));
-                        }
+                        Type::SettledPromise => Value::Settled(result),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
@@ -1493,6 +1537,36 @@ impl Lowering<'_, '_> {
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
+                    }
+                    if matches!(mode, Mode::Settled) {
+                        if matches!(
+                            node,
+                            Expression::LogicalExpression(_) | Expression::AssignmentExpression(_)
+                        ) {
+                            return Err(unsupported(
+                                node,
+                                "settled Promise selection or storage requires rejection tracking",
+                            ));
+                        }
+                        if schedule_selection(&mut work, node, depth, mode)? {
+                            continue;
+                        }
+                        if !self.settled_promise_shape_in(
+                            node,
+                            depth,
+                            &std::collections::BTreeMap::new(),
+                            0,
+                        ) {
+                            if self.fulfilled_promise_shape(node, depth) {
+                                work.push(Work::PromotePromise(node));
+                                work.push(Work::Eval(node, depth, Mode::Promise));
+                                continue;
+                            }
+                            return Err(unsupported(
+                                node,
+                                "settled Promise positions require a synchronous forwarding call",
+                            ));
+                        }
                     }
                     if matches!(mode, Mode::Promise) {
                         if schedule_selection(&mut work, node, depth, mode)? {
@@ -1767,6 +1841,25 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(argument, argument_depth, Mode::Promise));
                             continue;
                         }
+                        if !known_async
+                            && self.settled_promise_shape_in(
+                                argument,
+                                argument_depth,
+                                &std::collections::BTreeMap::new(),
+                                0,
+                            )
+                        {
+                            if rejected || !operand.extras.is_empty() {
+                                return Err(unsupported(
+                                    node,
+                                    "settled async-call operands require a direct await without Promise-valued rejection or surplus intrinsic arguments",
+                                ));
+                            }
+                            call_result(&mut work, node, mode, Type::General, false)?;
+                            work.push(Work::AwaitSettled(node));
+                            work.push(Work::Eval(argument, argument_depth, Mode::Settled));
+                            continue;
+                        }
                         let ty = if matches!(mode, Mode::General) {
                             Type::General
                         } else {
@@ -1828,7 +1921,10 @@ impl Lowering<'_, '_> {
                         && self
                             .closure_target(&call.callee, depth + 1)
                             .is_none_or(|closure| {
-                                awaited::eager_async_arrow(self.arrow(closure.arrow), self.semantic)
+                                awaited::immediate_async_arrow(
+                                    self.arrow(closure.arrow),
+                                    self.semantic,
+                                )
                             })
                         && let Some(arity) = self.function_arity(&call.callee, depth + 1)
                     {
@@ -1863,7 +1959,10 @@ impl Lowering<'_, '_> {
                             .expect("checked signature");
                         if !matches!(
                             result_type,
-                            Type::Number | Type::General | Type::FulfilledPromise
+                            Type::Number
+                                | Type::General
+                                | Type::FulfilledPromise
+                                | Type::SettledPromise
                         ) {
                             return Err(unsupported(
                                 node,

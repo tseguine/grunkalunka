@@ -221,6 +221,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub general_parameters: &'s std::collections::BTreeSet<SymbolId>,
     pub number_calls: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub general_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
+    pub settled_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub callback_parameters: &'s callbacks::Parameters,
     pub promise_parameters: &'s std::collections::BTreeSet<SymbolId>,
     pub bindings: Vec<NumericBinding>,
@@ -1062,6 +1063,9 @@ impl Lowering<'_, '_> {
                         })?;
                 let value = if let Type::Closure(arity) = self.return_type {
                     self.function_value(expression, region, arity, 0)?
+                } else if self.return_type == Type::SettledPromise {
+                    self.evaluate(expression, region, 0, evaluate::Mode::Settled)?
+                        .expect("forwarded settled return")
                 } else if self.return_type == Type::FulfilledPromise {
                     self.evaluate(expression, region, 0, evaluate::Mode::Promise)?
                         .expect("fulfilled Promise return")

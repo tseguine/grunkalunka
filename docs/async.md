@@ -148,14 +148,23 @@ runtime closure values. Known eager calls inside `Promise.resolve` with extra
 arguments use the fulfilled snapshot path so prefix and argument order remain
 observable without inventing a pending Promise.
 
-The distinct IR-only `SettledPromise` prerequisite also retains immediate
-primitive rejection. A synchronous `SettlePromise` boundary closes returns and
-throws, while `AwaitSettled` performs the caller's single reaction and lexical
-catch transfer. It uses this same host start/resume protocol and canonical
-primitive tags. Source async closures with throw, rejected Promise storage and
-general pending/adoption behavior are still unimplemented; the executable IR
-contract alone does not admit them. Unhandled-rejection observation is not modeled
-by these nonescaping snapshots.
+Runtime async arrows with primitive bodies and no own suspension can also throw.
+Their distinct `SettledPromise` result closes synchronous primitive returns/throws
+through `SettlePromise`. `AwaitSettled` performs the caller's single reaction and
+lexical catch transfer using the same host protocol and canonical primitive tags.
+Constructor groups join throwing async arrows with fulfilling async or synchronous
+fulfilled-Promise peers. Selection, reassignment, returned factories and supported
+callback forwarding preserve code, input and captured-cell snapshots.
+
+Settled source results must reach an immediate await, optionally through a
+synchronous result-forwarding call or a conditional/comma result. An unshadowed
+`Promise.resolve` wrapper without surplus intrinsic arguments is also admitted.
+Fulfilled branches explicitly promote their snapshots. Storing, discarding,
+coercing, testing or passing potentially rejected snapshots as Promise inputs
+remains guarded: these uses need unhandled-rejection tracking. Returning one from
+an async body requires adoption, which remains open. Own suspension in runtime
+async closures, pending promises, general payloads and identity also remain open.
+Known directly awaited async calls retain their existing `AwaitCall` boundary.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;

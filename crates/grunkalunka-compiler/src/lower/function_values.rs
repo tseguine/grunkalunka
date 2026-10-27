@@ -18,7 +18,7 @@ impl Lowering<'_, '_> {
         outer: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Option<usize> {
         // Suspending known async calls retain their separate AwaitCall path.
-        if calls >= 8 || (arrow.r#async && !awaited::eager_async_arrow(arrow, self.semantic)) {
+        if calls >= 8 || (arrow.r#async && !awaited::immediate_async_arrow(arrow, self.semantic)) {
             return None;
         }
         let parameters = callbacks::parameter_types(
@@ -54,8 +54,14 @@ impl Lowering<'_, '_> {
                 );
             }
         }
-        let result = if arrow.r#async {
-            Type::FulfilledPromise
+        let mut result = if arrow.r#async {
+            if awaited::owns_throw(arrow, self.semantic)
+                || self.settled_results.contains(&arrow.node_id.get())
+            {
+                Type::SettledPromise
+            } else {
+                Type::FulfilledPromise
+            }
         } else {
             arrow
                 .get_expression()
@@ -66,6 +72,9 @@ impl Lowering<'_, '_> {
                     Type::Closure,
                 )
         };
+        if result == Type::FulfilledPromise && self.settled_results.contains(&arrow.node_id.get()) {
+            result = Type::SettledPromise;
+        }
         Some(
             self.closure_signatures
                 .borrow_mut()
@@ -89,6 +98,16 @@ impl Lowering<'_, '_> {
         bindings: &BTreeMap<SymbolId, Option<usize>>,
         calls: usize,
     ) -> Type {
+        if !arrow.r#async
+            && storage::arrow_returns(arrow, self.semantic).is_some_and(|results| {
+                !results.is_empty()
+                    && results.into_iter().all(|expression| {
+                        self.settled_promise_shape_in(expression, 0, bindings, calls)
+                    })
+            })
+        {
+            return Type::SettledPromise;
+        }
         if !arrow.r#async
             && storage::arrow_returns(arrow, self.semantic).is_some_and(|results| {
                 !results.is_empty()
@@ -623,7 +642,7 @@ impl Lowering<'_, '_> {
             .result(arity)
             .expect("checked signature");
         if !match return_type {
-            Type::Number | Type::General | Type::FulfilledPromise => true,
+            Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => true,
             Type::Closure(signature) => self
                 .closure_signatures
                 .borrow()
@@ -716,7 +735,32 @@ impl Lowering<'_, '_> {
         Self::push(&mut body, arrow, Op::ClosureEntry { captures: imported });
         child.initialize_general_parameters(&mut body);
         child.bindings.extend(capture_bindings);
-        let returned = if arrow.r#async {
+        let returned = if arrow.r#async && return_type == Type::SettledPromise {
+            // This private body closes its primitive rejection synchronously;
+            // only the caller's AwaitSettled schedules a reaction.
+            child.allow_await = true;
+            let region = if let Some(expression) = arrow.get_expression() {
+                let mut region = child.region(arrow);
+                let value = child
+                    .evaluate(expression, &mut region, 0, evaluate::Mode::General)?
+                    .expect("primitive settlement");
+                region.exit = Exit::Return(value);
+                region
+            } else {
+                child.arrow_block_result(arrow, 0, Type::General)?
+            };
+            child.allow_await = false;
+            let result = child.value(Type::SettledPromise);
+            Self::push(
+                &mut body,
+                arrow,
+                Op::SettlePromise {
+                    result,
+                    body: region,
+                },
+            );
+            result
+        } else if arrow.r#async {
             let input = if let Some(expression) = arrow.get_expression() {
                 child
                     .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
@@ -740,6 +784,10 @@ impl Lowering<'_, '_> {
         } else if let Some(expression) = arrow.get_expression() {
             if let Type::Closure(signature) = return_type {
                 child.function_value(expression, &mut body, signature, 0)?
+            } else if return_type == Type::SettledPromise {
+                child
+                    .evaluate(expression, &mut body, 0, evaluate::Mode::Settled)?
+                    .expect("forwarded settled result")
             } else if return_type == Type::FulfilledPromise {
                 child
                     .evaluate(expression, &mut body, 0, evaluate::Mode::Promise)?

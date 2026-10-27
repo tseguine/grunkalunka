@@ -9,12 +9,37 @@ pub(super) fn eager_async_arrow(
     arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
     semantic: &Semantic<'_>,
 ) -> bool {
+    immediate_async_arrow(arrow, semantic) && !owns_throw(arrow, semantic)
+}
+
+pub(super) fn immediate_async_arrow(
+    arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    semantic: &Semantic<'_>,
+) -> bool {
     arrow.r#async
         && !semantic.nodes().iter().any(|node| {
-            matches!(
-                node.kind(),
-                oxc_ast::AstKind::AwaitExpression(_) | oxc_ast::AstKind::ThrowStatement(_)
-            ) && semantic
+            matches!(node.kind(), oxc_ast::AstKind::AwaitExpression(_))
+                && semantic
+                    .nodes()
+                    .ancestor_kinds(node.id())
+                    .find_map(|kind| match kind {
+                        oxc_ast::AstKind::ArrowFunctionExpression(owner) => {
+                            Some(Some(owner.node_id.get()))
+                        }
+                        oxc_ast::AstKind::Function(_) => Some(None),
+                        _ => None,
+                    })
+                    == Some(Some(arrow.node_id.get()))
+        })
+}
+
+pub(super) fn owns_throw(
+    arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    semantic: &Semantic<'_>,
+) -> bool {
+    semantic.nodes().iter().any(|node| {
+        matches!(node.kind(), oxc_ast::AstKind::ThrowStatement(_))
+            && semantic
                 .nodes()
                 .ancestor_kinds(node.id())
                 .find_map(|kind| match kind {
@@ -25,7 +50,7 @@ pub(super) fn eager_async_arrow(
                     _ => None,
                 })
                 == Some(Some(arrow.node_id.get()))
-        })
+    })
 }
 
 pub(super) struct Operand<'e, 'a> {
@@ -43,6 +68,27 @@ pub(super) struct Intrinsic<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    pub(super) fn settled_promise_shape_in(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+        bindings: &std::collections::BTreeMap<SymbolId, Option<usize>>,
+        calls: usize,
+    ) -> bool {
+        if calls >= 8 {
+            return false;
+        }
+        settled_shape(
+            expression,
+            depth,
+            |call, depth| {
+                self.function_arity_in(&call.callee, depth + 1, bindings, calls + 1)
+                    .and_then(|signature| self.closure_signatures.borrow().result(signature))
+            },
+            |expression, depth| self.fulfilled_promise_shape_in(expression, depth, bindings, calls),
+        )
+    }
+
     pub(super) fn arrow_fulfilled_promise_result(
         &self,
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
@@ -175,6 +221,45 @@ impl Lowering<'_, '_> {
         );
         result
     }
+}
+
+// A positive kind query shared with callback definition checking. At least one
+// leaf must be settled; other leaves can be explicitly fulfilled. It never runs
+// conditions, prefixes or calls; the evaluator validates every such expression.
+pub(super) fn settled_shape(
+    expression: &Expression<'_>,
+    depth: usize,
+    call_kind: impl Fn(&CallExpression<'_>, usize) -> Option<Type>,
+    fulfilled: impl Fn(&Expression<'_>, usize) -> bool,
+) -> bool {
+    let mut pending = vec![(expression, depth)];
+    let mut settled = false;
+    while let Some((expression, depth)) = pending.pop() {
+        let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
+            return false;
+        };
+        match expression {
+            Expression::CallExpression(call) => match call_kind(call, depth) {
+                Some(Type::SettledPromise) => settled = true,
+                Some(Type::FulfilledPromise) => (),
+                _ if fulfilled(expression, depth) => (),
+                _ => return false,
+            },
+            Expression::SequenceExpression(sequence) => {
+                let Some(last) = sequence.expressions.last() else {
+                    return false;
+                };
+                pending.push((last, depth + 1));
+            }
+            Expression::ConditionalExpression(conditional) => {
+                pending.push((&conditional.consequent, depth + 1));
+                pending.push((&conditional.alternate, depth + 1));
+            }
+            _ if fulfilled(expression, depth) => (),
+            _ => return false,
+        }
+    }
+    settled
 }
 
 // Shared positive result-kind proof for callback inference and actual lowering.

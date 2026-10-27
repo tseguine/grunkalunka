@@ -541,7 +541,69 @@ fn refine_shapes<'a>(
                         )
                     })
             });
-        let promise = synchronous_promise || awaited::eager_async_arrow(arrow, semantic);
+        let synchronous_settled = !arrow.r#async
+            && storage::arrow_returns(arrow, semantic).is_some_and(|results| {
+                !results.is_empty()
+                    && results.into_iter().all(|expression| {
+                        awaited::settled_shape(
+                            expression,
+                            0,
+                            |call, _| {
+                                if awaited::intrinsic(call, semantic)
+                                    .ok()
+                                    .flatten()
+                                    .is_some_and(|intrinsic| !intrinsic.rejected)
+                                {
+                                    return Some(Type::FulfilledPromise);
+                                }
+                                let (sources, mut bodies) =
+                                    returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+                                let mut result_kinds = Vec::new();
+                                for source in sources {
+                                    if let Some(signature) =
+                                        parameters.values().find_map(|inputs| inputs.get(&source))
+                                    {
+                                        result_kinds.push(signatures.borrow().result(*signature)?);
+                                    } else {
+                                        bodies.extend(targets.get(&source)?);
+                                    }
+                                }
+                                for body in bodies {
+                                    let arrow = arrows[&body];
+                                    if !awaited::immediate_async_arrow(arrow, semantic) {
+                                        return None;
+                                    }
+                                    result_kinds.push(
+                                        if kinds.settled_results.contains(&body)
+                                            || awaited::owns_throw(arrow, semantic)
+                                        {
+                                            Type::SettledPromise
+                                        } else {
+                                            Type::FulfilledPromise
+                                        },
+                                    );
+                                }
+                                if result_kinds.is_empty()
+                                    || result_kinds.iter().any(|kind| {
+                                        !matches!(
+                                            kind,
+                                            Type::FulfilledPromise | Type::SettledPromise
+                                        )
+                                    })
+                                {
+                                    return None;
+                                }
+                                Some(if result_kinds.contains(&Type::SettledPromise) {
+                                    Type::SettledPromise
+                                } else {
+                                    Type::FulfilledPromise
+                                })
+                            },
+                            |_, _| false,
+                        )
+                    })
+            });
+        let promise = synchronous_promise || awaited::immediate_async_arrow(arrow, semantic);
         let number = !kinds.general_results.contains(&body)
             && storage::arrow_number_result_shape(
                 arrow,
@@ -558,8 +620,16 @@ fn refine_shapes<'a>(
             );
         signatures.borrow_mut().intern(
             parameter_types(arrow, parameters, &kinds.inputs, promise_parameters),
-            if promise {
-                Type::FulfilledPromise
+            if synchronous_settled {
+                Type::SettledPromise
+            } else if promise {
+                if kinds.settled_results.contains(&body)
+                    || (arrow.r#async && awaited::owns_throw(arrow, semantic))
+                {
+                    Type::SettledPromise
+                } else {
+                    Type::FulfilledPromise
+                }
             } else if number {
                 Type::Number
             } else {

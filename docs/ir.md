@@ -648,7 +648,7 @@ primitive/Promise parameter uses and result interfaces remain separate work.
 
 ### Settled primitive completion snapshots
 
-`SettledPromise` is a distinct **IR-only** private value that retains either
+`SettledPromise` is a distinct private value that retains either
 fulfillment or rejection together with a represented primitive payload.
 `SettlePromise` runs a closed General-return region synchronously and captures
 its return or throw. Primitive catches, loops and inline calls keep their lexical
@@ -665,9 +665,15 @@ closure inputs/results, callbacks, returned functions, captured cells and async
 storage retain the distinct type. Public entries and ordinary helpers still
 accept only Number inputs, and entry results remain Number or General.
 
-This prerequisite does **not** admit new JS/TS rejected-Promise or throwing async
-closure sources. The source evaluator stays closed to the new kind until its
-following admission change. Pending promises, async-return adoption, thenables,
+Non-suspending source async closures with primitive throws now construct this
+kind. Constructor groups retain one settled private result interface, including
+fulfilling async and synchronous fulfilled-Promise peers. Supported synchronous
+callback/result forwarding preserves it; fulfilled branches explicitly promote.
+Source settled results are confined to immediate await and synchronous forwarding,
+including conditional/comma results. Source Promise slots and parameters retain
+their fulfilled-only contract. Payload/status queries remain IR-only operations.
+Pending promises, runtime async suspension, async-return adoption, thenables,
 object identity, general payloads and unhandled-rejection tracking remain open.
-Executable IR tests compare independent native JavaScript with Wasm values and
-reaction traces; an IR fixture is not source-lowering compatibility.
+Executable IR fixtures and maintained source oracles separately compare native
+JavaScript with Wasm values and reaction traces; neither implies general Promise
+object compatibility.
