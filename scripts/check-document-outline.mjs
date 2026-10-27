@@ -92,5 +92,6 @@ for (const field of ['workload', 'schemaVersion', 'configuration', 'environment'
     `separate Unicode report must repeat ${field} before any timing comparison`);
 }
 assert.equal(guestHash(), initialGuestHash, 'Markdown guest binary changed across report collection');
+run(process.execPath, ['--test', 'tests/applications/note-preview.test.mjs']);
 console.log('PASS capability-backed Markdown outlines: 9 native/component comparisons, policy errors, cleanup and fuel isolation; 4 cost fixtures with native parity; repeated Unicode report identity; guest sha256 ' + initialGuestHash);
 
