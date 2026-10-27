@@ -38,5 +38,14 @@ This is one selected block-layout example and harness sensitivity evidence, not
 WPT execution, broad standards conformance, screenshot equivalence or native
 Grunkalunka rendering. Font-dependent inline dimensions and parent height are
 recorded and checked for same-engine repeatability, not asserted across engines.
-The fixture still prints diagnostics after measurement; isolating that output
-before adding viewport-sensitive cases remains separate work.
+
+Diagnostic JSON is transported in a hidden element, not rendered into the page.
+[HTML's hidden state](https://html.spec.whatwg.org/multipage/interaction.html#the-hidden-attribute)
+and [nonrendering box behavior](https://www.w3.org/TR/css-display-3/#valdef-display-none)
+motivate a live-layout probe at 800x600 and 320x64 CSS px. After fonts are ready,
+emptying, enlarging and restoring the diagnostics must preserve measured boxes,
+viewport, scroll position and document extents exactly. A visible 4,096-line
+control must generate boxes and increase scroll height, then rehiding it must
+restore the original layout. Raw phases are saved in `diagnostic-isolation.json`
+before verification; the existing process watchdog bounds the entire probe.
+This is a selected-fixture isolation check, not a general layout-stability proof.
