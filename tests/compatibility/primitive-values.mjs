@@ -8,6 +8,12 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['factory-leaf-null', 'let make=x=>()=>null;return make(a)();'],
+  ['factory-leaf-boolean', 'let make=x=>()=>true;return make(a)();'],
+  ['factory-leaf-undefined', 'let make=x=>()=>undefined;return make(a)();'],
+  ['factory-leaf-conditional', 'const make=a?x=>()=>null:x=>()=>false;return make(b)();'],
+  ['factory-leaf-snapshot', 'let make=x=>()=>null;const old=make;make=x=>()=>true;return old(a)();'],
+  ['factory-leaf-block', 'let make=x=>()=>{if(x)return b;};return make(a)();'],
   ['logical-assign-function-and', 'let f=()=>null;f&&=()=>false;return f();'],
   ['logical-assign-function-or', 'let f=()=>null;f||=()=>false;return f();'],
   ['logical-assign-function-nullish', 'let f=()=>null;f??=()=>false;return f();'],

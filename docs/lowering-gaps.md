@@ -644,12 +644,14 @@ are checked against native JS. Synchronous/lifted throw, finally and general
 exception values remain open; numeric rejection sources remain unchanged. See
 [async throw](async-throw.md).
 
-Runtime-selected concise synchronous factories now return numeric-leaf function
+Runtime-selected concise synchronous factories now return primitive-leaf function
 pairs, including fresh creator cells, captured aliases, ordered argument snapshots,
 recursive rebinding and async callers. Result-aware logical signatures and a
 private pair-return table call preserve the existing host ABI and wide argument
 bounds. See [runtime function results](runtime-function-results.md). General recursive
-callback/result signatures, nonnumeric leaf results and async bodies remain open.
+callback/result signatures, unrepresented leaf results and async bodies remain open.
+Returned leaves keep Number parameters; primitive tags and payloads survive factory
+selection, captures, rebinding and async callers without a new physical ABI.
 
 Represented synchronous function values now support Boolean contexts: conditions,
 negation, loops and Boolean-position short-circuit expressions. Existing higher-order

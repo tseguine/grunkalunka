@@ -68,6 +68,17 @@ impl ClosureSignatures {
         }
     }
 
+    pub(crate) fn is_primitive_leaf(&self, id: usize) -> bool {
+        if id <= 1000 {
+            return true;
+        }
+        self.higher.get(id - 1001).is_some_and(|signature| {
+            signature.parameters.len() <= 1000
+                && signature.parameters.iter().all(|ty| *ty == Type::Number)
+                && matches!(signature.result, Type::Number | Type::General)
+        })
+    }
+
     pub(crate) fn parameter_count(&self, id: usize) -> Option<usize> {
         if id <= 1000 {
             Some(id)
@@ -1286,13 +1297,14 @@ pub(crate) fn verify_module_with_entry_type(
     let functions: Vec<_> = module.functions.iter().collect();
     for (index, function) in module.functions.iter().enumerate() {
         let result = if closure_environment(function).is_some() {
-            if !matches!(
-                function.return_type,
-                Type::Number | Type::General | Type::Closure(0..=1000)
-            ) {
+            if !match function.return_type {
+                Type::Number | Type::General => true,
+                Type::Closure(signature) => module.closure_signatures.is_primitive_leaf(signature),
+                _ => false,
+            } {
                 return Err(invalid(
                     function.body.span,
-                    "runtime closure results require Number, General or numeric-leaf function",
+                    "runtime closure results require Number, General or primitive-leaf function",
                 ));
             }
             function.return_type

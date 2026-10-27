@@ -2,6 +2,7 @@ import { localArrows } from './local-arrows.mjs';
 import { voidPrograms } from './void.mjs';
 import { nullishAssignment } from './nullish-assignment.mjs';
 import { functionLogicalAssignment } from './function-logical-assignment.mjs';
+import { primitiveFactoryLeaves } from './primitive-factory-leaves.mjs';
 import { primitiveNullish } from './primitive-nullish.mjs';
 import { generalLogicalAssignment } from './general-logical-assignment.mjs';
 import { primitiveRelational } from './primitive-relational.mjs';
@@ -71,7 +72,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 69;
+export const corpusVersion = 70;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -101,6 +102,7 @@ programs.push(...localArrows);
 programs.push(...voidPrograms);
 programs.push(...nullishAssignment);
 programs.push(...functionLogicalAssignment);
+programs.push(...primitiveFactoryLeaves);
 programs.push(...primitiveNullish);
 programs.push(...typescriptPrograms);
 programs.push(...test262Programs);

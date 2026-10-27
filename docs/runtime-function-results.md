@@ -1,6 +1,6 @@
 # Runtime-selected concise factory results
 
-Synchronous concise factories selected at runtime return numeric-leaf function
+Synchronous concise factories selected at runtime return primitive-leaf function
 pairs in the Number, primitive-return and primitive async entry profiles:
 
 ```js
@@ -31,21 +31,28 @@ leaf IDs 0 through 1,000 keep their prior meaning: Number inputs and Number resu
 Richer IDs describe callback parameters or a function result. Pure kind queries
 lazily intern compilation metadata without evaluating source effects; scratch
 checking shares that registry but cannot publish its scratch IR. Result references
-in the registry are acyclic. Runtime bodies currently return Number or a numeric
-leaf Closure type. Selected or assigned factory values must agree on the complete
-signature, including the returned leaf's arity.
+in the registry are acyclic. Runtime bodies return Number, General or a primitive
+leaf Closure type. A returned leaf has only Number parameters and can return
+Undefined, Null, Boolean or Number, including mixed primitive results from block
+bodies. Selected or assigned factory values must agree on the complete signature,
+including the returned leaf's parameter and result kinds.
 
 Each IR function records its result type. The verifier checks it against the
 entry profile, lifted-body contract, constructor signature and call result.
 Number calls retain `(environment, arguments) -> f64`; factory calls use the
 additional private `(environment, arguments) -> (i32, i32)` table call type.
+Primitive leaf calls use the existing `(environment, arguments) -> (i32, f64)`
+type. The shared primitive-leaf signature check guards both lifting and IR results;
+it excludes callback parameters and another function result at the returned leaf.
 Frames and typed cells retain their existing layouts. The host ABI is unchanged.
 
 Eight active static/runtime function-result lowering frames bound native cursor
 reentry; a 2 MiB stack probe accepts eight nested runtime-result calls and rejects
 the ninth. Generated-region, source-depth, 256-expansion, lifting, arena and fuel
 bounds remain. Wide tests cover 1,000 creator arguments and 1,000 returned-leaf
-arguments without enlarging physical Wasm parameter lists.
+arguments without enlarging physical Wasm parameter lists. The two 1,000-argument
+limits are executed separately; combining both in one call can exceed the current
+budget of 10,000 units of Wasmtime fuel, which remains enforced.
 
 Tests compare native JavaScript, Node Wasm and Wasmtime for fresh cells, retained
 captures, alias snapshots, effects, recursive rebinding, callback parameters,
@@ -56,6 +63,6 @@ identical bytes. Deliberately routing a factory call through the Number-return
 physical type causes the behavioral test to fail with a Wasm type error.
 
 General function host transport, callbacks taking callbacks, factories returning
-factories, nonnumeric leaf results, async factory/leaf bodies and Promise callbacks
+factories, unrepresented leaf results, async factory/leaf bodies and Promise callbacks
 remain outside this slice. This feature initially admits concise runtime factories;
 known local block-result specialization is a separate source path.

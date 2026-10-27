@@ -11,7 +11,7 @@ Scalar side effects can precede a constructor in a comma expression. Calls throu
 the resulting identifier or alias use an exact logical signature with Number and
 numeric-leaf callback arguments. Concise synchronous bodies can return Number,
 Undefined, Null or Boolean, retaining the selected kind and payload. Runtime
-factories still return numeric-leaf function pairs. Leaf arrows may have concise
+factories return Number-parameter function pairs with primitive results. Leaf arrows may have concise
 or block bodies. Bare returns and normal completion of local primitive block
 bodies produce Undefined. Early returns and loops retain their existing completion
 rules; complete Number-returning bodies keep their Number specialization.
@@ -143,8 +143,8 @@ Existing static closure specialization across await remains available.
 [Known local helpers and factories accept callback arguments](local-callback-arguments.md)
 with numeric leaf signatures, including captured callback cells after creator return.
 [Runtime-selected functions also accept numeric-leaf callbacks](higher-order-callbacks.md).
-Concise runtime factories now return numeric-leaf pairs. Callbacks taking
-callbacks, factories returning factories, nonnumeric leaf
+Concise runtime factories now return primitive-leaf pairs. Callbacks taking
+callbacks, factories returning factories, unrepresented leaf
 return kinds, function coercions, identity and properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.

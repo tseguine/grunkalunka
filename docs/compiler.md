@@ -1683,7 +1683,7 @@ forwarding; actual specialization initializes typed function parameter cells.
 See [local callback arguments](local-callback-arguments.md) for snapshot order,
 factory capture and definition checking. Runtime-selected higher-order functions
 accept numeric-leaf callbacks; [concise runtime factories](runtime-function-results.md)
-return numeric-leaf function pairs through a separate private pair-return call
+return Number-parameter, primitive-result function pairs through a separate private pair-return call
 type. Selected and assigned signatures include both parameter and result kinds.
 
 The compiler specializes these statically known calls into the caller's typed regions.
@@ -1787,7 +1787,8 @@ enter predicates or explicit numeric coercions. Existing local function-return
 paths can forward these closures; this includes the two former maintained
 rejections `id(()=>true)` and a block returning `()=>true`. A dormant factory
 containing `()=>true` is also valid when the entry returns a Number. Runtime factories
-retain their numeric-leaf result restriction. Arbitrary primitive arguments and
+now return primitive-result leaves as well, while retaining Number leaf parameters
+and matching full signatures. Arbitrary primitive arguments and
 exported function values remain separate requirements. Primitive block returns
 and suspending known async bodies are described below. All 916 numeric rejection sources and diagnostics
 are unchanged. Nine maintained primitive corpus pairs exercise these results.

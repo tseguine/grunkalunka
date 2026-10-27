@@ -1380,15 +1380,16 @@ fn runtime_selected_factories_return_fresh_closure_pairs() {
 }
 
 #[test]
-fn runtime_factory_results_require_one_numeric_leaf_signature() {
+fn runtime_factory_results_require_one_primitive_leaf_signature() {
     for body in [
         "const make=a?()=>()=>a:()=>x=>x;return make()();",
         "const make=a?()=>()=>a:()=>b;return make()();",
         "let make=x=>()=>x;make=x=>y=>x+y;return make(a)();",
         "let make=x=>()=>x;make=x=>x;return make(a)();",
+        "let make=x=>()=>null;make=x=>()=>x;return make(a)();",
+        "let make=x=>()=>null;make=x=>y=>false;return make(a)();",
         "let make=x=>()=>()=>x;return make(a)()();",
         "let make=x=>async()=>x;return make(a)();",
-        "let make=x=>()=>true;return make(a)();",
         "let make=x=>()=>x;return make(a);",
         "let make=x=>()=>x;return +make(a);",
         "let make=x=>()=>x;return make?.(a)();",
@@ -1403,6 +1404,19 @@ fn runtime_factory_results_require_one_numeric_leaf_signature() {
             assert!(compile_async(&source, typescript).is_err(), "{source}");
         }
     }
+}
+
+#[test]
+fn primitive_factory_leaves_keep_numeric_coercion_and_predicate_positions() {
+    compare_functions(&[
+        "let make=x=>()=>true;return +make(a)();",
+        "let make=x=>()=>false;return +make(a)();",
+        "let make=x=>()=>null;return +make(a)();",
+        "let make=x=>()=>undefined;return +make(a)();",
+        "let make=x=>()=>x?null:false;return make(a)()?a:b;",
+        "let make=x=>()=>{if(x)return b;};return +make(a)();",
+        "let make=x=>()=>x?null:false;const f=make(a);return +(f??make(b))();",
+    ]);
 }
 
 #[test]

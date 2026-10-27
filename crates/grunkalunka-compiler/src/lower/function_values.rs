@@ -570,13 +570,17 @@ impl Lowering<'_, '_> {
             .borrow()
             .result(arity)
             .expect("checked signature");
-        if !matches!(
-            return_type,
-            Type::Number | Type::General | Type::Closure(0..=1000)
-        ) {
+        if !match return_type {
+            Type::Number | Type::General => true,
+            Type::Closure(signature) => self
+                .closure_signatures
+                .borrow()
+                .is_primitive_leaf(signature),
+            _ => false,
+        } {
             return Err(unsupported(
                 node,
-                "runtime factories return only numeric-leaf functions",
+                "runtime factories return only primitive-leaf functions",
             ));
         }
         if matches!(return_type, Type::Closure(_)) && arrow.get_expression().is_none() {

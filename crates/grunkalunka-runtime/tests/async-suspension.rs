@@ -305,6 +305,40 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn primitive_factory_leaves_keep_async_pairs_values_and_jobs() {
+    compare_promises(
+        &[
+            "let make=x=>()=>true;return make(a)();",
+            "let make=x=>()=>null;const f=make(a);await false;return f();",
+            "const make=a?x=>()=>false:x=>()=>undefined;const f=make(await b);await null;return f();",
+            "let make=x=>()=>{if(x)return b;};return await make(await a)();",
+            "let make=x=>()=>null;const f=make((await null,make=x=>()=>false,a));await true;return f();",
+            "let make=x=>()=>null;const old=make;await null;make=x=>()=>false;return old(a)();",
+            "let make=x=>()=>null;make&&=(await null,x=>()=>false);return make(a)();",
+            "let make=x=>()=>null;make??=(await Promise.reject(a),x=>()=>false);return make(a)();",
+            "let make=x=>()=>{const old=x;x=null;return old;};const f=make(a);await null;f();return f();",
+            "let make=x=>()=>a?null:false;const f=make(a);await null;a=0;return f();",
+            "let make=x=>()=>null;try{const f=make(await Promise.reject(a));return f();}catch(e){return e;}",
+            "let make=x=>()=>null;const f=make(a);try{return await Promise.reject(f());}catch(e){return e;}",
+            "let make=x=>()=>false;const f=make(a);return await Promise.reject(f());",
+            "let make=x=>()=>undefined;const f=make(a);return await f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){let make=x=>()=>null;const f=make(await a);await false;return f();}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let make:(x:number)=>()=>number=(x=>()=>null) as any;const f=make(await(a as never));await(false as number);return f();}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn runtime_closures_survive_suspension_and_keep_native_job_order() {
     compare_promises(
         &[

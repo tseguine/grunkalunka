@@ -292,3 +292,61 @@ fn runtime_factory_result_metadata_and_pair_calls_are_verified() {
         );
     }
 }
+
+#[test]
+fn primitive_factory_leaf_signatures_and_metadata_are_verified() {
+    let source = "export function run(a,b){let make=x=>()=>x?null:false;return make(a)();}";
+    for change in 0..7 {
+        let mut module = crate::lower_source_with_entry_type(source, false, Type::General).unwrap();
+        verify_module_with_entry_type(&module, Type::General).unwrap();
+        let factory = module
+            .functions
+            .iter()
+            .position(|f| matches!(f.return_type, Type::Closure(_)))
+            .unwrap();
+        let Type::Closure(signature) = module.functions[factory].return_type else {
+            unreachable!()
+        };
+        match change {
+            0 => module.closure_signatures.higher[signature - 1001].result = Type::Number,
+            1 => module.closure_signatures.higher[signature - 1001].result = Type::Closure(0),
+            2 => module.closure_signatures.higher[signature - 1001]
+                .parameters
+                .push(Type::Closure(0)),
+            3 => {
+                module.closure_signatures.higher[signature - 1001].parameters =
+                    vec![Type::Number; 1001]
+            }
+            4 => {
+                module
+                    .functions
+                    .iter_mut()
+                    .find(|f| closure_environment(f).is_some() && f.return_type == Type::General)
+                    .unwrap()
+                    .return_type = Type::Number;
+            }
+            5 => module.functions[factory].return_type = Type::Closure(usize::MAX),
+            _ => {
+                let entry = &mut module.functions[0];
+                let result = entry
+                    .body
+                    .operations
+                    .iter()
+                    .find_map(|op| match op.kind {
+                        Op::ClosureCall { result, .. }
+                            if entry.values[result.0] == Type::General =>
+                        {
+                            Some(result)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                entry.values[result.0] = Type::Number;
+            }
+        }
+        assert!(
+            verify_module_with_entry_type(&module, Type::General).is_err(),
+            "primitive factory mutation {change}"
+        );
+    }
+}

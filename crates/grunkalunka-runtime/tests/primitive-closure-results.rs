@@ -44,6 +44,89 @@ fn node(script: String) {
 }
 
 #[test]
+fn runtime_factory_returns_boolean_leaf() {
+    let source = "export function run(a,b){let make=x=>()=>true;return make(a)();}";
+    for typescript in [false, true] {
+        let artifact = compile_value(source, typescript).unwrap();
+        assert!(matches!(
+            ValueInstance::new(&artifact.wasm)
+                .unwrap()
+                .run(4.0, 2.0)
+                .unwrap(),
+            Value::Boolean(true)
+        ));
+        assert!(compile(source, typescript).is_err());
+    }
+}
+
+#[test]
+fn runtime_factory_primitive_leaves_preserve_kinds_captures_and_snapshots() {
+    compare_primitive_closure_programs(&[
+        "let make=x=>()=>true;return make(a)();",
+        "let make=x=>()=>false;return make(a)();",
+        "let make=x=>()=>null;return make(a)();",
+        "let make=x=>()=>undefined;return make(a)();",
+        "let make=x=>()=>void x;return make(a)();",
+        "const make=a?x=>()=>null:x=>()=>false;return make(b)();",
+        "let make=x=>()=>x?null:false;return make(a)();",
+        "let make=x=>()=>{if(x)return b;};return make(a)();",
+        "let make=x=>()=>{return;};return make(a)();",
+        "let make=x=>()=>{};return make(a)();",
+        "let make=x=>()=>{const old=x;x=null;return old;};const f=make(a);return f()??f();",
+        "let make=x=>()=>{if(x++===a)return null;return x;};const f=make(a),g=make(b);f();g();return f();",
+        "let make=x=>()=>null;const alias=make;make=x=>()=>false;return alias(a)();",
+        "let make=x=>()=>null;const f=make((make=x=>()=>false,a));return f();",
+        "let make=x=>()=>null;make=x=>()=>false;return make(a)();",
+        "let make=x=>()=>null;make&&=x=>()=>false;return make(a)();",
+        "let make=x=>()=>null;make??=x=>()=>false;return make(a)();",
+        "let make=x=>()=>a?b:null;const f=make(a);a=0;return f();",
+        "let n=0;let make=x=>(n++,()=>x?null:false);const f=make(a),g=make(b);return (f()??g())||n;",
+    ]);
+}
+
+#[test]
+fn primitive_factory_leaves_keep_wide_argument_frames_and_arity_limits() {
+    let body = |creators, leaves| {
+        let parameters = |prefix, count| {
+            (0..count)
+                .map(|i| format!("{prefix}{i}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        let arguments = |name: &str, count| vec![name; count].join(",");
+        format!(
+            "let make=({})=>({})=>p0===q0?null:false;return make({})({});",
+            parameters("p", creators),
+            parameters("q", leaves),
+            arguments("a", creators),
+            arguments("b", leaves)
+        )
+    };
+    compare_primitive_closure_programs(&[&body(1000, 1), &body(1, 1000)]);
+    let combined = body(1000, 1000);
+    let source = format!("export function run(a,b){{{combined}}}");
+    let artifact = compile_value(&source, false).unwrap();
+    let error = ValueInstance::new(&artifact.wasm)
+        .unwrap()
+        .run(4.0, 2.0)
+        .unwrap_err();
+    assert!(format!("{error:#}").contains("fuel"));
+    node(format!(
+        "const assert=require('node:assert/strict');const native=Function('a','b',{combined:?});const e=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({:?}))).exports;assert.deepEqual(e.run(4,2),[2,Number(native(4,2))]);",
+        artifact.wasm
+    ));
+    for (creators, leaves) in [(1001, 1000), (1000, 1001)] {
+        let source = format!("export function run(a,b){{{}}}", body(creators, leaves));
+        for typescript in [false, true] {
+            let error = compile_value(&source, typescript)
+                .err()
+                .expect("arity limit");
+            assert!(error.contains("1000"), "{creators}/{leaves}: {error}");
+        }
+    }
+}
+
+#[test]
 fn concise_closure_returns_null() {
     let source = "export function run(a,b){const f=()=>null;return f();}";
     let artifact = compile_value(source, false).unwrap();
@@ -187,6 +270,10 @@ fn primitive_closure_results_match_javascript_and_node_wasm() {
         "const make=()=>()=>false;const f=make();let x=f();x=a;return x;",
         "let x=a;const make=()=>()=>x;const f=make();x=null;let y=f();y=b;return y;",
     ];
+    compare_primitive_closure_programs(&bodies);
+}
+
+fn compare_primitive_closure_programs(bodies: &[&str]) {
     let mut cases = Vec::new();
     for body in bodies {
         for ts in [false, true] {
