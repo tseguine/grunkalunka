@@ -52,3 +52,26 @@ compositor, hit testing, accessibility or scripting. This simplified painter
 does not establish CSS Painting or screenshot equivalence. A future host
 could separately supply text glyphs and a presentation surface; that decision
 is independent of WIT grants, the runtime/compiler, and the browser shell.
+
+
+## Typed semantic document to RGB pixels
+
+The optional headless `semantic_ppm` example composes the independently
+implemented `layout_semantic`, `layout`, and `paint` boundaries. It accepts
+a caller-built body/main/heading/list/paragraph tree and explicit heights for
+each text leaf, then prints a 320x120 PPM in which colored blocks indicate the
+text anchors. There is no HTML parser, font rasterizer, application script, or
+ambient file/network access. Reducing the list to `hidden` produces a smaller
+layout and moves the paragraph to a new location.
+
+```sh
+cargo run -q -p grunkalunka-layout --example semantic_ppm --locked --offline > outline.ppm
+cargo test -p grunkalunka-layout --locked --offline
+```
+
+The independent `tests/semantic_paint.rs` test checks ten exact expanded
+pixel samples, four collapsed-state samples, the two visible text-anchor lists,
+and that the PPM bytes change. Its expected coordinates/colors are manually
+specified, not copied from the rendered frame. This is an implementation-side
+integration demonstration, **not** CSS screenshot conformance, glyph display
+or a selected A1 application.
