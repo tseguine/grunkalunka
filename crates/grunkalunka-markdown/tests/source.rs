@@ -1,10 +1,7 @@
 use grunkalunka_markdown::{SourceIndex, SourcePosition, summarize};
 
 fn position(line: usize, utf16_column: usize) -> SourcePosition {
-    SourcePosition {
-        line,
-        utf16_column,
-    }
+    SourcePosition { line, utf16_column }
 }
 
 #[test]
