@@ -1,4 +1,7 @@
 (component
+  ;; Replaced as a binary section with exact outline_guest bytes before validation.
+  ;; Keep this unnamed, empty slot first so all later module indices stay unchanged.
+  (core module)
   (import "grunkalunka:markdown/documents" (instance $documents
     (type $error (enum "denied" "too-large" "unknown-grant"))
     (export "read-error" (type $read-error (eq $error)))
@@ -14,9 +17,7 @@
     (field "section-end" u32) (field "parent" (option u32)) (field "text" string)))
   (export $public-heading "heading" (type $heading))
 
-  ;; Exact compiled outline_guest bytes, not a replacement parser.
-  {{GUEST_MODULE}}
-  (core instance $guest (instantiate $guest))
+  (core instance $guest (instantiate 0))
   (core module $storage
     (import "guest" "outline_begin" (func $begin))
     (memory (export "memory") 1 1)

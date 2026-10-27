@@ -1,4 +1,7 @@
 //! Native integration driver for a private capability-backed Markdown component.
+#[path = "../tests/fixtures/document-outline/embedding.rs"]
+mod embedding;
+
 use std::fmt::Write as _;
 use wasmtime::component::{Component, HasSelf, Linker, Resource};
 use wasmtime::{Config, Engine, Store, Trap};
@@ -108,19 +111,8 @@ fn main() -> wasmtime::Result<()> {
         wasmtime::bail!("expected outline_guest.wasm path");
     }
     let guest = std::fs::read(&args[0])?;
-    if !guest.starts_with(b"\0asm\x01\0\0\0") {
-        wasmtime::bail!("expected a core module");
-    }
-    let mut binary = String::new();
-    for byte in &guest {
-        write!(binary, "\\{byte:02x}")?;
-    }
     let template = include_str!("../tests/fixtures/document-outline/inspector.wat.in");
-    assert_eq!(template.matches("{{GUEST_MODULE}}").count(), 1);
-    let component_bytes = wat::parse_str(template.replace(
-        "{{GUEST_MODULE}}",
-        &format!("(core module $guest binary \"{binary}\")"),
-    ))?;
+    let component_bytes = embedding::embed_guest(template, &guest)?;
     let mut config = Config::new();
     config.consume_fuel(true);
     let engine = Engine::new(&config)?;
