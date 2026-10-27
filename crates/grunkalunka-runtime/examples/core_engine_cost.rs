@@ -58,7 +58,7 @@ pub fn parse_options(args: &[String]) -> Result<Options, String> {
     }
     let mut seen = BTreeSet::new();
     let mut options = Options::default();
-    for pair in args.chunks_exact(2) {
+    for pair in args.as_chunks::<2>().0 {
         let name = pair[0].as_str();
         if !seen.insert(name) {
             return Err(format!("duplicate option {name}"));
