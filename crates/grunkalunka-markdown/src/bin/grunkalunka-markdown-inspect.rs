@@ -73,7 +73,10 @@ fn run() -> io::Result<()> {
         writeln!(
             output,
             "code {}..{} info={:?} text-bytes={}",
-            block.span.start, block.span.end, block.info, block.text.len()
+            block.span.start,
+            block.span.end,
+            block.info,
+            block.text.len()
         )?;
     }
     output.flush()

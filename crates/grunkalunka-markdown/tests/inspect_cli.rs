@@ -92,7 +92,11 @@ fn input_limit_is_inclusive_and_counts_utf8_bytes_not_characters() {
     let oversized = stdin(format!("{source}x").as_bytes());
     assert!(!oversized.status.success());
     assert!(oversized.stdout.is_empty());
-    assert!(String::from_utf8(oversized.stderr).unwrap().contains("1048576"));
+    assert!(
+        String::from_utf8(oversized.stderr)
+            .unwrap()
+            .contains("1048576")
+    );
     let invalid = stdin(&[0xff]);
     assert!(!invalid.status.success());
     assert!(invalid.stdout.is_empty());
@@ -112,6 +116,10 @@ fn help_and_argument_or_file_errors_have_distinct_exit_statuses() {
             .unwrap();
         assert!(!output.status.success());
         assert!(output.stdout.is_empty());
-        assert!(String::from_utf8(output.stderr).unwrap().starts_with("ERROR:"));
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .starts_with("ERROR:")
+        );
     }
 }
