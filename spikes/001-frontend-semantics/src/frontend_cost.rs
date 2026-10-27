@@ -130,7 +130,10 @@ fn parse_batch(fixture: Fixture, iterations: usize) -> (usize, usize) {
 
 fn ensure_parse(fixture: Fixture, result: (usize, usize), iterations: usize) -> Result<(), String> {
     if result != (iterations, 0) {
-        return Err(format!("{} changed parser admission during measurement", fixture.name));
+        return Err(format!(
+            "{} changed parser admission during measurement",
+            fixture.name
+        ));
     }
     Ok(())
 }
@@ -205,7 +208,6 @@ fn measure_fixture(fixture: Fixture, controls: Controls) -> Result<String, Strin
         return Err(format!("{} semantic golden mismatch", fixture.name));
     }
 
-
     // The semantic phase builds repeatedly from the same previously parsed AST.
     // Parsing is not part of its timed interval.
     let semantic_batch = |iterations: usize| {
@@ -230,7 +232,11 @@ fn measure_fixture(fixture: Fixture, controls: Controls) -> Result<String, Strin
         (symbols, references, diagnostics)
     };
 
-    ensure_parse(fixture, parse_batch(fixture, controls.warmup), controls.warmup)?;
+    ensure_parse(
+        fixture,
+        parse_batch(fixture, controls.warmup),
+        controls.warmup,
+    )?;
     ensure_semantic(fixture, semantic_batch(controls.warmup), controls.warmup)?;
 
     let mut parsing = Vec::with_capacity(controls.samples);
@@ -304,7 +310,12 @@ pub fn smoke() -> Result<(), String> {
     for invalid in [
         vec!["--samples".to_owned()],
         vec!["--samples".to_owned(), "1".to_owned()],
-        vec!["--samples".to_owned(), "2".to_owned(), "--samples".to_owned(), "3".to_owned()],
+        vec![
+            "--samples".to_owned(),
+            "2".to_owned(),
+            "--samples".to_owned(),
+            "3".to_owned(),
+        ],
         vec!["--iterations".to_owned(), "501".to_owned()],
         vec!["--warmup".to_owned(), "-1".to_owned()],
         vec!["--unrecognized".to_owned(), "1".to_owned()],
