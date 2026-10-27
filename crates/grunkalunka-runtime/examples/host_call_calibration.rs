@@ -161,7 +161,7 @@ impl Series {
             .join(",");
         format!(
             r#"{{"samplesMs":[{samples}],"minMs":{:.9},"medianMs":{:.9},"maxMs":{:.9}}}"#,
-            self.min_ms, self.max_ms
+            self.min_ms, self.median_ms, self.max_ms
         )
     }
 }
