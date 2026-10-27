@@ -111,6 +111,69 @@ fn compare_helper_sources(sources: &[&str]) {
 }
 
 #[test]
+fn binary_bitwise_converts_primitive_operands() {
+    let mut sources = vec![
+        "export function run(a,b) { return a&true; }".to_string(),
+        "export function run(a,b) { return true<<a; }".to_string(),
+        "export function run(a,b) { const flag=true; return flag|a; }".to_string(),
+        "export function run(a,b) { const flag=true; return flag<<a; }".to_string(),
+    ];
+    for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
+        for primitive in ["undefined", "null", "true", "false", "a<b"] {
+            for body in [
+                format!("return ({primitive}){operator}a;"),
+                format!("return a{operator}({primitive});"),
+            ] {
+                sources.push(format!("export function run(a,b){{{body}}}"));
+            }
+        }
+        for body in [
+            format!("let x=a;return x{operator}(x=false,b);"),
+            format!("let x=null;return x{operator}(x=a,b);"),
+            format!("let x=a?null:undefined;return x{operator}b;"),
+            format!("const p=a<b;return (a=b){operator}p;"),
+            format!("let x=null;const f=()=>x=a;return x{operator}f();"),
+            format!("let x=null;x=4294967297.9;return x{operator}b;"),
+            format!("let x=null;x=-4294967297.9;return a{operator}x;"),
+            format!("let x=a?true:null;return x{operator}(b+32.5);"),
+        ] {
+            sources.push(format!("export function run(a,b){{{body}}}"));
+        }
+    }
+    compare_helper_sources(&sources.iter().map(String::as_str).collect::<Vec<_>>());
+}
+
+#[test]
+fn binary_bitwise_primitive_inputs_keep_unsupported_and_compound_guards() {
+    for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
+        for operand in ["\"3\"", "{}", "1n", "()=>a"] {
+            for body in [
+                format!("return ({operand}){operator}a;"),
+                format!("return a{operator}({operand});"),
+            ] {
+                let source = format!("export function run(a,b){{{body}}}");
+                for ts in [false, true] {
+                    assert!(compile(&source, ts).is_err(), "{source}");
+                    assert!(compile_value(&source, ts).is_err(), "{source}");
+                }
+            }
+        }
+        for body in [
+            format!("return a{operator}missing;"),
+            format!("return a{operator}(b**2);"),
+            format!("return a{operator}(a+\"3\");"),
+            format!("a{operator}=null;return a;"),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                assert!(compile(&source, ts).is_err(), "{source}");
+                assert!(compile_value(&source, ts).is_err(), "{source}");
+            }
+        }
+    }
+}
+
+#[test]
 fn unary_math_converts_primitive_first_inputs() {
     let mut sources =
         vec!["export function run(a,b) { const flag=true; return Math.abs(flag); }".to_string()];

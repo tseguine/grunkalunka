@@ -74,8 +74,6 @@ const binary='only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const numeric='Boolean bindings are not admitted in numeric value positions';
 const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
-  ['bitwise','return a&true;',expression],
-  ['shift','return true<<a;',expression],
   ['string','return a+"1";',expression],
   ['object','return {}+true;',expression],
   ['bigint','return true+1n;',expression],

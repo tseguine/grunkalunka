@@ -722,3 +722,12 @@ Unary Math primitive-input conversion preserves the saved first value across lat
 argument writes and async waits, including General bindings whose kind changes.
 String, object, BigInt and function operands remain unsupported. The arithmetic
 conversion machinery is reused; no new IR operation or runtime ABI is introduced.
+
+Binary bitwise and shift operands now convert represented Undefined, Null, Boolean
+and Number values with the existing ToNumber lowering. Existing integer conversion
+and shift masking are unchanged. Corpus 82 promotes 32 exact old sources, preserving
+their original JS or TS source hashes, and retains 854 rejection observations.
+General-binding values are captured before later writes and async waits. Strings,
+objects, BigInts, functions, compound assignments with primitive RHS values and
+broader unary conversion remain separate gaps. See
+[primitive bitwise operands](compiler.md#primitive-operands-to-binary-bitwise-and-shift-operators).

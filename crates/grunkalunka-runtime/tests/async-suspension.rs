@@ -305,6 +305,35 @@ fn catch_keeps_profile_limits_and_resource_failures_terminal() {
 }
 
 #[test]
+fn binary_bitwise_primitive_inputs_preserve_async_snapshots_and_jobs() {
+    let mut bodies = Vec::new();
+    for operator in ["&", "|", "^", "<<", ">>", ">>>"] {
+        bodies.push(format!("return (await null){operator}(await(a<b));"));
+        bodies.push(format!("let x=a;return x{operator}(await(x=false,b));"));
+        bodies.push(format!("let x=null;return x{operator}(await(x=a,b));"));
+        bodies.push(format!("return (await undefined){operator}(await b);"));
+        bodies.push(format!(
+            "try{{return null{operator}(await Promise.reject(b));}}catch(e){{return e;}}"
+        ));
+    }
+    compare_promises(
+        &bodies.iter().map(String::as_str).collect::<Vec<_>>(),
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){return (await null)|(await(a<b));}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{return ((await(null as never))|(await(a<b)) satisfies Wrong);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn unary_math_primitive_inputs_preserve_async_snapshots_and_jobs() {
     let mut bodies = Vec::new();
     for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {

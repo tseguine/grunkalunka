@@ -2233,18 +2233,7 @@ impl Lowering<'_, '_> {
                                     ));
                                 }
                             };
-                            let mode = if matches!(
-                                operator,
-                                Binary::Add
-                                    | Binary::Subtract
-                                    | Binary::Multiply
-                                    | Binary::Divide
-                                    | Binary::Remainder
-                            ) {
-                                Mode::Arithmetic
-                            } else {
-                                Mode::Number
-                            };
+                            let mode = Mode::Arithmetic;
                             work.push(Work::BinaryRight {
                                 node,
                                 right: &binary.right,

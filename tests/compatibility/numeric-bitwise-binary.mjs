@@ -41,28 +41,16 @@ numericBitwiseBinary.push(
 );
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
-const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ...['&','|','^'].flatMap((op,i)=>[
-    [`bitwise-boolean-left-${i}`, `return true ${op} a;`, expression],
-    [`bitwise-boolean-right-${i}`, `return a ${op} false;`, expression],
-  ]),
   ['bitwise-string-left', 'return "5" & a;', expression],
   ['bitwise-string-right', 'return a | "3";', expression],
   ['bitwise-object', 'return a ^ ({});', expression],
   ['bitwise-bigint', 'return 1n & 3n;', expression],
-  ['bitwise-null', 'return a | null;', expression],
-  ['bitwise-undefined', 'return a ^ undefined;', reference],
   ['bitwise-global', 'return clock & a;', reference],
   ['bitwise-call', 'return a | Math.random();', expression],
   ['bitwise-unselected-call', 'return 0 ? (a & Math.random()) : a;', expression],
   ['bitwise-unselected-string', 'return 1 || (a ^ "4");', expression],
-  ['bitwise-unselected-predicate', 'return 1 ? a : (a | (a<b));', binary],
-  ['bitwise-comparison', 'return (a<b) & b;', binary],
-  ['bitwise-negation', 'return !a | b;', unary],
-  ['bitwise-asserted-boolean', 'return (true as number) ^ a;', expression, 'ts'],
   ['bitwise-const-write', 'const x=a; return x & (x=b);', 'assignment to a const binding is not admitted'],
   ['bitwise-const-update', 'const x=a; return x++ | b;', 'update to a const binding is not admitted'],
   ['bitwise-self-tdz', 'let x=x ^ a; return x;', reference],

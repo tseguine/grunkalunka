@@ -1,3 +1,4 @@
+import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { localArrows } from './local-arrows.mjs';
 import { voidPrograms } from './void.mjs';
 import { nullishAssignment } from './nullish-assignment.mjs';
@@ -79,7 +80,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 81;
+export const corpusVersion = 82;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -143,6 +144,7 @@ programs.push(...directivePrograms);
 programs.push(...numericBitNot);
 programs.push(...hashbangPrograms);
 programs.push(...numericBitwiseBinary);
+programs.push(...primitiveBitwise);
 programs.push(...numericShifts);
 programs.push(...numericBitwiseCompounds);
 programs.push(...annotationPrograms);

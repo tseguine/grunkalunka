@@ -547,8 +547,6 @@ mod tests {
     fn unary_predicate_binding_bridge_keeps_scope_and_value_boundaries() {
         for body in [
             "const flag=true; return flag;",
-            "const flag=true; return flag|a;",
-            "const flag=true; return flag<<a;",
             "const flag=+flag; return a;",
             "return +flag; const flag=true;",
             "{const flag=true;} return +flag;",
@@ -1202,14 +1200,29 @@ mod tests {
     }
 
     #[test]
-    fn boolean_arithmetic_keeps_other_operand_boundaries() {
-        for (body, reason) in [
-            ("a&=true; return a;", "expression is outside"),
-            ("return a&true;", "expression is outside"),
+    fn binary_bitwise_converts_former_boolean_guard_sources() {
+        for source in [
+            "export function run(a,b) { return a&true; }",
+            "export function run(a,b) { return true<<a; }",
+            "export function run(a,b) { const flag=true; return flag|a; }",
+            "export function run(a,b) { const flag=true; return flag<<a; }",
         ] {
-            let source = format!("export function run(a,b) {{ {body} }}");
-            assert!(compile(&source, false).err().unwrap().contains(reason));
+            for typescript in [false, true] {
+                compile(source, typescript).unwrap();
+                crate::compile_value(source, typescript).unwrap();
+            }
         }
+    }
+
+    #[test]
+    fn boolean_arithmetic_keeps_other_operand_boundaries() {
+        let source = "export function run(a,b) { a&=true; return a; }";
+        assert!(
+            compile(source, false)
+                .err()
+                .unwrap()
+                .contains("expression is outside")
+        );
     }
 }
 

@@ -1,3 +1,4 @@
+import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
 import { numericMathUnary } from './numeric-math-unary.mjs';
 import { numericCalls } from './numeric-calls.mjs';
@@ -210,7 +211,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 886);
+  assert.equal(inventory.records.size, 854);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -511,5 +512,144 @@ test('primitive unary Math inputs retain seventeen exact prior rejection sources
     const fixture=[...numericMathAbs,...numericMathUnary].find(([name])=>name===id);
     assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
     assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
+  }
+});
+
+test('primitive bitwise operands retain thirty-two exact prior rejection sources',()=>{
+  const expected={
+    "bitwise-boolean-left-0": [
+        "js",
+        "33e9715f11056dad57458e46395287e72f281a5171ad2ca9f79f6375ce702255"
+    ],
+    "bitwise-boolean-right-0": [
+        "js",
+        "3e0e885d56534d48ecb1ea6f29b6addb40395e607b794d3f41f5a542ab206299"
+    ],
+    "bitwise-boolean-left-1": [
+        "js",
+        "95c3661ef3f2ba22bc63d5bf7c4e5231a22ba6a300c132f2c71cf5fd46648111"
+    ],
+    "bitwise-boolean-right-1": [
+        "js",
+        "6adc915d77fcca767657a229c2c270a22444e1542cfa52be583048412c4d2a78"
+    ],
+    "bitwise-boolean-left-2": [
+        "js",
+        "db66563356a59d580e7ba32b3054d71b40e68eb1fb16acc56e03441c495377cd"
+    ],
+    "bitwise-boolean-right-2": [
+        "js",
+        "25db8719c994843388c9415a4179dd286cef9661030baaf13e0c2e8170bad8a8"
+    ],
+    "bitwise-null": [
+        "js",
+        "cc45fbe029f1e73784e2622e495e6c6b04b28b39f9a0b4437f53fd984b2b9904"
+    ],
+    "bitwise-undefined": [
+        "js",
+        "8789a84753618aa2c67e0bbbee263a32d2b9d91fa19011529a271b44db4d22f6"
+    ],
+    "bitwise-unselected-predicate": [
+        "js",
+        "49b9319665b8d4d02d73c26df3e2b625a07a85ec4da41c147258ae29f6222a93"
+    ],
+    "bitwise-comparison": [
+        "js",
+        "a5c7b8b6efc0e287e1065a07a3206b05173d44890673937fa4e94548165b020a"
+    ],
+    "bitwise-negation": [
+        "js",
+        "1b8d65b3f095853dad737303b3168b5496e1f5e6d480b2e23185c061692fc59e"
+    ],
+    "bitwise-asserted-boolean": [
+        "ts",
+        "c598fb2348f68eddfb57359349009463bb2db9a456c1b194d744bbaa85e67401"
+    ],
+    "shift-boolean-left-0": [
+        "js",
+        "330e42862178ef99c39a45b8bac2e3c13053b7d2219708487ed5e3e268bc78df"
+    ],
+    "shift-boolean-right-0": [
+        "js",
+        "12695f80fb359e44fe6f8df702a1ca9931a2fb96aed23ed2d0a3da5782118ced"
+    ],
+    "shift-boolean-left-1": [
+        "js",
+        "da128170db5481923138fc5f88aa47937bd067077dae32e838cd5dc5c4c0039f"
+    ],
+    "shift-boolean-right-1": [
+        "js",
+        "6f6af3cb5141adb9821d0344dc866b155ee9614cb9249f99e84e78c6a1e874ce"
+    ],
+    "shift-boolean-left-2": [
+        "js",
+        "a764ecc62939db9ca2a2938db8e6322b4093b1aadc0a5e410f11880e6815b3fe"
+    ],
+    "shift-boolean-right-2": [
+        "js",
+        "9c02925a1a496e541c2aeb6751133f85560c805ea3558cfe5365f0a0df1d0647"
+    ],
+    "shift-null": [
+        "js",
+        "30543dcbab21ce8d144cdaf5fcd41e91610d2a442a0f375b1efeb48783f1b1a0"
+    ],
+    "shift-undefined": [
+        "js",
+        "feb08f547539cb21e6d5109affccca6ed42ded3ea2162fb847bd443a62e21808"
+    ],
+    "shift-unselected-predicate": [
+        "js",
+        "f4306d09191151d5555d7aada842fea7f0fc7f64291d19081965ace8c6529b2c"
+    ],
+    "shift-comparison": [
+        "js",
+        "24dc764e1b04cbe3d68dfc86bf373e54c5b5809e3de39a76ec6beed610dae5d3"
+    ],
+    "shift-negation": [
+        "js",
+        "3fd3c4e0c66b0f9a558a4d9dec7226137e2280ca9ba979e2207fbe329660743b"
+    ],
+    "shift-asserted-boolean": [
+        "ts",
+        "c61a4bfa05fc79c811ed345dfe9c285b0105f9a0d9053c6267c2b05692f0498e"
+    ],
+    "boolean-arithmetic-bitwise": [
+        "js",
+        "c38d4f090d0c27293654086257edf2c23ee1fbbdacbc12178db6d186f9b02a09"
+    ],
+    "boolean-arithmetic-shift": [
+        "js",
+        "380a653da410740fa80adf02a9bd2241696dd8abe8e3efbda930338da4b24b47"
+    ],
+    "unary-predicate-binding-reject-bitwise": [
+        "js",
+        "b4a12986c87f4b8f8bb5a45556723d149a791c2de05e77812b9112379438e0e1"
+    ],
+    "unary-predicate-binding-reject-shift": [
+        "js",
+        "4badb35624721e01a2cea4b0e6a897b8e3f4d2edb9114b22ce134463ecd9b216"
+    ],
+    "arithmetic-predicate-binding-reject-bitwise": [
+        "js",
+        "b4a12986c87f4b8f8bb5a45556723d149a791c2de05e77812b9112379438e0e1"
+    ],
+    "arithmetic-predicate-binding-reject-shift": [
+        "js",
+        "4badb35624721e01a2cea4b0e6a897b8e3f4d2edb9114b22ce134463ecd9b216"
+    ],
+    "discarded-predicate-binding-reject-bitwise": [
+        "js",
+        "b4a12986c87f4b8f8bb5a45556723d149a791c2de05e77812b9112379438e0e1"
+    ],
+    "discarded-predicate-binding-reject-shift": [
+        "js",
+        "4badb35624721e01a2cea4b0e6a897b8e3f4d2edb9114b22ce134463ecd9b216"
+    ]
+};
+  for(const [id,[extension,hash]] of Object.entries(expected)){
+    const fixture=primitiveBitwise.find(([name])=>name===id);
+    assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
+    const sources=programSources(fixture),source=extension==='ts'?sources.sourceTS:sources.sourceJS;
+    assert.equal(createHash('sha256').update(source).digest('hex'),hash,id);
   }
 });

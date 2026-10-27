@@ -511,10 +511,12 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   property access such as `globalThis.Infinity` or `Number.NaN` remain rejected.
   Numeric expressions admit literals, these two intrinsic reads, initialized bindings, parentheses, binary
   `+ - * / % & | ^ << >> >>>`, unary `+ - ~`, and ternaries. Numeric `~`, `&`, `|` and `^` use signed 32-bit wrapping
-  semantics and yield Numbers for Number operands.
-  Binary bitwise operands both run eagerly, left to right; RHS writes cannot
-  replace the captured left value. Results use signed conversion, including positive zero.
-  Shifts also capture both Number operands eagerly in source order. The count is
+  semantics and yield Numbers for Number operands. Binary `&`, `|`, `^`, `<<`,
+  `>>` and `>>>` also accept represented Undefined, Null and Boolean operands
+  through existing primitive ToNumber lowering before the integer operations.
+  Both operands run eagerly, left to right; RHS writes and waits cannot replace
+  the captured left value. Bitwise results use signed conversion, including positive zero.
+  Shifts also retain both converted Number operands in source order. The count is
   truncated and wrapped, then masked to five bits. `<<` shifts left and `>>`
   sign-extends; both return signed results. `>>>` zero-fills and alone uses unsigned
   result conversion, so `-1 >>> 0` returns `4294967295`. Shift results are Numbers
@@ -2009,3 +2011,25 @@ execute unchanged and are pinned by SHA256. Unsupported String/object/BigInt/fun
 operands and the existing namespace and width guards remain rejected. This changes
 one evaluator mode selection, with no IR operation, emitter, ABI or dependency change.
 Corpus 81 has 1,897 numeric pairs, 175 primitive pairs and 886 rejections.
+
+### Primitive operands to binary bitwise and shift operators
+
+Binary `&`, `|`, `^`, `<<`, `>>` and `>>>` reuse the arithmetic operand evaluator's
+ToNumber conversion for Undefined, Null, Boolean and Number. Existing IR bitwise
+and shift operations retain their numeric ToInt32/ToUint32 and count-masking rules.
+No emitter, integer operation, runtime ABI or dependency changes are required.
+The left converted value is saved before RHS effects or waits. Conversion is pure
+for the admitted primitive domain; String, object, BigInt and function operands
+remain unsupported. Compound assignments and broader unary conversion are separate.
+
+The maintained oracles compare 112 full-source cases in JS/TS, Number/Value profiles
+and native JavaScript, Node-Wasm and Wasmtime. Thirty async bodies cover snapshots,
+awaited primitive operands, rejections and job order; an erased TS example has
+identical Wasm. Three old compiler Boolean guards and the exact runtime `a&true`
+guard are promoted into positive tests while their other boundaries remain intact.
+
+Corpus 82 promotes 32 exact former rejection sources, including two TS assertion
+sources, and adds six General-binding snapshot pairs. Original source hashes are
+pinned in the Node inventory test. It has 1,935 numeric pairs, 175 primitive pairs
+and 854 rejections. The primitive ToNumber and existing numeric integer operations
+are reused; the evaluator no longer treats binary bitwise operands as Number-only.

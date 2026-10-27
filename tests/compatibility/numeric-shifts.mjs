@@ -41,28 +41,16 @@ numericShifts.push(
 );
 
 const expression = 'expression is outside the numeric experiment';
-const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
-const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ...['<<','>>','>>>'].flatMap((op,i)=>[
-    [`shift-boolean-left-${i}`, `return true ${op} a;`, expression],
-    [`shift-boolean-right-${i}`, `return a ${op} false;`, expression],
-  ]),
   ['shift-string-left', 'return "5" << a;', expression],
   ['shift-string-right', 'return a >> "3";', expression],
   ['shift-object', 'return a >>> ({});', expression],
   ['shift-bigint', 'return 1n << 3n;', expression],
-  ['shift-null', 'return a >> null;', expression],
-  ['shift-undefined', 'return a >>> undefined;', reference],
   ['shift-global', 'return clock << a;', reference],
   ['shift-call', 'return a >> Math.random();', expression],
   ['shift-unselected-call', 'return 0 ? (a << Math.random()) : a;', expression],
   ['shift-unselected-string', 'return 1 || (a >>> "4");', expression],
-  ['shift-unselected-predicate', 'return 1 ? a : (a >> (a<b));', binary],
-  ['shift-comparison', 'return (a<b) << b;', binary],
-  ['shift-negation', 'return !a >> b;', unary],
-  ['shift-asserted-boolean', 'return (true as number) >>> a;', expression, 'ts'],
   ['shift-const-write', 'const x=a; return x << (x=b);', 'assignment to a const binding is not admitted'],
   ['shift-const-update', 'const x=a; return x++ >> b;', 'update to a const binding is not admitted'],
   ['shift-self-tdz', 'let x=x >>> a; return x;', reference],

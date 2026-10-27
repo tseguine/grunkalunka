@@ -51,8 +51,6 @@ const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
  ['return','const flag=true; return flag;',numeric,'boolean-values'],
  ['assignment','const flag=true; a=flag; return a;','General bindings require a primitive value position','boolean-values'],
- ['bitwise','const flag=true; return flag|a;',numeric,'boolean-values'],
- ['shift','const flag=true; return flag<<a;',numeric,'boolean-values'],
  ['self','const flag=flag+a; return a;',reference,'binding-errors'],
  ['forward','const first=flag+a; const flag=true; return a;',reference,'binding-errors'],
  ['tdz','return flag+a; const flag=true;',reference,'binding-errors'],
