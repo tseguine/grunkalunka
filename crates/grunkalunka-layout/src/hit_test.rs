@@ -38,10 +38,8 @@ pub enum HitError {
 fn encloses(outer: Rect, inner: Rect) -> Result<bool, HitError> {
     Ok(inner.x >= outer.x
         && inner.y >= outer.y
-        && inner.right().ok_or(HitError::Overflow)?
-            <= outer.right().ok_or(HitError::Overflow)?
-        && inner.bottom().ok_or(HitError::Overflow)?
-            <= outer.bottom().ok_or(HitError::Overflow)?)
+        && inner.right().ok_or(HitError::Overflow)? <= outer.right().ok_or(HitError::Overflow)?
+        && inner.bottom().ok_or(HitError::Overflow)? <= outer.bottom().ok_or(HitError::Overflow)?)
 }
 
 fn contains_point(border: Rect, x: u32, y: u32) -> Result<bool, HitError> {

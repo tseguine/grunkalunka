@@ -210,10 +210,7 @@ fn corrupt_frames_parents_depth_and_viewports_fail_closed() {
 
     let mut invalid = frame.clone();
     invalid.boxes[1].as_mut().unwrap().content.x = u32::MAX;
-    assert_eq!(
-        hit_test(&invalid, &nodes, 1, 1),
-        Err(HitError::Overflow)
-    );
+    assert_eq!(hit_test(&invalid, &nodes, 1, 1), Err(HitError::Overflow));
     // Check malformed geometry even for an off-viewport query.
     assert_eq!(
         hit_test(&invalid, &nodes, 1000, 1000),
@@ -223,10 +220,7 @@ fn corrupt_frames_parents_depth_and_viewports_fail_closed() {
     let mut invalid = frame.clone();
     invalid.boxes = vec![None; MAX_BLOCKS + 1];
     let many = vec![HitNode::new(None); MAX_BLOCKS + 1];
-    assert_eq!(
-        hit_test(&invalid, &many, 1, 1),
-        Err(HitError::TooManyNodes)
-    );
+    assert_eq!(hit_test(&invalid, &many, 1, 1), Err(HitError::TooManyNodes));
 
     let mut invalid = frame;
     invalid.boxes = vec![None; MAX_DEPTH + 2];
@@ -240,8 +234,5 @@ fn corrupt_frames_parents_depth_and_viewports_fail_closed() {
             node: MAX_DEPTH + 1
         })
     );
-    assert_eq!(
-        layout(&[], 10, 10),
-        Err(LayoutError::EmptyDocument)
-    );
+    assert_eq!(layout(&[], 10, 10), Err(LayoutError::EmptyDocument));
 }
