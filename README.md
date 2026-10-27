@@ -19,8 +19,9 @@ runtime compatibility.
 
 ## Build and run
 
-Install current Rust stable and Node.js 20 or newer. Install the core-Wasm target
-and acquire the locked dependencies once, then build and verify offline:
+Install Rust through rustup and Node.js 24. Rust uses the repository-selected
+toolchain; Node 24 is the CI runtime. Install the core-Wasm target and acquire the
+locked dependencies once, then build and verify offline:
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -32,9 +33,14 @@ node scripts/check.mjs
 
 The complete check includes formatting, Clippy, workspace tests, dependency
 screening, the historical frontend observations, the JSON guest on Node and
-Wasmtime, and the differential regression corpus. The JSON guest is a data
-transport foundation; JSON source values and builtins are not yet lowerable.
-To replay only the compiler/runtime demonstration:
+Wasmtime, and the differential regression corpus. [CI](docs/ci.md) runs the
+canonical check on Linux, Windows and macOS. This is coverage of those runner
+configurations, not every host/runtime combination.
+
+String and JSON source experiments have a separate, narrower
+[heap profile](docs/heap-literals.md); they do not establish general heap-value
+support in the numeric or four-kind primitive profiles.
+To replay only the differential compiler/runtime demonstration:
 
 ```sh
 node scripts/poc.mjs
@@ -43,6 +49,25 @@ node scripts/poc.mjs
 It compiles JS and TS to real portable Wasm, runs that Wasm in Wasmtime and Node,
 and compares results against original JavaScript. The affine example computes
 `(a * 2 + b) / 3`; `run(4, 1)` returns `3`.
+
+### A local build-and-run example
+
+After building the CLI, the [numeric example](examples/numeric-workflow/) compiles
+its checked-in GCD source and executes the resulting Wasm:
+
+```sh
+node examples/numeric-workflow/run.mjs
+node examples/numeric-workflow/run.mjs 1071 462
+npm run example:numeric
+```
+
+The default prints `6`; the explicit inputs print `21`. An optional third argument
+selects a JS/TS file exporting the supported two-number `run` function. Edit it and
+rerun the command to rebuild. Failed edits report diagnostics rather than executing
+an earlier output. Compilation uses temporary files; execution uses a disposable
+worker with a deadline. These are numeric examples, not general Node applications.
+
+### CLI commands
 
 ```text
 target/debug/grunkalunka compile SOURCE.ts NEW-OUTPUT.wasm
@@ -65,26 +90,36 @@ admitted language, limits and diagnostics. Compilation refuses existing output
 files. The numeric runtime executes locally generated modules without ambient
 imports; it is not a hardened arbitrary-module service.
 
-For programmatic builds, the [Node build API](docs/build-api.md) invokes an
-existing compiler with explicit paths, bounded output and cancellation.
+### Programmatic builds and measurements
+
+The [Node build API](docs/build-api.md) provides file-to-file `compile()` and
+source-text-to-bytes `compileSource()`, both using an explicitly selected native
+compiler with bounded captured output and cancellation. The
+[numeric worker runner](tools/runtime/numeric.mjs) executes a trusted import-free
+numeric artifact without blocking the caller's event loop on a guest loop.
+
+`node tools/bench/numeric.mjs` prints a [numeric cost report](docs/numeric-benchmark.md)
+with build API timing, startup observations, warmed JS/Wasm samples and provenance.
+Its default compiler is the debug build. Follow the measurement guide before
+comparing results; the smoke test checks correctness, not a speed threshold.
 
 ## Workspace
 
 - `crates/grunkalunka-compiler`: source text to portable typed Wasm; independent of Wasmtime.
 - `crates/grunkalunka-runtime`: numeric module instantiation and execution.
 - `crates/grunkalunka-cli`: file and standard-input handling, compile/inspect/evaluate commands.
-- `crates/grunkalunka-markdown`: standalone CommonMark headings, links and images with original source spans.
+- `crates/grunkalunka-markdown`: CommonMark summaries, code blocks, heading outlines and prose projection.
 - `tests/compatibility`: maintained JS/TS differential fixtures and evidence reports.
+- `tools`: repository-local build, execution and measurement adapters.
 
 [Compiler contract](docs/compiler.md) | [Milestones](docs/milestones.md) ·
 [Research roadmap](docs/roadmap.md) | [Dependencies](docs/dependencies.md)
 
 See [Markdown inspection](docs/markdown.md) for the parsing API and its limits.
 
-Package scripts provide `build`, `poc` and `check` entry points. Direct Node execution
-is verified on this workstation; its npm launcher currently fails before entering
-the runner because a child shell cannot find Node. Bun and other host platforms
-remain unverified. The [frontend research](spikes/001-frontend-semantics/README.md)
-is retained separately from the maintained workspace.
+Package scripts also provide `build`, `poc` and `check` entry points. Bun
+compatibility has not been established by the Node CI runs. Historical workstation
+observations remain in the [frontend research](spikes/001-frontend-semantics/README.md),
+separately from the maintained workspace.
 
 MIT licensed. Third-party material retains its applicable licenses and notices.
