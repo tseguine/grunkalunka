@@ -1,5 +1,7 @@
 // Actual Markdown guest + WIT document capability, compared with native outlines.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +38,11 @@ for (const record of records) {
 }
 run('cargo', ['build', '-p', 'grunkalunka-runtime', '--example', 'markdown_cost', '--locked', '--offline', '-j', '4']);
 const wasm = resolve(target, 'wasm32-unknown-unknown/debug/examples/outline_guest.wasm');
-for (const selected of ['empty', 'unicode', 'dense', 'wide']) {
+// A second process must reproduce the same source, output and declared conditions.
+// Hash the actual guest before and after; byte size alone cannot establish identity.
+const guestHash = () => createHash('sha256').update(readFileSync(wasm)).digest('hex');
+const initialGuestHash = guestHash();
+function runAndValidateCost(selected) {
   const raw = run(executable('markdown_cost'), [
     wasm, '--workload', selected, '--samples', '2', '--iterations', '2', '--warmup', '1',
   ], true);
@@ -46,6 +52,9 @@ for (const selected of ['empty', 'unicode', 'dense', 'wide']) {
   assert.equal(report.configuration.case, selected);
   assert.equal(report.configuration.samples, 2);
   assert.equal(report.configuration.iterations, 2);
+  assert.equal(report.configuration.warmup, 1);
+  assert.equal(report.timings.unit, 'milliseconds');
+  assert.equal(report.timings.order, 'alternating');
   assert.ok(report.artifact.guestBytes > 0);
   assert.ok(report.artifact.componentBytes > report.artifact.guestBytes);
   assert.equal(report.outcomes.grantedBackingReads, 6);
@@ -70,6 +79,18 @@ for (const selected of ['empty', 'unicode', 'dense', 'wide']) {
   for (const observed of [report.timings.embedMs, report.timings.componentCompileMs]) {
     assert.ok(Number.isFinite(observed) && observed >= 0);
   }
+  return report;
 }
-console.log('PASS capability-backed Markdown outlines: 9 native/component comparisons, policy errors, cleanup and fuel isolation; 4 cost fixtures with native parity');
+let initialUnicode;
+for (const selected of ['empty', 'unicode', 'dense', 'wide']) {
+  const report = runAndValidateCost(selected);
+  if (selected === 'unicode') initialUnicode = report;
+}
+const repeatedUnicode = runAndValidateCost('unicode');
+for (const field of ['workload', 'schemaVersion', 'configuration', 'environment', 'artifact', 'fixture']) {
+  assert.deepEqual(repeatedUnicode[field], initialUnicode[field],
+    `separate Unicode report must repeat ${field} before any timing comparison`);
+}
+assert.equal(guestHash(), initialGuestHash, 'Markdown guest binary changed across report collection');
+console.log('PASS capability-backed Markdown outlines: 9 native/component comparisons, policy errors, cleanup and fuel isolation; 4 cost fixtures with native parity; repeated Unicode report identity; guest sha256 ' + initialGuestHash);
 
