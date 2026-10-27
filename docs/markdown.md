@@ -69,7 +69,8 @@ The adapter does not open, validate, rewrite or authorize them. Consumers supply
 their own URL/path policy and capability checks before following any reference.
 It does not render or sanitize content. Parsing allocates memory proportional to
 the parser and projected output; callers must bound untrusted input/resources.
-No Wasm target build or WIT boundary is demonstrated by this native library unit.
+The [portability check](markdown-portability.md) compares native and core-Wasm
+projections on fixed fixtures. It does not establish a WIT application boundary.
 
 The upstream parser is MIT licensed, inspected at
 [v0.13.5](https://github.com/pulldown-cmark/pulldown-cmark/tree/v0.13.5).

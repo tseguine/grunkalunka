@@ -38,4 +38,5 @@ run(process.execPath, ['scripts/poc.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/remainder-kernel.test.mjs']);
 run(process.execPath, ['--test', 'tests/build/benchmark.test.mjs', 'tests/build/benchmark-integration.test.mjs',
   'tests/build/benchmark-comparison.test.mjs']);
+run(process.execPath, ['scripts/check-markdown-portability.mjs']);
 console.log(`PASS all checks (${process.versions.bun ? `Bun ${process.versions.bun}` : `Node ${process.version}`})`);
