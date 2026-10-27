@@ -165,8 +165,8 @@ impl Report {
 }
 
 fn measure_node(bytes: &[u8], options: Options) -> wasmtime::Result<String> {
-    let script = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/bench/core-engine-replay.mjs");
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/bench/core-engine-replay.mjs");
     let mut child = Command::new("node")
         .arg(script)
         .arg(options.samples.to_string())
