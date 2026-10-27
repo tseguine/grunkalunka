@@ -28,6 +28,53 @@ fn helpers_evaluate_and_ignore_surplus_arguments() {
     ]);
 }
 
+#[test]
+fn known_local_arrows_preserve_primitive_inputs() {
+    compare_helper_sources(&[
+        "export function run(a,b){const f=x=>+x;return f(null);}",
+        "export function run(a,b){const f=x=>+x;return f(undefined);}",
+        "export function run(a,b){const f=x=>+x;return f(true)+f(false);}",
+        "export function run(a,b){const f=x=>x===null?1:2;return f(null);}",
+        "export function run(a,b){const f=x=>x===undefined?1:2;return f(undefined);}",
+        "export function run(a,b){const f=x=>x===true?1:2;return f(true);}",
+        "export function run(a,b){const f=x=>x===false?1:2;return f(false);}",
+        "export function run(a,b){return (x=>+x)(a?null:false);}",
+        "export function run(a,b){const f=x=>+x;const alias=f;return alias(a<b);}",
+        "export function run(a,b){const f=x=>+x;return f(a&&null);}",
+        "export function run(a,b){const f=x=>+x;return f(a?undefined:b);}",
+        "export function run(a,b){const undefined=a;const f=x=>+x;return f(undefined);}",
+        "export function run(a,b){let x=null;const f=(x,y)=>+x+(+y);return f(x,x=a)+x;}",
+        "export function run(a,b){let x=true;const f=(x,y)=>+x+(+y);return f(x,x=false)+(+x);}",
+        "export function run(a,b){const f=x=>{const read=()=>+x;x=a;return read();};return f(null);}",
+        "export function run(a,b){const f=x=>{const read=()=>+x;const old=read();x=b;return old+read();};return f(true);}",
+        "export function run(a,b){const f=(x,y)=>+x+(+y);return f(null,a,b=a)+b;}",
+        "export function run(a,b){const f=x=>{x=null;return +x;};return f(a);}",
+        "export function run(a,b){const f=x=>-x;return f(null);}",
+        "export function run(a,b){const f=x=>+x;return f(a);}",
+        "export function run(a,b){const f=x=>x===null;return +f(null);}",
+        "export function run(a,b){const f=x=>!x;return +f(undefined);}",
+    ]);
+}
+
+#[test]
+fn local_primitive_inputs_keep_existing_call_and_result_guards() {
+    for source in [
+        "export function run(a,b){const f=x=>+x;return f();}",
+        "export function run(a,b){const f=x=>+x;return f(...a);}",
+        "export function run(a,b){const f=x=>+x;return f('text');}",
+        "export function run(a,b){const f=x=>+x;return f({});}",
+        "export function run(a,b){const f=x=>+x;return f([]);}",
+        "export function run(a,b){const f=x=>x;return f(null);}",
+        "export function run(a,b){const f=a?x=>+x:x=>-x;return f(null);}",
+        "export function run(a,b){const f=x=>+x;return f(null,missing);}",
+    ] {
+        for ts in [false, true] {
+            assert!(compile(source, ts).is_err(), "{source}");
+            assert!(compile_value(source, ts).is_err(), "{source}");
+        }
+    }
+}
+
 fn compare_helper_sources(sources: &[&str]) {
     use std::{
         io::Write,

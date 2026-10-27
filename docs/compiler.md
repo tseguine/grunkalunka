@@ -1677,7 +1677,18 @@ occurs outside the callee's rejection boundary. Runtime function values and fact
 also admit surplus arguments, preserving the saved callee pair and passing only
 declared inputs through their frames. Top-level numeric helpers follow the same
 supplied-count rule while keeping Number declared inputs and results. Missing,
-spread, optional and generic local arguments remain unsupported. Body results retain their existing typed contract.
+spread, optional and generic local arguments remain unsupported. Known scalar-result
+local calls also accept represented primitive inputs (Undefined, Null, Boolean and Number)
+when the arrow's result kind is independently established. For example,
+`(x=>+x)(null)` yields Number zero while `(x=>x===null)(null)` yields Boolean true.
+Arguments retain their kinds and left-to-right snapshots in fresh mutable parameter
+cells, including cells captured by nested arrows. Awaited known async calls share
+this argument path. Inputs with a positive Number shape proof retain their
+original representation.
+Body results retain their existing typed contract: input-dependent result inference
+such as `(x=>x)(null)`, primitive factory inputs and runtime closure General-input
+inference remain separate frontend gaps. Strings, arrays and objects are outside
+this primitive domain.
 Parentheses and erased TypeScript wrappers preserve the underlying function; annotations do not coerce values.
 
 Known concise arrow factories can also return an arrow or immutable closure

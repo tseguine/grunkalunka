@@ -145,12 +145,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
             }
             let ty = if matches!(input_type, Type::Closure(_)) {
                 input_type
-            } else if self.general_bindings.contains(&symbol) {
+            } else if input_type == Type::General || self.general_bindings.contains(&symbol) {
                 Type::General
             } else {
                 Type::Number
             };
-            if ty == Type::General {
+            if ty == Type::General && input_type != Type::General {
                 let packed = self.value(ty);
                 Self::push(
                     region,

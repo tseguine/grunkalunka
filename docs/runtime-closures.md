@@ -167,6 +167,11 @@ General IR parameters are restricted to this private closure entry protocol;
 ordinary helpers and exported entries retain their Number parameter contracts.
 Executable IR tests exercise mixed scalar/function/General frames, primitive and
 Number returns, a captured General parameter, and the unchanged 1,000 parameter
-limit. Source calls such as `(x=>+x)(null)` remain separate frontend work. The
-runtime arena and frame alignment are unchanged; new General arguments simply
+limit. Known scalar-result local source calls such as `(x=>+x)(null)` now specialize
+primitive inputs into their caller's regions, including awaited known async calls. Their
+parameter cells preserve primitive kinds, snapshots and captured writes. This
+does not infer input-dependent results such as `(x=>x)(null)`, primitive factory
+inputs, or General-input signatures for runtime function values; those remain
+separate frontend gaps. The runtime arena and frame alignment are unchanged;
+new General arguments simply
 consume sixteen-byte entries within the existing allocation limit.

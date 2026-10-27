@@ -7,6 +7,26 @@ use std::{
 
 const ORIGINAL: &str = "export async function run(a,b) { return a + await Promise.resolve(b); }";
 
+#[test]
+fn known_local_primitive_inputs_preserve_async_values_and_jobs() {
+    compare_promises(
+        &[
+            "const f=x=>+x;return f(await null);",
+            "const f=x=>+x;return f(await true);",
+            "const f=async x=>+x;return await f(null);",
+            "const f=async x=>{await b;return +x;};return await f(true);",
+            "let x=null;const f=async(x,y)=>+x+(+y);return (await f(x,x=a))+x;",
+            "const f=x=>+x;try{return f(await Promise.reject(null));}catch(e){return e;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()

@@ -468,7 +468,7 @@ impl Lowering<'_, '_> {
                     // Discard, which consumes its own temporary scalar result.
                     let parameter_count = self.arrow(closure.arrow).params.items.len();
                     if index <= parameter_count && arguments.len() < index {
-                        arguments.push(values.pop().expect("local call argument").number());
+                        arguments.push(values.pop().expect("local call argument").id());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
@@ -486,6 +486,11 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(argument, depth, Mode::Discard));
                             continue;
                         }
+                        let scalar_mode = if self.numeric_result_shape(argument, depth) {
+                            Mode::Number
+                        } else {
+                            Mode::General
+                        };
                         let function = self.function_arity(argument, depth);
                         if let Some(arity) = function {
                             let outer = self.function_result_depth;
@@ -506,7 +511,7 @@ impl Lowering<'_, '_> {
                             depth,
                         });
                         if function.is_none() {
-                            work.push(Work::Eval(argument, depth, Mode::Number));
+                            work.push(Work::Eval(argument, depth, scalar_mode));
                         }
                     } else {
                         self.charge_closure_expansion(node)?;
