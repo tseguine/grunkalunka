@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Grunkalunka original grid auto-placement oracle</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  #grid { display: grid; width: 160px; height: 120px; grid-template-columns: 40px 70px;
+    grid-auto-rows: 20px; grid-auto-flow: row; column-gap: 10px; row-gap: 5px;
+    justify-items: stretch; align-items: stretch; margin: 0; padding: 0; border: 0; }
+  #alpha, #beta, #gamma, #delta { min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; }
+</style>
+<div id="grid"><div id="alpha"></div><div id="beta"></div><div id="gamma"></div><div id="delta"></div></div>
+<pre id="output" hidden></pre>
+<script>
+(() => {
+  "use strict";
+  const grid = document.getElementById("grid");
+  const items = ["alpha", "beta", "gamma", "delta"].map(id => document.getElementById(id));
+  const delta = items[3], observations = [];
+  const rectangle = node => {
+    const r = node.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  };
+  function observe(id) {
+    const style = getComputedStyle(grid);
+    observations.push({ id, container: {
+      computed: { display: style.display, width: style.width, height: style.height,
+        gridTemplateColumns: style.gridTemplateColumns, gridAutoRows: style.gridAutoRows,
+        gridAutoFlow: style.gridAutoFlow, columnGap: style.columnGap, rowGap: style.rowGap,
+        justifyItems: style.justifyItems, alignItems: style.alignItems },
+      inlineColumns: grid.style.gridTemplateColumns,
+      inlineColumnGap: grid.style.columnGap, inlineRowGap: grid.style.rowGap,
+      rect: rectangle(grid)
+    }, items: items.map(node => {
+      const s = getComputedStyle(node);
+      return { id: node.id, text: node.textContent,
+        computed: { display: s.display, width: s.width, height: s.height,
+          order: s.order, gridColumnStart: s.gridColumnStart, gridRowStart: s.gridRowStart },
+        inlineOrder: node.style.order, rect: rectangle(node) };
+    }) });
+  }
+  observe("initial");
+  grid.style.setProperty("grid-template-columns", "50px 60px");
+  observe("widen-first-track");
+  grid.style.setProperty("grid-template-columns", "40px 70px");
+  observe("restore-tracks");
+  grid.style.setProperty("column-gap", "25px");
+  observe("increase-column-gap");
+  grid.style.setProperty("row-gap", "15px");
+  observe("increase-row-gap");
+  delta.style.setProperty("order", "-1");
+  observe("order-delta-first");
+  delta.style.removeProperty("order");
+  observe("restore-order");
+  grid.style.setProperty("column-gap", "10px");
+  grid.style.setProperty("row-gap", "5px");
+  observe("restore-gaps");
+  grid.style.setProperty("grid-template-columns", "40px 50px 30px");
+  observe("three-columns");
+  grid.style.setProperty("grid-template-columns", "40px 70px");
+  observe("restore-two-columns");
+  document.getElementById("output").textContent = JSON.stringify({
+    schemaVersion: 1, fixtureId: "grid-placement-v1", observationKind: "grid-placement",
+    environment: { userAgent: navigator.userAgent, viewportWidth: innerWidth,
+      viewportHeight: innerHeight, devicePixelRatio, url: location.href,
+      timestamp: new Date().toISOString() }, observations
+  });
+})();
+</script>
+</html>
