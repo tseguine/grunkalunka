@@ -186,8 +186,12 @@ widen the shared private ABI; runtime call sites establish that input requiremen
 Actual constructors also propagate through demanded callback parameters, aliases,
 forwarding and captured callbacks. Calls through those parameters establish the
 constructor's primitive input requirements. Generic identity parameters retain
-their separate call-site specialization. Argument facts from unresolved
-call-result shapes remain separate work. Existing Number
+their separate call-site specialization. Source-known computed callees also
+contribute result facts: `id(make(a)())` preserves Null when the returned closure
+returns Null. Complete Number returns have a separate positive proof, shared by
+storage, argument specialization and signature queries. Missing or fallthrough
+returns do not prove Number; unresolved callees still contribute no result fact.
+Return queries retain source-depth and bounded expansion guards. Existing Number
 factory depth boundaries remain unchanged.
 The runtime arena and frame alignment are unchanged;
 new General arguments simply

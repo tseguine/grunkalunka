@@ -109,6 +109,16 @@ fn callback_origins_propagate_primitive_input_requirements() {
     ]);
 }
 
+#[test]
+fn computed_call_inputs_retain_number_results() {
+    compare_functions(&[
+        "let make=x=>()=>x;const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>x+b;let f=x=>x;return f(make(a)());",
+        "const make=x=>()=>x;const apply=(f,x)=>f(x);return apply(y=>y,make(a)());",
+        "const make=x=>()=>x;const id=x=>x;return id((a?make(a):make(b))());",
+    ]);
+}
+
 fn bits(value: f64) -> String {
     if value.is_nan() {
         "nan".into()

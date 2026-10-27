@@ -288,6 +288,7 @@ fn lower_source_profile(
             functions: &signatures,
             general_bindings: &general_bindings.storage,
             general_parameters: &general_bindings.inputs,
+            number_calls: &general_bindings.number_calls,
             callback_parameters: &callback_parameters,
             closure_signatures: &closure_signatures,
             bindings,

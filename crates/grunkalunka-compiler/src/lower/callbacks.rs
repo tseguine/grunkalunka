@@ -444,6 +444,7 @@ fn refine_shapes<'a>(
                 arrow,
                 semantic,
                 functions,
+                storage::NumberCalls::Proven(&kinds.number_calls),
                 |symbol| !kinds.storage.contains(&symbol),
                 |symbol| {
                     !kinds.storage.contains(&symbol)

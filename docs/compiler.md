@@ -1758,6 +1758,13 @@ call-site specialization. General-result callback facts propagate through storag
 signatures rather than retaining a Number assumption. Async callbacks,
 General parameters on ordinary helpers/exports and cyclic callback type metadata remain unsupported.
 
+Source-known computed callees contribute scalar argument/result facts, including
+returned factory closures used in `id(make(a)())`. Complete Number-return proofs
+are retained by original call-node identity and reused by storage planning,
+argument specialization and signature queries. Fallthrough or missing return
+values do not establish Number. Unresolved callees retain their previous guard;
+the query emits no source effects and changes no runtime calling convention.
+
 The compiler specializes these statically known calls into the caller's typed regions.
 Capture metadata records lexical SymbolIds and original variable slots. A call
 reads the current contents of those slots, and writes from sibling closures share

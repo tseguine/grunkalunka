@@ -537,6 +537,24 @@ fn callback_primitive_inputs_preserve_result_kinds() {
 }
 
 #[test]
+fn computed_call_results_feed_primitive_input_facts() {
+    compare_primitive_closure_programs(&[
+        "const make=x=>()=>null;const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>false;const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>{};const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>x;const id=x=>x;return id(make(a)());",
+        "let make=x=>()=>x;const id=x=>x;return id(make(null)());",
+        "const make=x=>()=>null;const id=x=>x;const relay=y=>id(y);return relay(make(a)());",
+        "const make=x=>()=>{if(x)return null;return false;};const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>{if(x)return null;};const id=x=>x;return id(make(a)());",
+        "const make=x=>()=>x;const id=x=>x;return id((a?make(null):make(false))());",
+        "const make=x=>()=>null;const apply=(f,x)=>f(x);return apply(y=>y,make(a)());",
+        "const make=x=>()=>null;const id=x=>x;return id((a,make(b)()));",
+        "const make=x=>()=>null;const id=x=>x;return id(a?make(b)():false);",
+    ]);
+}
+
+#[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>{if(a)return ()=>b;return null;};return a;",

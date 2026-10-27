@@ -96,6 +96,7 @@ impl Lowering<'_, '_> {
             arrow,
             self.semantic,
             self.functions,
+            storage::NumberCalls::Proven(self.number_calls),
             |symbol| {
                 numeric_calls.contains(&symbol)
                     || (!self.general_bindings.contains(&symbol)

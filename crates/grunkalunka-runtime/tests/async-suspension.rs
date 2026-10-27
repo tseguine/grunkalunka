@@ -108,6 +108,26 @@ fn callback_primitive_inputs_preserve_async_jobs() {
     );
 }
 
+#[test]
+fn computed_call_inputs_preserve_async_values_and_jobs() {
+    compare_promises(
+        &[
+            "const make=x=>()=>null;const id=x=>x;await b;return id(make(a)());",
+            "const make=x=>()=>false;const id=x=>x;return id(await make(a)());",
+            "const make=x=>()=>{};const id=x=>x;return id(await make(a)());",
+            "let make=x=>()=>x;let id=x=>x;return id(await make(null)());",
+            "const make=x=>()=>null;const apply=(f,x)=>f(x);return apply(y=>y,await make(a)());",
+            "const make=x=>()=>x;const id=x=>x;return id(await make(a)());",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()
