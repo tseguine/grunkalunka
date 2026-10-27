@@ -1,0 +1,39 @@
+(component
+  (import "grunkalunka:compiled/rates" (instance $rates
+    (export "rate" (type $rate (sub resource)))
+    (export "[method]rate.read"
+      (func (param "self" (borrow $rate)) (result f64)))
+  ))
+  (alias export $rates "rate" (type $rate))
+  (core func $read (canon lower (func $rates "[method]rate.read")))
+  (core func $drop-rate (canon resource.drop $rate))
+
+  ;; Replaced by the compiler-emitted core module, at core module index zero.
+  {{COMPILED_MODULE}}
+  (core instance $calculation (instantiate 0))
+
+  (core module $adapter
+    (import "calculation" "run" (func $calculate (param f64 f64) (result f64)))
+    (import "host" "read" (func $read (param i32) (result f64)))
+    (import "host" "drop-rate" (func $drop-rate (param i32)))
+    (func (export "run") (param $rate i32) (param $units f64) (result f64)
+      (local $result f64)
+      local.get $units
+      local.get $rate
+      call $read
+      call $calculate
+      local.set $result
+      local.get $rate
+      call $drop-rate
+      local.get $result)
+  )
+  (core instance $entry (instantiate $adapter
+    (with "calculation" (instance $calculation))
+    (with "host" (instance
+      (export "read" (func $read))
+      (export "drop-rate" (func $drop-rate))
+    ))
+  ))
+  (func (export "run") (param "rate" (borrow $rate)) (param "units" f64) (result f64)
+    (canon lift (core func $entry "run")))
+)
