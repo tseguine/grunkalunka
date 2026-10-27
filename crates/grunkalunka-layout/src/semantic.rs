@@ -153,10 +153,10 @@ pub fn layout_semantic<'a>(
         if node != 0 && element.kind == ElementKind::Body {
             return Err(SemanticError::NestedBody { node });
         }
-        if let ElementKind::Heading(level) = element.kind {
-            if !(1..=6).contains(&level) {
-                return Err(SemanticError::InvalidHeadingLevel { node });
-            }
+        if let ElementKind::Heading(level) = element.kind
+            && !(1..=6).contains(&level)
+        {
+            return Err(SemanticError::InvalidHeadingLevel { node });
         }
         if !element.text.is_empty() && element.measured_text_height == 0 {
             return Err(SemanticError::UnmeasuredText { node });
@@ -167,10 +167,10 @@ pub fn layout_semantic<'a>(
         if text_bytes > MAX_TEXT_BYTES {
             return Err(SemanticError::TextQuotaExceeded);
         }
-        if let Some(parent) = element.parent {
-            if parent < node {
-                has_children[parent] = true;
-            }
+        if let Some(parent) = element.parent
+            && parent < node
+        {
+            has_children[parent] = true;
         }
     }
     for (node, element) in elements.iter().enumerate() {
