@@ -58,12 +58,12 @@ impl Options {
 }
 
 pub fn parse_options(args: &[String]) -> Result<Options, String> {
-    if args.len() % 2 != 0 {
+    if !args.len().is_multiple_of(2) {
         return Err("expected unique --option value pairs".into());
     }
     let mut options = Options::default();
     let mut seen = BTreeSet::new();
-    for pair in args.chunks_exact(2) {
+    for pair in args.as_chunks::<2>().0 {
         let name = pair[0].as_str();
         if !seen.insert(name) {
             return Err(format!("duplicate option {name}"));
@@ -149,7 +149,7 @@ fn milliseconds(started: Instant) -> f64 {
 
 fn native_batch(host: &mut Host, iterations: usize) -> wasmtime::Result<()> {
     for _ in 0..iterations {
-        black_box(host.fetch(7)?);
+        let _ = black_box(host.fetch(7)?);
     }
     Ok(())
 }
@@ -160,7 +160,7 @@ fn component_batch(
     iterations: usize,
 ) -> wasmtime::Result<()> {
     for _ in 0..iterations {
-        black_box(reader.call_read(&mut *store, Resource::new_borrow(7))?);
+        let _ = black_box(reader.call_read(&mut *store, Resource::new_borrow(7))?);
     }
     Ok(())
 }
@@ -178,7 +178,7 @@ impl Series {
         let mut sorted = samples_ms.clone();
         sorted.sort_by(|a, b| a.total_cmp(b));
         let middle = sorted.len() / 2;
-        let median_ms = if sorted.len() % 2 == 0 {
+        let median_ms = if sorted.len().is_multiple_of(2) {
             sorted[middle - 1] / 2.0 + sorted[middle] / 2.0
         } else {
             sorted[middle]
@@ -261,7 +261,7 @@ impl Report {
 
 fn payload(bytes: usize) -> String {
     let mut text = "é".repeat(bytes / 2);
-    if bytes % 2 != 0 {
+    if !bytes.is_multiple_of(2) {
         text.push('x');
     }
     debug_assert_eq!(text.len(), bytes);
