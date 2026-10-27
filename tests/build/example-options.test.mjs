@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, mkdtemp, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import fs, { readFile, mkdtemp, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -152,4 +152,50 @@ test('invalid options reject and an already-aborted watch performs no build or r
   }
   await assert.rejects(followSource('absent', unused, unused, { signal: {} }), TypeError);
   await followSource('absent', unused, unused, { signal: AbortSignal.abort() });
+});
+
+// Script the observed reads, not wall-clock races between real file writes.
+for (const failed of [false, true]) {
+  test(`an unpublished ${failed ? 'failure' : 'success'} is rebuilt after an A-B-A edit`, { timeout: 2000 }, async t => {
+    const controller = new AbortController();
+    const sequence = ['first', 'intermediate', 'first', 'first'];
+    let reads = 0;
+    let builds = 0;
+    const reports = [];
+    t.mock.method(fs, 'readFile', async () => {
+      if (reads >= sequence.length) controller.abort();
+      return Buffer.from(sequence[Math.min(reads++, sequence.length - 1)]);
+    });
+    await followSource('scripted.js', async source => {
+      builds++;
+      if (builds === 1 && failed) throw new Error('discarded error');
+      return `${source}:build-${builds}`;
+    }, outcome => {
+      reports.push(outcome);
+      controller.abort();
+    }, { interval: 25, signal: AbortSignal.any([controller.signal, t.signal]) });
+    assert.equal(builds, 2);
+    assert.equal(reads, 4);
+    assert.deepEqual(reports, [{ value: 'first:build-2' }]);
+  });
+}
+
+test('a discarded edit does not invalidate an already reported identical snapshot', { timeout: 2000 }, async t => {
+  const controller = new AbortController();
+  const sequence = ['first', 'first', 'second', 'first', 'first'];
+  let reads = 0;
+  const builds = [];
+  const reports = [];
+  t.mock.method(fs, 'readFile', async () => {
+    if (reads >= sequence.length) controller.abort();
+    return Buffer.from(sequence[Math.min(reads++, sequence.length - 1)]);
+  });
+  await followSource('scripted.js', async source => {
+    builds.push(source.toString());
+    return source.toString();
+  }, outcome => reports.push(outcome), {
+    interval: 25, signal: AbortSignal.any([controller.signal, t.signal]),
+  });
+  assert.deepEqual(builds, ['first', 'second']);
+  assert.deepEqual(reports, [{ value: 'first' }]);
 });
