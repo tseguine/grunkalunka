@@ -217,11 +217,18 @@ The [numeric cost probe](numeric-benchmark.md) was an initial P1 harness, not a
 cross-engine cost conclusion. Subsequently implemented bounded measurements cover
 [typed WIT document access](document-cost.md), [real Markdown component work](markdown-component-cost.md),
 [same-host capture provenance](markdown-capture.md), [paired repeat comparisons](markdown-comparison.md),
-[core Wasm replay across Node/V8 and Wasmtime](core-engine-cost.md), and
-[whole-Node-process memory checkpoints](core-engine-cost.md). The last are **not**
-Wasm-attributed or Wasmtime memory measurements. These experiments do not supply
-production throughput, retained comparable multi-host performance rankings or a
-completed P1 milestone; see [status and remaining gaps](milestones.md#compatibility-runtime-and-application-tracks).
+and [core Wasm replay across Node/V8 and Wasmtime](core-engine-cost.md).
+[Node/V8 whole-process memory](core-engine-cost.md#nodev8-process-memory-checkpoints)
+and [Linux Rust/Wasmtime process RSS](core-engine-cost.md#rustwasmtime-process-memory-observation-linux)
+are distinct, non-attributable process observations; equivalent memory data on
+all hosts and guest-only memory attribution are not established. The [standalone
+Oxc parsing and semantic phase probe](frontend-cost.md) does not isolate production
+Grunkalunka frontend/lowering or emission costs. The [scalar WIT resource-call
+control](scalar-wit-cost.md) and [core-Wasm host-import calibration](host-call-calibration.md)
+exercise different boundaries, not a measured universal host-call tax.
+These experiments do not supply production throughput, retained comparable
+multi-host performance rankings or a completed P1 milestone; see
+[status and remaining gaps](milestones.md#compatibility-runtime-and-application-tracks).
 Keep profiles, input bytes, environment provenance and raw dispersion visible,
 and check correctness outside timed loops.
 
