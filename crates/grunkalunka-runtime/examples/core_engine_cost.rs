@@ -1,4 +1,6 @@
 //! Independent bounded Wasmtime/Node-V8 replay of one compiler-emitted core module.
+#[path = "core_engine_cost/process_memory.rs"]
+mod process_memory;
 use grunkalunka_compiler::compile;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -109,6 +111,7 @@ pub struct Report {
     pub instantiation_ms: f64,
     pub first_call_ms: f64,
     pub wasmtime_samples_ms: Vec<f64>,
+    pub rust_process_memory: process_memory::ProcessMemory,
     pub node_json: String,
 }
 
@@ -150,11 +153,12 @@ impl Report {
         .unwrap();
         write!(
             out,
-            r#""wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{}}},"#,
+            r#""wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{},"processMemory":{}}},"#,
             self.module_compile_ms,
             self.instantiation_ms,
             self.first_call_ms,
-            statistics(&self.wasmtime_samples_ms)
+            statistics(&self.wasmtime_samples_ms),
+            self.rust_process_memory.json()
         )
         .unwrap();
         out.push_str(r#""node":"#);
@@ -206,17 +210,21 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         wasmtime::bail!("core Wasm exceeds 1 MiB replay bound");
     }
     let engine = Engine::default();
+    // Baseline follows source compilation and Engine creation; neither is included.
+    let before_module = process_memory::observe().map_err(std::io::Error::other)?;
     let started = Instant::now();
     let module = Module::new(&engine, &artifact.wasm)?;
     let module_compile_ms = milliseconds(started);
     if module.imports().next().is_some() {
         wasmtime::bail!("core Wasm imports are outside this replay profile");
     }
+    let after_module = process_memory::observe().map_err(std::io::Error::other)?;
     let mut store = Store::new(&engine, ());
     let started = Instant::now();
     let instance = Instance::new(&mut store, &module, &[])?;
     let instantiation_ms = milliseconds(started);
     let run = instance.get_typed_func::<(f64, f64), f64>(&mut store, "run")?;
+    let after_instantiation = process_memory::observe().map_err(std::io::Error::other)?;
     let started = Instant::now();
     let first = run.call(&mut store, (CASES[0].0, CASES[0].1))?;
     let first_call_ms = milliseconds(started);
@@ -231,6 +239,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     if batch(&mut store, &run, options.warmup)? != expected_checksum(options.warmup) {
         wasmtime::bail!("Wasmtime warmup checksum mismatch");
     }
+    let after_warmup = process_memory::observe().map_err(std::io::Error::other)?;
     let mut samples = Vec::with_capacity(options.samples);
     let expected = expected_checksum(options.iterations);
     for _ in 0..options.samples {
@@ -241,6 +250,16 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
             wasmtime::bail!("Wasmtime measured checksum mismatch");
         }
     }
+    // Take the final Rust-process snapshot before spawning the separate Node process.
+    let after_batches = process_memory::observe().map_err(std::io::Error::other)?;
+    let rust_process_memory = process_memory::ProcessMemory::assemble([
+        before_module,
+        after_module,
+        after_instantiation,
+        after_warmup,
+        after_batches,
+    ])
+    .map_err(std::io::Error::other)?;
     // The Node subprocess receives these same compiled bytes through stdin.
     let node_json = measure_node(&artifact.wasm, options)?;
     Ok(Report {
@@ -251,6 +270,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         instantiation_ms,
         first_call_ms,
         wasmtime_samples_ms: samples,
+        rust_process_memory,
         node_json,
     })
 }

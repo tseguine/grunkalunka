@@ -62,6 +62,21 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
         assert!(duration.is_finite() && duration >= 0.0);
     }
     assert_eq!(report.wasmtime_samples_ms.len(), options.samples);
+    #[cfg(target_os = "linux")]
+    {
+        let memory = report
+            .rust_process_memory
+            .snapshots
+            .expect("Linux CI must expose whole-process RSS and peak RSS");
+        assert!(
+            memory
+                .iter()
+                .all(|snapshot| snapshot.peak_rss_bytes >= snapshot.rss_bytes)
+        );
+        assert!(memory[4].peak_rss_bytes >= memory[0].peak_rss_bytes);
+    }
+    #[cfg(not(target_os = "linux"))]
+    assert!(report.rust_process_memory.snapshots.is_none());
     assert!(
         report
             .wasmtime_samples_ms
@@ -80,6 +95,8 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
         "\"goldenCases\":8",
         "\"samplesMs\":",
         "\"memory\":",
+        "\"processMemory\":",
+        "\"scope\":\"entire-rust-process\"",
         "\"scope\":\"entire-node-process\"",
         "\"rssBytes\":",
         "\"afterModule\":",
