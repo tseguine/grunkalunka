@@ -250,6 +250,10 @@ pub(crate) fn general_mutable_bindings(
             (signatures.result(*signature) == Some(Type::Number)).then_some(*symbol)
         })
         .collect();
+    let callback_formals: BTreeSet<_> = callback_parameters
+        .values()
+        .flat_map(|parameters| parameters.keys().copied())
+        .collect();
     let mut arrows = BTreeMap::new();
     for node in semantic.nodes().iter() {
         match node.kind() {
@@ -339,6 +343,43 @@ pub(crate) fn general_mutable_bindings(
                 }
             }
             additions.extend(bodies.into_iter().map(|body| (symbol, body)));
+        }
+        // Follow actual constructors through demanded callback formals. Generic
+        // identity inputs have no callback role and keep call-site specialization.
+        for node in semantic.nodes().iter() {
+            let AstKind::CallExpression(call) = node.kind() else {
+                continue;
+            };
+            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            for source in sources {
+                if let Some(known) = targets.get(&source) {
+                    bodies.extend(known);
+                }
+            }
+            for body in bodies {
+                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                {
+                    let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                        continue;
+                    };
+                    let (Some(symbol), Some(actual)) =
+                        (identifier.symbol_id.get(), argument.as_expression())
+                    else {
+                        continue;
+                    };
+                    if !callback_formals.contains(&symbol) {
+                        continue;
+                    }
+                    let (sources, mut constructors) =
+                        returns.expression(actual, &BTreeMap::new(), 0, 0);
+                    for source in sources {
+                        if let Some(known) = targets.get(&source) {
+                            constructors.extend(known);
+                        }
+                    }
+                    additions.extend(constructors.into_iter().map(|body| (symbol, body)));
+                }
+            }
         }
         let mut changed = false;
         for (symbol, body) in additions {

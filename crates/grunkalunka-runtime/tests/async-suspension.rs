@@ -90,6 +90,24 @@ fn runtime_primitive_inputs_keep_callee_snapshots_and_async_jobs() {
     );
 }
 
+#[test]
+fn callback_primitive_inputs_preserve_async_jobs() {
+    compare_promises(
+        &[
+            "const apply=(fn,x)=>fn(x);return apply(y=>+y,await null);",
+            "const apply=(fn,x)=>fn(x);return apply(y=>y,await false);",
+            "const make=fn=>x=>fn(x);const f=make(y=>y);await b;return f(null);",
+            "let n=0;const apply=(fn,x)=>fn(x);const f=y=>(n++,+y);apply(f,null);try{return apply(f,await Promise.reject(null));}catch(e){return n+(+e);}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()

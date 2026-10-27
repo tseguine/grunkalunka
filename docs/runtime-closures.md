@@ -183,8 +183,11 @@ storage kinds: a Number input that is later assigned Null keeps its Number input
 ABI and receives a General local cell. This preserves selection with another
 Number-input function. Inlined known calls specialize their arguments and do not
 widen the shared private ABI; runtime call sites establish that input requirement.
-Argument facts from unresolved call-result shapes and
-unresolved higher-order callback origins remain separate work. Existing Number
+Actual constructors also propagate through demanded callback parameters, aliases,
+forwarding and captured callbacks. Calls through those parameters establish the
+constructor's primitive input requirements. Generic identity parameters retain
+their separate call-site specialization. Argument facts from unresolved
+call-result shapes remain separate work. Existing Number
 factory depth boundaries remain unchanged.
 The runtime arena and frame alignment are unchanged;
 new General arguments simply

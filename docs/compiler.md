@@ -1752,7 +1752,9 @@ parameters may themselves be callbacks. Original-symbol shape refinement uses
 concrete constructors and demanded formal forwarding without forcing generic identity formals. Both refinement phases
 are bounded to eight rounds. The IR verifier walks callback parameter graphs
 iteratively, checking earlier signature references, Number/General results and widths.
-General-result callback facts propagate through storage planning and constructor
+Primitive input facts follow actual constructors through demanded callback formals,
+including aliases, forwarding and captures. Generic identity formals keep separate
+call-site specialization. General-result callback facts propagate through storage planning and constructor
 signatures rather than retaining a Number assumption. Async callbacks,
 General parameters on ordinary helpers/exports and cyclic callback type metadata remain unsupported.
 

@@ -524,6 +524,19 @@ fn primitive_closure_coercions_and_predicates() {
 }
 
 #[test]
+fn callback_primitive_inputs_preserve_result_kinds() {
+    compare_primitive_closure_programs(&[
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,null);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,false);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,undefined);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>y,a);",
+        "const apply=(fn,x)=>fn(x);const relay=(f,x)=>apply(f,x);return relay(y=>y,true);",
+        "const make=fn=>x=>fn(x);const f=make(y=>y);return f(null);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>{const f=()=>y;y=false;return f();},null);",
+    ]);
+}
+
+#[test]
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>{if(a)return ()=>b;return null;};return a;",

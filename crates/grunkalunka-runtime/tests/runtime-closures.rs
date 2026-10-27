@@ -93,6 +93,22 @@ fn runtime_general_frames_retain_width_and_input_guards() {
     }
 }
 
+#[test]
+fn callback_origins_propagate_primitive_input_requirements() {
+    compare_functions(&[
+        "const apply=(fn,x)=>fn(x);return apply(y=>+y,null);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>+y,true);",
+        "const apply=(fn,x)=>fn(x);return apply(y=>+y,undefined);",
+        "const apply=(fn,x)=>fn(x);const relay=(f,x)=>apply(f,x);return relay(y=>+y,null);",
+        "const apply=(fn,x)=>fn(x);const f=y=>+y;const alias=f;return apply(alias,false);",
+        "const apply=(fn,x)=>fn(x);return apply(a?y=>+y:y=>-y,null);",
+        "const apply=(fn,x)=>{const alias=fn;return alias(x);};return apply(y=>+y,null);",
+        "const make=fn=>x=>fn(x);const f=make(y=>+y);return f(null);",
+        "let n=a;const apply=(fn,x)=>fn(x);return apply(y=>(n+=b,+y+n),null)+n;",
+        "const id=x=>x;const apply=(fn,x)=>fn(x);apply(y=>+y,null);return id(a)+id(x=>x)(b);",
+    ]);
+}
+
 fn bits(value: f64) -> String {
     if value.is_nan() {
         "nan".into()
