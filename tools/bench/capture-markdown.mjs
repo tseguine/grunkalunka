@@ -165,7 +165,8 @@ export async function capture(options) {
   const gitCommit = execute('git', ['rev-parse', 'HEAD']);
   requireValue(/^[a-f0-9]{40}$/.test(gitCommit), 'repository commit');
   const trackedChanges = execute('git', ['status', '--porcelain', '--untracked-files=no']);
-  const nativeArgs = ['--workload', options.config.case, '--samples', String(options.config.samples),
+  const nativeArgs = [options.guest, '--workload', options.config.case,
+    '--samples', String(options.config.samples),
     '--iterations', String(options.config.iterations), '--warmup', String(options.config.warmup)];
   const native = JSON.parse(execute(options.runner, nativeArgs));
   validateNativeReport(native, options.config, guestInfo.size);
