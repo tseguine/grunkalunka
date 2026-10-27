@@ -12,6 +12,7 @@ import { runEvents } from "./events.mjs";
 import { runLifecycle } from "./listener-lifecycle.mjs";
 import { runFlex } from "./flex.mjs";
 import { runWrap } from "./flex-wrap-lines.mjs";
+import { runShadowEvents } from "./shadow-events.mjs";
 import { probeDiagnosticIsolation, verifyDiagnosticIsolation } from "./diagnostic-isolation.mjs";
 
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -65,8 +66,10 @@ export async function runSmoke(engine, { browserTypes, playwrightVersion, output
     collect: fixturePath => collectOne(engine, { browserTypes, playwrightVersion, fixturePath }) });
   await runWrap(engine, { outputDir: join(outputDir, "wrap-lines"),
     collect: fixturePath => collectOne(engine, { browserTypes, playwrightVersion, fixturePath }) });
+  await runShadowEvents(engine, { outputDir: join(outputDir, "shadow-events"),
+    collect: fixturePath => collectOne(engine, { browserTypes, playwrightVersion, fixturePath }) });
   const summary = { engine, browserVersion: first.provenance.browserVersion, sourceHash,
-    repeat: stable.status, mutation: sensitivity.status, selectedBaseline: "passed", diagnosticIsolation: "passed", cascade: "passed", events: "passed", listeners: "passed", flex: "passed", wrapLines: "passed" };
+    repeat: stable.status, mutation: sensitivity.status, selectedBaseline: "passed", diagnosticIsolation: "passed", cascade: "passed", events: "passed", listeners: "passed", flex: "passed", wrapLines: "passed", shadowEvents: "passed" };
   await save("summary.json", summary);
   return summary;
 }
