@@ -597,7 +597,11 @@ original source. No canonical rejection source used this form, so the 919-entry
 accounting is unchanged. Runtime-selected synchronous closures also survive
 suspension in the primitive async profile; their pairs and captures belong to the
 activation frame. Initialized mutable function bindings now support same-arity
-plain assignments, capture sharing, alias/call snapshots and recursive rebinding.
+plain and logical assignments, capture sharing, alias/call snapshots and recursive rebinding.
+Function logical assignments require unchanged full signatures and retain both
+operand checks. Three original logical-assignment guards now execute unchanged;
+mixed primitive/function storage, const/property targets and signature changes
+remain outside this slice.
 Three original focused mutable-binding guards now execute their unchanged bodies.
 Canonical rejection counts remain unchanged. Async closure bodies, function
 arguments/results, identity/properties and general return kinds remain open; see
@@ -669,5 +673,7 @@ numeric sources `discarded-nullish`, `predicate-logical-nullish` and
 Value profile but stays a numeric-profile rejection because the compiler keeps a
 General join instead of proving its selected result is always a Number. Its numeric
 diagnostic now identifies the unsupported null operand rather
-than the entire operator. `??=`, `void`, other primitive/heap kinds and mixed
-function/primitive joins remain gaps. See [binary coalescing](compiler.md#binary-nullish-coalescing).
+than the entire operator. Subsequent units admit primitive `void` and mutable
+primitive/function identifier `??=`. String/heap operands, const/property assignment
+targets and mixed function/primitive joins remain gaps. See
+[binary coalescing](compiler.md#binary-nullish-coalescing).

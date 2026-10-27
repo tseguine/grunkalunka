@@ -380,6 +380,43 @@ fn mutable_function_writes_preserve_snapshots_across_jobs() {
 }
 
 #[test]
+fn function_logical_assignments_keep_skipped_jobs_and_abrupt_stores() {
+    compare_promises(
+        &[
+            "let f=()=>a;f&&=(await null,()=>b);return f();",
+            "let f=()=>a;f||=(await null,()=>b);return f();",
+            "let f=()=>a;f??=(await null,()=>b);return f();",
+            "let f=()=>a;const old=f;const selected=f&&=(await false,()=>b);await true;f=()=>a+b;return selected()+old()+f();",
+            "let f=()=>a;const selected=f||=(await Promise.reject(b),()=>b);await null;f=()=>b;return selected()+f();",
+            "let f=()=>a;const selected=f??=(await Promise.reject(b),()=>b);await null;f=()=>b;return selected()+f();",
+            "let n=0;const make=x=>{n++;return ()=>x;};let f=()=>a;f&&=make(await b);return f()+n;",
+            "let n=0;const make=x=>{n++;return ()=>x;};let f=()=>a;f||=make(await b);return f()+n;",
+            "let n=0;const make=x=>{n++;return ()=>x;};let f=()=>a;f??=make(await b);return f()+n;",
+            "let f=()=>a;try{f&&=(await Promise.reject(b),()=>b);}catch(e){return f()+e;}return 99;",
+            "let f=()=>a;try{f&&=(f=()=>b,await Promise.reject(a),()=>a+b);}catch(e){return f()+e;}return 99;",
+            "let f=()=>a;f&&=(f=()=>a+b,await null,()=>b);return f();",
+            "let f=()=>a;const read=()=>f();await null;f&&=(await false,()=>b);return read();",
+            "let f=x=>x+a;return (f&&=(await null,x=>x-b))(await a);",
+            "let f=()=>null;f&&=(await true,()=>false);return f();",
+            "let f=()=>null;f||=(await true,()=>false);return f();",
+            "let f=()=>null;f??=(await true,()=>false);return f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, 2.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+    let plain = "export async function run(a,b){let f=()=>a;f&&=(await null,()=>b);return f();}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let f:(()=>string)=(()=>a) as any;f&&=(await(null as never),(()=>b) as any);return f();}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+}
+
+#[test]
 fn local_callback_arguments_keep_order_and_captures_across_await() {
     compare_promises(
         &[

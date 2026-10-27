@@ -49,7 +49,12 @@ with default numeric formals, then specialize using its actual function argument
 Full function signatures still must match; TypeScript assertions establish no kinds.
 
 `let` function bindings retain their initializer's logical signature and support
-plain `=` assignment from the same constructors. Conditional/chained assignments
+plain `=` and logical `&&=`, `||=`, `??=` assignment from the same constructors.
+Logical assignment snapshots the old pair once. `&&=` evaluates and stores the RHS;
+`||=` and `??=` retain the old pair and skip the RHS and store. Both sides must have
+the same full signature even when the RHS is skipped. A rejected RHS leaves the
+assignment store undone; earlier RHS writes remain visible.
+Conditional/chained assignments
 return the RHS function snapshot, so another local can retain it. Discarded function values
 and assignments may occur in comma prefixes. Calls snapshot both callee fields
 before evaluating ordered arguments, including when an argument reassigns the
@@ -68,7 +73,7 @@ Capturing a mutable function binding shares its cell; copying its value into an
 alias snapshots the pair. Rebinding an already initialized function can form
 self/mutual recursive calls through those cells, bounded by runtime fuel and the
 arena. An initializer cannot capture its own unpublished binding. Mixed scalar/
-function storage, signature changes, function compound/logical assignments and numeric
+function storage, signature changes, arithmetic compound assignments and numeric
 updates remain rejected. Assignment results cannot enter primitive/coercion positions.
 
 A `Closure(signature)` IR value is an `i32` code index plus an `i32` environment

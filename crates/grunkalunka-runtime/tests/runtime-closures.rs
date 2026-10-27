@@ -102,6 +102,68 @@ fn mutable_functions_keep_alias_snapshots_and_shared_function_cells() {
 }
 
 #[test]
+fn function_logical_assignments_preserve_selected_and_stored_pairs() {
+    compare_function_programs(
+        &[
+            "let f=()=>a;f&&=()=>b;return a;",
+            "let f=()=>a;f||=()=>b;return a;",
+            "let f=()=>a;f??=()=>b;return a;",
+        ],
+        false,
+    );
+    compare_functions(&[
+        "let f=()=>a;f&&=()=>b;return f();",
+        "let f=()=>a;f||=()=>b;return f();",
+        "let f=()=>a;f??=()=>b;return f();",
+        "let f=()=>a;const old=f;const selected=f&&=()=>b;f=()=>a+b;return old()+selected()+f();",
+        "let f=()=>a;const selected=f||=()=>b;f=()=>b;return selected()+f();",
+        "let f=()=>a;const selected=f??=()=>b;f=()=>b;return selected()+f();",
+        "let n=0;const make=x=>{n++;return ()=>x;};let f=()=>a;f&&=make(b);return f()+n;",
+        "let n=0;const make=x=>{n++;return ()=>x;};let f=()=>a;f||=make(b);return f()+n;",
+        "let n=0;const make=x=>{n++;return ()=>x;};let f=()=>a;f??=make(b);return f()+n;",
+        "let f=()=>a;const read=()=>f();const set=()=>{f&&=()=>b;return f();};return read()+set()+read();",
+        "let f=x=>x+a;return (f&&=x=>x-b)(a)+f(b);",
+        "let f=(x,y)=>x+y+a;return (f||=(x,y)=>x-y+b)(a,b);",
+        "let f=(x,y)=>x+y+a;return (f??=(x,y)=>x-y+b)(a,b);",
+        "let f=()=>a;let g=()=>b;const h=f&&=(g&&=()=>a+b);return h()+f()+g();",
+        "let f=()=>null;f&&=()=>false;return +(f());",
+        "let f=()=>null;f||=()=>false;return +(f());",
+        "let f=()=>null;f??=()=>false;return +(f());",
+        "const apply=(fn,x)=>{fn&&=y=>y+b;return fn(x);};return apply(x=>x+a,a);",
+        "const apply=(fn,x)=>fn(x);const twice=(fn,x)=>fn(fn(x));let h=apply;h&&=twice;return h(x=>x+b,a);",
+        "const make=x=>()=>x+a;const other=x=>()=>x-b;let h=make;h??=other;return h(a)();",
+        "let f=()=>a;if(f&&=()=>b)return f();return 99;",
+        "let f=()=>a;if(f||=()=>b)return f();return 99;",
+        "let f=()=>a;if(f??=()=>b)return f();return 99;",
+    ]);
+}
+
+#[test]
+fn function_logical_assignment_checks_skipped_rhs_source_depth() {
+    for operator in ["&&=", "||=", "??="] {
+        for (wrappers, admitted) in [(127, true), (128, false)] {
+            let source = format!(
+                "export function run(a,b){{let f=()=>a;f{operator}{}()=>b{};return f();}}",
+                "(".repeat(wrappers),
+                ")".repeat(wrappers)
+            );
+            for typescript in [false, true] {
+                assert_eq!(
+                    compile(&source, typescript).is_ok(),
+                    admitted,
+                    "{operator}/{wrappers}"
+                );
+                assert_eq!(
+                    compile_value(&source, typescript).is_ok(),
+                    admitted,
+                    "value/{operator}/{wrappers}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn known_local_functions_receive_callback_pairs_and_keep_argument_snapshots() {
     compare_functions(&[
         "const apply=(fn,x)=>fn(x);return apply(x=>x+a,b);",
@@ -665,7 +727,7 @@ fn unsupported_runtime_function_kinds_and_profiles_remain_explicit() {
 }
 
 #[test]
-fn mutable_function_slots_require_function_initializers_same_arity_and_plain_writes() {
+fn mutable_function_slots_require_function_initializers_and_unchanged_signatures() {
     for body in [
         "let f;f=()=>a;return f();",
         "let f=a;f=()=>b;return f();",
@@ -675,10 +737,16 @@ fn mutable_function_slots_require_function_initializers_same_arity_and_plain_wri
         "let f=()=>a;f=x=>x;return a;",
         "let f=x=>x;let g=()=>a;f=g;return a;",
         "let f=()=>a;f=()=>true;return a;",
+        "let f=()=>a;f&&=x=>x;return a;",
+        "let f=()=>a;f||=x=>x;return a;",
+        "let f=()=>a;f??=x=>x;return a;",
+        "let f=()=>a;f&&=()=>true;return a;",
+        "let f=()=>a;f||=()=>true;return a;",
+        "let f=()=>a;f??=()=>true;return a;",
+        "const f=()=>a;f&&=()=>b;return a;",
+        "const f=()=>a;f||=()=>b;return a;",
+        "const f=()=>a;f??=()=>b;return a;",
         "let f=()=>a;f+=()=>b;return a;",
-        "let f=()=>a;f&&=()=>b;return a;",
-        "let f=()=>a;f||=()=>b;return a;",
-        "let f=()=>a;f??=()=>b;return a;",
         "let f=()=>a;++f;return a;",
         "let f=()=>a;f--;return a;",
         "const f=a?()=>a:()=>b;f=()=>b;return a;",

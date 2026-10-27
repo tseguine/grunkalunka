@@ -307,10 +307,12 @@ impl Lowering<'_, '_> {
         }
         let slot = binding.slot;
         let ty = self.slots[slot.0].ty;
-        if matches!(ty, Type::Closure(_)) {
+        if let Type::Closure(signature) = ty
+            && !matches!(mode, Mode::Function(expected) if expected == signature)
+        {
             return Err(unsupported(
                 node,
-                "function bindings support only plain = assignment",
+                "function logical assignment requires an unchanged function signature",
             ));
         }
         let general = ty == Type::General;
@@ -335,6 +337,11 @@ impl Lowering<'_, '_> {
                     value: false,
                 }
             }
+        } else if matches!(ty, Type::Closure(_)) {
+            Op::Boolean {
+                result: condition,
+                value: true,
+            }
         } else if general {
             Op::GeneralTruthy {
                 result: condition,
@@ -358,7 +365,11 @@ impl Lowering<'_, '_> {
         work.push(Work::Eval(
             &assignment.right,
             depth + 1,
-            if general { Mode::General } else { Mode::Number },
+            match ty {
+                Type::Closure(signature) => Mode::Function(signature),
+                Type::General => Mode::General,
+                _ => Mode::Number,
+            },
         ));
         Ok(())
     }
@@ -791,7 +802,12 @@ impl Lowering<'_, '_> {
                     let ty = self.slots[slot.0].ty;
                     let general = ty == Type::General;
                     let value = values.pop().expect("logical assignment RHS");
-                    let value = if general {
+                    let value = if matches!(ty, Type::Closure(_)) {
+                        let Value::Function(value) = value else {
+                            unreachable!("function logical assignment RHS")
+                        };
+                        value
+                    } else if general {
                         value.general()
                     } else {
                         value.number()
@@ -817,7 +833,9 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    values.push(if general {
+                    values.push(if matches!(ty, Type::Closure(_)) {
+                        Value::Function(result)
+                    } else if general {
                         Value::General(result)
                     } else {
                         Value::Number(result)
@@ -1267,6 +1285,22 @@ impl Lowering<'_, '_> {
                             continue;
                         }
                         if let Expression::AssignmentExpression(assignment) = node {
+                            if matches!(
+                                assignment.operator,
+                                AssignmentOperator::LogicalAnd
+                                    | AssignmentOperator::LogicalOr
+                                    | AssignmentOperator::LogicalNullish
+                            ) {
+                                self.schedule_logical_assignment(
+                                    node,
+                                    assignment,
+                                    depth,
+                                    mode,
+                                    &mut regions,
+                                    &mut work,
+                                )?;
+                                continue;
+                            }
                             let (binding, actual) = self.function_assignment_target(assignment, depth)
                                 .ok_or_else(|| unsupported(node, "function assignment requires an initialized function binding"))?;
                             if !binding.mutable {

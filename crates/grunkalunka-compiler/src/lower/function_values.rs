@@ -218,7 +218,13 @@ impl Lowering<'_, '_> {
                     continue;
                 }
                 Expression::AssignmentExpression(assignment)
-                    if assignment.operator == AssignmentOperator::Assign =>
+                    if matches!(
+                        assignment.operator,
+                        AssignmentOperator::Assign
+                            | AssignmentOperator::LogicalAnd
+                            | AssignmentOperator::LogicalOr
+                            | AssignmentOperator::LogicalNullish
+                    ) =>
                 {
                     let identifier =
                         target_identifier(assignment.left.as_simple_assignment_target()?, depth)

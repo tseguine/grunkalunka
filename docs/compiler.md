@@ -1670,7 +1670,10 @@ pairs and table calls retain typed captures; packed argument frames handle up to
 1,000 logical Number/callback arguments with fixed physical parameter lists. The
 exported ABI is unchanged. See [runtime closures](runtime-closures.md) for the bounded source forms,
 environment verifier, allocation, async frame retention and remaining general-value exclusions.
-`let` function slots support same-signature plain assignment and constructor aliases.
+`let` function slots support same-full-signature `=`, `&&=`, `||=` and `??=` assignments
+and constructor aliases. The shared logical-assignment cursor uses typed function
+loads, stores and joins: functions are truthy and non-nullish, so only `&&=` selects
+its RHS. No new IR operation or representation is needed.
 An indirect call captures its callee pair before argument side effects or await;
 assignment cannot retroactively change that snapshot. Captured mutable function
 slots can be rebound and can form recursive calls through initialized cells.
@@ -1908,8 +1911,9 @@ to the same cell, nested assignments and async suspension keep those snapshots.
 An abrupt RHS completion performs no assignment store.
 
 Number-only paths retain scalar storage; General joins keep the current explicit
-numeric-conversion policy. Const, property and function targets and unrepresented
-operand kinds remain outside this slice. The existing nullish predicate, typed
+numeric-conversion policy. Const and property targets and unrepresented operand
+kinds remain outside this slice. Function targets use the same-signature contract
+in [runtime closures](runtime-closures.md). The existing nullish predicate, typed
 regions and stores suffice; no IR schema, emitter or host ABI changed. The original
 `unsupported-compound-10` source and Number golden execute unchanged. Corpus 68
 has 1,807 numeric pairs and 914 rejections; the primitive profile has 121 pairs.

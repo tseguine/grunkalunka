@@ -8,6 +8,12 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['logical-assign-function-and', 'let f=()=>null;f&&=()=>false;return f();'],
+  ['logical-assign-function-or', 'let f=()=>null;f||=()=>false;return f();'],
+  ['logical-assign-function-nullish', 'let f=()=>null;f??=()=>false;return f();'],
+  ['logical-assign-function-undefined', 'let f=()=>false;f&&=()=>void a;return f();'],
+  ['logical-assign-function-snapshot', 'let f=()=>null;const selected=f??=()=>false;f=()=>void a;return selected();'],
+  ['logical-assign-function-capture', 'let f=()=>null;const read=()=>f();f&&=()=>false;return read();'],
   ['nullish-assign-null','let value=null;return value??=a;'],
   ['nullish-assign-undefined','let value;return value??=void a;'],
   ['nullish-assign-false','let value=false;return value??=b;'],

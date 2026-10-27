@@ -172,8 +172,11 @@ Immutable runtime-selected functions can be constructed before or after await,
 including awaited conditions and factory arguments. Calls may use awaited Number
 arguments or have their Number result awaited. Awaiting a function value itself
 remains outside the primitive protocol.
-Initialized `let` function bindings can also be reassigned with plain `=` at the
-same logical signature. A callee snapshot survives suspension while an argument changes the
+Initialized `let` function bindings can also be reassigned with `=`, `&&=`, `||=` and
+`??=` at the same full logical signature. Logical assignment keeps RHS waits and
+rejections inside its selected branch: functions select the RHS for `&&=` and skip
+it for `||=` and `??=`. The assignment store occurs only after RHS success.
+A callee snapshot survives suspension while an argument changes the
 binding. Captured function cells share those writes; aliases retain their pairs.
 [Known local callback arguments](local-callback-arguments.md) can precede or follow
 awaited arguments, and factories can retain those callbacks across later jobs.
