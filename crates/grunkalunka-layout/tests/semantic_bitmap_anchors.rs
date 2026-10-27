@@ -27,10 +27,18 @@ fn outline() -> [Element<'static>; 7] {
 // text shaping or font metric inference is performed by the layout/paint crates.
 fn draw_inert_masks(semantic: &SemanticFrame<'_>, canvas: &mut Canvas) {
     const H: [u8; 5] = [
-        0b1010_0000, 0b1010_0000, 0b1110_0000, 0b1010_0000, 0b1010_0000,
+        0b1010_0000,
+        0b1010_0000,
+        0b1110_0000,
+        0b1010_0000,
+        0b1010_0000,
     ];
     const I: [u8; 5] = [
-        0b1110_0000, 0b0100_0000, 0b0100_0000, 0b0100_0000, 0b1110_0000,
+        0b1110_0000,
+        0b0100_0000,
+        0b0100_0000,
+        0b0100_0000,
+        0b1110_0000,
     ];
     const X: [u8; 3] = [0b1010_0000, 0b0100_0000, 0b1010_0000];
 
@@ -41,9 +49,7 @@ fn draw_inert_masks(semantic: &SemanticFrame<'_>, canvas: &mut Canvas) {
             2 => {
                 canvas.blit_mono(x, y, 3, 5, &H, Rgb::BLACK).unwrap();
                 // The caller explicitly supplies an advance of 5 pixels.
-                canvas
-                    .blit_mono(x + 5, y, 3, 5, &I, Rgb::BLACK)
-                    .unwrap();
+                canvas.blit_mono(x + 5, y, 3, 5, &I, Rgb::BLACK).unwrap();
             }
             4..=6 => canvas.blit_mono(x, y, 3, 3, &X, Rgb::BLACK).unwrap(),
             other => panic!("unexpected text anchor {other}"),
@@ -73,7 +79,11 @@ fn supplied_bitmap_ink_follows_semantic_text_anchors_across_reflow() {
     let mut elements = outline();
     let (expanded, full) = paint_document(&elements);
     assert_eq!(
-        expanded.text_boxes.iter().map(|a| a.node).collect::<Vec<_>>(),
+        expanded
+            .text_boxes
+            .iter()
+            .map(|a| a.node)
+            .collect::<Vec<_>>(),
         vec![2, 4, 5, 6]
     );
     assert_eq!(expanded.frame.boxes[6].unwrap().content.y, 86);
@@ -93,8 +103,8 @@ fn supplied_bitmap_ink_follows_semantic_text_anchors_across_reflow() {
         ((27, 62), SECOND),     // second row X transparent middle
         ((10, 88), Rgb::BLACK), // paragraph X at original y
         ((11, 88), PARAGRAPH),  // paragraph transparent middle
-        ((10, 50), CLEAR),     // list's unpainted text gap
-        ((0, 118), CLEAR),     // outside document
+        ((10, 50), CLEAR),      // list's unpainted text gap
+        ((0, 118), CLEAR),      // outside document
     ] {
         assert_eq!(full.pixel(x, y), Some(color), "expanded {x},{y}");
     }
@@ -102,7 +112,11 @@ fn supplied_bitmap_ink_follows_semantic_text_anchors_across_reflow() {
     elements[3].hidden = true;
     let (collapsed, smaller) = paint_document(&elements);
     assert_eq!(
-        collapsed.text_boxes.iter().map(|a| a.node).collect::<Vec<_>>(),
+        collapsed
+            .text_boxes
+            .iter()
+            .map(|a| a.node)
+            .collect::<Vec<_>>(),
         vec![2, 6]
     );
     assert_eq!(collapsed.frame.boxes[6].unwrap().content.y, 40);
@@ -111,8 +125,8 @@ fn supplied_bitmap_ink_follows_semantic_text_anchors_across_reflow() {
         ((10, 42), Rgb::BLACK), // paragraph X moved to y=40+2
         ((11, 42), PARAGRAPH),  // transparent portion of the X
         ((26, 42), PARAGRAPH),  // former first-list ink is gone
-        ((26, 62), MAIN),      // former second-list ink is gone
-        ((10, 88), CLEAR),     // former paragraph paint is gone
+        ((26, 62), MAIN),       // former second-list ink is gone
+        ((10, 88), CLEAR),      // former paragraph paint is gone
         ((0, 118), CLEAR),
     ] {
         assert_eq!(smaller.pixel(x, y), Some(color), "collapsed {x},{y}");
@@ -128,6 +142,9 @@ fn supplied_ink_is_not_implicitly_derived_from_source_text() {
     // markup; a real external text service must supply different masks.
     elements[2].text = "<script>not executed</script>";
     let (projection, same_ink) = paint_document(&elements);
-    assert_eq!(projection.text_boxes[0].text, "<script>not executed</script>");
+    assert_eq!(
+        projection.text_boxes[0].text,
+        "<script>not executed</script>"
+    );
     assert_eq!(original.ppm(), same_ink.ppm());
 }

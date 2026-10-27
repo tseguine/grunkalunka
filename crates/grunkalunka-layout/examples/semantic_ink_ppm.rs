@@ -39,10 +39,18 @@ fn main() -> io::Result<()> {
     // Original hand-supplied pixel patterns, not Unicode glyph lookup, font
     // shaping, text measurement or implicit association with the UTF-8 strings.
     let h = [
-        0b1010_0000, 0b1010_0000, 0b1110_0000, 0b1010_0000, 0b1010_0000,
+        0b1010_0000,
+        0b1010_0000,
+        0b1110_0000,
+        0b1010_0000,
+        0b1010_0000,
     ];
     let i = [
-        0b1110_0000, 0b0100_0000, 0b0100_0000, 0b0100_0000, 0b1110_0000,
+        0b1110_0000,
+        0b0100_0000,
+        0b0100_0000,
+        0b0100_0000,
+        0b1110_0000,
     ];
     let marker = [0b1010_0000, 0b0100_0000, 0b1010_0000];
     for anchor in &semantic.text_boxes {
