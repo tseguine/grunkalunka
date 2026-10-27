@@ -1,4 +1,6 @@
 //! Native integration driver for a private capability-backed Markdown component.
+#[path = "document_outline/authority.rs"]
+mod authority;
 #[path = "../tests/fixtures/document-outline/embedding.rs"]
 mod embedding;
 
@@ -117,6 +119,7 @@ fn main() -> wasmtime::Result<()> {
     config.consume_fuel(true);
     let engine = Engine::new(&config)?;
     let component = Component::from_binary(&engine, &component_bytes)?;
+    authority::verify(&engine, &component, template, &guest)?;
     let mut absent = Store::new(&engine, ());
     absent.set_fuel(50_000_000)?;
     let error = Inspector::instantiate(&mut absent, &component, &Linker::new(&engine))
