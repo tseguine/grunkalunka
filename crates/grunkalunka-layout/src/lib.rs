@@ -3,6 +3,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod semantic;
+
 pub const MAX_BLOCKS: usize = 4096;
 pub const MAX_DEPTH: usize = 64;
 pub const MAX_VIEWPORT: u32 = 16_384;
