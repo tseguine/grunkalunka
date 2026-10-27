@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Grunkalunka synthetic DOM event-dispatch oracle</title>
+<pre id="output" hidden></pre>
+<script>
+(() => {
+  "use strict";
+  const observations = [];
+  const snapshot = event => ({
+    target: event.target?.id ?? null, currentTarget: event.currentTarget?.id ?? null,
+    phase: event.eventPhase, defaultPrevented: event.defaultPrevented,
+    cancelBubble: event.cancelBubble, isTrusted: event.isTrusted,
+    path: event.composedPath().map(node => node.id)
+  });
+  for (const id of ["ordinary", "once", "stop", "stop-immediate", "cancel", "noncancelable", "nonbubbling"]) {
+    // A detached tree gives an exact path without document/window listeners.
+    const root = document.createElement("div"), parent = document.createElement("div");
+    const target = document.createElement("div");
+    root.id = "root"; parent.id = "parent"; target.id = "target";
+    root.append(parent); parent.append(target);
+    let trace;
+    const listen = (node, name, options = {}, action = () => {}) => {
+      node.addEventListener("probe", event => {
+        action(event);
+        trace.push({ listener: name, ...snapshot(event) });
+      }, options);
+    };
+    listen(root, "root-capture", { capture: true });
+    listen(parent, "parent-capture", { capture: true }, event => {
+      if (id === "stop") event.stopPropagation();
+      if (id === "stop-immediate") event.stopImmediatePropagation();
+    });
+    listen(parent, "parent-second", { capture: true });
+    listen(target, "target-capture", { capture: true });
+    listen(target, "target-first", { once: id === "once" }, event => {
+      if (id === "cancel" || id === "noncancelable") event.preventDefault();
+    });
+    listen(target, "target-second");
+    listen(parent, "parent-bubble");
+    listen(root, "root-bubble");
+    const dispatches = [];
+    for (let dispatch = 1; dispatch <= 2; dispatch++) {
+      trace = [];
+      const event = new Event("probe", { bubbles: id !== "nonbubbling", cancelable: id !== "noncancelable" });
+      const returned = target.dispatchEvent(event);
+      dispatches.push({ dispatch, bubbles: event.bubbles, cancelable: event.cancelable,
+        trace, returned, after: snapshot(event) });
+    }
+    observations.push({ id, dispatches });
+  }
+  document.getElementById("output").textContent = JSON.stringify({
+    schemaVersion: 1, fixtureId: "event-dispatch-v1", observationKind: "event-dispatch",
+    environment: { userAgent: navigator.userAgent, viewportWidth: innerWidth,
+      viewportHeight: innerHeight, devicePixelRatio, url: location.href, timestamp: new Date().toISOString() },
+    observations
+  });
+})();
+</script>
+</html>
