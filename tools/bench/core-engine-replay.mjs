@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { arch, cpus, platform } from 'node:os';
 import { performance } from 'node:perf_hooks';
+import { memorySnapshot, validateMemorySnapshots } from './node-memory.mjs';
 
 const cases = [[1071, 462, 21], [84, 30, 6], [-84, 30, 6], [0, 0, 0],
   [0, -9, 9], [13, 17, 1], [81, 27, 27], [-55, -34, 1]];
@@ -65,15 +66,18 @@ function statistics(samplesMs) {
 async function main() {
   const config = controls(process.argv.slice(2));
   const wasm = await input();
+  const memorySnapshots = { beforeModule: memorySnapshot() };
   const startedCompile = performance.now();
   const module = new WebAssembly.Module(wasm);
   const moduleCompileMs = performance.now() - startedCompile;
   if (WebAssembly.Module.imports(module).length !== 0) {
     throw new Error('Core cost replay must not grant imports');
   }
+  memorySnapshots.afterModule = memorySnapshot();
   const startedInstantiate = performance.now();
   const instance = new WebAssembly.Instance(module);
   const instantiationMs = performance.now() - startedInstantiate;
+  memorySnapshots.afterInstantiation = memorySnapshot();
   const run = instance.exports.run;
   if (typeof run !== 'function') throw new Error('Missing run export');
   const startedFirst = performance.now();
@@ -86,6 +90,7 @@ async function main() {
   if (batch(run, config.warmup) !== checksum(config.warmup)) {
     throw new Error('Incorrect warmup checksum');
   }
+  memorySnapshots.afterWarmup = memorySnapshot();
   const samplesMs = [];
   for (let i = 0; i < config.samples; i++) {
     const started = performance.now();
@@ -95,6 +100,10 @@ async function main() {
       throw new Error('Incorrect measured checksum');
     }
   }
+  memorySnapshots.afterBatches = memorySnapshot();
+  const memory = validateMemorySnapshots({
+    unit: 'bytes', scope: 'entire-node-process', snapshots: memorySnapshots,
+  });
   const report = {
     schemaVersion: 1,
     engine: 'node-v8',
@@ -110,6 +119,7 @@ async function main() {
     configuration: config, goldenCases: cases.length, checksum: checksum(config.iterations),
     startup: { moduleCompileMs, instantiationMs, firstCallMs },
     batches: { unit: 'milliseconds per batch', ...statistics(samplesMs) },
+    memory,
   };
   process.stdout.write(JSON.stringify(report) + '\n');
 }

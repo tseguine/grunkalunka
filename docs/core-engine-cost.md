@@ -42,6 +42,30 @@ guest instructions or host-call overhead, and there is **no WIT boundary**
 in this experiment. Do not interpret the results as portable engine speed
 ratios, production throughput or a comparative benchmark score.
 
+## Node/V8 process memory checkpoints
+
+The Node subprocess now records five **instantaneous process-memory snapshots**:
+after receiving the Wasm bytes but before module construction, immediately after
+module compilation, after instantiation, after fixed goldens and warmup, and after
+all timed batches. Each snapshot reports Node process.memoryUsage() fields as
+bytes: resident set size (RSS), V8 heap total and used, external memory, and
+ArrayBuffer allocations. Snapshots are collected **outside** timed intervals
+and validated for well-formed byte counts without any memory threshold.
+
+These values describe the **entire Node subprocess**, including Node/V8 itself,
+JavaScript harness allocations, input buffers and Wasm runtime state. ArrayBuffers
+may already be included in external bytes; these fields must not be added. A
+change between snapshots cannot be attributed solely to Wasm, and RSS is not a
+controlled peak or isolated artifact footprint. The garbage collector is not
+forced, caches remain uncontrolled, and memory can decrease between samples.
+Sampling itself may affect the subsequent phases.
+
+This is **Node/V8-only memory evidence**, not Wasmtime host memory, a cross-engine
+memory comparison or a cross-host ranking. The existing Rust core-engine replay
+test executes the actual Node subprocess and checks that these fields are present.
+The Node benchmark tests exercise well-formed observations and rejection of
+missing, negative, nonintegral or inconsistent byte values.
+
 ## Provenance and limits
 
 The output includes OS and architecture observed by Rust and by Node; Node
@@ -54,9 +78,10 @@ report. The Wasmtime version declaration must follow the workspace pin.
 
 Neither subprocess creation nor Node's input transfer is timed as startup.
 Wasm decoding/JIT cache and CPU scheduling are not controlled. Wasmtime
-engine creation, Rust process startup, code cache, host memory footprint,
-frontend-only cost, nonnumeric values and representative application costs
-remain outside this slice. Collect multiple reports under stable conditions
+engine creation, Rust process startup, code cache, **Wasmtime host memory
+footprint**, frontend-only cost, nonnumeric values and representative application
+costs remain outside this slice. The Node-only snapshots above are not portable
+memory comparisons. Collect multiple reports under stable conditions
 before examining relative changes; the tool does not rank engines.
 
 To check the real two-engine replay with minimal work:
