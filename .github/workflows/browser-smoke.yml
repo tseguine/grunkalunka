@@ -42,8 +42,8 @@ jobs:
           package-manager-cache: false
       - name: Verify pinned Node runtime
         run: node -e 'require("node:assert/strict").equal(process.versions.node, process.env.BROWSER_NODE_VERSION)'
-      - name: Test the independent receipt verifier offline
-        run: node --test tools/browser-oracles/verify-baseline.test.mjs
+      - name: Test workflow and receipt contracts offline
+        run: node --test tests/browser-oracles/workflow-node-version.test.mjs tools/browser-oracles/verify-baseline.test.mjs
       - name: Install isolated optional automation dependency
         run: npm --prefix tools/browser-oracles install --ignore-scripts --no-audit --no-fund
       - name: Install the selected managed browser and system dependencies
