@@ -102,6 +102,60 @@ pub(super) struct Intrinsic<'e, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    // Opt pending or mixed snapshot/scalar selections into the await context.
+    // Already accepted uniform snapshots keep their original emission path.
+    pub(super) fn composed_await_selection(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> bool {
+        let mut pending = vec![(expression, depth)];
+        let mut selected = false;
+        let mut asynchronous = false;
+        let mut snapshot = false;
+        while let Some((expression, depth)) = pending.pop() {
+            let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
+                return false;
+            };
+            match expression {
+                Expression::ConditionalExpression(conditional) => {
+                    selected = true;
+                    pending.push((&conditional.consequent, depth + 1));
+                    pending.push((&conditional.alternate, depth + 1));
+                }
+                Expression::SequenceExpression(sequence) => {
+                    if let Some(last) = sequence.expressions.last() {
+                        pending.push((last, depth + 1));
+                    }
+                }
+                Expression::CallExpression(call) => {
+                    asynchronous |= self
+                        .function_arity(&call.callee, depth + 1)
+                        .is_some_and(|id| self.closure_signatures.borrow().is_async(id));
+                }
+                _ => (),
+            }
+            snapshot |= self.fulfilled_promise_shape(expression, depth)
+                || self.settled_promise_shape_in(
+                    expression,
+                    depth,
+                    &std::collections::BTreeMap::new(),
+                    0,
+                )
+                || matches!(expression, Expression::CallExpression(call) if intrinsic(call, self.semantic).ok().flatten().is_some());
+        }
+        selected
+            && (asynchronous
+                || (snapshot
+                    && !self.fulfilled_promise_shape(expression, depth)
+                    && !self.settled_promise_shape_in(
+                        expression,
+                        depth,
+                        &std::collections::BTreeMap::new(),
+                        0,
+                    )))
+    }
+
     pub(super) fn settled_promise_shape_in(
         &self,
         expression: &Expression<'_>,

@@ -716,3 +716,13 @@ catches, typed primitive/Promise/callback inputs, returned function pairs,
 captured parameters, recursive restoration and resource limits. Their recursive
 frame evidence does not admit recursive source initialization, detached pending
 Promises, adoption, identity or unhandled-rejection tracking.
+
+For a conditional await operand, the evaluator keeps an awaited request through
+the existing conditional/comma cursor. Its leaves return General completions
+using the existing primitive, fulfilled/settled or private-call await operation.
+There is no pending-value projection or extra await after joining those results.
+An adjacent `AwaitSite` marker records alternative continuations of one source
+site. The verifier requires an actual await immediately after it; the backend
+shares only the logical site count within that compiled function. Child sites,
+other functions and unmarked IR operations retain independent counts. The marker
+emits no instructions and changes no reaction, frame or host protocol.

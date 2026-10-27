@@ -102,7 +102,7 @@ impl Emitter<'_> {
     fn operations(&mut self, operations: &[ir::Operation]) {
         for operation in operations {
             match &operation.kind {
-                Op::CaptureCells { .. } => (),
+                Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
                 Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
                 Op::FulfillPromise { result, input }
                 | Op::PromiseValue { result, input }

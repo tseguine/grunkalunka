@@ -73,11 +73,28 @@ struct Splitter<'a> {
     function: usize,
     states: Vec<State<'a>>,
     awaits: usize,
+    shared_awaits: std::collections::BTreeSet<(usize, usize)>,
     return_to: Option<(ValueId, usize)>,
     catch_to: Option<(ValueId, usize)>,
 }
 
 impl<'a> Splitter<'a> {
+    fn charge_await(&mut self, operations: &[ir::Operation], index: usize) -> Result<(), String> {
+        let shared = index
+            .checked_sub(1)
+            .and_then(|previous| match operations[previous].kind {
+                Op::AwaitSite { site } => Some((self.function, site)),
+                _ => None,
+            });
+        if shared.is_none_or(|site| self.shared_awaits.insert(site)) {
+            self.awaits += 1;
+        }
+        if self.awaits > 32 {
+            return Err("async profile admits at most 32 await sites".into());
+        }
+        Ok(())
+    }
+
     fn state(
         &mut self,
         operations: &'a [ir::Operation],
@@ -163,15 +180,13 @@ impl<'a> Splitter<'a> {
         while end > 0 {
             let operation = &region.operations[end - 1];
             next = match &operation.kind {
+                Op::AwaitSite { .. } => next,
                 Op::AwaitClosureCall {
                     result,
                     callee,
                     arguments,
                 } => {
-                    self.awaits += 1;
-                    if self.awaits > 32 {
-                        return Err("async profile admits at most 32 await sites".into());
-                    }
+                    self.charge_await(&region.operations, end - 1)?;
                     let fulfilled_resume = self.state(&[], Some(*result), End::Jump(next))?;
                     let fulfilled = self.terminal(End::Suspend {
                         input: *result,
@@ -204,10 +219,7 @@ impl<'a> Splitter<'a> {
                 Op::AwaitCall { result, body } => {
                     // Two possible settlements share one logical await site.
                     // The body runs now; only the caller reaction suspends here.
-                    self.awaits += 1;
-                    if self.awaits > 32 {
-                        return Err("async profile admits at most 32 await sites".into());
-                    }
+                    self.charge_await(&region.operations, end - 1)?;
                     let fulfilled_resume = self.state(&[], Some(*result), End::Jump(next))?;
                     let fulfilled = self.terminal(End::Suspend {
                         input: *result,
@@ -240,10 +252,7 @@ impl<'a> Splitter<'a> {
                     entry?
                 }
                 Op::AwaitSettled { result, input } => {
-                    self.awaits += 1;
-                    if self.awaits > 32 {
-                        return Err("async profile admits at most 32 await sites".into());
-                    }
+                    self.charge_await(&region.operations, end - 1)?;
                     let normal_resume = self.state(&[], Some(*result), End::Jump(next))?;
                     let normal = self.terminal(End::Suspend {
                         input: *input,
@@ -267,10 +276,7 @@ impl<'a> Splitter<'a> {
                     input,
                     rejected,
                 } => {
-                    self.awaits += 1;
-                    if self.awaits > 32 {
-                        return Err("async profile admits at most 32 await sites".into());
-                    }
+                    self.charge_await(&region.operations, end - 1)?;
                     // A caught rejection resumes into its lexical handler on the
                     // same reaction job. The host still supplies the original pair.
                     let (uncaught, resume) = if *rejected {
@@ -373,7 +379,8 @@ impl<'a> Splitter<'a> {
 fn atomic(op: &Op) -> bool {
     !matches!(
         op,
-        Op::Await { .. }
+        Op::AwaitSite { .. }
+            | Op::Await { .. }
             | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }

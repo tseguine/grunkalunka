@@ -13,6 +13,7 @@ pub(super) enum Mode {
     Function(usize),
     Promise,
     Settled,
+    Awaited(usize),
 }
 
 #[derive(Clone, Copy)]
@@ -131,14 +132,21 @@ impl Regions<'_> {
 
 enum Work<'e, 'a> {
     Eval(&'e Expression<'a>, usize, Mode),
+    AwaitOperand {
+        node: &'e Expression<'a>,
+        depth: usize,
+        mode: Mode,
+        operand: awaited::Operand<'e, 'a>,
+        site: Option<usize>,
+    },
     Forget,
-    Await(&'e Expression<'a>, bool, Type),
-    AwaitSettled(&'e Expression<'a>),
+    Await(&'e Expression<'a>, bool, Type, Option<usize>),
+    AwaitSettled(&'e Expression<'a>, Option<usize>),
     FulfillPromise(&'e Expression<'a>),
     PromotePromise(&'e Expression<'a>),
     PromiseValue(&'e Expression<'a>),
     PromiseTruthy(&'e Expression<'a>),
-    FinishAwaitCall(&'e Expression<'a>, Type),
+    FinishAwaitCall(&'e Expression<'a>, Type, Option<usize>),
     VoidResult(&'e Expression<'a>),
     Pack(&'e Expression<'a>),
     Convert(&'e Expression<'a>),
@@ -228,6 +236,7 @@ enum Work<'e, 'a> {
         index: usize,
         arguments: Vec<ValueId>,
         depth: usize,
+        site: Option<usize>,
     },
     ClosureCall {
         node: &'e Expression<'a>,
@@ -237,12 +246,14 @@ enum Work<'e, 'a> {
         index: usize,
         arguments: Vec<ValueId>,
         depth: usize,
+        site: Option<usize>,
     },
     BeginAwaitedClosureCall {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
         signature: usize,
         depth: usize,
+        site: Option<usize>,
     },
     RestoreBindings(Vec<NumericBinding>, bool),
     Sequence {
@@ -480,6 +491,197 @@ impl Lowering<'_, '_> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
+                Work::AwaitOperand {
+                    node,
+                    depth,
+                    mode,
+                    operand,
+                    site,
+                } => {
+                    if let Some(argument) = operand.argument
+                        && self.composed_await_selection(argument, operand.depth)
+                    {
+                        if operand.rejected || !operand.extras.is_empty() {
+                            return Err(unsupported(
+                                node,
+                                "selected pending await operands require direct fulfillment without surplus intrinsic arguments",
+                            ));
+                        }
+                        call_result(
+                            &mut work,
+                            node,
+                            mode,
+                            Type::General,
+                            self.numeric_result_shape(node, depth),
+                        )?;
+                        work.push(Work::Eval(
+                            argument,
+                            operand.depth,
+                            Mode::Awaited(site.unwrap_or(node.span().start as usize)),
+                        ));
+                        continue;
+                    }
+                    let Some(argument) = operand.argument else {
+                        if !matches!(mode, Mode::General) {
+                            return Err(unsupported(
+                                node,
+                                "undefined await completions require a primitive value or coercion position",
+                            ));
+                        }
+                        let input = self.undefined_value(node, regions.current());
+                        values.push(Value::General(input));
+                        work.push(Work::Await(node, operand.rejected, Type::General, site));
+                        continue;
+                    };
+                    let argument_depth = operand.depth;
+                    let rejected = operand.rejected;
+                    let known_async = closures::unwrapped_at(argument, argument_depth)
+                        .and_then(|(node, depth)| match node {
+                            Expression::CallExpression(call) => {
+                                self.closure_target(&call.callee, depth + 1)
+                            }
+                            _ => None,
+                        })
+                        .is_some_and(|closure| {
+                            let arrow = self.arrow(closure.arrow);
+                            arrow.r#async
+                                && (operand.extras.is_empty()
+                                    || !awaited::eager_async_arrow(arrow, self.semantic))
+                        });
+                    if !known_async
+                        && let Some(private) = awaited::private_call(argument, argument_depth)
+                        && let Some(signature) =
+                            self.function_arity(&private.call.callee, private.depth + 1)
+                        && self.closure_signatures.borrow().is_async(signature)
+                    {
+                        if rejected || !operand.extras.is_empty() {
+                            return Err(unsupported(
+                                node,
+                                "pending async-call operands require a direct await without Promise-valued rejection or surplus intrinsic arguments",
+                            ));
+                        }
+                        call_result(
+                            &mut work,
+                            node,
+                            mode,
+                            Type::General,
+                            self.numeric_result_shape(node, depth),
+                        )?;
+                        work.push(Work::BeginAwaitedClosureCall {
+                            node: argument,
+                            call: private.call,
+                            signature,
+                            depth: private.depth + 1,
+                            site,
+                        });
+                        for (prefix, depth) in private.prefixes.into_iter().rev() {
+                            work.push(Work::Eval(prefix, depth, Mode::Discard));
+                        }
+                        continue;
+                    }
+                    if !known_async && self.fulfilled_promise_shape(argument, argument_depth) {
+                        if rejected {
+                            return Err(unsupported(
+                                node,
+                                "Promise-valued rejection reasons are not admitted",
+                            ));
+                        }
+                        if matches!(mode, Mode::Number) && self.numeric_result_shape(node, depth) {
+                            work.push(Work::NumberFromGeneral(node));
+                        } else if !matches!(mode, Mode::General) {
+                            return Err(unsupported(
+                                node,
+                                "stored Promise completions require a primitive value or coercion position",
+                            ));
+                        }
+                        work.push(Work::Await(node, false, Type::General, site));
+                        for extra in operand.extras.iter().rev() {
+                            work.push(Work::Eval(
+                                extra.as_expression().expect("validated ordinary argument"),
+                                argument_depth,
+                                Mode::Discard,
+                            ));
+                        }
+                        work.push(Work::PromiseValue(node));
+                        work.push(Work::Eval(argument, argument_depth, Mode::Promise));
+                        continue;
+                    }
+                    if !known_async
+                        && self.settled_promise_shape_in(
+                            argument,
+                            argument_depth,
+                            &std::collections::BTreeMap::new(),
+                            0,
+                        )
+                    {
+                        if rejected || !operand.extras.is_empty() {
+                            return Err(unsupported(
+                                node,
+                                "settled async-call operands require a direct await without Promise-valued rejection or surplus intrinsic arguments",
+                            ));
+                        }
+                        call_result(&mut work, node, mode, Type::General, false)?;
+                        work.push(Work::AwaitSettled(node, site));
+                        work.push(Work::Eval(argument, argument_depth, Mode::Settled));
+                        continue;
+                    }
+                    let ty = if matches!(mode, Mode::General) {
+                        Type::General
+                    } else {
+                        Type::Number
+                    };
+                    work.push(Work::Await(node, rejected, ty, site));
+                    if let Some((Expression::CallExpression(call), call_depth)) =
+                        closures::unwrapped_at(argument, argument_depth)
+                        && let Some(mut closure) = self.closure_target(&call.callee, call_depth + 1)
+                        && self.arrow(closure.arrow).r#async
+                    {
+                        if !operand.extras.is_empty() {
+                            return Err(unsupported(
+                                node,
+                                "async-call Promise payloads with surplus arguments require stored pending Promises",
+                            ));
+                        }
+                        if rejected {
+                            return Err(unsupported(
+                                node,
+                                "a rejected async-call result would require a Promise-valued reason",
+                            ));
+                        }
+                        if !closure.checked {
+                            self.check_local_closure(&mut closure)?;
+                            self.capture_cells(&closure, regions.current());
+                        }
+                        self.check_local_call(call, &closure)?;
+                        // AwaitCall produces a General completion pair even
+                        // when the normal body result is known Number.
+                        work.pop().expect("scheduled caller await");
+                        if closure.result == Type::Number && matches!(mode, Mode::Number) {
+                            work.push(Work::NumberFromGeneral(node));
+                        } else {
+                            call_result(&mut work, node, mode, Type::General, false)?;
+                        }
+                        work.push(Work::LocalCall {
+                            node: argument,
+                            call,
+                            closure,
+                            index: 0,
+                            arguments: Vec::new(),
+                            depth: call_depth + 1,
+                            site,
+                        });
+                        continue;
+                    }
+                    for extra in operand.extras.iter().rev() {
+                        work.push(Work::Eval(
+                            extra.as_expression().expect("validated ordinary argument"),
+                            argument_depth,
+                            Mode::Discard,
+                        ));
+                    }
+                    work.push(Work::Eval(argument, argument_depth, mode));
+                    continue;
+                }
                 Work::VoidResult(node) => {
                     let result = self.value(Type::General);
                     Self::push(
@@ -492,7 +694,7 @@ impl Lowering<'_, '_> {
                     );
                     values.push(Value::General(result));
                 }
-                Work::FinishAwaitCall(node, ty) => {
+                Work::FinishAwaitCall(node, ty, site) => {
                     let mut value = values.pop().expect("async body result").id();
                     let mut body = regions.children.pop().expect("owned async body");
                     if ty == Type::Number {
@@ -509,7 +711,12 @@ impl Lowering<'_, '_> {
                     }
                     body.exit = Exit::Return(value);
                     let result = self.value(Type::General);
-                    Self::push(regions.current(), node, Op::AwaitCall { result, body });
+                    Self::push_await(
+                        regions.current(),
+                        node,
+                        site,
+                        Op::AwaitCall { result, body },
+                    );
                     values.push(Value::General(result));
                 }
                 Work::PromotePromise(node) => {
@@ -551,20 +758,26 @@ impl Lowering<'_, '_> {
                     );
                     values.push(Value::Predicate(result));
                 }
-                Work::AwaitSettled(node) => {
+                Work::AwaitSettled(node, site) => {
                     let Value::Settled(input) = values.pop().expect("settled await input") else {
                         unreachable!()
                     };
                     let result = self.value(Type::General);
-                    Self::push(regions.current(), node, Op::AwaitSettled { result, input });
-                    values.push(Value::General(result));
-                }
-                Work::Await(node, rejected, ty) => {
-                    let input = values.pop().expect("await operand").id();
-                    let result = self.value(ty);
-                    Self::push(
+                    Self::push_await(
                         regions.current(),
                         node,
+                        site,
+                        Op::AwaitSettled { result, input },
+                    );
+                    values.push(Value::General(result));
+                }
+                Work::Await(node, rejected, ty, site) => {
+                    let input = values.pop().expect("await operand").id();
+                    let result = self.value(ty);
+                    Self::push_await(
+                        regions.current(),
+                        node,
+                        site,
                         Op::Await {
                             result,
                             input,
@@ -589,6 +802,7 @@ impl Lowering<'_, '_> {
                     index,
                     mut arguments,
                     depth,
+                    site,
                 } => {
                     // Only declared inputs need values. Surplus expressions use
                     // Discard, which consumes its own temporary scalar result.
@@ -608,6 +822,7 @@ impl Lowering<'_, '_> {
                                 index: index + 1,
                                 arguments,
                                 depth,
+                                site,
                             });
                             work.push(Work::Eval(argument, depth, Mode::Discard));
                             continue;
@@ -631,6 +846,7 @@ impl Lowering<'_, '_> {
                             index: index + 1,
                             arguments,
                             depth,
+                            site,
                         });
                         if function.is_none() {
                             work.push(Work::Eval(argument, depth, scalar_mode));
@@ -645,7 +861,7 @@ impl Lowering<'_, '_> {
                         work.push(Work::RestoreBindings(previous, charging));
                         if arrow.r#async {
                             regions.children.push(self.region(arrow));
-                            work.push(Work::FinishAwaitCall(node, closure.result));
+                            work.push(Work::FinishAwaitCall(node, closure.result, site));
                         }
                         if let Some(expression) = arrow.get_expression() {
                             work.push(Work::Eval(
@@ -686,6 +902,7 @@ impl Lowering<'_, '_> {
                     call,
                     signature,
                     depth,
+                    site,
                 } => {
                     let region_depth = regions.children.len();
                     let callee = self.prepare_closure_call(
@@ -704,6 +921,7 @@ impl Lowering<'_, '_> {
                         index: 0,
                         arguments: Vec::new(),
                         depth,
+                        site,
                     });
                 }
                 Work::ClosureCall {
@@ -714,6 +932,7 @@ impl Lowering<'_, '_> {
                     index,
                     mut arguments,
                     depth,
+                    site,
                 } => {
                     let Type::Closure(signature) = self.values[callee.0] else {
                         unreachable!()
@@ -739,6 +958,7 @@ impl Lowering<'_, '_> {
                                 index: index + 1,
                                 arguments,
                                 depth,
+                                site,
                             });
                             work.push(Work::Eval(argument, depth, Mode::Discard));
                             continue;
@@ -773,6 +993,7 @@ impl Lowering<'_, '_> {
                             index: index + 1,
                             arguments,
                             depth,
+                            site,
                         });
                         if !callback {
                             let mode = if parameter == Type::FulfilledPromise {
@@ -795,9 +1016,10 @@ impl Lowering<'_, '_> {
                             .result(signature)
                             .expect("checked signature");
                         let result = self.value(ty);
-                        Self::push(
+                        Self::push_await(
                             regions.current(),
                             node,
+                            site,
                             if awaited {
                                 Op::AwaitClosureCall {
                                     result,
@@ -1326,7 +1548,7 @@ impl Lowering<'_, '_> {
                     let value = values.pop().expect("alternate result").id();
                     let alternate = regions.finish(value);
                     let ty = match mode {
-                        Mode::General => Type::General,
+                        Mode::General | Mode::Awaited(_) => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Promise => Type::FulfilledPromise,
@@ -1463,7 +1685,7 @@ impl Lowering<'_, '_> {
                         (skipped, selected)
                     };
                     let ty = match mode {
-                        Mode::General => Type::General,
+                        Mode::General | Mode::Awaited(_) => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Promise => Type::FulfilledPromise,
@@ -1579,6 +1801,42 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if let Mode::Awaited(site) = mode {
+                        if matches!(
+                            node,
+                            Expression::ConditionalExpression(_)
+                                | Expression::SequenceExpression(_)
+                        ) && schedule_selection(&mut work, node, depth, mode)?
+                        {
+                            continue;
+                        }
+                        let operand = if let Expression::CallExpression(call) = node
+                            && let Some(intrinsic) = awaited::intrinsic(call, self.semantic)
+                                .map_err(|message| unsupported(node, message))?
+                        {
+                            awaited::Operand {
+                                argument: intrinsic.argument,
+                                depth: depth + 1,
+                                rejected: intrinsic.rejected,
+                                extras: intrinsic.extras,
+                            }
+                        } else {
+                            awaited::Operand {
+                                argument: Some(node),
+                                depth,
+                                rejected: false,
+                                extras: &[],
+                            }
+                        };
+                        work.push(Work::AwaitOperand {
+                            node,
+                            depth,
+                            mode: Mode::General,
+                            operand,
+                            site: Some(site),
+                        });
                         continue;
                     }
                     if matches!(mode, Mode::Settled) {
@@ -1828,166 +2086,13 @@ impl Lowering<'_, '_> {
                             mode
                         };
                         let operand = awaited::operand(awaited, depth, self.semantic)?;
-                        let Some(argument) = operand.argument else {
-                            if !matches!(mode, Mode::General) {
-                                return Err(unsupported(
-                                    node,
-                                    "undefined await completions require a primitive value or coercion position",
-                                ));
-                            }
-                            let input = self.undefined_value(node, regions.current());
-                            values.push(Value::General(input));
-                            work.push(Work::Await(node, operand.rejected, Type::General));
-                            continue;
-                        };
-                        let argument_depth = operand.depth;
-                        let rejected = operand.rejected;
-                        let known_async = closures::unwrapped_at(argument, argument_depth)
-                            .and_then(|(node, depth)| match node {
-                                Expression::CallExpression(call) => {
-                                    self.closure_target(&call.callee, depth + 1)
-                                }
-                                _ => None,
-                            })
-                            .is_some_and(|closure| {
-                                let arrow = self.arrow(closure.arrow);
-                                arrow.r#async
-                                    && (operand.extras.is_empty()
-                                        || !awaited::eager_async_arrow(arrow, self.semantic))
-                            });
-                        if !known_async
-                            && let Some(private) = awaited::private_call(argument, argument_depth)
-                            && let Some(signature) =
-                                self.function_arity(&private.call.callee, private.depth + 1)
-                            && self.closure_signatures.borrow().is_async(signature)
-                        {
-                            if rejected || !operand.extras.is_empty() {
-                                return Err(unsupported(
-                                    node,
-                                    "pending async-call operands require a direct await without Promise-valued rejection or surplus intrinsic arguments",
-                                ));
-                            }
-                            call_result(
-                                &mut work,
-                                node,
-                                mode,
-                                Type::General,
-                                self.numeric_result_shape(node, depth),
-                            )?;
-                            work.push(Work::BeginAwaitedClosureCall {
-                                node: argument,
-                                call: private.call,
-                                signature,
-                                depth: private.depth + 1,
-                            });
-                            for (prefix, depth) in private.prefixes.into_iter().rev() {
-                                work.push(Work::Eval(prefix, depth, Mode::Discard));
-                            }
-                            continue;
-                        }
-                        if !known_async && self.fulfilled_promise_shape(argument, argument_depth) {
-                            if rejected {
-                                return Err(unsupported(
-                                    node,
-                                    "Promise-valued rejection reasons are not admitted",
-                                ));
-                            }
-                            if matches!(mode, Mode::Number)
-                                && self.numeric_result_shape(node, depth)
-                            {
-                                work.push(Work::NumberFromGeneral(node));
-                            } else if !matches!(mode, Mode::General) {
-                                return Err(unsupported(
-                                    node,
-                                    "stored Promise completions require a primitive value or coercion position",
-                                ));
-                            }
-                            work.push(Work::Await(node, false, Type::General));
-                            for extra in operand.extras.iter().rev() {
-                                work.push(Work::Eval(
-                                    extra.as_expression().expect("validated ordinary argument"),
-                                    argument_depth,
-                                    Mode::Discard,
-                                ));
-                            }
-                            work.push(Work::PromiseValue(node));
-                            work.push(Work::Eval(argument, argument_depth, Mode::Promise));
-                            continue;
-                        }
-                        if !known_async
-                            && self.settled_promise_shape_in(
-                                argument,
-                                argument_depth,
-                                &std::collections::BTreeMap::new(),
-                                0,
-                            )
-                        {
-                            if rejected || !operand.extras.is_empty() {
-                                return Err(unsupported(
-                                    node,
-                                    "settled async-call operands require a direct await without Promise-valued rejection or surplus intrinsic arguments",
-                                ));
-                            }
-                            call_result(&mut work, node, mode, Type::General, false)?;
-                            work.push(Work::AwaitSettled(node));
-                            work.push(Work::Eval(argument, argument_depth, Mode::Settled));
-                            continue;
-                        }
-                        let ty = if matches!(mode, Mode::General) {
-                            Type::General
-                        } else {
-                            Type::Number
-                        };
-                        work.push(Work::Await(node, rejected, ty));
-                        if let Some((Expression::CallExpression(call), call_depth)) =
-                            closures::unwrapped_at(argument, argument_depth)
-                            && let Some(mut closure) =
-                                self.closure_target(&call.callee, call_depth + 1)
-                            && self.arrow(closure.arrow).r#async
-                        {
-                            if !operand.extras.is_empty() {
-                                return Err(unsupported(
-                                    node,
-                                    "async-call Promise payloads with surplus arguments require stored pending Promises",
-                                ));
-                            }
-                            if rejected {
-                                return Err(unsupported(
-                                    node,
-                                    "a rejected async-call result would require a Promise-valued reason",
-                                ));
-                            }
-                            if !closure.checked {
-                                self.check_local_closure(&mut closure)?;
-                                self.capture_cells(&closure, regions.current());
-                            }
-                            self.check_local_call(call, &closure)?;
-                            // AwaitCall produces a General completion pair even
-                            // when the normal body result is known Number.
-                            work.pop().expect("scheduled caller await");
-                            if closure.result == Type::Number && matches!(mode, Mode::Number) {
-                                work.push(Work::NumberFromGeneral(node));
-                            } else {
-                                call_result(&mut work, node, mode, Type::General, false)?;
-                            }
-                            work.push(Work::LocalCall {
-                                node: argument,
-                                call,
-                                closure,
-                                index: 0,
-                                arguments: Vec::new(),
-                                depth: call_depth + 1,
-                            });
-                            continue;
-                        }
-                        for extra in operand.extras.iter().rev() {
-                            work.push(Work::Eval(
-                                extra.as_expression().expect("validated ordinary argument"),
-                                argument_depth,
-                                Mode::Discard,
-                            ));
-                        }
-                        work.push(Work::Eval(argument, argument_depth, mode));
+                        work.push(Work::AwaitOperand {
+                            node,
+                            depth,
+                            mode,
+                            operand,
+                            site: None,
+                        });
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
@@ -2048,6 +2153,7 @@ impl Lowering<'_, '_> {
                             index: 0,
                             arguments: Vec::new(),
                             depth: depth + 1,
+                            site: None,
                         });
                         continue;
                     }
@@ -2081,6 +2187,7 @@ impl Lowering<'_, '_> {
                             index: 0,
                             arguments: Vec::new(),
                             depth: depth + 1,
+                            site: None,
                         });
                         continue;
                     }
@@ -2756,5 +2863,12 @@ impl Lowering<'_, '_> {
             value?
         };
         Ok(callee)
+    }
+
+    fn push_await(region: &mut Region, node: &impl GetSpan, site: Option<usize>, kind: Op) {
+        if let Some(site) = site {
+            Self::push(region, node, Op::AwaitSite { site });
+        }
+        Self::push(region, node, kind);
     }
 }

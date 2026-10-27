@@ -8,6 +8,152 @@ use std::{
 const ORIGINAL: &str = "export async function run(a,b) { return a + await Promise.resolve(b); }";
 
 #[test]
+fn selected_async_await_operands_keep_the_selected_reactions() {
+    compare_promises(
+        &[
+            "let f=async()=>{await a;return b;};return await(a?f():b);",
+            "let f=async()=>{await a;return b;};return await(a?null:f());",
+            "let f=async()=>{await a;return false;};return await(a?f():void 0);",
+            "let f=async()=>{await a;return void 0;};return await(a?f():-0);",
+            "let f=async()=>{await a;return b;};return await(a?f():Promise.resolve(b));",
+            "let p=Promise.resolve(b);let f=async()=>{await a;return b;};return await(a?p:f());",
+            "let f=async()=>{await a;return b;};let g=async()=>{await b;await a;return a;};return await(a?f():g());",
+            "let f=async()=>{await a;return b;};const g=async()=>a;return await(a?f():g());",
+            "let f=async()=>{await a;return b;};return await Promise.resolve(a?f():b);",
+            "let f=async x=>{await a;return x;};return await(a?f(null):false);",
+            "let f=async x=>{await a;return x;};return await(a?false:f(void 0));",
+            "return await(a?Promise.resolve(a):b);",
+            "const p=Promise.resolve(b);return await(a?null:p);",
+            "let f=async()=>{throw b;};try{return await(a?f():false);}catch(e){return e;}",
+            "try{return await(a?Promise.reject(null):false);}catch(e){return e;}",
+            "try{return await(a?Promise.reject(a):Promise.reject(b));}catch(e){return e;}",
+            "return await(a?Promise.resolve(a):(b?false:null));",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn selected_async_await_operands_preserve_prefixes_and_snapshots() {
+    compare_promises(
+        &[
+            "let x=a;let f=async()=>{await a;return x;};return await((x+=b)?(x=b,f()):(x=a,x));",
+            "let x=a;let f=async()=>{await a;return x;};return await(x=b,(a?(x+=a,f()):x));",
+            "let f=async()=>{await a;return b;};return await((await a)?f():b);",
+            "let f=async()=>{await a;return b;};return await(a?(b?f():a):(a?b:f()));",
+            "let f=async x=>{await a;return x+a;};const g=async x=>{await b;return x-b;};return await(a?f((f=g,b)):a);",
+            "let x=a;let f=async(x,y)=>{await a;return x-y;};return await(a?f(x,x=b):x);",
+            "let f=async x=>{await a;return x;};return await(a?f(b,await a):b);",
+            "const make=x=>async y=>{await y;return x+y;};let f=make(a);return await(a?f(b):a);",
+            "let f=async x=>{await a;return x;};const apply=async(fn,x)=>await(a?fn(x):b);return await(a?apply:apply)(f,a);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn selected_async_await_operands_keep_rejection_boundaries() {
+    compare_promises(
+        &[
+            "let f=async()=>{await a;throw b;};return await(a?f():b);",
+            "let f=async()=>{await a;throw b;};try{return await(a?f():b);}catch(e){return e;}",
+            "let f=async()=>{return await Promise.reject(null);};try{return await(a?false:f());}catch(e){return e;}",
+            "let f=async()=>{await a;return b;};return await(a?f():Promise.reject(b));",
+            "let f=async()=>{await a;return b;};try{return await(a?f():Promise.reject(false));}catch(e){return e;}",
+            "let f=async()=>{await a;return b;};const g=async()=>{throw null;};return await(a?g():f());",
+            "let f=async()=>{await a;return b;};let g=async()=>{throw void 0;};try{return await(a?g():f());}catch(e){return e;}",
+            "let f=async()=>{await a;return b;};try{return await(await Promise.reject(a),a?f():b);}catch(e){return e;}",
+            "let f=async()=>{await a;throw b;};let g=async()=>{try{return await(a?f():a);}catch(e){await b;return e;}};return await g();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn selected_async_await_operands_keep_limits_and_erased_types() {
+    let prefix = "let f=async()=>{await a;return b;};let x=0;let k=0;";
+    let site = "x+=+(await(++k===1&&a?f():b));";
+    let boundary = format!("{prefix}{}await a;return x;", site.repeat(30));
+    compare_promises(&[&boundary], &[(4.0, 2.0), (0.0, -0.0)]);
+    let over = format!("{prefix}{}await a;await b;return x;", site.repeat(30));
+    for ts in [false, true] {
+        assert!(
+            compile_async(&source_for(&over), ts)
+                .err()
+                .expect("33 sites reject")
+                .contains("32 await sites")
+        );
+    }
+    let mut nested = "f()".to_string();
+    for _ in 0..120 {
+        nested = format!("a?({nested}):b");
+    }
+    let deep = format!("let f=async()=>{{await a;return b;}};return await({nested});");
+    // Parentheses also consume the existing source depth budget.
+    for ts in [false, true] {
+        assert!(compile_async(&source_for(&deep), ts).is_err());
+    }
+    let mut nested = "f()".to_string();
+    for _ in 0..48 {
+        nested = format!("a?({nested}):b");
+    }
+    let deep = format!("let f=async()=>{{await a;return b;}};return await({nested});");
+    compare_promises(&[&deep], &[(4.0, 2.0), (0.0, -0.0)]);
+    let plain = "export async function run(a,b){let f=async x=>{await a;return x;};return await(a?f(b):null);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let f=async(x:unknown):Promise<string>=>{await(a as string);return x as never;};return await((a as any)?(f as never)(b as Wrong):null);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    compare_async_sources(
+        &[plain.to_string()],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn selected_async_await_operands_keep_pending_and_domain_guards() {
+    for body in [
+        "let f=async()=>{await a;return b;};const p=a?f():b;return await p;",
+        "let f=async()=>{await a;return b;};return a?f():b;",
+        "let f=async()=>{await a;return b;};if(a?f():b)return a;return b;",
+        "let f=async()=>{await a;return b;};return await Promise.reject(a?f():b);",
+        "let f=async()=>{await a;return b;};return await Promise.resolve(a?f():b,await a);",
+        "let f=async()=>{await a;return b;};return await(f()||b);",
+        "let f=async()=>{await a;return b;};return await(f()&&b);",
+        "let f=async()=>{await a;return b;};return await(f()??b);",
+        "let f=async()=>{await a;return b;};return await(a?(f()||b):b);",
+        "let f=async()=>{await a;return b;};return await(a?f():{});",
+        "let f=async()=>{await a;return b;};return await(a?f():'x');",
+        "let f=async()=>{await a;return b;};return await(a?f():(()=>b));",
+        "let f=async()=>{await a;return b;};return await(a?f():missing());",
+        "let f=async()=>{await a;return b;};return await(a?f():Promise.resolve({}));",
+        "let f=async()=>{await a;return b;};return await(f()?a:b);",
+        "let f=async()=>{await a;return b;};return await(f(),a?b:a);",
+        "let f=async()=>{await a;return b;};const g=async()=>a?f():b;return await g();",
+    ] {
+        for ts in [false, true] {
+            assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
+        }
+    }
+}
+
+#[test]
 fn suspending_async_closures_preserve_body_and_caller_reactions() {
     compare_promises(
         &[
@@ -210,7 +356,6 @@ fn suspending_async_closures_keep_pending_and_signature_guards() {
         "let f=async()=>{await a;return {};};return await f();",
         "let f=async()=>{await a;return ()=>b;};return await f();",
         "let f=async()=>{try{await a;}finally{b++;}return b;};return await f();",
-        "let f=async()=>{await a;return b;};return await(a?f():b);",
     ] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");

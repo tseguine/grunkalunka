@@ -221,3 +221,26 @@ new admission against native JS, Node-Wasm and Wasmtime. The 1,000-argument
 transport boundary uses explicit test fuel, since admission does not guarantee
 that wide-frame preparation fits the unchanged 10,000-fuel default. Pending
 result storage, detached calls, adoption and mixed sync/async effects stay guarded.
+
+## Await selections and source-site provenance
+
+Conditional/comma operands of a direct await retain an awaited request in the
+existing explicit expression cursor. Each selected leaf uses the existing await
+operation for its logical kind and returns a General completion. Joining the
+completed results adds no second caller reaction. This admits conditional
+pending calls without inventing a scalar projection or pending Promise object.
+
+Distributing the source await creates alternative physical continuations. An
+explicit adjacent `AwaitSite` marker shares their logical budget in the current
+compiled function; it emits no instructions and cannot share values or jobs.
+The verifier requires an actual await immediately after the marker. Unmarked IR
+awaits retain their independent counts and equal site names in different
+functions stay distinct. Deep selection and 32/33-site source tests exposed the
+otherwise incorrect count of generated branches as separate source sites.
+
+Counting every generated branch would reject a deeply nested single source
+await. Converging actual pending values would require a broader representation
+and scheduler decision. Explicit provenance preserves the existing source-budget
+invariant locally while leaving frame encoding, fuel, 32 runtime jobs and 4,096
+physical states unchanged. Pending logical operands, storage and adoption remain
+separate work; source and malformed-IR tests cover the chosen boundary.

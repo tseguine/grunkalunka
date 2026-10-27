@@ -344,3 +344,12 @@ IR-frame tests are not a source recursion claim. Source tests compare complete
 34-marker native/Node-Wasm traces and Wasmtime values/reaction counts, including
 1,000/1,001 parameters and 32/33 logical await sites. Wide transport tests use an
 explicit larger test fuel budget; the production 10,000-fuel limit is unchanged.
+
+Direct await also accepts conditional operands that select one of these calls,
+an admitted primitive or a fulfilled/settled snapshot. Nested selections and
+comma prefixes preserve condition, capture, callee and actual-argument snapshots,
+including prefix suspension/rejection. Each selected leaf retains the original
+caller's single reaction; its child awaits remain separate. For example,
+`await (flag ? selected() : null)` can use a suspending async `selected` closure.
+All branch bodies remain checked. Pending logical operands and storing these
+pending results still require further work.

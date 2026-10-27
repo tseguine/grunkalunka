@@ -1,6 +1,89 @@
 use super::*;
 
 #[test]
+fn await_site_provenance_is_explicit_and_requires_an_adjacent_await() {
+    for shared in [false, true] {
+        let mut module = crate::lower_source_profile(
+            "export async function run(a,b){return a;}",
+            false,
+            Type::General,
+            true,
+        )
+        .unwrap();
+        let function = &mut module.functions[0];
+        let Exit::Return(input) = function.body.exit else {
+            unreachable!()
+        };
+        let span = function.body.span;
+        for _ in 0..33 {
+            if shared {
+                function.body.operations.push(Operation {
+                    span,
+                    kind: Op::AwaitSite { site: 7 },
+                });
+            }
+            let result = ValueId(function.values.len());
+            function.values.push(Type::General);
+            function.body.operations.push(Operation {
+                span,
+                kind: Op::Await {
+                    result,
+                    input,
+                    rejected: false,
+                },
+            });
+        }
+        verify_module_with_entry_type(&module, Type::General).unwrap();
+        let emitted = crate::emit::emit_async(&module);
+        if shared {
+            wat::parse_str(emitted.unwrap()).unwrap();
+        } else {
+            assert!(emitted.unwrap_err().contains("32 await sites"));
+        }
+        module.functions[0].body.operations.push(Operation {
+            span,
+            kind: Op::AwaitSite { site: 9 },
+        });
+        assert!(
+            verify_module_with_entry_type(&module, Type::General)
+                .unwrap_err()
+                .contains("immediately precede an await")
+        );
+    }
+}
+
+#[test]
+fn await_site_names_are_local_to_each_compiled_function() {
+    let mut module = call_module(&format!("{}return b;", "await a;".repeat(32)));
+    for function in &mut module.functions {
+        let index = function
+            .body
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation.kind,
+                    Op::Await { .. } | Op::AwaitClosureCall { .. }
+                )
+            })
+            .unwrap();
+        function.body.operations.insert(
+            index,
+            Operation {
+                span: function.body.span,
+                kind: Op::AwaitSite { site: 7 },
+            },
+        );
+    }
+    verify_module_with_entry_type(&module, Type::General).unwrap();
+    assert!(
+        crate::emit::emit_async(&module)
+            .unwrap_err()
+            .contains("32 await sites")
+    );
+}
+
+#[test]
 fn async_closure_ir_signatures_distinguish_call_effects() {
     let mut signatures = ClosureSignatures::default();
     let normal = signatures.intern(vec![Type::General], Type::General);

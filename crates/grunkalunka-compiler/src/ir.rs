@@ -353,6 +353,11 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    // Adjacent await operations can be alternative continuations of one source
+    // site. Explicit provenance shares only their logical budget, never values.
+    AwaitSite {
+        site: usize,
+    },
     // First operation of a lifted function only. Imported cells become initialized.
     ClosureEntry {
         captures: Vec<SlotId>,
@@ -800,6 +805,7 @@ impl Verifier<'_> {
     ) -> Result<(), String> {
         let span = operation.span;
         match &operation.kind {
+            Op::AwaitSite { .. } => (),
             Op::ClosureEntry { captures } | Op::AsyncClosureEntry { captures } => {
                 if region_id != self.function.body.id || operation_index != 0 {
                     return Err(invalid(
@@ -1148,6 +1154,26 @@ impl Verifier<'_> {
         }
         while let Some(operation) = frame.region.operations.get(frame.index) {
             let span = operation.span;
+            if matches!(operation.kind, Op::AwaitSite { .. })
+                && !frame
+                    .region
+                    .operations
+                    .get(frame.index + 1)
+                    .is_some_and(|next| {
+                        matches!(
+                            next.kind,
+                            Op::Await { .. }
+                                | Op::AwaitCall { .. }
+                                | Op::AwaitSettled { .. }
+                                | Op::AwaitClosureCall { .. }
+                        )
+                    })
+            {
+                return Err(invalid(
+                    span,
+                    "await site must immediately precede an await",
+                ));
+            }
             if frame.settlement
                 && matches!(
                     operation.kind,

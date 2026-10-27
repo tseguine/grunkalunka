@@ -180,6 +180,15 @@ storage, detached calls, async-return adoption and mixed synchronous/asynchronou
 interfaces remain guarded. See [private async IR frames](ir.md#async-private-calls-and-invocation-frames)
 for representation, executable evidence and limits.
 
+An await operand may now select a suspending call or an admitted primitive,
+fulfilled or settled snapshot with `?:`, including nested comma prefixes. The
+condition and prefixes execute once; only the selected branch runs. Each leaf
+keeps its own child effects and the one caller reaction of the original await.
+Unselected branches still pass source validation. Explicit source-site provenance
+lets alternative continuations share that logical site without merging their
+runtime jobs. Stored pending values, pending `&&`/`||`/`??` operands and adoption
+remain guarded.
+
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
 status 1 suspends on a resumable primitive await reaction, including a caught

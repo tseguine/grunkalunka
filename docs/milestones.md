@@ -78,6 +78,11 @@ restoration, and existing resource boundaries against native JS in both engines.
 Maintained source oracles cover selection/reassignment, captures, callbacks,
 returned factories, primitive/Promise inputs and lexical catches. Pending result
 objects/adoption and general synchronous exceptions still keep L5 incomplete.
+Conditional/comma await operands now preserve that effect when selecting between
+a suspending call, primitive value or fulfilled/settled snapshot. Source-site
+metadata keeps one distributed source await within one logical budget site;
+child sites and the separate 32-job runtime limit are unchanged. Pending logical
+operands, storage and adoption remain gaps.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 
