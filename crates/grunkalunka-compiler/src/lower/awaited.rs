@@ -10,10 +10,10 @@ pub(super) struct Operand<'e, 'a> {
 }
 
 #[derive(Clone, Copy)]
-struct Intrinsic<'e, 'a> {
-    argument: Option<&'e Expression<'a>>,
-    rejected: bool,
-    extras: &'e [Argument<'a>],
+pub(super) struct Intrinsic<'e, 'a> {
+    pub argument: Option<&'e Expression<'a>>,
+    pub rejected: bool,
+    pub extras: &'e [Argument<'a>],
 }
 
 impl Lowering<'_, '_> {
@@ -34,54 +34,62 @@ impl Lowering<'_, '_> {
         expression: &Expression<'_>,
         region: &mut Region,
     ) -> Result<Option<ValueId>, String> {
-        let payload = match closures::unwrapped_at(expression, 0) {
-            Some((Expression::CallExpression(call), depth)) => {
-                match intrinsic(call, self.semantic) {
-                    Ok(Some(intrinsic)) if !intrinsic.rejected => Some((intrinsic, depth + 1)),
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
-        let (intrinsic, depth) = payload.unwrap_or((
-            Intrinsic {
-                argument: Some(expression),
-                rejected: false,
-                extras: &[],
-            },
-            0,
-        ));
-        let argument = intrinsic.argument;
-        let result = if let Some(slot) =
-            argument.and_then(|argument| self.fulfilled_promise_slot(argument, depth))
-        {
-            let result = self.value(Type::FulfilledPromise);
-            Self::push(region, expression, Op::Load { result, slot });
-            result
-        } else {
-            if payload.is_none() {
-                return Ok(None);
-            }
-            let input = if let Some(argument) = argument {
-                self.evaluate(argument, region, depth, evaluate::Mode::General)?
-                    .expect("fulfilled primitive payload")
-            } else {
-                self.undefined_value(expression, region)
-            };
-            let result = self.value(Type::FulfilledPromise);
-            Self::push(region, expression, Op::FulfillPromise { result, input });
-            result
-        };
-        // The first value is already a snapshot before later arguments run.
-        for extra in intrinsic.extras {
-            self.evaluate(
-                extra.as_expression().expect("validated ordinary argument"),
-                region,
-                depth,
-                evaluate::Mode::Discard,
-            )?;
+        if !self.fulfilled_promise_shape(expression, 0) {
+            return Ok(None);
         }
-        Ok(Some(result))
+        self.evaluate(expression, region, 0, evaluate::Mode::Promise)
+    }
+
+    // Readonly positive type query. Actual evaluation still checks every source
+    // expression, target, payload, intrinsic and depth in the owned cursor.
+    pub(super) fn fulfilled_promise_shape(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> bool {
+        let mut pending = vec![(expression, depth)];
+        while let Some((expression, depth)) = pending.pop() {
+            let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
+                return false;
+            };
+            if self.fulfilled_promise_slot(expression, depth).is_some() {
+                continue;
+            }
+            match expression {
+                Expression::CallExpression(call)
+                    if intrinsic(call, self.semantic)
+                        .ok()
+                        .flatten()
+                        .is_some_and(|intrinsic| !intrinsic.rejected) => {}
+                Expression::AssignmentExpression(assignment)
+                    if assignment
+                        .left
+                        .as_simple_assignment_target()
+                        .and_then(|target| target_identifier(target, depth).ok().flatten())
+                        .and_then(|identifier| {
+                            numeric_binding(identifier, self.semantic, &self.bindings).ok()
+                        })
+                        .is_some_and(|binding| {
+                            self.slots[binding.slot.0].ty == Type::FulfilledPromise
+                        }) => {}
+                Expression::SequenceExpression(sequence) => {
+                    let Some(last) = sequence.expressions.last() else {
+                        return false;
+                    };
+                    pending.push((last, depth + 1));
+                }
+                Expression::ConditionalExpression(conditional) => {
+                    pending.push((&conditional.alternate, depth + 1));
+                    pending.push((&conditional.consequent, depth + 1));
+                }
+                Expression::LogicalExpression(logical) => {
+                    pending.push((&logical.right, depth + 1));
+                    pending.push((&logical.left, depth + 1));
+                }
+                _ => return false,
+            }
+        }
+        true
     }
 
     pub(super) fn undefined_value(
@@ -144,7 +152,7 @@ pub(super) fn operand<'e, 'a>(
 // Shared validation keeps stored constructors and directly awaited intrinsics
 // aligned. Callers decide whether an unsupported shape is an await diagnostic
 // or should continue through ordinary source admission.
-fn intrinsic<'e, 'a>(
+pub(super) fn intrinsic<'e, 'a>(
     call: &'e CallExpression<'a>,
     semantic: &Semantic<'_>,
 ) -> Result<Option<Intrinsic<'e, 'a>>, &'static str> {

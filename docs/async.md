@@ -57,7 +57,10 @@ Number/numeric-leaf callback argument and source/resource checks still apply.
 
 General async function values and Promise object identity are not reified.
 [Stored fulfilled primitive locals](fulfilled-promise-locals.md) have a distinct
-bounded internal representation. Unawaited async-arrow calls,
+bounded internal representation, including initialized mutable bindings, typed
+assignments/selections and captured-cell writes across suspension. Aliases keep
+their earlier values, failed RHS work skips the store, and object truthiness is
+independent of the primitive payload. Unawaited async-arrow calls,
 mutable/dynamic async function selections and Promise/function
 outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
 the reason would be the Promise object, rather than its eventual primitive value.

@@ -151,6 +151,23 @@ fn immediate_selections_join_private_primitive_inputs() {
 }
 
 #[test]
+fn fulfilled_promise_expressions_preserve_synchronous_effects() {
+    compare_function_programs(
+        &[
+            "let p=Promise.resolve(a);p=Promise.resolve(b,a++);return a;",
+            "const p=Promise.resolve(a);const q=(a++,p);return a;",
+            "let p=Promise.resolve(false);p&&=Promise.resolve(b,a++);return a;",
+            "const p=Promise.resolve(a);p||Promise.resolve(b,a++);return a;",
+            "Promise.resolve(a,a=b);return a;",
+            "let n=0;const f=()=>a;f(Promise.resolve(b,n++));return n;",
+            "let p=Promise.resolve(a);const set=()=>{p=Promise.resolve(b,a++);return a;};return set();",
+            "const p=Promise.resolve(false);return p?1:0;",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn fulfilled_promise_arguments_preserve_synchronous_effects() {
     compare_function_programs(
         &[

@@ -685,12 +685,6 @@ impl Lowering<'_, '_> {
                 None
             };
             let (ty, value) = if let Some(value) = promise {
-                if mutable {
-                    return Err(unsupported(
-                        local,
-                        "stored fulfilled Promises require const bindings",
-                    ));
-                }
                 (Type::FulfilledPromise, value)
             } else if let Some(initializer) = local.init.as_ref() {
                 let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {

@@ -624,4 +624,7 @@ General. Source aliases retain the Promise type and snapshot. Existing typed
 loads, stores, captures and suspension storage preserve it, while source/callback
 parameters and exported result profiles reject it. Projection precedes the
 existing await operation, so construction adds no job and each await keeps its
-reaction boundary. See [the bounded source contract](fulfilled-promise-locals.md).
+reaction boundary. The source evaluator has a distinct Promise mode for initialized
+mutable cells, typed assignments and same-kind selections. It uses the existing
+branch/store operations and projects only at await; truthiness does not inspect
+the primitive payload. See [the bounded source contract](fulfilled-promise-locals.md).

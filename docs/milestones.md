@@ -36,9 +36,11 @@ async caller snapshots within the existing signature-query bounds.
 Lone unused factories now infer their returned constructor groups too, without
 requiring a call or another factory peer. Differential tests preserve dormant
 effects, generic identities, primitive leaf kinds and async reaction order.
-Immutable [fulfilled Promise locals](fulfilled-promise-locals.md) now snapshot
-primitive payloads at construction and preserve aliases, captures and repeated
-await jobs. The internal type remains distinct from its primitive completion;
+[Fulfilled Promise locals](fulfilled-promise-locals.md) snapshot primitive payloads
+at construction and preserve aliases, mutable captured cells and repeated await
+jobs. A typed iterative cursor supports assignment, same-kind selection, object
+truthiness and nested fulfilled adoption. The internal type remains distinct
+from its primitive completion;
 general Promise identity, rejected/unsettled values and escaping objects remain
 separate requirements.
 Represented `Promise.resolve`/`Promise.reject` intrinsics now default missing

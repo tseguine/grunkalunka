@@ -1,6 +1,27 @@
 //! Control-refactor observations use the real parser, semantic analysis and IR.
 use std::cell::Cell;
 
+#[test]
+fn fulfilled_promise_expression_cursor_does_not_reenter_for_nested_values() {
+    for count in [127, 128] {
+        let assignments = format!("{}Promise.resolve(a)", "p=".repeat(count));
+        let source = format!(
+            "export async function run(a,b){{let p=Promise.resolve(b);{assignments};return await p;}}"
+        );
+        let (result, maximum, _, pending) = observe(|| crate::compile_async(&source, false));
+        assert_eq!(result.is_ok(), count == 127, "{count} assignments");
+        assert_eq!(maximum, 1, "Promise expressions must stay in one cursor");
+        assert!(pending <= 132, "pending work: {pending}");
+    }
+    for count in [128, 129] {
+        let nested = format!("{}a{}", "Promise.resolve(".repeat(count), ")".repeat(count));
+        let source = format!("export async function run(a,b){{const p={nested};return await p;}}");
+        let (result, maximum, _, _) = observe(|| crate::compile_async(&source, false));
+        assert_eq!(result.is_ok(), count == 128, "{count} constructors");
+        assert_eq!(maximum, 1);
+    }
+}
+
 thread_local! {
     static ACTIVE: Cell<usize> = const { Cell::new(0) };
     static MAXIMUM: Cell<usize> = const { Cell::new(0) };

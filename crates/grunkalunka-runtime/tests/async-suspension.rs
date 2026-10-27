@@ -231,6 +231,128 @@ fn stored_fulfilled_promises_snapshot_primitive_values() {
 }
 
 #[test]
+fn mutable_fulfilled_promises_retain_primitive_values() {
+    compare_promises(
+        &["let p=Promise.resolve(a);return await p;"],
+        &[(4.0, 2.0), (-0.0, -2.0)],
+    );
+}
+
+#[test]
+fn mutable_fulfilled_promise_assignments_keep_snapshots_and_jobs() {
+    compare_promises(
+        &[
+            "let p=Promise.resolve(a);p=Promise.resolve(b);return await p;",
+            "let p=Promise.resolve(a);const old=p;p=Promise.resolve(b);return +(await old)+(+(await p));",
+            "let p=Promise.resolve(a);const q=Promise.resolve(false);p=q;return await p;",
+            "let p=Promise.resolve(a);p=Promise.resolve();return await p;",
+            "let p=Promise.resolve(a);return await (p=Promise.resolve(null));",
+            "let p=Promise.resolve(a);const old=(p=Promise.resolve(b));p=Promise.resolve(null);return await old;",
+            "let p=Promise.resolve(a);p=Promise.resolve(b,a=await b);return +(await p)+a;",
+            "let p=Promise.resolve(a);try{p=Promise.resolve(b,await Promise.reject(null));}catch(e){return await p;}return await p;",
+            "let p=Promise.resolve(a);const set=()=>{p=Promise.resolve(b);return a;};await a;set();return await p;",
+            "let p=Promise.resolve(a);const read=async()=>await p;p=Promise.resolve(b);return await read();",
+            "let p=Promise.resolve(a);return await Promise.resolve(p,p=Promise.resolve(b));",
+            "let p=Promise.resolve(a);p=Promise.resolve(p,p=Promise.resolve(b));return await p;",
+            "let p=Promise.resolve(a);const f=async()=>{p=Promise.resolve(await b);return await p;};const old=p;return +(await f())+(+(await old));",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn fulfilled_promise_selections_preserve_object_truthiness_and_cells() {
+    compare_promises(
+        &[
+            "const p=a?Promise.resolve(a):Promise.resolve(null);return await p;",
+            "let p=Promise.resolve(a);const q=Promise.resolve(false);p=a?p:q;return await p;",
+            "let n=0;const p=(n++,Promise.resolve(a));return +(await p)+n;",
+            "let p=Promise.resolve(a);const q=p&&(p=Promise.resolve(false));return await q;",
+            "let p=Promise.resolve(a);const q=p||(p=Promise.resolve(b));return await q;",
+            "let p=Promise.resolve(a);const q=p??(p=Promise.resolve(b));return await q;",
+            "let p=Promise.resolve(false);p&&=Promise.resolve(b);return await p;",
+            "let p=Promise.resolve(undefined);p&&=Promise.resolve(await b);return await p;",
+            "let p=Promise.resolve(a);p||=(await Promise.reject(b),Promise.resolve(b));return await p;",
+            "let p=Promise.resolve(a);p??=Promise.resolve(b,await b);return await p;",
+            "let p=Promise.resolve(a);return await (p&&=Promise.resolve(false));",
+            "let p=Promise.resolve(a);return (p=Promise.resolve(false))?await p:b;",
+            "const p=Promise.resolve(false);if(p)return await p;return b;",
+            "const p=Promise.resolve(0);return !p;",
+            "const p=Promise.resolve(Promise.resolve(a,a=b),a++);return +(await p)+a;",
+            "let p=Promise.resolve(a);for(let i=0;i<3;i++){p=Promise.resolve(i);await b;}return await p;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn mutable_promise_scalar_assignments_fail_at_source_admission() {
+    for body in [
+        "let p=Promise.resolve(a);return (p=a);",
+        "let p=Promise.resolve(a);p+=a;return await p;",
+        "let p=Promise.resolve(a);p++;return await p;",
+    ] {
+        let error = compile_async(&source_for(body), false)
+            .err()
+            .expect("Promise scalar assignment must fail");
+        assert!(
+            error.starts_with("unsupported at bytes ") && error.contains("Promise"),
+            "{body}: {error}"
+        );
+    }
+}
+
+#[test]
+fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
+    let plain = "export async function run(a,b){let p=Promise.resolve(a);p=a?Promise.resolve(false):p;return await (p||=Promise.resolve(b));}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let p:NotPromise=Promise.resolve(a as never);p=((a as any)?Promise.resolve(false as never):(p as any)) as Wrong;return await ((p||=Promise.resolve(b as Missing)) as any);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    for (count, admitted) in [(31, true), (32, false)] {
+        let body = format!(
+            "let p=Promise.resolve(a);{}return await p;",
+            "p=Promise.resolve(await b);".repeat(count)
+        );
+        for ts in [false, true] {
+            assert_eq!(compile_async(&source_for(&body), ts).is_ok(), admitted);
+        }
+        if admitted {
+            compare_promises(&[&body], &[(4.0, 2.0)]);
+        }
+    }
+    for body in [
+        "const p=Promise.resolve(a);p=Promise.resolve(b);return await p;",
+        "let p=Promise.resolve(a);p=Promise.reject(b);return await p;",
+        "let p=Promise.resolve(a);p=null;return await p;",
+        "let p; p=Promise.resolve(b);return await p;",
+        "const p=Promise.resolve(a);return p;",
+        "const p=Promise.resolve(a);return +p;",
+        "const p=Promise.resolve(a);return p===p;",
+        "const p=Promise.resolve(a);return await (p&&a);",
+        "const p=Promise.resolve(a);throw p;",
+        "const p=Promise.resolve(a);return await Promise.reject(p);",
+        "const p=Promise.resolve(a);const id=x=>x;return await id(p);",
+        "const p=Promise.resolve(a);const get=()=>p;return await get();",
+    ] {
+        for ts in [false, true] {
+            assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
+        }
+    }
+}
+
+#[test]
 fn promise_intrinsics_default_missing_payloads_to_undefined() {
     compare_promises(
         &[
@@ -348,7 +470,6 @@ fn promise_intrinsic_arguments_keep_erasure_and_resource_boundaries() {
 #[test]
 fn stored_fulfilled_promises_keep_object_and_intrinsic_boundaries() {
     for body in [
-        "let p=Promise.resolve(a);return await p;",
         "const p=Promise.reject(a);return await p;",
         "const p=Promise.resolve(a);return p;",
         "const p=Promise.resolve(a);return p===p;",

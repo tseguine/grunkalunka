@@ -1,4 +1,4 @@
-//! Explicit control for Number/Predicate/General/Function/Discard evaluation.
+//! Explicit control for Number/Predicate/General/Function/Promise/Discard evaluation.
 //! Requests borrow original AST nodes. Only this cursor owns unfinished regions;
 //! continuations own completed children until their parent operation is emitted.
 use super::*;
@@ -11,6 +11,7 @@ pub(super) enum Mode {
     Arithmetic,
     General,
     Function(usize),
+    Promise,
 }
 
 #[derive(Clone, Copy)]
@@ -19,16 +20,27 @@ enum Value {
     Predicate(ValueId),
     General(ValueId),
     Function(ValueId),
+    Promise(ValueId),
 }
 impl Value {
     fn id(self) -> ValueId {
         match self {
-            Self::Number(id) | Self::Predicate(id) | Self::General(id) | Self::Function(id) => id,
+            Self::Number(id)
+            | Self::Predicate(id)
+            | Self::General(id)
+            | Self::Function(id)
+            | Self::Promise(id) => id,
         }
     }
     fn general(self) -> ValueId {
         let Self::General(id) = self else {
             unreachable!("General continuation")
+        };
+        id
+    }
+    fn promise(self) -> ValueId {
+        let Self::Promise(id) = self else {
+            unreachable!("Promise continuation")
         };
         id
     }
@@ -91,6 +103,9 @@ enum Work<'e, 'a> {
     Eval(&'e Expression<'a>, usize, Mode),
     Forget,
     Await(&'e Expression<'a>, bool, Type),
+    FulfillPromise(&'e Expression<'a>),
+    PromiseValue(&'e Expression<'a>),
+    PromiseTruthy(&'e Expression<'a>),
     FinishAwaitCall(&'e Expression<'a>, Type),
     VoidResult(&'e Expression<'a>),
     Pack(&'e Expression<'a>),
@@ -148,7 +163,7 @@ enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         slot: SlotId,
     },
-    StoreFunction {
+    StoreTyped {
         node: &'e Expression<'a>,
         slot: SlotId,
     },
@@ -328,6 +343,12 @@ impl Lowering<'_, '_> {
             ));
         }
         let general = ty == Type::General;
+        if ty == Type::FulfilledPromise && !matches!(mode, Mode::Promise) {
+            return Err(unsupported(
+                node,
+                "Promise logical assignments require a Promise value position",
+            ));
+        }
         if general && !matches!(mode, Mode::General) {
             return Err(unsupported(
                 node,
@@ -349,7 +370,7 @@ impl Lowering<'_, '_> {
                     value: false,
                 }
             }
-        } else if matches!(ty, Type::Closure(_)) {
+        } else if matches!(ty, Type::Closure(_) | Type::FulfilledPromise) {
             Op::Boolean {
                 result: condition,
                 value: true,
@@ -380,6 +401,7 @@ impl Lowering<'_, '_> {
             match ty {
                 Type::Closure(signature) => Mode::Function(signature),
                 Type::General => Mode::General,
+                Type::FulfilledPromise => Mode::Promise,
                 _ => Mode::Number,
             },
         ));
@@ -448,6 +470,35 @@ impl Lowering<'_, '_> {
                     let result = self.value(Type::General);
                     Self::push(regions.current(), node, Op::AwaitCall { result, body });
                     values.push(Value::General(result));
+                }
+                Work::FulfillPromise(node) => {
+                    let input = values.pop().expect("fulfilled payload").general();
+                    let result = self.value(Type::FulfilledPromise);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::FulfillPromise { result, input },
+                    );
+                    values.push(Value::Promise(result));
+                }
+                Work::PromiseValue(node) => {
+                    let input = values.pop().expect("awaited Promise").promise();
+                    let result = self.value(Type::General);
+                    Self::push(regions.current(), node, Op::PromiseValue { result, input });
+                    values.push(Value::General(result));
+                }
+                Work::PromiseTruthy(node) => {
+                    values.pop().expect("Promise truthiness operand").promise();
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Boolean {
+                            result,
+                            value: true,
+                        },
+                    );
+                    values.push(Value::Predicate(result));
                 }
                 Work::Await(node, rejected, ty) => {
                     let input = values.pop().expect("await operand").id();
@@ -867,6 +918,8 @@ impl Lowering<'_, '_> {
                             unreachable!("function logical assignment RHS")
                         };
                         value
+                    } else if ty == Type::FulfilledPromise {
+                        value.promise()
                     } else if general {
                         value.general()
                     } else {
@@ -895,19 +948,21 @@ impl Lowering<'_, '_> {
                     );
                     values.push(if matches!(ty, Type::Closure(_)) {
                         Value::Function(result)
+                    } else if ty == Type::FulfilledPromise {
+                        Value::Promise(result)
                     } else if general {
                         Value::General(result)
                     } else {
                         Value::Number(result)
                     });
                 }
-                Work::StoreFunction { node, slot } => {
+                Work::StoreTyped { node, slot } => {
                     Self::push(
                         regions.current(),
                         node,
                         Op::Store {
                             slot,
-                            value: values.last().expect("function assignment RHS").id(),
+                            value: values.last().expect("typed assignment RHS").id(),
                         },
                     );
                 }
@@ -920,7 +975,7 @@ impl Lowering<'_, '_> {
                             Self::push(regions.current(), node, Op::Pack { result, input });
                             result
                         }
-                        Value::Predicate(_) | Value::Function(_) => {
+                        Value::Predicate(_) | Value::Function(_) | Value::Promise(_) => {
                             unreachable!("typed General assignment RHS")
                         }
                     };
@@ -1162,6 +1217,7 @@ impl Lowering<'_, '_> {
                         Mode::General => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
+                        Mode::Promise => Type::FulfilledPromise,
                         _ => Type::Number,
                     };
                     let result = self.value(ty);
@@ -1180,7 +1236,7 @@ impl Lowering<'_, '_> {
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
-                        Type::FulfilledPromise => unreachable!("dedicated Promise cursor"),
+                        Type::FulfilledPromise => Value::Promise(result),
                     });
                 }
                 Work::LogicalLeft {
@@ -1243,9 +1299,9 @@ impl Lowering<'_, '_> {
                             Self::push(regions.current(), node, Op::Truthy { result, input });
                             result
                         }
-                        Value::Function(_) => {
-                            // Functions are truthy and non-nullish, so || and ??
-                            // both keep this already evaluated left snapshot.
+                        Value::Function(_) | Value::Promise(_) => {
+                            // Functions and Promises are truthy and non-nullish,
+                            // so || and ?? keep this evaluated left snapshot.
                             let result = self.value(Type::Predicate);
                             Self::push(
                                 regions.current(),
@@ -1290,6 +1346,7 @@ impl Lowering<'_, '_> {
                         Mode::General => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
+                        Mode::Promise => Type::FulfilledPromise,
                         _ => Type::Number,
                     };
                     let result = self.value(ty);
@@ -1308,10 +1365,15 @@ impl Lowering<'_, '_> {
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
-                        Type::FulfilledPromise => unreachable!("dedicated Promise cursor"),
+                        Type::FulfilledPromise => Value::Promise(result),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
+                    if self.fulfilled_promise_shape(node, depth) {
+                        work.push(Work::Forget);
+                        work.push(Work::Eval(node, depth, Mode::Promise));
+                        continue;
+                    }
                     if let Some(arity) = self.function_arity(node, depth) {
                         let outer = self.function_result_depth;
                         self.function_result_depth = (self.inline_depth + self.statement_depth)
@@ -1397,6 +1459,103 @@ impl Lowering<'_, '_> {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
                     }
+                    if matches!(mode, Mode::Promise) {
+                        if schedule_selection(&mut work, node, depth, mode)? {
+                            continue;
+                        }
+                        if let Some(slot) = self.fulfilled_promise_slot(node, depth) {
+                            let result = self.value(Type::FulfilledPromise);
+                            Self::push(regions.current(), node, Op::Load { result, slot });
+                            values.push(Value::Promise(result));
+                            continue;
+                        }
+                        if let Expression::AssignmentExpression(assignment) = node {
+                            if matches!(
+                                assignment.operator,
+                                AssignmentOperator::LogicalAnd
+                                    | AssignmentOperator::LogicalOr
+                                    | AssignmentOperator::LogicalNullish
+                            ) {
+                                self.schedule_logical_assignment(
+                                    node,
+                                    assignment,
+                                    depth,
+                                    mode,
+                                    &mut regions,
+                                    &mut work,
+                                )?;
+                                continue;
+                            }
+                            let identifier = assignment
+                                .left
+                                .as_simple_assignment_target()
+                                .and_then(|target| target_identifier(target, depth).ok().flatten())
+                                .ok_or_else(|| {
+                                    unsupported(
+                                        node,
+                                        "Promise assignment requires an initialized identifier",
+                                    )
+                                })?;
+                            let binding =
+                                numeric_binding(identifier, self.semantic, &self.bindings)?;
+                            if !binding.mutable {
+                                return Err(unsupported(
+                                    node,
+                                    "assignment to a const binding is not admitted",
+                                ));
+                            }
+                            if assignment.operator != AssignmentOperator::Assign
+                                || self.slots[binding.slot.0].ty != Type::FulfilledPromise
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "Promise assignment requires plain = and an unchanged Promise type",
+                                ));
+                            }
+                            work.push(Work::StoreTyped {
+                                node,
+                                slot: binding.slot,
+                            });
+                            work.push(Work::Eval(&assignment.right, depth + 1, Mode::Promise));
+                            continue;
+                        }
+                        if let Expression::CallExpression(call) = node
+                            && let Some(intrinsic) = awaited::intrinsic(call, self.semantic)
+                                .map_err(|message| unsupported(node, message))?
+                            && !intrinsic.rejected
+                        {
+                            for extra in intrinsic.extras.iter().rev() {
+                                work.push(Work::Eval(
+                                    extra.as_expression().expect("validated ordinary argument"),
+                                    depth + 1,
+                                    Mode::Discard,
+                                ));
+                            }
+                            if let Some(argument) = intrinsic.argument {
+                                if self.fulfilled_promise_shape(argument, depth + 1) {
+                                    work.push(Work::Eval(argument, depth + 1, Mode::Promise));
+                                } else {
+                                    work.push(Work::FulfillPromise(node));
+                                    work.push(Work::Eval(argument, depth + 1, Mode::General));
+                                }
+                            } else {
+                                let input = self.undefined_value(node, regions.current());
+                                values.push(Value::General(input));
+                                work.push(Work::FulfillPromise(node));
+                            }
+                            continue;
+                        }
+                        return Err(unsupported(
+                            node,
+                            "expression requires a represented fulfilled Promise",
+                        ));
+                    }
+                    if matches!(mode, Mode::Predicate) && self.fulfilled_promise_shape(node, depth)
+                    {
+                        work.push(Work::PromiseTruthy(node));
+                        work.push(Work::Eval(node, depth, Mode::Promise));
+                        continue;
+                    }
                     if let Mode::Function(signature) = mode {
                         if schedule_selection(&mut work, node, depth, mode)? {
                             continue;
@@ -1434,7 +1593,7 @@ impl Lowering<'_, '_> {
                                     "function assignment requires plain = with unchanged arity",
                                 ));
                             }
-                            work.push(Work::StoreFunction {
+                            work.push(Work::StoreTyped {
                                 node,
                                 slot: binding.slot,
                             });
@@ -1528,7 +1687,7 @@ impl Lowering<'_, '_> {
                         };
                         let argument_depth = operand.depth;
                         let rejected = operand.rejected;
-                        if let Some(slot) = self.fulfilled_promise_slot(argument, argument_depth) {
+                        if self.fulfilled_promise_shape(argument, argument_depth) {
                             if rejected {
                                 return Err(unsupported(
                                     node,
@@ -1541,25 +1700,6 @@ impl Lowering<'_, '_> {
                                     "stored Promise completions require a primitive value or coercion position",
                                 ));
                             }
-                            let promise = self.value(Type::FulfilledPromise);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Load {
-                                    result: promise,
-                                    slot,
-                                },
-                            );
-                            let input = self.value(Type::General);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::PromiseValue {
-                                    result: input,
-                                    input: promise,
-                                },
-                            );
-                            values.push(Value::General(input));
                             work.push(Work::Await(node, false, Type::General));
                             for extra in operand.extras.iter().rev() {
                                 work.push(Work::Eval(
@@ -1568,6 +1708,8 @@ impl Lowering<'_, '_> {
                                     Mode::Discard,
                                 ));
                             }
+                            work.push(Work::PromiseValue(node));
+                            work.push(Work::Eval(argument, argument_depth, Mode::Promise));
                             continue;
                         }
                         let ty = if matches!(mode, Mode::General) {
@@ -2149,6 +2291,12 @@ impl Lowering<'_, '_> {
                                     "function assignments require a function-valued or discarded position",
                                 ));
                             }
+                            if self.slots[slot.0].ty == Type::FulfilledPromise {
+                                return Err(unsupported(
+                                    node,
+                                    "Promise assignments require a Promise-valued or discarded position",
+                                ));
+                            }
                             let general = self.slots[slot.0].ty == Type::General;
                             if general && operator.is_none() {
                                 work.push(Work::StoreGeneral { node, slot });
@@ -2208,6 +2356,12 @@ impl Lowering<'_, '_> {
                                 return Err(unsupported(
                                     node,
                                     "function bindings do not support numeric updates",
+                                ));
+                            }
+                            if self.slots[slot.0].ty == Type::FulfilledPromise {
+                                return Err(unsupported(
+                                    node,
+                                    "Promise bindings do not support numeric updates",
                                 ));
                             }
                             let general = self.slots[slot.0].ty == Type::General;
