@@ -94,7 +94,7 @@ impl ClosureSignatures {
                 return false;
             }
             match signature.result {
-                Type::Number | Type::General => return true,
+                Type::Number | Type::General | Type::FulfilledPromise => return true,
                 Type::Closure(next) if next < id => id = next,
                 _ => return false,
             }
@@ -111,8 +111,10 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if !matches!(signature.result, Type::Number | Type::General)
-                || signature.parameters.len() > 1000
+            if !matches!(
+                signature.result,
+                Type::Number | Type::General | Type::FulfilledPromise
+            ) || signature.parameters.len() > 1000
             {
                 return false;
             }
@@ -1344,7 +1346,7 @@ pub(crate) fn verify_module_with_entry_type(
             })
             || !matches!(
                 signature.result,
-                Type::Number | Type::General | Type::Closure(_)
+                Type::Number | Type::General | Type::Closure(_) | Type::FulfilledPromise
             )
             || matches!(signature.result, Type::Closure(id) if id > 1000 && id >= 1001 + index)
             || module.closure_signatures.higher[..index].contains(signature)
@@ -1372,7 +1374,7 @@ pub(crate) fn verify_module_with_entry_type(
     for (index, function) in module.functions.iter().enumerate() {
         let result = if closure_environment(function).is_some() {
             if !match function.return_type {
-                Type::Number | Type::General => true,
+                Type::Number | Type::General | Type::FulfilledPromise => true,
                 Type::Closure(signature) => {
                     module.closure_signatures.is_returned_function(signature)
                 }

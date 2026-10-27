@@ -244,3 +244,13 @@ Lone factories also seed the query, including unused conditional/logical and
 complete block returns. Dormant constructor effects stay dormant, and generic
 identity calls retain their separate specialization. Returned functions continue
 to use the existing scalar-kind, capture and async caller protocols.
+
+Synchronous runtime closures can also return represented fulfilled primitive
+Promises through concise or complete block bodies. The logical signature uses
+`FulfilledPromise`, distinct from General; emission reuses the existing tag/f64
+return pair. Reassignment, returned-function chains and supported callback
+forwarding preserve result snapshots, captured cells and callee-before-argument
+evaluation. Calling adds no reaction job; an explicit await adds its ordinary job.
+Promise parameters, mixed primitive/Promise result interfaces, pending/rejected
+Promise objects and async-return adoption remain outside this slice. See
+[fulfilled Promise values](fulfilled-promise-locals.md) for evidence and guards.

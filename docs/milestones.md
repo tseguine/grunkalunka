@@ -49,7 +49,10 @@ and suspension before the outer reaction. Stored fulfilled constructors share
 these rules; pending async-call payloads with surplus arguments remain separate.
 Known synchronous local arrows now return fulfilled Promise snapshots through
 concise or complete block bodies. Their calls add no job; the caller's await keeps
-its reaction. Promise parameters and runtime-selected result interfaces remain open.
+its reaction. Runtime-selected/reassigned closures, returned functions and supported
+callbacks now return the same fulfilled snapshots through distinct logical
+signatures and the existing physical pair. Promise parameters, mixed result
+interfaces and async-return adoption remain open.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

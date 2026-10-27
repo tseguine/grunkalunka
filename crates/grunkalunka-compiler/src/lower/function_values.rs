@@ -55,7 +55,10 @@ impl Lowering<'_, '_> {
             .get_expression()
             .and_then(|body| self.function_arity_in(body, 0, &bindings, calls + 1))
             .or_else(|| self.block_function_arity_in(arrow, 0, &bindings, calls + 1))
-            .map_or_else(|| self.arrow_scalar_result(arrow, &bindings), Type::Closure);
+            .map_or_else(
+                || self.arrow_scalar_result_at(arrow, &bindings, calls),
+                Type::Closure,
+            );
         Some(
             self.closure_signatures
                 .borrow_mut()
@@ -70,6 +73,25 @@ impl Lowering<'_, '_> {
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
         bindings: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Type {
+        self.arrow_scalar_result_at(arrow, bindings, 0)
+    }
+
+    fn arrow_scalar_result_at(
+        &self,
+        arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+        bindings: &BTreeMap<SymbolId, Option<usize>>,
+        calls: usize,
+    ) -> Type {
+        if !arrow.r#async
+            && storage::arrow_returns(arrow, self.semantic).is_some_and(|results| {
+                !results.is_empty()
+                    && results.into_iter().all(|expression| {
+                        self.fulfilled_promise_shape_in(expression, 0, bindings, calls)
+                    })
+            })
+        {
+            return Type::FulfilledPromise;
+        }
         if self.general_results.contains(&arrow.node_id.get()) {
             return Type::General;
         }
@@ -591,7 +613,7 @@ impl Lowering<'_, '_> {
             .result(arity)
             .expect("checked signature");
         if !match return_type {
-            Type::Number | Type::General => true,
+            Type::Number | Type::General | Type::FulfilledPromise => true,
             Type::Closure(signature) => self
                 .closure_signatures
                 .borrow()
@@ -683,6 +705,10 @@ impl Lowering<'_, '_> {
         let returned = if let Some(expression) = arrow.get_expression() {
             if let Type::Closure(signature) = return_type {
                 child.function_value(expression, &mut body, signature, 0)?
+            } else if return_type == Type::FulfilledPromise {
+                child
+                    .evaluate(expression, &mut body, 0, evaluate::Mode::Promise)?
+                    .expect("fulfilled Promise closure result")
             } else if return_type == Type::General {
                 child
                     .evaluate(expression, &mut body, 0, evaluate::Mode::General)?

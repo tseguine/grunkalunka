@@ -437,28 +437,84 @@ fn refine_shapes<'a>(
             })
         })
         .collect();
-    let constructor_kind =
-        |body: NodeId, parameters: &Parameters, kinds: &storage::BindingKinds| {
-            let arrow = arrows[&body];
-            let number = !kinds.general_results.contains(&body)
-                && storage::arrow_number_result_shape(
-                    arrow,
-                    semantic,
-                    functions,
-                    storage::NumberCalls::Proven(&kinds.number_calls),
-                    |symbol| !kinds.storage.contains(&symbol),
-                    |symbol| {
-                        !kinds.storage.contains(&symbol)
-                            && !parameters
-                                .values()
-                                .any(|inputs| inputs.contains_key(&symbol))
-                    },
-                );
-            signatures.borrow_mut().intern(
-                parameter_types(arrow, parameters, &kinds.inputs),
-                if number { Type::Number } else { Type::General },
-            )
-        };
+    let constructor_kind = |body: NodeId,
+                            parameters: &Parameters,
+                            kinds: &storage::BindingKinds| {
+        let arrow = arrows[&body];
+        let promise = !arrow.r#async
+            && storage::arrow_returns(arrow, semantic).is_some_and(|results| {
+                !results.is_empty()
+                    && results.into_iter().all(|expression| {
+                        awaited::fulfilled_shape(
+                            expression,
+                            semantic,
+                            0,
+                            |_| None,
+                            |call, _| {
+                                let (sources, mut bodies) =
+                                    returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+                                let mut proven = !bodies.is_empty();
+                                let mut results = Vec::new();
+                                for source in sources {
+                                    if let Some(signature) =
+                                        parameters.values().find_map(|inputs| inputs.get(&source))
+                                    {
+                                        if signatures.borrow().result(*signature)
+                                            != Some(Type::FulfilledPromise)
+                                        {
+                                            return None;
+                                        }
+                                        proven = true;
+                                    } else {
+                                        let known = targets.get(&source)?;
+                                        bodies.extend(known);
+                                        proven |= !known.is_empty();
+                                    }
+                                }
+                                if !proven {
+                                    return None;
+                                }
+                                for body in bodies {
+                                    let arrow = arrows[&body];
+                                    if arrow.r#async {
+                                        return None;
+                                    }
+                                    let returned = storage::arrow_returns(arrow, semantic)?;
+                                    if returned.is_empty() {
+                                        return None;
+                                    }
+                                    results.extend(returned);
+                                }
+                                Some(results)
+                            },
+                        )
+                    })
+            });
+        let number = !kinds.general_results.contains(&body)
+            && storage::arrow_number_result_shape(
+                arrow,
+                semantic,
+                functions,
+                storage::NumberCalls::Proven(&kinds.number_calls),
+                |symbol| !kinds.storage.contains(&symbol),
+                |symbol| {
+                    !kinds.storage.contains(&symbol)
+                        && !parameters
+                            .values()
+                            .any(|inputs| inputs.contains_key(&symbol))
+                },
+            );
+        signatures.borrow_mut().intern(
+            parameter_types(arrow, parameters, &kinds.inputs),
+            if promise {
+                Type::FulfilledPromise
+            } else if number {
+                Type::Number
+            } else {
+                Type::General
+            },
+        )
+    };
     for _ in 0..8 {
         let function_kind = |expression: &Expression<'a>,
                              parameters: &Parameters,

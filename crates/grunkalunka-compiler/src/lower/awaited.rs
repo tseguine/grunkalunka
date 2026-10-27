@@ -60,99 +60,48 @@ impl Lowering<'_, '_> {
         expression: &Expression<'_>,
         depth: usize,
     ) -> bool {
-        let mut pending = vec![(expression, depth)];
-        while let Some((expression, depth)) = pending.pop() {
-            let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
-                return false;
-            };
-            let identifier = match expression {
-                Expression::Identifier(identifier) => Some(&**identifier),
-                Expression::AssignmentExpression(assignment) => assignment
-                    .left
-                    .as_simple_assignment_target()
-                    .and_then(|target| target_identifier(target, depth).ok().flatten()),
-                _ => None,
-            };
-            if let Some(identifier) = identifier {
-                if let Ok(binding) = numeric_binding(identifier, self.semantic, &self.bindings) {
-                    if self.slots[binding.slot.0].ty != Type::FulfilledPromise {
-                        return false;
-                    }
-                    continue;
-                }
-                // Definition checking has not executed the arrow's declarations.
-                // An original initializer may prove its logical result kind;
-                // evaluation must still publish/validate the binding in order.
-                let Some(symbol) = identifier.reference_id.get().and_then(|reference| {
-                    self.semantic.scoping().get_reference(reference).symbol_id()
-                }) else {
-                    return false;
-                };
-                let initializer = self.semantic.nodes().iter().find_map(|node| {
-                    let oxc_ast::AstKind::VariableDeclaration(declaration) = node.kind() else {
-                        return None;
-                    };
-                    declaration.declarations.iter().find_map(|local| {
-                        let BindingPattern::BindingIdentifier(binding) = &local.id else {
-                            return None;
-                        };
-                        (binding.symbol_id.get() == Some(symbol))
-                            .then_some(local.init.as_ref())
-                            .flatten()
-                    })
-                });
-                let Some(initializer) = initializer else {
-                    return false;
-                };
-                pending.push((initializer, depth + 1));
-                continue;
-            }
-            match expression {
-                Expression::CallExpression(call)
-                    if intrinsic(call, self.semantic)
-                        .ok()
-                        .flatten()
-                        .is_some_and(|intrinsic| !intrinsic.rejected) => {}
-                Expression::CallExpression(call) => {
-                    let Some(closure) = self.closure_target(&call.callee, depth + 1) else {
-                        return false;
-                    };
+        self.fulfilled_promise_shape_in(expression, depth, &std::collections::BTreeMap::new(), 0)
+    }
+
+    pub(super) fn fulfilled_promise_shape_in(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+        bindings: &std::collections::BTreeMap<SymbolId, Option<usize>>,
+        calls: usize,
+    ) -> bool {
+        fulfilled_shape(
+            expression,
+            self.semantic,
+            depth,
+            |identifier| {
+                numeric_binding(identifier, self.semantic, &self.bindings)
+                    .ok()
+                    .map(|binding| self.slots[binding.slot.0].ty == Type::FulfilledPromise)
+            },
+            |call, depth| {
+                if let Some(closure) = self.closure_target(&call.callee, depth + 1) {
                     let arrow = self.arrow(closure.arrow);
                     if arrow.r#async {
-                        return false;
+                        return None;
                     }
                     if closure.checked {
-                        if closure.result != Type::FulfilledPromise {
-                            return false;
-                        }
-                    } else {
-                        let Some(results) = storage::arrow_returns(arrow, self.semantic) else {
-                            return false;
-                        };
-                        if results.is_empty() {
-                            return false;
-                        }
-                        pending.extend(results.into_iter().map(|result| (result, depth + 1)));
+                        return (closure.result == Type::FulfilledPromise).then(Vec::new);
                     }
+                    let results = storage::arrow_returns(arrow, self.semantic)?;
+                    return (!results.is_empty()).then_some(results);
                 }
-                Expression::SequenceExpression(sequence) => {
-                    let Some(last) = sequence.expressions.last() else {
-                        return false;
-                    };
-                    pending.push((last, depth + 1));
+                if calls >= 8 {
+                    return None;
                 }
-                Expression::ConditionalExpression(conditional) => {
-                    pending.push((&conditional.alternate, depth + 1));
-                    pending.push((&conditional.consequent, depth + 1));
-                }
-                Expression::LogicalExpression(logical) => {
-                    pending.push((&logical.right, depth + 1));
-                    pending.push((&logical.left, depth + 1));
-                }
-                _ => return false,
-            }
-        }
-        true
+                self.function_arity_in(&call.callee, depth + 1, bindings, calls + 1)
+                    .filter(|signature| {
+                        self.closure_signatures.borrow().result(*signature)
+                            == Some(Type::FulfilledPromise)
+                    })
+                    .map(|_| Vec::new())
+            },
+        )
     }
 
     pub(super) fn undefined_value(
@@ -171,6 +120,96 @@ impl Lowering<'_, '_> {
         );
         result
     }
+}
+
+// Shared positive result-kind proof for callback inference and actual lowering.
+// Resolver results are original source expressions, never rewritten/evaluated AST.
+pub(super) fn fulfilled_shape<'e, 'a>(
+    expression: &'e Expression<'a>,
+    semantic: &Semantic<'a>,
+    depth: usize,
+    binding: impl Fn(&IdentifierReference<'a>) -> Option<bool>,
+    call_results: impl Fn(&CallExpression<'a>, usize) -> Option<Vec<&'e Expression<'a>>>,
+) -> bool {
+    let mut pending = vec![(expression, depth)];
+    while let Some((expression, depth)) = pending.pop() {
+        let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
+            return false;
+        };
+        let identifier = match expression {
+            Expression::Identifier(identifier) => Some(&**identifier),
+            Expression::AssignmentExpression(assignment) => assignment
+                .left
+                .as_simple_assignment_target()
+                .and_then(|target| target_identifier(target, depth).ok().flatten()),
+            _ => None,
+        };
+        if let Some(identifier) = identifier {
+            if let Some(promise) = binding(identifier) {
+                if !promise {
+                    return false;
+                }
+                continue;
+            }
+            // Definition checking has not executed the arrow's declarations.
+            // An original initializer may prove its logical result kind;
+            // evaluation must still publish/validate the binding in order.
+            let Some(symbol) = identifier
+                .reference_id
+                .get()
+                .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
+            else {
+                return false;
+            };
+            let initializer = semantic.nodes().iter().find_map(|node| {
+                let oxc_ast::AstKind::VariableDeclaration(declaration) = node.kind() else {
+                    return None;
+                };
+                declaration.declarations.iter().find_map(|local| {
+                    let BindingPattern::BindingIdentifier(binding) = &local.id else {
+                        return None;
+                    };
+                    (binding.symbol_id.get() == Some(symbol))
+                        .then_some(local.init.as_ref())
+                        .flatten()
+                })
+            });
+            let Some(initializer) = initializer else {
+                return false;
+            };
+            pending.push((initializer, depth + 1));
+            continue;
+        }
+        match expression {
+            Expression::CallExpression(call)
+                if intrinsic(call, semantic)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|intrinsic| !intrinsic.rejected) => {}
+            Expression::CallExpression(call) => {
+                let Some(results) = call_results(call, depth) else {
+                    return false;
+                };
+                pending.extend(results.into_iter().map(|result| (result, depth + 1)));
+            }
+            Expression::SequenceExpression(sequence) => {
+                let Some(last) = sequence.expressions.last() else {
+                    return false;
+                };
+                pending.push((last, depth + 1));
+            }
+            Expression::ConditionalExpression(conditional) => {
+                pending.push((&conditional.alternate, depth + 1));
+                pending.push((&conditional.consequent, depth + 1));
+            }
+            Expression::LogicalExpression(logical) => {
+                pending.push((&logical.right, depth + 1));
+                pending.push((&logical.left, depth + 1));
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 
 pub(super) fn operand<'e, 'a>(

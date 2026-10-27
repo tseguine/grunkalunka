@@ -724,7 +724,9 @@ impl Lowering<'_, '_> {
                                 arguments,
                             },
                         );
-                        values.push(if ty == Type::General {
+                        values.push(if ty == Type::FulfilledPromise {
+                            Value::Promise(result)
+                        } else if ty == Type::General {
                             Value::General(result)
                         } else {
                             Value::Number(result)
@@ -1562,7 +1564,7 @@ impl Lowering<'_, '_> {
                             }
                             continue;
                         }
-                        if !matches!(node, Expression::CallExpression(call) if self.closure_target(&call.callee, depth + 1).is_some())
+                        if !matches!(node, Expression::CallExpression(call) if self.closure_target(&call.callee, depth + 1).is_some() || self.function_arity(&call.callee, depth + 1).is_some_and(|signature| self.closure_signatures.borrow().result(signature) == Some(Type::FulfilledPromise)))
                         {
                             return Err(unsupported(
                                 node,
@@ -1822,7 +1824,10 @@ impl Lowering<'_, '_> {
                             .borrow()
                             .result(arity)
                             .expect("checked signature");
-                        if !matches!(result_type, Type::Number | Type::General) {
+                        if !matches!(
+                            result_type,
+                            Type::Number | Type::General | Type::FulfilledPromise
+                        ) {
                             return Err(unsupported(
                                 node,
                                 "function-valued runtime calls require a function position",

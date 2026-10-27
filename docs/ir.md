@@ -631,5 +631,10 @@ the primitive payload. See [the bounded source contract](fulfilled-promise-local
 
 `InlineCall` may yield `FulfilledPromise` from a statically known synchronous arrow,
 checking every return against that type. `AwaitCall` still yields only General,
-and function-signature/public-result restrictions are unchanged. Caller await
+and public-result restrictions are unchanged. Caller await
 projects the returned Promise before using the existing suspension protocol.
+Private closure signatures may also return `FulfilledPromise`; lifted definitions,
+returned-function chains, callback signatures and `ClosureCall` preserve that
+logical kind. It remains distinct from General even though the backend reuses
+the existing tag/f64 return pair. Promise parameters and mixed primitive/Promise
+result interfaces remain invalid.

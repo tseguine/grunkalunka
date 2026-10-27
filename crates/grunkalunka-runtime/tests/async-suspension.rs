@@ -231,6 +231,50 @@ fn stored_fulfilled_promises_snapshot_primitive_values() {
 }
 
 #[test]
+fn selected_closures_return_fulfilled_promise_values() {
+    compare_promises(
+        &[
+            "const make=a?x=>Promise.resolve(x):x=>Promise.resolve(-x);return await make(b);",
+            "let make=x=>Promise.resolve(x);return await make(a);",
+            "const make=a?()=>Promise.resolve(a):()=>Promise.resolve(b);return await make();",
+            "let make=x=>Promise.resolve(x);const old=make;make=x=>Promise.resolve(-x);return +(await old(a))+(+(await make(b)));",
+            "let make=x=>Promise.resolve(x);return await make((make=x=>Promise.resolve(-x),await a));",
+            "let p=Promise.resolve(a);const get=a?()=>p:()=>p;const old=get();p=Promise.resolve(b);return +(await old)+(+(await get()));",
+            "const make=a?()=>Promise.resolve():()=>Promise.resolve(null);return await make();",
+            "const make=a?()=>Promise.resolve(false):()=>Promise.resolve(true);return await make();",
+            "const make=a?x=>{const p=Promise.resolve(x);return p;}:x=>{if(x)return Promise.resolve(null);return Promise.resolve(false);};return await make(b);",
+            "let n=0;const make=a?x=>Promise.resolve((n++,x)):x=>Promise.resolve((n+=2,x));try{return await make(await Promise.reject(b));}catch(e){return +e+n;}",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn higher_order_closures_return_fulfilled_promise_values() {
+    compare_promises(
+        &[
+            "const apply=(fn,x)=>fn(x);return await apply(x=>Promise.resolve(x),a);",
+            "const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(-x);return await apply(x=>Promise.resolve(x),b);",
+            "const apply=(fn,x)=>{return fn(x);};const relay=(fn,x)=>apply(fn,x);return await relay(x=>{const p=Promise.resolve(x);return p;},false);",
+            "const apply=(fn,x)=>fn(x);const p=Promise.resolve(a);return await apply(()=>p,b);",
+            "const make=a?()=>x=>Promise.resolve(x):()=>x=>Promise.resolve(-x);return await make()(b);",
+            "const make=a?()=>()=>Promise.resolve(false):()=>()=>Promise.resolve(null);const get=make();return await get();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn known_sync_arrows_return_fulfilled_promise_values() {
     compare_promises(
         &[
@@ -303,8 +347,6 @@ fn known_promise_results_keep_erasure_interfaces_and_completion_guards() {
     }
     for body in [
         "const make=x=>Promise.resolve(x);return make(a);",
-        "let make=x=>Promise.resolve(x);return await make(a);",
-        "const make=a?()=>Promise.resolve(a):()=>Promise.resolve(b);return await make();",
         "const make=async()=>Promise.resolve(a);return await make();",
         "const make=()=>{if(a)return Promise.resolve(b);};return b;",
         "const make=()=>{if(a)return Promise.resolve(b);return a;};return b;",
@@ -323,6 +365,58 @@ fn known_promise_results_keep_erasure_interfaces_and_completion_guards() {
         "const make=x=>{return Promise.resolve(x);};return await make<number>(a);",
     ] {
         assert!(compile_async(&source_for(body), true).is_err(), "{body}");
+    }
+}
+
+#[test]
+fn runtime_promise_results_keep_logical_interfaces_and_bounds() {
+    let plain = "export async function run(a,b){let f=x=>{return Promise.resolve(x);};f=x=>{return Promise.resolve(-x);};return await f(a);}";
+    let typed = "export async function run(a:never,b:Missing):Wrong{let f=(x:Wrong):NotPromise=>{return Promise.resolve(x as any) as Wrong;};f=(x:Bad):Wrong=>{return Promise.resolve(-(x as any)) as any;};return await (f(a as Bad) as Wrong);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    for count in [32, 33] {
+        let body = format!(
+            "let f=()=>Promise.resolve(a);{}return b;",
+            "await f();".repeat(count)
+        );
+        for ts in [false, true] {
+            assert_eq!(compile_async(&source_for(&body), ts).is_ok(), count == 32);
+        }
+        if count == 32 {
+            compare_promises(&[&body], &[(4.0, 2.0)]);
+        }
+    }
+    for body in [
+        "let f=()=>Promise.resolve(a);return f();",
+        "let f=()=>Promise.resolve(a);return +f();",
+        "let f=()=>Promise.resolve(a);f=()=>b;return await f();",
+        "const f=a?()=>Promise.resolve(b):()=>b;return await f();",
+        "const apply=(fn,x)=>fn(x);apply(x=>x,a);return await apply(x=>Promise.resolve(x),b);",
+        "let f=x=>Promise.resolve(x);return await f(Promise.resolve(a));",
+        "let f=async()=>Promise.resolve(a);return await f();",
+        "let f=()=>f();return await f();",
+        "const f=a?()=>missing():()=>Promise.resolve(a);return await f();",
+        "const f=a?()=>{if(a)return Promise.resolve(b);}:()=>Promise.resolve(a);return await f();",
+    ] {
+        for ts in [false, true] {
+            assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
+        }
+    }
+    let parameters = (0..1000)
+        .map(|i| format!("x{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let arguments = (0..1000).map(|_| "a").collect::<Vec<_>>().join(",");
+    compare_promises(
+        &[&format!(
+            "let f=({parameters})=>Promise.resolve(x999);return await f({arguments});"
+        )],
+        &[(4.0, 2.0)],
+    );
+    for ts in [false, true] {
+        assert!(compile_async(&source_for(&format!("let f=({parameters},extra)=>Promise.resolve(extra);return await f({arguments},b);")),ts).is_err());
     }
 }
 

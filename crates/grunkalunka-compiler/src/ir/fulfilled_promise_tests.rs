@@ -1,6 +1,53 @@
 use super::*;
 
 #[test]
+fn fulfilled_promise_closure_results_keep_logical_signatures() {
+    let make = || {
+        crate::lower_source_profile(
+            "export async function run(a,b){let f=x=>Promise.resolve(x);return await f(a);}",
+            false,
+            Type::General,
+            true,
+        )
+        .unwrap()
+    };
+    verify_module_with_entry_type(&make(), Type::General).unwrap();
+    for change in 0..6 {
+        let mut invalid = make();
+        match change {
+            0 => invalid.closure_signatures.higher[0].result = Type::General,
+            1 => invalid.closure_signatures.higher[0].result = Type::Predicate,
+            2 => invalid.closure_signatures.higher[0].parameters[0] = Type::FulfilledPromise,
+            3 => invalid.functions[1].return_type = Type::General,
+            4 => invalid.functions[0].return_type = Type::FulfilledPromise,
+            _ => {
+                let f = &mut invalid.functions[0];
+                let result = f
+                    .body
+                    .operations
+                    .iter()
+                    .find_map(|op| match op.kind {
+                        Op::ClosureCall { result, .. } => Some(result),
+                        _ => None,
+                    })
+                    .unwrap();
+                f.values[result.0] = Type::General;
+            }
+        }
+        assert!(
+            verify_module_with_entry_type(&invalid, Type::General).is_err(),
+            "mutation {change}"
+        );
+    }
+    let mut signatures = ClosureSignatures::default();
+    let promise = signatures.intern(vec![Type::Number], Type::FulfilledPromise);
+    let primitive = signatures.intern(vec![Type::Number], Type::General);
+    assert_ne!(promise, primitive);
+    assert!(signatures.is_callback_signature(promise));
+    assert!(signatures.is_returned_function(promise));
+}
+
+#[test]
 fn fulfilled_promise_inline_results_keep_return_and_async_contracts() {
     let make = || {
         crate::lower_source_profile(

@@ -151,6 +151,21 @@ fn immediate_selections_join_private_primitive_inputs() {
 }
 
 #[test]
+fn runtime_promise_results_preserve_synchronous_prefixes() {
+    compare_function_programs(
+        &[
+            "let make=x=>Promise.resolve(x,a++);make(a);return a;",
+            "const make=a?x=>Promise.resolve(x,a++):x=>Promise.resolve(x,a=b);const p=make(a);return a;",
+            "let n=0;const make=a?()=>Promise.resolve((n++,false)):()=>Promise.resolve((n+=2,null));return make()?n:-1;",
+            "let p=Promise.resolve(a);let get=()=>p;const old=get();p=Promise.resolve(b);return old&&get()?a:b;",
+            "const apply=(fn,x)=>fn(x);apply(x=>Promise.resolve(x,a++),a);return a;",
+            "const make=a?()=>x=>Promise.resolve(x,a++):()=>x=>Promise.resolve(x,a=b);make()(b);return a;",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn known_promise_results_preserve_synchronous_prefixes() {
     compare_function_programs(
         &[
