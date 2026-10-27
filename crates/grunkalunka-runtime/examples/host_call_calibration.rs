@@ -161,8 +161,7 @@ impl Series {
             .join(",");
         format!(
             r#"{{"samplesMs":[{samples}],"minMs":{:.9},"medianMs":{:.9},"maxMs":{:.9}}}"#,
-            self.min_ms,
-            self.max_ms
+            self.min_ms, self.max_ms
         )
     }
 }
@@ -208,9 +207,11 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     let engine = Engine::default();
     let module = Module::from_binary(&engine, &bytes)?;
     let mut linker = Linker::new(&engine);
-    linker.func_wrap("host", "tick", |mut caller: Caller<'_, Counters>, input: i32| {
-        host_tick(caller.data_mut(), input)
-    })?;
+    linker.func_wrap(
+        "host",
+        "tick",
+        |mut caller: Caller<'_, Counters>, input: i32| host_tick(caller.data_mut(), input),
+    )?;
     let mut store = Store::new(&engine, Counters::default());
     let instance = linker.instantiate(&mut store, &module)?;
     let guest = instance.get_typed_func::<i32, i32>(&mut store, "guest-only")?;
@@ -235,8 +236,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     }
 
     let (batch_input, batch_output) = expected(options.iterations);
-    let mut samples: [Vec<f64>; 3] =
-        std::array::from_fn(|_| Vec::with_capacity(options.samples));
+    let mut samples: [Vec<f64>; 3] = std::array::from_fn(|_| Vec::with_capacity(options.samples));
     for sample in 0..options.samples {
         let order = if sample.is_multiple_of(2) {
             [0, 1, 2]

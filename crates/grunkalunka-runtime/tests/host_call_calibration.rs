@@ -13,8 +13,15 @@ fn args(parts: &[&str]) -> Vec<String> {
 fn options_are_bounded_and_unique() {
     assert_eq!(parse_options(&[]).unwrap(), Options::default());
     assert_eq!(
-        parse_options(&args(&["--samples", "2", "--iterations", "1", "--warmup", "0"]))
-            .unwrap(),
+        parse_options(&args(&[
+            "--samples",
+            "2",
+            "--iterations",
+            "1",
+            "--warmup",
+            "0"
+        ]))
+        .unwrap(),
         Options {
             samples: 2,
             iterations: 1,
@@ -52,7 +59,12 @@ fn real_import_is_called_once_per_sampled_guest_boundary() {
     assert_eq!(report.host_input_sum, report.native_input_sum);
     for series in &report.modes {
         assert_eq!(series.samples_ms.len(), options.samples);
-        assert!(series.samples_ms.iter().all(|ms| ms.is_finite() && *ms >= 0.0));
+        assert!(
+            series
+                .samples_ms
+                .iter()
+                .all(|ms| ms.is_finite() && *ms >= 0.0)
+        );
         assert!(series.min_ms <= series.median_ms && series.median_ms <= series.max_ms);
     }
     let json = report.json();
