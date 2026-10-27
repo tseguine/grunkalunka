@@ -677,3 +677,38 @@ object identity, general payloads and unhandled-rejection tracking remain open.
 Executable IR fixtures and maintained source oracles separately compare native
 JavaScript with Wasm values and reaction traces; neither implies general Promise
 object compatibility.
+
+### Async private calls and invocation frames
+
+A private closure signature can now carry an async call effect. Its `General`
+result describes the body's primitive completion, not a Promise object available
+to ordinary scalar operations. An `AsyncClosureEntry` imports the environment;
+`AwaitClosureCall` validates the complete parameter signature and obtains that
+primitive completion on the caller's await reaction. Ordinary `ClosureCall`
+rejects the async effect even when its physical result lanes would match.
+Callback parameters and functions returned by synchronous factories retain the
+complete signature, including the effect.
+
+The backend compiles each async body once into the existing state dispatcher.
+Calling it saves the caller's locals, SSA snapshots and captured-cell pointers
+in an invocation-local guest frame. A child keeps its own environment and
+parameter cells. Completion restores the parent and transfers the primitive
+outcome before scheduling the caller's reaction. An uncaught child rejection
+first completes that child's reaction; it does not terminate the entry early.
+Nested calls with the same signature and recursive activations therefore keep
+separate saved state without expanding the call graph recursively at compile time.
+
+Physical headers, lane offsets, code dispatch and spill policy belong to the
+backend. Frames use the existing one-MiB invocation arena and are allocated
+monotonically; reclamation and liveness-based spill reduction are future work.
+The start/resume ABI, default fuel, 32 logical IR await sites and 4,096-state
+limit are unchanged. Existing modules without async private entries retain their
+previous emission.
+
+This is an **IR-only prerequisite**. Maintained source guards still reject
+runtime-selected async bodies with their own suspension. Executable IR fixtures
+separately cover native-JS/Node-Wasm/Wasmtime values and reactions, caller/body
+catches, typed primitive/Promise/callback inputs, returned function pairs,
+captured parameters, recursive restoration and resource limits. Their recursive
+frame evidence does not admit recursive source initialization, detached pending
+Promises, adoption, identity or unhandled-rejection tracking.

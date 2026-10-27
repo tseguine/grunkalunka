@@ -3,6 +3,8 @@ use oxc_span::Span;
 use std::collections::BTreeSet;
 
 #[cfg(test)]
+mod async_closure_tests;
+#[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
 mod runtime_closure_tests;
@@ -37,6 +39,7 @@ pub(crate) enum Type {
 pub(crate) struct ClosureSignature {
     pub parameters: Vec<Type>,
     pub result: Type,
+    pub asynchronous: bool,
 }
 
 #[derive(Debug, Default)]
@@ -50,8 +53,46 @@ impl ClosureSignatures {
             return id;
         }
         let id = 1001 + self.higher.len();
-        self.higher.push(ClosureSignature { parameters, result });
+        self.higher.push(ClosureSignature {
+            parameters,
+            result,
+            asynchronous: false,
+        });
         id
+    }
+
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    pub(crate) fn intern_async(&mut self, parameters: Vec<Type>) -> usize {
+        if let Some(id) = self.id_async(&parameters) {
+            return id;
+        }
+        let id = 1001 + self.higher.len();
+        self.higher.push(ClosureSignature {
+            parameters,
+            result: Type::General,
+            asynchronous: true,
+        });
+        id
+    }
+
+    pub(crate) fn id_async(&self, parameters: &[Type]) -> Option<usize> {
+        self.higher
+            .iter()
+            .position(|signature| {
+                signature.asynchronous
+                    && signature.parameters == parameters
+                    && signature.result == Type::General
+            })
+            .map(|index| 1001 + index)
+    }
+
+    pub(crate) fn is_async(&self, id: usize) -> bool {
+        id.checked_sub(1001)
+            .and_then(|index| self.higher.get(index))
+            .is_some_and(|signature| signature.asynchronous)
     }
 
     pub(crate) fn id(&self, parameters: &[Type], result: Type) -> Option<usize> {
@@ -63,7 +104,9 @@ impl ClosureSignatures {
         } else {
             self.higher
                 .iter()
-                .position(|entry| entry.parameters == parameters && entry.result == result)
+                .position(|entry| {
+                    !entry.asynchronous && entry.parameters == parameters && entry.result == result
+                })
                 .map(|id| 1001 + id)
         }
     }
@@ -86,7 +129,8 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if signature.parameters.len() > 1000
+            if (signature.asynchronous && signature.result != Type::General)
+                || signature.parameters.len() > 1000
                 || signature.parameters.iter().any(|ty| match ty {
                     Type::Number
                     | Type::General
@@ -120,10 +164,12 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if !matches!(
-                signature.result,
-                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise
-            ) || signature.parameters.len() > 1000
+            if (signature.asynchronous && signature.result != Type::General)
+                || !matches!(
+                    signature.result,
+                    Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise
+                )
+                || signature.parameters.len() > 1000
             {
                 return false;
             }
@@ -285,6 +331,7 @@ pub(crate) fn captured_cells(region: &Region) -> BTreeSet<SlotId> {
     visit_operations(region, &mut |op| match op {
         Op::CaptureCells { cells: captured }
         | Op::ClosureEntry { captures: captured }
+        | Op::AsyncClosureEntry { captures: captured }
         | Op::MakeClosure {
             captures: captured, ..
         } => cells.extend(captured),
@@ -314,12 +361,28 @@ pub(crate) enum Op {
     ClosureEntry {
         captures: Vec<SlotId>,
     },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    AsyncClosureEntry {
+        captures: Vec<SlotId>,
+    },
     MakeClosure {
         result: ValueId,
         function: FunctionId,
         captures: Vec<SlotId>,
     },
     ClosureCall {
+        result: ValueId,
+        callee: ValueId,
+        arguments: Vec<ValueId>,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    AwaitClosureCall {
         result: ValueId,
         callee: ValueId,
         arguments: Vec<ValueId>,
@@ -749,7 +812,7 @@ impl Verifier<'_> {
     ) -> Result<(), String> {
         let span = operation.span;
         match &operation.kind {
-            Op::ClosureEntry { captures } => {
+            Op::ClosureEntry { captures } | Op::AsyncClosureEntry { captures } => {
                 if region_id != self.function.body.id || operation_index != 0 {
                     return Err(invalid(
                         span,
@@ -800,13 +863,20 @@ impl Verifier<'_> {
                     .take(target.parameter_count)
                     .map(|slot| slot.ty)
                     .collect();
-                let signature = self
-                    .closure_signatures
-                    .id(&parameters, target.return_type)
-                    .ok_or_else(|| invalid(span, "unknown closure signature"))?;
+                let signature = if is_async_closure(target) {
+                    self.closure_signatures.id_async(&parameters)
+                } else {
+                    self.closure_signatures.id(&parameters, target.return_type)
+                }
+                .ok_or_else(|| invalid(span, "unknown closure signature"))?;
                 self.define(*result, Type::Closure(signature), visible, span)?;
             }
             Op::ClosureCall {
+                result,
+                callee,
+                arguments,
+            }
+            | Op::AwaitClosureCall {
                 result,
                 callee,
                 arguments,
@@ -816,6 +886,14 @@ impl Verifier<'_> {
                     return Err(invalid(span, "closure call requires a function value"));
                 };
                 self.value(*callee, Type::Closure(signature), visible, span)?;
+                if self.closure_signatures.is_async(signature)
+                    != matches!(operation.kind, Op::AwaitClosureCall { .. })
+                {
+                    return Err(invalid(
+                        span,
+                        "closure call effect does not match signature",
+                    ));
+                }
                 let parameter_count = self
                     .closure_signatures
                     .parameter_count(signature)
@@ -1085,7 +1163,10 @@ impl Verifier<'_> {
             if frame.settlement
                 && matches!(
                     operation.kind,
-                    Op::Await { .. } | Op::AwaitCall { .. } | Op::AwaitSettled { .. }
+                    Op::Await { .. }
+                        | Op::AwaitCall { .. }
+                        | Op::AwaitSettled { .. }
+                        | Op::AwaitClosureCall { .. }
                 )
             {
                 return Err(invalid(span, "settlement bodies cannot suspend"));
@@ -1402,9 +1483,17 @@ pub(crate) fn verify_module(module: &Module) -> Result<(), String> {
 
 pub(crate) fn closure_environment(function: &Function) -> Option<&[SlotId]> {
     match &function.body.operations.first()?.kind {
-        Op::ClosureEntry { captures } => Some(captures),
+        Op::ClosureEntry { captures } | Op::AsyncClosureEntry { captures } => Some(captures),
         _ => None,
     }
+}
+
+pub(crate) fn is_async_closure(function: &Function) -> bool {
+    function
+        .body
+        .operations
+        .first()
+        .is_some_and(|operation| matches!(operation.kind, Op::AsyncClosureEntry { .. }))
 }
 
 pub(crate) fn verify_module_with_entry_type(
@@ -1415,7 +1504,8 @@ pub(crate) fn verify_module_with_entry_type(
         return Err("internal IR: entry profile must return Number or General".into());
     }
     for (index, signature) in module.closure_signatures.higher.iter().enumerate() {
-        if signature.parameters.len() > 1000
+        if (signature.asynchronous && signature.result != Type::General)
+            || signature.parameters.len() > 1000
             || (signature.result == Type::Number
                 && !signature.parameters.iter().any(|ty| {
                     matches!(
@@ -1468,7 +1558,9 @@ pub(crate) fn verify_module_with_entry_type(
     }
     let functions: Vec<_> = module.functions.iter().collect();
     for (index, function) in module.functions.iter().enumerate() {
-        let result = if closure_environment(function).is_some() {
+        let result = if is_async_closure(function) {
+            Type::General
+        } else if closure_environment(function).is_some() {
             if !match function.return_type {
                 Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => {
                     true

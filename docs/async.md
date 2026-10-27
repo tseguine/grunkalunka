@@ -166,6 +166,16 @@ an async body requires adoption, which remains open. Own suspension in runtime
 async closures, pending promises, general payloads and identity also remain open.
 Known directly awaited async calls retain their existing `AwaitCall` boundary.
 
+An IR-only prerequisite now supports async private call effects and
+`AwaitClosureCall`. The backend saves caller state in invocation-local guest
+frames, runs each child in the same state dispatcher and restores the caller on
+primitive completion. Child awaits and the caller's await keep their separate
+reaction boundaries, including uncaught rejection and nested/recursive IR calls.
+This reuses the existing host protocol; it does not expose a pending Promise
+handle. Source runtime-selected bodies with their own await remain guarded until
+the following source admission change. See [private async IR frames](ir.md#async-private-calls-and-invocation-frames)
+for representation, executable evidence and limits.
+
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
 status 1 suspends on a resumable primitive await reaction, including a caught

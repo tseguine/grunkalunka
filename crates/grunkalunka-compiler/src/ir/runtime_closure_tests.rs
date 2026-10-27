@@ -190,6 +190,7 @@ fn higher_order_signatures_and_callback_arguments_are_verified_logically() {
                 let duplicate = ClosureSignature {
                     parameters: original.parameters.clone(),
                     result: original.result,
+                    asynchronous: original.asynchronous,
                 };
                 module.closure_signatures.higher.push(duplicate);
             }

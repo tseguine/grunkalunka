@@ -177,3 +177,41 @@ synchronous forwarding while source rejected slots/parameters and unobserved
 rejections remain guarded. Runtime async suspension, pending/adoption, identity
 and unhandled-rejection tracking remain open. This uses the existing representation,
 without a scheduler or host protocol extension.
+
+## Async private invocation frames
+
+The logical IR now distinguishes async private signatures and an awaited private
+call from ordinary `ClosureCall`. The async body's primitive `General` completion
+does not become an ordinary scalar call result. Source construction of this IR
+effect remains a following unit; two operation constructors and the async
+signature interner retain narrow non-test dead-code expectations meanwhile.
+
+The bounded backend choice compiles each async body once into the existing
+dispatcher and uses invocation-local guest frames for nested calls. A frame
+header stores a parent address, caller continuation state and environment address
+at offsets 0, 4 and 8, with a sixteen-byte aligned header. Saved numeric-indexed
+lanes occupy eight-byte aligned fields after that header; i32 fields currently
+use padding. Call-time arguments populate the child's typed parameter fields.
+Captured parameters receive fresh cells, while imported captures alias existing
+cells. On completion, the backend restores the caller's locals, SSA snapshots and
+cell pointers, writes the primitive result and schedules its await reaction.
+
+The same function can have multiple active frames. Its mutable working globals
+are saved before reentry and restored on return, so recursive IR activations
+retain distinct source state. Each logical body is compiled once, avoiding
+recursive call-graph expansion. Async table entries retain unreachable physical
+placeholders so other function indices remain stable; verified async calls use
+the coroutine dispatcher instead of ordinary indirect calls.
+
+Inlining every possible runtime target was an alternative, but would duplicate
+continuations and need special handling for recursion. A separate scheduler or
+new host ABI is unnecessary for directly awaited private calls. The chosen
+frames reuse the existing monotonic one-MiB guest arena and do not reclaim storage
+within an invocation. Liveness-based spilling, frame reuse, independently pending
+objects and async-return adoption remain later decisions.
+
+This changes no General/Promise payload encoding, synchronous private ABI, host
+start/resume statuses, default fuel or continuation/site limits. Modules without
+async private entries keep their previous emission. Independent executable IR
+tests cover typed lanes, captures, nested/recursive restoration, both rejection
+boundaries and arena exhaustion; they do not claim new source admission.

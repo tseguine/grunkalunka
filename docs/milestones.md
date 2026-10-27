@@ -72,6 +72,12 @@ reassignment, factories and supported callback forwarding have source oracles;
 rejected results are restricted to immediate await/synchronous forwarding.
 Rejected Promise storage/inputs, unhandled-rejection tracking, runtime async
 suspension and adoption remain open.
+The next suspension prerequisite exists as async-effect private IR signatures,
+an awaited closure-call operation and backend invocation frames. IR tests execute
+child suspension, caller/body catches, typed inputs, nested and recursive frame
+restoration, and existing resource boundaries against native JS in both engines.
+Runtime-selected source bodies with their own await still require the following
+admission change; this does not mark L5 complete.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

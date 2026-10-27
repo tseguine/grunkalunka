@@ -103,7 +103,7 @@ impl Emitter<'_> {
         for operation in operations {
             match &operation.kind {
                 Op::CaptureCells { .. } => (),
-                Op::ClosureEntry { .. } => (),
+                Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
                 Op::FulfillPromise { result, input }
                 | Op::PromiseValue { result, input }
                 | Op::PromotePromise { result, input } => {
@@ -186,7 +186,10 @@ impl Emitter<'_> {
                     self.region(handler);
                     self.output.push_str("end\n");
                 }
-                Op::Await { .. } | Op::AwaitSettled { .. } | Op::AwaitCall { .. } => {
+                Op::Await { .. }
+                | Op::AwaitSettled { .. }
+                | Op::AwaitCall { .. }
+                | Op::AwaitClosureCall { .. } => {
                     unreachable!("async control uses the async emitter")
                 }
                 Op::Nullish { result, value } => {
@@ -645,6 +648,8 @@ fn region_has_await(region: &Region) -> bool {
         .iter()
         .any(|operation| match &operation.kind {
             Op::Await { .. }
+            | Op::AsyncClosureEntry { .. }
+            | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }
             | Op::TryCatch { .. } => true,

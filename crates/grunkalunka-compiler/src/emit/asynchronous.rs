@@ -5,6 +5,8 @@ use super::{Emitter, NUMBER_REMAINDER, cells, closures, emit_function, layout};
 use crate::ir::{self, Exit, Op, Region, Type, ValueId};
 use std::fmt::Write;
 
+mod frames;
+
 const MAX_STATES: usize = 4096;
 
 #[derive(Clone, Copy)]
@@ -20,6 +22,19 @@ enum YieldTarget {
 }
 
 enum End {
+    InvokeClosure {
+        callee: ValueId,
+        arguments: Vec<ValueId>,
+        returned: usize,
+    },
+    EnterClosure {
+        next: usize,
+    },
+    ReturnedClosure {
+        result: ValueId,
+        fulfilled: usize,
+        rejected: usize,
+    },
     Jump(usize),
     Copy {
         input: ValueId,
@@ -47,6 +62,7 @@ enum End {
 }
 
 struct State<'a> {
+    function: usize,
     operations: &'a [ir::Operation],
     resumed: Option<ValueId>,
     end: End,
@@ -54,6 +70,7 @@ struct State<'a> {
 
 #[derive(Default)]
 struct Splitter<'a> {
+    function: usize,
     states: Vec<State<'a>>,
     awaits: usize,
     return_to: Option<(ValueId, usize)>,
@@ -72,6 +89,7 @@ impl<'a> Splitter<'a> {
         }
         let id = self.states.len();
         self.states.push(State {
+            function: self.function,
             operations,
             resumed,
             end,
@@ -81,6 +99,20 @@ impl<'a> Splitter<'a> {
 
     fn terminal(&mut self, end: End) -> Result<usize, String> {
         self.state(&[], None, end)
+    }
+
+    fn rejection_resume(&mut self, result: ValueId, next: usize) -> Result<(bool, usize), String> {
+        let caught = self.catch_to;
+        let (resumed, target) = caught.unwrap_or((result, next));
+        // A private rejection settles this child after its reaction. It must
+        // return to its caller, whose await owns a separate reaction boundary.
+        let end = if caught.is_none() && self.function != 0 {
+            End::Reject(resumed)
+        } else {
+            End::Jump(target)
+        };
+        let resume = self.state(&[], Some(resumed), end)?;
+        Ok((caught.is_none() && self.function == 0, resume))
     }
 
     // Build backwards from the suffix. Every internal edge stays in the current
@@ -131,6 +163,38 @@ impl<'a> Splitter<'a> {
         while end > 0 {
             let operation = &region.operations[end - 1];
             next = match &operation.kind {
+                Op::AwaitClosureCall {
+                    result,
+                    callee,
+                    arguments,
+                } => {
+                    self.awaits += 1;
+                    if self.awaits > 32 {
+                        return Err("async profile admits at most 32 await sites".into());
+                    }
+                    let fulfilled_resume = self.state(&[], Some(*result), End::Jump(next))?;
+                    let fulfilled = self.terminal(End::Suspend {
+                        input: *result,
+                        rejected: false,
+                        resume: fulfilled_resume,
+                    })?;
+                    let (uncaught, rejected_resume) = self.rejection_resume(*result, next)?;
+                    let rejected = self.terminal(End::Suspend {
+                        input: *result,
+                        rejected: uncaught,
+                        resume: rejected_resume,
+                    })?;
+                    let returned = self.terminal(End::ReturnedClosure {
+                        result: *result,
+                        fulfilled,
+                        rejected,
+                    })?;
+                    self.terminal(End::InvokeClosure {
+                        callee: *callee,
+                        arguments: arguments.clone(),
+                        returned,
+                    })?
+                }
                 Op::InlineCall { result, body } => {
                     let outer = self.return_to.replace((*result, next));
                     let entry = self.region(body, next, None, None);
@@ -150,12 +214,10 @@ impl<'a> Splitter<'a> {
                         rejected: false,
                         resume: fulfilled_resume,
                     })?;
-                    let caught = self.catch_to;
-                    let (resumed, target) = caught.unwrap_or((*result, next));
-                    let rejected_resume = self.state(&[], Some(resumed), End::Jump(target))?;
+                    let (uncaught, rejected_resume) = self.rejection_resume(*result, next)?;
                     let rejected = self.terminal(End::Suspend {
                         input: *result,
-                        rejected: caught.is_none(),
+                        rejected: uncaught,
                         resume: rejected_resume,
                     })?;
                     let outer_return = self.return_to.replace((*result, fulfilled));
@@ -188,12 +250,10 @@ impl<'a> Splitter<'a> {
                         rejected: false,
                         resume: normal_resume,
                     })?;
-                    let caught = self.catch_to;
-                    let (resumed, target) = caught.unwrap_or((*result, next));
-                    let rejected_resume = self.state(&[], Some(resumed), End::Jump(target))?;
+                    let (uncaught, rejected_resume) = self.rejection_resume(*result, next)?;
                     let rejected = self.terminal(End::Suspend {
                         input: *input,
-                        rejected: caught.is_none(),
+                        rejected: uncaught,
                         resume: rejected_resume,
                     })?;
                     self.terminal(End::SettledTest {
@@ -213,12 +273,14 @@ impl<'a> Splitter<'a> {
                     }
                     // A caught rejection resumes into its lexical handler on the
                     // same reaction job. The host still supplies the original pair.
-                    let caught = rejected.then_some(self.catch_to).flatten();
-                    let (resumed, target) = caught.unwrap_or((*result, next));
-                    let resume = self.state(&[], Some(resumed), End::Jump(target))?;
+                    let (uncaught, resume) = if *rejected {
+                        self.rejection_resume(*result, next)?
+                    } else {
+                        (false, self.state(&[], Some(*result), End::Jump(next))?)
+                    };
                     self.terminal(End::Suspend {
                         input: *input,
-                        rejected: *rejected && caught.is_none(),
+                        rejected: uncaught,
                         resume,
                     })?
                 }
@@ -312,6 +374,7 @@ fn atomic(op: &Op) -> bool {
     !matches!(
         op,
         Op::Await { .. }
+            | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }
             | Op::TryCatch { .. }
@@ -342,7 +405,8 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         if source_call {
             return Err("async profile forbids source function calls to the async entry".into());
         }
-        if index != 0 && super::region_has_await(&function.body) {
+        if index != 0 && !ir::is_async_closure(function) && super::region_has_await(&function.body)
+        {
             return Err("async closure bodies must be synchronous".into());
         }
     }
@@ -354,39 +418,33 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     let unreachable = split.terminal(End::Trap)?;
     let entry = split.region(&function.body, unreachable, None, None)?;
     split.states[fresh].end = End::Jump(entry);
-
-    let mut types = Vec::new();
-    let mut offsets = Vec::new();
-    for ty in function
-        .slots
-        .iter()
-        .map(|slot| slot.ty)
-        .chain(function.values.iter().copied())
-    {
-        offsets.push(types.len());
-        types.extend(layout::value(ty).parts.iter().map(|part| part.lane.wat()));
+    let mut entries = vec![None; module.functions.len()];
+    for (index, function) in module.functions.iter().enumerate().skip(1) {
+        if !ir::is_async_closure(function) {
+            continue;
+        }
+        split.function = index;
+        let unreachable = split.terminal(End::Trap)?;
+        let body = split.region(&function.body, unreachable, None, None)?;
+        entries[index] = Some(split.terminal(End::EnterClosure { next: body })?);
     }
-    let mut offset = types.len();
-    let cell_offsets = cells::offsets(function, &mut offset);
+    let has_async = entries.iter().any(Option::is_some);
+    let mut types = Vec::new();
+    let mut frames = Vec::new();
+    for (index, function) in module.functions.iter().enumerate() {
+        if index != 0 && !ir::is_async_closure(function) {
+            frames.push(None);
+            continue;
+        }
+        let frame = frames::Frame::new(function, types.len());
+        types.extend(frame.lanes.iter().copied());
+        frames.push(Some(frame));
+    }
     let has_cells = has_closures
         || module
             .functions
             .iter()
             .any(|function| !ir::captured_cells(&function.body).is_empty());
-    let arena_temp = closures::temporary(function, offset);
-    types.resize(offset + usize::from(arena_temp.is_some()), "i32");
-    let mut emitter = Emitter {
-        function,
-        slot_offsets: offsets[..function.slots.len()].to_vec(),
-        value_offsets: offsets[function.slots.len()..].to_vec(),
-        cell_offsets,
-        arena_temp,
-        output: String::new(),
-        loop_label: None,
-        inline_return: None,
-        throw_to: None,
-        needs_remainder: false,
-    };
     let mut output = String::from("(module\n");
     for ty in types {
         writeln!(output, "(global (mut {ty}) ({ty}.const 0))").unwrap();
@@ -396,6 +454,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     }
     if has_closures {
         output.push_str(&closures::table(module, true));
+    }
+    if has_async {
+        output.push_str(frames::GLOBALS);
     }
     output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\nblock $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
@@ -409,8 +470,17 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     output.push_str(" $invalid\n");
     for (id, state) in split.states.iter().enumerate().rev() {
         output.push_str("end\n");
+        let frame = frames[state.function]
+            .as_mut()
+            .expect("coroutine function frame");
+        if let End::EnterClosure { next } = state.end {
+            frame.enter(&mut output);
+            jump(&mut output, next);
+            continue;
+        }
+        let emitter = &mut frame.emitter;
         if let Some(value) = state.resumed {
-            if function.values[value.0] == Type::General {
+            if emitter.function.values[value.0] == Type::General {
                 writeln!(
                     output,
                     "local.get $awaited_tag\nglobal.set {}",
@@ -422,31 +492,88 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output,
                 "local.get $awaited\nglobal.set {}",
                 emitter.value_offsets[value.0]
-                    + usize::from(function.values[value.0] == Type::General)
+                    + usize::from(emitter.function.values[value.0] == Type::General)
             )
             .unwrap();
         }
         if id == fresh {
+            if has_async {
+                writeln!(
+                    output,
+                    "i32.const {}\ncall $closure_frame\nglobal.set $async_frame",
+                    frame.bytes()
+                )
+                .unwrap();
+            }
+            let emitter = &mut frame.emitter;
             emitter.init_cell_parameters();
         }
+        let emitter = &mut frame.emitter;
         emitter.operations(state.operations);
         // Atomic emission only reads/writes numeric-indexed locals. Private
         // helpers retain their own locals and are appended separately below.
-        output.push_str(
-            &emitter
-                .output
-                .replace("local.get ", "global.get ")
-                .replace("local.set ", "global.set "),
-        );
-        emitter.output.clear();
+        frame.take_output(&mut output);
+        let frame = frames[state.function].as_ref().expect("coroutine frame");
+        let emitter = &frame.emitter;
         match state.end {
+            End::EnterClosure { .. } => unreachable!(),
+            End::InvokeClosure {
+                callee,
+                ref arguments,
+                returned,
+            } => {
+                frame.spill(&mut output);
+                let Type::Closure(signature) = emitter.function.values[callee.0] else {
+                    unreachable!()
+                };
+                for (index, target) in frames.iter().enumerate().skip(1) {
+                    let Some(target) = target else {
+                        continue;
+                    };
+                    let parameters: Vec<_> = target
+                        .emitter
+                        .function
+                        .slots
+                        .iter()
+                        .take(target.emitter.function.parameter_count)
+                        .map(|slot| slot.ty)
+                        .collect();
+                    if module.closure_signatures.id_async(&parameters) != Some(signature) {
+                        continue;
+                    }
+                    writeln!(
+                        output,
+                        "global.get {}\ni32.const {index}\ni32.eq\nif",
+                        emitter.value_offsets[callee.0]
+                    )
+                    .unwrap();
+                    frame.invoke(
+                        &mut output,
+                        target,
+                        callee,
+                        arguments,
+                        returned,
+                        entries[index].expect("async entry"),
+                    );
+                    output.push_str("end\n");
+                }
+                output.push_str("unreachable\n");
+            }
+            End::ReturnedClosure {
+                result,
+                fulfilled,
+                rejected,
+            } => {
+                frame.restore(&mut output);
+                writeln!(output,"global.get $async_tag\nglobal.set {}\nglobal.get $async_payload\nglobal.set {}\ni32.const {rejected}\ni32.const {fulfilled}\nglobal.get $async_rejected\nselect\nglobal.set $pc\nbr $dispatch",emitter.value_offsets[result.0],emitter.value_offsets[result.0]+1).unwrap();
+            }
             End::Jump(target) => jump(&mut output, target),
             End::Copy {
                 input,
                 result,
                 next,
             } => {
-                for part in 0..layout::value(function.values[input.0]).parts.len() {
+                for part in 0..layout::value(emitter.function.values[input.0]).parts.len() {
                     writeln!(
                         output,
                         "global.get {}\nglobal.set {}",
@@ -475,17 +602,27 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                     if rejected { 2 } else { 1 }
                 )
                 .unwrap();
-                primitive(&mut output, &emitter, input);
+                primitive(&mut output, emitter, input);
                 output.push_str("return\n");
             }
             End::Return(value) => {
+                if state.function != 0 {
+                    primitive(&mut output, emitter, value);
+                    frames::complete(&mut output, false);
+                    continue;
+                }
                 output.push_str("i32.const -1\nglobal.set $pc\ni32.const 0\n");
-                primitive(&mut output, &emitter, value);
+                primitive(&mut output, emitter, value);
                 output.push_str("return\n");
             }
             End::Reject(value) => {
+                if state.function != 0 {
+                    primitive(&mut output, emitter, value);
+                    frames::complete(&mut output, true);
+                    continue;
+                }
                 output.push_str("i32.const -1\nglobal.set $pc\ni32.const 3\n");
-                primitive(&mut output, &emitter, value);
+                primitive(&mut output, emitter, value);
                 output.push_str("return\n");
             }
             End::Trap => output.push_str("unreachable\n"),
@@ -494,7 +631,20 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     output.push_str("end\nend\nunreachable\n)\n");
     // $advance occupies logical source entry ID0. All source helpers and
     // lifted bodies retain their verified IDs before exported protocol wrappers.
+    let mut needs_remainder = frames
+        .iter()
+        .flatten()
+        .any(|frame| frame.emitter.needs_remainder);
     for (index, function) in outlined.iter().enumerate() {
+        if ir::is_async_closure(function) {
+            writeln!(
+                output,
+                "(func $closure_body{} (param i32 i32) (result i32 f64) unreachable)",
+                index + 1
+            )
+            .unwrap();
+            continue;
+        }
         let mut header = if ir::closure_environment(function).is_some() {
             format!("(func $closure_body{} (param i32 i32)", index + 1)
         } else {
@@ -516,7 +666,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         .unwrap();
         let (body, remainder) = emit_function(function, header);
         output.push_str(&body);
-        emitter.needs_remainder |= remainder;
+        needs_remainder |= remainder;
     }
     output.push_str(
         r#"(func (export "start") (param f64 f64) (result i32 i32 f64)
@@ -529,7 +679,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
       local.get 0 local.get 1 call $advance)
     "#,
     );
-    if emitter.needs_remainder {
+    if needs_remainder {
         output.push_str(NUMBER_REMAINDER);
     }
     if has_cells {
