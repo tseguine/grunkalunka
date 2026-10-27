@@ -103,6 +103,24 @@ with build API timing, startup observations, warmed JS/Wasm samples and provenan
 Its default compiler is the debug build. Follow the measurement guide before
 comparing results; the smoke test checks correctness, not a speed threshold.
 
+### Experimental Markdown document capability
+
+The completed [bounded document demonstration](docs/document-outline-authority.md)
+builds the existing Markdown library into a core-Wasm guest, then runs it through
+a WIT component with explicit in-memory document grants. To reproduce the
+native/component comparison and denial/handle-isolation checks after installing
+the Rust target and building the workspace:
+
+```sh
+node scripts/check-document-outline.mjs
+```
+
+The host receives owned heading lists, Unicode labels and original source ranges.
+Unauthorized documents cannot be selected by supplying a backing index or forged
+guest borrow. This is a test-driven component example, **not** a filesystem vault,
+editable notes app or JavaScript/TypeScript document API. See [milestones](docs/milestones.md)
+for the remaining P1 and A1 goals.
+
 ## Workspace
 
 - `crates/grunkalunka-compiler`: source text to portable typed Wasm; independent of Wasmtime.
