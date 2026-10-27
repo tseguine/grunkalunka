@@ -111,11 +111,15 @@ must not be presented as implemented compatibility or passing execution evidence
 Do not weaken assertions, hide exclusions or widen tolerances just to obtain green
 checks. Preserve independent reference evidence and document its limits.
 
-- **Documentation-only:** the architecture-review stream may merge its own
-  documentation-only PRs without waiting for CI, as authorized by the maintainer.
-  Review the complete final diff, links, scope and substantive comments first.
-  This includes this file and proposed ADRs, but merging a proposed ADR does not
-  accept its design or authorize implementation outside an existing mandate.
+- **Documentation-only:** the architecture-review and P1 cost streams may
+  merge their **own** documentation-only PRs without waiting for CI, as
+  explicitly authorized by the maintainer. This does not authorize merging
+  another stream's PR. Review the complete final diff, links, scope,
+  substantive comments, and concurrent changes before merging. This includes
+  this file and proposed ADRs when the stream owns the task, but merging a
+  proposed ADR does not accept its design, assign new roadmap priorities, or
+  authorize implementation outside an existing mandate. Other workstreams
+  require their own explicit authorization for this exception.
 - **Code-bearing:** implementation streams retain their existing merge mandates;
   wait for all applicable checks on the current head and resolve substantive
   findings. Source, tests, fixtures, generated executable inputs, dependencies,
