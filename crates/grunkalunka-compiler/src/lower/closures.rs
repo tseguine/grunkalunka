@@ -205,6 +205,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.check_arrow_kind(
             arrow,
             (self.allow_await && factory_depth == 0)
+                || self.allow_async_closures
                 || awaited::immediate_async_arrow(arrow, self.semantic),
         )?;
         // Validate unused bodies too, without running effects or publishing their

@@ -672,7 +672,7 @@ callback/result forwarding preserves it; fulfilled branches explicitly promote.
 Source settled results are confined to immediate await and synchronous forwarding,
 including conditional/comma results. Source Promise slots and parameters retain
 their fulfilled-only contract. Payload/status queries remain IR-only operations.
-Pending promises, runtime async suspension, async-return adoption, thenables,
+Pending promises, async-return adoption, thenables,
 object identity, general payloads and unhandled-rejection tracking remain open.
 Executable IR fixtures and maintained source oracles separately compare native
 JavaScript with Wasm values and reaction traces; neither implies general Promise
@@ -705,8 +705,12 @@ The start/resume ABI, default fuel, 32 logical IR await sites and 4,096-state
 limit are unchanged. Existing modules without async private entries retain their
 previous emission.
 
-This is an **IR-only prerequisite**. Maintained source guards still reject
-runtime-selected async bodies with their own suspension. Executable IR fixtures
+The source lowerer now constructs this effect for runtime-selected async arrows
+with own suspension. Constructor groups widen immediate async peers to the same
+effect; callback inference and returned-function signatures preserve it. Direct
+await emits the private awaited call, including original comma prefixes, without
+exposing a pending value to ordinary expressions. Known directly awaited async
+calls retain their existing inline boundary. Executable IR fixtures
 separately cover native-JS/Node-Wasm/Wasmtime values and reactions, caller/body
 catches, typed primitive/Promise/callback inputs, returned function pairs,
 captured parameters, recursive restoration and resource limits. Their recursive

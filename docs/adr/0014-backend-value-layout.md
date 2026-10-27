@@ -174,7 +174,7 @@ closures now consume capture, promotion and await. Only payload/status queries
 retain narrow non-test dead-code expectations; an unnecessary expectation is a
 compiler warning. Source results are restricted to immediate await and supported
 synchronous forwarding while source rejected slots/parameters and unobserved
-rejections remain guarded. Runtime async suspension, pending/adoption, identity
+rejections remain guarded. Independently pending objects/adoption, identity
 and unhandled-rejection tracking remain open. This uses the existing representation,
 without a scheduler or host protocol extension.
 
@@ -182,9 +182,11 @@ without a scheduler or host protocol extension.
 
 The logical IR now distinguishes async private signatures and an awaited private
 call from ordinary `ClosureCall`. The async body's primitive `General` completion
-does not become an ordinary scalar call result. Source construction of this IR
-effect remains a following unit; two operation constructors and the async
-signature interner retain narrow non-test dead-code expectations meanwhile.
+does not become an ordinary scalar call result. The source lowerer now constructs
+this effect for runtime-selected async bodies with own suspension and directly
+awaited calls; the two operation constructors and signature interner no longer
+need dead-code expectations. Complete callback/returned-function signatures
+retain the effect, including immediate async peers in the same constructor group.
 
 The bounded backend choice compiles each async body once into the existing
 dispatcher and uses invocation-local guest frames for nested calls. A frame
@@ -214,4 +216,8 @@ This changes no General/Promise payload encoding, synchronous private ABI, host
 start/resume statuses, default fuel or continuation/site limits. Modules without
 async private entries keep their previous emission. Independent executable IR
 tests cover typed lanes, captures, nested/recursive restoration, both rejection
-boundaries and arena exhaustion; they do not claim new source admission.
+boundaries and arena exhaustion. Maintained source tests independently execute
+new admission against native JS, Node-Wasm and Wasmtime. The 1,000-argument
+transport boundary uses explicit test fuel, since admission does not guarantee
+that wide-frame preparation fits the unchanged 10,000-fuel default. Pending
+result storage, detached calls, adoption and mixed sync/async effects stay guarded.

@@ -17,8 +17,7 @@ impl Lowering<'_, '_> {
         calls: usize,
         outer: &BTreeMap<SymbolId, Option<usize>>,
     ) -> Option<usize> {
-        // Suspending known async calls retain their separate AwaitCall path.
-        if calls >= 8 || (arrow.r#async && !awaited::immediate_async_arrow(arrow, self.semantic)) {
+        if calls >= 8 {
             return None;
         }
         let parameters = callbacks::parameter_types(
@@ -27,6 +26,13 @@ impl Lowering<'_, '_> {
             self.general_parameters,
             self.promise_parameters,
         );
+        if arrow.r#async && self.async_results.contains(&arrow.node_id.get()) {
+            return Some(
+                self.closure_signatures
+                    .borrow_mut()
+                    .intern_async(parameters),
+            );
+        }
         let mut bindings: BTreeMap<_, _> = self
             .bindings
             .iter()
@@ -641,6 +647,7 @@ impl Lowering<'_, '_> {
             .borrow()
             .result(arity)
             .expect("checked signature");
+        let asynchronous = self.closure_signatures.borrow().is_async(arity);
         if !match return_type {
             Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => true,
             Type::Closure(signature) => self
@@ -661,7 +668,7 @@ impl Lowering<'_, '_> {
         child.values.clear();
         child.next_region = 0;
         child.return_type = return_type;
-        child.allow_await = false;
+        child.allow_await = asynchronous;
         child.source_charging = false;
         child.active_local_calls = 0;
         child.active_block_calls = 0;
@@ -732,10 +739,36 @@ impl Lowering<'_, '_> {
             })
             .collect();
         let mut body = child.region(arrow);
-        Self::push(&mut body, arrow, Op::ClosureEntry { captures: imported });
+        Self::push(
+            &mut body,
+            arrow,
+            if asynchronous {
+                Op::AsyncClosureEntry { captures: imported }
+            } else {
+                Op::ClosureEntry { captures: imported }
+            },
+        );
         child.initialize_general_parameters(&mut body);
         child.bindings.extend(capture_bindings);
-        let returned = if arrow.r#async && return_type == Type::SettledPromise {
+        let returned = if asynchronous {
+            if let Some(expression) = arrow.get_expression() {
+                child
+                    .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
+                    .expect("async primitive body completion")
+            } else {
+                let region = child.arrow_block_result(arrow, 0, Type::General)?;
+                let result = child.value(Type::General);
+                Self::push(
+                    &mut body,
+                    arrow,
+                    Op::InlineCall {
+                        result,
+                        body: region,
+                    },
+                );
+                result
+            }
+        } else if arrow.r#async && return_type == Type::SettledPromise {
             // This private body closes its primitive rejection synchronously;
             // only the caller's AwaitSettled schedules a reaction.
             child.allow_await = true;

@@ -65,19 +65,19 @@ Arbitrary Promise objects and mixed parameter domains remain unfinished.
 Async arrows with admitted non-suspending primitive bodies now use these private
 closure pairs and fulfilled results, including callbacks/factories and mutable
 selection. Their prefix effects and caller reactions have differential coverage;
-runtime async suspension and Promise-return adoption remain open.
+Promise-return adoption and independently pending objects remain open.
 Non-suspending source async closures can also throw primitive reasons through
 the distinct settled-completion IR and one-reaction await. Runtime selection,
 reassignment, factories and supported callback forwarding have source oracles;
 rejected results are restricted to immediate await/synchronous forwarding.
-Rejected Promise storage/inputs, unhandled-rejection tracking, runtime async
-suspension and adoption remain open.
-The next suspension prerequisite exists as async-effect private IR signatures,
+Rejected Promise storage/inputs, unhandled-rejection tracking and adoption remain open.
+Runtime-selected suspending async source bodies now use async-effect private signatures,
 an awaited closure-call operation and backend invocation frames. IR tests execute
 child suspension, caller/body catches, typed inputs, nested and recursive frame
 restoration, and existing resource boundaries against native JS in both engines.
-Runtime-selected source bodies with their own await still require the following
-admission change; this does not mark L5 complete.
+Maintained source oracles cover selection/reassignment, captures, callbacks,
+returned factories, primitive/Promise inputs and lexical catches. Pending result
+objects/adoption and general synchronous exceptions still keep L5 incomplete.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 
@@ -106,7 +106,7 @@ changing those streams' scope or the maintainer's priorities.
 | L2 — mutable control flow | Demonstrated | Numeric mutation, lexical blocks, `if`/`else`, early returns, numeric truthiness and `while`/`for`/`do...while`; the initial L2 run had 72 JS/TS pairs, 177,696 comparisons and 100 rejections. NaN/±0 conditions, nested loops, per-entry initialization and selected branches agree with JS. A separate runtime test observes OutOfFuel and successful instance reuse. Numeric compound assignments, prefix/postfix updates and parenthesized write statements are now admitted. Unlabelled break/continue now target the nearest while/for/do loop; switch, labels and other control forms remain explicit compatibility gaps. |
 | L3 — functions and modules | In progress | Numeric helpers preserve ordered argument snapshots and self/mutual recursion. Initialized local/runtime function pairs, returned closures and captured cells work in the [admitted scalar/callback domains](runtime-closures.md). General function forms, nested declarations and module graphs/initialization remain. |
 | L4 — JS value semantics | In progress | Undefined, Null, Boolean and Number values and their admitted coercions have executable coverage. The separate [experimental String/JSON source profile](heap-literals.md) and [JSON guest operations](json.md) admit bounded literal-origin parse/stringify chains outside the shared General-value lowerer. General source strings, arrays, objects/prototypes and a general heap/GC strategy remain open. |
-| L5 — exceptions, closures and async | In progress | Local/runtime closures preserve captured cells and scoped block returns. The async profile preserves represented primitives and internal function pairs across suspension. [Lexical async catch and primitive source throw](async-catch.md) have differential result/job-order tests. Non-suspending primitive async closures use fulfilled or settled snapshots; throwing results require immediate await or synchronous forwarding. General synchronous exceptions, finally, recursive initialization, runtime async suspension, unhandled rejections and general Promise/thenable values remain. No blanket compatibility claim from these slices. |
+| L5 — exceptions, closures and async | In progress | Local/runtime closures preserve captured cells and scoped block returns. The async profile preserves represented primitives and internal function pairs across suspension. [Lexical async catch and primitive source throw](async-catch.md) have differential result/job-order tests. Non-suspending primitive async closures use fulfilled or settled snapshots; throwing results require immediate await or synchronous forwarding. General synchronous exceptions, finally, recursive initialization, independently pending async calls, unhandled rejections and general Promise/thenable values remain. No blanket compatibility claim from these slices. |
 | T1 — tsrs integration | Research gate | Pin source; perform one real type query associated with an expression; compare tsrs-only against Oxc+tsrs representations. Type information must not erase observable JS behavior. |
 
 L1/L2 retain an explicitly numeric ABI during the experiment. They expand a

@@ -162,18 +162,22 @@ synchronous result-forwarding call or a conditional/comma result. An unshadowed
 Fulfilled branches explicitly promote their snapshots. Storing, discarding,
 coercing, testing or passing potentially rejected snapshots as Promise inputs
 remains guarded: these uses need unhandled-rejection tracking. Returning one from
-an async body requires adoption, which remains open. Own suspension in runtime
-async closures, pending promises, general payloads and identity also remain open.
+an async body requires adoption, which remains open. Pending promises, general
+payloads and identity also remain open.
 Known directly awaited async calls retain their existing `AwaitCall` boundary.
 
-An IR-only prerequisite now supports async private call effects and
+Runtime-selected async bodies with their own await now use async private effects and
 `AwaitClosureCall`. The backend saves caller state in invocation-local guest
 frames, runs each child in the same state dispatcher and restores the caller on
 primitive completion. Child awaits and the caller's await keep their separate
 reaction boundaries, including uncaught rejection and nested/recursive IR calls.
 This reuses the existing host protocol; it does not expose a pending Promise
-handle. Source runtime-selected bodies with their own await remain guarded until
-the following source admission change. See [private async IR frames](ir.md#async-private-calls-and-invocation-frames)
+handle. Direct awaited calls preserve the callee before actual arguments, eager
+prefix effects, captures and typed inputs. Async constructor peers share the
+effect; callback parameters and synchronous factories returning async functions
+retain it. Comma prefixes execute before callee and arguments. Pending result
+storage, detached calls, async-return adoption and mixed synchronous/asynchronous
+interfaces remain guarded. See [private async IR frames](ir.md#async-private-calls-and-invocation-frames)
 for representation, executable evidence and limits.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning

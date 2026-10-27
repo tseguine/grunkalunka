@@ -301,7 +301,7 @@ returned factories, callback forwarding, stored results and fulfilled-Promise
 parameters preserve the same callee/argument/capture snapshots. Unused async
 constructors do not run their bodies. Mixed async/synchronous primitive result
 interfaces, Promise-return adoption, async function/object/string outcomes and
-runtime suspension remain unsupported. Known directly awaited async
+general pending Promise objects remain unsupported. Known directly awaited async
 calls still use their existing suspension and rejection boundary.
 
 Non-suspending async arrows that throw primitive reasons now return the distinct
@@ -327,3 +327,20 @@ Maintained source tests compare JS/TS native execution with Node-Wasm and Wasmti
 outcomes, primitive bits, callee/actual/capture snapshots and complete reaction
 traces. They retain 1,000/1,001 parameter and 32/33 await boundaries and compare
 erased typed syntax against the corresponding JS artifact.
+
+Async arrows with own-scope suspension now use async-effect signatures and saved
+guest coroutine frames. Runtime selection/reassignment and immediate async peers,
+callbacks, synchronous factories returning async functions and nested child calls
+preserve the complete effect. A directly awaited call snapshots its callee before
+all actual arguments, executes the body prefix eagerly and preserves separate
+child/caller reactions, primitive rejection and lexical catches. Original comma
+prefixes execute in order. General primitive and fulfilled-Promise inputs retain
+their logical kinds; no annotation supplies a runtime proof.
+
+Pending results still cannot be stored, discarded, coerced, tested or returned
+for adoption. Mixed sync/async effects, recursive source initialization, general
+pending objects and finally remain outside this slice. The backend's recursive
+IR-frame tests are not a source recursion claim. Source tests compare complete
+34-marker native/Node-Wasm traces and Wasmtime values/reaction counts, including
+1,000/1,001 parameters and 32/33 logical await sites. Wide transport tests use an
+explicit larger test fuel budget; the production 10,000-fuel limit is unchanged.

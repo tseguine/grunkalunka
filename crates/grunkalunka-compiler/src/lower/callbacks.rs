@@ -485,6 +485,14 @@ fn refine_shapes<'a>(
                             parameters: &Parameters,
                             kinds: &storage::BindingKinds| {
         let arrow = arrows[&body];
+        if arrow.r#async && kinds.async_results.contains(&body) {
+            return signatures.borrow_mut().intern_async(parameter_types(
+                arrow,
+                parameters,
+                &kinds.inputs,
+                promise_parameters,
+            ));
+        }
         let synchronous_promise = !arrow.r#async
             && storage::arrow_returns(arrow, semantic).is_some_and(|results| {
                 !results.is_empty()
@@ -841,7 +849,12 @@ fn refine_shapes<'a>(
             let result = expected
                 .and_then(|signature| signatures.borrow().result(signature))
                 .unwrap_or(Type::Number);
-            let signature = signatures.borrow_mut().intern(arguments, result);
+            let asynchronous = expected.is_some_and(|id| signatures.borrow().is_async(id));
+            let signature = if asynchronous {
+                signatures.borrow_mut().intern_async(arguments)
+            } else {
+                signatures.borrow_mut().intern(arguments, result)
+            };
             for source in sources {
                 demands.entry(source).or_default().insert(signature);
             }

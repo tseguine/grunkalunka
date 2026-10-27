@@ -60,6 +60,40 @@ pub(super) struct Operand<'e, 'a> {
     pub extras: &'e [Argument<'a>],
 }
 
+pub(super) struct PrivateCall<'e, 'a> {
+    pub call: &'e CallExpression<'a>,
+    pub depth: usize,
+    pub prefixes: Vec<(&'e Expression<'a>, usize)>,
+}
+
+// Only inspect the awaited result path; prefixes remain original expressions
+// and execute before callee/arguments in the evaluator's explicit cursor.
+pub(super) fn private_call<'e, 'a>(
+    mut expression: &'e Expression<'a>,
+    mut depth: usize,
+) -> Option<PrivateCall<'e, 'a>> {
+    let mut prefixes = Vec::new();
+    loop {
+        let (node, at) = closures::unwrapped_at(expression, depth)?;
+        match node {
+            Expression::CallExpression(call) => {
+                return Some(PrivateCall {
+                    call,
+                    depth: at,
+                    prefixes,
+                });
+            }
+            Expression::SequenceExpression(sequence) => {
+                let (last, before) = sequence.expressions.split_last()?;
+                prefixes.extend(before.iter().map(|expression| (expression, at + 1)));
+                expression = last;
+                depth = at + 1;
+            }
+            _ => return None,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct Intrinsic<'e, 'a> {
     pub argument: Option<&'e Expression<'a>>,

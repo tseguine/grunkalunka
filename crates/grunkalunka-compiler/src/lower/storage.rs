@@ -275,6 +275,7 @@ pub(crate) struct BindingKinds {
     // Physical scalar result interfaces; source-local Number proofs stay separate.
     pub(crate) general_results: BTreeSet<NodeId>,
     pub(crate) settled_results: BTreeSet<NodeId>,
+    pub(crate) async_results: BTreeSet<NodeId>,
 }
 
 pub(crate) fn general_mutable_bindings(
@@ -572,7 +573,7 @@ pub(crate) fn general_mutable_bindings(
             continue;
         };
         let runtime_input = static_constructor(&call.callee, &static_targets)
-            .is_none_or(|body| awaited::immediate_async_arrow(arrows[&body], semantic));
+            .is_none_or(|body| arrows[&body].r#async);
         let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
         for source in sources {
             if let Some(known) = targets.get(&source) {
@@ -866,11 +867,29 @@ pub(crate) fn general_mutable_bindings(
             break;
         }
     }
+    let mut async_results: BTreeSet<_> = arrows
+        .iter()
+        .filter_map(|(id, arrow)| {
+            (arrow.r#async && !awaited::immediate_async_arrow(arrow, semantic)).then_some(*id)
+        })
+        .collect();
+    loop {
+        let previous = async_results.len();
+        for bodies in &constructor_groups {
+            if !bodies.is_disjoint(&async_results) {
+                async_results.extend(bodies.iter().filter(|id| arrows[id].r#async));
+            }
+        }
+        if async_results.len() == previous {
+            break;
+        }
+    }
     BindingKinds {
         storage,
         inputs,
         number_calls,
         general_results,
         settled_results,
+        async_results,
     }
 }

@@ -61,10 +61,6 @@ impl ClosureSignatures {
         id
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     pub(crate) fn intern_async(&mut self, parameters: Vec<Type>) -> usize {
         if let Some(id) = self.id_async(&parameters) {
             return id;
@@ -361,10 +357,6 @@ pub(crate) enum Op {
     ClosureEntry {
         captures: Vec<SlotId>,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     AsyncClosureEntry {
         captures: Vec<SlotId>,
     },
@@ -378,10 +370,6 @@ pub(crate) enum Op {
         callee: ValueId,
         arguments: Vec<ValueId>,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     AwaitClosureCall {
         result: ValueId,
         callee: ValueId,

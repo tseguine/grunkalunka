@@ -233,8 +233,15 @@ enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
         callee: ValueId,
+        awaited: bool,
         index: usize,
         arguments: Vec<ValueId>,
+        depth: usize,
+    },
+    BeginAwaitedClosureCall {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        signature: usize,
         depth: usize,
     },
     RestoreBindings(Vec<NumericBinding>, bool),
@@ -674,10 +681,36 @@ impl Lowering<'_, '_> {
                         }
                     }
                 }
+                Work::BeginAwaitedClosureCall {
+                    node,
+                    call,
+                    signature,
+                    depth,
+                } => {
+                    let region_depth = regions.children.len();
+                    let callee = self.prepare_closure_call(
+                        node,
+                        call,
+                        signature,
+                        regions.current(),
+                        depth,
+                        region_depth,
+                    )?;
+                    work.push(Work::ClosureCall {
+                        node,
+                        call,
+                        callee,
+                        awaited: true,
+                        index: 0,
+                        arguments: Vec::new(),
+                        depth,
+                    });
+                }
                 Work::ClosureCall {
                     node,
                     call,
                     callee,
+                    awaited,
                     index,
                     mut arguments,
                     depth,
@@ -702,6 +735,7 @@ impl Lowering<'_, '_> {
                                 node,
                                 call,
                                 callee,
+                                awaited,
                                 index: index + 1,
                                 arguments,
                                 depth,
@@ -735,6 +769,7 @@ impl Lowering<'_, '_> {
                             node,
                             call,
                             callee,
+                            awaited,
                             index: index + 1,
                             arguments,
                             depth,
@@ -763,10 +798,18 @@ impl Lowering<'_, '_> {
                         Self::push(
                             regions.current(),
                             node,
-                            Op::ClosureCall {
-                                result,
-                                callee,
-                                arguments,
+                            if awaited {
+                                Op::AwaitClosureCall {
+                                    result,
+                                    callee,
+                                    arguments,
+                                }
+                            } else {
+                                Op::ClosureCall {
+                                    result,
+                                    callee,
+                                    arguments,
+                                }
                             },
                         );
                         values.push(if ty == Type::SettledPromise {
@@ -1812,6 +1855,36 @@ impl Lowering<'_, '_> {
                                     && (operand.extras.is_empty()
                                         || !awaited::eager_async_arrow(arrow, self.semantic))
                             });
+                        if !known_async
+                            && let Some(private) = awaited::private_call(argument, argument_depth)
+                            && let Some(signature) =
+                                self.function_arity(&private.call.callee, private.depth + 1)
+                            && self.closure_signatures.borrow().is_async(signature)
+                        {
+                            if rejected || !operand.extras.is_empty() {
+                                return Err(unsupported(
+                                    node,
+                                    "pending async-call operands require a direct await without Promise-valued rejection or surplus intrinsic arguments",
+                                ));
+                            }
+                            call_result(
+                                &mut work,
+                                node,
+                                mode,
+                                Type::General,
+                                self.numeric_result_shape(node, depth),
+                            )?;
+                            work.push(Work::BeginAwaitedClosureCall {
+                                node: argument,
+                                call: private.call,
+                                signature,
+                                depth: private.depth + 1,
+                            });
+                            for (prefix, depth) in private.prefixes.into_iter().rev() {
+                                work.push(Work::Eval(prefix, depth, Mode::Discard));
+                            }
+                            continue;
+                        }
                         if !known_async && self.fulfilled_promise_shape(argument, argument_depth) {
                             if rejected {
                                 return Err(unsupported(
@@ -1928,28 +2001,10 @@ impl Lowering<'_, '_> {
                             })
                         && let Some(arity) = self.function_arity(&call.callee, depth + 1)
                     {
-                        if call.optional || call.type_arguments.is_some() {
+                        if self.closure_signatures.borrow().is_async(arity) {
                             return Err(unsupported(
                                 node,
-                                "optional and generic runtime closure calls are not admitted",
-                            ));
-                        }
-                        if call.arguments.len() > 1000 {
-                            return Err(unsupported(
-                                node,
-                                "at most 1000 ordinary runtime closure arguments are admitted",
-                            ));
-                        }
-                        if call.arguments.len()
-                            < self
-                                .closure_signatures
-                                .borrow()
-                                .parameter_count(arity)
-                                .expect("checked closure signature")
-                        {
-                            return Err(unsupported(
-                                node,
-                                "runtime closure call is missing declared arguments",
+                                "suspending async closure calls require a direct await",
                             ));
                         }
                         let result_type = self
@@ -1969,33 +2024,15 @@ impl Lowering<'_, '_> {
                                 "function-valued runtime calls require a function position",
                             ));
                         }
-                        let callee = if let Some((slot, _)) =
-                            self.runtime_closure_callee(&call.callee, depth + 1)
-                        {
-                            let value = self.value(Type::Closure(arity));
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Load {
-                                    result: value,
-                                    slot,
-                                },
-                            );
-                            value
-                        } else {
-                            let outer = self.function_result_depth;
-                            self.function_result_depth = (self.inline_depth + self.statement_depth)
-                                .max(outer)
-                                + regions.children.len();
-                            let value = self.function_value(
-                                &call.callee,
-                                regions.current(),
-                                arity,
-                                depth + 1,
-                            );
-                            self.function_result_depth = outer;
-                            value?
-                        };
+                        let region_depth = regions.children.len();
+                        let callee = self.prepare_closure_call(
+                            node,
+                            call,
+                            arity,
+                            regions.current(),
+                            depth + 1,
+                            region_depth,
+                        )?;
                         call_result(
                             &mut work,
                             node,
@@ -2007,6 +2044,7 @@ impl Lowering<'_, '_> {
                             node,
                             call,
                             callee,
+                            awaited: false,
                             index: 0,
                             arguments: Vec::new(),
                             depth: depth + 1,
@@ -2662,5 +2700,61 @@ impl Lowering<'_, '_> {
         };
         assert!(values.is_empty(), "all intermediate values consumed");
         Ok(result)
+    }
+
+    // Both call effects share source validation and callee-before-arguments evaluation.
+    fn prepare_closure_call(
+        &mut self,
+        node: &Expression<'_>,
+        call: &CallExpression<'_>,
+        signature: usize,
+        region: &mut Region,
+        depth: usize,
+        region_depth: usize,
+    ) -> Result<ValueId, String> {
+        if call.optional || call.type_arguments.is_some() {
+            return Err(unsupported(
+                node,
+                "optional and generic runtime closure calls are not admitted",
+            ));
+        }
+        if call.arguments.len() > 1000 {
+            return Err(unsupported(
+                node,
+                "at most 1000 ordinary runtime closure arguments are admitted",
+            ));
+        }
+        if call.arguments.len()
+            < self
+                .closure_signatures
+                .borrow()
+                .parameter_count(signature)
+                .expect("checked closure signature")
+        {
+            return Err(unsupported(
+                node,
+                "runtime closure call is missing declared arguments",
+            ));
+        }
+        let callee = if let Some((slot, _)) = self.runtime_closure_callee(&call.callee, depth) {
+            let value = self.value(Type::Closure(signature));
+            Self::push(
+                region,
+                node,
+                Op::Load {
+                    result: value,
+                    slot,
+                },
+            );
+            value
+        } else {
+            let outer = self.function_result_depth;
+            self.function_result_depth =
+                (self.inline_depth + self.statement_depth).max(outer) + region_depth;
+            let value = self.function_value(&call.callee, region, signature, depth);
+            self.function_result_depth = outer;
+            value?
+        };
+        Ok(callee)
     }
 }
