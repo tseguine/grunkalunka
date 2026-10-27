@@ -76,6 +76,12 @@ Review selected-file and bundled third-party terms before adding more material.
 | Node.js tests | Host API compatibility and regressions | Pending | Selected original API tests with capability grant/denial cases |
 | Speedometer | Browser application responsiveness | Pending | Correct application interactions after DOM, events and rendering exist |
 
+Public resolved/open browser and embedding bug reports are a separate **proposed**
+source of adversarial regression scenarios. See the [historical bug-hardening
+matrix and triage criteria](historical-bug-hardening.md), including Electron,
+CEF and Ultralight. They are not a seventh adopted suite, new CI requirement,
+or permission to change workstream priorities.
+
 Run `node tests/compatibility/suites.mjs` to inspect pins, prerequisites and the
 next slice for every suite. Without execution evidence, all execution counts are
 zero. Run `node tests/compatibility/suites.mjs <report.json>` to summarize an actual

@@ -335,6 +335,7 @@ Use complementary sources:
 | [Electron specs](https://github.com/electron/electron/tree/main/spec) | Candidate desktop/embedding behavior tests and implementation references for the environment layer: application lifecycle, windows, navigation and IPC. Select relevant cases; this is not a commitment to clone every Electron API. |
 | [Acid1/2/3](https://www.acidtests.org/) | Historical integration/visual regression checkpoints; pin test versions and record intentional differences. |
 | [Can I Use](https://caniuse.com/ciu/about) | Feature inventory and roadmap input; connect chosen features to standards, tests, capability requirements and representative applications. |
+| [Historical browser and embedder issue trackers](historical-bug-hardening.md) | **Proposed** adversarial regression scenarios from Chromium, Firefox, WebKit, Electron, CEF and Ultralight. Embedder reports supply host-integration cases, not independent engine votes or a new assigned milestone. |
 
 The [Acid maintainers](https://www.acidtests.org/) state that the suite is no longer
 maintained and parts of Acid3 no longer reflect current standards consensus. Use
