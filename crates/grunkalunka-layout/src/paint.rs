@@ -51,10 +51,18 @@ pub enum PaintError {
     InvalidBitmap,
     TooManyPixels,
     NodeCountMismatch,
-    InvalidParent { node: usize },
-    TooDeep { node: usize },
-    VisibleChildOfHiddenParent { node: usize },
-    InvalidBox { node: usize },
+    InvalidParent {
+        node: usize,
+    },
+    TooDeep {
+        node: usize,
+    },
+    VisibleChildOfHiddenParent {
+        node: usize,
+    },
+    InvalidBox {
+        node: usize,
+    },
     Overflow,
 }
 

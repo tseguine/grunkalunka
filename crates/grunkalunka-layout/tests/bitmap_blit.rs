@@ -15,13 +15,10 @@ fn row_padding_and_transparent_bits_preserve_background() {
     // Each three-pixel row is exactly one byte. Intentionally set the five
     // padding bits to 1; those bits must NOT leak into adjacent pixels.
     let mask = [0b1011_1111, 0b0101_1111, 0b1011_1111];
-    canvas
-        .blit_mono(1, 1, 3, 3, &mask, Rgb::BLACK)
-        .unwrap();
+    canvas.blit_mono(1, 1, 3, 3, &mask, Rgb::BLACK).unwrap();
     for y in 0..8 {
         for x in 0..8 {
-            let ink = [(1, 1), (3, 1), (2, 2), (1, 3), (3, 3)]
-                .contains(&(x, y));
+            let ink = [(1, 1), (3, 1), (2, 2), (1, 3), (3, 3)].contains(&(x, y));
             let expected = if ink { Rgb::BLACK } else { Rgb::WHITE };
             assert_eq!(canvas.pixel(x, y), Some(expected), "pixel {x},{y}");
         }
@@ -34,13 +31,10 @@ fn multi_byte_rows_have_msb_first_bit_order() {
     // width=10 => 2 bytes/row, height=2 => exactly 4 bytes.
     // Row 0 sets columns 0 and 9; row 1 sets columns 7 and 8.
     let mask = [0b1000_0000, 0b0100_0000, 0b0000_0001, 0b1000_0000];
-    canvas
-        .blit_mono(1, 1, 10, 2, &mask, Rgb::BLACK)
-        .unwrap();
+    canvas.blit_mono(1, 1, 10, 2, &mask, Rgb::BLACK).unwrap();
     for y in 0..4 {
         for x in 0..12 {
-            let ink = [(1, 1), (10, 1), (8, 2), (9, 2)]
-                .contains(&(x, y));
+            let ink = [(1, 1), (10, 1), (8, 2), (9, 2)].contains(&(x, y));
             let expected = if ink { Rgb::BLACK } else { Rgb::WHITE };
             assert_eq!(canvas.pixel(x, y), Some(expected), "pixel {x},{y}");
         }
@@ -51,9 +45,7 @@ fn multi_byte_rows_have_msb_first_bit_order() {
 fn clipping_and_fully_offscreen_masks_leave_other_pixels_intact() {
     let mut canvas = blank(4, 4);
     let mask = [0b1110_0000, 0b1110_0000, 0b1110_0000];
-    canvas
-        .blit_mono(3, 3, 3, 3, &mask, Rgb::BLACK)
-        .unwrap();
+    canvas.blit_mono(3, 3, 3, 3, &mask, Rgb::BLACK).unwrap();
     for y in 0..4 {
         for x in 0..4 {
             let expected = if x == 3 && y == 3 {
@@ -65,12 +57,8 @@ fn clipping_and_fully_offscreen_masks_leave_other_pixels_intact() {
         }
     }
     let original = canvas.ppm();
-    canvas
-        .blit_mono(100, 100, 3, 3, &mask, Rgb::BLACK)
-        .unwrap();
-    canvas
-        .blit_mono(4, 0, 3, 3, &mask, Rgb::BLACK)
-        .unwrap();
+    canvas.blit_mono(100, 100, 3, 3, &mask, Rgb::BLACK).unwrap();
+    canvas.blit_mono(4, 0, 3, 3, &mask, Rgb::BLACK).unwrap();
     assert_eq!(canvas.ppm(), original);
 }
 
@@ -85,9 +73,7 @@ fn masks_overlay_colored_backgrounds_without_erasing_zero_bits() {
     assert_eq!(canvas.pixel(5, 0), Some(Rgb::WHITE));
 
     // Blue covers columns 0..3, while its zero bits preserve earlier red ink.
-    canvas
-        .blit_mono(0, 0, 8, 1, &[0b1111_0000], blue)
-        .unwrap();
+    canvas.blit_mono(0, 0, 8, 1, &[0b1111_0000], blue).unwrap();
     for x in 0..8 {
         let expected = if x < 4 {
             blue
@@ -113,11 +99,32 @@ fn invalid_bitmaps_and_overflow_fail_before_any_mutation() {
         (0, 0, 1, 0, &[][..], PaintError::InvalidBitmap),
         (0, 0, 9, 1, &[0x80][..], PaintError::InvalidBitmap),
         (0, 0, 1, 1, &[0x80, 0x80][..], PaintError::InvalidBitmap),
-        (0, 0, MAX_VIEWPORT + 1, 1, &[][..], PaintError::InvalidBitmap),
-        (0, 0, 1, MAX_VIEWPORT + 1, &[][..], PaintError::InvalidBitmap),
+        (
+            0,
+            0,
+            MAX_VIEWPORT + 1,
+            1,
+            &[][..],
+            PaintError::InvalidBitmap,
+        ),
+        (
+            0,
+            0,
+            1,
+            MAX_VIEWPORT + 1,
+            &[][..],
+            PaintError::InvalidBitmap,
+        ),
         (0, 0, 2048, 2048, &[][..], PaintError::TooManyPixels),
         (u32::MAX, 0, 2, 1, &[0b1100_0000][..], PaintError::Overflow),
-        (0, u32::MAX, 1, 2, &[0b1000_0000; 2][..], PaintError::Overflow),
+        (
+            0,
+            u32::MAX,
+            1,
+            2,
+            &[0b1000_0000; 2][..],
+            PaintError::Overflow,
+        ),
     ];
     for (x, y, width, height, mask, expected) in invalid {
         assert_eq!(
@@ -143,10 +150,7 @@ fn ppm_contains_new_opaque_ink_at_the_correct_coordinates() {
         .blit_mono(1, 0, 1, 1, &[0b1000_0000], Rgb::BLACK)
         .unwrap();
     let mut expected = b"P6\n2 2\n255\n".to_vec();
-    expected.extend_from_slice(&[
-        255, 255, 255, 0, 0, 0,
-        255, 255, 255, 255, 255, 255,
-    ]);
+    expected.extend_from_slice(&[255, 255, 255, 0, 0, 0, 255, 255, 255, 255, 255, 255]);
     assert_ne!(canvas.ppm(), before);
     assert_eq!(canvas.ppm(), expected);
 }
