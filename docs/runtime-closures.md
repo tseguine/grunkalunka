@@ -171,8 +171,12 @@ limit. Known scalar-result local source calls such as `(x=>+x)(null)` now specia
 primitive inputs into their caller's regions, including awaited known async calls. Their
 parameter cells preserve primitive kinds, snapshots and captured writes. This
 also applies to known concise and block-bodied factories with independently
-established returned signatures. It does not infer input-dependent results such
-as `(x=>x)(null)`, or General-input signatures for runtime function values; those remain
-separate frontend gaps. The runtime arena and frame alignment are unchanged;
+established returned signatures. Known scalar actuals now feed formal storage and
+result facts, so `(x=>x)(null)` returns Null in the primitive-value profile. Known
+aliases, forwarding calls and captures preserve these facts; generic function
+inputs keep their separate specialization. This does not infer General-input
+signatures for runtime function values, or argument facts from unresolved
+call-result shapes. Existing Number factory depth boundaries remain unchanged.
+The runtime arena and frame alignment are unchanged;
 new General arguments simply
 consume sixteen-byte entries within the existing allocation limit.

@@ -64,7 +64,6 @@ fn local_primitive_inputs_keep_existing_call_and_result_guards() {
         "export function run(a,b){const f=x=>+x;return f('text');}",
         "export function run(a,b){const f=x=>+x;return f({});}",
         "export function run(a,b){const f=x=>+x;return f([]);}",
-        "export function run(a,b){const f=x=>x;return f(null);}",
         "export function run(a,b){const f=a?x=>+x:x=>-x;return f(null);}",
         "export function run(a,b){const f=x=>+x;return f(null,missing);}",
     ] {
@@ -73,6 +72,24 @@ fn local_primitive_inputs_keep_existing_call_and_result_guards() {
             assert!(compile_value(source, ts).is_err(), "{source}");
         }
     }
+    let source = "export function run(a,b){const f=x=>x;return f(null);}";
+    for ts in [false, true] {
+        assert!(compile(source, ts).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn known_local_primitive_results_convert_only_in_explicit_positions() {
+    compare_helper_sources(&[
+        "export function run(a,b){const f=x=>x;return +f(null);}",
+        "export function run(a,b){const f=x=>x;return +f(undefined);}",
+        "export function run(a,b){const f=x=>x;return +f(true);}",
+        "export function run(a,b){const f=x=>x;return +f(false);}",
+        "export function run(a,b){const f=x=>x;f(null);return +f(a);}",
+        "export function run(a,b){const id=x=>x;const leaf=()=>a;const f=id(leaf);return id(a)+f();}",
+        "export function run(a,b){const id=x=>x;const leaf=()=>null;const f=id(leaf);return id(a)+(+f());}",
+        "export function run(a,b){const id=x=>x;const f=id(()=>null);f();return id(a);}",
+    ]);
 }
 
 #[test]

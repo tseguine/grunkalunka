@@ -1,6 +1,34 @@
 use grunkalunka_compiler::{compile, compile_value};
 use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 
+#[test]
+fn known_local_results_follow_primitive_inputs() {
+    compare_primitive_closure_programs(&[
+        "const f=x=>x;return f(null);",
+        "const f=x=>x;return f(undefined);",
+        "const f=x=>x;return f(true);",
+        "const f=x=>x;return f(false);",
+        "const f=x=>x;return f(a);",
+        "return (x=>x)(null);",
+        "const f=x=>x;const alias=f;return alias(a?null:false);",
+        "const f=x=>{return x;};return f(null);",
+        "const f=(x,y)=>a?x:y;return f(null,true);",
+        "let x=null;const f=(x,y)=>x;const result=f(x,x=a);return result;",
+        "const f=x=>{const read=()=>x;x=a;return read();};return f(null);",
+        "const f=x=>{const read=()=>x;const old=read();x=a;return old;};return f(false);",
+        "const f=x=>x??b;return f(null);",
+        "const f=x=>x&&b;return f(false);",
+        "const f=x=>x||b;return f(true);",
+        "const f=x=>x;f(null);return f(a);",
+        "const id=x=>x;const leaf=()=>null;id(null);return id(leaf)();",
+        "const id=x=>x;const leaf=()=>a;const f=id(leaf);return id(null)??f();",
+        "const f=x=>x;const relay=y=>f(y);return relay(null);",
+        "const f=x=>x;const relay=y=>f(y);return relay(a?undefined:b);",
+        "const make=x=>()=>x;const f=make(null);return f();",
+        "const make=x=>{return ()=>x;};return make(null)();",
+    ]);
+}
+
 fn encode(value: Value) -> String {
     match value {
         Value::Undefined => "[0]".into(),
@@ -483,7 +511,6 @@ fn primitive_results_do_not_expand_other_closure_domains() {
         "const f=()=>{return '';};return a;",
         "const f=()=>{return {};};return a;",
         "const f=async()=>null;return a;",
-        "const f=x=>x;return f(null);",
         "const f=()=>null;return f;",
         "const f=()=>null;const g=()=>b;let h=a?f:g;return h();",
         "const f=()=>'';return f();",

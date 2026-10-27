@@ -47,6 +47,26 @@ fn known_factory_primitive_inputs_preserve_cells_and_jobs() {
     );
 }
 
+#[test]
+fn known_local_input_result_facts_preserve_async_kinds_and_jobs() {
+    compare_promises(
+        &[
+            "const f=x=>x;return f(await null);",
+            "const f=x=>x;return f(await true);",
+            "const f=x=>x;const relay=y=>f(y);return relay(await false);",
+            "const f=async x=>x;return await f(null);",
+            "const f=async x=>{await b;return x;};return await f(undefined);",
+            "const make=x=>()=>x;const f=make(await null);await b;return f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn source_for(body: &str) -> String {
     if body == "return a + await Promise.resolve(b);" {
         ORIGINAL.into()
@@ -1896,7 +1916,6 @@ fn known_async_arrows_keep_promise_object_and_body_boundaries() {
         "const f=async()=>{return ()=>a;};return await f();",
         "const f=async()=>'';return await f();",
         "const f=async()=>({});return await f();",
-        "const f=async x=>x;return await f(null);",
         "const f=async()=>a;return await f?.();",
         "const f=async()=>a;return await f(...a);",
     ] {

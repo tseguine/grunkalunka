@@ -341,6 +341,73 @@ pub(crate) fn general_mutable_bindings(
             break;
         }
     }
+    // Known scalar actuals are initial writes to the arrow's formal cells.
+    // Function inputs retain their separate call-site specialization instead of
+    // turning a generic identity formal into one monomorphic scalar kind.
+    let returns = callbacks::ReturnOrigins {
+        semantic,
+        targets: &targets,
+        arrows: &arrows,
+    };
+    // A failed Number proof for an opaque call is not a General-kind fact.
+    // Retain the prior admission for such inputs; actual lowering still checks
+    // their values. In particular, nested runtime factory calls may be Number.
+    let opaque_calls: Vec<_> = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let AstKind::CallExpression(call) = node.kind() else {
+                return None;
+            };
+            (!matches!(
+                closures::unwrapped(&call.callee, 0),
+                Some(Expression::Identifier(_) | Expression::ArrowFunctionExpression(_))
+            ) && math_unary(call, semantic).is_none())
+            .then_some(call.span())
+        })
+        .collect();
+    for node in semantic.nodes().iter() {
+        let AstKind::CallExpression(call) = node.kind() else {
+            continue;
+        };
+        let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+        for source in sources {
+            if let Some(known) = targets.get(&source) {
+                bodies.extend(known);
+            }
+        }
+        for body in bodies {
+            for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments) {
+                let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                    continue;
+                };
+                let (Some(symbol), Some(actual)) =
+                    (identifier.symbol_id.get(), argument.as_expression())
+                else {
+                    continue;
+                };
+                let (sources, constructors) = returns.expression(actual, &BTreeMap::new(), 0, 0);
+                if !constructors.is_empty()
+                    || sources.iter().any(|source| {
+                        targets.contains_key(source)
+                            || callback_parameters
+                                .values()
+                                .any(|parameters| parameters.contains_key(source))
+                    })
+                {
+                    continue;
+                }
+                let span = actual.span();
+                if opaque_calls
+                    .iter()
+                    .any(|call| span.start <= call.start && call.end <= span.end)
+                {
+                    continue;
+                }
+                writes.entry(symbol).or_default().push(actual);
+            }
+        }
+    }
     // A candidate stays Number exactly when its initial value and every plain/logical RHS write
     // have Number shape and all symbol dependencies stay Number. Start with the
     // greatest candidate set, then propagate removals through reverse edges once.

@@ -1685,10 +1685,17 @@ Arguments retain their kinds and left-to-right snapshots in fresh mutable parame
 cells, including cells captured by nested arrows. Awaited known async calls share
 this argument path. Inputs with a positive Number shape proof retain their
 original representation.
-Body results retain their existing typed contract: input-dependent result inference
-such as `(x=>x)(null)` and runtime closure General-input
-inference remain separate frontend gaps. Strings, arrays and objects are outside
-this primitive domain.
+Known scalar actuals also contribute to formal storage and result facts: in the
+primitive-value profile, `(x=>x)(null)` returns Null instead of assuming a Number
+formal. These facts propagate through known aliases, calls, writes and captures;
+function-valued inputs retain separate call-site specialization. Number entries
+still require an explicit conversion, such as `+(x=>x)(null)`, for a General result.
+Ordinary helpers and exported parameters retain their Number contracts. Runtime
+closure General-input inference remains a separate frontend gap. Strings, arrays
+and objects are outside this primitive domain.
+Argument expressions with unresolved call-result shapes do not establish General
+formal facts. Their input-dependent result inference remains separate work; the
+existing Number factory depth boundaries and actual value checks are retained.
 Known concise and block-bodied factories also accept these primitive inputs when
 their returned function signatures are independently established. For example,
 `(x=>()=>+x)(null)()` yields Number zero. Each application retains fresh parameter

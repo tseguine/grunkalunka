@@ -15,7 +15,9 @@ Separate factory applications retain separate cells, while aliases share their
 original cell. This includes primitive inputs obtained by awaiting in an async
 caller, without adding a reaction job at factory invocation. Runtime-selected
 factories still require their existing Number/callback input signatures;
-input-dependent signature inference remains separate work.
+known scalar inputs also contribute to formal and result facts, including a
+captured primitive leaf such as `const make=x=>()=>x; return make(null)();`.
+This does not add General-input signatures for runtime-selected functions.
 
 ```js
 export function run(a, b) {
