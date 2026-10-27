@@ -12,7 +12,7 @@ payload without rewriting it.
 ```sh
 node tests/browser-oracles/compare.mjs blink.json gecko.json
 node tests/browser-oracles/compare.mjs blink.json webkit.json --rect-tolerance=0.25 --style-px-tolerance=0.1
-node --test tests/browser-oracles/compare.test.mjs
+node --test tests/browser-oracles/*.test.mjs
 ```
 
 The comparator accepts two version-1 browser-oracle capture JSON files.
@@ -41,13 +41,17 @@ does not independently prove identical HTML/CSS bytes; source hashing is a
 follow-up.
 
 All computed-style values are compared exactly as strings unless both match a
-numeric `px` length and a nonnegative `--style-px-tolerance` is supplied.
+numeric `px` length and a positive `--style-px-tolerance` is supplied.
+Explicit zero, like the default, preserves exact strings. Numeric conversion
+that overflows or underflows a nonzero value to zero cannot establish agreement.
 Bounding rectangles are compared as numbers in CSS px with the optional
 `--rect-tolerance`. The defaults are both **zero**. Missing computed
 properties, malformed values and unobserved data cannot silently become
 zero-valued properties. Comparisons are per field; unmatched observed element
 IDs are reported as incompatible, not compared as if they were the same DOM
-node.
+node. CLI tolerances accept complete unsigned decimal values, optionally with
+an exponent; whitespace, trailing material, hexadecimal, duplicate flags and
+nonfinite or nonzero-underflowing values are rejected.
 
 This is not a rendering engine runner. The initial captures come from
 opening the source HTML fixture in a real browser. A later collector should

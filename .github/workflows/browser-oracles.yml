@@ -34,4 +34,4 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - name: Run offline oracle contract tests
-        run: node --test tests/browser-oracles/compare.test.mjs
+        run: node --test tests/browser-oracles/*.test.mjs

@@ -4,6 +4,14 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// Refuse numeric tolerance when conversion loses a nonzero value to zero.
+// Exact string comparison remains available for these exceptional values.
+function finiteDecimal(text) {
+  const value = Number(text);
+  const nonzeroSignificand = /[1-9]/.test(text.split(/[eE]/, 1)[0]);
+  return Number.isFinite(value) && !(value === 0 && nonzeroSignificand) ? value : NaN;
+}
+
 export function validateCapture(capture) {
   const errors = [];
   const error = (path, message) => errors.push({ path, message });
@@ -150,7 +158,9 @@ export function compareCaptures(left, right, options = {}) {
       const aValue = a.computed[key], bValue = b.computed[key];
       if (aValue === bValue) continue;
       const apx = px.exec(aValue), bpx = px.exec(bValue);
-      if (apx && bpx && Math.abs(Number(apx[1]) - Number(bpx[1])) <= stylePxTolerance) continue;
+      // Zero (including the default) means exact CSS string comparison.
+      if (stylePxTolerance > 0 && apx && bpx &&
+          Math.abs(finiteDecimal(apx[1]) - finiteDecimal(bpx[1])) <= stylePxTolerance) continue;
       different("computed-style", path, aValue, bValue, apx && bpx ? stylePxTolerance : undefined);
     }
     for (const key of ["x", "y", "width", "height"]) {
@@ -178,9 +188,12 @@ async function main(args) {
   const options = {};
   for (const arg of args) {
     if (arg.startsWith("--rect-tolerance=") || arg.startsWith("--style-px-tolerance=")) {
-      const [name, raw] = arg.split("=", 2);
-      if (raw === "" || raw === undefined) throw new Error(usage());
-      const value = Number(raw);
+      const separator = arg.indexOf("=");
+      const name = arg.slice(0, separator), raw = arg.slice(separator + 1);
+      if (!/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(raw)) {
+        throw new Error(`invalid tolerance: ${arg}`);
+      }
+      const value = finiteDecimal(raw);
       if (!Number.isFinite(value) || value < 0) throw new Error(`invalid tolerance: ${arg}`);
       const field = name === "--rect-tolerance" ? "rectTolerance" : "stylePxTolerance";
       if (Object.hasOwn(options, field)) throw new Error(`duplicate tolerance: ${name}`);
