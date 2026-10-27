@@ -35,4 +35,5 @@ run(process.execPath, ['--test', 'tests/build/benchmark.test.mjs', 'tests/build/
   'tests/build/benchmark-comparison.test.mjs']);
 run(process.execPath, ['scripts/check-markdown-portability.mjs']);
 run(process.execPath, ['scripts/check-markdown-outline.mjs']);
+run(process.execPath, ['scripts/check-document-outline.mjs']);
 console.log(`PASS all checks (${process.versions.bun ? `Bun ${process.versions.bun}` : `Node ${process.version}`})`);
