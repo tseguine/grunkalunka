@@ -102,3 +102,7 @@ sampling metadata.
 
 This is **one bounded P1 observation**, not completion of P1, A1, filesystem
 confinement, a public document API or a measured general framework application.
+
+For independently saved reports with the actual guest/runner binary hashes,
+source-revision and host metadata, use the [P1 receipt capture](markdown-capture.md).
+This adds provenance checks, not performance rankings or certified comparability.
