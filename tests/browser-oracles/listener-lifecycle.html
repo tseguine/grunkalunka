@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Grunkalunka original DOM listener-lifecycle oracle</title>
+<pre id="output" hidden></pre>
+<script>
+(() => {
+  "use strict";
+  const observations = [];
+  const snapshot = event => ({
+    target: event.target?.id ?? null, currentTarget: event.currentTarget?.id ?? null,
+    phase: event.eventPhase, bubbles: event.bubbles, cancelable: event.cancelable,
+    defaultPrevented: event.defaultPrevented, cancelBubble: event.cancelBubble,
+    isTrusted: event.isTrusted, path: event.composedPath().map(node => node.id)
+  });
+  for (const id of ["remove-during-dispatch", "add-during-dispatch", "nested-once", "passive-cancel"]) {
+    // Detached target: no document/window event path or default action.
+    const target = document.createElement("div");
+    target.id = "target";
+    const labels = new WeakMap();
+    let trace = [], nested = [];
+    const record = (listener, event) => trace.push({ listener, invocation: labels.get(event), ...snapshot(event) });
+    if (id === "remove-during-dispatch") {
+      const later = event => record("later", event);
+      target.addEventListener("probe", event => {
+        record("remover", event);
+        target.removeEventListener("probe", later);
+      });
+      target.addEventListener("probe", later);
+    } else if (id === "add-during-dispatch") {
+      const added = event => record("added", event);
+      target.addEventListener("probe", event => {
+        record("adder", event);
+        target.addEventListener("probe", added);
+      });
+      target.addEventListener("probe", event => record("stable", event));
+    } else if (id === "nested-once") {
+      target.addEventListener("probe", event => {
+        record("once", event);
+        if (labels.get(event) === "outer") {
+          const inner = new Event("probe", { bubbles: true, cancelable: true });
+          labels.set(inner, "nested");
+          const returned = target.dispatchEvent(inner);
+          nested.push({ returned, after: snapshot(inner) });
+        }
+      }, { once: true });
+      target.addEventListener("probe", event => record("peer", event));
+    } else {
+      target.addEventListener("probe", event => {
+        event.preventDefault();
+        record("passive", event);
+      }, { passive: true });
+      target.addEventListener("probe", event => record("observer", event));
+    }
+    const dispatches = [];
+    for (let dispatch = 1; dispatch <= 2; dispatch++) {
+      trace = []; nested = [];
+      const outer = new Event("probe", { bubbles: true, cancelable: true });
+      labels.set(outer, "outer");
+      const returned = target.dispatchEvent(outer);
+      dispatches.push({ dispatch, trace, returned, after: snapshot(outer), nested });
+    }
+    observations.push({ id, dispatches });
+  }
+  document.getElementById("output").textContent = JSON.stringify({
+    schemaVersion: 1, fixtureId: "listener-lifecycle-v1", observationKind: "listener-lifecycle",
+    environment: { userAgent: navigator.userAgent, viewportWidth: innerWidth,
+      viewportHeight: innerHeight, devicePixelRatio, url: location.href, timestamp: new Date().toISOString() },
+    observations
+  });
+})();
+</script>
+</html>
