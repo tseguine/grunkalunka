@@ -363,6 +363,47 @@ pub(crate) fn infer_callback_parameters(
                 }
             }
         }
+        // Runtime alternatives need one input shape even when a peer ignores
+        // a callback. Transfer existing demands by formal position; actual
+        // argument constructors alone must not monomorphize identity arrows.
+        let returns = ReturnOrigins {
+            semantic,
+            targets: &targets,
+            arrows: &arrows,
+        };
+        let mut peers = targets.values().cloned().collect::<Vec<_>>();
+        for call in &calls {
+            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            for source in sources {
+                if let Some(known) = targets.get(&source) {
+                    bodies.extend(known);
+                }
+            }
+            peers.push(bodies);
+        }
+        for bodies in peers {
+            let mut positions: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+            for body in &bodies {
+                for (index, parameter) in arrows[body].params.items.iter().enumerate() {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(symbol) = identifier.symbol_id.get()
+                        && let Some(arities) = demands.get(&symbol)
+                    {
+                        positions.entry(index).or_default().extend(arities);
+                    }
+                }
+            }
+            for body in bodies {
+                for (index, parameter) in arrows[&body].params.items.iter().enumerate() {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(symbol) = identifier.symbol_id.get()
+                        && let Some(arities) = positions.get(&index)
+                    {
+                        additions.extend(arities.iter().map(|arity| (symbol, *arity)));
+                    }
+                }
+            }
+        }
         let mut changed = false;
         for (source, arity) in additions {
             changed |= demands.entry(source).or_default().insert(arity);

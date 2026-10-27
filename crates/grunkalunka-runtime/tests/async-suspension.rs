@@ -403,13 +403,29 @@ fn source_promise_parameters_keep_erasure_domains_and_await_bounds() {
 }
 
 #[test]
-fn selected_unused_callback_peer_parameters_remain_an_explicit_gap() {
-    let numeric = "export function run(a,b){const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>p;return f(b,a,p=>p,false);}";
-    let promises = "export async function run(a,b){const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>Promise.resolve(p);return await f(Promise.resolve(b),a,p=>p,false);}";
-    for ts in [false, true] {
-        assert!(grunkalunka_compiler::compile(numeric, ts).is_err());
-        assert!(compile_async(promises, ts).is_err());
-    }
+fn selected_unused_callback_peers_preserve_promises() {
+    compare_promises(
+        &[
+            "const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>Promise.resolve(p);return await f(Promise.resolve(b),a,p=>p,false);",
+            "const f=a?(fn,p)=>fn(p):(fn,p)=>p;return await f(p=>p,Promise.resolve(null));",
+            "const f=a?(p,fn)=>p:(p,fn)=>fn(p);return await f(Promise.resolve(false),p=>p);",
+            "let f=(fn,p)=>fn(p);if(a)f=(fn,p)=>p;return await f(p=>p,Promise.resolve());",
+            "const make=()=>a?(fn,p)=>fn(p):(fn,p)=>p;const f=make();return await f(p=>p,Promise.resolve(b));",
+            "const f=a?(fn,p)=>fn(p):(fn,p)=>p;const relay=(fn,p)=>f(fn,p);return await relay(p=>p,Promise.resolve(b));",
+            "let f=(fn,p)=>fn(p);return await f((f=(fn,p)=>p,p=>p),Promise.resolve(await b));",
+            "let p=Promise.resolve(a);const f=a?(fn,p,x)=>fn(p):(fn,p,x)=>p;const old=f(p=>p,p,p=Promise.resolve(await b));return (+(await old))+(+(await p));",
+            "let n=0;const f=a?(fn,x)=>fn(x):(fn,x)=>x;const out=f((n++,x=>(n+=2,x)),await b);return out+n;",
+            "let n=0;const f=a?(fn,x)=>fn(x):(fn,x)=>x;try{return f((n++,x=>(n+=2,x)),await Promise.reject(b));}catch(e){return +e+n;}",
+            "const f=a?(fn,x)=>fn(x):(fn,x)=>x;await b;return f(x=>x,null);",
+            "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(x=>x,await false);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
 }
 
 #[test]

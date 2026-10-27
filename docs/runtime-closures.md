@@ -267,9 +267,8 @@ logical kind. Mixed Promise/primitive actuals and kind-changing Promise-formal
 stores remain rejected. Source oracles separately compare snapshots, captures,
 effects, all primitive payload tags and caller/body reaction jobs.
 
-An additional known gap remains when selected constructor peers disagree on
-whether a formal is a callback. For example, this Number-only source is still
-rejected even without Promise inputs:
+Runtime alternatives share a demanded callback role at the same formal position,
+including a peer that never invokes that callback. For example:
 
 ```js
 export function run(a, b) {
@@ -278,7 +277,16 @@ export function run(a, b) {
 }
 ```
 
-The corresponding Promise-input case also remains rejected. The maintained
-`selected_unused_callback_peer_parameters_remain_an_explicit_gap` test preserves
-both exact sources for the next callback-signature refinement unit. This is not
-claimed as general callback compatibility.
+The corresponding fulfilled-Promise-input case also lowers. Existing body and
+forwarding demands seed the role; complete argument signatures still refine and
+check it. Supplying a constructor to an ordinary identity call alone does not
+make that identity function monomorphic. Aliases, reassignment, immediate calls,
+returned alternatives and supported higher-order forwarding use the same rule.
+Unused callback arguments and surplus arguments still evaluate in order, and the
+callee snapshot precedes those evaluations. The maintained
+`selected_unused_callback_peers_preserve_numeric_inputs` and
+`selected_unused_callback_peers_preserve_promises` tests compare JS/TS native
+JavaScript with Node-Wasm and Wasmtime, including snapshots, captures, primitive
+and Promise inputs, and reaction jobs. Callback coercions, kind-changing stores,
+incompatible complete signatures and existing missing/spread-input restrictions
+remain rejected. This is bounded callback admission, not general function support.

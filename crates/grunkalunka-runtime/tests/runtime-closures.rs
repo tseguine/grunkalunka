@@ -7,6 +7,52 @@ use std::{
 use wasmtime::{Engine, Instance, Module, Store, Trap};
 
 #[test]
+fn selected_unused_callback_peers_preserve_numeric_inputs() {
+    compare_functions(&[
+        "const f=a?(p,x,fn,y)=>fn(p):(p,x,fn,y)=>p;return f(b,a,p=>p,false);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(y=>-y,b);",
+        "const f=a?(x,fn)=>x:(x,fn)=>fn(x);return f(b,y=>-y);",
+        "const f=a?(fn,x)=>{return fn(x);}:(fn,x)=>{return x;};const alias=f;return alias(y=>y+b,a);",
+        "let f=(fn,x)=>fn(x);if(a)f=(fn,x)=>x;return f(y=>-y,b);",
+        "let f=(fn,x)=>fn(x);const old=f;f=(fn,x)=>x;return old(y=>-y,b)+f(y=>y+a,b);",
+        "let f=(fn,x)=>fn(x);return f((f=(fn,x)=>x,y=>y+b),a);",
+        "let n=0;const f=a?(fn,x)=>fn(x):(fn,x)=>x;const out=f((n++,y=>(n+=2,y)),b);return out+n;",
+        "let n=0;const f=a?(fn,x)=>fn(x):(fn,x)=>x;const out=f(y=>(n++,y),b,(n+=4));return out+n;",
+        "const use=(fn,x)=>fn(x),skip=(fn,x)=>x;const f=a?use:skip;return f(y=>-y,b);",
+        "const make=()=>a?(fn,x)=>fn(x):(fn,x)=>x;const f=make();return f(y=>-y,b);",
+        "const make=()=>{if(a)return (fn,x)=>fn(x);return (fn,x)=>x;};const f=make();return f(y=>-y,b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>+x;return f(y=>-y,null);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>+x;return f(y=>+y,false);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;const relay=(fn,x)=>f(fn,x);return relay(y=>-y,b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;const id=x=>x;return f(y=>-y,b)+id(a)+id(y=>y)(b);",
+        "const f=a?(left,x,right)=>left(x):(left,x,right)=>right(x);return f(y=>y+b,a,y=>y-b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(y=>y,1/b);",
+        "return (a?(fn,x)=>fn(x):(fn,x)=>x)(y=>-y,b);",
+        "const make=()=>a?(fn,x)=>fn(x):(fn,x)=>x;return make()(y=>-y,b);",
+        "const f=a?(fn,x)=>fn(y=>y,x):(fn,x)=>x;return f((g,y)=>g(y),b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>{const read=()=>fn;return x;};return f(y=>-y,b);",
+    ]);
+}
+
+#[test]
+fn unused_callback_peers_keep_complete_signature_guards() {
+    for body in [
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>+fn+x;return f(y=>y,b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>{fn=0;return x;};return f(y=>y,b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;f(y=>y,b);return f(y=>()=>y,b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(a?y=>y:y=>()=>y,b);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(...a);",
+        "const f=a?(fn,x)=>fn(x):(fn,x)=>x;return f(y=>y);",
+    ] {
+        for ts in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, ts).is_err(), "{source}");
+            assert!(compile_value(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn runtime_closures_preserve_primitive_argument_frames() {
     compare_functions(&[
         "const f=a?x=>+x:x=>-x;return f(null);",

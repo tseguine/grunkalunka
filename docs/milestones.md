@@ -59,8 +59,9 @@ and 1,000-parameter executable IR checks cover that representation. Source infer
 and binding now admit homogeneous fulfilled Promise parameters through known/runtime
 closures, supported callbacks/factories and known awaited async local calls. Source
 tests preserve tags, snapshots, captures, effects and reaction jobs. Selected peers
-with an unused callback formal remain a separately recorded signature gap; arbitrary
-Promise objects and mixed parameter domains remain unfinished.
+now share demanded callback roles by formal position, including unused callback
+formals; complete signatures and ordinary identity specialization remain checked.
+Arbitrary Promise objects and mixed parameter domains remain unfinished.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 
