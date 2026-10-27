@@ -39,8 +39,8 @@
     fixtureId: "layout-baseline-v1",
     environment: {
       userAgent: navigator.userAgent,
-      viewportWidth: document.documentElement.clientWidth,
-      viewportHeight: document.documentElement.clientHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
       devicePixelRatio: window.devicePixelRatio,
       url: location.href,
       timestamp: new Date().toISOString()
