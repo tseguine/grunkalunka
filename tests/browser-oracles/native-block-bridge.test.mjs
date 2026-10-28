@@ -17,6 +17,11 @@ const geometry = [
 ];
 const geometryMap = () => Object.fromEntries(
   ["outer", "first", "second"].map((id, i) => [id, { ...geometry[i] }]));
+const percentageHeightGeometry = () => ({
+  "height-host": { x: 0, y: 96, width: 132, height: 92 },
+  "height-first": { x: 6, y: 105, width: 36, height: 46 },
+  "height-second": { x: 6, y: 156, width: 20, height: 20 },
+});
 const hidden = () => ({
   outer: { x: 0, y: 0, width: 284, height: 40 },
   first: null,
@@ -50,6 +55,7 @@ const native = () => ({
   fixtureId: "native-block-bridge-v1",
   viewport: { width: 800, height: 600, devicePixelRatio: 1 },
   geometry: geometryMap(),
+  percentageHeights: percentageHeightGeometry(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
 });
@@ -70,6 +76,7 @@ function browser() {
     })),
     reflow: { hidden: hidden(), restored: geometryMap() },
     hitTargets: hitTargets(),
+    percentageHeights: percentageHeightGeometry(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
       browserVersion: "1.2", playwrightVersion: "1.64.1",
@@ -85,7 +92,11 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#outer { width: 260px; padding: 10px; border: 2px",
     "#first { width: 100px; height: 24px; margin: 4px 0 0 4px;",
     "#second { width: 80px; height: 10px; margin: 0;",
+    "#height-host { width: 120px; height: 80px; margin: 10px 0 0 0;",
+    "#height-first { width: 30px; height: 50%; margin: 3px 0 5px 0;",
+    "#height-second { width: 20px; height: 25%; margin: 0;",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
+    '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -93,6 +104,8 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
   assert.ok(source.includes('first.style.removeProperty("display")'),
     "fixture must restore its original CSS state");
   assert.ok(source.includes("reflow: { hidden, restored }"), "both reflow states must be retained");
+  assert.ok(source.includes("const percentageHeights = Object.fromEntries(heightIds.map("),
+    "percentage boxes must be independently measured from DOM rectangles");
   assert.ok(source.includes("document.elementFromPoint(x, y)"),
     "browser input targets must come from the DOM hit test");
   assert.ok(source.includes("const hiddenTargets = hitTargets()"));
@@ -118,6 +131,35 @@ test("geometric changes remain differences, never normalized to browser consensu
   assert.deepEqual(report.differences.map(d => [d.id, d.field, d.left, d.right]), [
     ["first", "width", 118, 118.25],
   ]);
+});
+
+test("definite percentage-height rectangles compare independently from fixed boxes", () => {
+  const left = native(), right = browser();
+  assert.equal(compareNativeBlockBridge(left, right, fixture).status, "equal");
+  right.percentageHeights["height-first"].height = 47;
+  const result = compareNativeBlockBridge(left, right, fixture);
+  assert.equal(result.status, "different");
+  assert.deepEqual(result.differences, [{
+    kind: "percentage-height", id: "height-first", field: "height",
+    left: 46, right: 47, path: "$.percentageHeights.height-first.height"
+  }]);
+});
+
+test("missing or malformed percentage-height evidence cannot count as equality", () => {
+  for (const change of [
+    c => { delete c.percentageHeights; },
+    c => { delete c.percentageHeights["height-first"]; },
+    c => { c.percentageHeights["height-first"].height = NaN; },
+    c => { c.percentageHeights["height-host"].width = -1; },
+    c => { c.percentageHeights["unexpected"] = { x: 0, y: 0, width: 1, height: 1 }; },
+  ]) {
+    const right = browser();
+    change(right);
+    assert.equal(compareNativeBlockBridge(native(), right, fixture).status, "invalid");
+  }
+  const left = native();
+  delete left.percentageHeights["height-second"];
+  assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
 });
 
 test("hidden siblings reflow and restored boxes are compared independently", () => {

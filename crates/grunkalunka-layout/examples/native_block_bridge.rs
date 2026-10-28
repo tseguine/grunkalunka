@@ -66,6 +66,117 @@ fn hits_json(values: &[Option<&str>]) -> String {
         .join(",")
 }
 
+// A separately resolved percentage-height witness. The first sibling stands
+// in for the original 86px-high outer box so the independent host begins at
+// document y=96 after its 10px top margin. No CSS is parsed here.
+fn percentage_heights_json() -> String {
+    let blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(284),
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(120),
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                padding: Edges::all(4),
+                border: Edges::all(2),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(2),
+            style: Style {
+                width: Length::Px(30),
+                height: Length::Percent(50),
+                margin: Edges {
+                    top: 3,
+                    bottom: 5,
+                    ..Edges::default()
+                },
+                padding: Edges::all(2),
+                border: Edges::all(1),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(2),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Percent(25),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let frame = layout(&blocks, 800, 600).expect("definite percentage heights must resolve");
+    let expected = [
+        (
+            "height-host",
+            2,
+            Rect {
+                x: 0,
+                y: 96,
+                width: 132,
+                height: 92,
+            },
+        ),
+        (
+            "height-first",
+            3,
+            Rect {
+                x: 6,
+                y: 105,
+                width: 36,
+                height: 46,
+            },
+        ),
+        (
+            "height-second",
+            4,
+            Rect {
+                x: 6,
+                y: 156,
+                width: 20,
+                height: 20,
+            },
+        ),
+    ];
+    for &(id, index, golden) in &expected {
+        assert_eq!(
+            frame.boxes[index]
+                .expect("visible percentage-height box")
+                .border,
+            golden,
+            "independent native percentage-height geometry for {id}"
+        );
+    }
+    expected
+        .into_iter()
+        .map(|(id, index, _)| {
+            let rect = frame.boxes[index].unwrap().border;
+            format!(
+                r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                rect.x, rect.y, rect.width, rect.height
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The fixture
     // deliberately avoids text shaping, percentage lengths and margin collapse.
@@ -231,6 +342,8 @@ fn main() {
     output.push_str(&hits_json(&hidden_hits));
     output.push_str(r#"},"restored":{"#);
     output.push_str(&hits_json(&restored_hits));
-    output.push_str(r#"}}}"#);
+    output.push_str(r#"}},"percentageHeights":{"#);
+    output.push_str(&percentage_heights_json());
+    output.push_str(r#"}}"#);
     println!("{output}");
 }

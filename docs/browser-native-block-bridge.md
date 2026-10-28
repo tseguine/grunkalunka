@@ -168,3 +168,31 @@ and retains all their reports. GitHub Actions remains responsible only for
 the pinned browser environment, layout-only Rust artifact, and evidence upload.
 The independent Node regression contracts run in the canonical offline suite,
 not again inside each browser job. This adds no checks to the existing matrix.
+
+## Real-engine percentage-height geometry witness
+
+The independent source-checked native bridge now retains a **second block
+group** after the existing original/reflow/hit-target fixture. The second
+group has a definite 80 CSS-pixel containing content height with padding,
+border and a top margin; its two children request `height: 50%` and
+`height: 25%`. The reference HTML measures their actual browser
+`getBoundingClientRect()` results in a separate `percentageHeights`
+map. No browser rectangle is inferred from the nominal CSS dimensions.
+
+The native Rust example constructs another **caller-resolved** block tree
+rather than parsing the HTML or reading the browser's measurements. It
+asserts independently chosen border-rectangle goldens for the parent and
+both percentage-height children. The existing comparator now requires
+three complete, finite named rectangles in both sources and checks every
+coordinate/size exactly. A missing or malformed map fails closed; a
+difference is identified independently of the earlier three-box reflow
+and hit-target observations.
+
+The same Chromium, Firefox and WebKit hosted jobs execute this comparison
+and retain their raw fixture and capture artifacts. Existing CSS width
+and pointer-events mutation controls still require exactly their original
+differences; unintentional changes to the new height boxes also fail.
+The native implementation supports **integral, definite height inputs only**.
+This selected parity witness does not exercise CSS subpixel sizing,
+height-percentages under indefinite parents, margin-collapsing edge cases,
+general CSS formatting, or a native DOM/HTML parser.
