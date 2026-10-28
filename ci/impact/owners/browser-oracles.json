@@ -1,0 +1,7 @@
+{
+  "id": "browser-oracles",
+  "paths": [
+    "tools/browser-oracles/",
+    "tests/browser-oracles/"
+  ]
+}

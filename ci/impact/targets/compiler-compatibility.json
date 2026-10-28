@@ -1,0 +1,11 @@
+{
+  "id": "test:compiler-compatibility",
+  "dependsOn": [
+    "grunkalunka-compiler",
+    "grunkalunka-runtime",
+    "grunkalunka-cli",
+    "compatibility-fixtures",
+    "canonical-scripts",
+    "node-runtime"
+  ]
+}

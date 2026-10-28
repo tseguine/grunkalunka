@@ -1,0 +1,6 @@
+{
+  "id": "compatibility-fixtures",
+  "paths": [
+    "tests/compatibility/"
+  ]
+}

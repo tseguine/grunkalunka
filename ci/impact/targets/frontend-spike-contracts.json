@@ -1,0 +1,7 @@
+{
+  "id": "test:frontend-spike-contracts",
+  "dependsOn": [
+    "frontend-spike",
+    "canonical-scripts"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "node-bench",
+  "paths": [
+    "tools/bench/"
+  ],
+  "dependsOn": [
+    "grunkalunka-runtime",
+    "grunkalunka-markdown",
+    "grunkalunka-cli"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "example-workflows",
+  "paths": [
+    "examples/"
+  ],
+  "dependsOn": [
+    "grunkalunka-cli"
+  ]
+}

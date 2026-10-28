@@ -1,0 +1,10 @@
+{
+  "id": "test:markdown-integration",
+  "dependsOn": [
+    "grunkalunka-markdown",
+    "grunkalunka-runtime",
+    "node-bench",
+    "build-test-sources",
+    "canonical-scripts"
+  ]
+}

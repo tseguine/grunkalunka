@@ -1,0 +1,9 @@
+{
+  "id": "node-runtime",
+  "paths": [
+    "tools/runtime/"
+  ],
+  "dependsOn": [
+    "grunkalunka-runtime"
+  ]
+}
