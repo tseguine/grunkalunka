@@ -42,7 +42,7 @@ await can still settle the activation. A 33rd await, malformed protocol, fuel
 exhaustion or Wasm trap stays a terminal host failure and cannot enter a source catch.
 Source-size, statement, local, nesting, graph and fuel limits remain in force.
 
-Synchronous/lifted throw, finally, Strings, objects, function reasons and general
+Synchronous/lifted throw, Strings, objects, function reasons and general
 Promise/thenable values remain outside this unit. This is a primitive exception
 slice, not general JS exception or async conformance.
 
@@ -57,3 +57,8 @@ Combined cases also construct and return higher-order functions through local bl
 bodies, then use their results as throw reasons or invoke them from catch across
 await. These retain callback signatures and catch captures without changing throw
 reaction timing.
+
+An [async finally](async-finally.md) now saves a pending General throw reason
+through cleanup, then rethrows to the enclosing lexical handler. A finalizer's
+own abrupt completion overrides it. Fuel, trap and job failures remain terminal
+host failures and do not trigger source cleanup.

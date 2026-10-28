@@ -368,7 +368,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
             closure.factory = true;
         } else {
             let inferred = check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
-            closure.result = if inferred == Type::Promise {
+            closure.result = if arrow.r#async && awaited::owns_finally(arrow, self.semantic) {
+                Type::General
+            } else if inferred == Type::Promise {
                 inferred
             } else if check.arrow_fulfilled_promise_result(arrow) {
                 Type::FulfilledPromise

@@ -150,7 +150,7 @@ profile. Preserve its current external status/tag/payload ABI, diagnostics, sour
 limits and documented terminal-error behavior unless a separately justified change
 updates compiler and adapters together.
 
-It does not complete arbitrary Promise/thenable values, finally, generators,
+It does not complete arbitrary Promise/thenable values, general synchronous exceptions, generators,
 workers, cross-agent sharing, host I/O, JS cancellation,
 a new GC, or a general reentrant host-call model.
 
@@ -281,3 +281,27 @@ Wasmtime exposes a typed invocation-local descriptor. The opted-in error-kind
 export validates the record; primitive-only modules keep their old protocol.
 This closes self-resolution, not all object conversion: Error relational string
 conversion has a separate executable counterexample and remains required work.
+
+## Async finally implementation follow-up (2026-10-28)
+
+The admitted async root/private-async profiles now use structured TryFinally
+regions. Typed frame snapshots preserve raw return values and General throw
+reasons, while continuation identity carries the pending exit kind. Normal
+cleanup resumes that completion; abrupt cleanup replaces it. Async return
+adoption follows all active finalizers, preserving Promise identity, handling
+and job order during cleanup.
+
+The source finalizer is lowered once. The splitter currently emits one cleanup
+path per pending normal/return/throw/break/continue route, with at most five
+entries at one scope. Reusing the same IR await across those entries counts
+once toward source admission; executed reactions still count individually.
+This simple static routing avoids a new dynamic completion record or dispatch
+protocol. Nested cleanup can expand the state graph and remains subject to the
+existing 4096-state bound; compaction is a later optimization if needed.
+
+Native JS/Node-Wasm/Wasmtime tests cover completion overrides, nested handlers,
+loop targets, snapshots, concurrent activations and adoption timing. Notification
+tests cover overridden rejected returns and later handling. Host fuel/trap/job
+failures remain terminal and cannot be recovered by a source finalizer. No
+dependency, host ABI, kernel record, source-await/job/fuel limit or universal
+exception model is changed.

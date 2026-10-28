@@ -100,12 +100,21 @@ struct Splitter<'a> {
     states: Vec<State<'a>>,
     awaits: usize,
     shared_awaits: std::collections::BTreeSet<(usize, usize)>,
+    expanded_awaits: std::collections::BTreeSet<(usize, usize)>,
     return_to: Option<(ValueId, usize)>,
     catch_to: Option<(ValueId, usize)>,
 }
 
 impl<'a> Splitter<'a> {
     fn charge_await(&mut self, operations: &[ir::Operation], index: usize) -> Result<(), String> {
+        // A finalizer's one IR await can be emitted under several pending exits.
+        // Count that source operation once, while every executed reaction still runs.
+        if !self
+            .expanded_awaits
+            .insert((self.function, &operations[index] as *const _ as usize))
+        {
+            return Ok(());
+        }
         let shared = index
             .checked_sub(1)
             .and_then(|previous| match operations[previous].kind {
@@ -327,6 +336,47 @@ impl<'a> Splitter<'a> {
                     self.catch_to = outer;
                     entry?
                 }
+                Op::TryFinally {
+                    body,
+                    finalizer,
+                    returned,
+                    reason,
+                    continuation,
+                } => {
+                    let outer_return = self.return_to;
+                    let outer_catch = self.catch_to;
+                    let resume_return = self.region(continuation, next, None, loops)?;
+                    self.return_to = Some((*returned, resume_return));
+                    let entries = (|| {
+                        // Cleanup belongs to the outer lexical scope. A return in
+                        // it overrides the pending completion through resume_return.
+                        let on_return = self.region(finalizer, resume_return, None, loops)?;
+                        let rethrow = self.terminal(match outer_catch {
+                            Some((result, next)) => End::Copy {
+                                input: *reason,
+                                result,
+                                next,
+                            },
+                            None => End::Reject(*reason),
+                        })?;
+                        let on_throw = self.region(finalizer, rethrow, None, loops)?;
+                        let normal = self.region(finalizer, next, None, loops)?;
+                        let protected_loops = if let Some(targets) = loops {
+                            Some(LoopTargets {
+                                exit: self.region(finalizer, targets.exit, None, loops)?,
+                                next: self.region(finalizer, targets.next, None, loops)?,
+                            })
+                        } else {
+                            None
+                        };
+                        self.return_to = Some((*returned, on_return));
+                        self.catch_to = Some((*reason, on_throw));
+                        self.region(body, normal, None, protected_loops)
+                    })();
+                    self.return_to = outer_return;
+                    self.catch_to = outer_catch;
+                    entries?
+                }
                 Op::AwaitSettled { result, input } => {
                     self.charge_await(&region.operations, end - 1)?;
                     let normal_resume = self.state(&[], Some(*result), End::Jump(next))?;
@@ -464,6 +514,7 @@ fn atomic(op: &Op) -> bool {
             | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }
             | Op::TryCatch { .. }
+            | Op::TryFinally { .. }
             | Op::InlineCall { .. }
             | Op::Block(_)
             | Op::If { .. }

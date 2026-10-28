@@ -330,6 +330,7 @@ impl Emitter<'_> {
                 | Op::AdoptPromise { .. } => {
                     unreachable!("async control uses the async emitter")
                 }
+                Op::TryFinally { .. } => unreachable!("finally uses the async emitter"),
                 Op::Nullish { result, value } => {
                     let tag = match value {
                         ir::Nullish::Undefined => 0,
@@ -812,7 +813,8 @@ fn region_has_control(region: &Region, starts: bool) -> bool {
             | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }
-            | Op::TryCatch { .. } => true,
+            | Op::TryCatch { .. }
+            | Op::TryFinally { .. } => true,
             Op::StartAsyncClosure { .. } => starts,
             // Verified settlement bodies close primitive throws and cannot await.
             Op::SettlePromise { .. } => false,

@@ -16,21 +16,41 @@ pub(super) fn immediate_async_arrow(
     arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
     semantic: &Semantic<'_>,
 ) -> bool {
-    arrow.r#async
-        && !semantic.nodes().iter().any(|node| {
-            matches!(node.kind(), oxc_ast::AstKind::AwaitExpression(_))
-                && semantic
-                    .nodes()
-                    .ancestor_kinds(node.id())
-                    .find_map(|kind| match kind {
-                        oxc_ast::AstKind::ArrowFunctionExpression(owner) => {
-                            Some(Some(owner.node_id.get()))
-                        }
-                        oxc_ast::AstKind::Function(_) => Some(None),
-                        _ => None,
-                    })
-                    == Some(Some(arrow.node_id.get()))
-        })
+    arrow.r#async && !semantic.nodes().iter().any(|node| {
+        (matches!(node.kind(), oxc_ast::AstKind::AwaitExpression(_))
+            || matches!(node.kind(), oxc_ast::AstKind::TryStatement(s) if s.finalizer.is_some()))
+            && semantic
+                .nodes()
+                .ancestor_kinds(node.id())
+                .find_map(|kind| match kind {
+                    oxc_ast::AstKind::ArrowFunctionExpression(owner) => {
+                        Some(Some(owner.node_id.get()))
+                    }
+                    oxc_ast::AstKind::Function(_) => Some(None),
+                    _ => None,
+                })
+                == Some(Some(arrow.node_id.get()))
+    })
+}
+
+pub(super) fn owns_finally(
+    arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
+    semantic: &Semantic<'_>,
+) -> bool {
+    semantic.nodes().iter().any(|node| {
+        matches!(node.kind(), oxc_ast::AstKind::TryStatement(s) if s.finalizer.is_some())
+            && semantic
+                .nodes()
+                .ancestor_kinds(node.id())
+                .find_map(|kind| match kind {
+                    oxc_ast::AstKind::ArrowFunctionExpression(owner) => {
+                        Some(Some(owner.node_id.get()))
+                    }
+                    oxc_ast::AstKind::Function(_) => Some(None),
+                    _ => None,
+                })
+                == Some(Some(arrow.node_id.get()))
+    })
 }
 
 pub(super) fn owns_throw(

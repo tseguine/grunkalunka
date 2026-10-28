@@ -351,7 +351,7 @@ known async callee settle that callee; observing them through the caller's await
 still requires its reaction job.
 
 General async function values, arbitrary Promise/thenable values, Strings,
-Symbols, BigInts, objects, Promise callbacks, synchronous/lifted throw, finally, catch
+Symbols, BigInts, objects, Promise callbacks, synchronous/lifted throw, catch
 destructuring and Promise interoperability remain open. Runtime-selected functions
 accept Number and numeric-leaf callback parameters and return Number or a
 numeric-leaf pair from a concise factory; see [higher-order callbacks](higher-order-callbacks.md)
@@ -676,3 +676,13 @@ reassignment, nested calls, rejection timing and erased annotations. Separate
 notification tests cover discarded results and later handling. No host protocol,
 kernel record, dependency or source budget changes. This does not admit arbitrary
 heap values, strings, thenables, mixed coercion or synchronous source exceptions.
+
+### Finally completion scopes
+
+[Async finally](async-finally.md) now preserves pending normal, return, throw and
+nearest-loop break/continue completions through cleanup, including cleanup awaits.
+An abrupt finalizer overrides the pending completion. A returned Promise remains
+raw until all active finalizers finish; only then does async return adopt it.
+Nested catches, callbacks and private activations retain their lexical boundaries.
+Terminal host failures do not enter cleanup. Existing value and resource limits
+remain; this does not add general synchronous source exceptions.

@@ -42,10 +42,10 @@ Fuel, traps, invalid protocols and exhausted host job budgets remain terminal ho
 failures and cannot be caught by source code.
 
 [Primitive source throw](async-throw.md) now shares these handlers, transferring
-immediately without an await reaction. Synchronous/lifted throw, `finally`, catch
-destructuring, synchronous function try/catch, async closures and general
-Promise/thenable values remain excluded. Async paths must return or throw;
-implicit fallthrough and existing primitive operator limits remain.
+immediately without an await reaction. [Async finally](async-finally.md) now runs
+cleanup after protected/caught completion, including suspended cleanup and abrupt
+overrides. General synchronous source exceptions, catch destructuring and broader
+Promise/thenable values remain excluded. Existing primitive operator limits remain.
 It does not establish general exception or async conformance.
 
 Validated awaited `Promise.resolve`/`Promise.reject` payloads participate in scalar

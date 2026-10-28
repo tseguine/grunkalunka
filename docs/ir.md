@@ -1024,3 +1024,20 @@ Private indirect calls reuse the existing tag/f64 result table type. The caller
 keeps both lanes across calls and suspension, projecting only at a typed consumer.
 Returning the pair emits no adoption or handling operation; fallthrough and bare
 return lift General undefined. No IR operation, tag or physical width was added.
+
+### Finally completion continuations
+
+TryFinally contains a protected body, one finalizer region, private return/reason
+captures and a return continuation. Protected/finalizer returns carry AsyncValue;
+their throws carry General. The raw-completion verifier context permits those
+throws alongside awaits, separately from non-suspending settlement bodies.
+The return capture is visible only in the continuation. Body snapshots cannot
+leak into finalizer/continuation scope, and the hidden reason is not source-visible.
+The continuation must return or throw under its enclosing completion contract.
+
+The splitter installs cleanup entries for normal, return, throw and active loop
+exits. Cleanup runs under the outer exception/loop targets; its return selects
+the return continuation and its other abrupt exits replace the pending completion.
+Nested finally scopes keep returns raw until the outer async boundary resolves
+them through existing projection/adoption operations. No host completion kind
+or physical activation-header field was added.

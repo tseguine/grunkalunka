@@ -420,6 +420,13 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
         .extend(arrows.iter().filter_map(|(id, arrow)| {
             (arrow.r#async && !awaited::immediate_async_arrow(arrow, semantic)).then_some(*id)
         }));
+    // Cleanup keeps returns raw, then resolves them outside every finalizer.
+    // This conditional adoption boundary requires the child's own activation.
+    inputs
+        .adopting
+        .extend(arrows.iter().filter_map(|(id, arrow)| {
+            (arrow.r#async && awaited::owns_finally(arrow, semantic)).then_some(*id)
+        }));
     loop {
         let old = (
             inputs.values.len(),

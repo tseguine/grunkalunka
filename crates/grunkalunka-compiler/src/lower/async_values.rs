@@ -342,7 +342,7 @@ impl Lowering<'_, '_> {
 
     pub(super) fn resolve_async_value(
         &mut self,
-        node: &Expression<'_>,
+        node: &impl GetSpan,
         input: ValueId,
         region: &mut Region,
     ) -> ValueId {
@@ -361,7 +361,7 @@ impl Lowering<'_, '_> {
 
     fn consume_async_value(
         &mut self,
-        node: &Expression<'_>,
+        node: &impl GetSpan,
         input: ValueId,
         await_site: Option<usize>,
         region: &mut Region,

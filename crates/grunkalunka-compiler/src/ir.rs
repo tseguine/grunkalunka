@@ -7,6 +7,8 @@ mod adoption_tests;
 #[cfg(test)]
 mod async_closure_tests;
 #[cfg(test)]
+mod finally_tests;
+#[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
 mod promise_equality_tests;
@@ -345,6 +347,16 @@ pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
                 visit_operations(body, visit);
                 visit_operations(handler, visit);
             }
+            Op::TryFinally {
+                body,
+                finalizer,
+                continuation,
+                ..
+            } => {
+                visit_operations(body, visit);
+                visit_operations(finalizer, visit);
+                visit_operations(continuation, visit);
+            }
             Op::DoWhile { body, condition } => {
                 visit_operations(body, visit);
                 visit_operations(condition, visit);
@@ -431,6 +443,15 @@ pub(crate) enum Op {
         body: Region,
         reason: ValueId,
         handler: Region,
+    },
+    /// Protected and finalizer returns are raw values. Only the return
+    /// continuation sees the captured return; throws use a private General reason.
+    TryFinally {
+        body: Region,
+        finalizer: Region,
+        returned: ValueId,
+        reason: ValueId,
+        continuation: Box<Region>,
     },
     Await {
         result: ValueId,
@@ -703,6 +724,16 @@ impl Completion {
         .union(handler)
     }
 
+    pub fn finalized_by(self, finalizer: Self) -> Self {
+        Self {
+            normal: self.normal && finalizer.normal,
+            returns: (self.returns && finalizer.normal) || finalizer.returns,
+            throws: (self.throws && finalizer.normal) || finalizer.throws,
+            breaks: (self.breaks && finalizer.normal) || finalizer.breaks,
+            continues: (self.continues && finalizer.normal) || finalizer.continues,
+        }
+    }
+
     pub fn union(self, other: Self) -> Self {
         Self {
             normal: self.normal || other.normal,
@@ -778,6 +809,9 @@ enum PendingRegion {
     IfAlternate(Contract, Completion),
     TryBody,
     TryHandler(Completion),
+    FinallyBody,
+    FinallyCleanup(Completion),
+    FinallyReturn(Completion),
     DoBody,
     DoCondition(Completion),
     WhileCondition,
@@ -793,6 +827,7 @@ struct RegionFrame<'a> {
     ancestors: Vec<RegionId>,
     allow_loop_control: bool,
     settlement: bool,
+    raw_completion: bool,
     inline_async: bool,
     return_type: Type,
     entered: bool,
@@ -817,6 +852,7 @@ impl<'a> RegionFrame<'a> {
             ancestors: self.ancestors.iter().copied().chain([region.id]).collect(),
             allow_loop_control,
             settlement: self.settlement,
+            raw_completion: self.raw_completion,
             inline_async: self.inline_async,
             return_type,
             entered: false,
@@ -1261,6 +1297,7 @@ impl Verifier<'_> {
             | Op::SettlePromise { .. }
             | Op::AwaitCall { .. }
             | Op::TryCatch { .. }
+            | Op::TryFinally { .. }
             | Op::DoWhile { .. }
             | Op::Block(_)
             | Op::If { .. }
@@ -1288,6 +1325,7 @@ impl Verifier<'_> {
             ancestors: ancestors.iter().copied().chain([region.id]).collect(),
             allow_loop_control,
             settlement: false,
+            raw_completion: false,
             inline_async: false,
             return_type: self.return_type,
             entered: false,
@@ -1523,6 +1561,73 @@ impl Verifier<'_> {
                 (Op::TryCatch { .. }, PendingRegion::TryHandler(body)) => {
                     body.caught_by(completed.take().expect("checked handler"))
                 }
+                (
+                    Op::TryFinally {
+                        body,
+                        returned,
+                        reason,
+                        ..
+                    },
+                    PendingRegion::Start,
+                ) => {
+                    if !matches!(frame.return_type, Type::General | Type::AsyncValue) {
+                        return Err(invalid(
+                            span,
+                            "finally requires an async completion contract",
+                        ));
+                    }
+                    let mut hidden = BTreeSet::new();
+                    self.define(*reason, Type::General, &mut hidden, span)?;
+                    if self.function.values.get(returned.0) != Some(&Type::AsyncValue) {
+                        return Err(invalid(span, "finally return capture must be AsyncValue"));
+                    }
+                    let mut child = frame.child(
+                        body,
+                        Contract::Statement,
+                        frame.allow_loop_control,
+                        Type::AsyncValue,
+                    );
+                    // This region carries a primitive throw separately from its raw return.
+                    child.raw_completion = true;
+                    frame.pending = PendingRegion::FinallyBody;
+                    return Ok(RegionCheck::Child(child));
+                }
+                (Op::TryFinally { finalizer, .. }, PendingRegion::FinallyBody) => {
+                    let body = completed.take().expect("checked finally body");
+                    let mut child = frame.child(
+                        finalizer,
+                        Contract::Statement,
+                        frame.allow_loop_control,
+                        Type::AsyncValue,
+                    );
+                    child.raw_completion = true;
+                    frame.pending = PendingRegion::FinallyCleanup(body);
+                    return Ok(RegionCheck::Child(child));
+                }
+                (
+                    Op::TryFinally {
+                        returned,
+                        continuation,
+                        ..
+                    },
+                    PendingRegion::FinallyCleanup(body),
+                ) => {
+                    let completion =
+                        body.finalized_by(completed.take().expect("checked finalizer"));
+                    let mut child =
+                        frame.child(continuation, Contract::Function, false, frame.return_type);
+                    self.define(*returned, Type::AsyncValue, &mut child.visible, span)?;
+                    frame.pending = PendingRegion::FinallyReturn(completion);
+                    return Ok(RegionCheck::Child(child));
+                }
+                (Op::TryFinally { .. }, PendingRegion::FinallyReturn(mut completion)) => {
+                    let resumed = completed.take().expect("checked return continuation");
+                    if completion.returns {
+                        completion.returns = false;
+                        completion = completion.union(resumed);
+                    }
+                    completion
+                }
                 (Op::DoWhile { body, .. }, PendingRegion::Start) => {
                     frame.pending = PendingRegion::DoBody;
                     return Ok(RegionCheck::Child(frame.child(
@@ -1595,6 +1700,7 @@ impl Verifier<'_> {
                     | Op::Block(_)
                     | Op::If { .. }
                     | Op::TryCatch { .. }
+                    | Op::TryFinally { .. }
                     | Op::DoWhile { .. }
                     | Op::While { .. },
                     _,
@@ -1642,7 +1748,9 @@ impl Verifier<'_> {
             }
             (Contract::Statement | Contract::Function, Exit::Throw(value))
                 if completion.normal
-                    && (frame.return_type == Type::General || frame.settlement) =>
+                    && (frame.return_type == Type::General
+                        || frame.settlement
+                        || frame.raw_completion && frame.return_type == Type::AsyncValue) =>
             {
                 self.value(value, Type::General, &frame.visible, region.span)?;
                 completion = completion.then(Completion::THROW);

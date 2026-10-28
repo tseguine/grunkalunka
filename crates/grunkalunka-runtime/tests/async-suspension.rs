@@ -58,6 +58,9 @@ mod mixed_inputs;
 #[path = "async-suspension/private_results.rs"]
 mod private_results;
 
+#[path = "async-suspension/finally.rs"]
+mod finally;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -398,7 +401,6 @@ fn suspending_async_closures_keep_pending_and_signature_guards() {
         "let f=async()=>{await a;return 'x';};return await f();",
         "let f=async()=>{await a;return {};};return await f();",
         "let f=async()=>{await a;return ()=>b;};return await f();",
-        "let f=async()=>{try{await a;}finally{b++;}return b;};return await f();",
     ] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
@@ -1668,7 +1670,6 @@ fn throw_keeps_profile_protocol_and_host_failure_boundaries() {
         "throw {};",
         "throw (()=>a);",
         "const f=()=>{throw a;};return f();",
-        "try{throw a;}finally{return b;}",
         "throw a;return b;",
     ] {
         assert!(compile_async(&source_for(body), false).is_err(), "{body}");
@@ -1779,8 +1780,6 @@ fn rejected_await_enters_lexical_catch_on_the_same_reaction_job() {
 #[test]
 fn catch_keeps_profile_limits_and_resource_failures_terminal() {
     for body in [
-        "try{return await a;}finally{return b;}",
-        "try{return await a;}catch(e){return e;}finally{a=b;}",
         "try{return await a;}catch({x}){return x;}",
         "try{await a;}catch(e){a=+e;}return e;",
         "const f=()=>{try{return a;}catch(e){return +e;}};return f();",
@@ -3680,7 +3679,6 @@ fn async_root_completion_keeps_other_profile_and_abrupt_guards() {
         "export async function run(a,b){return;await a;}",
         "export async function run(a,b){break;}",
         "export async function run(a,b){continue;}",
-        "export async function run(a,b){try{await a;}finally{a++;}}",
     ] {
         assert!(compile_async(source, false).is_err(), "{source}");
     }

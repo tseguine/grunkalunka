@@ -44,6 +44,25 @@ fn completion_shape(statement: &Statement<'_>, depth: usize) -> Completion {
         Statement::WhileStatement(loop_) => completion_shape(&loop_.body, depth + 1).pretest_loop(),
         Statement::ForStatement(loop_) => completion_shape(&loop_.body, depth + 1).pretest_loop(),
         Statement::DoWhileStatement(loop_) => completion_shape(&loop_.body, depth + 1).do_loop(),
+        Statement::TryStatement(statement) if statement.finalizer.is_some() => {
+            let sequence = |body: &oxc_ast::ast::BlockStatement<'_>| {
+                body.body
+                    .iter()
+                    .fold(Completion::NORMAL, |completion, child| {
+                        completion.then(completion_shape(child, depth + 1))
+                    })
+            };
+            let mut completion = sequence(&statement.block);
+            if let Some(handler) = &statement.handler {
+                completion = completion.caught_by(sequence(&handler.body));
+            }
+            statement
+                .finalizer
+                .as_ref()
+                .map_or(completion, |finalizer| {
+                    completion.finalized_by(sequence(finalizer))
+                })
+        }
         _ => Completion::NORMAL,
     }
 }
