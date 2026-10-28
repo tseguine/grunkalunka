@@ -1,6 +1,6 @@
 # Grunkalunka
 
-[![CI (master)](https://github.com/tseguine/grunkalunka/actions/workflows/ci.yml/badge.svg?branch=master&event=push)](https://github.com/tseguine/grunkalunka/actions/workflows/ci.yml?query=branch%3Amaster%20event%3Apush)
+[![CI (master)](https://img.shields.io/github/check-suites/tseguine/grunkalunka/master?label=CI)](https://github.com/tseguine/grunkalunka/actions/workflows/ci.yml?query=branch%3Amaster%20event%3Apush)
 
 **Gimme damn damn WASM!**
 
