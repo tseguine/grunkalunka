@@ -1,0 +1,10 @@
+{
+  "command": "cargo",
+  "args": [
+    "run",
+    "--locked",
+    "--offline",
+    "--manifest-path",
+    "spikes/001-frontend-semantics/Cargo.toml"
+  ]
+}

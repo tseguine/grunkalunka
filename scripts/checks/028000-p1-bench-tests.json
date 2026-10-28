@@ -1,0 +1,11 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tools/bench/tests/*.test.mjs",
+    "tests/build/native-build-identity.test.mjs",
+    "tests/build/portable-affine.test.mjs",
+    "tests/build/markdown-capture.test.mjs",
+    "tests/build/markdown-comparison.test.mjs"
+  ]
+}

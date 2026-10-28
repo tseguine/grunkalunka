@@ -20,6 +20,7 @@ const readCatalog = folder => readdirSync(join(directory, folder))
 const global = [
   '.github/', 'ci/impact/', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml',
   'package.json', '.gitignore', 'scripts/check.mjs', 'scripts/check-command.mjs',
+  'scripts/check-catalog.mjs', 'scripts/checks/',
 ];
 const ignored = ['docs/', 'README.md', 'LICENSE', 'AGENTS.md'];
 

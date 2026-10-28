@@ -1,0 +1,7 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/watchdog-budget.test.mjs"
+  ]
+}

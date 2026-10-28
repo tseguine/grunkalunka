@@ -1,0 +1,11 @@
+{
+  "command": "cargo",
+  "args": [
+    "test",
+    "--workspace",
+    "--locked",
+    "--offline",
+    "-j",
+    "4"
+  ]
+}

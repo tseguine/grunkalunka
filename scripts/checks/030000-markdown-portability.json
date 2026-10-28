@@ -1,0 +1,6 @@
+{
+  "command": "node",
+  "args": [
+    "scripts/check-markdown-portability.mjs"
+  ]
+}

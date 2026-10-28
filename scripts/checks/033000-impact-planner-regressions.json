@@ -1,0 +1,7 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "ci/impact/*.test.mjs"
+  ]
+}

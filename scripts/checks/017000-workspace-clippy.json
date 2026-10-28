@@ -1,0 +1,15 @@
+{
+  "command": "cargo",
+  "args": [
+    "clippy",
+    "--workspace",
+    "--all-targets",
+    "--locked",
+    "--offline",
+    "-j",
+    "4",
+    "--",
+    "-D",
+    "warnings"
+  ]
+}

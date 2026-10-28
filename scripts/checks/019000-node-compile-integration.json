@@ -1,0 +1,8 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/compile.test.mjs",
+    "tests/build/primitive-integration.test.mjs"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/benchmark.test.mjs",
+    "tests/build/benchmark-integration.test.mjs",
+    "tests/build/benchmark-comparison.test.mjs",
+    "tests/build/compare-portable-replays.test.mjs"
+  ]
+}
