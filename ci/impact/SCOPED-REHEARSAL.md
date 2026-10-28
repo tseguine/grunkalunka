@@ -5,7 +5,8 @@ executes a **real** `grunkalunka-layout` Cargo build, Clippy, tests and
 repository-wide formatting check on Linux. It uses the current checked-out
 source, Rust stable host toolchain, locked/offline Cargo inputs and Node
 24.21.0. Locked Cargo dependencies are fetched before offline execution. The
-ordinary Linux/Windows/macOS full CI still executes on the same
+the normal CI jobs execute according to their independently validated
+partial-or-full plans on the same
 PR revision. The additional job is diagnostic, not a replacement check.
 
 The change input is deliberately fixed to the **actual changed-file list of
