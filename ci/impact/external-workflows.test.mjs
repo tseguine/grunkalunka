@@ -154,7 +154,7 @@ test('native bridge trigger or executable drift cannot imply verified coverage',
         .replace('engine: [chromium, firefox, webkit]', 'engine: [chromium]'); },
     s => { s['.github/workflows/browser-native-bridge.yml'] =
       s['.github/workflows/browser-native-bridge.yml']
-        .replace('node tests/browser-oracles/native-block-bridge.mjs', 'node incomplete.mjs'); },
+        .replace('node --test tools/browser-oracles/hosted/native-bridge.test.mjs', 'node incomplete.mjs'); },
   ]) {
     const src = sources();
     modify(src);

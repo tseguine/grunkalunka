@@ -276,6 +276,7 @@ enum Work<'e, 'a> {
         right: &'e Expression<'a>,
         depth: usize,
         operator: Relational,
+        mode: Mode,
     },
     Relational {
         node: &'e Expression<'a>,
@@ -1564,21 +1565,22 @@ impl Lowering<'_, '_> {
                     right,
                     depth,
                     operator,
+                    mode,
                 } => {
-                    let left = values.pop().expect("General relational left").general();
+                    let left = values.pop().expect("represented relational left").id();
                     work.push(Work::Relational {
                         node,
                         left,
                         operator,
                     });
-                    work.push(Work::Eval(right, depth, Mode::General));
+                    work.push(Work::Eval(right, depth, mode));
                 }
                 Work::Relational {
                     node,
                     left,
                     operator,
                 } => {
-                    let right = values.pop().expect("General relational right").general();
+                    let right = values.pop().expect("represented relational right").id();
                     let result = self.value(Type::Predicate);
                     Self::push(
                         regions.current(),
@@ -3128,13 +3130,7 @@ impl Lowering<'_, '_> {
                                             unreachable!("relational operator")
                                         }
                                     };
-                                    work.push(Work::RelationalRight {
-                                        node,
-                                        right: &binary.right,
-                                        depth: depth + 1,
-                                        operator,
-                                    });
-                                    work.push(Work::Eval(&binary.left, depth + 1, Mode::General));
+                                    self.schedule_relational(node, depth, operator, &mut work);
                                     continue;
                                 }
                                 work.push(Work::CompareRight {
@@ -3650,6 +3646,35 @@ impl Lowering<'_, '_> {
             value?
         };
         Ok(callee)
+    }
+
+    // Keep continuation construction outside the large cursor's native frame.
+    fn schedule_relational<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        depth: usize,
+        operator: Relational,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) {
+        let Expression::BinaryExpression(binary) = node else {
+            unreachable!("relational source expression")
+        };
+        let mode = if self.allow_async_closures
+            && (self.has_promise_choice(&binary.left, depth + 1)
+                || self.has_promise_choice(&binary.right, depth + 1))
+        {
+            Mode::AsyncValue
+        } else {
+            Mode::General
+        };
+        work.push(Work::RelationalRight {
+            node,
+            right: &binary.right,
+            depth: depth + 1,
+            operator,
+            mode,
+        });
+        work.push(Work::Eval(&binary.left, depth + 1, mode));
     }
 
     fn schedule_mixed_assignment<'e, 'a>(

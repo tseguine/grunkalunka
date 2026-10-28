@@ -963,7 +963,7 @@ Maintained tests check nested source effects/catches/job limits in native JS,
 Node-Wasm and Wasmtime, plus typed IR misuse, projection traps and carrier
 preservation across suspension and sibling coroutine frames. Const and let source
 locals and captures now use these same slot/cell operations. Private input unions
-now use this carrier. Mixed addition/relational operands remain open. Equality
+now use this carrier. Mixed addition and mixed-target numeric writes remain open. Equality
 can consume selected raw variants as described below.
 
 ### Equality over selected raw variants
@@ -1051,3 +1051,17 @@ and applies NumberFromGeneral. This adds no operation, tag, frame layout or
 settlement boundary. Operands without Promise provenance retain the former
 Arithmetic route and emission. Addition and relational contexts do not enter
 this route because their object primitive-conversion semantics differ.
+
+### Relational comparison of raw carrier operands
+
+RelationalCompare now accepts visible General or AsyncValue operands and still
+defines Predicate. The async frontend chooses the raw carrier when either source
+operand may contain a Promise; other relational paths retain their existing
+emission. Equality operations still require General operands on their own paths.
+
+When either operand is a Promise, tag dispatch implements the closed builtin
+primitive-string ordering and the non-string primitive NaN cases. The remaining
+General/General branch uses the existing Error-aware comparison. No Promise ID
+is coerced to a Number. The operation allocates nothing and has no settlement,
+handling, suspension or job effect. No opcode, tag, layout or host value is added.
+New Error kinds, custom conversion or general Strings must extend this rule.

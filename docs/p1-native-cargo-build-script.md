@@ -15,7 +15,7 @@ does not necessarily mean its outputs differ.
 
 ## Structured Cargo build-script evidence
 
-The [optional three-host workflow](../.github/workflows/p1-native-cargo-build-script.yml)
+The [optional three-host workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-native-cargo-build-script.yml)
 runs on native Linux x64, Windows x64 and Apple Silicon ARM64.
 The [bounded collector](../tools/bench/native-cargo-build-script.mjs)
 builds the existing, unchanged

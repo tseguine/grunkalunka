@@ -10,6 +10,13 @@ use std::process::{Command, ExitCode};
 
 const TARGET: &str = "wasm32-unknown-unknown";
 
+fn extra_wasm_metadata(crate_name: &str, target: &str) -> Option<&'static str> {
+    match (crate_name, target) {
+        ("bitflags", TARGET) => Some("p1bitflags"),
+        ("memchr", TARGET) => Some("p1memchr"),
+        _ => None,
+    }
+}
 fn stable_metadata(crate_name: &str, target: &str) -> Option<&'static str> {
     match (crate_name, target) {
         ("build_script_build", "host") => Some("p1script"),
@@ -39,7 +46,7 @@ fn is_cargo_hash(value: &str) -> bool {
 // Compilers may be queried by Cargo for version/target data. Pass those
 // requests through unchanged and require complete data for actual crate builds.
 fn rewrite(args: &mut [OsString], mode: &str) -> Result<Option<MetadataRecord>, String> {
-    if !matches!(mode, "passthrough" | "target" | "all") {
+    if !matches!(mode, "passthrough" | "target" | "target_plus_deps" | "all") {
         return Err("unsupported wrapper normalization mode".to_string());
     }
     let mut crate_name = None;
@@ -93,13 +100,15 @@ fn rewrite(args: &mut [OsString], mode: &str) -> Result<Option<MetadataRecord>, 
     let Some(crate_name) = crate_name else {
         return Ok(None); // rustc -vV and similar compiler probes
     };
-    // The experiment controls five selected crate/target groups only.
-    // Other dependencies (e.g. bitflags) remain exactly as Cargo requested,
-    // and are also logged so their unaltered inputs are visible.
+    // Preserve the original #147 five-crate substitution in its modes.
+    // Only the new target_plus_deps mode adds bitflags and memchr, so their
+    // incremental impact can be attributed without changing old controls.
     let selected = stable_metadata(&crate_name, &target);
+    let extra = extra_wasm_metadata(&crate_name, &target);
     if matches!(crate_name.as_str(), "build_script_build" | "unicase" |
-        "pulldown_cmark" | "grunkalunka_markdown" | "outline_guest") &&
-        selected.is_none()
+        "pulldown_cmark" | "grunkalunka_markdown" | "outline_guest" |
+        "bitflags" | "memchr") &&
+        selected.is_none() && extra.is_none()
     {
         return Err(format!("selected crate on unexpected compilation target: {crate_name}/{target}"));
     }
@@ -107,9 +116,18 @@ fn rewrite(args: &mut [OsString], mode: &str) -> Result<Option<MetadataRecord>, 
         return Err(format!("expected exactly one generated Cargo metadata value for {crate_name}"));
     }
     let (position, original) = &metadata_slots[0];
-    let replace = selected.is_some() &&
-        (mode == "all" || (mode == "target" && target == TARGET));
-    let effective = if replace { selected.unwrap() } else { original };
+    let replace_selected = selected.is_some() &&
+        (mode == "all" || (target == TARGET &&
+        (mode == "target" || mode == "target_plus_deps")));
+    let replace_extra = extra.is_some() && mode == "target_plus_deps";
+    let replace = replace_selected || replace_extra;
+    let effective = if replace_selected {
+        selected.unwrap()
+    } else if replace_extra {
+        extra.unwrap()
+    } else {
+        original
+    };
     if replace {
         args[*position] = OsString::from(format!("metadata={effective}"));
     }
@@ -187,6 +205,24 @@ mod tests {
         assert_eq!(record.effective, "p1guest");
         assert_eq!(args[5], "metadata=p1guest");
         assert_eq!(args[7], "extra-filename=-cafebabe");
+    }
+    #[test]
+    fn new_mode_also_replaces_exact_two_remaining_wasm_dependency_hashes() {
+        for (crate_name, replacement) in [
+            ("bitflags", "p1bitflags"), ("memchr", "p1memchr")
+        ] {
+            let mut args = argv(crate_name, true);
+            let old = args.clone();
+            assert_eq!(rewrite(&mut args, "target").unwrap().unwrap().effective,
+                "0123456789abcdef");
+            assert_eq!(args, old);
+            let changed = rewrite(&mut args, "target_plus_deps").unwrap().unwrap();
+            assert_eq!(changed.effective, replacement);
+            assert_eq!(args[5], OsString::from(format!("metadata={replacement}")));
+        }
+        let mut script = argv("build_script_build", false);
+        assert_eq!(rewrite(&mut script, "target_plus_deps").unwrap().unwrap().effective,
+            "0123456789abcdef");
     }
     #[test]
     fn target_mode_does_not_rewrite_host_build_script() {

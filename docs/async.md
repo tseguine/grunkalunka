@@ -538,8 +538,8 @@ the existing semantics and budgets.
 
 This carrier does not extend the exported completion protocol. Const/let locals
 and represented mixed private inputs/results use it as described below.
-Numeric-only coercion uses this carrier as described below. Mixed addition and
-relational positions remain separate work.
+Numeric-only coercion and [mixed relational operands](async-promise-relational.md)
+now work in this represented domain. Mixed addition remains separate work.
 A helper can resolve its selected async return before the caller compares the
 resulting primitive/Error value.
 
@@ -578,9 +578,9 @@ equality applies, including Boolean/Number coercion, NaN and signed zero. A
 Promise is unequal to every currently admitted non-string primitive and intrinsic
 Error; the inequality operators invert that result. The source General profile
 still excludes Strings, so this does not implement Promise/string loose equality,
-custom coercion or arbitrary objects. Mixed addition and relational operands
-remain separate gaps; numeric-only coercion is described below. Existing homogeneous
-comparison paths and all source/runtime budgets remain unchanged.
+custom coercion or arbitrary objects. Mixed addition remains a gap; numeric-only
+coercion and represented relational operands use the contracts below. Existing
+homogeneous comparison paths and all source/runtime budgets remain unchanged.
 
 ### Immutable selected-value locals
 
@@ -604,7 +604,7 @@ binding mutation, primitive bits/kinds, Error identity, logical/comma/conditiona
 consumers and job traces. Notification tests cover discarded rejected values and
 later handling. No new layout, exported completion, private signature, fuel, job or
 source-await budget is introduced. Mutable represented mixed locals now use the
-same carrier as described below. Mixed addition/relational operands,
+same carrier as described below. Mixed addition, mixed-target numeric writes,
 general Promise payloads, Strings and
 thenables remain open.
 
@@ -630,9 +630,8 @@ or return-adoption routes as immutable locals. Storage, equality and logical tes
 do not handle a rejected Promise. Differential traces and notification tests cover
 tag changes, aliases/captures, RHS suspension, selected errors, late handling and
 source limits. No backend layout, exported/private ABI, arena, fuel, job or
-source-budget changes are needed. Mixed-target numeric compounds/updates and mixed
-addition/relational operands, unrepresented heap values and broader Promise/thenable
-behavior remain open.
+source-budget changes are needed. Mixed-target numeric compounds/updates, mixed
+addition, unrepresented heap values and broader Promise/thenable behavior remain open.
 
 ### Mixed private inputs
 
@@ -700,5 +699,16 @@ converts to NaN without settlement, adoption, handling or jobs. Selected General
 values use the existing primitive/intrinsic Error conversion. Source evaluation,
 snapshots, surplus arguments, suspension and abrupt completion retain their order.
 See [the bounded contract and evidence](async-number-coercion.md). Addition,
-relational operators, mixed-target compounds/updates, legacy snapshot profiles
-and custom object conversion remain separate work.
+mixed-target compounds/updates, legacy snapshot profiles and custom object
+conversion remain separate work.
+
+### Relational consumers of represented Promise/General values
+
+All four relational operators now accept represented Promise/General operands.
+Operands execute once, left before right, and retain raw snapshots across RHS
+mutation, calls and suspension. Builtin Promise primitive strings compare equal
+regardless of identity. Against the sole represented intrinsic TypeError string,
+the Promise string orders after it. Promise/non-string primitive pairs compare
+through NaN and yield false. General/General behavior remains unchanged.
+No comparison adopts, handles or schedules a Promise. Custom conversion and
+broader object/String domains remain excluded; see [the precise contract](async-promise-relational.md).

@@ -45,25 +45,19 @@ jobs:
         with:
           node-version: ${{ env.BROWSER_NODE_VERSION }}
           package-manager-cache: false
-      - name: Verify pinned Node runtime
-        run: node -e 'require("node:assert/strict").equal(process.versions.node, process.env.BROWSER_NODE_VERSION)'
-      - name: Test workflow and receipt contracts offline
-        run: node --test tests/browser-oracles/workflow-node-version.test.mjs tests/browser-oracles/workflow-browser-image.test.mjs tools/browser-oracles/verify-baseline.test.mjs
       - name: Install isolated optional automation dependency
         run: npm --prefix tools/browser-oracles install --ignore-scripts --no-audit --no-fund
-      - name: Verify version-matched browser image
-        run: |
-          test "${PLAYWRIGHT_BROWSERS_PATH:-}" = /ms-playwright
-          test -d "$PLAYWRIGHT_BROWSERS_PATH"
-          node -e 'require("node:assert/strict").equal(require("./tools/browser-oracles/package.json").dependencies.playwright, "1.64.1")'
       - name: Record font and host inventory
         run: |
           mkdir -p target/browser-smoke/${{ matrix.engine }}
           fc-list | LC_ALL=C sort > target/browser-smoke/${{ matrix.engine }}/fonts.txt
           uname -a > target/browser-smoke/${{ matrix.engine }}/host.txt
           cat /etc/os-release >> target/browser-smoke/${{ matrix.engine }}/host.txt
-      - name: Capture, verify and mutation-test real browser observations
-        run: timeout --kill-after=10s 240s node tools/browser-oracles/smoke.mjs ${{ matrix.engine }} target/browser-smoke/${{ matrix.engine }}/captures
+      - name: Run real reference-engine behavior as node:test
+        env:
+          BROWSER_ENGINE: ${{ matrix.engine }}
+          BROWSER_EVIDENCE_DIR: target/browser-smoke/${{ matrix.engine }}/captures
+        run: timeout --kill-after=10s 250s node --test tools/browser-oracles/hosted/smoke.test.mjs
       - name: Retain raw evidence and resolved dependency inventory
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -93,29 +87,18 @@ jobs:
         with:
           node-version: ${{ env.BROWSER_NODE_VERSION }}
           package-manager-cache: false
-      - name: Verify pinned Node runtime
-        run: node -e 'require("node:assert/strict").equal(process.versions.node, process.env.BROWSER_NODE_VERSION)'
       - name: Download this run's separate engine artifacts
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           pattern: browser-smoke-*
           path: target/browser-cross-engine/input
           merge-multiple: false
-      - name: Report source-checked differences without a majority-vote oracle
+      - name: Source-check real three-engine receipts as node:test
         if: ${{ !cancelled() }}
-        run: |
-          mkdir -p target/browser-cross-engine
-          root=target/browser-cross-engine/input
-          status=0
-          timeout --kill-after=5s 30s node tests/browser-oracles/cross-engine.mjs \
-            tests/browser-oracles/layout-baseline.html \
-            "$root/browser-smoke-chromium/target/browser-smoke/chromium/captures/first.json" \
-            "$root/browser-smoke-firefox/target/browser-smoke/firefox/captures/first.json" \
-            "$root/browser-smoke-webkit/target/browser-smoke/webkit/captures/first.json" \
-            > target/browser-cross-engine/report.json || status=$?
-          # 1 means complete comparable evidence with differences, not nonconformance.
-          # Missing, invalid, incompatible inputs and execution errors must fail.
-          if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then exit "$status"; fi
+        env:
+          BROWSER_CROSS_ENGINE_INPUT: target/browser-cross-engine/input
+          BROWSER_CROSS_ENGINE_OUTPUT: target/browser-cross-engine
+        run: node --test tools/browser-oracles/hosted/cross-engine.test.mjs
       - name: Retain complete or partial cross-engine evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

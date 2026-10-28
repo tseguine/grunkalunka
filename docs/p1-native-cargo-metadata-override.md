@@ -42,7 +42,7 @@ feature configuration, source, linker arguments, and every other
 compiler flag are passed **unchanged**. The wrapper preserves real
 rustc exit codes, and leaves compiler version/probe invocations alone.
 
-The [independent three-host workflow](../.github/workflows/p1-native-cargo-metadata-override.yml)
+The [independent three-host workflow](https://github.com/tseguine/grunkalunka/blob/d8e5bdc6d413722ebcc90878744a1a2be18e5096/.github/workflows/p1-native-cargo-metadata-override.yml)
 compiles this wrapper locally with the installed host rustc, runs its
 native Rust unit tests, and then builds the *unchanged* existing
 `grunkalunka-markdown --example outline_guest` three times on each

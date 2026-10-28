@@ -6,7 +6,7 @@ The same-byte [Linux x64-to-ARM64 replay](portable-core-replay.md) and
 demonstrate that running the **native Grunkalunka compiler independently** on
 those hosts produces the same Wasm artifact.
 
-This separate [optional workflow](../.github/workflows/p1-native-gcd-identity.yml)
+This separate [optional workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-native-gcd-identity.yml)
 tests that narrower reproducibility question. It builds the existing
 `grunkalunka-cli` independently on standard Linux x64, Windows x64 and
 native Apple Silicon macOS ARM64 runners. It uses Node 24.22.1 everywhere

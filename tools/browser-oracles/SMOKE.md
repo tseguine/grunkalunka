@@ -7,8 +7,9 @@ It leaves the root compiler/runtime dependencies and canonical workflow alone.
 
 Hosted smoke jobs now run in the official Playwright v1.64.1 Noble
 container (version tag plus immutable digest, see the workflow), which includes the three Playwright browsers and Linux dependencies.
-The workflow still installs its optional pinned Playwright **Node package** and
-checks the browser path; it no longer invokes `install --with-deps` and downloads
+The workflow still installs its optional pinned Playwright **Node package**.
+The hosted `node:test` suite verifies the browser path and package revision;
+it no longer invokes `install --with-deps` and downloads
 Ubuntu packages afresh on every runner. The container runs as UID 1001 rather
 than root. See [Playwright's CI guidance](https://playwright.dev/docs/ci).
 The image tag must match `tools/browser-oracles/package.json` (enforced by a
@@ -25,7 +26,9 @@ After installing the optional dependency and browsers as in `README.md`:
 
 ```sh
 node --test tools/browser-oracles/verify-baseline.test.mjs
-node tools/browser-oracles/smoke.mjs chromium target/browser-smoke/local-new
+BROWSER_ENGINE=chromium BROWSER_NODE_VERSION="$(node --version | cut -c 2-)" \
+BROWSER_EVIDENCE_DIR=target/browser-smoke/local-new \
+node --test tools/browser-oracles/hosted/smoke.test.mjs
 ```
 
 Each run requires a new output directory. It copies the self-contained baseline
@@ -65,3 +68,10 @@ control must generate boxes and increase scroll height, then rehiding it must
 restore the original layout. Raw phases are saved in `diagnostic-isolation.json`
 before verification; the existing process watchdog bounds the entire probe.
 This is a selected-fixture isolation check, not a general layout-stability proof.
+
+Hosted browser observations and the cross-engine report now execute as ordinary
+`node:test` files under `tools/browser-oracles/hosted/`. GitHub Actions
+selects the pinned image, sets the engine and evidence directories, and uploads
+unmodified receipts; no fixture expectations or source-mutation assertions
+are implemented in workflow YAML. Offline contracts remain separate from
+these real-engine tests and require no Playwright installation.

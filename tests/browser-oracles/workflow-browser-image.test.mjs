@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const workflow = await readFile(new URL("../../.github/workflows/browser-smoke.yml", import.meta.url), "utf8");
+const workflow = (await readFile(new URL("../../.github/workflows/browser-smoke.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 const pkg = JSON.parse(await readFile(new URL("../../tools/browser-oracles/package.json", import.meta.url), "utf8"));
 
 function verifyImageContract(text) {
@@ -12,9 +13,12 @@ function verifyImageContract(text) {
   assert.equal(image[2], "47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea", "image digest matches the tested three-engine container");
   const smoke = text.split("\n  cross-engine:\n")[0];
   assert.doesNotMatch(smoke, /playwright\/cli\.js install(?:\s|$)|install --with-deps/, "no apt-based browser provisioning");
-  assert.match(smoke, /- name: Verify version-matched browser image\n/, "verify image path at runtime");
-  assert.match(smoke, /test "\$\{PLAYWRIGHT_BROWSERS_PATH:-\}" = \/ms-playwright/, "verify installed path");
-  assert.match(smoke, /node --test [^\n]*workflow-browser-image\.test\.mjs/, "regression runs on workflow-only edits");
+  assert.ok(smoke.includes("node --test tools/browser-oracles/hosted/smoke.test.mjs"),
+    "live test suite, not inline YAML assertions");
+  const hosted = readFileSync(new URL("../../tools/browser-oracles/hosted/smoke.test.mjs",
+    import.meta.url), "utf8");
+  assert.ok(hosted.includes("process.env.PLAYWRIGHT_BROWSERS_PATH"));
+  assert.ok(hosted.includes("require('playwright/package.json')"));
 }
 
 test("browser CI consumes preprovisioned version-matched image without apt", () => {
@@ -28,7 +32,7 @@ test("mismatched image, missing nonroot policy, and restored apt install are rej
     workflow.replace("@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea", ""),
     workflow.replace("@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea", "@sha256:" + "0".repeat(64)),
     workflow.replace("    container:\n", "    no-container:\n"),
-    workflow.replace("Verify version-matched browser image", "Remove version verification"),
+    workflow.replace("node --test tools/browser-oracles/hosted/smoke.test.mjs", "node incomplete.mjs"),
     workflow.replace("      - name: Record font and host inventory",
       "      - run: node tools/browser-oracles/node_modules/playwright/cli.js install --with-deps firefox\n      - name: Record font and host inventory")
   ]) assert.throws(() => verifyImageContract(mutated));

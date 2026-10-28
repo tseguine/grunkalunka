@@ -10,7 +10,7 @@ does not reveal whether the Markdown differences are stable for each host.
 
 ## One-host controlled experiment
 
-The [optional CI workflow](../.github/workflows/p1-markdown-clean-rebuild.yml)
+The [optional CI workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-clean-rebuild.yml)
 runs **independently on three standard hosted runners**: Linux x64, Windows
 x64 and native Apple Silicon macOS ARM64. On each runner, the
 [bounded helper](../tools/bench/markdown-clean-rebuild.mjs) performs:

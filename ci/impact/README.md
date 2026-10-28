@@ -105,7 +105,9 @@ that host. A selected check failure **fails immediately**, not via full retry.
 
 The `PARTIAL_PR_CI` environment variable in `ci.yml` is the one-line rollback
 switch for all three PR jobs. `pull_request` check names, independent
-browser/P1 workflows and full `master`/manual verification are unchanged.
+browser workflows and full `master`/manual verification are unchanged.
+P1 regression and native artifact tests are ordinary canonical checks;
+retired cross-host experiment workflows do not create per-PR jobs.
 A real [three-platform scoped rehearsal](../../.github/workflows/impact-platform-rehearsal.yml)
 runs a selected historical layout path set against current native code, without
 claiming a partial gate covers unspecified inputs or optional workflow results.

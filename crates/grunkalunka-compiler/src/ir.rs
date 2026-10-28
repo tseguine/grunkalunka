@@ -555,7 +555,7 @@ pub(crate) enum Op {
         right: ValueId,
         negated: bool,
     },
-    /// JS relational comparison of captured General operands. Preserve their
+    /// JS relational comparison of captured General/AsyncValue operands. Preserve their
     /// kinds until ToPrimitive; explicit NumberFromGeneral has different semantics.
     RelationalCompare {
         result: ValueId,
@@ -1245,15 +1245,32 @@ impl Verifier<'_> {
                 left,
                 right,
                 ..
+            } => {
+                self.value(*left, Type::General, visible, span)?;
+                self.value(*right, Type::General, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
             }
-            | Op::RelationalCompare {
+            Op::RelationalCompare {
                 result,
                 left,
                 right,
                 ..
             } => {
-                self.value(*left, Type::General, visible, span)?;
-                self.value(*right, Type::General, visible, span)?;
+                for operand in [left, right] {
+                    let ty = self
+                        .function
+                        .values
+                        .get(operand.0)
+                        .copied()
+                        .ok_or_else(|| invalid(span, "invalid relational operand"))?;
+                    if !matches!(ty, Type::General | Type::AsyncValue) {
+                        return Err(invalid(
+                            span,
+                            "relational operands require represented values",
+                        ));
+                    }
+                    self.value(*operand, ty, visible, span)?;
+                }
                 self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::Binary {

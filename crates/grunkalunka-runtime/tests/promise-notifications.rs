@@ -9,6 +9,9 @@ use std::{
 #[path = "async-suspension/promoted_identities.rs"]
 mod promoted_identities;
 
+#[path = "async-suspension/promise_relational_notifications.rs"]
+mod promise_relational_notifications;
+
 fn promoted_identity_case(source: &str, typescript: bool) -> String {
     fn bits(value: Value) -> String {
         match value {
@@ -274,7 +277,10 @@ fn node_reports_detached_child_rejections_like_native_promises() {
             ));
         }
     }
-    for source in promoted_identities::SOURCES {
+    for source in promoted_identities::SOURCES
+        .iter()
+        .chain(promise_relational_notifications::SOURCES)
+    {
         for typescript in [false, true] {
             cases.push(promoted_identity_case(source, typescript));
         }
