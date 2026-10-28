@@ -13,6 +13,24 @@ const MAX_RECEIPT = 512 * 1024;
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
 const NORMALIZATION_METHOD = 'rust-legacy-terminal-hex-hash-v1';
 const LEGACY_HASH_SUFFIX = /::h[0-9a-f]{16}$/;
+const MANGLED_HASH_METHOD = 'rust-legacy-mangled-itanium-hash-v1';
+const RUST_LEGACY_PREFIX = /^_{0,2}ZN/;
+const RUST_LEGACY_HASH = /^_{0,2}ZN.+17h[0-9a-f]{16}E$/;
+
+// A second, disjoint control for Rust's old Itanium-like symbol spelling:
+// _ZN...(length-prefixed terminal 17h + exactly 16 lowercase hex digits)E.
+// This is an exact byte-pattern experiment, NOT a Rust demangler.
+export function stripMangledRustHash(name) {
+  check(typeof name === 'string', 'Rust mangled diagnostic function name');
+  return RUST_LEGACY_HASH.test(name) ?
+    name.replace(/17h[0-9a-f]{16}E$/, 'E') : name;
+}
+function nameSyntaxClass(name) {
+  if (RUST_LEGACY_PREFIX.test(name)) return 'legacyMangled';
+  if (/^_?R[A-Za-z0-9_]/.test(name)) return 'v0MangledLike';
+  if (name.includes('::')) return 'pathLike';
+  return 'other';
+}
 
 // Deliberately narrow, mechanical text transformation. Do not strip embedded
 // hashes, arbitrary hexadecimal strings or Rust v0 mangling; those remain as-is.
@@ -100,8 +118,18 @@ export function extractNamedBodyHashes(input, count) {
     'actual Wasm name section with function names');
   const digests = Buffer.alloc(count * 32);
   const normalizedDigests = Buffer.alloc(count * 32);
+  const mangledDigests = Buffer.alloc(count * 32);
+  const nameSyntaxCounts = {
+    legacyMangled: 0, v0MangledLike: 0, pathLike: 0, other: 0,
+  };
   let matchingTerminalSuffixCount = 0;
+  let matchingMangledHashCount = 0;
   for (const [index, name] of names) {
+    nameSyntaxCounts[nameSyntaxClass(name)]++;
+    const mangledNormalized = stripMangledRustHash(name);
+    if (mangledNormalized !== name) matchingMangledHashCount++;
+    createHash('sha256').update(Buffer.from(mangledNormalized, 'utf8'))
+      .digest().copy(mangledDigests, index * 32);
     createHash('sha256').update(Buffer.from(name, 'utf8'))
       .digest().copy(digests, index * 32);
     const normalized = stripTerminalRustHash(name);
@@ -117,7 +145,13 @@ export function extractNamedBodyHashes(input, count) {
       matchingTerminalSuffixCount,
       normalizedNameDigestsBase64: normalizedDigests.toString('base64'),
     },
-    interpretation: 'SHA-256 of raw and narrowly suffix-normalized diagnostic name bytes by function ordinal; zero digest slots mark missing names',
+    mangledHashNormalization: {
+      method: MANGLED_HASH_METHOD,
+      matchingTerminalSuffixCount: matchingMangledHashCount,
+      normalizedNameDigestsBase64: mangledDigests.toString('base64'),
+      nameSyntaxCounts,
+    },
+    interpretation: 'raw and separately hashed diagnostic-name controls by function ordinal; missing optional name slots remain zero',
   };
 }
 
@@ -146,12 +180,13 @@ function validateNamedBodyReceipt(receipt) {
   return names;
 }
 
-function normalizedNameVector(receipt, raw) {
-  const normalization = receipt.namedBodies.normalization;
+function normalizedNameVector(receipt, raw, property = 'normalization',
+  expectedMethod = NORMALIZATION_METHOD) {
+  const normalization = receipt.namedBodies[property];
   if (normalization === undefined) return null;
   const { method, matchingTerminalSuffixCount, normalizedNameDigestsBase64 } =
     normalization ?? {};
-  check(method === NORMALIZATION_METHOD &&
+  check(method === expectedMethod &&
     Number.isSafeInteger(matchingTerminalSuffixCount) &&
     matchingTerminalSuffixCount >= 0 &&
     matchingTerminalSuffixCount <= receipt.namedBodies.mappedCount &&
@@ -174,6 +209,17 @@ function normalizedNameVector(receipt, raw) {
   }
   check(changed === matchingTerminalSuffixCount,
     'consistent number of normalized name hashes');
+  if (property === 'mangledHashNormalization') {
+    const counts = normalization.nameSyntaxCounts;
+    const keys = ['legacyMangled', 'v0MangledLike', 'pathLike', 'other'];
+    check(counts && typeof counts === 'object' &&
+      Object.keys(counts).sort().join(',') === keys.slice().sort().join(',') &&
+      keys.every(key => Number.isSafeInteger(counts[key]) &&
+        counts[key] >= 0 && counts[key] <= receipt.namedBodies.mappedCount) &&
+      keys.reduce((sum, key) => sum + counts[key], 0) === receipt.namedBodies.mappedCount &&
+      counts.legacyMangled >= matchingTerminalSuffixCount,
+    'complete mangled Rust name syntax categories');
+  }
   return vector;
 }
 
@@ -215,6 +261,12 @@ export function compareNamedBodyReceipts(producer, receiver) {
   const receiverNormalized = normalizedNameVector(receiver, right);
   check((producerNormalized === null) === (receiverNormalized === null),
     'both hosts must provide normalized name observations');
+  const producerMangled = normalizedNameVector(
+    producer, left, 'mangledHashNormalization', MANGLED_HASH_METHOD);
+  const receiverMangled = normalizedNameVector(
+    receiver, right, 'mangledHashNormalization', MANGLED_HASH_METHOD);
+  check((producerMangled === null) === (receiverMangled === null),
+    'both hosts must provide mangled Rust name observations');
   const sharedNameOccurrences = intersection(multiset(a.byName), multiset(b.byName));
   const sharedNameAndExactBodyOccurrences =
     intersection(multiset(a.byNameAndBody), multiset(b.byNameAndBody));
@@ -257,6 +309,37 @@ export function compareNamedBodyReceipts(producer, receiver) {
       interpretation: 'mechanically strips only final ::h plus exactly sixteen lowercase hexadecimal digits; merged names may be unrelated source functions',
     };
   }
+  let mangledRustHashControl = null;
+  if (producerMangled !== null) {
+    const leftNames = namedOccurrences(producer, producerMangled);
+    const rightNames = namedOccurrences(receiver, receiverMangled);
+    const sharedNames = intersection(
+      multiset(leftNames.byName), multiset(rightNames.byName));
+    const sharedBodies = intersection(
+      multiset(leftNames.byNameAndBody),
+      multiset(rightNames.byNameAndBody));
+    check(sharedNames >= sharedNameOccurrences &&
+      sharedBodies >= sharedNameAndExactBodyOccurrences &&
+      sharedBodies <= sharedNames,
+    'mangled-name normalization cannot reduce raw overlap');
+    mangledRustHashControl = {
+      method: MANGLED_HASH_METHOD,
+      producerSuffixesStripped:
+        producer.namedBodies.mangledHashNormalization.matchingTerminalSuffixCount,
+      receiverSuffixesStripped:
+        receiver.namedBodies.mangledHashNormalization.matchingTerminalSuffixCount,
+      producerSyntaxCounts:
+        { ...producer.namedBodies.mangledHashNormalization.nameSyntaxCounts },
+      receiverSyntaxCounts:
+        { ...receiver.namedBodies.mangledHashNormalization.nameSyntaxCounts },
+      normalizedSharedNameOccurrences: sharedNames,
+      normalizedSharedNameAndExactBodyOccurrences: sharedBodies,
+      additionalNameMatchesAfterNormalization: sharedNames - sharedNameOccurrences,
+      additionalNameAndExactBodyMatchesAfterNormalization:
+        sharedBodies - sharedNameAndExactBodyOccurrences,
+      interpretation: 'heuristic removal of exactly one terminal 17h plus 16 lowercase hex digits before E on legacy _ZN symbols; categories are syntactic, not authenticated mangling',
+    };
+  }
   return {
     schemaVersion: 1, workload: 'p1-markdown-named-body-comparison',
     revision: producer.revision,
@@ -275,7 +358,8 @@ export function compareNamedBodyReceipts(producer, receiver) {
       receiver.namedBodies.mappedCount - sharedNameOccurrences,
     rawCodeBodyComparison: basic.codeBodyComparison,
     terminalRustHashControl,
-    interpretation: 'raw and narrowly suffix-normalized Rust diagnostic symbol occurrences against exact body bytes; normalization does not establish source identities, opcode equivalence or comparable performance',
+    mangledRustHashControl,
+    interpretation: 'raw Rust diagnostic symbols and two independent narrow normalization heuristics; no authenticated source identities, opcode equivalence or comparable performance',
   };
 }
 
