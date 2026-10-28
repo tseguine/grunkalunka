@@ -134,6 +134,13 @@ fn scrolled_bitmap_ink_clips_left_top_right_and_bottom() {
     assert_eq!(canvas.pixel(0, 1), Some(INK));
     assert_eq!(canvas.pixel(1, 0), Some(Rgb::WHITE));
 
+    // A document-space mask beginning above the viewport loses its first row.
+    canvas
+        .blit_mono(11, 29, 1, 2, &[0b1000_0000, 0b1000_0000], INK)
+        .unwrap();
+    assert_eq!(canvas.pixel(1, 0), Some(INK));
+    assert_eq!(canvas.pixel(1, 1), Some(Rgb::WHITE));
+
     // Three mask rows/columns at the far right/bottom only expose 2x2 pixels.
     canvas
         .blit_mono(48, 58, 3, 3, &[0b1110_0000; 3], INK)
