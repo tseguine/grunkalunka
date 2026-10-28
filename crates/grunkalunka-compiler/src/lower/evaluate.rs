@@ -15,6 +15,7 @@ pub(super) enum Mode {
     Pending,
     Settled,
     AsyncReturn,
+    AsyncValue,
     Awaited(usize),
 }
 
@@ -23,6 +24,7 @@ enum Value {
     Number(ValueId),
     Predicate(ValueId),
     General(ValueId),
+    Selection(ValueId),
     Function(ValueId),
     Promise(ValueId),
     Pending(ValueId),
@@ -34,6 +36,7 @@ impl Value {
             Self::Number(id)
             | Self::Predicate(id)
             | Self::General(id)
+            | Self::Selection(id)
             | Self::Function(id)
             | Self::Pending(id)
             | Self::Promise(id)
@@ -173,6 +176,7 @@ enum Work<'e, 'a> {
     Await(&'e Expression<'a>, bool, Type, Option<usize>),
     AwaitPending(&'e Expression<'a>, Option<usize>),
     AdoptResult(&'e Expression<'a>),
+    LiftAsyncValue(&'e Expression<'a>),
     PendingTruthy(&'e Expression<'a>),
     AwaitSettled(&'e Expression<'a>, Option<usize>),
     FulfillPromise(&'e Expression<'a>),
@@ -892,6 +896,12 @@ impl Lowering<'_, '_> {
                     Self::push(regions.current(), node, Op::AdoptPromise { result, input });
                     values.push(Value::General(result));
                 }
+                Work::LiftAsyncValue(node) => {
+                    let input = values.pop().expect("async selection operand").id();
+                    let result = self.value(Type::AsyncValue);
+                    Self::push(regions.current(), node, Op::ToAsyncValue { result, input });
+                    values.push(Value::Selection(result));
+                }
                 Work::PendingTruthy(node) => {
                     values.pop().expect("pending truthiness").pending();
                     let result = self.value(Type::Predicate);
@@ -1591,6 +1601,7 @@ impl Lowering<'_, '_> {
                         | Value::Function(_)
                         | Value::Pending(_)
                         | Value::Promise(_)
+                        | Value::Selection(_)
                         | Value::Settled(_) => {
                             unreachable!("typed General assignment RHS")
                         }
@@ -1831,6 +1842,7 @@ impl Lowering<'_, '_> {
                     let alternate = regions.finish(value);
                     let ty = match mode {
                         Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
+                        Mode::AsyncValue => Type::AsyncValue,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Pending => Type::Promise,
@@ -1851,6 +1863,7 @@ impl Lowering<'_, '_> {
                     );
                     values.push(match ty {
                         Type::General => Value::General(result),
+                        Type::AsyncValue => Value::Selection(result),
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
@@ -1869,6 +1882,12 @@ impl Lowering<'_, '_> {
                 } => {
                     let left = values.pop().expect("logical left");
                     let condition = match left {
+                        Value::Selection(input) => self.async_value_condition(
+                            left_node,
+                            input,
+                            operator,
+                            regions.current(),
+                        ),
                         Value::General(input) if operator == LogicalOperator::Coalesce => {
                             let nullish = self.value(Type::Predicate);
                             Self::push(
@@ -1964,6 +1983,9 @@ impl Lowering<'_, '_> {
                     let mut skipped = self.region(left_node);
                     let kept = if matches!(mode, Mode::AsyncReturn) {
                         match left {
+                            Value::Selection(input) => {
+                                self.resolve_async_value(left_node, input, &mut skipped)
+                            }
                             Value::Pending(input) => {
                                 let result = self.value(Type::General);
                                 Self::push(
@@ -1986,6 +2008,7 @@ impl Lowering<'_, '_> {
                     };
                     let ty = match mode {
                         Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
+                        Mode::AsyncValue => Type::AsyncValue,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Pending => Type::Promise,
@@ -2006,6 +2029,7 @@ impl Lowering<'_, '_> {
                     );
                     values.push(match ty {
                         Type::General => Value::General(result),
+                        Type::AsyncValue => Value::Selection(result),
                         Type::Predicate => Value::Predicate(result),
                         Type::Number => Value::Number(result),
                         Type::Closure(_) => Value::Function(result),
@@ -2111,6 +2135,16 @@ impl Lowering<'_, '_> {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
                     }
+                    if matches!(mode, Mode::AsyncValue) {
+                        if self.pending_promise_shape(node, depth) {
+                            work.push(Work::LiftAsyncValue(node));
+                            work.push(Work::Eval(node, depth, Mode::Pending));
+                        } else if !schedule_selection(&mut work, node, depth, mode)? {
+                            work.push(Work::LiftAsyncValue(node));
+                            work.push(Work::Eval(node, depth, Mode::General));
+                        }
+                        continue;
+                    }
                     if matches!(mode, Mode::AsyncReturn) {
                         if self.pending_promise_shape(node, depth) {
                             work.push(Work::AdoptResult(node));
@@ -2121,6 +2155,8 @@ impl Lowering<'_, '_> {
                             let left_mode = if self.pending_promise_shape(&logical.left, depth + 1)
                             {
                                 Mode::Pending
+                            } else if self.has_promise_choice(&logical.left, depth + 1) {
+                                Mode::AsyncValue
                             } else {
                                 Mode::General
                             };

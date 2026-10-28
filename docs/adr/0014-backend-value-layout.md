@@ -372,3 +372,18 @@ notifications. Pure General/Fulfilled SSA carriers can share physical locals;
 mutable source slots cannot. Root spills are omitted only when no coroutine
 function can overwrite globals. Existing 10,000-fuel and 32-job limits remain,
 with executed stress regressions rather than widened budgets.
+
+## Selection-local async union follow-up
+
+Nested Promise/General logical selections now use a distinct `AsyncValue`
+logical type. The backend maps it to the existing sixteen-byte tag/f64 layout
+for locals and suspended frames. General payloads keep their bits; a private
+tag 5 holds an exactly represented Promise ID. Typed lift/discriminator/guarded
+projection operations keep this union separate from General completion values.
+
+No exported protocol, private call entry, existing value width, arena bound or
+Promise scheduling rule changes. The carrier is excluded from closure
+parameter/results. It is a bounded implementation for selection, not a chosen
+general object/heap encoding. Invalid projections trap; verified source paths
+discriminate before projection. Tests exercise suspended carrier values across
+two activations of one coroutine, apart from source selection oracles.

@@ -159,6 +159,52 @@ impl Emitter<'_> {
         self.set(result);
     }
 
+    fn lift_async_value(&mut self, result: ValueId, input: ValueId) {
+        if self.function.values[input.0] == Type::Promise {
+            writeln!(self.output, "i32.const {}", layout::ASYNC_PROMISE_TAG).unwrap();
+            self.get(input);
+            self.output.push_str("f64.convert_i32_u\n");
+        } else {
+            self.get(input);
+        }
+        self.set(result);
+    }
+
+    fn async_value_is_promise(&mut self, result: ValueId, input: ValueId) {
+        writeln!(
+            self.output,
+            "local.get {}\ni32.const {}\ni32.eq",
+            self.value_offsets[input.0],
+            layout::ASYNC_PROMISE_TAG
+        )
+        .unwrap();
+        self.set(result);
+    }
+
+    fn project_async_primitive(&mut self, result: ValueId, input: ValueId) {
+        writeln!(
+            self.output,
+            "local.get {}\ni32.const {}\ni32.ge_u\nif unreachable end",
+            self.value_offsets[input.0],
+            layout::ASYNC_PROMISE_TAG
+        )
+        .unwrap();
+        self.get(input);
+        self.set(result);
+    }
+
+    fn project_async_promise(&mut self, result: ValueId, input: ValueId) {
+        writeln!(
+            self.output,
+            "local.get {}\ni32.const {}\ni32.ne\nif unreachable end\nlocal.get {}\ni32.trunc_f64_u",
+            self.value_offsets[input.0],
+            layout::ASYNC_PROMISE_TAG,
+            self.value_offsets[input.0] + 1
+        )
+        .unwrap();
+        self.set(result);
+    }
+
     fn operations(&mut self, operations: &[ir::Operation]) {
         for operation in operations {
             match &operation.kind {
@@ -174,6 +220,16 @@ impl Emitter<'_> {
                 }
                 Op::MaterializePromise { result, input } => {
                     self.materialize_promise(*result, *input)
+                }
+                Op::ToAsyncValue { result, input } => self.lift_async_value(*result, *input),
+                Op::AsyncValueIsPromise { result, input } => {
+                    self.async_value_is_promise(*result, *input)
+                }
+                Op::AsyncValuePrimitive { result, input } => {
+                    self.project_async_primitive(*result, *input)
+                }
+                Op::AsyncValuePromise { result, input } => {
+                    self.project_async_promise(*result, *input)
                 }
                 Op::MakeClosure {
                     result,

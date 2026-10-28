@@ -519,7 +519,21 @@ completion is zero, null or undefined. Adoption stays inside the selected return
 branch, so discarding a Promise with `&&` neither handles it nor adds a job.
 Rejection notification tests compare detached failures with native checkpoints.
 
-The current logical route uses homogeneous General or Promise left operands.
-Nested left expressions that join both kinds still need a representation before
-their truthiness test. Those joins, Promise/scalar private input domains and
+Homogeneous logical left operands keep the existing direct evaluation route.
+Nested left expressions now use the selection-local carrier described below.
+Promise/scalar private input domains and
 starting a suspending async callback inside a synchronous helper remain separate gaps.
+
+### Nested Promise/primitive selections
+
+Nested left operands such as `(a ? p : b) || b` and `(a && p) || b` now
+retain their selected kind until the outer operator tests it. An internal
+`AsyncValue` carrier holds a General value or a represented Promise without
+adopting it. Only the final selected return is resolved. Primitive and Error
+payloads, Promise identity, short-circuit effects and rejection handling retain
+the existing semantics and budgets.
+
+This carrier does not extend the exported completion protocol. Mixed source
+locals, private parameter domains and mixed values in ordinary comparison or
+coercion positions remain separate work. A helper can resolve its selected
+async return before the caller compares the resulting primitive/Error value.

@@ -31,6 +31,8 @@ pub(crate) enum Type {
     Number,
     Predicate,
     General,
+    // Selection-local General value or represented Promise. Never a host completion.
+    AsyncValue,
     // A nonescaping fulfilled primitive Promise; distinct from its completion.
     FulfilledPromise,
     // A nonescaping immediate primitive fulfillment or rejection snapshot.
@@ -451,6 +453,22 @@ pub(crate) enum Op {
     /// Allocate a fresh Promise identity from a completion snapshot. This is a
     /// constructor effect, not an identity-preserving cast or an alias read.
     MaterializePromise {
+        result: ValueId,
+        input: ValueId,
+    },
+    ToAsyncValue {
+        result: ValueId,
+        input: ValueId,
+    },
+    AsyncValueIsPromise {
+        result: ValueId,
+        input: ValueId,
+    },
+    AsyncValuePrimitive {
+        result: ValueId,
+        input: ValueId,
+    },
+    AsyncValuePromise {
         result: ValueId,
         input: ValueId,
     },
@@ -1045,6 +1063,30 @@ impl Verifier<'_> {
                     ));
                 }
                 self.value(*input, ty, visible, span)?;
+                self.define(*result, Type::Promise, visible, span)?;
+            }
+            Op::ToAsyncValue { result, input } => {
+                let ty = *self
+                    .function
+                    .values
+                    .get(input.0)
+                    .ok_or_else(|| invalid(span, "invalid async selection input"))?;
+                if !matches!(ty, Type::General | Type::Promise) {
+                    return Err(invalid(span, "async selection requires General or Promise"));
+                }
+                self.value(*input, ty, visible, span)?;
+                self.define(*result, Type::AsyncValue, visible, span)?;
+            }
+            Op::AsyncValueIsPromise { result, input } => {
+                self.value(*input, Type::AsyncValue, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::AsyncValuePrimitive { result, input } => {
+                self.value(*input, Type::AsyncValue, visible, span)?;
+                self.define(*result, Type::General, visible, span)?;
+            }
+            Op::AsyncValuePromise { result, input } => {
+                self.value(*input, Type::AsyncValue, visible, span)?;
                 self.define(*result, Type::Promise, visible, span)?;
             }
             Op::SettledValue { result, input } | Op::AwaitSettled { result, input } => {

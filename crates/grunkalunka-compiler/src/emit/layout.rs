@@ -19,6 +19,9 @@ pub(super) fn share_fulfilled_storage(function: &crate::ir::Function, offsets: &
 pub(super) const SETTLED_REJECTED_BIT: u32 = 1 << 31;
 pub(super) const SETTLED_TAG_MASK: u32 = !SETTLED_REJECTED_BIT;
 
+// Private selection carrier only; exported General values retain kinds 0..=4.
+pub(super) const ASYNC_PROMISE_TAG: u32 = 5;
+
 #[derive(Clone, Copy)]
 pub(super) enum Lane {
     I32,
@@ -66,20 +69,22 @@ pub(super) fn value(ty: Type) -> Layout {
             wat: "i32",
             local: "(local i32)\n",
         },
-        Type::General | Type::FulfilledPromise | Type::SettledPromise => Layout {
-            parts: &[
-                Part {
-                    lane: I32,
-                    byte_offset: 0,
-                },
-                Part {
-                    lane: F64,
-                    byte_offset: 8,
-                },
-            ],
-            wat: "i32 f64",
-            local: "(local i32 f64)\n",
-        },
+        Type::General | Type::FulfilledPromise | Type::SettledPromise | Type::AsyncValue => {
+            Layout {
+                parts: &[
+                    Part {
+                        lane: I32,
+                        byte_offset: 0,
+                    },
+                    Part {
+                        lane: F64,
+                        byte_offset: 8,
+                    },
+                ],
+                wat: "i32 f64",
+                local: "(local i32 f64)\n",
+            }
+        }
         Type::Closure(_) => Layout {
             parts: &[
                 Part {
@@ -102,6 +107,8 @@ pub(super) fn argument_bytes(ty: Type) -> usize {
     match ty {
         Type::Number | Type::Closure(_) | Type::Promise => 8,
         Type::General | Type::FulfilledPromise | Type::SettledPromise => 16,
-        Type::Predicate => unreachable!("Predicate closure parameters are not admitted"),
+        Type::Predicate | Type::AsyncValue => {
+            unreachable!("Predicate/AsyncValue closure parameters are not admitted")
+        }
     }
 }

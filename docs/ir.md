@@ -911,7 +911,7 @@ detached rejection reporting. The async frontend now uses this bridge for
 completed source constructors and immediate async results, allocating once and
 retaining aliases. `Promise.resolve(p)` preserves the existing identity. Those
 values support comparison and async-return adoption, including through homogeneous
-private interfaces. General payloads, Promise/scalar unions and thenables remain.
+private interfaces. General payloads, source storage/call unions and thenables remain.
 
 The fresh-record helper validates canonical kind/payload/status and initializes
 the existing header directly, avoiding checks for previous settlement or waiters
@@ -936,6 +936,29 @@ this does not introduce a boxed Promise/primitive union. Logical returns keep a
 General or Promise left snapshot through the truthiness/nullishness test. The
 kept-left branch adopts a Promise only after selection; the right branch resolves
 its own return expression. Discarded Promise operands retain unhandled rejection
-behavior and add no adoption jobs. Nested heterogeneous left joins remain open.
+behavior and add no adoption jobs. Nested heterogeneous left joins use the
+selection-local carrier below.
 Constructor effect inference conservatively retains an activation for logical
 Promise operands, even when runtime short-circuiting discards them.
+
+### Selection-local async values
+
+`AsyncValue` is a private logical union of General values and represented
+Promise identities. `ToAsyncValue` accepts only those two visible input kinds;
+`AsyncValueIsPromise` returns Predicate. `AsyncValuePrimitive` and
+`AsyncValuePromise` project to General and Promise respectively and trap on the
+wrong variant. The verifier checks inputs/results and rejects the carrier as
+an exported completion or private closure parameter/result.
+
+The shared backend layout uses the existing tag/f64 pair. Its private Promise
+discriminator is 5, distinct from General kinds 0 through 4; a Promise ID fits
+exactly in the payload. General values retain their original bits. The carrier
+does not allocate or settle anything. No host completion accepts the private
+discriminator. Logical tests branch on the variant, treat Promise objects as
+truthy/non-nullish and otherwise use existing General operations. Final return
+resolution projects a selected Promise into the existing `AdoptPromise` route.
+
+Maintained tests check nested source effects/catches/job limits in native JS,
+Node-Wasm and Wasmtime, plus typed IR misuse, projection traps and carrier
+preservation across suspension and sibling coroutine frames. Source locals,
+private input unions and ordinary mixed comparison operands remain open.

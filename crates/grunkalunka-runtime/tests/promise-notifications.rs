@@ -86,6 +86,8 @@ const BODIES: &[&str] = &[
     "const p=Promise.reject(b);return p&&a;",
     "const f=async()=>{await a;throw b;};const p=f();return p&&a;",
     "const p=Promise.reject(b);const f=async()=>p||a;try{await f();}catch(e){}return a;",
+    "const p=Promise.reject(b);return (a?p:0)&&a;",
+    "const p=Promise.reject(b);const f=async()=>(a?p:0)||a;try{await f();}catch(e){}return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -165,7 +167,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                     .unwrap()
                     .wasm;
                 let mut run = AsyncInstance::new(&wasm, 4.0, reason).unwrap();
-                if [0, 18, 19].contains(&index) || (13..=16).contains(&index) {
+                if [0, 18, 19, 21].contains(&index) || (13..=16).contains(&index) {
                     assert!(matches!(
                         run.state().unwrap(),
                         AsyncState::Fulfilled(Value::Number(4.0))
@@ -198,9 +200,9 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         }
                     }
                 }
-                if [5, 6, 7, 17, 20].contains(&index) {
+                if [5, 6, 7, 17, 20, 22].contains(&index) {
                     assert!(unhandled.is_empty(), "{body}");
-                    if [6, 7, 17, 20].contains(&index) {
+                    if [6, 7, 17, 20, 22].contains(&index) {
                         assert_eq!(events.len(), 2);
                     } else {
                         assert!(events.is_empty());
@@ -219,7 +221,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (3, Value::Boolean(false))
                         | (4, Value::Boolean(true)) => {}
                         (
-                            0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19,
+                            0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19 | 21,
                             Value::Number(x),
                         ) => {
                             assert!(

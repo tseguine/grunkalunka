@@ -16,6 +16,7 @@ use crate::ir::{
 };
 use crate::{is_type_declaration, unsupported};
 
+mod async_values;
 mod awaited;
 mod block_results;
 mod callbacks;
@@ -725,6 +726,7 @@ impl Lowering<'_, '_> {
                         .expect("General initializer"),
                     Type::Predicate => self.predicate(initializer, region, 0)?,
                     Type::Number => self.expression(initializer, region, 0)?,
+                    Type::AsyncValue => unreachable!("selection carriers are not source locals"),
                     Type::Closure(_) => unreachable!("function values use their own cursor"),
                     Type::FulfilledPromise => unreachable!("Promise initializer handled above"),
                     Type::SettledPromise | Type::Promise => {

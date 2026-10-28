@@ -37,6 +37,9 @@ mod mixed_returns;
 #[path = "async-suspension/logical_returns.rs"]
 mod logical_returns;
 
+#[path = "async-suspension/value_joins.rs"]
+mod value_joins;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(

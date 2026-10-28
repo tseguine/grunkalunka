@@ -36,13 +36,6 @@ fn logical_returns_keep_erasure_and_selected_job_budgets() {
         compile_async(&plain, false).unwrap().wasm,
         compile_async(&typed, true).unwrap().wasm
     );
-    // Mixed kinds in the *left* value still need a representation before testing.
-    for tail in ["(a&&p)||b", "(a?p:b)&&p"] {
-        let source = source_for(&format!("const p=Promise.resolve(a);return {tail};"));
-        for ts in [false, true] {
-            assert!(compile_async(&source, ts).is_err(), "{source}");
-        }
-    }
     for (count, tail) in [(30, "p||b"), (32, "p&&b"), (32, "a&&p")] {
         let body = format!(
             "const p=Promise.resolve(a);{}return {tail};",

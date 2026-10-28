@@ -475,7 +475,7 @@ factories and captured bindings retain it, and async returns adopt it. Completed
 and pending results share the private Promise interface. Immediate bodies retain
 compact synchronous completion code; only suspending/adopting constructors need
 coroutine frames. Existing host protocols, record widths and budgets are unchanged.
-General Strings/payloads, thenables and Promise/scalar unions remain open.
+General Strings/payloads, thenables and source storage/call unions remain open.
 
 ### Conditional and comma async results
 
@@ -486,5 +486,15 @@ still complete without adoption jobs. Captures, runtime-selected constructors,
 supported async callbacks and simultaneous activations preserve source snapshots
 and microtask order. Logical returns test the original General or Promise left
 snapshot and resolve only the selected operand; discarded Promise rejections
-remain observable. Mixed private parameter domains, heterogeneous left joins and
+remain observable. Nested heterogeneous left joins use the carrier below.
+Mixed private parameter domains and
 synchronous helpers starting suspending async callbacks remain open.
+
+### Nested async selection carriers
+
+Async constructors and supported callbacks now retain General/Promise choices
+through nested logical left operands. Captures, runtime-selected constructors
+and repeated activations keep the selected kind before resolving the return.
+The internal `AsyncValue` carrier uses shared suspended storage but is excluded
+from private call signatures and exported completions. General/Promise source
+parameter and local-storage unions remain separate work.
