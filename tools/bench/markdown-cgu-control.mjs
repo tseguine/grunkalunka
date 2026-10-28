@@ -77,12 +77,31 @@ function validateReport(report) {
     ['x64', 'arm64'].includes(report.environment.arch) &&
     typeof report.environment.rustc === 'string' &&
     typeof report.environment.node === 'string' &&
+    typeof report.environment.rustcHost === 'string' &&
+    report.environment.rustcHost.length > 0 &&
+    report.environment.target === 'wasm32-unknown-unknown' &&
+    report.environment.profile === 'dev' &&
+    report.environment.cargoIncremental === '0' &&
     report.buildCommand?.join('\0') === ['cargo', ...BUILD].join('\0') &&
     report.targetDirectoryPolicy === 'same private absolute target directory; Wasm target cleaned between modes',
   'controlled build metadata');
   requireValid(report.variants && typeof report.variants === 'object' &&
     Object.keys(report.variants).sort().join(',') === 'default,single',
   'two required variants');
+  requireValid(Array.isArray(report.sourceInputs) &&
+    report.sourceInputs.length === SOURCE_PATHS.length,
+  'complete canonical source provenance');
+  for (let i = 0; i < SOURCE_PATHS.length; i++) {
+    const input = report.sourceInputs[i];
+    requireValid(input && input.path === SOURCE_PATHS[i] &&
+      /^[a-f0-9]{64}$/.test(input.gitSha256) &&
+      /^[a-f0-9]{64}$/.test(input.checkoutSha256) &&
+      Number.isSafeInteger(input.gitBytes) && input.gitBytes > 0 &&
+      Number.isSafeInteger(input.checkoutBytes) && input.checkoutBytes > 0 &&
+      input.checkoutMatchesGit === (input.gitSha256 === input.checkoutSha256 &&
+        input.gitBytes === input.checkoutBytes),
+    'tracked source ' + SOURCE_PATHS[i]);
+  }
   for (const [name, flags] of Object.entries(MODE_FLAGS)) {
     const variant = report.variants[name];
     requireValid(variant && variant.revision === report.revision &&
@@ -93,6 +112,11 @@ function validateReport(report) {
       variant.environment?.rustflags === flags &&
       variant.environment?.cargoEncodedRustflags === '',
     name + ' exact native compiler configuration');
+    const byPath = new Map(report.sourceInputs.map(input => [input.path, input]));
+    requireValid(variant.inputs?.every(input =>
+      isDeepStrictEqual(input, byPath.get(input.path))) &&
+      variant.inputs.length === 3,
+    name + ' observed canonical source identity');
   }
   // Also validates every saved section/body digest and canonical source.
   const compared = compareMarkdownGuests(report.variants.default, report.variants.single);
@@ -104,6 +128,10 @@ export function compareCguControls(producer, receiver) {
   const producerWithin = validateReport(producer);
   const receiverWithin = validateReport(receiver);
   requireValid(producer.revision === receiver.revision, 'same tested Git revision');
+  requireValid(isDeepStrictEqual(
+    producer.sourceInputs.map(input => [input.path, input.gitSha256, input.gitBytes]),
+    receiver.sourceInputs.map(input => [input.path, input.gitSha256, input.gitBytes])),
+  'same canonical Git source files');
   requireValid(producer.environment.rustc === receiver.environment.rustc,
     'same observed Rust release');
   const acrossDefault = compareMarkdownGuests(
