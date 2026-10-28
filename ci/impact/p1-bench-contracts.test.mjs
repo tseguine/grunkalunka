@@ -24,7 +24,7 @@ test('P1 Node tests are selected for a changed test without requesting a Cargo b
   const result = plan('tools/bench/tests/markdown-cgu-control.test.mjs');
   assert.equal(result.full, false);
   assert.deepEqual(result.tests, ['check:p1-bench-tests']);
-  assert.deepEqual(result.build, []);
+  assert.deepEqual(result.build, ['p1-bench-unit-tests']); // owner node, no Cargo packages
 });
 
 test('P1 implementation, fixture and Markdown changes select the same canonical test', () => {
