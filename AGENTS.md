@@ -104,7 +104,8 @@ Use independent useful work during CI waits instead of manufacturing extra churn
 
 Read [impact planning](ci/impact/README.md) and [Cargo scoping](ci/impact/CARGO-SCOPE.md)
 when changing modules, tests, fixtures, build inputs, or workflows. The
-`.github/workflows/impact-shadow.yml` workflow remains read-only. The maintainer
+independent `impact-shadow.yml` advisory workflow is retired after its regression
+checks moved to the canonical runner. The maintainer
 authorized **dependency-selected verification on all three native PR runners**
 through `ci/impact/pr-gate.mjs`, using the same general dependency graph
 (no hand-maintained path whitelist). Unknown or unsafe selections run the
