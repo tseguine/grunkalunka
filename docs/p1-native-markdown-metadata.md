@@ -14,8 +14,9 @@ Linux, Windows and Apple Silicon binaries.
 The [optional native-host workflow](../.github/workflows/p1-native-markdown-metadata.yml)
 independently compiles the **unchanged Rust `outline_guest`** for
 `wasm32-unknown-unknown` on native Linux x64, Windows x64 and Apple
-Silicon macOS ARM64, with identical checked-out Git source identities,
-Rust version/commit and LLVM release recorded.
+Silicon macOS ARM64, with identical canonical Git blob identities
+and each host's actual checkout-byte identities recorded separately.
+The native Rust version, compiler commit and LLVM release are checked.
 
 Each host uses the [bounded collector](../tools/bench/markdown-native-metadata.mjs)
 to create one private absolute Cargo target directory and build the same
