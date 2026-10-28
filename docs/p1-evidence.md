@@ -26,7 +26,7 @@ verification receipts, not saved benchmark performance results.
 | Independent native compiler output identity | [#98](https://github.com/tseguine/grunkalunka/pull/98), [native build identity](p1-native-build-identity.md) | Three native CLI builds on Linux x64, Windows x64 and Apple Silicon macOS ARM64 independently compiled the same Git source into identical 614-byte GCD core Wasm. This does not prove reproducibility for other input programs, Rust-compiled Markdown guests or platform-wide builds |
 | Native Linux ARM64 Markdown/WIT pipeline | [#84](https://github.com/tseguine/grunkalunka/pull/84), [ARM64 component smoke](p1-arm64-markdown.md) | Rebuilds the existing Markdown guest and runs the typed component's native parity, capability denial and cleanup checks on real Linux ARM64. Unlike #83, this does not demonstrate cross-architecture byte identity or application-wide compatibility |
 | Rust Markdown guest output variation and controls | [#101](https://github.com/tseguine/grunkalunka/pull/101), [#106](https://github.com/tseguine/grunkalunka/pull/106), [#107](https://github.com/tseguine/grunkalunka/pull/107), [section analysis](p1-markdown-guest-sections.md), [same-host rebuilds](p1-markdown-clean-rebuild.md), [Windows LF control](p1-windows-markdown-eol.md) | Independently compiled Markdown guests differ across native Linux, Windows and Apple Silicon in standard function/element/code/data sections and custom names. Each host reproduced its own exact bytes after a clean rebuild. Windows checkout CRLF-to-LF normalization **did not change** its emitted guest bytes. None of these observations establishes a runtime bug or identifies the remaining host-dependent cause |
-| Defined-function body fingerprint localization | [#110](https://github.com/tseguine/grunkalunka/pull/110), [hosted three-platform experiment](https://github.com/tseguine/grunkalunka/actions/runs/40692399971) | Each native Rust Markdown guest has **1,897** defined-function bodies; raw bodies at the same ordinal differ for **1,313 on Windows x64** and **1,374 on Apple Silicon ARM64** relative to Linux x64. Body SHA-256 comparison locates byte differences without associating source functions or establishing semantic incompatibility |
+| Defined-function body fingerprint localization | [#110](https://github.com/tseguine/grunkalunka/pull/110), [#113](https://github.com/tseguine/grunkalunka/pull/113), [section/body analysis](p1-markdown-guest-sections.md) | Each native Rust Markdown guest has **1,897** defined-function bodies; raw bodies differ at the same ordinal for 1,313 Windows and 1,374 Apple Silicon bodies relative to Linux. An exact SHA-256 multiset comparison (ignoring function ordinal but retaining duplicate bodies) still leaves **952 Windows** and **984 Apple Silicon** body occurrences unmatched. Reordering alone cannot explain those literal byte differences; neither result proves semantic incompatibility |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -56,9 +56,12 @@ reports when explicitly run; the build system does not publish them.
   output. [#110](https://github.com/tseguine/grunkalunka/pull/110)
   found positional raw-body differences in **1,313 of 1,897** defined functions
   on Windows and **1,374 of 1,897** on Apple Silicon relative to Linux.
-  This is byte-level evidence only; function ordering, index references,
-  host-specific code generation, paths and other build inputs still require
-  investigation. No functional fault has been established.
+  [#113](https://github.com/tseguine/grunkalunka/pull/113) then found
+  **952 Windows** and **984 Apple Silicon** body occurrences without an exact
+  raw body match anywhere in Linux, even ignoring order and retaining duplicates.
+  Reordering alone cannot explain the literal differences; encoded function
+  references, host-specific code generation, paths and other build inputs
+  still require investigation. No functional fault has been established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
