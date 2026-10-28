@@ -133,8 +133,11 @@ export async function runWindowsCheckoutExperiment() {
     // An independent disposable Git repository, not the invoking checkout.
     exec('git', ['init', checkout], root);
     exec('git', ['-C', checkout, 'config', 'core.autocrlf', 'true'], root);
-    exec('git', ['-C', checkout, 'fetch', '--no-tags', root, 'HEAD'], root);
-    exec('git', ['-C', checkout, 'checkout', '--detach', 'FETCH_HEAD'], root);
+    // Fetch and resolve the exact caller commit. Git for Windows may not
+    // resolve FETCH_HEAD as an unambiguous detach target in this empty repo.
+    exec('git', ['-C', checkout, 'fetch', '--no-tags', root, revision], root);
+    exec('git', ['-C', checkout, 'cat-file', '-e', revision + '^{commit}'], root);
+    exec('git', ['-C', checkout, 'checkout', '--force', '--detach', revision], root);
     required(exec('git', ['rev-parse', 'HEAD'], checkout).trim() === revision,
       'identical tested checkout revision');
 
