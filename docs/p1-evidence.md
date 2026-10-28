@@ -27,6 +27,7 @@ verification receipts, not saved benchmark performance results.
 | Native Linux ARM64 Markdown/WIT pipeline | [#84](https://github.com/tseguine/grunkalunka/pull/84), [ARM64 component smoke](p1-arm64-markdown.md) | Rebuilds the existing Markdown guest and runs the typed component's native parity, capability denial and cleanup checks on real Linux ARM64. Unlike #83, this does not demonstrate cross-architecture byte identity or application-wide compatibility |
 | Rust Markdown guest output variation and controls | [#101](https://github.com/tseguine/grunkalunka/pull/101), [#106](https://github.com/tseguine/grunkalunka/pull/106), [#107](https://github.com/tseguine/grunkalunka/pull/107), [section analysis](p1-markdown-guest-sections.md), [same-host rebuilds](p1-markdown-clean-rebuild.md), [Windows LF control](p1-windows-markdown-eol.md) | Independently compiled Markdown guests differ across native Linux, Windows and Apple Silicon in standard function/element/code/data sections and custom names. Each host reproduced its own exact bytes after a clean rebuild. Windows checkout CRLF-to-LF normalization **did not change** its emitted guest bytes. None of these observations establishes a runtime bug or identifies the remaining host-dependent cause |
 | Defined-function body fingerprint localization | [#110](https://github.com/tseguine/grunkalunka/pull/110), [#113](https://github.com/tseguine/grunkalunka/pull/113), [section/body analysis](p1-markdown-guest-sections.md) | Each native Rust Markdown guest has **1,897** defined-function bodies; raw bodies differ at the same ordinal for 1,313 Windows and 1,374 Apple Silicon bodies relative to Linux. An exact SHA-256 multiset comparison (ignoring function ordinal but retaining duplicate bodies) still leaves **952 Windows** and **984 Apple Silicon** body occurrences unmatched. Reordering alone cannot explain those literal byte differences; neither result proves semantic incompatibility |
+| One-codegen-unit Rust Markdown control | [#115](https://github.com/tseguine/grunkalunka/pull/115), [CGU experiment](p1-markdown-cgu-control.md) | Native Linux, Windows and Apple Silicon independently rebuilt the unchanged Markdown guest with default dev settings and then `-C codegen-units=1` in isolated same-path target directories. Positional body differences versus Linux decreased from **1,313 to 476 on Windows** and **1,374 to 757 on Apple Silicon**, but emitted guest artifacts remained unequal. This is evidence that codegen-unit configuration affects these byte observations, not proof of the remaining cause or semantic differences |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -59,9 +60,13 @@ reports when explicitly run; the build system does not publish them.
   [#113](https://github.com/tseguine/grunkalunka/pull/113) then found
   **952 Windows** and **984 Apple Silicon** body occurrences without an exact
   raw body match anywhere in Linux, even ignoring order and retaining duplicates.
-  Reordering alone cannot explain the literal differences; encoded function
-  references, host-specific code generation, paths and other build inputs
-  still require investigation. No functional fault has been established.
+  Reordering alone cannot explain the literal differences. In
+  [#115](https://github.com/tseguine/grunkalunka/pull/115), explicit
+  `-C codegen-units=1` reduced the number of positional mismatches to
+  **476 on Windows** and **757 on Apple Silicon**, without making cross-host
+  Wasm bytes identical. Encoded function references, host-specific compiler
+  behavior, paths and other build inputs still require investigation. No
+  functional fault has been established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
