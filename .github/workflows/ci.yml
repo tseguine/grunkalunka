@@ -36,8 +36,12 @@ jobs:
             runner: ubuntu-24.04
           - platform: Windows
             runner: windows-2025
+          # Primary macOS CI runs natively on Apple Silicon; preserve status-check name.
           - platform: macOS
-            runner: macos-15-intel
+            runner: macos-15
+            node_arch: arm64
+            rust_host: aarch64-apple-darwin
+            uname_arch: arm64
     steps:
       - name: Check out the tested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,7 +51,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          # Exact patch version on every host for reproducibility.
+          node-version: '24.21.0'
           package-manager-cache: false
 
       - name: Install the repository Rust toolchain and Wasm target
@@ -57,6 +62,33 @@ jobs:
           rustc --version --verbose
           cargo --version
           node --version
+          node -e 'require("node:assert/strict").equal(process.version, "v24.21.0")'
+
+      # Reject accidental Rosetta/x86_64 execution on the Apple Silicon runner.
+      - name: Verify native macOS architecture and record host details
+        if: runner.os == 'macOS'
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+          EXPECTED_UNAME_ARCH: ${{ matrix.uname_arch }}
+        run: |
+          set -euo pipefail
+          echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
+          echo "macOS: $(sw_vers -productVersion), hardware $(sysctl -n hw.model)"
+          echo "CPUs: $(sysctl -n hw.ncpu); RAM bytes: $(sysctl -n hw.memsize)"
+          echo "Node: $(node --version), architecture: $(node -p 'process.arch')"
+          echo "Rust: $(rustc --version); toolchain: $(rustup show active-toolchain)"
+          actual_node_arch="$(node -p 'process.arch')"
+          actual_rust_host="$(rustc -vV | sed -n 's/^host: //p')"
+          actual_machine="$(uname -m)"
+          test "$actual_node_arch" = "$EXPECTED_NODE_ARCH"
+          test "$actual_rust_host" = "$EXPECTED_RUST_HOST"
+          test "$actual_machine" = "$EXPECTED_UNAME_ARCH"
+          test "$RUNNER_ARCH" = ARM64
+          # 1 means this process is running through Rosetta translation.
+          translated="$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')"
+          echo "Rosetta translation flag: $translated"
+          test "$translated" = 0
 
       - name: Check formatting before expensive builds
         run: |
