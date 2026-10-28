@@ -14,6 +14,7 @@ pub(super) enum Mode {
     Promise,
     Pending,
     Settled,
+    AsyncReturn,
     Awaited(usize),
 }
 
@@ -171,6 +172,7 @@ enum Work<'e, 'a> {
     Forget,
     Await(&'e Expression<'a>, bool, Type, Option<usize>),
     AwaitPending(&'e Expression<'a>, Option<usize>),
+    AdoptResult(&'e Expression<'a>),
     PendingTruthy(&'e Expression<'a>),
     AwaitSettled(&'e Expression<'a>, Option<usize>),
     FulfillPromise(&'e Expression<'a>),
@@ -882,6 +884,12 @@ impl Lowering<'_, '_> {
                         site,
                         Op::AwaitPromise { result, input },
                     );
+                    values.push(Value::General(result));
+                }
+                Work::AdoptResult(node) => {
+                    let input = values.pop().expect("async return Promise").pending();
+                    let result = self.value(Type::General);
+                    Self::push(regions.current(), node, Op::AdoptPromise { result, input });
                     values.push(Value::General(result));
                 }
                 Work::PendingTruthy(node) => {
@@ -1822,7 +1830,7 @@ impl Lowering<'_, '_> {
                     let value = values.pop().expect("alternate result").id();
                     let alternate = regions.finish(value);
                     let ty = match mode {
-                        Mode::General | Mode::Awaited(_) => Type::General,
+                        Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Pending => Type::Promise,
@@ -1961,7 +1969,7 @@ impl Lowering<'_, '_> {
                         (skipped, selected)
                     };
                     let ty = match mode {
-                        Mode::General | Mode::Awaited(_) => Type::General,
+                        Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
                         Mode::Pending => Type::Promise,
@@ -2085,6 +2093,20 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if matches!(mode, Mode::AsyncReturn) {
+                        if self.pending_promise_shape(node, depth) {
+                            work.push(Work::AdoptResult(node));
+                            work.push(Work::Eval(node, depth, Mode::Pending));
+                        } else if !matches!(
+                            node,
+                            Expression::ConditionalExpression(_)
+                                | Expression::SequenceExpression(_)
+                        ) || !schedule_selection(&mut work, node, depth, mode)?
+                        {
+                            work.push(Work::Eval(node, depth, Mode::General));
+                        }
                         continue;
                     }
                     if matches!(mode, Mode::Predicate) && self.pending_promise_shape(node, depth) {

@@ -500,3 +500,19 @@ checkpoint reporting and default-budget Wasmtime, including detached rejections.
 General Strings, arbitrary objects/functions/Promises as payloads or rejection
 reasons, custom thenables and mixed Promise/scalar private interfaces remain open.
 Ordinary numeric/value profiles retain their narrower contracts.
+
+### Selected async return values
+
+Async conditional and comma returns can select a represented Promise or an
+admitted General primitive/intrinsic Error. Conditions and comma prefixes run
+once in source order; only the selected Promise is adopted, with the existing
+registration and reaction jobs. A selected primitive returns directly. Rejected
+adoption bypasses the returning activation's catch; throws or rejected awaits
+while evaluating the expression retain lexical handling.
+
+Known and runtime async constructors receive the adoption effect when any return
+leaf needs it, including through supported async callbacks and captures. Native
+JS, Node-Wasm and Wasmtime tests compare values and full microtask traces, with
+unchanged source-await, runtime-job and fuel limits. Mixed logical returns,
+Promise/scalar private input domains and starting a suspending async callback
+inside a synchronous helper remain separate gaps.

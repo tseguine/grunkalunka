@@ -88,10 +88,7 @@ fn pending_promise_returns_keep_erasure_and_distinct_site_job_budgets() {
             }
         }
     }
-    for body in [
-        "const f=async()=>{await a;return b;};const p=f();return a?p:b;",
-        "const f=async()=>{await a;return {};};return f();",
-    ] {
+    for body in ["const f=async()=>{await a;return {};};return f();"] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }

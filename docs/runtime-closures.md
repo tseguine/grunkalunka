@@ -476,3 +476,13 @@ and pending results share the private Promise interface. Immediate bodies retain
 compact synchronous completion code; only suspending/adopting constructors need
 coroutine frames. Existing host protocols, record widths and budgets are unchanged.
 General Strings/payloads, thenables and Promise/scalar unions remain open.
+
+### Conditional and comma async results
+
+Async closures may select primitive/intrinsic Error and represented Promise
+return leaves through conditionals and comma expressions. Any Promise-return
+leaf gives the constructor its adoption effect; selected primitive branches
+still complete without adoption jobs. Captures, runtime-selected constructors,
+supported async callbacks and simultaneous activations preserve source snapshots
+and microtask order. Mixed private parameter domains, mixed logical returns and
+synchronous helpers starting suspending async callbacks remain open.

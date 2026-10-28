@@ -9,18 +9,9 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<ValueId, String> {
-        if self.pending_promise_shape(expression, depth) {
-            let input = self
-                .evaluate(expression, region, depth, evaluate::Mode::Pending)?
-                .expect("pending async return");
-            let result = self.value(Type::General);
-            Self::push(region, expression, Op::AdoptPromise { result, input });
-            Ok(result)
-        } else {
-            Ok(self
-                .evaluate(expression, region, depth, evaluate::Mode::General)?
-                .expect("async primitive return"))
-        }
+        Ok(self
+            .evaluate(expression, region, depth, evaluate::Mode::AsyncReturn)?
+            .expect("async return resolution"))
     }
     pub(super) fn pending_promise_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
         self.pending_promise_shape_in(expression, depth, &BTreeMap::new(), 0)

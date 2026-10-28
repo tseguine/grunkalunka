@@ -920,3 +920,18 @@ memory-growth checks and the 1 MiB arena cap. Rejected creation emits the existi
 notification. General/Fulfilled immutable SSA pairs may share physical locals;
 source slots remain separate. Snapshot IR fixtures explicitly exercise the
 logical operations independently of frontend constructor normalization.
+
+### Resolving selected async returns
+
+The source evaluator carries an async-return request through conditional and
+comma selections. Homogeneous Promise expressions keep the existing single
+`AdoptPromise` route; mixed selections resolve each result arm to General using
+either primitive evaluation or adoption. Branch selection precedes adoption,
+and comma prefixes keep discard evaluation in source order. This uses existing
+regions and operations without changing logical types, layouts or host ABI.
+
+Async constructor effect inference asks whether any selected return leaf is a
+Promise. Ordinary Promise value positions still require homogeneous provenance;
+this does not introduce a boxed Promise/primitive union. Logical expressions are
+not distributed by this route: adopting their left operand before testing its
+object truthiness would change semantics.

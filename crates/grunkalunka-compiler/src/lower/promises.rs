@@ -120,6 +120,36 @@ fn callees(
     (!bodies.is_empty()).then_some(bodies)
 }
 
+// Function effects need any selected Promise-return leaf, while ordinary value
+// positions still require the homogeneous kind proved by pending_shape.
+fn return_adopts(
+    expression: &Expression<'_>,
+    semantic: &Semantic<'_>,
+    returns: &callbacks::ReturnOrigins<'_, '_, '_>,
+    inputs: &Inputs,
+) -> bool {
+    let mut work = vec![(expression, 0)];
+    while let Some((node, depth)) = work.pop() {
+        let Some((node, depth)) = closures::unwrapped_at(node, depth) else {
+            return false;
+        };
+        match node {
+            Expression::ConditionalExpression(c) => {
+                work.push((&c.consequent, depth + 1));
+                work.push((&c.alternate, depth + 1));
+            }
+            Expression::SequenceExpression(s) => {
+                if let Some(last) = s.expressions.last() {
+                    work.push((last, depth + 1));
+                }
+            }
+            _ if pending_shape(node, semantic, returns, inputs) => return true,
+            _ => (),
+        }
+    }
+    false
+}
+
 pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
     let mut arrows = BTreeMap::new();
     let mut definitions = Vec::new();
@@ -361,7 +391,13 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
             if !results.is_empty() {
                 let facts: Vec<_> = results
                     .into_iter()
-                    .map(|e| pending_shape(e, semantic, &returns, &inputs))
+                    .map(|e| {
+                        if arrow.r#async {
+                            return_adopts(e, semantic, &returns, &inputs)
+                        } else {
+                            pending_shape(e, semantic, &returns, &inputs)
+                        }
+                    })
                     .collect();
                 if arrow.r#async && facts.iter().any(|p| *p) {
                     inputs.results.insert(*id);

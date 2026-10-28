@@ -31,6 +31,9 @@ mod settled_errors;
 #[path = "async-suspension/source_identities.rs"]
 mod source_identities;
 
+#[path = "async-suspension/mixed_returns.rs"]
+mod mixed_returns;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -154,7 +157,6 @@ fn selected_async_await_operands_keep_limits_and_erased_types() {
 fn selected_async_await_operands_keep_pending_and_domain_guards() {
     for body in [
         "let f=async()=>{await a;return b;};const p=a?f():b;return await p;",
-        "let f=async()=>{await a;return b;};return a?f():b;",
         "let f=async()=>{await a;return b;};return await Promise.reject(a?f():b);",
         "let f=async()=>{await a;return b;};return await Promise.resolve(a?f():b,await a);",
         "let f=async()=>{await a;return b;};return await(f()||b);",
@@ -166,7 +168,6 @@ fn selected_async_await_operands_keep_pending_and_domain_guards() {
         "let f=async()=>{await a;return b;};return await(a?f():(()=>b));",
         "let f=async()=>{await a;return b;};return await(a?f():missing());",
         "let f=async()=>{await a;return b;};return await(a?f():Promise.resolve({}));",
-        "let f=async()=>{await a;return b;};const g=async()=>a?f():b;return await g();",
     ] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
