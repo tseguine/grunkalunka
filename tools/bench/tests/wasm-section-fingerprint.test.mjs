@@ -26,7 +26,7 @@ const inputs = () => [
   checkoutSha256: '1'.repeat(64), checkoutBytes: 16,
   checkoutMatchesGit: true,
 }));
-function receipt(bytes, os = 'linux', arch = 'x64') {
+function receipt(bytes, os = 'linux', arch = 'x64', withBodies = false) {
   return {
     schemaVersion: 1, workload: 'p1-markdown-guest-wasm-sections',
     revision: 'a'.repeat(40),
@@ -36,7 +36,7 @@ function receipt(bytes, os = 'linux', arch = 'x64') {
       target: 'wasm32-unknown-unknown', profile: 'dev',
     },
     inputs: inputs(),
-    ...inspectWasmSections(bytes),
+    ...inspectWasmSections(bytes, { codeBodyDigests: withBodies }),
   };
 }
 
@@ -109,4 +109,71 @@ test('reports checkout normalization while requiring original Git source identit
   const compared = compareMarkdownGuests(first, second);
   assert.deepEqual(compared.sourceCheckoutDifferences.map(x => x.paths),
     [[], ['crates/grunkalunka-markdown/examples/outline_guest.rs']]);
+});
+
+const bodyCode = (...bodies) => code([
+  bodies.length, ...bodies.flatMap(body => [body.length, ...body]),
+]);
+
+test('reports bounded full SHA-256 digests of each size-prefixed code body', () => {
+  const first = [0, 11], second = [0, 1, 11];
+  const report = inspectWasmSections(
+    moduleBytes(bodyCode(first, second)), { codeBodyDigests: true });
+  assert.deepEqual(report.codeBodies.lengths, [2, 3]);
+  assert.equal(report.codeBodies.count, 2);
+  const bytes = Buffer.from(report.codeBodies.bodyDigestsBase64, 'base64');
+  assert.equal(bytes.length, 64);
+  assert.equal(bytes.subarray(0, 32).toString('hex'), hash(Buffer.from(first)));
+  assert.equal(bytes.subarray(32, 64).toString('hex'), hash(Buffer.from(second)));
+});
+
+test('counts changed defined-function bodies without claiming semantic equivalence', () => {
+  const a = receipt(moduleBytes(bodyCode([0, 11], [0, 11])), 'linux', 'x64', true);
+  const b = receipt(moduleBytes(bodyCode([0, 11], [0, 1, 11])), 'win32', 'x64', true);
+  const comparison = compareMarkdownGuests(a, b);
+  assert.equal(comparison.codeBodyComparison.indicesComparable, true);
+  assert.deepEqual(comparison.codeBodyComparison.firstChangedDefinedFunctionIndices, [1]);
+  assert.equal(comparison.codeBodyComparison.changedCount, 1);
+  assert.equal(comparison.codeBodyComparison.producerCount, 2);
+  assert.equal(comparison.codeBodyComparison.receiverCount, 2);
+  assert.equal(comparison.codeBodyComparison.changedBodyBytes, 3);
+  assert.equal(comparison.sameNonCustomSections, false);
+});
+
+test('different function counts avoid misleading positional changed-body metrics', () => {
+  const a = receipt(moduleBytes(bodyCode([0, 11])), 'linux', 'x64', true);
+  const b = receipt(moduleBytes(bodyCode([0, 11], [0, 11])),
+    'darwin', 'arm64', true);
+  const comparison = compareMarkdownGuests(a, b).codeBodyComparison;
+  assert.equal(comparison.indicesComparable, false);
+  assert.equal(comparison.changedCount, null);
+  assert.deepEqual(comparison.firstChangedDefinedFunctionIndices, []);
+});
+
+test('refuses malformed code body lengths and fingerprints, or asymmetric receipts', () => {
+  const badCode = [
+    code([1, 5, 0, 11]),
+    code([1, 2, 0]),
+    code([1, 2, 0, 11, 7]),
+    code([0]),
+    code([255, 255, 255, 255, 127]),
+  ];
+  for (const section of badCode) {
+    assert.throws(() => inspectWasmSections(
+      moduleBytes(section), { codeBodyDigests: true }));
+  }
+  const a = receipt(moduleBytes(bodyCode([0, 11])), 'linux', 'x64', true);
+  const b = structuredClone(a);
+  b.codeBodies.bodyDigestsBase64 = 'not canonical';
+  assert.throws(() => compareMarkdownGuests(a, b), /reported code body fingerprints/);
+  b.codeBodies.bodyDigestsBase64 = Buffer.from([1]).toString('base64');
+  assert.throws(() => compareMarkdownGuests(a, b), /canonical complete SHA-256/);
+  delete b.codeBodies;
+  assert.throws(() => compareMarkdownGuests(a, b), /both hosts must report/);
+});
+
+test('existing section-only receipts remain readable and comparable', () => {
+  const bytes = moduleBytes(code([0]));
+  const a = receipt(bytes), b = receipt(bytes, 'win32');
+  assert.equal(compareMarkdownGuests(a, b).codeBodyComparison, null);
 });
