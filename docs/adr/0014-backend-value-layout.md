@@ -416,3 +416,18 @@ keeps the carrier out of exported completions and private parameter/results.
 Mutable mixed locals and broader value domains remain separate work. The layout
 decision remains provisional; this bounded admission does not select a universal
 heap/object representation.
+
+## Mutable selected-value storage follow-up
+
+Let locals can now share the existing AsyncValue slot/cell layout across represented
+Promise and General writes. The earlier mutable-local limit is expanded by
+initializer/write planning and alias propagation after positive constructor facts
+converge. Simple/logical assignments store and return the evaluated raw value;
+only later await/return consumers schedule reactions or adoption.
+
+A write-dependent layout would need separate preservation of old snapshots and
+consistent captured-cell storage. Reusing one existing tagged pair per mixed local
+avoids adding those mechanisms while preserving homogeneous slots, exported/private
+interfaces and the provisional physical representation. Tests cover tags, effects, cells,
+lexical rejection, notification handling and unchanged source budgets. Broader
+mixed interfaces, numeric compounds and unrepresented heap kinds remain separate.

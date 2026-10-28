@@ -118,7 +118,11 @@ impl Lowering<'_, '_> {
                 return false;
             };
             asynchronous |= self.pending_promise_shape(expression, depth);
-            if self.async_value_slot(expression, depth).is_some() {
+            if self.async_value_slot(expression, depth).is_some()
+                || self
+                    .async_value_assignment_slot(expression, depth)
+                    .is_some()
+            {
                 selected = true;
                 asynchronous = true;
             }

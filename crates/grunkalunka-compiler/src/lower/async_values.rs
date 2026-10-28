@@ -177,6 +177,24 @@ impl Lowering<'_, '_> {
         (self.slots[binding.slot.0].ty == Type::AsyncValue).then_some(binding.slot)
     }
 
+    pub(super) fn async_value_assignment_slot(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> Option<SlotId> {
+        let (Expression::AssignmentExpression(assignment), depth) =
+            closures::unwrapped_at(expression, depth)?
+        else {
+            return None;
+        };
+        let id = assignment
+            .left
+            .as_simple_assignment_target()
+            .and_then(|target| target_identifier(target, depth).ok().flatten())?;
+        let binding = numeric_binding(id, self.semantic, &self.bindings).ok()?;
+        (self.slots[binding.slot.0].ty == Type::AsyncValue).then_some(binding.slot)
+    }
+
     pub(super) fn has_promise_choice(&self, expression: &Expression<'_>, depth: usize) -> bool {
         let mut work = vec![(expression, depth)];
         while let Some((node, depth)) = work.pop() {
@@ -185,6 +203,7 @@ impl Lowering<'_, '_> {
             };
             if self.pending_promise_shape(node, depth)
                 || self.async_value_slot(node, depth).is_some()
+                || self.async_value_assignment_slot(node, depth).is_some()
             {
                 return true;
             }

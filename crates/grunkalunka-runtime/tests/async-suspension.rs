@@ -49,6 +49,9 @@ mod selection_equality;
 #[path = "async-suspension/const_values.rs"]
 mod const_values;
 
+#[path = "async-suspension/mutable_values.rs"]
+mod mutable_values;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -1256,9 +1259,12 @@ fn fulfilled_promise_selections_preserve_object_truthiness_and_cells() {
 }
 
 #[test]
-fn mutable_promise_scalar_assignments_fail_at_source_admission() {
+fn mutable_promise_assignments_admit_scalar_stores_and_keep_compound_guards() {
+    compare_promises(
+        &["let p=Promise.resolve(a);return (p=a);"],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
     for body in [
-        "let p=Promise.resolve(a);return (p=a);",
         "let p=Promise.resolve(a);p+=a;return await p;",
         "let p=Promise.resolve(a);p++;return await p;",
     ] {
@@ -1294,8 +1300,6 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
     }
     for body in [
         "const p=Promise.resolve(a);p=Promise.resolve(b);return await p;",
-        "let p=Promise.resolve(a);p=null;return await p;",
-        "let p; p=Promise.resolve(b);return await p;",
         "const p=Promise.resolve(a);return +p;",
         "const p=Promise.resolve(a);throw p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
@@ -1306,6 +1310,13 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
     }
     compare_promises(
         &["const p=Promise.resolve(a);return await (p&&a);"],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+    compare_promises(
+        &[
+            "let p=Promise.resolve(a);p=null;return await p;",
+            "let p; p=Promise.resolve(b);return await p;",
+        ],
         &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
     );
 }

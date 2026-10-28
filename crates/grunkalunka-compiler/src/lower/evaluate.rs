@@ -178,6 +178,7 @@ enum Work<'e, 'a> {
     AdoptResult(&'e Expression<'a>),
     LiftAsyncValue(&'e Expression<'a>),
     AwaitAsyncValue(&'e Expression<'a>, usize),
+    ConsumeAsyncValue(&'e Expression<'a>, Mode),
     PendingTruthy(&'e Expression<'a>),
     AwaitSettled(&'e Expression<'a>, Option<usize>),
     FulfillPromise(&'e Expression<'a>),
@@ -471,6 +472,12 @@ impl Lowering<'_, '_> {
             ));
         }
         let general = ty == Type::General;
+        if ty == Type::AsyncValue && !matches!(mode, Mode::AsyncValue) {
+            return Err(unsupported(
+                node,
+                "mixed logical assignment requires its raw value",
+            ));
+        }
         if ty == Type::FulfilledPromise && !matches!(mode, Mode::Promise) {
             return Err(unsupported(
                 node,
@@ -485,39 +492,68 @@ impl Lowering<'_, '_> {
         }
         let old = self.value(ty);
         Self::push(regions.current(), node, Op::Load { result: old, slot });
-        let condition = self.value(Type::Predicate);
-        let test = if assignment.operator == AssignmentOperator::LogicalNullish {
-            if general {
-                Op::GeneralIsNullish {
+        let condition = if ty == Type::AsyncValue {
+            let nullish = assignment.operator == AssignmentOperator::LogicalNullish;
+            let test = self.async_value_condition(
+                node,
+                old,
+                if nullish {
+                    LogicalOperator::Coalesce
+                } else {
+                    LogicalOperator::Or
+                },
+                regions.current(),
+            );
+            if nullish {
+                let result = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::Not {
+                        result,
+                        input: test,
+                    },
+                );
+                result
+            } else {
+                test
+            }
+        } else {
+            let condition = self.value(Type::Predicate);
+            let test = if assignment.operator == AssignmentOperator::LogicalNullish {
+                if general {
+                    Op::GeneralIsNullish {
+                        result: condition,
+                        input: old,
+                    }
+                } else {
+                    Op::Boolean {
+                        result: condition,
+                        value: false,
+                    }
+                }
+            } else if matches!(
+                ty,
+                Type::Closure(_) | Type::FulfilledPromise | Type::Promise
+            ) {
+                Op::Boolean {
+                    result: condition,
+                    value: true,
+                }
+            } else if general {
+                Op::GeneralTruthy {
                     result: condition,
                     input: old,
                 }
             } else {
-                Op::Boolean {
+                Op::Truthy {
                     result: condition,
-                    value: false,
+                    input: old,
                 }
-            }
-        } else if matches!(
-            ty,
-            Type::Closure(_) | Type::FulfilledPromise | Type::Promise
-        ) {
-            Op::Boolean {
-                result: condition,
-                value: true,
-            }
-        } else if general {
-            Op::GeneralTruthy {
-                result: condition,
-                input: old,
-            }
-        } else {
-            Op::Truthy {
-                result: condition,
-                input: old,
-            }
+            };
+            Self::push(regions.current(), node, test);
+            condition
         };
-        Self::push(regions.current(), node, test);
         regions.children.push(self.region(&assignment.right));
         work.push(Work::LogicalAssign {
             node,
@@ -534,6 +570,7 @@ impl Lowering<'_, '_> {
                 Type::General => Mode::General,
                 Type::FulfilledPromise => Mode::Promise,
                 Type::Promise => Mode::Pending,
+                Type::AsyncValue => Mode::AsyncValue,
                 _ => Mode::Number,
             },
         ));
@@ -909,6 +946,11 @@ impl Lowering<'_, '_> {
                     let result = self.value(Type::General);
                     Self::push(regions.current(), node, Op::AdoptPromise { result, input });
                     values.push(Value::General(result));
+                }
+                Work::ConsumeAsyncValue(node, mode) => {
+                    let input = values.pop().expect("mixed assignment value").id();
+                    let result = self.consume_stored_value(node, input, mode, regions.current());
+                    values.push(result);
                 }
                 Work::AwaitAsyncValue(node, site) => {
                     let input = values.pop().expect("selected await operand").id();
@@ -1588,6 +1630,11 @@ impl Lowering<'_, '_> {
                             unreachable!("function logical assignment RHS")
                         };
                         value
+                    } else if ty == Type::AsyncValue {
+                        let Value::Selection(value) = value else {
+                            unreachable!("mixed logical assignment RHS")
+                        };
+                        value
                     } else if ty == Type::Promise {
                         value.pending()
                     } else if ty == Type::FulfilledPromise {
@@ -1620,6 +1667,8 @@ impl Lowering<'_, '_> {
                     );
                     values.push(if matches!(ty, Type::Closure(_)) {
                         Value::Function(result)
+                    } else if ty == Type::AsyncValue {
+                        Value::Selection(result)
                     } else if ty == Type::Promise {
                         Value::Pending(result)
                     } else if ty == Type::FulfilledPromise {
@@ -2091,7 +2140,9 @@ impl Lowering<'_, '_> {
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
-                    if self.async_value_slot(node, depth).is_some() {
+                    if self.async_value_slot(node, depth).is_some()
+                        || self.async_value_assignment_slot(node, depth).is_some()
+                    {
                         work.push(Work::Forget);
                         work.push(Work::Eval(node, depth, Mode::AsyncValue));
                         continue;
@@ -2198,7 +2249,13 @@ impl Lowering<'_, '_> {
                         values.push(result);
                         continue;
                     }
+                    if self.schedule_mixed_result(node, depth, mode, &mut work) {
+                        continue;
+                    }
                     if matches!(mode, Mode::AsyncValue) {
+                        if self.schedule_mixed_assignment(node, depth, &mut regions, &mut work)? {
+                            continue;
+                        }
                         if self.pending_promise_shape(node, depth) {
                             work.push(Work::LiftAsyncValue(node));
                             work.push(Work::Eval(node, depth, Mode::Pending));
@@ -3557,6 +3614,64 @@ impl Lowering<'_, '_> {
         Ok(callee)
     }
 
+    fn schedule_mixed_assignment<'e, 'a>(
+        &mut self,
+        node: &'e Expression<'a>,
+        depth: usize,
+        regions: &mut Regions<'_>,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<bool, String> {
+        let Some(slot) = self.async_value_assignment_slot(node, depth) else {
+            return Ok(false);
+        };
+        let Expression::AssignmentExpression(assignment) = node else {
+            unreachable!("erased assignment wrappers are consumed by the cursor")
+        };
+        if matches!(
+            assignment.operator,
+            AssignmentOperator::LogicalAnd
+                | AssignmentOperator::LogicalOr
+                | AssignmentOperator::LogicalNullish
+        ) {
+            self.schedule_logical_assignment(
+                node,
+                assignment,
+                depth,
+                Mode::AsyncValue,
+                regions,
+                work,
+            )?;
+            return Ok(true);
+        }
+        if !self.slots[slot.0].mutable || assignment.operator != AssignmentOperator::Assign {
+            return Err(unsupported(
+                node,
+                "mixed-value assignment requires mutable simple assignment",
+            ));
+        }
+        work.push(Work::StoreTyped { node, slot });
+        work.push(Work::Eval(&assignment.right, depth + 1, Mode::AsyncValue));
+        Ok(true)
+    }
+
+    fn schedule_mixed_result<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        depth: usize,
+        mode: Mode,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> bool {
+        if matches!(mode, Mode::AsyncReturn | Mode::Predicate | Mode::Awaited(_))
+            && self.async_value_assignment_slot(node, depth).is_some()
+        {
+            work.push(Work::ConsumeAsyncValue(node, mode));
+            work.push(Work::Eval(node, depth, Mode::AsyncValue));
+            true
+        } else {
+            false
+        }
+    }
+
     // Keep this dispatch outside the large cursor frame: deeply nested constructor
     // validation re-enters evaluate on the existing two-MiB native-stack contract.
     fn stored_async_value(
@@ -3582,7 +3697,17 @@ impl Lowering<'_, '_> {
                 slot,
             },
         );
-        Some(match mode {
+        Some(self.consume_stored_value(node, input, mode, region))
+    }
+
+    fn consume_stored_value(
+        &mut self,
+        node: &Expression<'_>,
+        input: ValueId,
+        mode: Mode,
+        region: &mut Region,
+    ) -> Value {
+        match mode {
             Mode::AsyncValue => Value::Selection(input),
             Mode::AsyncReturn => Value::General(self.resolve_async_value(node, input, region)),
             Mode::Awaited(site) => {
@@ -3595,7 +3720,7 @@ impl Lowering<'_, '_> {
                 region,
             )),
             _ => unreachable!("checked mixed-value consumer"),
-        })
+        }
     }
 
     pub(super) fn push_await(

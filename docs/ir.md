@@ -960,9 +960,9 @@ resolution projects a selected Promise into the existing `AdoptPromise` route.
 
 Maintained tests check nested source effects/catches/job limits in native JS,
 Node-Wasm and Wasmtime, plus typed IR misuse, projection traps and carrier
-preservation across suspension and sibling coroutine frames. Immutable source
-locals and captures now use these same slot/cell operations; mutable local unions,
-private input unions and mixed relational/coercion operands remain open. Equality
+preservation across suspension and sibling coroutine frames. Const and let source
+locals and captures now use these same slot/cell operations. Private input unions
+and mixed relational/coercion operands remain open. Equality
 can consume selected raw variants as described below.
 
 ### Equality over selected raw variants
@@ -981,11 +981,18 @@ handling operation. Both carriers use the existing suspended-value mapping when
 the RHS awaits. General String or custom-object admission must revisit loose
 cross-variant equality rather than silently retaining the constant result.
 
-### Immutable source storage
+### Source storage
 
-Immutable AsyncValue source slots retain raw snapshots using existing Initialize,
-Load and captured-cell storage. Explicit source awaits discriminate before either
+Const and let AsyncValue source slots retain raw snapshots using existing
+Initialize, Load, Store and captured-cell storage. Explicit source awaits discriminate before either
 AwaitPromise or primitive Await, with both branches sharing the original source
 site identity. Async returns instead use the existing AdoptPromise branch.
 The carrier remains excluded from exported completions and private parameters or
 results; no operation or physical layout was added for local storage.
+
+
+Mutable carrier planning examines original initializer/write provenance before
+lowering. Logical assignment retains the original loaded carrier for the skipped
+branch, emits Store only in the selected RHS region, and returns the stored raw
+value. Consumption follows afterward, so await/adoption never participates in the
+assignment test itself. No IR type, operation or storage width was added.

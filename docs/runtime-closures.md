@@ -497,7 +497,7 @@ through nested logical left operands. Captures, runtime-selected constructors
 and repeated activations keep the selected kind before resolving the return.
 The internal `AsyncValue` carrier uses shared suspended storage but is excluded
 from private call signatures and exported completions. General/Promise source
-parameter and mutable local-storage unions remain separate work. Immutable
+parameter unions remain separate work. Immutable
 selected-value locals and aliases now retain the existing tagged snapshot through
 captured cells. Async helpers returning one receive their own physical activation;
 may-Promise effect facts do not admit mixed private input/result signatures.
@@ -520,3 +520,12 @@ frames. Existing actual-suspension guards and all budgets remain unchanged.
 This does not admit arbitrary recursive initialization, thenables or mixed private
 input/storage domains. Native JS, Node-Wasm and Wasmtime source tests compare
 results and marker order, with separate detached-rejection notification checks.
+### Mutable selected-value cells
+
+Mutable represented Promise/General locals now use the same sixteen-byte captured
+cells. Constructor/write planning chooses carrier storage before initialization;
+const aliases retain snapshots while closures observe subsequent typed stores.
+Simple and logical assignment results remain raw until an explicit consumer.
+May-Promise effects preserve physical async activations for returns of assignments
+to those cells, separately from homogeneous private call signatures. General mixed
+private parameters/results and unrepresented capture kinds remain open.

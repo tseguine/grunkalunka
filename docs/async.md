@@ -533,9 +533,9 @@ adopting it. Only the final selected return is resolved. Primitive and Error
 payloads, Promise identity, short-circuit effects and rejection handling retain
 the existing semantics and budgets.
 
-This carrier does not extend the exported completion protocol. Immutable source
-locals now use it as described below; mutable mixed locals and private parameter
-domains remain separate work. Equality can consume selected raw variants as
+This carrier does not extend the exported completion protocol. Const and let
+source locals now use it as described below; private mixed parameter domains
+remain separate work. Equality can consume selected raw variants as
 described below; mixed relational and coercion positions remain separate work.
 A helper can resolve its selected async return before the caller compares the
 resulting primitive/Error value.
@@ -559,7 +559,7 @@ remain on the Wasm stack. Modules without these helper starts retain their exist
 emission path. No exported protocol, record width, fuel, job or source-await limit
 changes. Actual awaits still require an async source function; typed synchronous
 helpers still cannot contain suspension. General Promise payloads, thenables and
-mutable mixed source storage/private parameter domains remain separate gaps.
+mixed private parameter domains remain separate gaps.
 
 ### Equality of selected Promise/primitive operands
 
@@ -575,8 +575,8 @@ equality applies, including Boolean/Number coercion, NaN and signed zero. A
 Promise is unequal to every currently admitted non-string primitive and intrinsic
 Error; the inequality operators invert that result. The source General profile
 still excludes Strings, so this does not implement Promise/string loose equality,
-custom coercion or arbitrary objects. Mutable mixed source locals/private inputs
-and mixed relational or numeric-coercion operands remain separate gaps. Existing homogeneous
+custom coercion or arbitrary objects. Mixed private inputs and mixed relational
+or numeric-coercion operands remain separate gaps. Existing homogeneous
 comparison paths and all source/runtime budgets remain unchanged.
 
 ### Immutable selected-value locals
@@ -600,6 +600,33 @@ Native JS, Node-Wasm and Wasmtime comparisons cover aliases, captures, original
 binding mutation, primitive bits/kinds, Error identity, logical/comma/conditional
 consumers and job traces. Notification tests cover discarded rejected values and
 later handling. No new layout, exported completion, private signature, fuel, job or
-source-await budget is introduced. Mutable mixed bindings, private mixed inputs or
-ordinary mixed returns, mixed relational/coercion operands, general Promise
-payloads, Strings and thenables remain open.
+source-await budget is introduced. Mutable represented mixed locals now use the
+same carrier as described below. Private mixed inputs or ordinary mixed returns,
+mixed relational/coercion operands, general Promise payloads, Strings and
+thenables remain open.
+
+### Mutable selected-value locals
+
+A let local may now change between represented Promise identities and General
+primitive/intrinsic Error values. Planning reads the original initializer and all
+simple/logical writes before choosing its existing AsyncValue slot. Uninitialized
+locals start as intrinsic undefined. Mixed provenance propagates through aliases
+after positive Promise facts converge; a may-Promise fact does not admit a mixed
+private parameter or result.
+
+Simple assignment evaluates the RHS once, stores its raw snapshot, then exposes
+that same value to the enclosing expression. Logical assignments test the captured
+old kind: Promise objects are truthy and non-nullish, and General values retain
+their ordinary Boolean/nullish rules. Skipped RHS expressions neither execute nor
+schedule reactions. A failing RHS performs no outer assignment store; its
+earlier side effects remain. Aliases keep old snapshots while captured closures
+read the current cell.
+
+Await and async return consume assignment results through the same lexical-await
+or return-adoption routes as immutable locals. Storage, equality and logical tests
+do not handle a rejected Promise. Differential traces and notification tests cover
+tag changes, aliases/captures, RHS suspension, selected errors, late handling and
+source limits. No backend layout, exported/private ABI, arena, fuel, job or
+source-budget changes are needed. Private mixed interfaces, mixed numeric
+compounds/coercions/relational operands, unrepresented heap values and broader
+Promise/thenable behavior remain open.

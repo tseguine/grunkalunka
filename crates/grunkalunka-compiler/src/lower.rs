@@ -687,7 +687,36 @@ impl Lowering<'_, '_> {
                 });
                 continue;
             }
-            let pending = if let Some(initializer) = local.init.as_ref() {
+            let selected = if mutable
+                && identifier
+                    .symbol_id
+                    .get()
+                    .is_some_and(|symbol| self.promise_parameters.is_mixed(&symbol))
+            {
+                let value = if let Some(initializer) = local.init.as_ref() {
+                    self.evaluate(initializer, region, 0, evaluate::Mode::AsyncValue)?
+                        .expect("mixed mutable initializer")
+                } else {
+                    let input = self.value(Type::General);
+                    Self::push(
+                        region,
+                        local,
+                        Op::Nullish {
+                            result: input,
+                            value: ir::Nullish::Undefined,
+                        },
+                    );
+                    let result = self.value(Type::AsyncValue);
+                    Self::push(region, local, Op::ToAsyncValue { result, input });
+                    result
+                };
+                Some(value)
+            } else {
+                None
+            };
+            let pending = if selected.is_some() {
+                None
+            } else if let Some(initializer) = local.init.as_ref() {
                 if self.pending_promise_shape(initializer, 0) {
                     self.evaluate(initializer, region, 0, evaluate::Mode::Pending)?
                 } else {
@@ -696,14 +725,16 @@ impl Lowering<'_, '_> {
             } else {
                 None
             };
-            let promise = if pending.is_some() {
+            let promise = if selected.is_some() || pending.is_some() {
                 None
             } else if let Some(initializer) = local.init.as_ref() {
                 self.fulfilled_promise_initializer(initializer, region)?
             } else {
                 None
             };
-            let (ty, value) = if let Some(value) = pending {
+            let (ty, value) = if let Some(value) = selected {
+                (Type::AsyncValue, value)
+            } else if let Some(value) = pending {
                 (Type::Promise, value)
             } else if let Some(value) = promise {
                 (Type::FulfilledPromise, value)

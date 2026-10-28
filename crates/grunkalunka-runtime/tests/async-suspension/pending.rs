@@ -67,7 +67,6 @@ fn stored_pending_async_results_keep_erasure_admission_and_site_limits() {
     }
     for body in [
         "const f=async()=>{await a;return b;};const p=f();return +p;",
-        "const f=async()=>{await a;return b;};let p=f();p=b;return await p;",
         "const f=async()=>{await a;return b;};const p=f();p=f();return await p;",
         "const f=async()=>{await a;return b;};const p=f();return await Promise.reject(p);",
     ] {
@@ -75,6 +74,10 @@ fn stored_pending_async_results_keep_erasure_admission_and_site_limits() {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }
     }
+    compare_promises(
+        &["const f=async()=>{await a;return b;};let p=f();p=b;return await p;"],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
     let under =
         "const f=async()=>{await a;return b;};const p=f();for(let i=0;i<31;i++)await p;return b;";
     compare_promises(&[under], &[(4.0, 2.0)]);

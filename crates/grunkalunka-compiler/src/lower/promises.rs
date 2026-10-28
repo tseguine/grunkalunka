@@ -13,12 +13,16 @@ pub(crate) struct Inputs {
     pub(super) values: BTreeSet<SymbolId>,
     // May contain a Promise; separate from the homogeneous value/signature fact.
     choices: BTreeSet<SymbolId>,
+    mixed: BTreeSet<SymbolId>,
     pub(super) results: BTreeSet<NodeId>,
     pub(crate) asynchronous: BTreeSet<NodeId>,
     pub(super) adopting: BTreeSet<NodeId>,
 }
 
 impl Inputs {
+    pub(super) fn is_mixed(&self, symbol: &SymbolId) -> bool {
+        self.mixed.contains(symbol)
+    }
     pub(super) fn is_fulfilled(&self, symbol: &SymbolId) -> bool {
         self.fulfilled.contains(symbol) && !self.pending.contains(symbol)
     }
@@ -58,7 +62,7 @@ fn pending_shape(
                     .reference_id
                     .get()
                     .and_then(|r| semantic.scoping().get_reference(r).symbol_id())
-                    .is_some_and(|s| inputs.values.contains(&s))
+                    .is_some_and(|s| inputs.values.contains(&s) && !inputs.mixed.contains(&s))
                 {
                     return false;
                 }
@@ -136,6 +140,19 @@ fn return_adopts(
             return false;
         };
         match node {
+            Expression::AssignmentExpression(assignment) => {
+                if assignment
+                    .left
+                    .as_simple_assignment_target()
+                    .and_then(|target| target_identifier(target, depth).ok().flatten())
+                    .and_then(|id| id.reference_id.get())
+                    .and_then(|r| semantic.scoping().get_reference(r).symbol_id())
+                    .is_some_and(|s| inputs.choices.contains(&s))
+                {
+                    return true;
+                }
+                work.push((&assignment.right, depth + 1));
+            }
             Expression::Identifier(id)
                 if id
                     .reference_id
@@ -170,6 +187,7 @@ fn return_adopts(
 pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
     let mut arrows = BTreeMap::new();
     let mut definitions = Vec::new();
+    let mut uninitialized = BTreeSet::new();
     let mut calls = Vec::new();
     let mut has_constructor = false;
     for node in semantic.nodes().iter() {
@@ -180,6 +198,13 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
             }
             AstKind::VariableDeclaration(declaration) => {
                 for local in &declaration.declarations {
+                    if declaration.kind == VariableDeclarationKind::Let
+                        && local.init.is_none()
+                        && let BindingPattern::BindingIdentifier(binding) = &local.id
+                        && let Some(symbol) = binding.symbol_id.get()
+                    {
+                        uninitialized.insert(symbol);
+                    }
                     if let BindingPattern::BindingIdentifier(binding) = &local.id
                         && let (Some(symbol), Some(initializer)) =
                             (binding.symbol_id.get(), local.init.as_ref())
@@ -449,6 +474,27 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
                 inputs.asynchronous.len(),
             )
         {
+            // Classify unions only after positive constructor/alias facts converge.
+            // Then propagate mixed provenance through aliases without treating a
+            // may-Promise fact as a homogeneous Promise signature.
+            if identities {
+                loop {
+                    let old = inputs.mixed.len();
+                    let mixed: Vec<_> = definitions
+                        .iter()
+                        .filter_map(|(symbol, expression)| {
+                            (inputs.choices.contains(symbol)
+                                && (uninitialized.contains(symbol)
+                                    || !pending_shape(expression, semantic, &returns, &inputs)))
+                            .then_some(*symbol)
+                        })
+                        .collect();
+                    inputs.mixed.extend(mixed);
+                    if old == inputs.mixed.len() {
+                        break;
+                    }
+                }
+            }
             return inputs;
         }
     }
