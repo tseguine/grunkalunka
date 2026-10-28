@@ -1,0 +1,20 @@
+{
+  "id": "p1-diagnostic-tools",
+  "paths": [
+    "tools/bench/markdown-cgu-control.mjs",
+    "tools/bench/markdown-clean-rebuild.mjs",
+    "tools/bench/markdown-crate-metadata-control.mjs",
+    "tools/bench/markdown-linux-checkout-path.mjs",
+    "tools/bench/markdown-metadata-scope.mjs",
+    "tools/bench/markdown-native-metadata.mjs",
+    "tools/bench/native-cargo-build-script.mjs",
+    "tools/bench/native-cargo-metadata-override.mjs",
+    "tools/bench/native-cargo-metadata.mjs",
+    "tools/bench/native-rust-standalone.mjs",
+    "tools/bench/rust-wasm32-sysroot.mjs",
+    "tools/bench/wasm-data-chunks.mjs",
+    "tools/bench/wasm-named-bodies.mjs",
+    "tools/bench/wasm-section-fingerprint.mjs",
+    "tools/bench/windows-eol-markdown.mjs"
+  ]
+}
