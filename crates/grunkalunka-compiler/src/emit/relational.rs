@@ -10,6 +10,31 @@ impl Emitter<'_> {
         left: ValueId,
         right: ValueId,
     ) {
+        let selected = [left, right]
+            .iter()
+            .any(|v| self.function.values[v.0] == Type::AsyncValue);
+        if selected {
+            self.relational_tag(left, 5);
+            self.relational_tag(right, 5);
+            self.output.push_str("i32.or\nif (result i32)\n");
+            // The builtin Promise string starts with '['; the sole represented
+            // intrinsic TypeError string starts with 'T'. Other General kinds
+            // compare numerically against Promise's NaN and always yield false.
+            let (error, promise) = match operator {
+                Relational::Less | Relational::LessEqual => (left, right),
+                Relational::Greater | Relational::GreaterEqual => (right, left),
+            };
+            self.relational_tag(error, 4);
+            self.relational_tag(promise, 5);
+            self.output.push_str("i32.and\n");
+            if matches!(operator, Relational::LessEqual | Relational::GreaterEqual) {
+                // Different Promise identities still have equal primitive strings.
+                self.relational_tag(left, 5);
+                self.relational_tag(right, 5);
+                self.output.push_str("i32.and\ni32.or\n");
+            }
+            self.output.push_str("else\n");
+        }
         if self.errors {
             writeln!(
                 self.output,
@@ -36,6 +61,18 @@ impl Emitter<'_> {
         if self.errors {
             self.output.push_str("end\n");
         }
+        if selected {
+            self.output.push_str("end\n");
+        }
         self.set(result);
+    }
+
+    fn relational_tag(&mut self, value: ValueId, tag: u8) {
+        writeln!(
+            self.output,
+            "local.get {}\ni32.const {tag}\ni32.eq",
+            self.value_offsets[value.0]
+        )
+        .unwrap();
     }
 }

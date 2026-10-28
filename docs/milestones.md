@@ -722,5 +722,18 @@ Node-Wasm and Wasmtime with ordering, mixed private calls/captures, erased types
 source limits and notification checks. Thirteen exact old guard assertions (twelve
 unique sources) are promoted to execution; detached rejections retain an owned
 native notification checkpoint. See [the contract](async-number-coercion.md).
-Mixed addition/relations, mixed-target compound/update writes, broader objects,
+Mixed addition, mixed-target compound/update writes, broader objects,
 Strings/BigInts, thenables and general synchronous exceptions remain gaps.
+
+## Represented Promise relational operands (2026-10-28)
+
+The async identity profile now supports all four relational operators on raw
+Promise/General operands, including selected locals, mixed private calls and
+captures. Six maintained differential groups compare native JS, Node-Wasm and
+Wasmtime with builtin string ordering, numeric NaN cases, ordered snapshots,
+suspension/failure, erased types and source budgets. Three exact old guards now
+execute unchanged, including the guard added with numeric conversion. Dedicated notification fixtures check rejection identity,
+late handling and unchanged job counts. This extends the existing relational
+operation and verifier; no new representation or host protocol. See
+[the contract and exclusions](async-promise-relational.md). Broader object/String
+conversion, other coercion contexts and general JS/TS remain separate gaps.
