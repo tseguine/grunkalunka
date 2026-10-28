@@ -9,38 +9,43 @@ that is test input, not a release/distribution pipeline.
 
 ## Triggers and coverage
 
-Pull requests targeting `master`, pushes to `master`, and manual Actions runs
-execute the same three named jobs. macOS uses native Apple Silicon ARM64.
-**All three native PR jobs** may execute validated dependency-selected checks;
-any unsafe or unknown plan falls back to full build/check commands on that
-host. Pushes to `master` and manual runs remain full CI on every platform.
-Feature-branch pushes do not also trigger a second
-copy of the PR build. Runs share a concurrency group for the same event and
-PR/ref; newer runs leave in-progress runs running (`cancel-in-progress: false`).
-There are no scheduled full builds, path filters, or paid/larger runners.
-Documentation-only changes still run CI so checks are not left pending by a
-workflow-level path filter. Failures on one platform do not cancel the others.
+Pull requests run dependency-selected Linux and Windows checks plus a lightweight
+Ubuntu macOS baseline probe. A healthy recent native baseline skips macOS on
+the PR. A stale, missing, failed or uncheckable baseline **automatically
+triggers a real native macOS full build and canonical tests** on that PR's
+merge revision. The final macOS gate succeeds if the baseline was green or
+the native fallback passed. Linux and Windows execute full canonical checks
+on `master` pushes and manual CI runs. PRs fall back to full checks on those
+hosts when dependency selection is unsafe.
+
+The independent [native macOS workflow](../.github/workflows/macos.yml)
+executes full builds and tests on Apple Silicon every four hours, on a manual
+branch dispatch, and once when the workflow first lands on `master`.
+Running native macOS jobs are not canceled by subsequent merges. Scheduled
+work may be delayed by runner contention.
 
 | Check name | Standard hosted runner | Architecture |
 | --- | --- | --- |
 | `Checks (Linux)` | `ubuntu-24.04` | x64 |
 | `Checks (Windows)` | `windows-2025` | x64 |
-| `Checks (macOS)` | `macos-15` | arm64, native Apple Silicon |
+| `macOS baseline lookup (Linux)` | `ubuntu-24.04` | checks reference; decides whether fallback is needed |
+| `macOS verification (baseline or native fallback)` | `ubuntu-24.04` | final PR gate |
+| `Native macOS fallback` (conditional), scheduled/manual native macOS | `macos-15` | arm64, native Apple Silicon |
 
-The standard `macos-15` runner uses an Apple M1 (3 CPUs, 7 GiB RAM). This
-replaces `macos-15-intel` as the sole macOS gate while keeping the existing
-`Checks (macOS)` status-check name. CI no longer covers Intel macOS x64.
+The standard `macos-15` runner uses an Apple M1 (3 CPUs, 7 GiB RAM). macOS ARM64 remains the native platform; it runs on PRs only when a full native fallback is needed.
+The legacy `Checks (macOS)` check is used only for baseline bootstrapping.
+CI no longer covers Intel macOS x64.
 The ARM64 runner's Cargo cache key is distinct from the old Intel runner.
 Native ARM64 validation must pass; a performance improvement is not assumed.
 The prior Intel-versus-ARM64 investigation is [issue #79](https://github.com/tseguine/grunkalunka/issues/79).
 
-Each job has a 60-minute cap. This is a watchdog, not a performance target.
+Normal CI jobs have a 60-minute cap; native macOS baseline jobs have 65 minutes. This is a watchdog, not a performance target.
 Bun, Linux/Windows ARM64 and other Node versions are not covered by this matrix.
 Switching runner architecture does not establish support until its actual checks pass.
 
 ## Build and test contract
 
-Jobs install exactly **Node 24.21.0** across all three platforms and the active
+Native verification jobs install exactly **Node 24.21.0** on Linux, Windows and macOS and the active
 repository Rust toolchain, currently the `stable` channel in
 `rust-toolchain.toml`, with rustfmt, Clippy and `wasm32-unknown-unknown`.
 The Rust compiler remains a floating stable release; it is not pinned to an
@@ -58,7 +63,7 @@ toolchains or locally compiled host binaries.
 After a fast formatting check, jobs restore cached Cargo dependencies and fetch
 both the root workspace and the independently locked frontend spike using
 `cargo fetch --locked`. A cache miss must work; caches are not prerequisites.
-Builds and checks use locked/offline commands. On Linux, Windows and macOS PRs,
+Builds and checks use locked/offline commands. On Linux and Windows PRs,
 `ci/impact/pr-gate.mjs` may execute selected canonical commands and package-
 scoped Cargo build/Clippy/tests. It records decisions and receipts with the
 runner's native OS. A planner error falls back to full verification;
@@ -67,7 +72,7 @@ This is offline Cargo verification after setup, not a network-isolated sandbox.
 
 In full mode the workspace is built before `node scripts/check.mjs`; early
 kernel tests have short build watchdogs that must not include a cold dependency
-build. For any native PR partial mode, the dependency graph determines
+build. For a Linux/Windows PR partial mode, the dependency graph determines
 prebuild packages. `node scripts/check.mjs` remains the source of truth for canonical
 Clippy, Rust and JS checks. The per-command descriptors are verified against
 its live command inventory before selection. No tests, assertions or timeouts
@@ -93,32 +98,63 @@ See [testing](testing.md) for individual checks and evidence limits. Tests emit
 receipts in local target directories, but this workflow does not upload them.
 Inspect the job log and reproduce locally when a retained receipt is needed.
 
-## All-platform partial PR gate
+## Linux/Windows partial PR gate
 
 The maintainer explicitly authorized the **general dependency graph**, not a
-hardcoded source allowlist, for Linux, Windows and macOS PRs. See
+hardcoded source allowlist, for Linux and Windows PRs. See
 [impact planning](../ci/impact/README.md). Each host diffs its exact PR merge
 base with full Git history, follows reverse test and forward build closures,
 verifies the live canonical command inventory, includes separately declared
 Rust test-time fixture inputs, and audits independent browser workflow
 triggers. Unknown paths, missing or ambiguous dependencies, unsafe Cargo
 translations or stale command mapping fall back to original full commands
-**on that host**. The full `master` and manual gates are unchanged.
+**on that host**. Full native macOS checks are scheduled or manually dispatched.
 
 Set `PARTIAL_PR_CI` to `'false'` on the PR CI step to disable partial execution
-on all hosts. Existing `Checks (Linux)`, `Checks (Windows)` and
-`Checks (macOS)` job names remain unchanged; independent browser workflows retain
-separate triggers. P1's previous per-experiment PR workflows have been replaced
+on both PR platforms. `Checks (Linux)` and `Checks (Windows)` retain their
+names; the PR's native `Checks (macOS)` job is replaced by the clearly named
+macOS reference check. Independent browser workflows retain separate triggers. P1's previous per-experiment PR workflows have been replaced
 by canonical regression and native artifact tests; archived native cross-host
 experiments remain explicitly reproducible.
 The [native scoped rehearsal](../.github/workflows/impact-platform-rehearsal.yml)
-executes real layout checks on all three hosted OSes. A successful partial gate
+executes real layout checks on Linux and Windows. A successful partial gate
 proves only its selected canonical checks, **not** that independently triggered
 browser jobs passed or that archived P1 multi-host studies were reproduced.
 The graph still needs independent dynamic dependency
 coverage audits; [#126](https://github.com/tseguine/grunkalunka/issues/126)
 tracks known gaps and the proposed lint. Compare host-specific timings to
 assess actual savings; never treat skipped checks as tested.
+
+## macOS reference and native fallback
+
+The stable `macOS verification (baseline or native fallback)` check is a
+gate on a recent passing native macOS baseline **or** a successful real
+native macOS fallback for the PR's merge revision.
+
+The Ubuntu baseline probe considers the latest completed, non-cancelled
+native macOS result on `master` (or an explicit manual native run for the
+exact PR head). A passing master baseline must be no more than 24 hours old.
+The probe reports the native run link, SHA and completion age. A failing
+result is not hidden by an older success, and a baseline success does not
+claim that this PR itself ran on macOS.
+
+If the reference is stale, failed, missing or the lookup errors, the probe
+requests a **conditional reusable full macOS workflow**. The final PR gate
+passes only after the native fallback passes. If the fallback fails or cannot
+run, the gate is red; a red reference alone never blocks a passing native
+fallback.
+
+During bootstrap the probe may use the last completed native macOS job in
+legacy `master` CI even if that overall run was cancelled afterward.
+
+To request explicit native PR verification even with a green baseline:
+Actions → Native macOS verification → Run workflow, select the PR's branch.
+A completed exact-head manual run takes precedence on a subsequent PR check.
+Automatic fallback checks the current PR **merge revision** rather than the
+unmerged branch head.
+
+If the baseline remains unhealthy for many PRs, multiple fallbacks may
+increase macOS demand until the scheduled four-hour master baseline is green.
 
 ## Locating slow or interrupted checks
 
@@ -135,8 +171,9 @@ runner. This adds no retries, timeouts, skipped tests or workflow permission cha
 
 ## PR permissions and maintenance
 
-The workflow uses `pull_request`, never `pull_request_target`, and grants only
-`contents: read`. Checkout does not persist credentials. No repository secrets,
+The workflow uses `pull_request`, never `pull_request_target`. Linux/Windows
+checks grant `contents: read`; the Ubuntu macOS reference additionally receives
+`actions: read` for read-only GitHub Actions lookups. Checkout does not persist credentials. No repository secrets,
 write-capable bot, automatic merge, automatic formatting commit, or PR comment
 service is required. GitHub may require approval before a fork's first run.
 
@@ -147,13 +184,13 @@ versions or merge its own PRs. The [PR template](../.github/pull_request_templat
 asks for scope and verification, without imposing title or line-count gates.
 
 Rust caching covers both workspaces, keys on the toolchain/dependencies and
-runner, and excludes workspace build products by default. Only successful
-`master` push jobs save caches; PRs restore without saving. Initial runs before
+runner, and excludes workspace build products by default. Only successful Linux/Windows `master` runs and native macOS baseline runs on
+`master` save caches; PRs restore without saving. Initial runs before
 such a cache exists are cold. This configuration does not enable paid cache
 expansion. Caches are expendable and remain subject to GitHub's eviction policy.
 
 No branch protection or repository billing setting is changed by these files.
-After observing green runs, the owner can require the three check names above
-in a `master` ruleset. Until then, failures are visible but do not themselves
+After observing green runs, the owner can require the two native PR check names
+and the separately labeled macOS reference in a `master` ruleset. Until then, failures are visible but do not themselves
 prevent merging. The first hosted runs are the cross-platform validation gate;
 configuration inspection alone is not a passing build.

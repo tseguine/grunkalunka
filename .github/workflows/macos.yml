@@ -1,0 +1,78 @@
+name: Native macOS verification
+
+on:
+  schedule:
+    - cron: '27 */4 * * *'
+  workflow_dispatch:
+  workflow_call:
+  # Bootstrap the first baseline when this workflow is introduced on master.
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/macos.yml'
+
+permissions:
+  contents: read
+
+# Do not cancel a running baseline when master advances.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_INCREMENTAL: '0'
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: '1'
+
+jobs:
+  verify:
+    name: Native macOS (Apple Silicon)
+    runs-on: macos-15
+    timeout-minutes: 65
+    steps:
+      - name: Check out exact scheduled or manually selected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Install repository Rust toolchain
+        run: |
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+          node -e 'require("node:assert/strict").equal(process.version, "v24.21.0")'
+      - name: Assert native Apple Silicon
+        run: |
+          test "$(uname -m)" = arm64
+          test "$(node -p process.arch)" = arm64
+          test "$(rustc -vV | sed -n 's/^host: //p')" = aarch64-apple-darwin
+          test "$RUNNER_ARCH" = ARM64
+          test "$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')" = 0
+      - name: Check formatting before expensive builds
+        run: |
+          cargo fmt --all --check
+          cargo fmt --manifest-path spikes/001-frontend-semantics/Cargo.toml --check
+      - name: Restore Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: macos-15-native-baseline
+          workspaces: |
+            . -> target
+            spikes/001-frontend-semantics -> target
+          cache-bin: 'false'
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - name: Fetch locked inputs
+        run: |
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
+      - name: Full workspace build
+        run: cargo build --workspace --locked --offline -j 4
+      - name: Full canonical tests
+        run: node scripts/check.mjs
