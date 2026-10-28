@@ -55,8 +55,10 @@ function run(command,args,env=process.env,binary=false) {
   });
   if(response.error||response.signal||response.status!==0){
     throw new Error('Failed '+command+' '+args.join(' ')+': '+
-      (response.error?.message??response.stderr?.toString('utf8')?.slice(-2500)
-        ??response.signal??response.status));
+      (response.error?.message??
+        (response.stderr?.toString('utf8').trim()||
+         response.stdout?.toString('utf8').slice(-3500))??
+        response.signal??response.status));
   }
   return response.stdout;
 }
