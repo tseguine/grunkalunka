@@ -114,8 +114,13 @@ fn async_value_lifts_and_projections_check_types_and_visibility() {
             },
         ] {
             let (mut escaped, _) = seed(promise);
+            let private_input = signature.parameters == [Type::AsyncValue];
             escaped.closure_signatures.higher.push(signature);
-            assert!(verify_module_with_entry_type(&escaped, Type::General).is_err());
+            assert_eq!(
+                verify_module_with_entry_type(&escaped, Type::General).is_ok(),
+                private_input,
+                "private inputs are permitted; carrier returns remain excluded"
+            );
         }
     }
 }

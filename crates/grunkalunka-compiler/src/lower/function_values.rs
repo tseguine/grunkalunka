@@ -537,6 +537,9 @@ impl Lowering<'_, '_> {
                     .expect("checked signature");
                 let value = if let Type::Closure(callback) = parameter {
                     self.callback_argument(expression, region, callback, depth + 1)?
+                } else if parameter == Type::AsyncValue {
+                    self.evaluate(expression, region, depth + 1, evaluate::Mode::AsyncValue)?
+                        .expect("mixed runtime factory argument")
                 } else if parameter == Type::Promise {
                     self.evaluate(expression, region, depth + 1, evaluate::Mode::Pending)?
                         .expect("pending Promise runtime factory argument")

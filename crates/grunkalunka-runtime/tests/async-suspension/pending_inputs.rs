@@ -96,9 +96,14 @@ fn pending_promise_inputs_keep_erasure_domains_and_resource_bounds() {
             }
         }
     }
+    compare_promises(
+        &[
+            "const f=async()=>{await a;return b;};const use=async p=>await p;use(f());return await use(a);",
+            "const f=async()=>{await a;return b;};const use=async p=>{p=a;return await p;};return await use(f());",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
     for body in [
-        "const f=async()=>{await a;return b;};const use=async p=>await p;use(f());return await use(a);",
-        "const f=async()=>{await a;return b;};const use=async p=>{p=a;return await p;};return await use(f());",
         "const f=async()=>{await a;return b;};const use=async p=>await p;return await use(f(),{});",
         "const f=async()=>{await a;return b;};const use=async p=>+p;return await use(f());",
         "const f=async()=>{await a;return b;};const use=async p=>await p;return await use();",

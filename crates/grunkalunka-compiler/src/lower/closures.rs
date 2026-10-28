@@ -143,6 +143,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     "callback argument requires a function with the inferred signature",
                 ));
             }
+            if self.promise_parameters.parameter(&symbol) == Some(Type::AsyncValue) {
+                value = self.lift_async_input(parameter, value, region)?;
+            }
+            let input_type = self.values[value.0];
             if self.promise_parameters.is_fulfilled(&symbol) && input_type != Type::FulfilledPromise
             {
                 return Err(unsupported(
@@ -160,7 +164,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             }
             let ty = if matches!(
                 input_type,
-                Type::Closure(_) | Type::FulfilledPromise | Type::Promise
+                Type::Closure(_) | Type::FulfilledPromise | Type::Promise | Type::AsyncValue
             ) {
                 input_type
             } else if input_type == Type::General || self.general_bindings.contains(&symbol) {

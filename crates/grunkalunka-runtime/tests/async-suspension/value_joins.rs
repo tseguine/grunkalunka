@@ -119,12 +119,12 @@ fn nested_joins_keep_erasure_and_site_job_and_storage_boundaries() {
                 .unwrap()
                 .contains("32 await sites")
         );
-        // Private inputs still have their existing homogeneous contracts.
-        let body = "const p=Promise.resolve(a);const f=async x=>x||b;await f(p);return await f(a);";
-        assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
     }
     compare_promises(
-        &["const p=Promise.resolve(a);const x=a?p:b;return x||b;"],
+        &[
+            "const p=Promise.resolve(a);const x=a?p:b;return x||b;",
+            "const p=Promise.resolve(a);const f=async x=>x||b;await f(p);return await f(a);",
+        ],
         &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
     );
 }

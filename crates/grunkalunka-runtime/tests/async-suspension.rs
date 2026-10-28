@@ -52,6 +52,9 @@ mod const_values;
 #[path = "async-suspension/mutable_values.rs"]
 mod mutable_values;
 
+#[path = "async-suspension/mixed_inputs.rs"]
+mod mixed_inputs;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(

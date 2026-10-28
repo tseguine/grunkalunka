@@ -31,7 +31,7 @@ pub(crate) enum Type {
     Number,
     Predicate,
     General,
-    // Selected/local General value or represented Promise. Never a host completion.
+    // Internal General value or represented Promise. Never a host completion.
     AsyncValue,
     // A nonescaping fulfilled primitive Promise; distinct from its completion.
     FulfilledPromise,
@@ -140,6 +140,7 @@ impl ClosureSignatures {
                 || signature.parameters.iter().any(|ty| match ty {
                     Type::Number
                     | Type::General
+                    | Type::AsyncValue
                     | Type::FulfilledPromise
                     | Type::SettledPromise
                     | Type::Promise => false,
@@ -192,6 +193,7 @@ impl ClosureSignatures {
                 match parameter {
                     Type::Number
                     | Type::General
+                    | Type::AsyncValue
                     | Type::FulfilledPromise
                     | Type::SettledPromise
                     | Type::Promise => (),
@@ -1701,6 +1703,7 @@ pub(crate) fn verify_module_with_entry_type(
                     matches!(
                         ty,
                         Type::General
+                            | Type::AsyncValue
                             | Type::Closure(_)
                             | Type::FulfilledPromise
                             | Type::SettledPromise
@@ -1710,6 +1713,7 @@ pub(crate) fn verify_module_with_entry_type(
             || signature.parameters.iter().any(|ty| match ty {
                 Type::Number
                 | Type::General
+                | Type::AsyncValue
                 | Type::FulfilledPromise
                 | Type::SettledPromise
                 | Type::Promise => false,
@@ -1831,7 +1835,11 @@ fn verify_function(
             && !(closure_environment(function).is_some()
                 && (matches!(
                     slot.ty,
-                    Type::General | Type::FulfilledPromise | Type::SettledPromise | Type::Promise
+                    Type::General
+                        | Type::AsyncValue
+                        | Type::FulfilledPromise
+                        | Type::SettledPromise
+                        | Type::Promise
                 ) || matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback))))
         {
             return Err(invalid(slot.span, "parameter slots must be Number"));

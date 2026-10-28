@@ -431,3 +431,22 @@ avoids adding those mechanisms while preserving homogeneous slots, exported/priv
 interfaces and the provisional physical representation. Tests cover tags, effects, cells,
 lexical rejection, notification handling and unchanged source budgets. Broader
 mixed interfaces, numeric compounds and unrepresented heap kinds remain separate.
+
+## Mixed private input follow-up
+
+The private-parameter restriction on AsyncValue is now expanded. Actual argument
+provenance selects carrier parameters for represented Promise/General mixtures,
+including forwarding and callbacks. Known binders lift to the pair; runtime
+argument entries reuse the existing sixteen-byte tag/f64 layout. Coroutine
+starts copy the same logical pair into activation frames.
+
+Resolving a Promise on ingress would change identity, truthiness and reaction
+order. An effect-free tagged copy preserves those observations until a callee
+explicitly consumes the value. Tests cover Number/primitive/Error payloads,
+mixed-width normal calls, 17/32-parameter runtime async calls, captures,
+reassignment, snapshots, erasure and rejection handling.
+
+Existing homogeneous argument representations remain unchanged. No exported
+input/completion protocol, kernel record or source limit changes. Private
+carrier results and Function/heap mixtures remain excluded; this is another
+bounded use of the provisional carrier, not a universal value/heap decision.

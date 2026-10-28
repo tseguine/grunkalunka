@@ -2,6 +2,32 @@
 use super::*;
 
 impl Lowering<'_, '_> {
+    pub(super) fn lift_async_input(
+        &mut self,
+        node: &impl GetSpan,
+        mut input: ValueId,
+        region: &mut Region,
+    ) -> Result<ValueId, String> {
+        match self.values[input.0] {
+            Type::AsyncValue => return Ok(input),
+            Type::Number | Type::Predicate => {
+                let result = self.value(Type::General);
+                Self::push(region, node, Op::Pack { result, input });
+                input = result;
+            }
+            Type::General | Type::Promise => (),
+            _ => {
+                return Err(unsupported(
+                    node,
+                    "mixed inputs require a represented primitive or Promise",
+                ));
+            }
+        }
+        let result = self.value(Type::AsyncValue);
+        Self::push(region, node, Op::ToAsyncValue { result, input });
+        Ok(result)
+    }
+
     pub(super) fn compare_async_values(
         &mut self,
         node: &Expression<'_>,

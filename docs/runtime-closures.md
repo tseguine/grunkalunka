@@ -487,20 +487,20 @@ supported async callbacks and simultaneous activations preserve source snapshots
 and microtask order. Logical returns test the original General or Promise left
 snapshot and resolve only the selected operand; discarded Promise rejections
 remain observable. Nested heterogeneous left joins use the carrier below.
-Mixed private parameter domains remain open. Synchronous helpers may start
-suspending async callbacks through the callable entries described below.
+Represented mixed private inputs now use tagged arguments below. Synchronous
+helpers may start suspending async callbacks through the callable entries described below.
 
 ### Nested async selection carriers
 
 Async constructors and supported callbacks now retain General/Promise choices
 through nested logical left operands. Captures, runtime-selected constructors
 and repeated activations keep the selected kind before resolving the return.
-The internal `AsyncValue` carrier uses shared suspended storage but is excluded
-from private call signatures and exported completions. General/Promise source
-parameter unions remain separate work. Immutable
+The internal `AsyncValue` carrier uses shared suspended storage and private
+parameter slots, while remaining excluded from private results and exported
+completions. Immutable
 selected-value locals and aliases now retain the existing tagged snapshot through
 captured cells. Async helpers returning one receive their own physical activation;
-may-Promise effect facts do not admit mixed private input/result signatures.
+may-Promise effect facts do not alone prove a homogeneous private signature.
 Equality of selected raw operands uses the same carrier without adopting either
 operand.
 
@@ -517,7 +517,7 @@ child prefix runs. The coroutine caller preserves its persistent lanes around
 ordinary direct and indirect calls; a nested prefix can re-enter the same body
 without overwriting the outer activation. Child reaction jobs retain their own
 frames. Existing actual-suspension guards and all budgets remain unchanged.
-This does not admit arbitrary recursive initialization, thenables or mixed private
+This does not admit arbitrary recursive initialization, thenables or unrepresented
 input/storage domains. Native JS, Node-Wasm and Wasmtime source tests compare
 results and marker order, with separate detached-rejection notification checks.
 ### Mutable selected-value cells
@@ -528,4 +528,18 @@ const aliases retain snapshots while closures observe subsequent typed stores.
 Simple and logical assignment results remain raw until an explicit consumer.
 May-Promise effects preserve physical async activations for returns of assignments
 to those cells, separately from homogeneous private call signatures. General mixed
-private parameters/results and unrepresented capture kinds remain open.
+private results and unrepresented capture kinds remain open.
+
+### Mixed private input frames
+
+Actual argument provenance now admits represented Promise/General parameters.
+Known binders lift primitives and identities into the existing AsyncValue pair;
+runtime/factory calls marshal sixteen-byte entries alongside Number/Promise and
+callback entries. The callee retains the raw kind through captures, parameter
+stores and suspension. Callback signatures may contain these inputs without
+permitting carrier results or exported carrier values.
+
+Tests compare observable values and microtask traces, including earlier primitive
+payloads in mixed-width normal calls and runtime async calls with 17/32 mixed
+parameters. Passing a rejected Promise does not handle it. Synchronous forwarding
+of the carrier as an ordinary private result remains separate work.

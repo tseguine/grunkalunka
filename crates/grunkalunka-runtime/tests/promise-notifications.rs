@@ -98,6 +98,9 @@ const BODIES: &[&str] = &[
     "const p=Promise.reject(b);let x=p;const y=x;x=a;x??=p;return y===p?a:a;",
     "const f=async()=>{await a;throw b;};const p=f();let x=p;const y=x;x=a;x&&=b;return y===p?a:a;",
     "let x=Promise.reject(b);const p=x;x=a;await a;x=p;try{await x;}catch(e){}return a;",
+    "const p=Promise.reject(b);const same=x=>x===p;same(p);same(a);return a;",
+    "const f=async()=>{await a;throw b;};const p=f();let same=a?x=>x===p:x=>x!==p;same(p);same(a);return a;",
+    "const p=Promise.reject(b);const use=async x=>await x;await use(a);try{await use(p);}catch(e){}return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -177,7 +180,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                     .unwrap()
                     .wasm;
                 let mut run = AsyncInstance::new(&wasm, 4.0, reason).unwrap();
-                if [0, 18, 19, 21, 25, 26, 27, 28, 30, 31].contains(&index)
+                if [0, 18, 19, 21, 25, 26, 27, 28, 30, 31, 33, 34].contains(&index)
                     || (13..=16).contains(&index)
                 {
                     assert!(matches!(
@@ -186,7 +189,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                     ));
                     assert_eq!(
                         run.pending_job_count().unwrap(),
-                        usize::from([0, 19, 26, 28, 31].contains(&index))
+                        usize::from([0, 19, 26, 28, 31, 34].contains(&index))
                     );
                 }
                 let mut events = run.take_promise_notifications().unwrap();
@@ -212,9 +215,9 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         }
                     }
                 }
-                if [5, 6, 7, 17, 20, 22, 24, 29, 32].contains(&index) {
+                if [5, 6, 7, 17, 20, 22, 24, 29, 32, 35].contains(&index) {
                     assert!(unhandled.is_empty(), "{body}");
-                    if [6, 7, 17, 20, 22, 24, 29, 32].contains(&index) {
+                    if [6, 7, 17, 20, 22, 24, 29, 32, 35].contains(&index) {
                         assert_eq!(events.len(), 2);
                     } else {
                         assert!(events.is_empty());
@@ -234,7 +237,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (4, Value::Boolean(true)) => {}
                         (
                             0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19 | 21 | 23 | 25
-                            | 26 | 27 | 28 | 30 | 31,
+                            | 26 | 27 | 28 | 30 | 31 | 33 | 34,
                             Value::Number(x),
                         ) => {
                             assert!(

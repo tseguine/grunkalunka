@@ -24,11 +24,15 @@ impl Inputs {
         self.mixed.contains(symbol)
     }
     pub(super) fn is_fulfilled(&self, symbol: &SymbolId) -> bool {
-        self.fulfilled.contains(symbol) && !self.pending.contains(symbol)
+        self.fulfilled.contains(symbol)
+            && !self.pending.contains(symbol)
+            && !self.mixed.contains(symbol)
     }
 
     pub(super) fn parameter(&self, symbol: &SymbolId) -> Option<Type> {
-        if self.pending.contains(symbol) {
+        if self.mixed.contains(symbol) {
+            Some(Type::AsyncValue)
+        } else if self.pending.contains(symbol) {
             Some(Type::Promise)
         } else if self.fulfilled.contains(symbol) {
             Some(Type::FulfilledPromise)
@@ -292,6 +296,26 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
         targets: &targets,
         arrows: &arrows,
     };
+    if identities {
+        // Actual inputs join the same original-source provenance graph as local
+        // initializers/writes. Resolving targets never evaluates an argument.
+        for call in &calls {
+            let Some(bodies) = callees(&call.callee, &returns) else {
+                continue;
+            };
+            for body in bodies {
+                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                {
+                    if let BindingPattern::BindingIdentifier(binding) = &parameter.pattern
+                        && let (Some(symbol), Some(expression)) =
+                            (binding.symbol_id.get(), argument.as_expression())
+                    {
+                        definitions.push((symbol, expression));
+                    }
+                }
+            }
+        }
+    }
     let mut promises = BTreeSet::new();
     loop {
         let mut additions = Vec::new();

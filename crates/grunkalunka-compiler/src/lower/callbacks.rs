@@ -817,6 +817,7 @@ fn refine_shapes<'a>(
                 } else {
                     arguments.push(match actual {
                         Some(signature) => Type::Closure(signature),
+                        None if expected == Some(Type::AsyncValue) => Type::AsyncValue,
                         None if expected == Some(Type::Promise) => Type::Promise,
                         None if expected == Some(Type::FulfilledPromise) => Type::FulfilledPromise,
                         None if expected == Some(Type::General) => Type::General,

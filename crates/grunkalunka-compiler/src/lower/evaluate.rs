@@ -584,6 +584,8 @@ impl Lowering<'_, '_> {
     ) -> Mode {
         if self.pending_promise_shape(expression, depth) {
             Mode::Pending
+        } else if self.has_promise_choice(expression, depth) {
+            Mode::AsyncValue
         } else if self.fulfilled_promise_shape(expression, depth) {
             Mode::Promise
         } else if self.numeric_result_shape(expression, depth) {
@@ -1231,7 +1233,9 @@ impl Lowering<'_, '_> {
                             site,
                         });
                         if !callback {
-                            let mode = if parameter == Type::Promise {
+                            let mode = if parameter == Type::AsyncValue {
+                                Mode::AsyncValue
+                            } else if parameter == Type::Promise {
                                 Mode::Pending
                             } else if parameter == Type::FulfilledPromise {
                                 Mode::Promise
