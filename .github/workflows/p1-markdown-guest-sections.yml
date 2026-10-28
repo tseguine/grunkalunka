@@ -72,12 +72,14 @@ jobs:
           const assert = require('node:assert/strict');
           const [path, output] = process.argv.slice(2);
           const bytes = fs.readFileSync(path);
-          assert.ok(bytes.length > 0 && bytes.length <= 48 * 1024);
+          assert.ok(bytes.length > 0 && bytes.length <= 256 * 1024);
           const report = JSON.parse(bytes.toString('utf8'));
           assert.equal(report.workload, 'p1-markdown-guest-wasm-sections');
           assert.deepEqual([report.environment.os, report.environment.arch], ['linux', 'x64']);
           assert.match(report.artifact.sha256, /^[a-f0-9]{64}$/);
           assert.ok(report.sections.some(x => x.id === 10));
+          assert.ok(report.codeBodies.count >= 1 && report.codeBodies.count <= 4096);
+          assert.equal(report.codeBodies.lengths.length, report.codeBodies.count);
           fs.appendFileSync(output, 'report64=' + bytes.toString('base64') + '\n');
           console.log('PASS Linux Markdown guest section receipt ' +
             JSON.stringify({ artifact: report.artifact, sections: report.sections }));
@@ -157,7 +159,7 @@ jobs:
           const encoded = process.env.ORIGINAL_REPORT64 ?? '';
           assert.match(encoded, /^[A-Za-z0-9+/]+={0,2}$/);
           const bytes = Buffer.from(encoded, 'base64');
-          assert.ok(bytes.length > 0 && bytes.length <= 48 * 1024);
+          assert.ok(bytes.length > 0 && bytes.length <= 256 * 1024);
           assert.equal(bytes.toString('base64'), encoded);
           fs.writeFileSync(process.argv[2], bytes, { flag: 'wx' });
           NODE
@@ -176,6 +178,16 @@ jobs:
           assert.equal(result.receiver.os, process.env.EXPECTED_JS_OS);
           assert.equal(result.receiver.arch, process.env.EXPECTED_JS_ARCH);
           assert.equal(result.sameObservedRustcVersion, true);
-          console.log('PASS independent Markdown guest section comparison');
+          const bodies = result.codeBodyComparison;
+          assert.ok(bodies, 'real code-body fingerprints required on both hosts');
+          assert.ok(bodies.producerCount >= 1 && bodies.receiverCount >= 1);
+          if (bodies.indicesComparable) {
+            assert.ok(bodies.changedCount >= 0 &&
+              bodies.changedCount <= bodies.producerCount);
+            assert.ok(bodies.firstChangedDefinedFunctionIndices.length <= 24);
+          } else {
+            assert.equal(bodies.changedCount, null);
+          }
+          console.log('PASS independent Markdown guest section and code-body comparison');
           console.log(JSON.stringify(result));
           NODE
