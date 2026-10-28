@@ -7,6 +7,9 @@ local closure aliases.
 Known primitive async arrows have a separate [directly awaited call slice](async.md#suspension-and-host-jobs);
 they are not ordinary runtime closure values.
 Parentheses and erased TypeScript wrappers preserve their runtime meaning.
+Known local arrow and runtime closure calls also erase call-site type arguments;
+the metadata cannot establish a runtime signature or change the saved callee,
+argument order or async reactions. See [the bounded contract](async.md#closure-call-site-type-arguments).
 Scalar side effects can precede a constructor in a comma expression. Calls through
 the resulting identifier or alias use an exact logical signature with Number,
 represented primitive General and finite scalar-result callback arguments. Concise synchronous bodies can return Number,

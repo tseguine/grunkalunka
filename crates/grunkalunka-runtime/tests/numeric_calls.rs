@@ -57,6 +57,31 @@ fn known_local_arrows_preserve_primitive_inputs() {
 }
 
 #[test]
+fn local_call_type_arguments_preserve_numeric_and_primitive_execution() {
+    for body in [
+        "const f=x=>x;return f(a);",
+        "let x=a;const f=(y,z)=>y+z;return f(x,x=b)+x;",
+        "const f=x=>+x;return f(null);",
+        "const make=x=>()=>x;const f=make(a);return f();",
+        "const f=()=>a,g=()=>b;const selected=a?f:g;return selected();",
+    ] {
+        let plain = format!("export function run(a,b){{{body}}}");
+        let typed = plain
+            .replace("f(", "f<Missing>(")
+            .replace("make(", "make<never>(")
+            .replace("selected(", "selected<typeof absent>(");
+        for compiler in [compile, compile_value] {
+            assert_eq!(
+                compiler(&plain, false).unwrap().wasm,
+                compiler(&typed, true).unwrap().wasm,
+                "{typed}"
+            );
+        }
+        compare_helper_sources(&[&plain]);
+    }
+}
+
+#[test]
 fn local_primitive_inputs_keep_existing_call_and_result_guards() {
     for source in [
         "export function run(a,b){const f=x=>+x;return f();}",

@@ -770,8 +770,9 @@ exact JS/TS guest bytes and compare native JS, Node-Wasm and Wasmtime outcomes,
 including primitive conversion, signed zero/fractions, surplus effects, await
 snapshots and failure. Five original TS corpus exclusions are now executable
 pairs with frozen source hashes and explicit JS oracles; the remaining rejection
-inventory has 844 records. Ordinary helper call-site type arguments remain gaps;
-heap JSON types erase in its [separate profile](heap-literals.md). The Math
+inventory has 844 records. Direct numeric module and runtime function-result
+call-site type arguments remain gaps; heap JSON and local/runtime closure calls
+erase them under their separate contracts. The Math
 implementation removes only one shared source-admission guard.
 
 ## Heap JSON call-site type erasure (2026-10-28)
@@ -784,3 +785,15 @@ ordinary-argument, binding, source or expression limits. Ten compiler tests and
 composed Node-Wasm and Wasmtime behavior, with 17,000 calls per guest execution
 path and explicit result ownership. This adds no shared-IR/async heap support or
 general array/object construction; see [the bounded contract](heap-literals.md).
+
+## Local and runtime closure call-site type erasure (2026-10-28)
+
+Known local arrow and represented runtime closure calls erase TypeScript call-site
+metadata, including async closures and named async helpers. Four async groups and
+a numeric/primitive group check exact JS/TS guest bytes and native JS/Node-Wasm/
+Wasmtime behavior for aliases, selections, callbacks, captures, callee and argument
+snapshots, surplus failure, reactions and admission/source limits. An older exact
+Promise local-call rejection is promoted unchanged. Two shared admission guards
+change; no IR, runtime protocol, dependency or budget change. Separate numeric
+module-call and runtime function-result metadata guards remain open. See
+[the contract](async.md#closure-call-site-type-arguments).

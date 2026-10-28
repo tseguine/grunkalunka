@@ -170,6 +170,18 @@ fn math_type_arguments_keep_runtime_bindings_and_admission_limits() {
             assert!(compile(&typed, true).err().unwrap().contains("1000"));
         }
     }
+    let plain = "export function run(a,b){const f=x=>x;return f(a);}";
+    let typed = "export function run(a,b){const f=x=>x;return f<never>(a);}";
+    for compiler in [compile, compile_value] {
+        assert_eq!(
+            compiler(plain, false).unwrap().wasm,
+            compiler(typed, true).unwrap().wasm
+        );
+    }
+    compare_typed(
+        &source_for("const f=x=>x;return f(a);"),
+        &source_for("const f=x=>x;return f<never>(a);"),
+    );
     for body in [
         "const Math=a;return Math.abs<never>(b);",
         "return Math.random<never>(a);",
@@ -182,7 +194,6 @@ fn math_type_arguments_keep_runtime_bindings_and_admission_limits() {
         "return Math.abs<never>(1n);",
         "return Math.abs<never>(absent);",
         "Math.abs=a;return Math.abs<never>(b);",
-        "const f=x=>x;return f<never>(a);",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         assert!(compile(&source, true).is_err(), "{source}");
