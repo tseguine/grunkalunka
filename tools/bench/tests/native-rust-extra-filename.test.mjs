@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { arch, platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -88,6 +88,7 @@ test('two distinct -C extra-filename values compile and execute independently', 
   try {
     const sourceFile = join(directory, 'no_std.rs');
     const output = join(directory, 'out');
+    await mkdir(output);
     await writeFile(sourceFile, canonicalSource, { flag: 'wx' });
     const observations = [];
     for (const suffix of variants) {
