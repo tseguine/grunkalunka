@@ -157,7 +157,9 @@ fn percentage_heights_json() -> String {
     ];
     for &(id, index, golden) in &expected {
         assert_eq!(
-            frame.boxes[index].expect("visible percentage-height box").border,
+            frame.boxes[index]
+                .expect("visible percentage-height box")
+                .border,
             golden,
             "independent native percentage-height geometry for {id}"
         );
