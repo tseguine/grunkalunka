@@ -31,6 +31,7 @@ verification receipts, not saved benchmark performance results.
 | Installed wasm32 Rust target-library identity | [#116](https://github.com/tseguine/grunkalunka/pull/116), [sysroot fingerprint experiment](p1-rust-wasm32-sysroot.md) | All **54** installed `wasm32-unknown-unknown` target-library files (103,517,873 bytes total) matched byte-for-byte across Linux x64, Windows x64 and native Apple Silicon ARM64 under observed Rust 1.99.1 and LLVM 23.1.1. This eliminates literal differences in those target files as a direct cause of the Markdown guest artifact divergence, not native host compiler, linker or build-environment differences |
 | Rust diagnostic function-name correlation | [#119](https://github.com/tseguine/grunkalunka/pull/119), [named-body experiment](p1-markdown-named-body-correlation.md) | All **1,897** Markdown guest functions had recorded diagnostic names on each host, but only **195 raw name occurrences** matched Linux on either Windows or Apple Silicon. Among those 195, **89** had matching raw bodies and **106** had changed body bytes. Compiler-emitted diagnostic names are not stable source-level identities, and these observations do not establish semantic incompatibility |
 | Rust legacy diagnostic hash-suffix controls | [#121](https://github.com/tseguine/grunkalunka/pull/121), [#123](https://github.com/tseguine/grunkalunka/pull/123), [name-format analysis](p1-markdown-named-body-correlation.md) | Across Linux, Windows and Apple Silicon, none of the **1,897** Markdown guest function names matched either tested legacy terminal hash pattern (readable `::h` with 16 lowercase hexadecimal digits or mangled `17h` with 16 digits and `E`). Each host had **1,888 v0-mangled-like** and **9 other** names. Both controls left raw cross-host name overlap at **195**. These are narrow syntactic exclusions, not authenticated v0 parsing or evidence of equivalent code |
+| Native Linux source-checkout path control | [#127](https://github.com/tseguine/grunkalunka/pull/127), [checkout/remap experiment](p1-markdown-checkout-path-control.md) | Two physically distinct clean Git checkouts of the same Markdown guest produced **identical 735,367-byte Wasm** on one Linux x64 host. With identical logical `--remap-path-prefix` destinations, the two independently built artifacts remained identical; within either checkout, remapping changed only the Wasm diagnostic `name` section and left **all 1,897 code bodies unchanged**. This rules out the physical checkout path *alone* as a sufficient cause on that host, not cross-OS source-path interactions or compiler differences |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -74,10 +75,13 @@ reports when explicitly run; the build system does not publish them.
   on either receiving host. Subsequent [#121](https://github.com/tseguine/grunkalunka/pull/121)
   and [#123](https://github.com/tseguine/grunkalunka/pull/123) found **zero**
   matches for two specific legacy Rust hash-suffix spellings, while identifying
-  **1,888 v0-mangled-like** symbols on each host. Native compiler/linker
-  behavior, v0 crate identity, encoded index references, source paths and
-  other build inputs still require investigation. No functional fault has
-  been established.
+  **1,888 v0-mangled-like** symbols on each host.
+  [#127](https://github.com/tseguine/grunkalunka/pull/127) separately found
+  that different physical source checkouts on the *same Linux host*
+  produced byte-identical guests; explicit Rust path remapping changed only
+  diagnostic names, not code bodies. Native compiler/linker behavior, v0
+  crate identity, encoded index references, cross-OS source paths and other
+  build inputs still require investigation. No functional fault is established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
