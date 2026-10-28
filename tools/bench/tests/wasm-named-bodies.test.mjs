@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { inspectWasmSections } from '../wasm-section-fingerprint.mjs';
 import {
-  extractNamedBodyHashes, compareNamedBodyReceipts,
+  extractNamedBodyHashes, compareNamedBodyReceipts, stripTerminalRustHash,
 } from '../wasm-named-bodies.mjs';
 
 const magic = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
@@ -143,4 +143,104 @@ test('rejects truncated name sections and corrupt transferred hashes', () => {
   b.namedBodies.nameDigestsBase64 = a.namedBodies.nameDigestsBase64;
   b.namedBodies.mappedCount = 0;
   assert.throws(() => compareNamedBodyReceipts(a, b), /bounded named function vector/);
+});
+
+
+test('strict Rust terminal hash normalization strips only the supported spelling', () => {
+  assert.equal(stripTerminalRustHash('crate::item::h0123456789abcdef'), 'crate::item');
+  assert.equal(stripTerminalRustHash('crate::item::hfedcba9876543210'), 'crate::item');
+  for (const unchanged of [
+    'crate::item',
+    'crate::item::h0123456789abcdeg',
+    'crate::item::h0123456789abcde',
+    'crate::item::h0123456789abcdef::closure',
+    'crate::item::H0123456789abcdef',
+    '::h0123456789abcdef',
+    '_RNvC0_4test4item',
+  ]) assert.equal(stripTerminalRustHash(unchanged), unchanged);
+  assert.throws(() => stripTerminalRustHash(null), /Invalid/);
+});
+
+test('matching names after removing Rust terminal hashes are counted separately', () => {
+  const bodies = [[0, 11], [0, 1, 11]];
+  const a = receipt(moduleBytes(bodies,
+    [[0, 'crate::item::h0123456789abcdef'], [1, 'shared']]));
+  const b = receipt(moduleBytes(bodies,
+    [[0, 'crate::item::hfedcba9876543210'], [1, 'shared']]),
+    'win32');
+  const report = compareNamedBodyReceipts(a, b);
+  assert.equal(report.sharedNameOccurrences, 1);
+  assert.equal(report.sharedNameAndExactBodyOccurrences, 1);
+  assert.deepEqual({
+    method: report.terminalRustHashControl.method,
+    producer: report.terminalRustHashControl.producerSuffixesStripped,
+    receiver: report.terminalRustHashControl.receiverSuffixesStripped,
+    shared: report.terminalRustHashControl.normalizedSharedNameOccurrences,
+    sharedExact: report.terminalRustHashControl.normalizedSharedNameAndExactBodyOccurrences,
+    additional: report.terminalRustHashControl.additionalNameMatchesAfterNormalization,
+    additionalExact: report.terminalRustHashControl.additionalNameAndExactBodyMatchesAfterNormalization,
+  }, {
+    method: 'rust-legacy-terminal-hex-hash-v1',
+    producer: 1, receiver: 1, shared: 2, sharedExact: 2,
+    additional: 1, additionalExact: 1,
+  });
+});
+
+test('equal normalized names with changed code do not count as matching bodies', () => {
+  const a = receipt(moduleBytes([[0, 11]],
+    [[0, 'crate::item::h0123456789abcdef']]));
+  const b = receipt(moduleBytes([[0, 1, 11]],
+    [[0, 'crate::item::hfedcba9876543210']]), 'darwin', 'arm64');
+  const report = compareNamedBodyReceipts(a, b).terminalRustHashControl;
+  assert.equal(report.normalizedSharedNameOccurrences, 1);
+  assert.equal(report.normalizedSharedNameAndExactBodyOccurrences, 0);
+  assert.equal(report.additionalNameMatchesAfterNormalization, 1);
+  assert.equal(report.additionalNameAndExactBodyMatchesAfterNormalization, 0);
+});
+
+test('suffix normalization preserves multiplicity when names collapse', () => {
+  const a = receipt(moduleBytes([[0, 11], [0, 11], [0, 11]],
+    [[0, 'item::h0123456789abcdef'], [1, 'item::hfedcba9876543210'],
+      [2, 'other']]));
+  const b = receipt(moduleBytes([[0, 11], [0, 11], [0, 11]],
+    [[0, 'item::h1111111111111111'], [1, 'other'],
+      [2, 'item::h2222222222222222']]), 'win32');
+  const report = compareNamedBodyReceipts(a, b);
+  assert.equal(report.sharedNameOccurrences, 1);
+  assert.equal(report.terminalRustHashControl.normalizedSharedNameOccurrences, 3);
+  assert.equal(report.terminalRustHashControl.normalizedSharedNameAndExactBodyOccurrences, 3);
+  assert.equal(report.terminalRustHashControl.additionalNameMatchesAfterNormalization, 2);
+});
+
+test('old raw-only reports remain supported while one-sided normalization is rejected', () => {
+  const bytes = moduleBytes([[0, 11]], [[0, 'legacy']]);
+  const a = receipt(bytes), b = receipt(bytes, 'win32');
+  delete a.namedBodies.normalization;
+  delete b.namedBodies.normalization;
+  assert.equal(compareNamedBodyReceipts(a, b).terminalRustHashControl, null);
+  b.namedBodies.normalization = extractNamedBodyHashes(bytes, 1).normalization;
+  assert.throws(() => compareNamedBodyReceipts(a, b),
+    /both hosts must provide normalized name observations/);
+});
+
+test('rejects forged suffix counts, missing slot changes and incomplete normalized digests', () => {
+  const bytes = moduleBytes([[0, 11], [0, 11]],
+    [[0, 'item::h0123456789abcdef']]);
+  const a = receipt(bytes), b = receipt(bytes, 'win32');
+  b.namedBodies.normalization.matchingTerminalSuffixCount = 0;
+  assert.throws(() => compareNamedBodyReceipts(a, b),
+    /consistent number of normalized name hashes/);
+  b.namedBodies.normalization.matchingTerminalSuffixCount = 1;
+  b.namedBodies.normalization.normalizedNameDigestsBase64 = 'incorrect base64!';
+  assert.throws(() => compareNamedBodyReceipts(a, b),
+    /bounded terminal Rust hash normalization receipt/);
+  b.namedBodies.normalization.normalizedNameDigestsBase64 =
+    Buffer.from([1]).toString('base64');
+  assert.throws(() => compareNamedBodyReceipts(a, b),
+    /complete canonical normalized name hash vector/);
+  const digest = Buffer.from(a.namedBodies.normalization.normalizedNameDigestsBase64, 'base64');
+  digest.fill(2, 32, 64);
+  b.namedBodies.normalization.normalizedNameDigestsBase64 = digest.toString('base64');
+  assert.throws(() => compareNamedBodyReceipts(a, b),
+    /unchanged presence of optional function names/);
 });

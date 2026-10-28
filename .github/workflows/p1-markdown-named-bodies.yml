@@ -84,6 +84,11 @@ jobs:
           assert.ok(report.namedBodies.mappedCount > 0);
           assert.equal(report.namedBodies.mappedCount + report.namedBodies.missingCount,
             report.namedBodies.count);
+          assert.equal(report.namedBodies.normalization.method,
+            'rust-legacy-terminal-hex-hash-v1');
+          assert.ok(report.namedBodies.normalization.matchingTerminalSuffixCount >= 0);
+          assert.ok(report.namedBodies.normalization.matchingTerminalSuffixCount <=
+            report.namedBodies.mappedCount);
           fs.appendFileSync(outputFile, 'receipt64=' + bytes.toString('base64') + '\n');
           console.log('PASS Linux Markdown names/body provenance ' +
             JSON.stringify({artifact:report.artifact,functions:report.namedBodies.count,
@@ -194,6 +199,24 @@ jobs:
             Math.min(report.producer.namesPresent, report.receiver.namesPresent));
           assert.equal(report.sharedNameOccurrencesWithoutExactBodyMatch +
             report.sharedNameAndExactBodyOccurrences, report.sharedNameOccurrences);
-          console.log('PASS native Markdown named-function raw body comparison');
+          const normalized = report.terminalRustHashControl;
+          assert.ok(normalized, 'both native guests must report suffix observations');
+          assert.equal(normalized.method, 'rust-legacy-terminal-hex-hash-v1');
+          assert.ok(normalized.producerSuffixesStripped >= 0 &&
+            normalized.producerSuffixesStripped <= report.producer.namesPresent);
+          assert.ok(normalized.receiverSuffixesStripped >= 0 &&
+            normalized.receiverSuffixesStripped <= report.receiver.namesPresent);
+          assert.ok(normalized.normalizedSharedNameOccurrences >=
+            report.sharedNameOccurrences);
+          assert.ok(normalized.normalizedSharedNameAndExactBodyOccurrences >=
+            report.sharedNameAndExactBodyOccurrences);
+          assert.ok(normalized.normalizedSharedNameAndExactBodyOccurrences <=
+            normalized.normalizedSharedNameOccurrences);
+          assert.equal(normalized.additionalNameMatchesAfterNormalization,
+            normalized.normalizedSharedNameOccurrences - report.sharedNameOccurrences);
+          assert.equal(normalized.additionalNameAndExactBodyMatchesAfterNormalization,
+            normalized.normalizedSharedNameAndExactBodyOccurrences -
+            report.sharedNameAndExactBodyOccurrences);
+          console.log('PASS native Markdown named-body and terminal Rust hash-tail comparison');
           console.log(JSON.stringify(report));
           NODE

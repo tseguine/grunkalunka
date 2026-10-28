@@ -76,3 +76,47 @@ and equivalent code transformations all affect raw hashes. This analysis
 does not decode/normalize instructions or independently attest the Rust
 compiler. It measures no performance or guest-attributed memory, uploads
 no binaries and changes no application/compiler/runtime sources.
+
+## Narrow Rust terminal hash-suffix control
+
+The [exact-head #119 hosted experiment](https://github.com/tseguine/grunkalunka/actions/runs/40701176158)
+observed a name entry for every one of the 1,897 defined functions on Linux,
+Windows and Apple Silicon. However, relative to Linux, **each receiver shared
+only 195 exact raw diagnostic function-name occurrences**. Of those shared
+names, 89 also had identical raw bodies and 106 had changed raw bodies. This
+does not establish that the other 1,702 functions represent different source
+functions: diagnostic names can embed build-specific symbol disambiguators.
+
+As a controlled follow-up, the same bounded analyzer now computes a **second,
+separate diagnostic name fingerprint** after applying precisely one
+textual transformation:
+
+```text
+<nonempty prefix>::h<exactly 16 lowercase hexadecimal digits>
+    → <nonempty prefix>
+```
+
+Only a *terminal* Rust legacy-style hash suffix is removed. Embedded hashes,
+uppercase suffixes, shorter/longer hashes, raw Rust v0-mangled symbols and
+other names are **not** modified. The original raw name digest remains
+available and the tool records how many names matched this narrow pattern
+on each host. Missing optional names stay missing.
+
+The native Linux x64, Windows x64 and Apple Silicon ARM64 workflow now
+compares both raw and transformed name **multisets**, preserving duplicate
+occurrences. It additionally compares exact name-plus-body occurrences,
+so matching a transformed name need not imply that raw code bytes match.
+The output reports how many additional matches arise after this precise
+normalization. A change in match counts is recorded, **not** used as a
+pass/fail similarity target.
+
+This is a diagnostic heuristic. Two genuinely different functions may
+collapse to one transformed name; conversely, compiler symbol naming
+may differ in ways this transformation cannot address. The hashed
+transformed names do not establish source-level identity or independently
+attest the compiler's mangling. The experiment does not normalize Wasm
+instructions, function-index immediates, or run a performance comparison.
+The existing named-body parser's bounds and import-free restriction remain
+in effect; older receipts containing only raw names remain readable, but
+one-sided normalization reports fail closed rather than silently comparing
+different kinds of evidence.
