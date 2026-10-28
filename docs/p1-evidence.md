@@ -39,6 +39,9 @@ verification receipts, not saved benchmark performance results.
 | Actual Cargo-generated per-crate metadata inputs | [#139](https://github.com/tseguine/grunkalunka/pull/139), [real Rust invocation inventory](p1-native-cargo-rustc-metadata.md) | Native Cargo `-vv` builds on Linux x64, Windows x64 and Apple Silicon ARM64 confirmed that **four of five observed crate/target groups** received different generated `-C metadata` and `-C extra-filename` arguments, including native `build_script_build` and wasm32 `pulldown_cmark`, `grunkalunka_markdown`, and `outline_guest`; only `unicase` matched. These generated values remained different even when the **same explicit** `-C metadata=p1crosshostfixed` argument was appended. This establishes a real differing compiler input, not which difference caused the final artifact bytes or runtime behavior |
 | Standalone Rust initialized-data localization | [#141](https://github.com/tseguine/grunkalunka/pull/141), [native Wasm witness and data-chunk guide](p1-rust-standalone-native.md) | Independently built native Rust fixtures retained **5/5** and **98/98** identical raw function bodies on Windows compared with Linux, while data section 11 differed. The no-std fixture has **one differing 256-byte chunk containing 105 initialized bytes**; the std allocation fixture has **one differing chunk (index 10 of segment 0) among 16 chunks containing 4,010 initialized bytes**. Apple Silicon remained byte-identical to Linux. These are bounded chunk/section identities, not inferred data semantics |
 | Cargo build-script generated-output identity | [#144](https://github.com/tseguine/grunkalunka/pull/144), [Cargo JSON build-script guide](p1-native-cargo-build-script.md) | The actual `pulldown-cmark@0.13.5` build script emitted **zero generated files/bytes, cfg values, rustc-env values or linker directives** on each of Linux x64, Windows x64 and Apple Silicon ARM64. Those observed outputs matched across hosts even though final guest binaries and Cargo-generated compiler metadata differed. This rules out differing emitted build-script output contents for that observed package, not differing crate metadata, native compiler behavior, or other inputs |
+| Actual native Cargo metadata replacement control | [#147](https://github.com/tseguine/grunkalunka/pull/147), [native override experiment](p1-native-cargo-metadata-override.md) | Replacing **Cargo-generated** wasm32 `-C metadata` values for four selected crates with fixed crate-specific values increased raw body multiset overlap against Linux from **945 to 1,429** on Windows and **913 to 1,428** on Apple Silicon (out of 1,896 normalized functions). Function and element sections then matched Linux; code, data and diagnostic names still differed. Replacing the native build-script metadata did not change the resulting Wasm. This is a causal, selected-input control, not total build reproducibility or a production configuration |
+| Two additional Wasm dependency metadata controls | [#152](https://github.com/tseguine/grunkalunka/pull/152), [remaining metadata experiment](p1-native-cargo-remaining-wasm-metadata.md) | `bitflags` and `memchr` **already had identical Cargo-generated metadata on all three hosts**. Replacing these two values after the first four changed code bytes within each native host but **did not** improve cross-host raw body overlap (still **1,429** Windows and **1,428** Apple Silicon) or make any complete guest identical. `-C extra-filename`, other native compiler/linker inputs and cross-host semantic behavior remain untested |
+| Canonical P1 regression migration | [#157](https://github.com/tseguine/grunkalunka/pull/157), [#163](https://github.com/tseguine/grunkalunka/pull/163), [normal P1 test coverage](p1-ci-tests.md) | The prior **19 dedicated experimental PR workflows** were retired after the P1 unit/receipt suites and native GCD/affine portability checks became standard dependency-selected tests on each native CI host. The original optional cross-host artifact-transfer and metadata experiments are still reproducible manually, but **are not** ongoing automatic cross-host verification or an extra merge gate |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -109,8 +112,8 @@ reports when explicitly run; the build system does not publish them.
   Cargo rustc invocations on all three native hosts: **four of five** observed
   crate/target groups received different generated `-C metadata` and
   `-C extra-filename` arguments despite the same explicit requested flag.
-  Thus the cross-host compiler inputs really differ; the effect of those
-  particular values on emitted Wasm remains to be isolated.
+  Thus the cross-host compiler inputs really differ; subsequent #147 and #152
+  experiments below isolate part, but not all, of their effect on emitted Wasm.
   [#141](https://github.com/tseguine/grunkalunka/pull/141) localized
   Windows-only differences in two smaller Rust fixtures to **one initialized
   data chunk per fixture**, with all raw function bodies identical; the
@@ -118,6 +121,22 @@ reports when explicitly run; the build system does not publish them.
   experiment showed **identical empty build-script generated outputs**
   across all three hosts. Neither identifies the remaining metadata/linker
   cause or demonstrates a functional defect.
+  [#147](https://github.com/tseguine/grunkalunka/pull/147) subsequently
+  replaced the actual generated wasm32 metadata of four selected crates
+  (rather than appending another flag). That increased exact raw body
+  overlap with Linux from **945 to 1,429** on Windows and **913 to 1,428**
+  on Apple Silicon, while equalizing the standard function/element sections.
+  Neither the native build-script metadata substitution nor the subsequent
+  [#152](https://github.com/tseguine/grunkalunka/pull/152) substitution of
+  the already-cross-host-equal `bitflags` and `memchr` generated metadata
+  resolved the remaining code/data/name differences. In particular, the
+  selected wasm32 metadata substitutions contributed causally under
+  this experimental wrapper; they did **not** explain the entire artifact
+  difference. Cargo `-C extra-filename` and other native/compiler/linker
+  inputs remain live hypotheses. [#163](https://github.com/tseguine/grunkalunka/pull/163)
+  retired the experimental Actions runners after corresponding canonical
+  P1 tests were added; historical cross-host findings are not continuous
+  CI guarantees.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
