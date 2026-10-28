@@ -143,13 +143,25 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     "callback argument requires a function with the inferred signature",
                 ));
             }
-            if self.promise_parameters.contains(&symbol) && input_type != Type::FulfilledPromise {
+            if self.promise_parameters.is_fulfilled(&symbol) && input_type != Type::FulfilledPromise
+            {
                 return Err(unsupported(
                     parameter,
                     "fulfilled Promise parameters require Promise arguments",
                 ));
             }
-            let ty = if matches!(input_type, Type::Closure(_) | Type::FulfilledPromise) {
+            if self.promise_parameters.parameter(&symbol) == Some(Type::Promise)
+                && input_type != Type::Promise
+            {
+                return Err(unsupported(
+                    parameter,
+                    "pending Promise parameters require Promise identity arguments",
+                ));
+            }
+            let ty = if matches!(
+                input_type,
+                Type::Closure(_) | Type::FulfilledPromise | Type::Promise
+            ) {
                 input_type
             } else if input_type == Type::General || self.general_bindings.contains(&symbol) {
                 Type::General
@@ -237,13 +249,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 arguments.push(check.value(Type::Closure(*arity)));
                 continue;
             }
-            if self
+            if let Some(ty) = self
                 .promise_parameters
-                .contains(&identifier.symbol_id.get().expect("parameter symbol"))
+                .parameter(&identifier.symbol_id.get().expect("parameter symbol"))
             {
                 // Disposable type-only input, like callback pairs above; actual
                 // calls must provide a fully defined, verified Promise value.
-                arguments.push(check.value(Type::FulfilledPromise));
+                arguments.push(check.value(ty));
                 continue;
             }
             let value = check.value(Type::Number);

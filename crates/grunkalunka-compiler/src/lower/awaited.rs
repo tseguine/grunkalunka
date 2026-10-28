@@ -245,7 +245,7 @@ impl Lowering<'_, '_> {
                             .and_then(|reference| {
                                 self.semantic.scoping().get_reference(reference).symbol_id()
                             })
-                            .filter(|symbol| self.promise_parameters.contains(symbol))
+                            .filter(|symbol| self.promise_parameters.is_fulfilled(symbol))
                             .map(|_| true)
                     })
             },

@@ -225,7 +225,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub settled_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub async_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub callback_parameters: &'s callbacks::Parameters,
-    pub promise_parameters: &'s std::collections::BTreeSet<SymbolId>,
+    pub promise_parameters: &'s promises::Inputs,
     pub bindings: Vec<NumericBinding>,
     pub slots: Vec<Slot>,
     pub values: Vec<Type>,

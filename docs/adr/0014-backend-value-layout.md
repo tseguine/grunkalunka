@@ -269,7 +269,8 @@ The contracts follow the primitive portion of
 [FulfillPromise and reaction triggering](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-fulfillpromise)
 and [PerformPromiseThen](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-performpromisethen).
 This does not implement general resolution/adoption or thenable assimilation.
-The handled bit is not host unhandled-rejection reporting.
+The handled bit alone is not host unhandled-rejection reporting; the tracking
+events and adapter bridge are described in ADR 0013.
 
 Alternatives were a host-only Promise table, which would make standalone Wasm
 semantics depend on host objects, and batching the whole ready queue behind one
@@ -294,5 +295,18 @@ arena exhaustion in Wasmtime/Node. Queue capacity is arena-bounded; the existing
 32-site/32-job public profile limits are unchanged. Source pending storage now uses
 these handles; adoption, GC and performance improvements are not claimed. The
 additive host scheduler count API describes ready work independently of root
-settlement. Host unhandled-child notifications remain a demonstrated gap after
-source admission, as recorded in ADR 0013.
+settlement. Ordered host child-rejection/handled notifications now connect the
+guest to Node checkpoint reporting and Wasmtime's consuming event API, as recorded
+in ADR 0013.
+
+Source pending input provenance now chooses the existing `Promise` kind for
+homogeneous private parameters, independently of erased annotations. Original
+constructors, aliases, assignments and call origins propagate over finite source
+symbols; every actual call and body is still checked against its chosen signature.
+Known calls, runtime callbacks, captured formals and synchronous forwarders retain
+the handle without a representation change. This extends source admission, not
+the IR/backend ABI. Mixed pending/scalar or pending/snapshot inputs and async-return
+adoption still require later work. Source tests check snapshots, eager effects,
+primitive rejection and reaction order in Node and Wasmtime, execute 32-parameter
+calls and separately check 1,000/1,001-parameter admission. Wide admission does not
+promise execution within the existing default per-call fuel budget.

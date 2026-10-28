@@ -379,10 +379,20 @@ export async function run(a, b) {
 The argument runs before all extras; extras may mutate captures or suspend before
 the caller registers its await. Captured callee pairs and argument snapshots
 survive this work. This is the existing-Promise identity case, not general adoption.
-Mixed identity/snapshot storage, arbitrary pending parameter inference, identity
+Mixed identity/snapshot storage, mixed pending/scalar parameter domains, identity
 comparison, primitive coercion and returning a Promise for async adoption remain
 explicit source gaps. Immediate non-suspending async closures retain their
 fulfilled/settled snapshot contracts.
+
+Homogeneous pending inputs now follow positive original-source provenance into
+private signatures. Known calls, runtime selection, higher-order callbacks and
+factories transport the same handle; captured formals and synchronous forwarding
+preserve it. Caller argument evaluation snapshots the handle before later actuals
+or surplus arguments can replace the caller's binding. Parameter reassignment may
+store another represented pending identity. Awaiting through the formal preserves
+primitive rejection handling and the caller's separate reaction. TypeScript
+annotations are erased, not used to infer these kinds. Async-return adoption and
+mixed pending/snapshot/scalar input interfaces remain separate gaps.
 
 Awaited primitive rejection reaches its lexical catch, including repeated and
 late awaits. Detached child rejections now produce host notifications. At `(4, 2)`

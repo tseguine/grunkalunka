@@ -498,7 +498,9 @@ impl Lowering<'_, '_> {
         expression: &Expression<'_>,
         depth: usize,
     ) -> Mode {
-        if self.fulfilled_promise_shape(expression, depth) {
+        if self.pending_promise_shape(expression, depth) {
+            Mode::Pending
+        } else if self.fulfilled_promise_shape(expression, depth) {
             Mode::Promise
         } else if self.numeric_result_shape(expression, depth) {
             Mode::Number
@@ -958,7 +960,9 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(
                                 expression,
                                 0,
-                                if closure.result == Type::SettledPromise {
+                                if closure.result == Type::Promise {
+                                    Mode::Pending
+                                } else if closure.result == Type::SettledPromise {
                                     Mode::Settled
                                 } else if closure.result == Type::FulfilledPromise {
                                     Mode::Promise
@@ -976,7 +980,9 @@ impl Lowering<'_, '_> {
                             let body = self.arrow_block_result(arrow, depth, closure.result)?;
                             let result = self.value(closure.result);
                             Self::push(regions.current(), node, Op::InlineCall { result, body });
-                            values.push(if closure.result == Type::SettledPromise {
+                            values.push(if closure.result == Type::Promise {
+                                Value::Pending(result)
+                            } else if closure.result == Type::SettledPromise {
                                 Value::Settled(result)
                             } else if closure.result == Type::FulfilledPromise {
                                 Value::Promise(result)
@@ -1087,7 +1093,9 @@ impl Lowering<'_, '_> {
                             site,
                         });
                         if !callback {
-                            let mode = if parameter == Type::FulfilledPromise {
+                            let mode = if parameter == Type::Promise {
+                                Mode::Pending
+                            } else if parameter == Type::FulfilledPromise {
                                 Mode::Promise
                             } else if parameter == Type::General {
                                 Mode::General

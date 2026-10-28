@@ -214,8 +214,20 @@ native rejected Promise proxies, leaving checkpoint reporting to the host;
 Wasmtime exposes `take_promise_notifications()` for an embedding's checkpoint
 policy. Awaiting a child later in the same checkpoint prevents a false unhandled
 event. See [pending source values](runtime-closures.md#pending-source-values). Adoption,
-mixed snapshot/identity storage, pending input inference and general payloads also
-remain open.
+mixed snapshot/identity storage and general payloads remain open.
+
+Pending identities can now be passed through homogeneous source parameters in
+known calls, runtime-selected functions, higher-order callbacks and factories.
+Positive facts follow original async constructors, bindings, aliases and call
+arguments to a fixed point; annotations supply no runtime evidence. Every actual
+argument and body must still match the inferred private signature. A parameter
+retains the passed handle across suspension, captures and later caller binding
+replacement. Synchronous helpers may return that same identity; async returns
+still require adoption and remain guarded. Fulfilled snapshots retain their
+separate representation. Mixed pending/scalar or pending/snapshot input domains
+remain unsupported. Tests execute 32-parameter calls and separately check the
+existing 1,000-parameter admission bound; wide admission is not a production-fuel
+guarantee.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;

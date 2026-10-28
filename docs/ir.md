@@ -789,9 +789,17 @@ then starts its prefix eagerly. Existing direct-await requests retain their old
 path. `Promise.resolve` of an existing represented identity preserves it while
 evaluating surplus arguments in order.
 
+Positive pending input facts now select `Promise` parameters in source private
+signatures. They follow original constructors, binding assignments, call argument
+origins and homogeneous synchronous returns. Known and runtime call evaluators
+request identity values for these parameters; definition checking uses the same
+kind. Captures and synchronous forwarding keep the existing i32 handle and its
+private frame/cell layout. This adds no IR operation or host call. Conflicting
+actual kinds remain rejected rather than implicitly packing a handle as a primitive.
+
 This does not complete Promise compatibility. Adoption, thenables, general
-payloads, source identity comparison, mixed snapshot/identity storage, pending
-parameter inference and independently escaping Promises remain open. Detached
+payloads, source identity comparison, mixed snapshot/identity storage, mixed
+pending/scalar input interfaces and independently escaping Promises remain open. Detached
 primitive rejection reporting is covered by
 [pending source values](runtime-closures.md#pending-source-values). Maintained IR
 tests compare complete native Promise/Node-Wasm microtask traces; separate runtime

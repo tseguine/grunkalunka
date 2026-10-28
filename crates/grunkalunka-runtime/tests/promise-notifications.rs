@@ -18,6 +18,7 @@ const BODIES: &[&str] = &[
     "const f=async()=>{await a;throw b;};const g=async()=>{await b;throw a;};f();g();return a;",
     "const f=async()=>{if(a){await a;}else{await a;await b;}throw b;};f();if(a){await a;await b;await a;await b;}return a;",
     "const f=async()=>{await a;throw b;};const g=async()=>{try{await f();}catch(e){throw e;}};g();return a;",
+    "const f=async()=>{await a;throw b;};const use=async p=>await p;use(f());return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -143,7 +144,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (2, Value::Null)
                         | (3, Value::Boolean(false))
                         | (4, Value::Boolean(true)) => {}
-                        (0 | 8 | 9 | 10, Value::Number(x)) => assert!(
+                        (0 | 8 | 9 | 10 | 11, Value::Number(x)) => assert!(
                             x.is_nan() && reason.is_nan() || x.to_bits() == reason.to_bits()
                         ),
                         _ => panic!("unexpected reason {first:?} in {body}"),

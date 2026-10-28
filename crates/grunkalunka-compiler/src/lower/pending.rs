@@ -31,7 +31,13 @@ impl Lowering<'_, '_> {
                 Expression::Identifier(id) => {
                     if !numeric_binding(id, self.semantic, &self.bindings)
                         .ok()
-                        .is_some_and(|b| self.slots[b.slot.0].ty == Type::Promise)
+                        .map(|b| self.slots[b.slot.0].ty == Type::Promise)
+                        .unwrap_or_else(|| {
+                            id.reference_id
+                                .get()
+                                .and_then(|r| self.semantic.scoping().get_reference(r).symbol_id())
+                                .is_some_and(|s| self.promise_parameters.values.contains(&s))
+                        })
                     {
                         return false;
                     }

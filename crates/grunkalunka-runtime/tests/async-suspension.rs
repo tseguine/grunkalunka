@@ -10,6 +10,9 @@ const ORIGINAL: &str = "export async function run(a,b) { return a + await Promis
 #[path = "async-suspension/pending.rs"]
 mod pending;
 
+#[path = "async-suspension/pending_inputs.rs"]
+mod pending_inputs;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
