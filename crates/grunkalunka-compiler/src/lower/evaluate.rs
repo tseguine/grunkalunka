@@ -2674,6 +2674,12 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if let Mode::Function(signature) = mode {
+                        if let Some(result) =
+                            self.named_async_value(node, depth, signature, regions.current())?
+                        {
+                            values.push(Value::Function(result));
+                            continue;
+                        }
                         if schedule_selection(&mut work, node, depth, mode)? {
                             continue;
                         }

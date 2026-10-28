@@ -9,6 +9,9 @@ use std::{
 #[path = "async-suspension/promoted_identities.rs"]
 mod promoted_identities;
 
+#[path = "async-suspension/named_async_notifications.rs"]
+mod named_async_notifications;
+
 #[path = "async-suspension/promise_relational_notifications.rs"]
 mod promise_relational_notifications;
 
@@ -280,6 +283,7 @@ fn node_reports_detached_child_rejections_like_native_promises() {
     for source in promoted_identities::SOURCES
         .iter()
         .chain(promise_relational_notifications::SOURCES)
+        .chain(named_async_notifications::SOURCES)
     {
         for typescript in [false, true] {
             cases.push(promoted_identity_case(source, typescript));

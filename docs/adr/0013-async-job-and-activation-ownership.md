@@ -305,3 +305,20 @@ tests cover overridden rejected returns and later handling. Host fuel/trap/job
 failures remain terminal and cannot be recovered by a source finalizer. No
 dependency, host ABI, kernel record, source-await/job/fuel limit or universal
 exception model is changed.
+
+## Named module async helper reuse (2026-10-28)
+
+Plain named async declarations in the async identity profile use the existing
+private async signature and AsyncClosureEntry marker with an empty capture list.
+MakeClosure selects the original semantic symbol's function ID, and the normal
+private async call route supplies fresh Promise and activation ownership. This
+keeps declaration hoisting, eager startup, argument snapshots, source catches,
+return adoption and recursive/concurrent captured-cell lifetimes on one path.
+
+The alternative of treating declarations as synchronous General-returning calls
+would lose Promise identity and body/caller reaction boundaries. A separate named
+coroutine implementation would duplicate the existing frame and queue protocol.
+The selected reuse changes no IR operation/type, physical frame, host ABI, job or
+fuel policy. Helper parameters stay Number; broader input domains remain separate.
+Maintained native/Node-Wasm/Wasmtime and rejection-checkpoint tests exercise this
+bounded extension; see [the contract and limits](../async-named-helpers.md).

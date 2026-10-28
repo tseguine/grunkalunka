@@ -1972,7 +1972,9 @@ No dependency, Promise-object representation or host ABI was added.
 The root async entry also fulfills intrinsic Undefined on bare return or normal
 completion. Lowering adds that result only to normal paths, preserving existing
 return/throw alternatives and await/catch reaction jobs. Numeric and primitive
-entries and named helpers keep their explicit completion rules. Source bindings
+entries and synchronous named helpers keep their explicit completion rules. Named
+async helpers share async completion and adoption; see
+[their bounded contract](async-named-helpers.md). Source bindings
 and TypeScript return claims cannot replace the synthesized result.
 
 Existing synchronous Number source helpers are also available in async programs.

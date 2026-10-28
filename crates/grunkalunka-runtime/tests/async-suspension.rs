@@ -67,6 +67,9 @@ mod finally;
 #[path = "async-suspension/number_coercion.rs"]
 mod number_coercion;
 
+#[path = "async-suspension/named_async.rs"]
+mod named_async;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
