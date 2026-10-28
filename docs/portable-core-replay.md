@@ -72,3 +72,31 @@ exact binary64 goldens. It also checks explicit Node-only mode, malformed
 manifest data and changed Wasm bytes. No shared CI runner or new dependencies
 are added. P1 remains in progress pending actual ARM64 observations, broader
 workloads and comparable measured application costs.
+
+## Optional x64-to-ARM64 hosted execution
+
+The dedicated [P1 cross-architecture workflow](../.github/workflows/p1-portable-arm64.yml)
+is separate from the required three-platform x64 CI. It uses a standard
+`ubuntu-24.04` x64 producer and `ubuntu-24.04-arm` Linux ARM64 receiver,
+with Node **24.22.1** selected on both. Only changes to that workflow itself
+trigger this optional PR smoke; it can also be dispatched manually after merge.
+The existing Windows, Linux and **Intel macOS** canonical gates are unchanged.
+
+The producer builds the existing native compiler, compiles the checked-in GCD
+source once, validates that output with Node/V8 and passes the exact Wasm bytes,
+manifest and SHA-256 through bounded ephemeral **GitHub job outputs**.
+No artifact upload action, release or persistent benchmark record is added.
+The ARM64 job verifies the transferred hash, its native aarch64 architecture,
+and Node's ARM64 identity. It builds an ARM64 native Wasmtime CLI, then replays
+the **same x64-produced bytes** in Node/V8 and Wasmtime without recompiling
+GCD source. The exact binary64 golden results and receipt hashes are checked,
+and the receiver report is printed into the job log.
+
+A successful ARM64 run would establish **only that core-Wasm GCD fixture**
+executing on Linux aarch64 through Node and Wasmtime. It would **not** establish
+general JS/TS compatibility, a complete ARM64 Grunkalunka platform, macOS
+ARM64 support, comparable performance or guest-attributed memory.
+Timings are observations, never thresholds. Workflow job outputs have size
+limits and secret filters; a missing/redacted transfer fails as **no evidence**.
+The workflow is not a substitute for broader canonical checks and does not
+resolve the separate [macOS Intel/ARM runner steering](https://github.com/tseguine/grunkalunka/issues/79).

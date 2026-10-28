@@ -1,0 +1,182 @@
+# Optional P1 experiment; required x64 Linux/Windows/Intel macOS CI remains unchanged.
+name: P1 portable x64 to ARM64 replay
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-portable-arm64.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-portable-arm64-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  prepare-x64:
+    name: Prepare GCD Wasm on Linux x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      wasm64: ${{ steps.transfer.outputs.wasm64 }}
+      manifest64: ${{ steps.transfer.outputs.manifest64 }}
+      sha256: ${{ steps.transfer.outputs.sha256 }}
+    steps:
+      - name: Check out the tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up fixed Node.js version on x64
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.22.1'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Build the maintained native compiler and Wasmtime CLI
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "x86_64"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal
+          rustc -vV
+          node --version
+          cargo fetch --locked
+          cargo build --locked --offline -p grunkalunka-cli -j 4
+
+      - name: Prepare one checked artifact without uploading files
+        id: transfer
+        run: |
+          set -euo pipefail
+          ./target/debug/grunkalunka compile examples/numeric-workflow/gcd.js "$RUNNER_TEMP/gcd.wasm"
+          node tools/bench/portable-gcd.mjs prepare "$RUNNER_TEMP/gcd.wasm" --build-label ci-x64-debug > "$RUNNER_TEMP/manifest.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require('node:fs');
+          const { createHash } = require('node:crypto');
+          const [wasmFile, manifestFile, outputFile] = process.argv.slice(2);
+          const wasm = fs.readFileSync(wasmFile);
+          const manifestBytes = fs.readFileSync(manifestFile);
+          if (wasm.length < 8 || wasm.length > 65536 || manifestBytes.length > 16384) {
+            throw new Error('Portable artifact exceeds bounded workflow job outputs');
+          }
+          const manifest = JSON.parse(manifestBytes.toString('utf8'));
+          const hash = createHash('sha256').update(wasm).digest('hex');
+          if (manifest.artifact.sha256 !== hash ||
+              manifest.artifact.bytes !== wasm.length ||
+              manifest.origin.os !== 'linux' || manifest.origin.arch !== 'x64') {
+            throw new Error('Producer identity or artifact hash mismatch');
+          }
+          // GitHub job outputs are bounded; no artifact upload or release.
+          fs.appendFileSync(outputFile, [
+            'wasm64=' + wasm.toString('base64'),
+            'manifest64=' + manifestBytes.toString('base64'),
+            'sha256=' + hash, '',
+          ].join('\n'));
+          console.log('PASS x64 producer: fixed golden cases and digest ' + hash);
+          NODE
+
+  replay-arm64:
+    name: Replay identical GCD Wasm on Linux ARM64
+    needs: prepare-x64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - name: Check out the same workflow revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up identical Node.js patch release on ARM64
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.22.1'
+          architecture: arm64
+          package-manager-cache: false
+
+      - name: Build local native Wasmtime runner, not transferred Wasm
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "aarch64"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal
+          rustc -vV
+          node --version
+          cargo fetch --locked
+          cargo build --locked --offline -p grunkalunka-cli -j 4
+
+      - name: Restore exactly the producer's bytes and manifest
+        env:
+          TRANSFER_WASM64: ${{ needs.prepare-x64.outputs.wasm64 }}
+          TRANSFER_MANIFEST64: ${{ needs.prepare-x64.outputs.manifest64 }}
+          TRANSFER_SHA256: ${{ needs.prepare-x64.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          node --input-type=commonjs - "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" <<'NODE'
+          const fs = require('node:fs');
+          const { createHash } = require('node:crypto');
+          const [wasmFile, manifestFile] = process.argv.slice(2);
+          const encodedWasm = process.env.TRANSFER_WASM64 ?? '';
+          const encodedManifest = process.env.TRANSFER_MANIFEST64 ?? '';
+          const hash = process.env.TRANSFER_SHA256 ?? '';
+          if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encodedWasm) ||
+              !/^[A-Za-z0-9+/]+={0,2}$/.test(encodedManifest) ||
+              !/^[a-f0-9]{64}$/.test(hash)) {
+            throw new Error('Missing, truncated or invalid cross-job byte transfer');
+          }
+          const wasm = Buffer.from(encodedWasm, 'base64');
+          const manifestBytes = Buffer.from(encodedManifest, 'base64');
+          if (wasm.length < 8 || wasm.length > 65536 || manifestBytes.length > 16384 ||
+              wasm.toString('base64') !== encodedWasm ||
+              manifestBytes.toString('base64') !== encodedManifest) {
+            throw new Error('Cross-job byte transfer is not canonical or bounded');
+          }
+          const manifest = JSON.parse(manifestBytes.toString('utf8'));
+          if (createHash('sha256').update(wasm).digest('hex') !== hash ||
+              manifest.artifact.sha256 !== hash || manifest.artifact.bytes !== wasm.length ||
+              manifest.origin.os !== 'linux' || manifest.origin.arch !== 'x64') {
+            throw new Error('Transferred artifact does not match the x64 producer');
+          }
+          fs.writeFileSync(wasmFile, wasm, { flag: 'wx' });
+          fs.writeFileSync(manifestFile, manifestBytes, { flag: 'wx' });
+          console.log('PASS transferred identical x64-produced Wasm SHA-256 ' + hash);
+          NODE
+
+      - name: Replay in ARM64 Node/V8 and ARM64 native Wasmtime
+        run: |
+          set -euo pipefail
+          node tools/bench/portable-gcd.mjs replay "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" \
+            --runner ./target/debug/grunkalunka --samples 2 --iterations 3 --warmup 0 \
+            > "$RUNNER_TEMP/replay.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/replay.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(process.arch, 'arm64', 'real ARM64 Node process required');
+          assert.equal(report.original.origin.arch, 'x64');
+          assert.equal(report.receiver.arch, 'arm64');
+          assert.equal(report.receiver.os, 'linux');
+          assert.equal(report.node.environment.arch, 'arm64');
+          assert.equal(report.node.environment.node, 'v24.22.1');
+          assert.equal(report.artifact.sha256, report.node.artifact.sha256);
+          assert.equal(report.wasmtime.status, 'passed');
+          assert.equal(report.wasmtime.goldenCases, 8);
+          assert.match(report.wasmtime.nativeRunnerSha256, /^[a-f0-9]{64}$/);
+          assert.equal(report.node.goldenCases, 8);
+          assert.equal(report.node.checksum, 33);
+          assert.deepEqual(report.node.configuration, { samples: 2, iterations: 3, warmup: 0 });
+          console.log('PASS cross-architecture GCD: identical bytes, real ARM64 Node and Wasmtime');
+          console.log(JSON.stringify(report));
+          NODE
