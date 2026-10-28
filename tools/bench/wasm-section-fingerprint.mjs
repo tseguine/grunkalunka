@@ -304,7 +304,7 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
     } else if (command === 'compare' && args.length === 2) {
       const [producer, receiver] = await Promise.all(args.map(async path => {
         const bytes = await readFile(resolve(path));
-        check(bytes.length > 0 && bytes.length <= 64 * 1024, 'bounded JSON receipt');
+        check(bytes.length > 0 && bytes.length <= 256 * 1024, 'bounded JSON receipt');
         return JSON.parse(bytes.toString('utf8'));
       }));
       result = compareMarkdownGuests(producer, receiver);
