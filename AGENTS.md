@@ -140,6 +140,37 @@ remain independently triggered and required.
   Linux, Windows, macOS or independent-workflow results. Audit actual
   source/test dependencies before further reducing selected checks.
 
+## CI runner budget and test placement policy
+
+Tests and experiments should be implemented as **ordinary repository tests** and
+registered with the existing canonical check runner by default. Provide accurate
+ownership, source/fixture dependencies and per-command check descriptors so the
+same tests participate in dependency-selected PR CI on Linux, Windows and macOS.
+A regression test must not require its own Actions workflow merely because it
+originated in a research or implementation workstream.
+
+Avoid adding standalone PR-triggered workflows, status checks, duplicated Cargo
+builds, or extra runner matrices to execute tests that the canonical runner can
+select. Runner capacity and **push-to-merge latency across parallel PRs** are
+shared resources. Prefer adding coverage to an existing test suite over creating
+another Actions job; do not use workflow YAML as the test implementation.
+
+An independent workflow is an exception for a demonstrated execution requirement
+that canonical CI cannot reasonably provide (for example, an actual independent
+browser engine, a distinct native-host experiment, or a specialized integration
+environment). Document why that requirement cannot be represented in the normal
+runner, keep triggers and the matrix minimal, and prefer manual or narrowly
+scoped execution for exploratory experiments. Do not make diagnostic or advisory
+workflows required merge gates without explicit maintainer direction. Periodically
+remove obsolete rehearsals and redundant checks once their purpose is served.
+
+When migrating existing workflow-based tests, **first** land equivalent canonical
+tests and impact-selection dependencies, verify real selected and full execution,
+and **then** retire redundant workflow triggers/jobs. Preserve any genuinely
+independent validation and required check behavior until a safe replacement is
+proven. Do not silently remove coverage, fake a passing check, or weaken full
+`master` validation or fail-closed PR selection.
+
 ## Verification and merging
 
 Use the current [CI contract](docs/ci.md), [testing plan](docs/testing.md) and
