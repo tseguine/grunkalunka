@@ -1,10 +1,10 @@
-# Proposed Cargo package scoping (advisory only)
+# Cargo package scoping (Windows PR canary)
 
-The current canonical CI still runs the complete `cargo build --workspace`,
+The canonical runner still defines complete `cargo build --workspace`,
 `cargo clippy --workspace` and `cargo test --workspace` commands. This module
-**does not execute** commands, alter the canonical runner, or authorize skipping
-checks. It previews how an independently validated impact selection could be
-translated into standard `cargo -p` invocations.
+does not execute commands itself; the maintainer-authorized Windows PR canary
+may use its validated output for standard package-scoped `cargo -p` checks.
+Linux/macOS PRs and all `master` CI remain full.
 
 Input: the shadow planner's `{full, tests, build}` selection and names of
 current workspace packages from `cargo metadata`. Output: sorted proposed
@@ -20,11 +20,11 @@ selection to agree with the per-package selections, and no unresolved logical
 `test:` group to masquerade as an executable check. Missing or inconsistent
 inputs return an explicit **full** plan rather than silently omitting work.
 
-This preview is not a performance claim, nor proof of equivalence between
-`--workspace` and several `-p` invocations. Validation before activation
-must cover dev/build dependencies, features, examples, integration and doc
-tests, target-specific code, test-generated artifacts, and the existing
-early-build watchdogs. Cross-language scripts such as
+This preview alone does not prove equivalence between `--workspace` and
+several `-p` invocations. The maintainer approved a Windows-only rollout
+with full Linux/macOS PR and full `master` checks as a safety net. Keep
+auditing dev/build dependencies, features, examples, integration and doc
+tests, target-specific code, generated artifacts and early-build watchdogs. Cross-language scripts such as
 `scripts/poc.mjs` currently invoke their own full builds and require separate
 work; merely selecting Cargo packages cannot make those scripts partial.
 

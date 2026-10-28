@@ -10,7 +10,10 @@ that is test input, not a release/distribution pipeline.
 ## Triggers and coverage
 
 Pull requests targeting `master`, pushes to `master`, and manual Actions runs
-execute the same three jobs. macOS checks use native Apple Silicon ARM64.
+execute the same three named jobs. macOS uses native Apple Silicon ARM64.
+**Windows PRs alone** may execute dependency-selected checks; Windows falls back
+to the full suite on an unsafe plan. Linux and macOS always execute full PR
+CI, and pushes to `master` and manual runs execute full CI on all platforms.
 Feature-branch pushes do not also trigger a second
 copy of the PR build. Runs share a concurrency group for the same event and
 PR/ref; newer runs leave in-progress runs running (`cancel-in-progress: false`).
@@ -60,15 +63,20 @@ toolchains or locally compiled host binaries.
 After a fast formatting check, jobs restore cached Cargo dependencies and fetch
 both the root workspace and the independently locked frontend spike using
 `cargo fetch --locked`. A cache miss must work; caches are not prerequisites.
-Builds and the canonical checks then use the existing locked/offline commands.
+Builds and checks use locked/offline commands. On Windows PRs,
+`ci/impact/windows-pr-gate.mjs` may execute the dependency-selected canonical
+commands and package-scoped Cargo build/Clippy/tests. It records selected
+commands and fallbacks. A planner error falls back to full verification;
+a **failing selected test fails the job** rather than triggering a full retry.
 This is offline Cargo verification after setup, not a network-isolated sandbox.
 
-The workspace is built before `node scripts/check.mjs`: early kernel tests use
-short build watchdogs that must not include a cold Wasmtime/dependency build.
-The canonical command remains the source of truth for Clippy, Rust and JS tests,
-license screening, frontend observations, JSON guest/composition checks, heap
-fixtures and JS/Node-Wasm/Wasmtime differential comparisons. CI does not replace
-it with a hand-maintained subset or relax test timeouts/assertions.
+In full mode the workspace is built before `node scripts/check.mjs`; early
+kernel tests have short build watchdogs that must not include a cold dependency
+build. For Windows PR partial mode, the dependency graph determines prebuild
+packages. `node scripts/check.mjs` remains the source of truth for canonical
+Clippy, Rust and JS checks. The per-command descriptors are verified against
+its live command inventory before selection. No tests, assertions or timeouts
+are relaxed.
 
 A local reproduction, after installing the toolchain and Node, is:
 
@@ -89,6 +97,24 @@ check, source receipts, assertions and timeouts remain intact.
 See [testing](testing.md) for individual checks and evidence limits. Tests emit
 receipts in local target directories, but this workflow does not upload them.
 Inspect the job log and reproduce locally when a retained receipt is needed.
+
+## Windows-only partial PR canary
+
+The maintainer explicitly authorized using the **general** dependency-aware
+selector on Windows PRs without a hardcoded path whitelist. See
+[impact planning](../ci/impact/README.md). The planner diffs the PR merge
+base, follows reverse test dependencies and forward build dependencies,
+verifies the live canonical command catalog and checks independently triggered
+browser workflows. Unknown paths, missing or ambiguous metadata, unsupported
+Cargo translations and stale command mappings fall back to the original full
+Windows suite. Linux/macOS PR and all `master` builds retain full verification.
+
+Set `WINDOWS_PARTIAL_CI` to `'false'` on the Windows CI step to disable the
+canary. The existing `Checks (Linux)`, `Checks (Windows)` and `Checks (macOS)`
+status names are unchanged, as are separate P1/browser workflows. A partial
+success is evidence for selected checks, **not** proof that independently
+triggered jobs passed. Compare actual Windows PR timings with full-platform
+results as the dependency model evolves.
 
 ## Locating slow or interrupted checks
 

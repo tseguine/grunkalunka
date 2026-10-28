@@ -48,6 +48,22 @@ test('known browser workflow source filters parse conservatively', () => {
   assert.throws(() => matchesOwnedPath('foo/*.mjs', 'foo/a.mjs'), /unsupported/);
 });
 
+test('Windows CRLF checkouts retain browser workflow trigger coverage', () => {
+  const original = sources();
+  const crlf = Object.fromEntries(
+    Object.entries(original).map(([path, text]) => [path, text.replace(/\n/g, '\r\n')]));
+  const outcome = auditBrowserWorkflows(['tools/browser-oracles/collect.mjs'],
+    entries, file => crlf[file]);
+  assert.equal(outcome.valid, true, JSON.stringify(outcome.errors));
+  assert.deepEqual(outcome.requiredNotTriggered, []);
+  assert.deepEqual(outcome.expectedToTrigger,
+    ['workflow:browser-collector', 'workflow:browser-oracles', 'workflow:browser-smoke']);
+
+  const odd = crlf['.github/workflows/browser-oracles.yml']
+    .replace('  pull_request:\r\n', '  pull_request:\r');
+  assert.throws(() => parseBrowserTriggers(odd), /carriage return/);
+});
+
 test('historical Grid plus layout change triggers all three separate browser workflows', () => {
   const result = audit([
     'tests/browser-oracles/grid-placement.html',

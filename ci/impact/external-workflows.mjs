@@ -30,11 +30,15 @@ function parseList(value) {
 // checked-in browser workflows. Any new YAML feature is a drift/fallback,
 // not permission to assume a trigger still covers the changed source.
 export function parseBrowserTriggers(source) {
-  if (typeof source !== 'string' || source.includes('\r') ||
-      !source.startsWith('name:') && !source.startsWith('#')) {
-    throw new Error('invalid workflow source');
+  if (typeof source !== 'string') throw new Error('invalid workflow source');
+  // Windows checkout may convert LF to CRLF. Normalize only complete CRLF
+  // pairs; stray carriage returns remain unsupported and fail closed.
+  const normalized = source.replace(/\r\n/g, '\n');
+  if (normalized.includes('\r') ||
+      !normalized.startsWith('name:') && !normalized.startsWith('#')) {
+    throw new Error('invalid workflow source or unsupported carriage return');
   }
-  const lines = source.split('\n');
+  const lines = normalized.split('\n');
   const onIndex = lines.indexOf('on:');
   if (onIndex < 0 || lines.lastIndexOf('on:') !== onIndex) {
     throw new Error('missing or duplicate on block');
