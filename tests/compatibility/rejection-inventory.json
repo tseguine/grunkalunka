@@ -479,7 +479,7 @@
     {
       "id": "function-calls",
       "kind": "open-requirement",
-      "assessment": "Top-level numeric helpers and the five supported pristine unary Math calls evaluate supplied ordinary surplus arguments and discard their values after retaining declared inputs. Missing helper or over-limit arguments, indirect, property, wrapped-callee, spread and generic calls remain outside the direct numeric helper subset; unsupported calls in unselected source still reject. The five pristine unary Math intrinsics produce Number NaN for missing inputs and convert represented Undefined/Null/Boolean/Number first operands with ToNumber. Strings, objects, BigInts, functions and external mutable Math objects remain separate requirements.",
+      "assessment": "Top-level numeric helpers and the five supported pristine unary Math calls evaluate supplied ordinary surplus arguments and discard their values after retaining declared inputs. Missing helper or over-limit arguments, indirect, property, wrapped-callee and spread calls remain outside the direct numeric helper subset; call-site TypeScript arguments erase as unvalidated metadata; unsupported calls in unselected source still reject. The five pristine unary Math intrinsics produce Number NaN for missing inputs and convert represented Undefined/Null/Boolean/Number first operands with ToNumber. Strings, objects, BigInts, functions and external mutable Math objects remain separate requirements.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-function-calls",
@@ -4660,13 +4660,6 @@
       "group": "function-calls"
     },
     {
-      "id": "direct-call-generic-call",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "e442d761d7585e94a9d4d84abad2151ac2a2a7e02e91e5748ad2d1ff864308f1",
-      "group": "function-calls"
-    },
-    {
       "id": "direct-call-numeric-shadow-call",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -6891,20 +6884,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "41d9ef97d114135e321ff5da59f9337fac27de5570b7184373f0095ffeb44055",
       "group": "parameters"
-    },
-    {
-      "id": "generic-declaration-reject-helper-call",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "649b59120cb27cae425677b907cd64b073163fc06b7bae008d054513ea3a032e",
-      "group": "function-calls"
-    },
-    {
-      "id": "generic-declaration-reject-entry-call",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "89b7388026f2ea042682a0e41aa9fd90c16c1b447ab166992091ae3522cf24f3",
-      "group": "function-calls"
     },
     {
       "id": "generic-declaration-reject-type-value",

@@ -1639,18 +1639,21 @@ mod generic_declaration_tests {
                 "export function run<T>(a:T,b:T=1):T { return a; }",
                 "default",
             ),
-            (
-                "function helper<T>(x:T):T { return x; } export function run(a,b) { return helper<number>(a); }",
-                "generic calls",
-            ),
-            (
-                "export function run<T>(a:T,b:T):T { return run<T>(a,b); }",
-                "generic calls",
-            ),
         ] {
             let error = compile(source, true).err().expect(source);
             assert!(error.contains(expected), "{source}: {error}");
         }
+    }
+    #[test]
+    fn generic_call_metadata_preserves_exact_former_guard_sources() {
+        erased(
+            "function helper<T>(x:T):T { return x; } export function run(a,b) { return helper<number>(a); }",
+            "function helper(x) { return x; } export function run(a,b) { return helper(a); }",
+        );
+        erased(
+            "export function run<T>(a:T,b:T):T { return run<T>(a,b); }",
+            "export function run(a,b) { return run(a,b); }",
+        );
     }
     #[test]
     fn generic_metadata_keeps_statement_and_utf8_budgets() {

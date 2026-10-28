@@ -95,7 +95,10 @@ fn runtime_call_type_arguments_do_not_prove_runtime_kinds_or_bindings() {
         assert!(compile_async(&source_for(body), true).is_err(), "{body}");
     }
     let direct = "function id(x){return x;}export async function run(a,b){return id<never>(a);}";
-    assert!(compile_async(direct, true).is_err());
+    compare_typed(
+        "function id(x){return x;}export async function run(a,b){return id(a);}",
+        direct,
+    );
 }
 
 #[test]

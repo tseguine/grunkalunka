@@ -450,14 +450,17 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   This ABI contract is independent of whether TS annotations are present.
 - Helper signatures are collected before any body is lowered, so calls can precede
   declarations. A bare callee must resolve by semantic SymbolId to a collected
-  function; local/parameter/TDZ shadows never fall back by spelling. All arguments
-  must be Numbers and match the declared count exactly, including zero. Arguments
+  function; local/parameter/TDZ shadows never fall back by spelling. Declared inputs
+  must be Numbers, and callers must supply at least the declared count. Supported
+  surplus expressions execute for their effects before the call. Arguments
   execute once from left to right and retain snapshots across later argument
   writes. Each invocation has independent mutable parameters and locals. Every
   body, including unused helpers, must satisfy numeric return coverage. Function
   values, aliases, nested declarations/captures and writes to function bindings
-  are rejected, including writes in dead or unused code. Missing/extra arguments,
-  spread, defaults, rest, optional and generic calls remain outside this subset.
+  are rejected, including writes in dead or unused code. Missing inputs, more than
+  1,000 supplied arguments, spread, defaults, rest and optional calls stay outside
+  this subset. Call-site type arguments erase as unvalidated metadata; see
+  [the contract](#direct-module-call-type-arguments).
   Self/mutual calls share the existing Wasmtime store's fuel budget; they do not
   renew it. The existing engine stack guard also remains in place. Neither is a
   static termination proof or a guarantee for arbitrary host-thread stacks.
@@ -1171,7 +1174,8 @@ as unvalidated metadata. The original TypeScript Module AST and Semantic pass re
 constraints, defaults and `const` type parameters do not create runtime bindings,
 change numeric parameter eligibility or establish inferred runtime types. This follows
 the declaration syntax in the [TypeScript generics handbook](https://www.typescriptlang.org/docs/handbook/2/generics.html).
-Explicit type arguments on direct numeric module calls remain unsupported.
+Direct module calls erase explicit type arguments under
+[their contract](#direct-module-call-type-arguments).
 Known local arrow and runtime closure calls erase this metadata under
 [the closure-call contract](async.md#closure-call-site-type-arguments); runtime
 factory-result calls follow [their contract](runtime-closures.md#runtime-factory-call-site-type-arguments).
@@ -1691,8 +1695,8 @@ occurs outside the callee's rejection boundary. Runtime function values and fact
 also admit surplus arguments, preserving the saved callee pair and passing only
 declared inputs through their frames. Top-level numeric helpers follow the same
 supplied-count rule while keeping Number declared inputs and results. Missing,
-spread, optional and generic local arguments remain unsupported. Known scalar-result
-local calls also accept represented primitive inputs (Undefined, Null, Boolean and Number)
+spread and optional local calls remain unsupported; call-site types erase. Known
+scalar-result local calls also accept represented primitive inputs (Undefined, Null, Boolean and Number)
 when the arrow's result kind is independently established. For example,
 `(x=>+x)(null)` yields Number zero while `(x=>x===null)(null)` yields Boolean true.
 Arguments retain their kinds and left-to-right snapshots in fresh mutable parameter
@@ -2035,7 +2039,8 @@ Ignored primitive/function expressions still retain their effects and validation
 including waits in an async caller. Forward, recursive and entry-recursive calls
 use their existing physical call ABI; only declared inputs are passed. Supplied
 lists remain bounded to 1,000. Missing inputs, unsupported required argument kinds,
-spread/optional/generic calls and builtin argument rules remain separate limits.
+spread/optional calls and builtin argument rules remain separate limits. Explicit
+call-site type arguments now erase under the direct-call contract below.
 The exact former `direct-call-extra` source is promoted and pinned by SHA256;
 `direct-call-missing` keeps its source with an accurate missing-input diagnostic.
 Corpus 78 has 1,867 numeric pairs and 913 rejections; the primitive corpus has 175 pairs.
@@ -2216,6 +2221,30 @@ fractions, NaN and infinities retain the existing comparison contract.
 
 Type-only Math names do not shadow its value binding. Actual value shadows,
 patches, unsupported methods, optional/computed/wrapped calls, spread arguments,
-unsupported payloads and source limits retain their guards. Ordinary helper and
-heap JSON call-site types remain separate work. No type checker, IR, emitter,
-runtime ABI, dependency or budget changes are needed.
+unsupported payloads and source limits retain their guards. Direct module helpers
+and heap JSON calls erase call-site types under their separate contracts. No type
+checker, IR, emitter, runtime ABI, dependency or budget changes are needed.
+
+## Direct module-call type arguments
+
+TypeScript call-site arguments on admitted numeric module helpers and recursive
+entry calls erase without validation. `function id<T>(x:T):T { return x; }` followed
+by `id<Missing>(a)` has the same guest bytes as its JavaScript twin. Unresolved
+names, type queries, arbitrary type-argument counts and misleading claims cannot
+create a runtime binding, infer a value kind or convert an ordinary input.
+
+The existing helper signature still takes Numbers; caller arguments retain their
+order, snapshots, surplus effects, failure and async jobs. Missing inputs, actual
+non-Number values, shadowed/written function bindings, optional/spread calls and
+source/argument limits retain their guards. Original declaration/type metadata
+and the public numeric, primitive and async entry contracts are unchanged.
+
+Three frozen numeric TS rejections are promoted with their exact source hashes.
+Two now have full JS result oracles. The original unconditional entry recursion
+is recorded in the existing termination-only primitive cases: JS/TS guest bytes
+match and execution exhausts a guest fuel/stack budget, with no numeric JS result
+comparison. The older General arithmetic recursion still requires fuel exhaustion;
+its expectation is unchanged. Separate bounded recursion and argument-effect
+examples execute against native JS, Node-Wasm and Wasmtime. The numeric rejection
+inventory now has 841 records. No IR, runtime/frame ABI, dependency or limit
+change is introduced.
