@@ -12,7 +12,7 @@ the remaining source of the cross-host differences.
 
 ## One-host source-path control
 
-The [optional dedicated Linux workflow](../.github/workflows/p1-markdown-linux-checkout-path.yml)
+The [optional dedicated Linux workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-linux-checkout-path.yml)
 and [standalone collector](../tools/bench/markdown-linux-checkout-path.mjs)
 test one variable without modifying the main source checkout.
 

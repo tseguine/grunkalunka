@@ -11,7 +11,7 @@ Linux, Windows and Apple Silicon binaries.
 
 ## Independent native-host controlled comparison
 
-The [optional native-host workflow](../.github/workflows/p1-native-markdown-metadata.yml)
+The [optional native-host workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-native-markdown-metadata.yml)
 independently compiles the **unchanged Rust `outline_guest`** for
 `wasm32-unknown-unknown` on native Linux x64, Windows x64 and Apple
 Silicon macOS ARM64, with identical canonical Git blob identities

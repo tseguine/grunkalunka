@@ -78,7 +78,7 @@ comparable measured application costs.
 
 ## Optional x64-to-ARM64 hosted execution
 
-The dedicated [P1 cross-architecture workflow](../.github/workflows/p1-portable-arm64.yml)
+The dedicated [P1 cross-architecture workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-portable-arm64.yml)
 is separate from the required Linux/Windows x64 and native Apple Silicon macOS ARM64 CI. It uses a standard
 `ubuntu-24.04` x64 producer and `ubuntu-24.04-arm` Linux ARM64 receiver,
 with Node **24.22.1** selected on both. Only changes to that workflow itself

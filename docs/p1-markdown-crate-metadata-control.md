@@ -17,7 +17,7 @@ The remaining source of the cross-host differences is unknown.
 
 The Rust compiler's [codegen documentation](https://doc.rust-lang.org/rustc/codegen-options/index.html#metadata)
 describes `-C metadata` as an input to symbol-mangling disambiguation.
-The [optional Linux experiment](../.github/workflows/p1-markdown-metadata-control.yml)
+The [optional Linux experiment](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-metadata-control.yml)
 uses that documented control to test **how much symbol and executable output
 changes when that specific input changes**.
 
