@@ -26,6 +26,7 @@ impl HitNode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HitError {
     InvalidViewport,
+    InvalidScrollOffset,
     NodeCountMismatch,
     TooManyNodes,
     InvalidParent { node: usize },
@@ -66,6 +67,20 @@ pub fn hit_test(
     nodes: &[HitNode],
     x: u32,
     y: u32,
+) -> Result<Option<usize>, HitError> {
+    hit_test_scrolled(frame, nodes, x, y, 0, 0)
+}
+
+/// Hit test a viewport point after translating it by the caller's global
+/// document-space scroll offset. No nested scrolling, clipping contexts or
+/// scroll-event dispatch are modeled. Invalid offsets fail instead of clamping.
+pub fn hit_test_scrolled(
+    frame: &Frame,
+    nodes: &[HitNode],
+    x: u32,
+    y: u32,
+    scroll_x: u32,
+    scroll_y: u32,
 ) -> Result<Option<usize>, HitError> {
     if frame.viewport_width == 0
         || frame.viewport_height == 0
@@ -113,9 +128,18 @@ pub fn hit_test(
         }
     }
 
+    let max_x = frame.scroll_width.checked_sub(frame.viewport_width)
+        .ok_or(HitError::InvalidScrollOffset)?;
+    let max_y = frame.scroll_height.checked_sub(frame.viewport_height)
+        .ok_or(HitError::InvalidScrollOffset)?;
+    if scroll_x > max_x || scroll_y > max_y {
+        return Err(HitError::InvalidScrollOffset);
+    }
     if x >= frame.viewport_width || y >= frame.viewport_height {
         return Ok(None);
     }
+    let x = x.checked_add(scroll_x).ok_or(HitError::Overflow)?;
+    let y = y.checked_add(scroll_y).ok_or(HitError::Overflow)?;
 
     // Compute the painter's depth-first order explicitly. Reverse it to check
     // children/later siblings before parents, independently of flat node indices.
