@@ -26,13 +26,17 @@ const BUILD=[
   '--target',TARGET,
 ];
 const WORKLOAD='p1-native-cargo-metadata-override';
-const VARIANTS=['passthrough','target','all'];
+const VARIANTS=['passthrough','target','target_plus_deps','all'];
 const NAMES=Object.freeze({
   build_script_build:{target:'host',effective:'p1script'},
   unicase:{target:TARGET,effective:'p1unicase'},
   pulldown_cmark:{target:TARGET,effective:'p1pulldown'},
   grunkalunka_markdown:{target:TARGET,effective:'p1markdown'},
   outline_guest:{target:TARGET,effective:'p1guest'},
+});
+const EXTRA=Object.freeze({
+  bitflags:{target:TARGET,effective:'p1bitflags'},
+  memchr:{target:TARGET,effective:'p1memchr'},
 });
 const SOURCES=[
   'Cargo.toml','Cargo.lock','rust-toolchain.toml',
@@ -79,8 +83,13 @@ async function snapshot() {
 
 function effective(mode,name,original){
   const key=NAMES[name];
-  check(key,'expected native/wasm32 Rust crate '+name);
-  return mode==='all'||(mode==='target'&&key.target===TARGET)?
+  const extra=EXTRA[name];
+  check(key||extra,'expected selected Rust crate '+name);
+  if(extra){
+    return mode==='target_plus_deps'?extra.effective:original;
+  }
+  return mode==='all'||(key.target===TARGET&&
+    (mode==='target'||mode==='target_plus_deps'))?
     key.effective:original;
 }
 
@@ -93,12 +102,14 @@ export function parseMetadataOverrideLog(raw,mode) {
     check(fields.length===4,'four rustc wrapper metadata log fields');
     const [crate,target,original,observed]=fields;
     const selected=Object.hasOwn(NAMES,crate);
+    const extra=Object.hasOwn(EXTRA,crate);
     check(/^[A-Za-z_][A-Za-z0-9_]*$/.test(crate)&&
       (target===TARGET||target==='host')&&
       (!selected||target===NAMES[crate].target)&&
+      (!extra||target===EXTRA[crate].target)&&
       /^[0-9a-f]{16}$/.test(original)&&
       /^[a-z0-9]+$/.test(observed)&&
-      observed===(selected?effective(mode,crate,original):original),
+      observed===((selected||extra)?effective(mode,crate,original):original),
     'actual selected/untouched compiler metadata for '+crate);
     rows.push({crate,target,original,effective:observed,changed:original!==observed});
   }
@@ -108,11 +119,14 @@ export function parseMetadataOverrideLog(raw,mode) {
     return left<right?-1:left>right?1:0;
   });
   const selected=rows.filter(x=>Object.hasOwn(NAMES,x.crate));
+  const extras=rows.filter(x=>Object.hasOwn(EXTRA,x.crate));
   const names=Object.keys(NAMES).sort();
-  check(rows.length>=names.length&&rows.length<=128&&
-    selected.length===names.length&&
-    selected.every((row,i)=>row.crate===names[i]),
-  'one real rustc invocation per expected crate');
+  const extraNames=Object.keys(EXTRA).sort();
+  check(rows.length>=names.length+extraNames.length&&rows.length<=128&&
+    selected.length===names.length&&extras.length===extraNames.length&&
+    selected.every((row,i)=>row.crate===names[i])&&
+    extras.every((row,i)=>row.crate===extraNames[i]),
+  'one real rustc invocation per selected and extra wasm crate');
   return rows;
 }
 
@@ -148,7 +162,7 @@ function validateHost(report){
   'native Rust compiler and wrapper controls');
   validateSources(report.inputs);
   check(report.variants&&
-    Object.keys(report.variants).sort().join(',')==='all,passthrough,target',
+    Object.keys(report.variants).sort().join(',')==='all,passthrough,target,target_plus_deps',
   'all three independent wrapper modes');
   const expectedInputs=new Map(report.inputs.map(x=>[x.path,x]));
   const originalByCrate=new Map();
@@ -156,7 +170,7 @@ function validateHost(report){
     const record=report.variants[mode];
     check(record&&record.mode===mode&&
       Array.isArray(record.actualMetadata)&&
-      record.actualMetadata.length>=Object.keys(NAMES).length&&
+      record.actualMetadata.length>=Object.keys(NAMES).length+Object.keys(EXTRA).length&&
       record.actualMetadata.length<=128&&
       record.report&&record.report.schemaVersion===1&&
       record.report.workload==='p1-markdown-guest-wasm-sections'&&
@@ -178,22 +192,28 @@ function validateHost(report){
     'complete observed Wasm receipt for '+mode);
     const names=Object.keys(NAMES).sort();
     const selected=record.actualMetadata.filter(x=>Object.hasOwn(NAMES,x.crate));
+    const extra=record.actualMetadata.filter(x=>Object.hasOwn(EXTRA,x.crate));
     check(selected.length===names.length&&
-      selected.every((row,i)=>row.crate===names[i]),
-    'all five selected compiler metadata records in '+mode);
+      selected.every((row,i)=>row.crate===names[i])&&
+      extra.length===Object.keys(EXTRA).length&&
+      extra.every((row,i)=>row.crate===Object.keys(EXTRA).sort()[i]),
+    'complete seven observed native compiler metadata records in '+mode);
     for(const row of record.actualMetadata){
       const crate=row.crate;
       const selectedCrate=Object.hasOwn(NAMES,crate);
-      const isSelectedTarget=selectedCrate&&row.target===NAMES[crate].target;
+      const extraCrate=Object.hasOwn(EXTRA,crate);
+      const known=selectedCrate||extraCrate;
+      const expectedTarget=selectedCrate?NAMES[crate].target:
+        extraCrate?EXTRA[crate].target:null;
       check(/^[A-Za-z_][A-Za-z0-9_]*$/.test(crate)&&
         (row.target==='host'||row.target===TARGET)&&
-        (!selectedCrate||isSelectedTarget)&&
+        (!known||row.target===expectedTarget)&&
         /^[0-9a-f]{16}$/.test(row.original)&&
-        row.effective===(selectedCrate?
+        row.effective===(known?
           effective(mode,crate,row.original):row.original)&&
         row.changed===(row.original!==row.effective),
       'complete observed generated metadata for '+mode+'/'+crate);
-      if(selectedCrate){
+      if(known){
         if(originalByCrate.has(crate)){
           check(originalByCrate.get(crate)===row.original,
             'unchanged Cargo-generated metadata across wrapper modes for '+crate);
@@ -244,7 +264,9 @@ export function compareNativeMetadataOverrides(linux,receiver) {
     const left=linux.variants[mode],right=receiver.variants[mode];
     const selectedLeft=left.actualMetadata.filter(x=>Object.hasOwn(NAMES,x.crate));
     const selectedRight=right.actualMetadata.filter(x=>Object.hasOwn(NAMES,x.crate));
-    let generatedSame=0,effectiveSame=0;
+    const extrasLeft=left.actualMetadata.filter(x=>Object.hasOwn(EXTRA,x.crate));
+    const extrasRight=right.actualMetadata.filter(x=>Object.hasOwn(EXTRA,x.crate));
+    let generatedSame=0,effectiveSame=0,extraGeneratedSame=0,extraEffectiveSame=0;
     const mismatches=[];
     for(let i=0;i<selectedLeft.length;i++){
       const l=selectedLeft[i],r=selectedRight[i];
@@ -254,13 +276,26 @@ export function compareNativeMetadataOverrides(linux,receiver) {
       if(l.effective===r.effective)effectiveSame++;
       else mismatches.push(l.crate);
     }
+    const extraRemainingMetadataMismatches=[];
+    for(let i=0;i<extrasLeft.length;i++){
+      const l=extrasLeft[i],r=extrasRight[i];
+      check(l.crate===r.crate&&l.target===r.target,
+        'same remaining wasm dependency group');
+      if(l.original===r.original)extraGeneratedSame++;
+      if(l.effective===r.effective)extraEffectiveSame++;
+      else extraRemainingMetadataMismatches.push(l.crate);
+    }
     metadata[mode]={
       generatedSame,effectiveSame,totalCrates:selectedLeft.length,
       remainingMetadataMismatches:mismatches,
-      producerModifiedCrates:selectedLeft.filter(x=>x.changed).map(x=>x.crate),
-      receiverModifiedCrates:selectedRight.filter(x=>x.changed).map(x=>x.crate),
-      producerUnselectedCrates:left.actualMetadata.filter(x=>!Object.hasOwn(NAMES,x.crate)).map(x=>x.crate),
-      receiverUnselectedCrates:right.actualMetadata.filter(x=>!Object.hasOwn(NAMES,x.crate)).map(x=>x.crate),
+      extraGeneratedSame,extraEffectiveSame,extraTotalCrates:extrasLeft.length,
+      extraRemainingMetadataMismatches,
+      producerModifiedCrates:left.actualMetadata.filter(x=>x.changed).map(x=>x.crate),
+      receiverModifiedCrates:right.actualMetadata.filter(x=>x.changed).map(x=>x.crate),
+      producerUnselectedCrates:left.actualMetadata.filter(x=>
+        !Object.hasOwn(NAMES,x.crate)&&!Object.hasOwn(EXTRA,x.crate)).map(x=>x.crate),
+      receiverUnselectedCrates:right.actualMetadata.filter(x=>
+        !Object.hasOwn(NAMES,x.crate)&&!Object.hasOwn(EXTRA,x.crate)).map(x=>x.crate),
     };
     crossHost[mode]=summary(left.report,right.report);
   }
@@ -273,10 +308,12 @@ export function compareNativeMetadataOverrides(linux,receiver) {
     withinHost:{
       producer:{
         passthroughToTarget:summary(linux.variants.passthrough.report,linux.variants.target.report),
+        targetToTargetPlusDeps:summary(linux.variants.target.report,linux.variants.target_plus_deps.report),
         targetToAll:summary(linux.variants.target.report,linux.variants.all.report),
       },
       receiver:{
         passthroughToTarget:summary(receiver.variants.passthrough.report,receiver.variants.target.report),
+        targetToTargetPlusDeps:summary(receiver.variants.target.report,receiver.variants.target_plus_deps.report),
         targetToAll:summary(receiver.variants.target.report,receiver.variants.all.report),
       },
     },
@@ -284,7 +321,7 @@ export function compareNativeMetadataOverrides(linux,receiver) {
       producer:Object.fromEntries(VARIANTS.map(mode=>[mode,{...linux.variants[mode].report.artifact}])),
       receiver:Object.fromEntries(VARIANTS.map(mode=>[mode,{...receiver.variants[mode].report.artifact}])),
     },
-    interpretation:'selected five Cargo-generated metadata groups overridden under one wrapper; other actual compiled dependencies, extra-filename and all other Cargo inputs remain host-dependent',
+    interpretation:'staged five selected and two additional wasm dependency metadata overrides under one fixed wrapper; extra-filename and remaining Cargo inputs remain host-dependent',
   };
 }
 
