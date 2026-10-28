@@ -19,6 +19,9 @@ They can be run explicitly to collect fresh platform-specific evidence.
 A local-only synthetic receipt must never be confused with an actual
 cross-host reproduction. Existing reports under `docs/p1-*.md` retain
 their provenance and are not turned into artificial always-equal golden
-hashes. Separate PR-triggered experimental workflows will be retired
-once canonical P1 test registration passes all three platforms, to avoid
-rebuilding full Cargo workspaces repeatedly for observational checks.
+hashes. The former PR-triggered P1 experiment workflows were retired after
+canonical P1 test registration was verified. Their historical source is
+linked from experiment documentation at a pinned Git commit. The optional
+cross-host collectors still require independent native hosts for new actual
+observations; the canonical unit suite asserts only the receipt and
+comparison contracts, not a fabricated cross-host equality result.
