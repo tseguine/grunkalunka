@@ -47,4 +47,6 @@ run(process.execPath, ['--test', 'tests/build/p1-native-portability.test.mjs']);
 run(process.execPath, ['scripts/check-markdown-portability.mjs']);
 run(process.execPath, ['scripts/check-markdown-outline.mjs']);
 run(process.execPath, ['scripts/check-document-outline.mjs']);
+// Planner/selection regression tests run with the canonical suite, not a separate PR job.
+run(process.execPath, ['--test', 'ci/impact/*.test.mjs']);
 console.log(`PASS all checks (${process.versions.bun ? `Bun ${process.versions.bun}` : `Node ${process.version}`})`);
