@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkNodes, verifyCanonicalChecks } from './canonical.mjs';
 import { planImpact } from './impact.mjs';
+import { previewCargoScope } from './cargo-scope.mjs';
 
 const directory = fileURLToPath(new URL('./', import.meta.url));
 const readCatalog = folder => readdirSync(join(directory, folder))
@@ -44,7 +45,10 @@ test('missing, stale, duplicate, and malformed command declarations fail closed'
 test('workspace commands inherit newly discovered Cargo package IDs', () => {
   const expanded = checkNodes(declared, ['existing', 'brand-new']);
   for (const id of ['check:workspace-format', 'check:workspace-clippy', 'check:workspace-tests']) {
-    assert.deepEqual(expanded.find(check => check.id === id).dependsOn, ['existing', 'brand-new']);
+    const check = expanded.find(check => check.id === id);
+    assert.deepEqual(check.dependsOn, ['existing', 'brand-new']);
+    assert.deepEqual(check.buildDependsOn, [],
+      'workspace-wide checks are virtual umbrellas, not full-build prerequisites');
   }
 });
 
@@ -102,4 +106,18 @@ test('an actual canonical check is reached through a logical group', () => {
   assert.equal(result.full, false, JSON.stringify(result.reasons));
   assert.ok(result.tests.includes('check:json-composition'));
   assert.ok(!result.tests.includes('test:json-integration'));
+});
+
+test('real layout change selects package tests without building the whole workspace', () => {
+  const result = analyze(['crates/grunkalunka-layout/src/lib.rs']);
+  assert.equal(result.full, false, JSON.stringify(result.reasons));
+  assert.deepEqual(result.build, ['grunkalunka-layout']);
+  assert.ok(result.tests.includes('check:workspace-tests'));
+  assert.ok(result.tests.includes('cargo-test:grunkalunka-layout'));
+  const preview = previewCargoScope(result, cargo);
+  assert.equal(preview.mode, 'scoped-preview', preview.reason);
+  assert.deepEqual(preview.selectedBuildPackages, ['grunkalunka-layout']);
+  assert.deepEqual(preview.selectedTestPackages, ['grunkalunka-layout']);
+  assert.deepEqual(preview.commands.test,
+    ['cargo', 'test', '--locked', '--offline', '-j', '4', '-p', 'grunkalunka-layout']);
 });

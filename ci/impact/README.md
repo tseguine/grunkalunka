@@ -22,10 +22,15 @@ push. This separate workflow prints an *advisory*, possibly incomplete plan.
   the canonical check sequence*. Do not enable pruning from this inventory
   without accounting for every canonical check and generated/test-time input.
 - Graph edges point from a module or test group to its dependencies. First
-  traverse **reverse** edges from changed owners to select affected tests; then
-  traverse **forward** edges from changed owners and selected tests to find all
-  modules to build. Merely appearing in the forward build closure does not
-  cause a dependency's tests to run.
+  traverse **reverse** selection edges from changed owners to select affected
+  tests; then traverse **forward** build edges from changed owners and selected
+  tests to find all modules to build. Normally both edge sets are `dependsOn`;
+  an explicit `buildDependsOn` overrides only the build traversal. Virtual
+  workspace-wide check targets depend on all Cargo packages for impact selection,
+  but have empty build dependencies because the preview lowers them to package-
+  scoped invocations. Actual affected Cargo tests and integration groups supply
+  the necessary build closure. Merely entering the build closure never selects
+  a dependency's own tests. This distinction is advisory; no test is skipped.
 
 `plan.mjs` diffs the merge base of `HEAD` against an explicit base ref. It uses
 `git diff --name-only --no-renames -z`, so both old and new paths of a rename

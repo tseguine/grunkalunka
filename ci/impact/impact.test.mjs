@@ -149,3 +149,41 @@ test('logical groups are dependency junctions, never runnable test targets', () 
   assert.ok(covered.tests.includes('check:new-module'));
   assert.ok(!covered.tests.includes(advisoryGroup.id));
 });
+
+test('separate selection and build edges do not import unrelated workspace modules', () => {
+  const virtual = { id: 'all-workspace-tests', dependsOn: ['core', 'api', 'cli', 'utility'],
+    buildDependsOn: [] };
+  const result = planImpact({
+    changedPaths: ['crates/core/src/lib.rs'],
+    modules, tests: [...tests, virtual],
+  });
+  assert.equal(result.full, false, JSON.stringify(result.reasons));
+  assert.ok(result.tests.includes('all-workspace-tests'));
+  assert.deepEqual(result.build, ['api', 'cli', 'core', 'utility'],
+    'other actually affected tests may still bring all required dependencies');
+  const isolated = planImpact({
+    changedPaths: ['crates/api/src/api.rs'],
+    modules, tests: [
+      { id: 'api-tests', dependsOn: ['api'] },
+      virtual,
+    ],
+  });
+  assert.equal(isolated.full, false, JSON.stringify(isolated.reasons));
+  assert.deepEqual(isolated.build, ['api', 'core', 'utility'],
+    'unaffected CLI must not be built by a virtual workspace check');
+  assert.deepEqual(isolated.tests, ['all-workspace-tests', 'api-tests']);
+});
+
+test('unknown or malformed build-only edges trigger conservative full fallback', () => {
+  const broken = [
+    { id: 'all', dependsOn: ['core'], buildDependsOn: ['nonexistent'] },
+    { id: 'all', dependsOn: ['core'], buildDependsOn: 'core' },
+    { id: 'all', dependsOn: ['core'], buildDependsOn: [null] },
+  ];
+  for (const target of broken) {
+    const result = planImpact({
+      changedPaths: ['crates/core/src/lib.rs'], modules, tests: [...tests, target],
+    });
+    assert.equal(result.full, true, JSON.stringify(target));
+  }
+});

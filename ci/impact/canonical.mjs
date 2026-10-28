@@ -50,6 +50,10 @@ export function checkNodes(declared, workspaceModules) {
       throw new Error('unsupported scope: ' + scope);
     }
     return scope === 'workspace' ?
-      { ...node, dependsOn: [...new Set([...(node.dependsOn ?? []), ...workspaceModules])] } : node;
+      { ...node,
+        dependsOn: [...new Set([...(node.dependsOn ?? []), ...workspaceModules])],
+        // In the selective preview this check is lowered to package-scoped
+        // invocations. Its broad impact edges must not force all crates to build.
+        buildDependsOn: [] } : node;
   });
 }
