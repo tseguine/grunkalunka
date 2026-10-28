@@ -320,9 +320,10 @@ export async function run(a, b) {
 }
 ```
 
-Potentially rejected results cannot yet be stored, discarded, coerced, tested
-or passed as source Promise parameters. Those uses require unhandled-rejection
-tracking; async-return adoption and real pending objects also remain open.
+Immediate settled snapshots cannot yet be stored, discarded, coerced, tested
+or passed as source Promise parameters. Their conversion to identity records and
+async-return adoption remain open. Pending-capable identity calls use the separate
+source path below.
 Maintained source tests compare JS/TS native execution with Node-Wasm and Wasmtime
 outcomes, primitive bits, callee/actual/capture snapshots and complete reaction
 traces. They retain 1,000/1,001 parameter and 32/33 await boundaries and compare
@@ -337,9 +338,9 @@ child/caller reactions, primitive rejection and lexical catches. Original comma
 prefixes execute in order. General primitive and fulfilled-Promise inputs retain
 their logical kinds; no annotation supplies a runtime proof.
 
-Pending results still cannot be stored, discarded, coerced, tested or returned
-for adoption. Mixed sync/async effects, recursive source initialization, general
-pending objects and finally remain outside this slice. The backend's recursive
+Pending-capable calls now produce stored identity values when requested. Numeric
+coercion, source identity comparison, adoption, mixed sync/async effects, recursive
+source initialization, general pending payloads and finally remain outside this slice. The backend's recursive
 IR-frame tests are not a source recursion claim. Source tests compare complete
 34-marker native/Node-Wasm traces and Wasmtime values/reaction counts, including
 1,000/1,001 parameters and 32/33 logical await sites. Wide transport tests use an
@@ -351,5 +352,57 @@ comma prefixes preserve condition, capture, callee and actual-argument snapshots
 including prefix suspension/rejection. Each selected leaf retains the original
 caller's single reaction; its child awaits remain separate. For example,
 `await (flag ? selected() : null)` can use a suspending async `selected` closure.
-All branch bodies remain checked. Pending logical operands and storing these
-pending results still require further work.
+All branch bodies remain checked. Homogeneous pending logical results and storage
+now use the source identity path below; mixed snapshot/identity storage still
+requires a conversion design.
+
+### Pending source values
+
+Suspending async-effect calls can now return a guest Promise identity to an async
+source body. `let`/`const` bindings, aliases, plain and logical reassignment,
+captured getters, homogeneous conditional/logical results and later awaits keep
+that identity separate from its primitive completion. Calls start eagerly and
+can overlap, including calls to the same compiled body with separate saved values.
+Object truthiness and discarded calls retain their eager effects and queued work.
+
+```js
+export async function run(a, b) {
+  const f = async x => { await a; return x; };
+  const p = f(a);
+  const q = f(b);
+  await p;
+  return await q;
+}
+```
+
+`Promise.resolve(p, extra1, extra2)` preserves an existing represented Promise identity.
+The argument runs before all extras; extras may mutate captures or suspend before
+the caller registers its await. Captured callee pairs and argument snapshots
+survive this work. This is the existing-Promise identity case, not general adoption.
+Mixed identity/snapshot storage, arbitrary pending parameter inference, identity
+comparison, primitive coercion and returning a Promise for async adoption remain
+explicit source gaps. Immediate non-suspending async closures retain their
+fulfilled/settled snapshot contracts.
+
+Awaited primitive rejection reaches its lexical catch, including repeated and
+late awaits. **Host unhandled-child rejection events are not implemented.** The
+admitted source below is a diagnosed counterexample: at `(4, 2)` both engines
+fulfill the root with `4`; native Node reports an unhandled child reason `2`, and
+the current Wasm adapter reports no event.
+
+```js
+export async function run(a, b) {
+  const f = async () => { await a; throw b; };
+  f();
+  return a;
+}
+```
+
+This gap is retained for the next async ownership unit. The current PoC sequence
+admits core identity/queue behavior before host event delivery is complete; it
+does not claim all Promise semantics. Both adapters continue ready work after
+root settlement. Source tests compare full native/Node-Wasm marker traces;
+Wasmtime uses an explicit shared FIFO and marker chain, drains remaining work,
+and compares completion bits and marker positions. Counting continuations alone
+would incorrectly equate sibling jobs with external ticks. Existing site, job,
+arena, state and production fuel bounds remain in force.

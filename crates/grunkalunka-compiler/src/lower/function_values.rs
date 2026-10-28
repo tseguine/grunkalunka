@@ -108,6 +108,16 @@ impl Lowering<'_, '_> {
             && storage::arrow_returns(arrow, self.semantic).is_some_and(|results| {
                 !results.is_empty()
                     && results.into_iter().all(|expression| {
+                        self.pending_promise_shape_in(expression, 0, bindings, calls)
+                    })
+            })
+        {
+            return Type::Promise;
+        }
+        if !arrow.r#async
+            && storage::arrow_returns(arrow, self.semantic).is_some_and(|results| {
+                !results.is_empty()
+                    && results.into_iter().all(|expression| {
                         self.settled_promise_shape_in(expression, 0, bindings, calls)
                     })
             })
@@ -649,7 +659,11 @@ impl Lowering<'_, '_> {
             .expect("checked signature");
         let asynchronous = self.closure_signatures.borrow().is_async(arity);
         if !match return_type {
-            Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => true,
+            Type::Number
+            | Type::General
+            | Type::FulfilledPromise
+            | Type::SettledPromise
+            | Type::Promise => true,
             Type::Closure(signature) => self
                 .closure_signatures
                 .borrow()
@@ -817,6 +831,10 @@ impl Lowering<'_, '_> {
         } else if let Some(expression) = arrow.get_expression() {
             if let Type::Closure(signature) = return_type {
                 child.function_value(expression, &mut body, signature, 0)?
+            } else if return_type == Type::Promise {
+                child
+                    .evaluate(expression, &mut body, 0, evaluate::Mode::Pending)?
+                    .expect("forwarded pending Promise identity")
             } else if return_type == Type::SettledPromise {
                 child
                     .evaluate(expression, &mut body, 0, evaluate::Mode::Settled)?

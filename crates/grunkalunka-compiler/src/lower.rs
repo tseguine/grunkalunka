@@ -22,6 +22,7 @@ mod callbacks;
 mod closures;
 mod evaluate;
 mod function_values;
+mod pending;
 mod promises;
 mod storage;
 pub(super) use callbacks::infer_callback_parameters;
@@ -685,12 +686,25 @@ impl Lowering<'_, '_> {
                 });
                 continue;
             }
-            let promise = if let Some(initializer) = local.init.as_ref() {
+            let pending = if let Some(initializer) = local.init.as_ref() {
+                if self.pending_promise_shape(initializer, 0) {
+                    self.evaluate(initializer, region, 0, evaluate::Mode::Pending)?
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let promise = if pending.is_some() {
+                None
+            } else if let Some(initializer) = local.init.as_ref() {
                 self.fulfilled_promise_initializer(initializer, region)?
             } else {
                 None
             };
-            let (ty, value) = if let Some(value) = promise {
+            let (ty, value) = if let Some(value) = pending {
+                (Type::Promise, value)
+            } else if let Some(value) = promise {
                 (Type::FulfilledPromise, value)
             } else if let Some(initializer) = local.init.as_ref() {
                 let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
@@ -1065,6 +1079,9 @@ impl Lowering<'_, '_> {
                         })?;
                 let value = if let Type::Closure(arity) = self.return_type {
                     self.function_value(expression, region, arity, 0)?
+                } else if self.return_type == Type::Promise {
+                    self.evaluate(expression, region, 0, evaluate::Mode::Pending)?
+                        .expect("pending Promise return")
                 } else if self.return_type == Type::SettledPromise {
                     self.evaluate(expression, region, 0, evaluate::Mode::Settled)?
                         .expect("forwarded settled return")

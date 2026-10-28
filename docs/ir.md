@@ -714,8 +714,9 @@ calls retain their existing inline boundary. Executable IR fixtures
 separately cover native-JS/Node-Wasm/Wasmtime values and reactions, caller/body
 catches, typed primitive/Promise/callback inputs, returned function pairs,
 captured parameters, recursive restoration and resource limits. Their recursive
-frame evidence does not admit recursive source initialization, detached pending
-Promises, adoption, identity or unhandled-rejection tracking.
+frame evidence does not establish recursive source initialization, adoption,
+identity comparison or unhandled-rejection tracking. Separate pending-value source
+requests below admit stored identities and detached execution.
 
 For a conditional await operand, the evaluator keeps an awaited request through
 the existing conditional/comma cursor. Its leaves return General completions
@@ -766,9 +767,20 @@ for these callbacks; Wasmtime exposes `pending_job_count()` independently of
 new ones. Repeated start and a resume with no ready job trap.
 
 Modules without identity operations retain their previous emitted protocol.
-This is an **IR/backend capability**, not new source admission. Source pending
-storage and detached calls remain guarded until their lowering and rejection
-ownership are implemented. Adoption, thenables, general payloads, host rejection
-notifications and independently escaping Promises remain open. Maintained IR
+Source pending-value requests now construct these operations. Positive queries
+follow original bindings and signatures without executing source expressions.
+The cursor distinguishes a Promise handle from fulfilled/settled snapshots and
+General primitives; aliases and captured getters retain the handle across stores
+and suspension. Async call evaluation snapshots the callee before all arguments,
+then starts its prefix eagerly. Existing direct-await requests retain their old
+path. `Promise.resolve` of an existing represented identity preserves it while
+evaluating surplus arguments in order.
+
+This does not complete Promise compatibility. Adoption, thenables, general
+payloads, source identity comparison, mixed snapshot/identity storage, pending
+parameter inference, host rejection notifications and independently escaping
+Promises remain open. Detached execution is admitted before host unhandled-event
+delivery; its known failing counterexample is documented in
+[pending source values](runtime-closures.md#pending-source-values). Maintained IR
 tests compare complete native Promise/Node-Wasm microtask traces; separate runtime
 tests cover queue accounting, root settlement, traps and the 32-job boundary.

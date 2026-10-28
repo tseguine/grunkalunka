@@ -451,19 +451,11 @@ pub(crate) enum Op {
         input: ValueId,
     },
     // Start eagerly and return identity, not the body's primitive completion.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     StartAsyncClosure {
         result: ValueId,
         callee: ValueId,
         arguments: Vec<ValueId>,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     AwaitPromise {
         result: ValueId,
         input: ValueId,

@@ -219,8 +219,9 @@ tests cover typed lanes, captures, nested/recursive restoration, both rejection
 boundaries and arena exhaustion. Maintained source tests independently execute
 new admission against native JS, Node-Wasm and Wasmtime. The 1,000-argument
 transport boundary uses explicit test fuel, since admission does not guarantee
-that wide-frame preparation fits the unchanged 10,000-fuel default. Pending
-result storage, detached calls, adoption and mixed sync/async effects stay guarded.
+that wide-frame preparation fits the unchanged 10,000-fuel default. Separate
+identity requests below now support stored/discarded calls; adoption and mixed
+sync/async effects stay guarded.
 
 ## Await selections and source-site provenance
 
@@ -242,8 +243,9 @@ Counting every generated branch would reject a deeply nested single source
 await. Converging actual pending values would require a broader representation
 and scheduler decision. Explicit provenance preserves the existing source-budget
 invariant locally while leaving frame encoding, fuel, 32 runtime jobs and 4,096
-physical states unchanged. Pending logical operands, storage and adoption remain
-separate work; source and malformed-IR tests cover the chosen boundary.
+physical states unchanged. Homogeneous pending logical operands and storage now
+use identity records; mixed snapshot/identity storage and adoption remain separate
+work. Source and malformed-IR tests cover these distinct boundaries.
 
 ## Primitive Promise record and reaction kernel
 
@@ -283,11 +285,14 @@ handle and initial-return flag. Saved working lanes follow that header. Legacy
 frames keep their previous sixteen-byte header and output. The flag, rather than
 a zero parent address, determines whether an eager child must return its handle.
 Typed synchronous helpers may transport handles but cannot start async bodies;
-starting requires the coroutine dispatcher. Separate narrow unused-constructor
-expectations mark the pending source admission, not missing backend integration.
+starting requires the coroutine dispatcher. Source pending requests now construct
+these operations and consume their earlier unused-constructor expectations.
+Existing immediate-await requests retain their previous path and encoding.
 Maintained tests execute settlement, alias identity, multiple waiter/Promise FIFO,
 native microtask markers, canonical payload checks, private handle errors and
 arena exhaustion in Wasmtime/Node. Queue capacity is arena-bounded; the existing
-32-site/32-job public profile limits are unchanged. No source pending storage,
-adoption, GC or performance improvement is claimed. The additive host scheduler
-count API describes ready work independently of root settlement.
+32-site/32-job public profile limits are unchanged. Source pending storage now uses
+these handles; adoption, GC and performance improvements are not claimed. The
+additive host scheduler count API describes ready work independently of root
+settlement. Host unhandled-child notifications remain a demonstrated gap after
+source admission, as recorded in ADR 0013.

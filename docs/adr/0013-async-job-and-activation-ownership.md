@@ -117,8 +117,11 @@ host callback for every issue before exposing root settlement at that boundary.
 Wasmtime reports outstanding callbacks separately through `pending_job_count`;
 an embedding subtracts the callbacks it has already registered before appending
 new ones. Root settlement does not end an invocation while owned work remains.
-Each resume consumes one guest job. Existing source guards and modules without
-identity operations retain the previous protocol and output.
+Each resume consumes one guest job. Existing direct-await source paths and modules
+without identity operations retain the previous protocol and output. Separate
+source requests now create pending-capable identities, preserve them through
+bindings/cells/getters and register later awaits. Discarding a call releases its
+source reference but does not cancel the invocation's owned ready work.
 The handled bit records subscription only; it does not implement host rejection
 notifications, adoption, thenables or a browser event loop.
 
@@ -127,10 +130,19 @@ profile. Preserve its current external status/tag/payload ABI, diagnostics, sour
 limits and documented terminal-error behavior unless a separately justified change
 updates compiler and adapters together.
 
-It does not add arbitrary Promise/thenable values, async closures, finally,
-generators, workers, cross-agent sharing, host I/O, unhandled-rejection reporting,
-JS cancellation, a new GC, or a general reentrant host-call model. Reject unsupported
-source explicitly; do not approximate it through scheduler convenience.
+It does not complete arbitrary Promise/thenable values, finally, generators,
+workers, cross-agent sharing, host I/O, unhandled-rejection reporting, JS cancellation,
+a new GC, or a general reentrant host-call model.
+
+The PoC implementation sequence now admits stored/discarded pending calls before
+host unhandled-event delivery is complete. Its executable counterexample is
+recorded in [pending source values](../runtime-closures.md#pending-source-values):
+root settlement agrees while native Node alone reports the rejected child. The
+handled flag and guest queue establish ownership but are insufficient to deliver
+that event. The next ownership unit must close this visible gap. Requiring event
+delivery before all source identity admission would couple two independently
+testable changes; the current sequence retains the known failing case and avoids
+claiming full Promise compatibility. Other unsupported source remains explicit.
 
 ## Alternatives considered
 

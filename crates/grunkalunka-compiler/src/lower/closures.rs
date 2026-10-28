@@ -277,7 +277,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else if let Some(arity) = check.function_arity(expression, 0) {
                 check.function_value(expression, &mut region, arity, 0)?;
             } else {
-                closure.result = if check.settled_promise_shape_in(
+                closure.result = if check.pending_promise_shape(expression, 0) {
+                    if arrow.r#async {
+                        return Err(unsupported(
+                            expression,
+                            "async Promise-valued returns require Promise adoption",
+                        ));
+                    }
+                    Type::Promise
+                } else if check.settled_promise_shape_in(
                     expression,
                     0,
                     &std::collections::BTreeMap::new(),
@@ -307,7 +315,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     expression,
                     &mut region,
                     0,
-                    if closure.result == Type::SettledPromise {
+                    if closure.result == Type::Promise {
+                        evaluate::Mode::Pending
+                    } else if closure.result == Type::SettledPromise {
                         evaluate::Mode::Settled
                     } else if closure.result == Type::FulfilledPromise {
                         evaluate::Mode::Promise

@@ -162,8 +162,8 @@ synchronous result-forwarding call or a conditional/comma result. An unshadowed
 Fulfilled branches explicitly promote their snapshots. Storing, discarding,
 coercing, testing or passing potentially rejected snapshots as Promise inputs
 remains guarded: these uses need unhandled-rejection tracking. Returning one from
-an async body requires adoption, which remains open. Pending promises, general
-payloads and identity also remain open.
+an async body requires adoption, which remains open. General payloads and
+snapshot-to-identity conversion also remain open; pending records are described below.
 Known directly awaited async calls retain their existing `AwaitCall` boundary.
 
 Runtime-selected async bodies with their own await now use async private effects and
@@ -171,13 +171,14 @@ Runtime-selected async bodies with their own await now use async private effects
 frames, runs each child in the same state dispatcher and restores the caller on
 primitive completion. Child awaits and the caller's await keep their separate
 reaction boundaries, including uncaught rejection and nested/recursive IR calls.
-This reuses the existing host protocol; it does not expose a pending Promise
-handle. Direct awaited calls preserve the callee before actual arguments, eager
+That directly-awaited form retains the legacy host protocol and a General
+completion. Direct awaited calls preserve the callee before actual arguments, eager
 prefix effects, captures and typed inputs. Async constructor peers share the
 effect; callback parameters and synchronous factories returning async functions
-retain it. Comma prefixes execute before callee and arguments. Pending result
-storage, detached calls, async-return adoption and mixed synchronous/asynchronous
-interfaces remain guarded. See [private async IR frames](ir.md#async-private-calls-and-invocation-frames)
+retain it. Comma prefixes execute before callee and arguments. These direct
+await paths keep their existing output. Separate pending-value requests now
+support storage and detached execution; async-return adoption and mixed
+synchronous/asynchronous interfaces remain guarded. See [private async IR frames](ir.md#async-private-calls-and-invocation-frames)
 for representation, executable evidence and limits.
 
 An await operand may now select a suspending call or an admitted primitive,
@@ -186,8 +187,8 @@ condition and prefixes execute once; only the selected branch runs. Each leaf
 keeps its own child effects and the one caller reaction of the original await.
 Unselected branches still pass source validation. Explicit source-site provenance
 lets alternative continuations share that logical site without merging their
-runtime jobs. Stored pending values, pending `&&`/`||`/`??` operands and adoption
-remain guarded.
+runtime jobs. Homogeneous pending-value selections and storage now use identity
+records. Mixed snapshot/identity storage and adoption remain guarded.
 
 The IR/backend now connects stable Promise identities to coroutine frames and
 the guest FIFO. `StartAsyncClosure` runs eagerly and returns an identity;
@@ -197,12 +198,20 @@ Both adapters consume individual enqueue notifications, so a root's settlement
 does not cancel other ready activations. Wasmtime's `pending_job_count()` reports
 outstanding callbacks separately from `state()`; Node schedules each notification
 on the host microtask queue. [IR contracts and limits](ir.md#pending-promise-guest-support)
-describe the protocol and arena lifetime. Source pending storage, detached calls,
-adoption and unhandled-rejection reporting remain subsequent work.
+describe the protocol and arena lifetime. Source now admits pending-capable
+async calls in bindings, aliases, reassignment, captured getters, homogeneous
+conditional/logical results, object truthiness and discarded positions. Later
+awaits preserve primitive completion and lexical rejection handling.
+`Promise.resolve(existingPending, extra1, extra2)` preserves the identity and evaluates
+extras after the argument, including their effects and suspension. This does not
+implement general Promise adoption. Typed annotations remain erased.
 
-Current source-generated modules retain the legacy primitive protocol described
-below. IR modules using Promise identities additionally export `take_jobs`; their
-queue-aware protocol is described in the linked IR contract above.
+Source using these identities exports `take_jobs`; other source modules retain
+the legacy primitive protocol described below. Unhandled child rejection reporting
+is a demonstrated remaining gap, including for newly admitted detached calls;
+see [pending source values](runtime-closures.md#pending-source-values). Adoption,
+mixed snapshot/identity storage, pending input inference and general payloads also
+remain open.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;

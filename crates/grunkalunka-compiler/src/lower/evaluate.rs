@@ -12,6 +12,7 @@ pub(super) enum Mode {
     General,
     Function(usize),
     Promise,
+    Pending,
     Settled,
     Awaited(usize),
 }
@@ -23,6 +24,7 @@ enum Value {
     General(ValueId),
     Function(ValueId),
     Promise(ValueId),
+    Pending(ValueId),
     Settled(ValueId),
 }
 impl Value {
@@ -32,6 +34,7 @@ impl Value {
             | Self::Predicate(id)
             | Self::General(id)
             | Self::Function(id)
+            | Self::Pending(id)
             | Self::Promise(id)
             | Self::Settled(id) => id,
         }
@@ -45,6 +48,12 @@ impl Value {
     fn promise(self) -> ValueId {
         let Self::Promise(id) = self else {
             unreachable!("Promise continuation")
+        };
+        id
+    }
+    fn pending(self) -> ValueId {
+        let Self::Pending(id) = self else {
+            unreachable!("pending Promise continuation")
         };
         id
     }
@@ -88,6 +97,19 @@ fn call_result<'e, 'a>(
             ));
         }
         (Type::Number, Mode::Number) | (Type::General, Mode::General) => (),
+        (Type::Promise, Mode::Pending) => (),
+        (Type::Promise, _) => {
+            return Err(unsupported(
+                node,
+                "pending Promise values require await, storage or object truthiness",
+            ));
+        }
+        (_, Mode::Pending) => {
+            return Err(unsupported(
+                node,
+                "pending Promise position requires a represented pending identity",
+            ));
+        }
         (Type::FulfilledPromise, Mode::Promise) => (),
         (Type::FulfilledPromise, Mode::Settled) => work.push(Work::PromotePromise(node)),
         (Type::SettledPromise, Mode::Settled) => (),
@@ -130,6 +152,13 @@ impl Regions<'_> {
     }
 }
 
+#[derive(Clone, Copy)]
+enum ClosureEffect {
+    Sync,
+    Await,
+    Start,
+}
+
 enum Work<'e, 'a> {
     Eval(&'e Expression<'a>, usize, Mode),
     AwaitOperand {
@@ -141,6 +170,8 @@ enum Work<'e, 'a> {
     },
     Forget,
     Await(&'e Expression<'a>, bool, Type, Option<usize>),
+    AwaitPending(&'e Expression<'a>, Option<usize>),
+    PendingTruthy(&'e Expression<'a>),
     AwaitSettled(&'e Expression<'a>, Option<usize>),
     FulfillPromise(&'e Expression<'a>),
     PromotePromise(&'e Expression<'a>),
@@ -242,7 +273,7 @@ enum Work<'e, 'a> {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
         callee: ValueId,
-        awaited: bool,
+        effect: ClosureEffect,
         index: usize,
         arguments: Vec<ValueId>,
         depth: usize,
@@ -420,7 +451,10 @@ impl Lowering<'_, '_> {
                     value: false,
                 }
             }
-        } else if matches!(ty, Type::Closure(_) | Type::FulfilledPromise) {
+        } else if matches!(
+            ty,
+            Type::Closure(_) | Type::FulfilledPromise | Type::Promise
+        ) {
             Op::Boolean {
                 result: condition,
                 value: true,
@@ -452,6 +486,7 @@ impl Lowering<'_, '_> {
                 Type::Closure(signature) => Mode::Function(signature),
                 Type::General => Mode::General,
                 Type::FulfilledPromise => Mode::Promise,
+                Type::Promise => Mode::Pending,
                 _ => Mode::Number,
             },
         ));
@@ -500,6 +535,10 @@ impl Lowering<'_, '_> {
                 } => {
                     if let Some(argument) = operand.argument
                         && self.composed_await_selection(argument, operand.depth)
+                        // Identity evaluation keeps the selected Promise while
+                        // surplus intrinsic arguments finish before its await.
+                        && (operand.extras.is_empty()
+                            || !self.pending_promise_shape(argument, operand.depth))
                     {
                         if operand.rejected || !operand.extras.is_empty() {
                             return Err(unsupported(
@@ -549,6 +588,7 @@ impl Lowering<'_, '_> {
                                     || !awaited::eager_async_arrow(arrow, self.semantic))
                         });
                     if !known_async
+                        && operand.extras.is_empty()
                         && let Some(private) = awaited::private_call(argument, argument_depth)
                         && let Some(signature) =
                             self.function_arity(&private.call.callee, private.depth + 1)
@@ -577,6 +617,33 @@ impl Lowering<'_, '_> {
                         for (prefix, depth) in private.prefixes.into_iter().rev() {
                             work.push(Work::Eval(prefix, depth, Mode::Discard));
                         }
+                        continue;
+                    }
+                    if (!known_async || !operand.extras.is_empty())
+                        && self.pending_promise_shape(argument, argument_depth)
+                    {
+                        if rejected {
+                            return Err(unsupported(
+                                node,
+                                "pending Promise intrinsic adoption or object rejection is not admitted",
+                            ));
+                        }
+                        call_result(
+                            &mut work,
+                            node,
+                            mode,
+                            Type::General,
+                            self.numeric_result_shape(node, depth),
+                        )?;
+                        work.push(Work::AwaitPending(node, site));
+                        for extra in operand.extras.iter().rev() {
+                            work.push(Work::Eval(
+                                extra.as_expression().expect("validated intrinsic argument"),
+                                argument_depth,
+                                Mode::Discard,
+                            ));
+                        }
+                        work.push(Work::Eval(argument, argument_depth, Mode::Pending));
                         continue;
                     }
                     if !known_async && self.fulfilled_promise_shape(argument, argument_depth) {
@@ -744,6 +811,30 @@ impl Lowering<'_, '_> {
                     let result = self.value(Type::General);
                     Self::push(regions.current(), node, Op::PromiseValue { result, input });
                     values.push(Value::General(result));
+                }
+                Work::AwaitPending(node, site) => {
+                    let input = values.pop().expect("awaited pending identity").pending();
+                    let result = self.value(Type::General);
+                    Self::push_await(
+                        regions.current(),
+                        node,
+                        site,
+                        Op::AwaitPromise { result, input },
+                    );
+                    values.push(Value::General(result));
+                }
+                Work::PendingTruthy(node) => {
+                    values.pop().expect("pending truthiness").pending();
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::Boolean {
+                            result,
+                            value: true,
+                        },
+                    );
+                    values.push(Value::Predicate(result));
                 }
                 Work::PromiseTruthy(node) => {
                     values.pop().expect("Promise truthiness operand").promise();
@@ -917,7 +1008,7 @@ impl Lowering<'_, '_> {
                         node,
                         call,
                         callee,
-                        awaited: true,
+                        effect: ClosureEffect::Await,
                         index: 0,
                         arguments: Vec::new(),
                         depth,
@@ -928,7 +1019,7 @@ impl Lowering<'_, '_> {
                     node,
                     call,
                     callee,
-                    awaited,
+                    effect,
                     index,
                     mut arguments,
                     depth,
@@ -954,7 +1045,7 @@ impl Lowering<'_, '_> {
                                 node,
                                 call,
                                 callee,
-                                awaited,
+                                effect,
                                 index: index + 1,
                                 arguments,
                                 depth,
@@ -989,7 +1080,7 @@ impl Lowering<'_, '_> {
                             node,
                             call,
                             callee,
-                            awaited,
+                            effect,
                             index: index + 1,
                             arguments,
                             depth,
@@ -1015,13 +1106,24 @@ impl Lowering<'_, '_> {
                             .borrow()
                             .result(signature)
                             .expect("checked signature");
+                        let ty = if matches!(effect, ClosureEffect::Start) {
+                            Type::Promise
+                        } else {
+                            ty
+                        };
                         let result = self.value(ty);
                         Self::push_await(
                             regions.current(),
                             node,
                             site,
-                            if awaited {
+                            if matches!(effect, ClosureEffect::Await) {
                                 Op::AwaitClosureCall {
+                                    result,
+                                    callee,
+                                    arguments,
+                                }
+                            } else if matches!(effect, ClosureEffect::Start) {
+                                Op::StartAsyncClosure {
                                     result,
                                     callee,
                                     arguments,
@@ -1034,7 +1136,9 @@ impl Lowering<'_, '_> {
                                 }
                             },
                         );
-                        values.push(if ty == Type::SettledPromise {
+                        values.push(if ty == Type::Promise {
+                            Value::Pending(result)
+                        } else if ty == Type::SettledPromise {
                             Value::Settled(result)
                         } else if ty == Type::FulfilledPromise {
                             Value::Promise(result)
@@ -1249,6 +1353,8 @@ impl Lowering<'_, '_> {
                             unreachable!("function logical assignment RHS")
                         };
                         value
+                    } else if ty == Type::Promise {
+                        value.pending()
                     } else if ty == Type::FulfilledPromise {
                         value.promise()
                     } else if general {
@@ -1279,6 +1385,8 @@ impl Lowering<'_, '_> {
                     );
                     values.push(if matches!(ty, Type::Closure(_)) {
                         Value::Function(result)
+                    } else if ty == Type::Promise {
+                        Value::Pending(result)
                     } else if ty == Type::FulfilledPromise {
                         Value::Promise(result)
                     } else if general {
@@ -1308,6 +1416,7 @@ impl Lowering<'_, '_> {
                         }
                         Value::Predicate(_)
                         | Value::Function(_)
+                        | Value::Pending(_)
                         | Value::Promise(_)
                         | Value::Settled(_) => {
                             unreachable!("typed General assignment RHS")
@@ -1551,6 +1660,7 @@ impl Lowering<'_, '_> {
                         Mode::General | Mode::Awaited(_) => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
+                        Mode::Pending => Type::Promise,
                         Mode::Promise => Type::FulfilledPromise,
                         Mode::Settled => Type::SettledPromise,
                         _ => Type::Number,
@@ -1573,7 +1683,7 @@ impl Lowering<'_, '_> {
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
                         Type::SettledPromise => Value::Settled(result),
-                        Type::Promise => unreachable!("pending Promise source admission follows"),
+                        Type::Promise => Value::Pending(result),
                     });
                 }
                 Work::LogicalLeft {
@@ -1642,7 +1752,7 @@ impl Lowering<'_, '_> {
                                 "settled Promise logical selection requires rejection tracking",
                             ));
                         }
-                        Value::Function(_) | Value::Promise(_) => {
+                        Value::Function(_) | Value::Promise(_) | Value::Pending(_) => {
                             // Functions and Promises are truthy and non-nullish,
                             // so || and ?? keep this evaluated left snapshot.
                             let result = self.value(Type::Predicate);
@@ -1689,6 +1799,7 @@ impl Lowering<'_, '_> {
                         Mode::General | Mode::Awaited(_) => Type::General,
                         Mode::Predicate => Type::Predicate,
                         Mode::Function(signature) => Type::Closure(signature),
+                        Mode::Pending => Type::Promise,
                         Mode::Promise => Type::FulfilledPromise,
                         Mode::Settled => Type::SettledPromise,
                         _ => Type::Number,
@@ -1711,10 +1822,16 @@ impl Lowering<'_, '_> {
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
                         Type::SettledPromise => Value::Settled(result),
-                        Type::Promise => unreachable!("pending Promise source admission follows"),
+                        Type::Promise => Value::Pending(result),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
+                    if self.pending_promise_shape(node, depth) {
+                        work.push(Work::Forget);
+                        work.push(Work::Eval(node, depth, Mode::Pending));
+                        continue;
+                    }
+
                     if self.fulfilled_promise_shape(node, depth) {
                         work.push(Work::Forget);
                         work.push(Work::Eval(node, depth, Mode::Promise));
@@ -1804,6 +1921,143 @@ impl Lowering<'_, '_> {
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
+                    }
+                    if matches!(mode, Mode::Predicate) && self.pending_promise_shape(node, depth) {
+                        work.push(Work::PendingTruthy(node));
+                        work.push(Work::Eval(node, depth, Mode::Pending));
+                        continue;
+                    }
+                    if matches!(mode, Mode::Pending) {
+                        if schedule_selection(&mut work, node, depth, mode)? {
+                            continue;
+                        }
+                        if let Expression::Identifier(id) = node {
+                            let binding = numeric_binding(id, self.semantic, &self.bindings)?;
+                            if self.slots[binding.slot.0].ty != Type::Promise {
+                                return Err(unsupported(node, "pending Promise binding required"));
+                            }
+                            let slot = binding.slot;
+                            let result = self.value(Type::Promise);
+                            Self::push(regions.current(), node, Op::Load { result, slot });
+                            values.push(Value::Pending(result));
+                            continue;
+                        }
+                        if let Expression::AssignmentExpression(assignment) = node {
+                            if matches!(
+                                assignment.operator,
+                                AssignmentOperator::LogicalAnd
+                                    | AssignmentOperator::LogicalOr
+                                    | AssignmentOperator::LogicalNullish
+                            ) {
+                                self.schedule_logical_assignment(
+                                    node,
+                                    assignment,
+                                    depth,
+                                    mode,
+                                    &mut regions,
+                                    &mut work,
+                                )?;
+                                continue;
+                            }
+                            let id = assignment
+                                .left
+                                .as_simple_assignment_target()
+                                .and_then(|t| target_identifier(t, depth).ok().flatten())
+                                .ok_or_else(|| {
+                                    unsupported(
+                                        node,
+                                        "pending Promise assignment requires an identifier",
+                                    )
+                                })?;
+                            let binding = numeric_binding(id, self.semantic, &self.bindings)?;
+                            if !binding.mutable
+                                || assignment.operator != AssignmentOperator::Assign
+                                || self.slots[binding.slot.0].ty != Type::Promise
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "pending Promise assignment requires mutable unchanged identity type",
+                                ));
+                            }
+                            work.push(Work::StoreTyped {
+                                node,
+                                slot: binding.slot,
+                            });
+                            work.push(Work::Eval(&assignment.right, depth + 1, Mode::Pending));
+                            continue;
+                        }
+                        if let Expression::CallExpression(call) = node {
+                            if let Some(intrinsic) = awaited::intrinsic(call, self.semantic)
+                                .map_err(|message| unsupported(node, message))?
+                                && !intrinsic.rejected
+                                && let Some(argument) = intrinsic.argument
+                                && self.pending_promise_shape(argument, depth + 1)
+                            {
+                                for extra in intrinsic.extras.iter().rev() {
+                                    work.push(Work::Eval(
+                                        extra
+                                            .as_expression()
+                                            .expect("validated intrinsic argument"),
+                                        depth + 1,
+                                        Mode::Discard,
+                                    ));
+                                }
+                                work.push(Work::Eval(argument, depth + 1, Mode::Pending));
+                                continue;
+                            }
+                            let signature = self
+                                .function_arity(&call.callee, depth + 1)
+                                .ok_or_else(|| {
+                                    unsupported(
+                                        node,
+                                        "pending call requires a represented function",
+                                    )
+                                })?;
+                            let asynchronous = self.closure_signatures.borrow().is_async(signature);
+                            if asynchronous && !self.allow_await {
+                                return Err(unsupported(
+                                    node,
+                                    "starting pending async calls requires a coroutine function",
+                                ));
+                            }
+                            if !asynchronous
+                                && self.closure_signatures.borrow().result(signature)
+                                    != Some(Type::Promise)
+                            {
+                                return Err(unsupported(
+                                    node,
+                                    "call does not return a pending Promise identity",
+                                ));
+                            }
+                            let region_depth = regions.children.len();
+                            let callee = self.prepare_closure_call(
+                                node,
+                                call,
+                                signature,
+                                regions.current(),
+                                depth + 1,
+                                region_depth,
+                            )?;
+                            work.push(Work::ClosureCall {
+                                node,
+                                call,
+                                callee,
+                                effect: if asynchronous {
+                                    ClosureEffect::Start
+                                } else {
+                                    ClosureEffect::Sync
+                                },
+                                index: 0,
+                                arguments: Vec::new(),
+                                depth: depth + 1,
+                                site: None,
+                            });
+                            continue;
+                        }
+                        return Err(unsupported(
+                            node,
+                            "expression requires a pending Promise identity",
+                        ));
                     }
                     if let Mode::Awaited(site) = mode {
                         if matches!(
@@ -2151,7 +2405,7 @@ impl Lowering<'_, '_> {
                             node,
                             call,
                             callee,
-                            awaited: false,
+                            effect: ClosureEffect::Sync,
                             index: 0,
                             arguments: Vec::new(),
                             depth: depth + 1,
@@ -2599,7 +2853,10 @@ impl Lowering<'_, '_> {
                                     "function assignments require a function-valued or discarded position",
                                 ));
                             }
-                            if self.slots[slot.0].ty == Type::FulfilledPromise {
+                            if matches!(
+                                self.slots[slot.0].ty,
+                                Type::FulfilledPromise | Type::Promise
+                            ) {
                                 return Err(unsupported(
                                     node,
                                     "Promise assignments require a Promise-valued or discarded position",
@@ -2666,7 +2923,10 @@ impl Lowering<'_, '_> {
                                     "function bindings do not support numeric updates",
                                 ));
                             }
-                            if self.slots[slot.0].ty == Type::FulfilledPromise {
+                            if matches!(
+                                self.slots[slot.0].ty,
+                                Type::FulfilledPromise | Type::Promise
+                            ) {
                                 return Err(unsupported(
                                     node,
                                     "Promise bindings do not support numeric updates",

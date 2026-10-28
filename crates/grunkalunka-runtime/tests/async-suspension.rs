@@ -7,6 +7,9 @@ use std::{
 
 const ORIGINAL: &str = "export async function run(a,b) { return a + await Promise.resolve(b); }";
 
+#[path = "async-suspension/pending.rs"]
+mod pending;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -131,7 +134,6 @@ fn selected_async_await_operands_keep_pending_and_domain_guards() {
     for body in [
         "let f=async()=>{await a;return b;};const p=a?f():b;return await p;",
         "let f=async()=>{await a;return b;};return a?f():b;",
-        "let f=async()=>{await a;return b;};if(a?f():b)return a;return b;",
         "let f=async()=>{await a;return b;};return await Promise.reject(a?f():b);",
         "let f=async()=>{await a;return b;};return await Promise.resolve(a?f():b,await a);",
         "let f=async()=>{await a;return b;};return await(f()||b);",
@@ -143,8 +145,6 @@ fn selected_async_await_operands_keep_pending_and_domain_guards() {
         "let f=async()=>{await a;return b;};return await(a?f():(()=>b));",
         "let f=async()=>{await a;return b;};return await(a?f():missing());",
         "let f=async()=>{await a;return b;};return await(a?f():Promise.resolve({}));",
-        "let f=async()=>{await a;return b;};return await(f()?a:b);",
-        "let f=async()=>{await a;return b;};return await(f(),a?b:a);",
         "let f=async()=>{await a;return b;};const g=async()=>a?f():b;return await g();",
     ] {
         for ts in [false, true] {
@@ -336,14 +336,9 @@ for(const [a,b] of [[4,2],[0,-0],[NaN,Infinity]])assert.deepEqual(await observe(
 #[test]
 fn suspending_async_closures_keep_pending_and_signature_guards() {
     for body in [
-        "let f=async()=>{await a;return b;};const p=f();return await p;",
-        "let f=async()=>{await a;return b;};f();return b;",
-        "let f=async()=>{await a;return b;};return void f();",
         "let f=async()=>{await a;return b;};return +f();",
-        "let f=async()=>{await a;return b;};if(f())return a;return b;",
         "let f=async()=>{await a;return b;};return f();",
         "let f=async()=>{await a;return b;};return await Promise.reject(f());",
-        "let f=async()=>{await a;return b;};return await Promise.resolve(f(),await b);",
         "let f=async()=>{await a;return b;};const g=async()=>f();return await g();",
         "const f=a?async()=>{await a;return b;}:()=>b;return await f();",
         "const f=a?async x=>{await a;return x;}:async(x,y)=>{await b;return x+y;};return await f(a,b);",
@@ -945,7 +940,6 @@ fn source_promise_parameters_keep_erasure_domains_and_await_bounds() {
         "const apply=(fn,p)=>fn(p);return await apply(x=>x,Promise.resolve(a))+apply(x=>x,b);",
         "const id=p=>{p=b;return p;};return await id(Promise.resolve(a));",
         "const id=async p=>p;return await id(Promise.resolve(a));",
-        "const read=async p=>await p;const p=read(Promise.resolve(a));return await p;",
         "const id=p=>p;return await id(Promise.reject(a));",
         "const id=p=>p;return id(Promise.resolve(a));",
         "const id=p=>p;return +id(Promise.resolve(a));",
@@ -1394,7 +1388,6 @@ fn promise_intrinsic_arguments_keep_erasure_and_resource_boundaries() {
         }
     }
     for body in [
-        "const f=async()=>{await b;return a;};return await Promise.resolve(f(),b);",
         "const Promise=a;return await Promise.resolve(b,a);",
         "return await Promise.resolve?.(a,b);",
         "return await Promise.resolve(a,...b);",
@@ -2794,7 +2787,7 @@ async function observe(run,a,b){
  const done=promise.then(value=>{trace.push('fulfilled:'+bits(value));},reason=>{trace.push('rejected:'+bits(reason));});
  let count=0;const markers=new Promise(resolve=>{function tick(){trace.push('tick'+(++count));if(count<34)queueMicrotask(tick);else resolve();}queueMicrotask(tick);});
  await Promise.all([done,markers]);const outcome=trace.find(entry=>entry.startsWith('fulfilled:')||entry.startsWith('rejected:'));
- return {trace,outcome,jobs:trace.slice(0,trace.indexOf(outcome)).filter(entry=>entry.startsWith('tick')).length};
+ return {trace,outcome,ticks:trace.slice(0,trace.indexOf(outcome)).filter(entry=>entry.startsWith('tick')).length};
 }
 function fromBits(hex){view.setBigUint64(0,BigInt('0x'+hex));return view.getFloat64(0);}
 assert.equal(createHash('sha256').update('export async function run(a,b) { return a + await Promise.resolve(b); }').digest('hex'),'735913a592f91c980a71bac74f112102d572af6f6dc989f6b571ef11877e786e');
@@ -2817,25 +2810,78 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
                 .unwrap_or_else(|error| panic!("{source}: {error}"));
             let mut rust = Vec::new();
             for &(a, b) in vectors {
-                let mut activation = AsyncInstance::new(&artifact.wasm, a, b).unwrap();
-                let mut jobs = 0;
-                while matches!(activation.state().unwrap(), AsyncState::Pending) {
-                    activation.run_one_job().unwrap();
-                    jobs += 1;
-                    assert!(jobs <= 32);
-                }
-                let (kind, value) = match activation.state().unwrap() {
+                let (state, ticks) = observe_rust_fifo(&artifact.wasm, a, b);
+                let (kind, value) = match state {
                     AsyncState::Fulfilled(value) => ("fulfilled", value),
                     AsyncState::Rejected(value) => ("rejected", value),
                     _ => unreachable!(),
                 };
                 let bits = primitive_bits(value);
-                rust.push(format!("{{outcome:'{kind}:{bits}',jobs:{jobs}}}"));
+                rust.push(format!("{{outcome:'{kind}:{bits}',ticks:{ticks}}}"));
             }
-            script.push_str(&format!("{{const native=(()=>{{{};return run;}})();const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].jobs,expected.jobs);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await Promise.allSettled([wasm(a,b),wasm(c,d)]),await Promise.allSettled([native(a,b),native(c,d)]));}}\n",source.replacen("export async function run", "async function run", 1),artifact.wasm,rust.join(","),source));
+            script.push_str(&format!("{{const native=(()=>{{{};return run;}})();const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].ticks,expected.ticks);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await Promise.allSettled([wasm(a,b),wasm(c,d)]),await Promise.allSettled([native(a,b),native(c,d)]));}}\n",source.replacen("export async function run", "async function run", 1),artifact.wasm,rust.join(","),source));
         }
     }
     run_node(&script);
+}
+
+// Observe the same external marker chain as Node. Several ready guest jobs may
+// precede one marker; root settlement can precede the last owned guest job.
+fn observe_rust_fifo(wasm: &[u8], a: f64, b: f64) -> (AsyncState, usize) {
+    use std::collections::VecDeque;
+    enum Job {
+        Guest,
+        Tick(u8),
+        Observe(AsyncState),
+    }
+    let mut activation = AsyncInstance::new(wasm, a, b).unwrap();
+    let mut queue = VecDeque::new();
+    let mut scheduled = activation.pending_job_count().unwrap();
+    for _ in 0..scheduled {
+        queue.push_back(Job::Guest);
+    }
+    let mut settled = !matches!(activation.state().unwrap(), AsyncState::Pending);
+    if settled {
+        queue.push_back(Job::Observe(activation.state().unwrap()));
+    }
+    queue.push_back(Job::Tick(1));
+    let mut ticks = 0;
+    let mut calls = 0;
+    let mut result = None;
+    while let Some(job) = queue.pop_front() {
+        match job {
+            Job::Guest => {
+                scheduled -= 1;
+                assert!(activation.run_one_job().unwrap());
+                calls += 1;
+                assert!(calls <= 32);
+                let owed = activation.pending_job_count().unwrap();
+                assert!(owed >= scheduled);
+                for _ in scheduled..owed {
+                    queue.push_back(Job::Guest);
+                }
+                scheduled = owed;
+                let state = activation.state().unwrap();
+                if !settled && !matches!(state, AsyncState::Pending) {
+                    settled = true;
+                    queue.push_back(Job::Observe(state));
+                }
+            }
+            Job::Tick(n) => {
+                ticks += 1;
+                if n < 34 {
+                    queue.push_back(Job::Tick(n + 1));
+                }
+            }
+            Job::Observe(state) => {
+                assert!(result.is_none());
+                result = Some((state, ticks));
+            }
+        }
+    }
+    assert_eq!(activation.pending_job_count().unwrap(), 0);
+    assert!(!activation.run_one_job().unwrap());
+    result.expect("root must settle before the observation can finish")
 }
 
 fn run_node(script: &str) {
@@ -2848,6 +2894,7 @@ fn run_node(script: &str) {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
+    let script = format!("{script}\nconsole.log('ASYNC_TEST_DONE');\n");
     child
         .stdin
         .take()
@@ -2859,6 +2906,12 @@ fn run_node(script: &str) {
         result.status.success(),
         "{}",
         String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&result.stdout)
+            .lines()
+            .any(|line| line == "ASYNC_TEST_DONE"),
+        "Node exited before all async observations finished"
     );
 }
 
@@ -3476,7 +3529,6 @@ fn known_concise_async_bodies_preserve_body_and_caller_jobs() {
 fn concise_async_promise_object_guards_do_not_change_root_rejection() {
     for body in [
         "const f=async()=>await a;return f();",
-        "const f=async()=>await a;const p=f();return await p;",
         "const f=async()=>await({});return await f();",
     ] {
         let source = source_for(body);
@@ -3538,7 +3590,6 @@ fn known_async_blocks_preserve_body_and_caller_jobs() {
 fn async_blocks_keep_promise_object_and_sync_guards() {
     for body in [
         "const f=async()=>{return await a;};return f();",
-        "const f=async()=>{return await a;};const p=f();return await p;",
         "const f=()=>{return await a;};return await f();",
         "const f=async()=>{return ()=>a;};return await f();",
     ] {
