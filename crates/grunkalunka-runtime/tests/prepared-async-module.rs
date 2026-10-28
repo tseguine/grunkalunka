@@ -29,7 +29,7 @@ fn prepared_async_module_preserves_fresh_store_and_activation_isolation() {
     let prepared = PreparedAsyncModule::new(&wasm).unwrap();
 
     // Begin two invocations before advancing either continuation.
-    let mut first = prepared.instantiate(4.0, 2.0).unwrap();
+    let first = prepared.instantiate(4.0, 2.0).unwrap();
     let second = prepared.instantiate(-0.0, -0.0).unwrap();
     assert!(matches!(first.state().unwrap(), AsyncState::Pending));
     assert!(matches!(second.state().unwrap(), AsyncState::Pending));
