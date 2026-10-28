@@ -23,8 +23,9 @@ executable as the first argument. The wrapper forwards that same compiler
 and all of its original arguments, changing **only one** actual
 Cargo-generated `-C metadata=...` codegen argument per expected crate.
 
-The wrapper accepts precisely five observed crate/target groups and
-requires one sixteen-lowercase-hex-generated metadata value on each:
+The wrapper **modifies only five selected** crate/target groups, requiring
+one sixteen-lowercase-hex-generated metadata value on each. All other
+Cargo-compiled dependency crates are **logged and forwarded unchanged**:
 
 | Compiled crate | Target | Replacement value |
 | --- | --- | --- |
@@ -34,8 +35,9 @@ requires one sixteen-lowercase-hex-generated metadata value on each:
 | `grunkalunka_markdown` | `wasm32-unknown-unknown` | `p1markdown` |
 | `outline_guest` | `wasm32-unknown-unknown` | `p1guest` |
 
-A missing/extra generated metadata flag or an unknown compiled crate
-fails closed. Cargo's `--extern`, `-C extra-filename`, target,
+A missing/extra generated metadata flag fails closed, as does a selected
+crate compiled for an unexpected target. Additional crates (including
+`bitflags`) must have their original generated metadata preserved. Cargo's `--extern`, `-C extra-filename`, target,
 feature configuration, source, linker arguments, and every other
 compiler flag are passed **unchanged**. The wrapper preserves real
 rustc exit codes, and leaves compiler version/probe invocations alone.
@@ -50,7 +52,7 @@ host:
 | --- | --- |
 | Pass-through | Forward all compiler arguments unchanged, but log original generated metadata |
 | Target-only | Replace generated metadata for the four wasm32-target crates; keep native build-script metadata |
-| All | Also replace the native `build_script_build` generated metadata |
+| All selected | Also replace the native `build_script_build` generated metadata; do not modify other crates |
 
 All three modes use exactly **the same wrapper executable path and
 the same absolute private `CARGO_TARGET_DIR`** on their runner. The
@@ -64,8 +66,10 @@ developer's normal `target/` is changed.
 
 A compact temporary wrapper record gives only crate name, target,
 actual original generated metadata and effective forwarded metadata
-value. All five expected invocations are required in each mode, and
-the original generated values must remain **identical across the three
+value. All five selected invocations are required in each mode, while any
+additional Cargo dependency compilations are separately recorded and
+must retain their original generated metadata. The selected five crates'
+original generated values must remain **identical across the three
 modes within each host**. Otherwise the experiment fails rather than
 mistaking changed Cargo input generation for the effect of replacing it.
 
@@ -122,10 +126,12 @@ filename hashes are still live hypotheses.
 
 The selected fixed replacement strings are **experimental
 disambiguators**, not stable crate identities for general Cargo
-dependency graphs. The wrapper's allowlist covers the existing
-five-crate Markdown guest experiment only; it does not support
-multiple versions, packages with identical crate names, arbitrary
-build scripts, more elaborate features, or external application builds.
+dependency graphs. The wrapper changes the five previously observed
+crate/target groups only. Other actually compiled dependencies are
+explicitly excluded, so the result is **not total Cargo metadata
+normalization**; it does not safely handle multiple versions of the
+same selected crate, additional build scripts with that selected name,
+more elaborate features or arbitrary application builds.
 Raw Wasm byte differences alone do not prove different runtime behavior,
 and the separate Markdown/WIT capability and native functional tests
 remain the correctness baseline. There are no runtime-speed, guest
