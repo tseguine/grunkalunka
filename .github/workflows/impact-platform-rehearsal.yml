@@ -13,6 +13,9 @@ on:
       - 'ci/impact/impact.mjs'
       - 'ci/impact/platform-rehearsal.mjs'
       - 'ci/impact/plan.mjs'
+      - 'ci/impact/cargo-test-nodes.mjs'
+      - 'ci/impact/collect-checks.mjs'
+      - 'ci/impact/external-workflows.mjs'
       - '.github/workflows/ci.yml'
       - '.github/workflows/impact-platform-rehearsal.yml'
   workflow_dispatch:
