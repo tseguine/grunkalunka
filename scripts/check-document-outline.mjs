@@ -57,6 +57,30 @@ function runAndValidateCost(selected) {
   assert.equal(report.timings.order, 'alternating');
   assert.ok(report.artifact.guestBytes > 0);
   assert.ok(report.artifact.componentBytes > report.artifact.guestBytes);
+  const memory = report.processMemory;
+  assert.equal(memory.scope, 'entire-rust-process');
+  assert.equal(memory.unit, 'bytes');
+  if (process.platform === 'linux') {
+    assert.equal(memory.source, 'linux-proc-status');
+    const phases = [
+      'beforeEmbed', 'afterCompile', 'afterInstantiation',
+      'afterWarmup', 'afterBatches',
+    ];
+    assert.deepEqual(Object.keys(memory.snapshots), phases);
+    let previousPeak = 0;
+    for (const phase of phases) {
+      const sample = memory.snapshots[phase];
+      for (const value of [sample.rssBytes, sample.peakRssBytes]) {
+        assert.ok(Number.isSafeInteger(value) && value >= 0);
+      }
+      assert.ok(sample.peakRssBytes >= sample.rssBytes);
+      assert.ok(sample.peakRssBytes >= previousPeak);
+      previousPeak = sample.peakRssBytes;
+    }
+  } else {
+    assert.equal(memory.source, 'unsupported-on-this-host');
+    assert.equal(memory.snapshots, null);
+  }
   assert.equal(report.outcomes.grantedBackingReads, 6);
   assert.equal(report.outcomes.deniedBackingReads, 0);
   assert.equal(report.outcomes.grantedCleanups, 7);
