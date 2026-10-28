@@ -31,6 +31,9 @@ fn void_yields_undefined_without_widening_the_numeric_return_contract() {
 
 fn encode(value: Value) -> String {
     match value {
+        grunkalunka_runtime::Value::TypeError { .. } => {
+            panic!("primitive-only fixture received an Error object")
+        }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
         Value::Boolean(value) => format!("[2,{value}]"),

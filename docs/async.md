@@ -384,3 +384,33 @@ Concise known synchronous helpers can return existing function pairs before or
 after suspension; returned callees and callback arguments retain their snapshots.
 This adds no async callback body or Promise value; see
 [local function results](local-function-results.md).
+
+### Intrinsic self-resolution TypeError objects
+
+Returning an activation's own Promise now rejects it with a fresh guest TypeError
+object before a thenable-registration job is queued. An outer await can catch,
+retain and rethrow that reason. Repeated awaits and forwarding preserve the same
+identity; separate self-resolutions create separate objects. This closes the
+previous mutable-capture case that left a root pending with no ready jobs.
+
+Adoption modules opt into `error_kind(f64) -> i32`. Async tag 4 carries a validated,
+invocation-local Error-record ID; kind 1 is the intrinsic self-resolution TypeError.
+The Node adapter caches a native TypeError per ID, shared between root outcomes
+and rejection notifications. Separate invocations have separate caches. Wasmtime
+exposes `Value::TypeError { id }`; IDs have meaning only within their invocation.
+The primitive `ValueInstance` protocol still admits only tags 0–3. Malformed
+extension payloads, unsupported kinds and guest validation traps terminate an
+async invocation, while a valid guest TypeError remains catchable by source.
+
+The new object is truthy and non-nullish, supports strict/loose identity comparison,
+and converts to NaN in explicit numeric coercion. Comparisons never treat its ID
+as a Number. Catch cells, closures, private calls and notifications retain its ID.
+Tests compare Error class and identity rather than engine-specific messages or
+stack traces; previous primitive comparisons remain exact.
+
+This does not implement arbitrary Error constructors/properties or general object
+semantics. Error string conversion and relational operators still need work: the
+admitted catch expression `e <= e` should return true after converting both Error
+objects to strings, but the current numeric relational path returns false. That
+counterexample is a remaining gap, not a passing conformance case. General strings,
+snapshot adoption and other previously recorded JS/TS gaps also remain open.

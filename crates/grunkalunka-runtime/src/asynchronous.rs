@@ -29,6 +29,7 @@ pub struct AsyncInstance {
     take_promise_event: Option<TypedFunc<(), (i32, i32, i32, f64)>>,
     notifications: Vec<PromiseNotification>,
     rejections: std::collections::BTreeSet<u32>,
+    error_kind: Option<TypedFunc<f64, i32>>,
     ready_jobs: u8,
     state: AsyncState,
     pending: Option<(i32, i32, f64)>,
@@ -53,6 +54,13 @@ impl AsyncInstance {
         if take_promise_event.is_some() && take_jobs.is_none() {
             wasmtime::bail!("Promise events require queued async protocol");
         }
+        let error_kind = instance
+            .get_func(&mut store, "error_kind")
+            .map(|f| f.typed(&store))
+            .transpose()?;
+        if error_kind.is_some() && take_jobs.is_none() {
+            wasmtime::bail!("error objects require queued async protocol");
+        }
         store.set_fuel(super::FUEL_PER_CALL)?;
         let result = start.call(&mut store, (a, b))?;
         let mut activation = Self {
@@ -62,6 +70,7 @@ impl AsyncInstance {
             take_promise_event,
             notifications: Vec::new(),
             rejections: std::collections::BTreeSet::new(),
+            error_kind,
             ready_jobs: 0,
             state: AsyncState::Pending,
             pending: None,
@@ -130,7 +139,7 @@ impl AsyncInstance {
     }
 
     fn accept(&mut self, (kind, tag, payload): (i32, i32, f64)) -> wasmtime::Result<()> {
-        let value = super::decode_primitive(tag, payload)?;
+        let value = self.decode(tag, payload)?;
         if let Some(take_jobs) = &self.take_jobs {
             if !matches!(kind, 0 | 1 | 3) {
                 wasmtime::bail!("invalid queued async protocol status {kind}");
@@ -171,7 +180,7 @@ impl AsyncInstance {
     }
 
     fn collect_notifications(&mut self) -> wasmtime::Result<()> {
-        let Some(take) = &self.take_promise_event else {
+        let Some(take) = self.take_promise_event.clone() else {
             return Ok(());
         };
         for _ in 0..32768 {
@@ -188,7 +197,7 @@ impl AsyncInstance {
             let id = id as u32;
             let event = match kind {
                 1 if !self.rejections.contains(&id) => {
-                    let reason = super::decode_primitive(tag, payload)?;
+                    let reason = self.decode(tag, payload)?;
                     self.rejections.insert(id);
                     PromiseNotification::Rejected { id, reason }
                 }
@@ -200,5 +209,24 @@ impl AsyncInstance {
             self.notifications.push(event);
         }
         wasmtime::bail!("too many Promise events")
+    }
+
+    fn decode(&mut self, tag: i32, payload: f64) -> wasmtime::Result<super::Value> {
+        if tag == 4
+            && let Some(kind) = &self.error_kind
+        {
+            if !payload.is_finite()
+                || payload < 16.0
+                || payload > 1_048_544.0
+                || payload % 16.0 != 0.0
+            {
+                wasmtime::bail!("invalid error object identity");
+            }
+            if kind.call(&mut self.store, payload)? != 1 {
+                wasmtime::bail!("invalid error object kind");
+            }
+            return Ok(super::Value::TypeError { id: payload as u32 });
+        }
+        super::decode_primitive(tag, payload)
     }
 }

@@ -431,3 +431,16 @@ Wasmtime uses an explicit shared FIFO and marker chain, drains remaining work,
 and compares completion bits and marker positions. Counting continuations alone
 would incorrectly equate sibling jobs with external ticks. Existing site, job,
 arena, state and production fuel bounds remain in force.
+
+### Self-resolution errors through captured Promise cells
+
+A captured mutable pending binding can be replaced by the Promise of the async
+function reading it. Returning that same Promise now rejects with an intrinsic
+TypeError, so an outer await/catch completes rather than hanging with no ready job.
+Error identities survive catch cells, aliases, repeated awaits, rethrow, private
+callback transport and notification delivery after root settlement. Node receives
+native TypeError objects cached per invocation; Wasmtime reports invocation-local
+typed IDs. Neither a numeric ID surrogate nor a host trap substitutes for the
+guest reason. The primitive protocol remains unchanged. Explicit numeric coercion,
+truthiness and identity equality are covered; arbitrary Error properties, strings
+and string-sensitive relational behavior remain gaps documented in [async](async.md).

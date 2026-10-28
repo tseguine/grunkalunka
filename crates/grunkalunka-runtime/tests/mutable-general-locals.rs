@@ -10,6 +10,9 @@ fn later_plain_write_can_change_a_number_initialized_local_kind() {
 
 fn encode(value: &Value) -> String {
     match value {
+        grunkalunka_runtime::Value::TypeError { .. } => {
+            panic!("primitive-only fixture received an Error object")
+        }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
         Value::Boolean(b) => format!("[2,{b}]"),

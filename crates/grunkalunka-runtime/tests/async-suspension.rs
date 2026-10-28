@@ -16,6 +16,9 @@ mod pending_inputs;
 #[path = "async-suspension/adoption.rs"]
 mod adoption;
 
+#[path = "async-suspension/self_resolution.rs"]
+mod self_resolution;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -1577,6 +1580,7 @@ fn primitive_bits(value: Value) -> String {
         Value::Boolean(value) => format!("boolean:{value}"),
         Value::Number(value) if value.is_nan() => "nan".into(),
         Value::Number(value) => format!("{:x}", value.to_bits()),
+        Value::TypeError { .. } => "type-error".into(),
     }
 }
 
@@ -2785,7 +2789,8 @@ import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 const {createAsyncFunction}=await import(pathToFileURL(process.argv[2]));
 const buffer=new ArrayBuffer(8), view=new DataView(buffer);
-function bits(value){if(value===undefined)return 'undefined';if(value===null)return 'null';if(typeof value==='boolean')return 'boolean:'+value;assert.equal(typeof value,'number');if(Number.isNaN(value))return 'nan';view.setFloat64(0,value);return view.getBigUint64(0).toString(16);}
+function bits(value){if(value===undefined)return 'undefined';if(value===null)return 'null';if(typeof value==='boolean')return 'boolean:'+value;if(value instanceof TypeError)return 'type-error';assert.equal(typeof value,'number');if(Number.isNaN(value))return 'nan';view.setFloat64(0,value);return view.getBigUint64(0).toString(16);}
+async function settlements(run,a,b,c,d){const rows=await Promise.allSettled([run(a,b),run(c,d)]);const errors=rows.map(r=>r.status==='fulfilled'?r.value:r.reason).filter(v=>v instanceof TypeError);if(errors.length===2)assert.notStrictEqual(errors[0],errors[1],'separate invocations require separate error objects');return rows.map(r=>(r.status==='fulfilled'?r.value:r.reason) instanceof TypeError?{status:r.status,errorKind:'TypeError'}:r);}
 async function observe(run,a,b){
  const trace=[];const promise=run(a,b);assert(promise instanceof Promise);trace.push('returned');
  const done=promise.then(value=>{trace.push('fulfilled:'+bits(value));},reason=>{trace.push('rejected:'+bits(reason));});
@@ -2823,7 +2828,7 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
                 let bits = primitive_bits(value);
                 rust.push(format!("{{outcome:'{kind}:{bits}',ticks:{ticks}}}"));
             }
-            script.push_str(&format!("{{const native=(()=>{{{};return run;}})();const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].ticks,expected.ticks);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await Promise.allSettled([wasm(a,b),wasm(c,d)]),await Promise.allSettled([native(a,b),native(c,d)]));}}\n",source.replacen("export async function run", "async function run", 1),artifact.wasm,rust.join(","),source));
+            script.push_str(&format!("{{const native=(()=>{{{};return run;}})();const wasm=createAsyncFunction(new Uint8Array({:?}));const rust=[{}];let i=0;for(const [a,b] of vectors){{const expected=await observe(native,a,b);assert.deepEqual(await observe(wasm,a,b),expected,{:?});assert.equal(rust[i].outcome,expected.outcome);assert.equal(rust[i].ticks,expected.ticks);i++;}}const [a,b]=vectors[0], [c,d]=vectors.at(-1);assert.deepEqual(await settlements(wasm,a,b,c,d),await settlements(native,a,b,c,d));}}\n",source.replacen("export async function run", "async function run", 1),artifact.wasm,rust.join(","),source));
         }
     }
     run_node(&script);

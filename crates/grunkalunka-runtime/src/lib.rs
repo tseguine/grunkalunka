@@ -47,13 +47,19 @@ impl NumericInstance {
     }
 }
 
-/// Value cases currently supported by the primitive execution profile.
+/// Runtime values. The primitive protocol admits the first four cases;
+/// the opt-in async object extension also transports intrinsic TypeError IDs.
 #[derive(Clone, Debug)]
 pub enum Value {
     Undefined,
     Null,
     Boolean(bool),
     Number(f64),
+    /// An intrinsic error object. IDs are stable only within one AsyncInstance;
+    /// the primitive ValueInstance protocol does not admit this extension.
+    TypeError {
+        id: u32,
+    },
 }
 
 /// An import-free `(f64, f64) -> (i32, f64)` primitive module.

@@ -30,6 +30,9 @@ fn null_stays_distinct_from_numeric_zero_despite_equal_payloads() {
 
 fn encode(value: &Value) -> String {
     match value {
+        grunkalunka_runtime::Value::TypeError { .. } => {
+            panic!("primitive-only fixture received an Error object")
+        }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
         Value::Boolean(b) => format!("[2,{b}]"),

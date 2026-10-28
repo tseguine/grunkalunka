@@ -72,6 +72,7 @@ struct Emitter<'a> {
     inline_return: Option<usize>,
     throw_to: Option<ThrowTarget>,
     needs_remainder: bool,
+    errors: bool,
 }
 
 impl Emitter<'_> {
@@ -97,6 +98,59 @@ impl Emitter<'_> {
         self.output.push_str(
             "f64.trunc\nf64.const 4294967296\nf64.div\nf64.trunc\nf64.const 4294967296\nf64.mul\nf64.sub\ni64.trunc_sat_f64_s\ni32.wrap_i64\n",
         );
+    }
+
+    // Keep conversion/equality formatting out of the recursively entered region
+    // walker so admitted nested source still fits the CLI's default stack.
+    fn primitive_loose_equal(
+        &mut self,
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+        negated: bool,
+    ) {
+        let left = self.value_offsets[left.0];
+        let right = self.value_offsets[right.0];
+        if self.errors {
+            writeln!(self.output,"local.get {left}\ni32.const 4\ni32.eq\nlocal.get {right}\ni32.const 4\ni32.eq\ni32.or\nif (result i32)\nlocal.get {left}\nlocal.get {right}\ni32.eq\nlocal.get {}\nlocal.get {}\nf64.eq\ni32.and\nelse",left+1,right+1).unwrap();
+        }
+        // Nullish payloads are +0; Boolean payloads already equal their Number
+        // conversion. The optional Error branch above handles object identity.
+        writeln!(self.output,"local.get {left}\ni32.const 2\ni32.lt_u\nlocal.get {right}\ni32.const 2\ni32.lt_u\ni32.eq").unwrap();
+        writeln!(
+            self.output,
+            "local.get {}\nlocal.get {}\nf64.eq\ni32.and",
+            left + 1,
+            right + 1
+        )
+        .unwrap();
+        if self.errors {
+            self.output.push_str("end\n");
+        }
+        if negated {
+            self.output.push_str("i32.eqz\n");
+        }
+        self.set(result);
+    }
+
+    fn number_from_general(&mut self, result: ValueId, input: ValueId) {
+        // Primitive null/Boolean/Number payloads already equal ToNumber.
+        // Undefined and an intrinsic Error's string conversion yield NaN.
+        writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
+        self.output.push_str("i32.eqz\n");
+        if self.errors {
+            writeln!(
+                self.output,
+                "local.get {}\ni32.const 4\ni32.eq\ni32.or",
+                self.value_offsets[input.0]
+            )
+            .unwrap();
+        }
+        self.output
+            .push_str("if (result f64)\nf64.const nan\nelse\n");
+        writeln!(self.output, "local.get {}", self.value_offsets[input.0] + 1).unwrap();
+        self.output.push_str("end\n");
+        self.set(result);
     }
 
     fn operations(&mut self, operations: &[ir::Operation]) {
@@ -375,24 +429,7 @@ impl Emitter<'_> {
                     left,
                     right,
                     negated,
-                } => {
-                    let left = self.value_offsets[left.0];
-                    let right = self.value_offsets[right.0];
-                    // Only four canonical kinds reach this operation. Nullish payloads
-                    // are +0; Boolean payloads already equal their Number conversion.
-                    writeln!(self.output,"local.get {left}\ni32.const 2\ni32.lt_u\nlocal.get {right}\ni32.const 2\ni32.lt_u\ni32.eq").unwrap();
-                    writeln!(
-                        self.output,
-                        "local.get {}\nlocal.get {}\nf64.eq\ni32.and",
-                        left + 1,
-                        right + 1
-                    )
-                    .unwrap();
-                    if *negated {
-                        self.output.push_str("i32.eqz\n");
-                    }
-                    self.set(*result);
-                }
+                } => self.primitive_loose_equal(*result, *left, *right, *negated),
                 Op::PrimitiveStrictEqual {
                     result,
                     left,
@@ -433,14 +470,7 @@ impl Emitter<'_> {
                     self.set(*result);
                 }
                 Op::NumberFromGeneral { result, input } => {
-                    // Canonical null/Boolean/Number payloads already equal ToNumber.
-                    // Undefined alone needs NaN instead of its canonical zero payload.
-                    writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
-                    self.output
-                        .push_str("i32.eqz\nif (result f64)\nf64.const nan\nelse\n");
-                    writeln!(self.output, "local.get {}", self.value_offsets[input.0] + 1).unwrap();
-                    self.output.push_str("end\n");
-                    self.set(*result);
+                    self.number_from_general(*result, *input)
                 }
                 Op::GeneralIsNullish { result, input } => {
                     // Only the canonical Undefined (0) and Null (1) tags are nullish.
@@ -621,7 +651,7 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             layout::value(function.return_type).wat
         )
         .unwrap();
-        let (body, remainder) = emit_function(function, header);
+        let (body, remainder) = emit_function(function, header, false);
         needs_remainder |= remainder;
         output.push_str(&body);
     }
@@ -685,7 +715,7 @@ fn region_has_await(region: &Region) -> bool {
 }
 
 /// Emit one ordinary activation; coroutine frames use a separate storage mapping.
-fn emit_function(function: &Function, header: String) -> (String, bool) {
+fn emit_function(function: &Function, header: String, errors: bool) -> (String, bool) {
     let environment = ir::closure_environment(function);
     let mut offset = if environment.is_some() { 2 } else { 0 };
     let slot_offsets = function
@@ -718,6 +748,7 @@ fn emit_function(function: &Function, header: String) -> (String, bool) {
         inline_return: None,
         throw_to: None,
         needs_remainder: false,
+        errors,
         output: header,
     };
     // Source cells and typed value snapshots occupy disjoint physical locals.

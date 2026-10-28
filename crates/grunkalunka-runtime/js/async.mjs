@@ -12,12 +12,21 @@ export function createAsyncFunction(bytes) {
       const queued = typeof guest.take_jobs === 'function';
       const tracked = typeof guest.take_promise_event === 'function';
       const rejections = new Map();
+      const errors = new Map();
+      const errorObjects = typeof guest.error_kind === 'function';
       if (tracked && !queued) throw new TypeError('Promise events require queued async protocol');
+      if (errorObjects && !queued) throw new TypeError('error objects require queued async protocol');
       function decode(tag, payload) {
         if (tag === 0 && Object.is(payload, 0)) return undefined;
         if (tag === 1 && Object.is(payload, 0)) return null;
         if (tag === 2 && (Object.is(payload, 0) || payload === 1)) return payload === 1;
         if (tag === 3 && typeof payload === 'number') return payload;
+        if (tag === 4 && errorObjects) {
+          if (!Number.isInteger(payload) || payload < 16 || payload > 1048544 || payload % 16 !== 0) throw new TypeError('invalid error object identity');
+          if (guest.error_kind(payload) !== 1) throw new TypeError('invalid error object kind');
+          if (!errors.has(payload)) errors.set(payload, new TypeError('Promise cannot resolve to itself'));
+          return errors.get(payload);
+        }
         throw new TypeError('invalid primitive value tag or payload');
       }
       function accept([status, tag, payload]) {

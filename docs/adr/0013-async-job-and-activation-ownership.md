@@ -267,3 +267,17 @@ Let compiled activations own saved language state and let explicit host adapters
 schedule continuations without changing observable ordering. Prove shared-queue
 behavior and terminal ownership with the current primitive profile before adding
 general Promises, managed suspension roots or a broader environment event loop.
+
+## Intrinsic self-resolution follow-up
+
+The concrete mutable-capture self-resolution counterexample now rejects the owning
+Promise immediately with a fresh TypeError identity, before scheduling ordinary
+adoption registration. This is a catchable guest reason, distinct from terminal
+fuel, trap or protocol errors. Existing rejection jobs deliver it to outer catches;
+unhandled reasons use the same tracking FIFO. Error records belong to the invocation
+arena. Node decodes one native object per ID, retaining the same object across root
+outcomes and notifications, and creates separate objects for different invocations.
+Wasmtime exposes a typed invocation-local descriptor. The opted-in error-kind
+export validates the record; primitive-only modules keep their old protocol.
+This closes self-resolution, not all object conversion: Error relational string
+conversion has a separate executable counterexample and remains required work.

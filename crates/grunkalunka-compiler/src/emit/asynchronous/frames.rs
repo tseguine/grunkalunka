@@ -12,7 +12,7 @@ pub(super) struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(function: &'a ir::Function, start: usize, queued: bool) -> Self {
+    pub fn new(function: &'a ir::Function, start: usize, queued: bool, errors: bool) -> Self {
         let mut lanes = Vec::new();
         let mut offsets = Vec::new();
         for ty in function
@@ -40,6 +40,7 @@ impl<'a> Frame<'a> {
                 inline_return: None,
                 throw_to: None,
                 needs_remainder: false,
+                errors,
             },
             lanes,
             start,

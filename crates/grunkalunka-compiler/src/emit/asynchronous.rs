@@ -5,6 +5,7 @@ use super::{Emitter, NUMBER_REMAINDER, cells, closures, emit_function, layout};
 use crate::ir::{self, Exit, Op, Region, Type, ValueId};
 use std::fmt::Write;
 
+mod errors;
 mod frames;
 mod promises;
 
@@ -486,6 +487,13 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         });
         pending
     });
+    let errors = module.functions.iter().any(|function| {
+        let mut found = false;
+        ir::visit_operations(&function.body, &mut |op| {
+            found |= matches!(op, Op::AdoptPromise { .. })
+        });
+        found
+    });
     let Some((function, outlined)) = module.functions.split_first() else {
         return Err("async profile currently requires a single entry function".into());
     };
@@ -533,7 +541,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             frames.push(None);
             continue;
         }
-        let frame = frames::Frame::new(function, types.len(), queued);
+        let frame = frames::Frame::new(function, types.len(), queued, errors);
         types.extend(frame.lanes.iter().copied());
         frames.push(Some(frame));
     }
@@ -622,6 +630,17 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let emitter = &frame.emitter;
         match state.end {
             End::AdoptPromise { subscription } => {
+                // Promise resolution rejects itself immediately, before a
+                // thenable-registration job. It is a guest error, not a trap.
+                if errors && state.function != 0 {
+                    let End::AdoptSubscription { input, .. } = split.states[subscription].end
+                    else {
+                        unreachable!()
+                    };
+                    writeln!(output,"global.get {}\nglobal.get $async_frame\ni32.load offset=16\ni32.eq\nif\nglobal.get $async_frame\ni32.load offset=16\ni32.const 1\ni32.const 4\ncall $type_error\ncall $promise_settle\ndrop",emitter.value_offsets[input.0]).unwrap();
+                    promises::park(&mut output);
+                    output.push_str("end\n");
+                }
                 frame.spill(&mut output);
                 writeln!(output,"global.get $async_frame\ni32.const {subscription}\ni32.const 0\ni32.const 0\nf64.const 0\ncall $reaction_schedule").unwrap();
                 promises::park(&mut output);
@@ -826,7 +845,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             layout::value(function.return_type).wat
         )
         .unwrap();
-        let (body, remainder) = emit_function(function, header);
+        let (body, remainder) = emit_function(function, header, errors);
         output.push_str(&body);
         needs_remainder |= remainder;
     }
@@ -855,7 +874,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(closures::FRAME_ALLOCATOR);
     }
     if queued {
-        output.push_str(promises::RUNTIME);
+        if errors {
+            output.push_str(&errors::runtime());
+        } else {
+            output.push_str(promises::RUNTIME);
+        }
     }
     output.push_str(")\n");
     Ok(output)

@@ -320,3 +320,17 @@ lane, record layout, host import or adapter API. Concise adopting constructors
 acquire the existing async signature/effect, independently of annotations.
 Source/IR tests distinguish adoption from await and reject unsafe inline-child
 or immediate-snapshot use. Arbitrary thenables and snapshot conversion remain gaps.
+
+## Intrinsic Error identity transport
+
+Async adoption modules now opt into tag 4 for an intrinsic TypeError object.
+The General carrier still uses its existing i32/f64 lanes; the f64 holds an exact,
+positive, aligned arena ID. An Error is a distinct 32-byte record with magic and
+kind, validated through `error_kind`. This reuses the current allocator without
+changing Promise/reaction layouts or introducing a host call into guest execution.
+Modules without adoption retain their old output and the primitive return protocol
+continues rejecting tag 4. Rust's Value enum includes a typed invocation-local
+descriptor; Node caches actual native objects rather than exposing numeric IDs.
+Rejection, catches, storage and forwarding retain identity. Numeric conversion and
+loose equality must distinguish Error IDs from Numbers, even when payloads match.
+String/relational conversion and general Error construction remain separate work.

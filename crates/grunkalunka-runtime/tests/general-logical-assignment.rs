@@ -117,6 +117,9 @@ fn node(script: &str, expected: &str) {
 
 fn encode(value: &Value) -> String {
     match value {
+        grunkalunka_runtime::Value::TypeError { .. } => {
+            panic!("primitive-only fixture received an Error object")
+        }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
         Value::Boolean(b) => format!("[2,{b}]"),
@@ -126,6 +129,9 @@ fn encode(value: &Value) -> String {
 
 fn standard_number(value: &Value) -> f64 {
     match value {
+        grunkalunka_runtime::Value::TypeError { .. } => {
+            panic!("primitive-only fixture received an Error object")
+        }
         Value::Undefined => f64::NAN,
         Value::Null => 0.0,
         Value::Boolean(b) => {

@@ -816,3 +816,24 @@ primitive rejection reporting is covered by
 [pending source values](runtime-closures.md#pending-source-values). Maintained IR
 tests compare complete native Promise/Node-Wasm microtask traces; separate runtime
 tests cover queue accounting, root settlement, traps and the 32-job boundary.
+
+### Intrinsic Error value extension
+
+Self-resolution rejection adds an object identity to the async General carrier.
+Modules containing `AdoptPromise` link an Error-aware version of the existing
+kernel plus a private Error-record helper. Records occupy 32 aligned arena bytes
+with a distinct magic and kind; the f64 payload carries the exact positive ID.
+`error_kind` checks canonical integer conversion, alignment, range, record kind
+and intrinsic error code. Promise and reaction record headers have different magic
+and are rejected by Error-record validation.
+The existing General tag/payload lanes, cell/frame layout and reaction queue stay
+unchanged. Modules without adoption retain their previous emitted kernel and
+value semantics; the primitive exported return ABI still rejects async tag 4.
+
+The adoption self-check settles the owning Promise with this Error before normal
+registration. Guest catches receive it through existing rejection continuations.
+Error-aware numeric coercion yields NaN, identity comparisons use tag/ID, and
+truthiness/nullish operations retain object behavior. Synchronous private helpers
+in the same module receive the same Error-aware emitter behavior. String-producing
+coercions and relational comparisons that require ToPrimitive strings remain
+separate lowering work; the current relational Number conversion is insufficient.

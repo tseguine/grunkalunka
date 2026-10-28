@@ -50,6 +50,9 @@ fn runtime_primitive_inputs_preserve_value_tags_and_payloads() {
 
 fn encode(value: Value) -> String {
     match value {
+        grunkalunka_runtime::Value::TypeError { .. } => {
+            panic!("primitive-only fixture received an Error object")
+        }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
         Value::Boolean(b) => format!("[2,{b}]"),
