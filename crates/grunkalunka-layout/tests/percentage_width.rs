@@ -91,7 +91,7 @@ fn percentages_can_overflow_containing_width_without_clamping() {
 }
 
 #[test]
-fn fractional_widths_and_unsupported_percentage_heights_fail_closed() {
+fn fractional_widths_and_indefinite_percentage_heights_fail_closed() {
     let fractional = [Block {
         style: Style {
             width: Length::Percent(50),
@@ -104,16 +104,21 @@ fn fractional_widths_and_unsupported_percentage_heights_fail_closed() {
         Err(LayoutError::FractionalPercentageWidth { node: 0 })
     );
 
-    let unsupported = [Block {
-        style: Style {
-            height: Length::Percent(50),
-            ..Style::default()
+    // An auto-height parent has no definite content height for its child.
+    let unsupported = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Percent(50),
+                ..Style::default()
+            },
+            ..Block::default()
         },
-        ..Block::default()
-    }];
+    ];
     assert_eq!(
         layout(&unsupported, 100, 20),
-        Err(LayoutError::UnsupportedPercentageHeight { node: 0 })
+        Err(LayoutError::UnsupportedPercentageHeight { node: 1 })
     );
 }
 

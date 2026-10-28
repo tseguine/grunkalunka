@@ -15,8 +15,10 @@ of visible blocks, plus scroll extents.
   an optional caller-supplied intrinsic content height.
 - Nonnegative integer CSS-pixel margins, borders and padding; no margin collapse.
 - Explicit integer-percentage content widths relative to the containing content
-  width (e.g. 50% of 210 px = 105 px); fractional CSS-pixel results fail
-  explicitly rather than being silently rounded. Values above 100% may overflow.
+  width (e.g. 50% of 210 px = 105 px), and heights relative to a definite
+  containing content height (the viewport for the root, an explicit height for
+  descendants). Fractional CSS-pixel results fail rather than being rounded.
+  Values above 100% may overflow.
 - Display:none removes an entire subtree. Changing the display value and
   running layout again restores boxes without modifying document ownership.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
@@ -28,7 +30,7 @@ of visible blocks, plus scroll extents.
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
 tokenizer, selectors/cascade, text shaping, inline formatting, negative or auto
 margins, collapsed margins, floats, positioning, fractional percent widths,
-percentage heights, scrollbars,
+percentage heights under indefinite auto-height parents, scrollbars,
 CSS painting, hit testing, event loop or native window. Input text heights are
 provided by a separate caller, not guessed. All coordinates are unsigned
 integers. This is a small, experimental implementation component, NOT an
@@ -106,8 +108,10 @@ The native block engine performs checked `u64` arithmetic and rejects a
 fractional CSS-pixel result with `FractionalPercentageWidth { node }`,
 rather than inventing subpixel rounding that its integer `Rect` cannot
 represent. Excessive percentages causing unrepresentable geometry return
-`Overflow`. `height: Percent(...)` returns `UnsupportedPercentageHeight`
-because percentage height requires a definite containing-block-height model.
+`Overflow`. The same integer-only scaling can now apply to heights
+whose containing content box is definite; an auto-height parent remains
+`UnsupportedPercentageHeight`, and an inexact height is reported as
+`FractionalPercentageHeight`. Neither dimension rounds to CSS subpixels.
 
 `crates/grunkalunka-layout/tests/percentage_width.rs` includes separate
 goldens for parent padding/borders, nested percentages and a following
@@ -116,3 +120,28 @@ and display:none isolation. The 210px/50%/105px/119px example deliberately
 aligns with the known mathematical part of the independent baseline browser
 fixture; it is not derived from browser output or evidence of general
 CSS sizing conformance.
+
+## Definite percentage heights (small native geometry experiment)
+
+A root block's percentage content height uses the explicit viewport height.
+Descendant percentage heights use their parent's **resolved, definite content
+height**, from `height: Px(n)` or recursively resolved `Percent(n)`. A parent
+with `height: Auto` remains indefinite for this experiment even if its own
+containing block has a height: unlike a full browser layout, the engine
+deliberately rejects that unresolved case rather than substituting an
+unspecified CSS auto-height behavior.
+
+Resolution occurs before laying out children so nested percentage heights have
+an explicit numeric containing height. Fractions fail with
+`FractionalPercentageHeight { node }`, and excessive magnitudes return
+`Overflow`. Fixed/percentage parent heights may be exceeded by children:
+normal sibling stacking and scroll extents still use laid-out child boxes,
+without clipping or inventing an implicit scrollbar. `display:none` still
+skips unsupported children and descendants.
+
+The independent `crates/grunkalunka-layout/tests/percentage_height.rs`
+checks viewport/root and nested definite height resolution, padding/border
+exclusion, sibling positions, over-100% overflow, invalid resolution, exact
+integer boundaries and hidden subtree isolation. No HTML/CSS parsing, margin
+collapse, subpixel rounding, browser-engine comparison or broad CSS height
+conformance is claimed.
