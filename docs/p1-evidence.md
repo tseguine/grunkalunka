@@ -21,11 +21,12 @@ verification receipts, not saved benchmark performance results.
 | Oxc parser and semantic controls | [#67](https://github.com/tseguine/grunkalunka/pull/67), [standalone Oxc probe](frontend-cost.md) | Fresh-allocator parse vs reused-AST Oxc semantic-building observations on checked JS/TS fixtures. Not the maintained compiler's lowering/IR/emission costs |
 | Scalar typed WIT resource boundary | [#68](https://github.com/tseguine/grunkalunka/pull/68), [scalar WIT probe](scalar-wit-cost.md) | Real borrowed-resource result, host policy and arithmetic, with native control, independent goldens and call-count checks. Not a pure ABI or import crossing tax |
 | Scalar core-Wasm host import | [#69](https://github.com/tseguine/grunkalunka/pull/69), [host-call calibration](host-call-calibration.md) | Native, guest-only and guest-to-host typed Wasmtime calls with fixed scalar wrapping outputs and host counters. Core-Wasm import is not WIT canonical ABI; do not subtract these series as if work were identical |
-| Identical bytes on another host | [#76](https://github.com/tseguine/grunkalunka/pull/76), [portable GCD replay](portable-core-replay.md) | Produce a bounded manifest for one existing compiler-emitted Wasm artifact, then replay **the same SHA-256 bytes** through Node/V8 and optional Wasmtime CLI without source recompilation on the receiver. Existing CI checks the procedure on x64 only; **no ARM64 execution has been observed** |
+| Identical bytes on another host | [#76](https://github.com/tseguine/grunkalunka/pull/76), [portable GCD replay](portable-core-replay.md) | Produce a bounded manifest for one existing compiler-emitted Wasm artifact, then replay **the same SHA-256 bytes** through Node/V8 and optional Wasmtime CLI without source recompilation on the receiver. [#83](https://github.com/tseguine/grunkalunka/pull/83) additionally verifies the identical x64-produced bytes on native Linux ARM64 using Node/V8 and Wasmtime; this remains one numeric fixture |
+| Native Linux ARM64 Markdown/WIT pipeline | [#84](https://github.com/tseguine/grunkalunka/pull/84), [ARM64 component smoke](p1-arm64-markdown.md) | Rebuilds the existing Markdown guest and runs the typed component's native parity, capability denial and cleanup checks on real Linux ARM64. Unlike #83, this does not demonstrate cross-architecture byte identity or application-wide compatibility |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
-Intel macOS x64. The relevant code-bearing PRs above completed their exact-head
+native Apple Silicon macOS ARM64. The relevant code-bearing PRs above completed their exact-head
 three-platform checks, which verify execution, correctness, bounds and report
 structure. **CI does not retain the observed timing distributions, rank
 machines or validate performance thresholds.** Some tools produce local
@@ -33,10 +34,12 @@ reports when explicitly run; the build system does not publish them.
 
 ## Open boundaries and proposed next measurements
 
-- **True cross-architecture execution:** replay the byte-identical
-  [#76 artifact and manifest](portable-core-replay.md) on a real ARM64 host,
-  with documented native Node/V8 and (when available) Wasmtime checks. Hosted
-  x64 runs do not substitute for this.
+- **Broader cross-architecture verification:** [#83](https://github.com/tseguine/grunkalunka/pull/83)
+  has replayed one byte-identical x64-produced GCD artifact on native Linux
+  ARM64 in Node/V8 and Wasmtime. [#84](https://github.com/tseguine/grunkalunka/pull/84)
+  has independently built and tested the Markdown/WIT component on Linux ARM64.
+  Neither establishes identical Markdown guest binaries across hosts, a general
+  application distribution format or other OS/architecture combinations.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
