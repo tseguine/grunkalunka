@@ -66,10 +66,12 @@ export function planImpact({ changedPaths, modules, groups = [], tests, ignored 
     if (typeof node.id !== 'string' || !node.id || nodes.has(node.id)) {
       return failure(`invalid or duplicate module/test ID: ${node.id}`);
     }
-    if (!Array.isArray(node.paths ?? []) || !Array.isArray(node.dependsOn ?? [])) {
+    if (!Array.isArray(node.paths ?? []) || !Array.isArray(node.dependsOn ?? []) ||
+        (node.buildDependsOn !== undefined && !Array.isArray(node.buildDependsOn))) {
       return failure(`invalid ownership or dependency list: ${node.id}`);
     }
-    if ([...(node.paths ?? []), ...(node.dependsOn ?? [])].some(x => typeof x !== 'string' || !x)) {
+    if ([...(node.paths ?? []), ...(node.dependsOn ?? []), ...(node.buildDependsOn ?? [])]
+        .some(x => typeof x !== 'string' || !x)) {
       return failure(`invalid entry in ${node.id}`);
     }
     if ((node.paths ?? []).some(p => !validatePath(p.endsWith('/') ? p.slice(0, -1) : p))) {
@@ -77,11 +79,19 @@ export function planImpact({ changedPaths, modules, groups = [], tests, ignored 
     }
     nodes.set(node.id, node);
   }
+  // Reverse selection edges decide which tests are affected. Forward build
+  // edges decide which modules the *selected* checks actually need compiled.
+  // A workspace-wide check is a virtual selection umbrella in partial mode:
+  // its replacement `cargo -p` checks do not themselves build every crate.
   const forward = new Map(), reverse = new Map();
   for (const node of definitions) {
-    forward.set(node.id, new Set(node.dependsOn ?? []));
-    for (const dep of node.dependsOn ?? []) {
+    const selectionDeps = node.dependsOn ?? [];
+    const buildDeps = node.buildDependsOn ?? selectionDeps;
+    for (const dep of [...selectionDeps, ...buildDeps]) {
       if (!nodes.has(dep)) return failure(`unknown dependency ${dep} from ${node.id}`);
+    }
+    forward.set(node.id, new Set(buildDeps));
+    for (const dep of selectionDeps) {
       if (!reverse.has(dep)) reverse.set(dep, new Set());
       reverse.get(dep).add(node.id);
     }
