@@ -97,7 +97,6 @@ pub(super) fn compile(source: &str, typescript: bool) -> Result<Artifact, String
                 || !unresolved
                 || call.optional
                 || member.optional
-                || call.type_arguments.is_some()
                 || call.arguments.len() != 1
             {
                 return Err(

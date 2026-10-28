@@ -736,7 +736,9 @@ compare native rejection checkpoints. Four exact former TS guards now execute.
 Source bytes, await sites, argument limits, optional/spread calls, value shadowing,
 custom/unknown intrinsics and payload domains retain their guards. Source binding
 checks still distinguish type-only names from actual value references. Generic
-calls to ordinary helpers and heap JSON intrinsics remain separate work.
-Supported unary Math intrinsics now use the same erasure principle; see
-[their contract](compiler.md#math-intrinsic-type-arguments).
+calls to ordinary helpers remain separate work. Supported unary Math
+intrinsics use the same erasure principle; see
+[their contract](compiler.md#math-intrinsic-type-arguments). The separate
+[heap source profile](heap-literals.md) also erases JSON call-site type arguments
+within its existing String-operand and String-result bounds.
 No new IR, type checker, runtime operation, dependency, ABI or budget is introduced.
