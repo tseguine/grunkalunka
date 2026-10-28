@@ -70,3 +70,30 @@ semantics, reproducibility for other crates or measured performance.
 No binary or source text is uploaded, no canonical CI check is weakened,
 and the experimental wrapper remains confined to isolated temporary
 builds. The original Markdown/WIT correctness tests remain separate.
+
+## Initialized-data localization for subsequent native controls
+
+The [existing P1 data-chunk inspector](../tools/bench/wasm-data-chunks.mjs)
+is now reused by the optional Cargo metadata collector. New schema-2 host
+receipts bind the observed Wasm data-section hash to the original section
+fingerprint and record bounded raw **256-byte initialized-data chunk hashes**
+for each of the four clean rebuild modes. Native cross-host and within-host
+comparisons report segment counts, payload sizes, offset-expression identity,
+exact payload digests and up to 24 changed chunk indexes per segment. Neither
+raw guest binaries nor initialized string data are included in the receipts.
+
+This adds diagnostic capability, **not a new native cross-host observation**.
+The #147/#152 hosted comparisons predate this collector extension and lack
+per-segment hashes. The four modes must be recollected on independent native
+hosts at one tested revision to determine whether the residual standard
+data-section mismatch is concentrated in a few raw chunks. Archived schema-1
+receipts remain comparable; missing `initializedData` evidence is explicitly
+`null`, not inferred equality. Schema-2 receipts reject absent, malformed or
+unbound data evidence. The bounded JSON input limit rises from 768 KiB to
+2 MiB to accommodate independently recorded chunk vectors.
+
+The added [pure Node regression cases](../tools/bench/tests/native-cargo-metadata-override.test.mjs)
+run through the existing P1 canonical test glob and dependency-selected PR
+verification. No new GitHub Actions workflow, runner, Cargo build or required
+check is introduced. Differing raw data bytes alone do not prove different
+runtime behavior, relocations, values or performance.
