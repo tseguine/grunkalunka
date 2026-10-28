@@ -81,8 +81,17 @@ fn rewrite(args: &mut [OsString], mode: &str) -> Result<Option<MetadataRecord>, 
         }
         i += 1;
     }
+    // Cargo performs target discovery with a synthetic "--crate-name ___",
+    // several "--print=..." flags, and no generated metadata. That is not
+    // an actual crate compile and must be sent to rustc unchanged.
+    if args.iter().any(|item| item.to_string_lossy().starts_with("--print")) {
+        if metadata_slots.is_empty() {
+            return Ok(None);
+        }
+        return Err("unexpected generated metadata in rustc compiler probe".to_string());
+    }
     let Some(crate_name) = crate_name else {
-        return Ok(None); // rustc -vV/--print and similar compiler probes
+        return Ok(None); // rustc -vV and similar compiler probes
     };
     let expected = stable_metadata(&crate_name, &target)
         .ok_or_else(|| format!("unexpected crate or compilation target: {crate_name}/{target}"))?;
@@ -196,6 +205,20 @@ mod tests {
             .into_iter().map(OsString::from).collect();
         assert_eq!(rewrite(&mut args, "target").unwrap(), None);
         assert_eq!(args, vec![OsString::from("-vV")]);
+    }
+    #[test]
+    fn cargo_synthetic_crate_information_probe_passes_through_unchanged() {
+        let mut args: Vec<OsString> =
+            ["-", "--crate-name", "___", "--print=file-names",
+             "--crate-type", "bin", "--print=sysroot", "--print=cfg"]
+            .into_iter().map(OsString::from).collect();
+        let before = args.clone();
+        assert_eq!(rewrite(&mut args, "target").unwrap(), None);
+        assert_eq!(args, before);
+        let mut unrecognized: Vec<OsString> = ["--crate-name", "___",
+            "-C", "metadata=0123456789abcdef"]
+            .into_iter().map(OsString::from).collect();
+        assert!(rewrite(&mut unrecognized, "target").is_err());
     }
     #[test]
     fn rejects_invalid_modes_or_unsupported_combined_flags() {
