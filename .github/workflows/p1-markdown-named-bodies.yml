@@ -183,8 +183,12 @@ jobs:
           assert.deepEqual([report.producer.os, report.producer.arch], ['linux', 'x64']);
           assert.equal(report.receiver.os, process.env.EXPECTED_JS_OS);
           assert.equal(report.receiver.arch, process.env.EXPECTED_JS_ARCH);
-          assert.equal(report.producer.functions,
-            report.producer.namesPresent + report.producer.functions - report.producer.namesPresent);
+          assert.equal(report.producer.rustc, report.receiver.rustc,
+            'same observed Rust compiler release');
+          assert.ok(report.producer.namesPresent > 0 &&
+            report.producer.namesPresent <= report.producer.functions);
+          assert.ok(report.receiver.namesPresent > 0 &&
+            report.receiver.namesPresent <= report.receiver.functions);
           assert.ok(report.sharedNameAndExactBodyOccurrences <= report.sharedNameOccurrences);
           assert.ok(report.sharedNameOccurrences <=
             Math.min(report.producer.namesPresent, report.receiver.namesPresent));
