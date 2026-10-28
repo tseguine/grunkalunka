@@ -1,0 +1,210 @@
+# P1: inventory actual Cargo-generated Rust crate metadata flags, not
+# hypothetical metadata guesses. No source/compiler or canonical CI edits.
+name: P1 native Cargo rustc metadata arguments
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-native-cargo-metadata.yml
+      - tools/bench/native-cargo-metadata.mjs
+      - tools/bench/tests/native-cargo-metadata.test.mjs
+      - crates/grunkalunka-markdown/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-native-cargo-metadata-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  linux-producer:
+    name: Inspect actual Cargo rustc metadata on Linux x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      receipt64: ${{ steps.transfer.outputs.receipt64 }}
+    steps:
+      - name: Check out exact tested source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install fixed native Node.js patch release
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Verify native host and install unchanged Rust target
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/rust-version.txt"
+          grep -F 'host: x86_64-unknown-linux-gnu' "$RUNNER_TEMP/rust-version.txt"
+          cargo fetch --locked
+
+      - name: Check real rustc log parser and malformed metadata rejections
+        run: node --test tools/bench/tests/native-cargo-metadata.test.mjs
+
+      - name: Build actual Markdown guest twice with Cargo verbose logging
+        id: transfer
+        run: |
+          set -euo pipefail
+          node tools/bench/native-cargo-metadata.mjs collect \
+            > "$RUNNER_TEMP/linux-cargo-metadata.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-cargo-metadata.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs=require('node:fs');
+          const assert=require('node:assert/strict');
+          const [filename,output]=process.argv.slice(2);
+          const bytes=fs.readFileSync(filename);
+          assert.ok(bytes.length>0&&bytes.length<=192*1024);
+          const report=JSON.parse(bytes.toString('utf8'));
+          assert.equal(report.workload,'p1-native-cargo-metadata');
+          assert.deepEqual([report.environment.os,report.environment.arch],['linux','x64']);
+          assert.equal(report.environment.node,'v24.21.0');
+          assert.deepEqual(Object.keys(report.modes).sort(),['default','fixed']);
+          for(const mode of Object.values(report.modes)){
+            assert.ok(mode.invocations.length>=2);
+            assert.match(mode.artifact.sha256,/^[a-f0-9]{64}$/);
+          }
+          const encoded=bytes.toString('base64');
+          assert.ok(encoded.length<=260*1024,'bounded GitHub job output');
+          fs.appendFileSync(output,'receipt64='+encoded+'\n');
+          console.log('PASS Linux actual Cargo rustc metadata arguments '+
+            JSON.stringify(Object.fromEntries(Object.entries(report.modes)
+              .map(([name,mode])=>[name,{
+                rustcCalls:mode.invocations.length,artifact:mode.artifact,
+                crates:mode.invocations.map(x=>x.crate),
+              }]))));
+          NODE
+
+  native-receivers:
+    name: Compare actual Cargo crate metadata on ${{ matrix.platform }}
+    needs: linux-producer
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows x64
+            runner: windows-2025
+            runner_os: Windows
+            runner_arch: X64
+            node_os: win32
+            node_arch: x64
+            rust_host: x86_64-pc-windows-msvc
+          - platform: Apple Silicon macOS ARM64
+            runner: macos-15
+            runner_os: macOS
+            runner_arch: ARM64
+            node_os: darwin
+            node_arch: arm64
+            rust_host: aarch64-apple-darwin
+    steps:
+      - name: Check out same exact tested source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned native Node.js patch release
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: ${{ matrix.node_arch }}
+          package-manager-cache: false
+
+      - name: Verify native Rust compiler and target
+        env:
+          EXPECTED_RUNNER_OS: ${{ matrix.runner_os }}
+          EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
+          EXPECTED_NODE_OS: ${{ matrix.node_os }}
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "$EXPECTED_RUNNER_OS"
+          test "$RUNNER_ARCH" = "$EXPECTED_RUNNER_ARCH"
+          node -e "if (process.platform !== process.env.EXPECTED_NODE_OS || process.arch !== process.env.EXPECTED_NODE_ARCH || process.version !== 'v24.21.0') process.exit(1)"
+          if [ "$RUNNER_OS" = macOS ]; then
+            test "$(uname -m)" = arm64
+            test "$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')" = 0
+          fi
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/native-rustc.txt"
+          grep -F "host: $EXPECTED_RUST_HOST" "$RUNNER_TEMP/native-rustc.txt"
+          cargo fetch --locked
+
+      - name: Check parser and comparison rejection cases on actual host
+        run: node --test tools/bench/tests/native-cargo-metadata.test.mjs
+
+      - name: Capture default/fixed Cargo invocations and compare actual flags
+        env:
+          PRODUCER_RECEIPT64: ${{ needs.linux-producer.outputs.receipt64 }}
+          EXPECTED_NODE_OS: ${{ matrix.node_os }}
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-cargo-metadata.json" <<'NODE'
+          const fs=require('node:fs');
+          const assert=require('node:assert/strict');
+          const encoded=process.env.PRODUCER_RECEIPT64??'';
+          assert.match(encoded,/^[A-Za-z0-9+/]+={0,2}$/);
+          assert.ok(encoded.length>0&&encoded.length<=260*1024);
+          const bytes=Buffer.from(encoded,'base64');
+          assert.ok(bytes.length>0&&bytes.length<=192*1024);
+          assert.equal(bytes.toString('base64'),encoded);
+          fs.writeFileSync(process.argv[2],bytes,{flag:'wx'});
+          NODE
+          node tools/bench/native-cargo-metadata.mjs collect \
+            > "$RUNNER_TEMP/native-cargo-metadata.json"
+          node tools/bench/native-cargo-metadata.mjs compare \
+            "$RUNNER_TEMP/linux-cargo-metadata.json" "$RUNNER_TEMP/native-cargo-metadata.json" \
+            > "$RUNNER_TEMP/cargo-metadata-comparison.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/cargo-metadata-comparison.json" <<'NODE'
+          const fs=require('node:fs');
+          const assert=require('node:assert/strict');
+          const result=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          assert.equal(result.schemaVersion,1);
+          assert.equal(result.workload,'p1-native-cargo-metadata-comparison');
+          assert.deepEqual([result.producer.os,result.producer.arch],['linux','x64']);
+          assert.equal(result.receiver.os,process.env.EXPECTED_NODE_OS);
+          assert.equal(result.receiver.arch,process.env.EXPECTED_NODE_ARCH);
+          assert.equal(result.receiver.rustcHost,process.env.EXPECTED_RUST_HOST);
+          assert.equal(result.producer.rustc,result.receiver.rustc);
+          assert.equal(result.producer.rustcCommit,result.receiver.rustcCommit);
+          assert.equal(result.producer.llvm,result.receiver.llvm);
+          for(const mode of ['default','fixed']){
+            const r=result.modes[mode];
+            assert.equal(r.matchingGroups+r.differingGroups.length,r.totalGroups);
+            assert.equal(typeof r.artifactDigestAndSizeEqual,'boolean');
+            assert.match(r.producerArtifact.sha256,/^[a-f0-9]{64}$/);
+            assert.match(r.receiverArtifact.sha256,/^[a-f0-9]{64}$/);
+          }
+          // Different Cargo-generated metadata is evidence, not an error.
+          console.log('PASS actual Cargo rustc metadata comparison');
+          console.log(JSON.stringify(result));
+          NODE
