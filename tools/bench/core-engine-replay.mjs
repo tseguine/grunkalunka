@@ -101,6 +101,28 @@ async function main() {
     }
   }
   memorySnapshots.afterBatches = memorySnapshot();
+  // Keep the five existing process-memory observations unchanged. Reuse
+  // the already compiled Module, but make an independent Instance for each
+  // bounded sample; ordinary goldens are checked outside the timing window.
+  const freshInstantiations = [], freshFirstCalls = [];
+  for (let sample = 0; sample < config.samples; sample++) {
+    const startedInstantiateFresh = performance.now();
+    const freshInstance = new WebAssembly.Instance(module);
+    freshInstantiations.push(performance.now() - startedInstantiateFresh);
+    const freshRun = freshInstance.exports.run;
+    if (typeof freshRun !== 'function') throw new Error('Missing fresh-instance run export');
+    const startedFirstFresh = performance.now();
+    const freshFirst = freshRun(cases[0][0], cases[0][1]);
+    freshFirstCalls.push(performance.now() - startedFirstFresh);
+    if (!Object.is(freshFirst, cases[0][2])) {
+      throw new Error('Incorrect fresh-instance first result');
+    }
+    for (const [a, b, expected] of cases) {
+      if (!Object.is(freshRun(a, b), expected)) {
+        throw new Error('Incorrect fresh-instance golden');
+      }
+    }
+  }
   const memory = validateMemorySnapshots({
     unit: 'bytes', scope: 'entire-node-process', snapshots: memorySnapshots,
   });
@@ -119,6 +141,11 @@ async function main() {
     configuration: config, goldenCases: cases.length, checksum: checksum(config.iterations),
     startup: { moduleCompileMs, instantiationMs, firstCallMs },
     batches: { unit: 'milliseconds per batch', ...statistics(samplesMs) },
+    freshInstances: {
+      count: config.samples,
+      instantiation: statistics(freshInstantiations),
+      firstCall: statistics(freshFirstCalls),
+    },
     memory,
   };
   process.stdout.write(JSON.stringify(report) + '\n');
