@@ -1,0 +1,11 @@
+{
+  "id": "check:impact-planner-regressions",
+  "command": "node",
+  "args": [
+    "--test",
+    "ci/impact/*.test.mjs"
+  ],
+  "dependsOn": [
+    "canonical-scripts"
+  ]
+}
