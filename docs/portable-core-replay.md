@@ -79,7 +79,7 @@ comparable measured application costs.
 ## Optional x64-to-ARM64 hosted execution
 
 The dedicated [P1 cross-architecture workflow](../.github/workflows/p1-portable-arm64.yml)
-is separate from the required three-platform x64 CI. It uses a standard
+is separate from the required Linux/Windows x64 and native Apple Silicon macOS ARM64 CI. It uses a standard
 `ubuntu-24.04` x64 producer and `ubuntu-24.04-arm` Linux ARM64 receiver,
 with Node **24.22.1** selected on both. Only changes to that workflow itself
 trigger this optional PR smoke; it can also be dispatched manually after merge.
@@ -87,8 +87,14 @@ The independently maintained canonical gates now run on Windows x64, Linux x64
 and native Apple Silicon macOS ARM64; this optional workflow does not modify them.
 
 The producer builds the existing native compiler, compiles the checked-in GCD
-source once, validates that output with Node/V8 and passes the exact Wasm bytes,
-manifest and SHA-256 through bounded ephemeral **GitHub job outputs**.
+source once, validates the identical output in Node/V8 and native Wasmtime, and
+passes the exact Wasm bytes, manifest, SHA-256 and bounded **producer replay
+receipt** through ephemeral GitHub job outputs. The ARM64 receiver verifies
+those transferred identities, replays the same bytes through its own native
+Node/V8 and Wasmtime, and uses the strict [saved-receipt comparator](portable-replay-comparison.md)
+on both actual host reports. The resulting receipt-pair summary checks the
+observed x64/ARM64 host identities and both golden results without comparing
+their timings.
 No artifact upload action, release or persistent benchmark record is added.
 The ARM64 job verifies the transferred hash, its native aarch64 architecture,
 and Node's ARM64 identity. It builds an ARM64 native Wasmtime CLI, then replays
