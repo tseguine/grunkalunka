@@ -5,7 +5,8 @@
     "build-test-sources",
     "example-workflows",
     "p1-bench-unit-tests",
-    "p1-rustc-wrapper"
+    "p1-rustc-wrapper",
+    "p1-diagnostic-tools"
   ],
   "buildDependsOn": []
 }
