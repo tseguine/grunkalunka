@@ -3,6 +3,7 @@
   "file": ".github/workflows/browser-oracles.yml",
   "paths": [
     "tests/browser-oracles/**",
+    "tools/browser-oracles/**",
     "docs/browser-oracle-comparison.md",
     ".github/workflows/browser-oracles.yml"
   ],

@@ -19,18 +19,21 @@ browser workflows themselves are unchanged and continue to trigger
 independently. A full canonical CI result cannot substitute for an
 untriggered browser workflow.
 
-## Concrete gap: tool-only browser edits
+## Tool-only browser edit coverage
 
 The offline `tests/browser-oracles/*.test.mjs` suite imports helpers from
-`tools/browser-oracles/`, so it may need to rerun when those helpers change.
-However, the `browser-oracles.yml` workflow's own PR path filter includes
-`tests/browser-oracles/**` but does **not** include
-`tools/browser-oracles/**`. The browser smoke and collector workflows *do*
-trigger for those tool-only changes. The audit therefore emits
-`requiredNotTriggered: ["workflow:browser-oracles"]` for tool-only edits.
-That is an explicit *coverage gap*, not a passing test or a suggestion to
-weaken the offline test. A future browser-owned workflow update could add
-the missing path trigger, with its own tested PR and coordination.
+`tools/browser-oracles/`, so it must rerun when those helpers change. The
+workflow originally covered test files but not tool-only edits, as recorded
+in [steering issue #104](https://github.com/tseguine/grunkalunka/issues/104).
+The browser-oracles workflow now declares `tools/browser-oracles/**` for
+**both** PR and push triggers, alongside its existing test, documentation,
+and workflow paths. The source-level regression tests protect these
+trigger relationships. No browser tool or oracle semantics were changed.
+
+With the new filter, the audit is expected to select the offline oracle,
+collector, and three-engine smoke workflows for a tool-only browser change.
+This describes workflow **trigger intent**, not confirmed execution or a
+replacement for the real browser results.
 
 This audit is a first step toward complete external CI attribution, not
 a general YAML evaluator or a map of every optional workflow (P1, type

@@ -61,13 +61,13 @@ test('historical Grid plus layout change triggers all three separate browser wor
   assert.ok(result.workflows.every(x => x.execution.includes('result not inspected')));
 });
 
-test('tool-only source change reveals missing offline oracle workflow trigger', () => {
+test('tool-only source change now triggers all independent browser workflows', () => {
   const result = audit(['tools/browser-oracles/grid-placement.mjs']);
   assert.equal(result.valid, true);
-  assert.deepEqual(result.requiredNotTriggered, ['workflow:browser-oracles']);
+  assert.deepEqual(result.requiredNotTriggered, []);
   assert.deepEqual(result.expectedToTrigger,
-    ['workflow:browser-collector', 'workflow:browser-smoke']);
-  assert.ok(!result.expectedToTrigger.includes('workflow:browser-oracles'));
+    ['workflow:browser-collector', 'workflow:browser-oracles', 'workflow:browser-smoke']);
+  assert.ok(result.expectedToTrigger.includes('workflow:browser-oracles'));
 });
 
 test('tests-only change needs smoke and oracle contracts, not collector', () => {
@@ -99,6 +99,8 @@ test('source-path, executable-command and engine-matrix drift fail closed', () =
       .replace('engine: [chromium, firefox, webkit]', 'engine: [chromium]'); },
     s => { s['.github/workflows/browser-oracles.yml'] = s['.github/workflows/browser-oracles.yml']
       .replace('node --test tests/browser-oracles/*.test.mjs', 'node --test incomplete.mjs'); },
+    s => { s['.github/workflows/browser-oracles.yml'] = s['.github/workflows/browser-oracles.yml']
+      .replace("      - 'tools/browser-oracles/**'", "      - 'tools/other/**'"); },
     s => { s['.github/workflows/browser-collector.yml'] = s['.github/workflows/browser-collector.yml']
       .replace("      - 'tools/browser-oracles/**'", "      - 'tools/other/**'"); },
     s => { s['.github/workflows/browser-collector.yml'] = s['.github/workflows/browser-collector.yml']
@@ -131,7 +133,7 @@ test('checked-in browser workflows are inspectable or explicitly fail closed', (
   const result = auditBrowserWorkflows(['tools/browser-oracles/collect.mjs'],
     entries, file => readFileSync(join(root, file), 'utf8'));
   if (result.valid) {
-    assert.deepEqual(result.requiredNotTriggered, ['workflow:browser-oracles']);
+    assert.deepEqual(result.requiredNotTriggered, []);
   } else {
     assert.ok(result.errors.length, 'unknown workflow source cannot imply coverage');
   }
