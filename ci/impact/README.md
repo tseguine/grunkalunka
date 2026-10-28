@@ -5,8 +5,11 @@ authorized **all three native PR runners** to translate independently validated
 selections into canonical and package-scoped Cargo checks via `pr-gate.mjs`.
 Unsafe or unknown plans fall back to the original full build/check commands
 **on that same host**. Every `master` push and manual workflow dispatch stays
-full on Linux, Windows and macOS. The separate `impact-shadow.yml` workflow
-remains read-only; its successful plan does not replace executable checks.
+full on Linux, Windows and macOS. The former standalone `impact-shadow.yml` PR advisory workflow is retired to
+avoid allocating a fourth runner on every PR. The production PR gate runs the
+same planner independently on each native host. Planner regression tests now
+run via the canonical `scripts/check.mjs` runner (since #166), with partial
+selection/fail-closed full fallback; a plan never replaces executable checks.
 
 ## Attribution and dependency model
 
