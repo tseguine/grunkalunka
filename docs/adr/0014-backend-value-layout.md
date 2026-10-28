@@ -289,8 +289,10 @@ outside source types and logical operations. Queue-mode activation headers are
 handle and initial-return flag. Saved working lanes follow that header. Legacy
 frames keep their previous sixteen-byte header and output. The flag, rather than
 a zero parent address, determines whether an eager child must return its handle.
-Typed synchronous helpers may transport handles but cannot start async bodies;
-starting requires the coroutine dispatcher. Source pending requests now construct
+Typed synchronous helpers may transport handles and start async bodies through
+callable prefix entries backed by the coroutine dispatcher. These entries preserve
+the caller frame and continuation; coroutine callers also preserve their working
+lanes across ordinary calls. Source pending requests now construct
 these operations and consume their earlier unused-constructor expectations.
 Existing immediate-await requests retain their previous path and encoding.
 Maintained tests execute settlement, alias identity, multiple waiter/Promise FIFO,
