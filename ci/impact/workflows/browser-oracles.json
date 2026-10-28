@@ -1,0 +1,16 @@
+{
+  "id": "workflow:browser-oracles",
+  "file": ".github/workflows/browser-oracles.yml",
+  "paths": [
+    "tests/browser-oracles/**",
+    "docs/browser-oracle-comparison.md",
+    ".github/workflows/browser-oracles.yml"
+  ],
+  "requiredFor": [
+    "tests/browser-oracles/**",
+    "tools/browser-oracles/**"
+  ],
+  "mustContain": [
+    "node --test tests/browser-oracles/*.test.mjs"
+  ]
+}

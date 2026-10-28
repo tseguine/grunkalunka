@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cargoModules, planImpact } from './impact.mjs';
 import { checkNodes, verifyCanonicalChecks } from './canonical.mjs';
+import { auditBrowserWorkflows } from './external-workflows.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -35,6 +36,11 @@ let result;
 try {
   if (!baseRef || baseRef.startsWith('-')) throw new Error('usage: node ci/impact/plan.mjs origin/master');
   const changes = changedAgainst(baseRef);
+  // This models independent workflow *triggers*, not their hosted completion.
+  // It covers the browser-oracle workflows only, not all optional workflows.
+  const externalWorkflows = auditBrowserWorkflows(
+    changes, readCatalog('workflows'),
+    file => readFileSync(join(root, file), 'utf8'));
   const metadata = JSON.parse(run('cargo', ['metadata', '--format-version', '1', '--no-deps', '--offline']));
   const workspacePackages = metadata.packages.filter(pkg => metadata.workspace_members.includes(pkg.id));
   const modules = [...cargoModules(metadata, root), ...readCatalog('owners')];
@@ -48,13 +54,26 @@ try {
     ...checkNodes(declared, workspacePackages.map(pkg => pkg.name)),
   ];
   result = { ...planImpact({ changedPaths: changes, modules, groups, tests, global, ignored }),
-    canonicalCoverage: coverage };
+    canonicalCoverage: coverage, externalWorkflows };
+  // An unavailable required external workflow is NOT made safe by a passing
+  // full Cargo/Node suite. Report the gap and forbid a selective plan.
+  const externalReasons = [
+    ...externalWorkflows.errors.map(x => 'browser workflow contract drift: ' + x),
+    ...externalWorkflows.requiredNotTriggered.map(x => 'required browser workflow not triggered: ' + x),
+  ];
+  if (externalReasons.length) {
+    result.full = true;
+    result.reasons = [...new Set([...result.reasons, ...externalReasons])];
+    result.tests = tests.map(x => x.id).sort();
+    result.build = modules.map(x => x.id).sort();
+  }
   result.selectedCommands = result.full ? declared.map(x => x.id).sort() :
     result.tests.filter(id => id.startsWith('check:'));
 } catch (error) {
   // If Git, Cargo, canonical capture, or a descriptor is unavailable, select full by default.
   result = { full: true, reasons: [`planning unavailable: ${error.message}`],
     changedPaths: [], changedOwners: [], tests: ['all'], selectedCommands: ['all'],
-    build: ['all'], ignoredPaths: [], canonicalCoverage: null };
+    build: ['all'], ignoredPaths: [], canonicalCoverage: null,
+    externalWorkflows: null };
 }
 console.log(JSON.stringify({ mode: 'shadow', advisoryOnly: true, ...result }, null, 2));

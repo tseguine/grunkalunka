@@ -82,6 +82,10 @@ conservative, and a selected command is a forecast, not permission to skip any
 other command. Source import graphs, generated inputs, cross-script subprocesses,
 and noncanonical workflows require further explicit coverage work.
 
+For independent browser workflow path-trigger accounting and its known tools-only
+coverage gap, see [the external-workflow audit](EXTERNAL-WORKFLOWS.md). This
+report does not establish that any external GitHub job actually passed.
+
 ## Merge-conflict isolation
 
 The experiment adds a separate workflow, this directory, and individually owned
