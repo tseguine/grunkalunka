@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { inspectWasmSections } from '../wasm-section-fingerprint.mjs';
 import {
-  extractNamedBodyHashes, compareNamedBodyReceipts, stripTerminalRustHash,
+  extractNamedBodyHashes, compareNamedBodyReceipts, stripTerminalRustHash, stripMangledRustHash,
 } from '../wasm-named-bodies.mjs';
 
 const magic = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
@@ -243,4 +243,116 @@ test('rejects forged suffix counts, missing slot changes and incomplete normaliz
   b.namedBodies.normalization.normalizedNameDigestsBase64 = digest.toString('base64');
   assert.throws(() => compareNamedBodyReceipts(a, b),
     /unchanged presence of optional function names/);
+});
+
+
+test('only terminal legacy Rust mangled 17h + sixteen hex digits are stripped', () => {
+  assert.equal(stripMangledRustHash('_ZN4core4item17h0123456789abcdefE'),
+    '_ZN4core4itemE');
+  assert.equal(stripMangledRustHash('__ZN4core4item17hfedcba9876543210E'),
+    '__ZN4core4itemE');
+  for (const unchanged of [
+    '_ZN4core4itemE',
+    '_ZN4core4item17h0123456789abcdeE',
+    '_ZN4core4item17h0123456789abcdegE',
+    '_ZN4core4item17H0123456789abcdefE',
+    '_ZN4core4item17h0123456789abcdefE.llvm.123',
+    'prefix_ZN4core4item17h0123456789abcdefE',
+    'crate::item::h0123456789abcdef',
+    '_RNvC0_4core4item',
+    '_ZN17h0123456789abcdefE',
+  ]) assert.equal(stripMangledRustHash(unchanged), unchanged);
+  assert.throws(() => stripMangledRustHash(null), /Invalid/);
+});
+
+test('legacy mangled-name suffix control increases exact matching name and body occurrences', () => {
+  const a = receipt(moduleBytes([[0, 11], [0, 1, 11]],
+    [[0, '_ZN4core4item17h0123456789abcdefE'], [1, 'shared']]));
+  const b = receipt(moduleBytes([[0, 11], [0, 1, 11]],
+    [[0, '_ZN4core4item17hfedcba9876543210E'], [1, 'shared']]), 'win32');
+  const result = compareNamedBodyReceipts(a, b);
+  assert.equal(result.sharedNameOccurrences, 1);
+  assert.equal(result.sharedNameAndExactBodyOccurrences, 1);
+  const normalized = result.mangledRustHashControl;
+  assert.equal(normalized.method, 'rust-legacy-mangled-itanium-hash-v1');
+  assert.equal(normalized.producerSuffixesStripped, 1);
+  assert.equal(normalized.receiverSuffixesStripped, 1);
+  assert.equal(normalized.normalizedSharedNameOccurrences, 2);
+  assert.equal(normalized.normalizedSharedNameAndExactBodyOccurrences, 2);
+  assert.equal(normalized.additionalNameMatchesAfterNormalization, 1);
+  assert.equal(normalized.additionalNameAndExactBodyMatchesAfterNormalization, 1);
+  assert.equal(result.terminalRustHashControl.additionalNameMatchesAfterNormalization, 0);
+  assert.equal(normalized.producerSyntaxCounts.legacyMangled, 1);
+  assert.equal(normalized.producerSyntaxCounts.other, 1);
+});
+
+test('normalized Rust mangled names do not turn differing code into identical bytes', () => {
+  const a = receipt(moduleBytes([[0, 11]],
+    [[0, '_ZN4core4item17h0123456789abcdefE']]));
+  const b = receipt(moduleBytes([[0, 1, 11]],
+    [[0, '_ZN4core4item17hfedcba9876543210E']]), 'darwin', 'arm64');
+  const report = compareNamedBodyReceipts(a, b).mangledRustHashControl;
+  assert.equal(report.normalizedSharedNameOccurrences, 1);
+  assert.equal(report.normalizedSharedNameAndExactBodyOccurrences, 0);
+});
+
+test('legacy normalization preserves multiset multiplicity for collapsed names', () => {
+  const a = receipt(moduleBytes([[0, 11], [0, 11]],
+    [[0, '_ZN4core4item17h0123456789abcdefE'],
+      [1, '_ZN4core4item17hfedcba9876543210E']]));
+  const b = receipt(moduleBytes([[0, 11], [0, 11]],
+    [[0, '_ZN4core4item17haaaaaaaaaaaaaaaaE'],
+      [1, '_ZN4core4item17hbbbbbbbbbbbbbbbbE']]), 'win32');
+  const control = compareNamedBodyReceipts(a, b).mangledRustHashControl;
+  assert.equal(control.normalizedSharedNameOccurrences, 2);
+  assert.equal(control.normalizedSharedNameAndExactBodyOccurrences, 2);
+  assert.equal(control.additionalNameMatchesAfterNormalization, 2);
+});
+
+test('name syntax inventory categorizes forms without emitting symbol strings', () => {
+  const names = [
+    [0, '_ZN4core4item17h0123456789abcdefE'],
+    [1, '_RNvC0_4core4item'],
+    [2, 'crate::item'],
+    [3, 'import_name'],
+  ];
+  const bytes = moduleBytes([[0, 11], [0, 11], [0, 11], [0, 11]], names);
+  const info = extractNamedBodyHashes(bytes, 4);
+  assert.deepEqual(info.mangledHashNormalization.nameSyntaxCounts, {
+    legacyMangled: 1, v0MangledLike: 1, pathLike: 1, other: 1,
+  });
+  assert.equal(info.mangledHashNormalization.matchingTerminalSuffixCount, 1);
+  assert.equal(info.mappedCount, 4);
+});
+
+test('missing new mangled control is backward compatible if absent on both sides', () => {
+  const bytes = moduleBytes([[0, 11]], [[0, 'legacy']]);
+  const first = receipt(bytes), second = receipt(bytes, 'win32');
+  delete first.namedBodies.mangledHashNormalization;
+  delete second.namedBodies.mangledHashNormalization;
+  assert.equal(compareNamedBodyReceipts(first, second).mangledRustHashControl, null);
+  second.namedBodies.mangledHashNormalization = extractNamedBodyHashes(bytes, 1).mangledHashNormalization;
+  assert.throws(() => compareNamedBodyReceipts(first, second),
+    /both hosts must provide mangled Rust name observations/);
+});
+
+test('rejects falsified mangled Rust hash counts and syntax histogram', () => {
+  const bytes = moduleBytes([[0, 11]],
+    [[0, '_ZN4core4item17h0123456789abcdefE']]);
+  const first = receipt(bytes), other = receipt(bytes, 'win32');
+  const entry = other.namedBodies.mangledHashNormalization;
+  entry.matchingTerminalSuffixCount = 0;
+  assert.throws(() => compareNamedBodyReceipts(first, other),
+    /consistent number of normalized name hashes/);
+  entry.matchingTerminalSuffixCount = 1;
+  entry.nameSyntaxCounts.legacyMangled = 0;
+  assert.throws(() => compareNamedBodyReceipts(first, other),
+    /complete mangled Rust name syntax categories/);
+  entry.nameSyntaxCounts.legacyMangled = 1;
+  entry.normalizedNameDigestsBase64 = 'bogus!';
+  assert.throws(() => compareNamedBodyReceipts(first, other),
+    /bounded terminal Rust hash normalization receipt/);
+  entry.normalizedNameDigestsBase64 = Buffer.from([1]).toString('base64');
+  assert.throws(() => compareNamedBodyReceipts(first, other),
+    /complete canonical normalized name hash vector/);
 });
