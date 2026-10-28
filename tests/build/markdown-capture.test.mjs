@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { arch, platform } from 'node:os';
 import { resolve } from 'node:path';
-import { parseCaptureArgs, validateNativeReport } from '../../tools/bench/capture-markdown.mjs';
+import {
+  parseCaptureArgs, validateNativeReport, validateOptionalProcessMemory,
+} from '../../tools/bench/capture-markdown.mjs';
 
 const rustOS = { linux: 'linux', darwin: 'macos', win32: 'windows' };
 const rustArch = { x64: 'x86_64', arm64: 'aarch64' };
@@ -127,5 +129,68 @@ test('invalid, missing or fabricated timing series and fixture bytes are rejecte
   ]) {
     assert.throws(() => validateNativeReport(changed(path, value), config, 100),
       undefined, path);
+  }
+});
+
+function memoryEnvelope(os) {
+  if (os !== 'linux') {
+    return {
+      scope: 'entire-rust-process', unit: 'bytes',
+      source: 'unsupported-on-this-host', snapshots: null,
+    };
+  }
+  const names = [
+    'beforeEmbed', 'afterCompile', 'afterInstantiation',
+    'afterWarmup', 'afterBatches',
+  ];
+  return {
+    scope: 'entire-rust-process', unit: 'bytes', source: 'linux-proc-status',
+    snapshots: Object.fromEntries(names.map((name, index) => [
+      name, { rssBytes: 1024 + index * 256, peakRssBytes: 2048 + index * 256 },
+    ])),
+  };
+}
+
+test('optional real Markdown memory is validated without invalidating historical receipts', () => {
+  const legacy = report();
+  assert.doesNotThrow(() => validateNativeReport(legacy, config, 100));
+  const modern = report();
+  modern.processMemory = memoryEnvelope(modern.environment.os);
+  assert.doesNotThrow(() => validateNativeReport(modern, config, 100));
+  assert.doesNotThrow(() =>
+    validateOptionalProcessMemory(modern, modern.environment.os));
+  assert.deepEqual(report(), legacy, 'historical data remains unmodified');
+});
+
+test('claimed Markdown memory must be complete and platform-specific', () => {
+  const os = rustOS[platform()];
+  const values = [
+    null,
+    { ...memoryEnvelope(os), unit: 'KiB' },
+    { ...memoryEnvelope(os), source: 'invented' },
+    { ...memoryEnvelope(os), snapshots: {} },
+  ];
+  if (os === 'linux') {
+    for (const mutate of [
+      x => { delete x.snapshots.beforeEmbed; },
+      x => { x.snapshots.afterCompile.rssBytes = -1; },
+      x => { x.snapshots.afterWarmup.peakRssBytes = 1; },
+      x => { x.snapshots.afterBatches.rssBytes = 2 ** 54; },
+      x => { x.snapshots.beforeEmbed.unverified = true; },
+    ]) {
+      const value = memoryEnvelope(os);
+      mutate(value);
+      values.push(value);
+    }
+  } else {
+    values.push({
+      ...memoryEnvelope(os), snapshots: { beforeEmbed: { rssBytes: 0, peakRssBytes: 0 } },
+    });
+  }
+  for (const value of values) {
+    const candidate = report();
+    candidate.processMemory = value;
+    assert.throws(() => validateNativeReport(candidate, config, 100),
+      /Invalid/, 'forged or incomplete process memory must fail');
   }
 });
