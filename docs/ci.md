@@ -14,6 +14,11 @@ execute the same three jobs. macOS checks use native Apple Silicon ARM64.
 Feature-branch pushes do not also trigger a second
 copy of the PR build. Runs share a concurrency group for the same event and
 PR/ref; newer runs leave in-progress runs running (`cancel-in-progress: false`).
+`queue: max` retains up to 100 pending runs in that group instead of replacing
+the previous pending run on each push. This avoids cancelled-run failure badges
+while retaining verification of intermediate commits. A full queue can still
+cancel additional runs; manual cancellation and actual failures remain visible.
+See [GitHub's concurrency queue rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 There are no scheduled full builds, path filters, or paid/larger runners.
 Documentation-only changes still run CI so checks are not left pending by a
 workflow-level path filter. Failures on one platform do not cancel the others.
