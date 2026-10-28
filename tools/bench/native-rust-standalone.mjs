@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { inspectWasmSections } from './wasm-section-fingerprint.mjs';
+import { fingerprintWasmData, compareWasmDataFingerprints } from './wasm-data-chunks.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const SHA = /^[a-f0-9]{64}$/;
@@ -135,6 +136,11 @@ function validateFixture(name, report) {
   required(decoded.length === bodies.count * 32 &&
     decoded.toString('base64') === bodies.bodyDigestsBase64,
   'canonical complete Wasm function body hashes for ' + name);
+  // Independently validate the bounded chunk fingerprint vector by comparing
+  // the receipt with itself. The collector computes this from actual Wasm.
+  const identicalData=compareWasmDataFingerprints(report.data,report.data);
+  required(identicalData.sameDataSectionBytes && identicalData.allSegmentsByteIdentical,
+    'self-consistent bounded initialized-data hashes for ' + name);
   required(report.goldens && report.goldens.gcdCases === 4 &&
     report.goldens.extraCases === 3 && report.goldens.hostImports === 0,
   'observed bounded execution goldens for ' + name);
@@ -182,6 +188,7 @@ export function compareNativeRustWitnesses(producer, receiver) {
         isDeepStrictEqual(left.wasm.artifact, right.wasm.artifact),
       changedSections: changedSectionNames(left.wasm, right.wasm),
       rawBodyOverlap: bodyOverlap(left.wasm, right.wasm),
+      dataChunks: compareWasmDataFingerprints(left.data, right.data),
       producerArtifact: { ...left.wasm.artifact },
       receiverArtifact: { ...right.wasm.artifact },
       identicalVerifiedGoldens: isDeepStrictEqual(left.goldens, right.goldens),
@@ -255,6 +262,7 @@ export async function collectNativeRustWitnesses() {
         source: { path: fixture.path, crate: fixture.crate,
           sha256: sha256(original), bytes: original.length },
         wasm: inspectWasmSections(artifact, { codeBodyDigests: true }),
+        data: fingerprintWasmData(artifact),
         goldens: goldenExecutions(artifact, name),
       };
     }

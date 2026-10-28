@@ -9,6 +9,8 @@ on:
       - .github/workflows/p1-native-rust-standalone.yml
       - tools/bench/native-rust-standalone.mjs
       - tools/bench/tests/native-rust-standalone.test.mjs
+      - tools/bench/wasm-data-chunks.mjs
+      - tools/bench/tests/wasm-data-chunks.test.mjs
       - tools/bench/wasm-section-fingerprint.mjs
       - tests/build/fixtures/p1-rust-standalone/**
       - rust-toolchain.toml
@@ -58,7 +60,7 @@ jobs:
           grep -F 'host: x86_64-unknown-linux-gnu' "$RUNNER_TEMP/native-rustc.txt"
 
       - name: Run negative/positive receipt and section tests
-        run: node --test tools/bench/tests/native-rust-standalone.test.mjs
+        run: node --test tools/bench/tests/native-rust-standalone.test.mjs tools/bench/tests/wasm-data-chunks.test.mjs
 
       - name: Compile canonical fixture bytes and verify actual WebAssembly goldens
         id: transfer
@@ -82,6 +84,8 @@ jobs:
             assert.match(f.wasm.artifact.sha256, /^[a-f0-9]{64}$/);
             assert.deepEqual(f.goldens, { gcdCases: 4, extraCases: 3, hostImports: 0 });
             assert.ok(f.wasm.codeBodies.count > 0);
+            assert.ok(f.data.segments.length > 0 && f.data.segments.length <= 128);
+            assert.ok(f.data.totalChunks >= 0 && f.data.totalChunks <= 4096);
           }
           const encoded = bytes.toString('base64');
           assert.ok(encoded.length <= 260 * 1024, 'bounded job output');
@@ -152,7 +156,7 @@ jobs:
           grep -F "host: $EXPECTED_RUST_HOST" "$RUNNER_TEMP/native-rustc.txt"
 
       - name: Validate independent receipt inputs on native host
-        run: node --test tools/bench/tests/native-rust-standalone.test.mjs
+        run: node --test tools/bench/tests/native-rust-standalone.test.mjs tools/bench/tests/wasm-data-chunks.test.mjs
 
       - name: Compile same Git bytes and compare raw artifact identities
         env:
@@ -195,6 +199,18 @@ jobs:
             const fixture = report.findings[name];
             assert.equal(typeof fixture.identicalWasmDigestAndSize, 'boolean');
             assert.equal(fixture.identicalVerifiedGoldens, true);
+            assert.equal(typeof fixture.dataChunks.sameDataSectionBytes, 'boolean');
+            assert.ok(fixture.dataChunks.differingSegments.length <= 128);
+            for (const segment of fixture.dataChunks.differingSegments) {
+              if (segment.missingOn) continue;
+              assert.equal(typeof segment.sameLayout, 'boolean');
+              assert.equal(typeof segment.samePayload, 'boolean');
+              assert.ok(segment.firstChangedChunks.length <= 24);
+              if (segment.matchingChunks !== null) {
+                assert.equal(segment.matchingChunks + segment.changedChunkCount,
+                  segment.chunkCounts[0]);
+              }
+            }
             assert.ok(fixture.rawBodyOverlap.sameIgnoringOrder >= 0);
             assert.ok(fixture.rawBodyOverlap.sameIgnoringOrder <=
               Math.min(...fixture.rawBodyOverlap.counts));
