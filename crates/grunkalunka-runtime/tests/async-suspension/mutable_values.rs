@@ -171,8 +171,6 @@ fn mutable_mixed_values_keep_erasure_limits_and_unrepresented_boundaries() {
             "let x=a?Promise.resolve(a):b;x+=b;return x;",
             "let x=a?Promise.resolve(a):b;x++;return x;",
             "let x=a?Promise.resolve(a):b;x=()=>b;return x;",
-            "let x=a?Promise.resolve(a):b;const read=()=>x;return read();",
-            "let x=a?Promise.resolve(a):b;const id=y=>y;id(a);return id(x);",
         ] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }

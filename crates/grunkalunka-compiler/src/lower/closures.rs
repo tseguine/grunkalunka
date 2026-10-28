@@ -293,7 +293,16 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else if let Some(arity) = check.function_arity(expression, 0) {
                 check.function_value(expression, &mut region, arity, 0)?;
             } else {
-                closure.result = if check.pending_promise_shape(expression, 0) {
+                closure.result = if !arrow.r#async
+                    && (check
+                        .promise_parameters
+                        .mixed_results
+                        .contains(&arrow.node_id.get())
+                        || check.has_promise_choice(expression, 0)
+                            && !check.pending_promise_shape(expression, 0))
+                {
+                    Type::AsyncValue
+                } else if check.pending_promise_shape(expression, 0) {
                     if arrow.r#async {
                         Type::General
                     } else {
@@ -332,7 +341,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                         expression,
                         &mut region,
                         0,
-                        if closure.result == Type::Promise {
+                        if closure.result == Type::AsyncValue {
+                            evaluate::Mode::AsyncValue
+                        } else if closure.result == Type::Promise {
                             evaluate::Mode::Pending
                         } else if closure.result == Type::SettledPromise {
                             evaluate::Mode::Settled
@@ -541,22 +552,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 self.charge_statement(directive)?;
             }
             let completion = self.sequence(&body.statements, &mut region, 0)?;
-            if result_type == Type::General
+            if matches!(result_type, Type::General | Type::AsyncValue)
                 && completion.normal
                 && !completion.breaks
                 && !completion.continues
                 && (arrow.r#async || !completion.throws)
             {
-                let value = self.value(Type::General);
-                Self::push(
-                    &mut region,
-                    arrow,
-                    Op::Nullish {
-                        result: value,
-                        value: ir::Nullish::Undefined,
-                    },
-                );
-                region.exit = Exit::Return(value);
+                self.return_undefined(arrow, &mut region);
             } else if completion != Completion::RETURN
                 && !(arrow.r#async
                     && result_type == Type::General

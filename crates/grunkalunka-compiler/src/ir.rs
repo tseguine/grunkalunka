@@ -155,6 +155,7 @@ impl ClosureSignatures {
             match signature.result {
                 Type::Number
                 | Type::General
+                | Type::AsyncValue
                 | Type::FulfilledPromise
                 | Type::SettledPromise
                 | Type::Promise => {
@@ -181,6 +182,7 @@ impl ClosureSignatures {
                     signature.result,
                     Type::Number
                         | Type::General
+                        | Type::AsyncValue
                         | Type::FulfilledPromise
                         | Type::SettledPromise
                         | Type::Promise
@@ -1404,6 +1406,7 @@ impl Verifier<'_> {
                         ty,
                         Type::Number
                             | Type::General
+                            | Type::AsyncValue
                             | Type::Closure(_)
                             | Type::FulfilledPromise
                             | Type::SettledPromise
@@ -1727,6 +1730,7 @@ pub(crate) fn verify_module_with_entry_type(
                 signature.result,
                 Type::Number
                     | Type::General
+                    | Type::AsyncValue
                     | Type::Closure(_)
                     | Type::FulfilledPromise
                     | Type::SettledPromise
@@ -1762,6 +1766,7 @@ pub(crate) fn verify_module_with_entry_type(
             if !match function.return_type {
                 Type::Number
                 | Type::General
+                | Type::AsyncValue
                 | Type::FulfilledPromise
                 | Type::SettledPromise
                 | Type::Promise => true,

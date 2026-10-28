@@ -331,6 +331,20 @@ impl Lowering<'_, '_> {
                 value: ir::Nullish::Undefined,
             },
         );
+        let value = if self.return_type == Type::AsyncValue {
+            let result = self.value(Type::AsyncValue);
+            Self::push(
+                region,
+                node,
+                Op::ToAsyncValue {
+                    result,
+                    input: value,
+                },
+            );
+            result
+        } else {
+            value
+        };
         region.exit = Exit::Return(value);
     }
 
@@ -1102,7 +1116,7 @@ impl Lowering<'_, '_> {
             }
             Statement::ReturnStatement(statement) => {
                 if statement.argument.is_none()
-                    && self.return_type == Type::General
+                    && matches!(self.return_type, Type::General | Type::AsyncValue)
                     && (self.active_block_calls != 0 || self.allow_await)
                 {
                     self.return_undefined(statement.as_ref(), region);
@@ -1119,6 +1133,9 @@ impl Lowering<'_, '_> {
                         })?;
                 let value = if let Type::Closure(arity) = self.return_type {
                     self.function_value(expression, region, arity, 0)?
+                } else if self.return_type == Type::AsyncValue {
+                    self.evaluate(expression, region, 0, evaluate::Mode::AsyncValue)?
+                        .expect("raw mixed return")
                 } else if self.return_type == Type::Promise {
                     self.evaluate(expression, region, 0, evaluate::Mode::Pending)?
                         .expect("pending Promise return")

@@ -1,5 +1,5 @@
-//! Positive source facts for fulfilled snapshots and pending Promise inputs. This query
-//! follows original symbols and constructors; it never executes a source call.
+//! Source facts for fulfilled snapshots, Promise identities and private mixed values.
+//! This query follows original symbols and constructors; it never executes a call.
 use super::*;
 use oxc_ast::AstKind;
 use oxc_syntax::node::NodeId;
@@ -15,6 +15,8 @@ pub(crate) struct Inputs {
     choices: BTreeSet<SymbolId>,
     mixed: BTreeSet<SymbolId>,
     pub(super) results: BTreeSet<NodeId>,
+    pub(super) mixed_results: BTreeSet<NodeId>,
+    pub(super) mixed_calls: BTreeSet<NodeId>,
     pub(crate) asynchronous: BTreeSet<NodeId>,
     pub(super) adopting: BTreeSet<NodeId>,
 }
@@ -42,8 +44,8 @@ impl Inputs {
     }
 }
 
-// Positive source provenance only. Every actual call and body is still checked
-// against its physical signature; a conflicting incoming kind is not a union.
+// Homogeneous Promise proof stays separate from conservative may-Promise facts.
+// Every actual call and body is still checked against its physical signature.
 fn pending_shape(
     expression: &Expression<'_>,
     semantic: &Semantic<'_>,
@@ -82,9 +84,11 @@ fn pending_shape(
                         return false;
                     };
                     work.push((argument, depth + 1));
-                } else if !callees(&call.callee, returns)
-                    .is_some_and(|bodies| bodies.iter().all(|body| inputs.results.contains(body)))
-                {
+                } else if !callees(&call.callee, returns).is_some_and(|bodies| {
+                    bodies.iter().all(|body| {
+                        inputs.results.contains(body) && !inputs.mixed_results.contains(body)
+                    })
+                }) {
                     return false;
                 }
             }
@@ -144,6 +148,12 @@ fn return_adopts(
             return false;
         };
         match node {
+            Expression::CallExpression(call)
+                if callees(&call.callee, returns)
+                    .is_some_and(|bodies| !bodies.is_disjoint(&inputs.mixed_results)) =>
+            {
+                return true;
+            }
             Expression::AssignmentExpression(assignment) => {
                 if assignment
                     .left
@@ -503,7 +513,17 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
             // may-Promise fact as a homogeneous Promise signature.
             if identities {
                 loop {
-                    let old = inputs.mixed.len();
+                    let old = (
+                        inputs.mixed.len(),
+                        inputs.choices.len(),
+                        inputs.mixed_results.len(),
+                        inputs.asynchronous.len(),
+                    );
+                    for (symbol, expression) in &definitions {
+                        if return_adopts(expression, semantic, &returns, &inputs) {
+                            inputs.choices.insert(*symbol);
+                        }
+                    }
                     let mixed: Vec<_> = definitions
                         .iter()
                         .filter_map(|(symbol, expression)| {
@@ -514,10 +534,69 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
                         })
                         .collect();
                     inputs.mixed.extend(mixed);
-                    if old == inputs.mixed.len() {
+                    for (id, arrow) in &arrows {
+                        let expressions = arrow
+                            .get_expression()
+                            .map(|body| vec![body])
+                            .unwrap_or_else(|| {
+                                super::block_results::return_statements(semantic, *id)
+                                    .into_iter()
+                                    .filter_map(|s| s.argument.as_ref())
+                                    .collect()
+                            });
+                        if !expressions
+                            .iter()
+                            .any(|e| return_adopts(e, semantic, &returns, &inputs))
+                        {
+                            continue;
+                        }
+                        if arrow.r#async {
+                            inputs.results.insert(*id);
+                            inputs.asynchronous.insert(*id);
+                            inputs.adopting.insert(*id);
+                        } else if storage::arrow_returns(arrow, semantic).is_none()
+                            || expressions
+                                .iter()
+                                .any(|e| !pending_shape(e, semantic, &returns, &inputs))
+                        {
+                            inputs.mixed_results.insert(*id);
+                        }
+                    }
+                    for bodies in targets.values() {
+                        if !bodies.is_disjoint(&inputs.mixed_results)
+                            || (!bodies.is_disjoint(&inputs.results)
+                                && bodies.iter().any(|id| !inputs.results.contains(id)))
+                        {
+                            inputs
+                                .mixed_results
+                                .extend(bodies.iter().filter(|id| !arrows[id].r#async).copied());
+                        }
+                        if !bodies.is_disjoint(&inputs.asynchronous) {
+                            let added: Vec<_> = bodies
+                                .iter()
+                                .filter(|id| arrows[id].r#async)
+                                .copied()
+                                .collect();
+                            inputs.results.extend(&added);
+                            inputs.asynchronous.extend(added);
+                        }
+                    }
+                    if old
+                        == (
+                            inputs.mixed.len(),
+                            inputs.choices.len(),
+                            inputs.mixed_results.len(),
+                            inputs.asynchronous.len(),
+                        )
+                    {
                         break;
                     }
                 }
+                inputs.mixed_calls.extend(calls.iter().filter_map(|call| {
+                    callees(&call.callee, &returns)
+                        .is_some_and(|bodies| !bodies.is_disjoint(&inputs.mixed_results))
+                        .then_some(call.node_id.get())
+                }));
             }
             return inputs;
         }

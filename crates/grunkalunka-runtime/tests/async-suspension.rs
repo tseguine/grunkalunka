@@ -55,6 +55,9 @@ mod mutable_values;
 #[path = "async-suspension/mixed_inputs.rs"]
 mod mixed_inputs;
 
+#[path = "async-suspension/private_results.rs"]
+mod private_results;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -966,10 +969,7 @@ fn source_promise_parameters_keep_erasure_domains_and_await_bounds() {
         }
     }
     for body in [
-        "const id=p=>p;id(Promise.resolve(a));return await id(b);",
-        "let id=p=>p;id(Promise.resolve(a));return await id(b);",
         "const apply=(fn,p)=>fn(p);return await apply(x=>x,Promise.resolve(a))+apply(x=>x,b);",
-        "const id=p=>{p=b;return p;};return await id(Promise.resolve(a));",
         "const id=p=>p;return +id(Promise.resolve(a));",
         "const id=p=>p;return await id?.(Promise.resolve(a));",
         "const id=p=>p;return await id(...a);",
@@ -1128,8 +1128,6 @@ fn known_promise_results_keep_erasure_interfaces_and_completion_guards() {
         }
     }
     for body in [
-        "const make=()=>{if(a)return Promise.resolve(b);};return b;",
-        "const make=()=>{if(a)return Promise.resolve(b);return a;};return b;",
         "const make=()=>{const p=p;return p;};return a;",
         "const make=x=>Promise.resolve(x);return await make();",
         "const make=x=>Promise.resolve(x);return await make?.(a);",
@@ -1169,12 +1167,8 @@ fn runtime_promise_results_keep_logical_interfaces_and_bounds() {
     }
     for body in [
         "let f=()=>Promise.resolve(a);return +f();",
-        "let f=()=>Promise.resolve(a);f=()=>b;return await f();",
-        "const f=a?()=>Promise.resolve(b):()=>b;return await f();",
-        "const apply=(fn,x)=>fn(x);apply(x=>x,a);return await apply(x=>Promise.resolve(x),b);",
         "let f=()=>f();return await f();",
         "const f=a?()=>missing():()=>Promise.resolve(a);return await f();",
-        "const f=a?()=>{if(a)return Promise.resolve(b);}:()=>Promise.resolve(a);return await f();",
     ] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");

@@ -230,6 +230,7 @@ impl Lowering<'_, '_> {
             if self.pending_promise_shape(node, depth)
                 || self.async_value_slot(node, depth).is_some()
                 || self.async_value_assignment_slot(node, depth).is_some()
+                || self.mixed_call(node)
             {
                 return true;
             }
@@ -251,6 +252,11 @@ impl Lowering<'_, '_> {
             }
         }
         false
+    }
+
+    pub(super) fn mixed_call(&self, node: &Expression<'_>) -> bool {
+        matches!(node, Expression::CallExpression(call)
+            if self.promise_parameters.mixed_calls.contains(&call.node_id.get()))
     }
 
     pub(super) fn async_value_condition(

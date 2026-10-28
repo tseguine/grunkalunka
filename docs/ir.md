@@ -948,8 +948,8 @@ Promise identities. `ToAsyncValue` accepts only those two visible input kinds;
 `AsyncValueIsPromise` returns Predicate. `AsyncValuePrimitive` and
 `AsyncValuePromise` project to General and Promise respectively and trap on the
 wrong variant. The verifier checks inputs/results and rejects the carrier as
-an exported completion or private closure result. Private closure input slots
-may carry the union as described below.
+an exported completion. Private closure inputs and results may carry the union
+as described below.
 
 The shared backend layout uses the existing tag/f64 pair. Its private Promise
 discriminator is 5, distinct from General kinds 0 through 4; a Promise ID fits
@@ -988,8 +988,8 @@ Const and let AsyncValue source slots retain raw snapshots using existing
 Initialize, Load, Store and captured-cell storage. Explicit source awaits discriminate before either
 AwaitPromise or primitive Await, with both branches sharing the original source
 site identity. Async returns instead use the existing AdoptPromise branch.
-The carrier remains excluded from exported completions and private results;
-private inputs now use the existing pair. No operation or physical layout was
+The carrier remains excluded from exported completions; private inputs/results
+now use the existing pair. No operation or physical layout was
 added for local storage.
 
 
@@ -1004,11 +1004,23 @@ assignment test itself. No IR type, operation or storage width was added.
 AsyncValue is now permitted in finite private closure parameter lists, including
 callbacks and returned function signatures. The verifier still requires an
 environment-bearing private function, matching parameter slots and exact
-argument value types; exported input slots remain Number. Private results and
-exported completions cannot be AsyncValue.
+argument value types; exported input slots remain Number. Private results may
+now be AsyncValue; exported completions cannot.
 
 Argument entries use the existing i32 tag at byte zero and f64 payload at byte
 eight, with sixteen-byte stride. The ingress lift accepts an existing carrier or
 represented General/Promise, packing Number/Predicate first when needed.
 No new IR operation or host completion kind was added. Normal private calls and
 coroutine activation copies preserve the same logical pair.
+
+### Private carrier results
+
+Finite synchronous callback and returned-function signatures may return AsyncValue.
+Inline regions and environment-bearing private functions check that exact result
+type. Async signatures still complete with General, and exported roots still
+accept Number inputs and complete with the selected Number/General profile.
+
+Private indirect calls reuse the existing tag/f64 result table type. The caller
+keeps both lanes across calls and suspension, projecting only at a typed consumer.
+Returning the pair emits no adoption or handling operation; fallthrough and bare
+return lift General undefined. No IR operation, tag or physical width was added.

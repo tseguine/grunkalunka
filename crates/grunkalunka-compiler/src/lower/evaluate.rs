@@ -88,6 +88,13 @@ fn call_result<'e, 'a>(
     number_proven: bool,
 ) -> Result<(), String> {
     match (ty, mode) {
+        (Type::AsyncValue, Mode::AsyncValue) => (),
+        (Type::AsyncValue, _) => {
+            return Err(unsupported(
+                node,
+                "mixed call result requires a raw-value consumer",
+            ));
+        }
         (Type::Number, Mode::General) => work.push(Work::Pack(node)),
         (Type::Number, Mode::Predicate) => work.push(Work::Truthy(node)),
         (Type::General, Mode::Predicate) => work.push(Work::GeneralTruthy(node)),
@@ -1100,7 +1107,9 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(
                                 expression,
                                 0,
-                                if closure.result == Type::Promise {
+                                if closure.result == Type::AsyncValue {
+                                    Mode::AsyncValue
+                                } else if closure.result == Type::Promise {
                                     Mode::Pending
                                 } else if closure.result == Type::SettledPromise {
                                     Mode::Settled
@@ -1120,7 +1129,9 @@ impl Lowering<'_, '_> {
                             let body = self.arrow_block_result(arrow, depth, closure.result)?;
                             let result = self.value(closure.result);
                             Self::push(regions.current(), node, Op::InlineCall { result, body });
-                            values.push(if closure.result == Type::Promise {
+                            values.push(if closure.result == Type::AsyncValue {
+                                Value::Selection(result)
+                            } else if closure.result == Type::Promise {
                                 Value::Pending(result)
                             } else if closure.result == Type::SettledPromise {
                                 Value::Settled(result)
@@ -1286,7 +1297,9 @@ impl Lowering<'_, '_> {
                                 }
                             },
                         );
-                        values.push(if ty == Type::Promise {
+                        values.push(if ty == Type::AsyncValue {
+                            Value::Selection(result)
+                        } else if ty == Type::Promise {
                             Value::Pending(result)
                         } else if ty == Type::SettledPromise {
                             Value::Settled(result)
@@ -2146,6 +2159,7 @@ impl Lowering<'_, '_> {
                 Work::Eval(node, depth, Mode::Discard) => {
                     if self.async_value_slot(node, depth).is_some()
                         || self.async_value_assignment_slot(node, depth).is_some()
+                        || self.mixed_call(node)
                     {
                         work.push(Work::Forget);
                         work.push(Work::Eval(node, depth, Mode::AsyncValue));
@@ -2256,7 +2270,7 @@ impl Lowering<'_, '_> {
                     if self.schedule_mixed_result(node, depth, mode, &mut work) {
                         continue;
                     }
-                    if matches!(mode, Mode::AsyncValue) {
+                    if matches!(mode, Mode::AsyncValue) && !self.mixed_call(node) {
                         if self.schedule_mixed_assignment(node, depth, &mut regions, &mut work)? {
                             continue;
                         }
@@ -2794,6 +2808,7 @@ impl Lowering<'_, '_> {
                             result_type,
                             Type::Number
                                 | Type::General
+                                | Type::AsyncValue
                                 | Type::FulfilledPromise
                                 | Type::SettledPromise
                         ) {
@@ -3666,7 +3681,7 @@ impl Lowering<'_, '_> {
         work: &mut Vec<Work<'e, 'a>>,
     ) -> bool {
         if matches!(mode, Mode::AsyncReturn | Mode::Predicate | Mode::Awaited(_))
-            && self.async_value_assignment_slot(node, depth).is_some()
+            && (self.async_value_assignment_slot(node, depth).is_some() || self.mixed_call(node))
         {
             work.push(Work::ConsumeAsyncValue(node, mode));
             work.push(Work::Eval(node, depth, Mode::AsyncValue));

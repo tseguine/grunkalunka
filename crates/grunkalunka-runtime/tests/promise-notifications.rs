@@ -101,6 +101,9 @@ const BODIES: &[&str] = &[
     "const p=Promise.reject(b);const same=x=>x===p;same(p);same(a);return a;",
     "const f=async()=>{await a;throw b;};const p=f();let same=a?x=>x===p:x=>x!==p;same(p);same(a);return a;",
     "const p=Promise.reject(b);const use=async x=>await x;await use(a);try{await use(p);}catch(e){}return a;",
+    "const p=Promise.reject(b);const id=x=>x;id(p);id(a);return a;",
+    "const f=async()=>{await a;throw b;};const p=f();let read=a?()=>p:()=>b;read();return a;",
+    "const p=Promise.reject(b);const id=x=>x;id(p);id(a);await a;try{await id(p);}catch(e){}return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -215,9 +218,9 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         }
                     }
                 }
-                if [5, 6, 7, 17, 20, 22, 24, 29, 32, 35].contains(&index) {
+                if [5, 6, 7, 17, 20, 22, 24, 29, 32, 35, 38].contains(&index) {
                     assert!(unhandled.is_empty(), "{body}");
-                    if [6, 7, 17, 20, 22, 24, 29, 32, 35].contains(&index) {
+                    if [6, 7, 17, 20, 22, 24, 29, 32, 35, 38].contains(&index) {
                         assert_eq!(events.len(), 2);
                     } else {
                         assert!(events.is_empty());
@@ -237,7 +240,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (4, Value::Boolean(true)) => {}
                         (
                             0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19 | 21 | 23 | 25
-                            | 26 | 27 | 28 | 30 | 31 | 33 | 34,
+                            | 26 | 27 | 28 | 30 | 31 | 33 | 34 | 36 | 37,
                             Value::Number(x),
                         ) => {
                             assert!(

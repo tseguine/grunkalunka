@@ -631,7 +631,9 @@ fn refine_shapes<'a>(
             );
         signatures.borrow_mut().intern(
             parameter_types(arrow, parameters, &kinds.inputs, promise_parameters),
-            if (promise_parameters.identities || !arrow.r#async)
+            if !arrow.r#async && promise_parameters.mixed_results.contains(&body) {
+                Type::AsyncValue
+            } else if (promise_parameters.identities || !arrow.r#async)
                 && promise_parameters.results.contains(&body)
             {
                 Type::Promise

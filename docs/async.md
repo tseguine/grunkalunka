@@ -499,7 +499,7 @@ Maintained source tests compare values and full microtask traces in native JS,
 Node-Wasm and Wasmtime. Former source guards also execute through native
 checkpoint reporting and default-budget Wasmtime, including detached rejections.
 General Strings, arbitrary objects/functions/Promises as payloads or rejection
-reasons, custom thenables and ordinary mixed private returns remain open.
+reasons and custom thenables remain open. Private mixed returns are described below.
 Ordinary numeric/value profiles retain their narrower contracts.
 
 ### Selected async return values
@@ -535,8 +535,8 @@ payloads, Promise identity, short-circuit effects and rejection handling retain
 the existing semantics and budgets.
 
 This carrier does not extend the exported completion protocol. Const/let locals
-and represented mixed private inputs use it as described below. Ordinary mixed
-private returns, relational and coercion positions remain separate work.
+and represented mixed private inputs/results use it as described below.
+Mixed relational and coercion positions remain separate work.
 A helper can resolve its selected async return before the caller compares the
 resulting primitive/Error value.
 
@@ -558,8 +558,8 @@ of one coroutine body before its outer activation suspends. Normal helper locals
 remain on the Wasm stack. Modules without these helper starts retain their existing
 emission path. No exported protocol, record width, fuel, job or source-await limit
 changes. Actual awaits still require an async source function; typed synchronous
-helpers still cannot contain suspension. General Promise payloads, thenables and
-ordinary mixed private return domains remain separate gaps.
+helpers still cannot contain suspension. General Promise payloads and thenables
+remain separate gaps. Private mixed returns now use the raw carrier below.
 
 ### Equality of selected Promise/primitive operands
 
@@ -576,7 +576,7 @@ Promise is unequal to every currently admitted non-string primitive and intrinsi
 Error; the inequality operators invert that result. The source General profile
 still excludes Strings, so this does not implement Promise/string loose equality,
 custom coercion or arbitrary objects. Mixed relational/numeric-coercion operands
-and ordinary mixed private returns remain separate gaps. Existing homogeneous
+remain separate gaps. Existing homogeneous
 comparison paths and all source/runtime budgets remain unchanged.
 
 ### Immutable selected-value locals
@@ -601,8 +601,8 @@ binding mutation, primitive bits/kinds, Error identity, logical/comma/conditiona
 consumers and job traces. Notification tests cover discarded rejected values and
 later handling. No new layout, exported completion, private signature, fuel, job or
 source-await budget is introduced. Mutable represented mixed locals now use the
-same carrier as described below. Ordinary mixed private returns,
-mixed relational/coercion operands, general Promise payloads, Strings and
+same carrier as described below. Mixed relational/coercion operands,
+general Promise payloads, Strings and
 thenables remain open.
 
 ### Mutable selected-value locals
@@ -627,8 +627,8 @@ or return-adoption routes as immutable locals. Storage, equality and logical tes
 do not handle a rejected Promise. Differential traces and notification tests cover
 tag changes, aliases/captures, RHS suspension, selected errors, late handling and
 source limits. No backend layout, exported/private ABI, arena, fuel, job or
-source-budget changes are needed. Ordinary mixed private returns, mixed numeric
-compounds/coercions/relational operands, unrepresented heap values and broader
+source-budget changes are needed. Mixed numeric compounds/coercions/relational
+operands, unrepresented heap values and broader
 Promise/thenable behavior remain open.
 
 ### Mixed private inputs
@@ -653,6 +653,26 @@ erased types. Rejection notifications distinguish passing from later awaiting.
 Homogeneous argument layouts and source limits remain; wide execution remains
 subject to ordinary fuel and arena limits.
 
-This admits private inputs only. Exported entry inputs remain two Numbers,
-exported completions remain General, and ordinary private carrier returns,
-Function/heap-value mixtures and mixed coercion remain separate work.
+Private results now use the same carrier below. Exported entry inputs remain two
+Numbers and exported completions remain General. Function/heap-value mixtures and
+mixed coercion remain separate work.
+
+### Ordinary private mixed returns
+
+Synchronous private arrows may return either a represented Promise identity or a
+General primitive/intrinsic Error. Original return and call provenance propagates
+the raw carrier through known/runtime-selected calls, callbacks, factories,
+forwarding and captured storage. Concise and block returns use the same pair;
+bare returns and normal fallthrough produce intrinsic undefined.
+
+Calls preserve kind, bits and identity, including ordered/surplus argument effects
+and callee snapshots. Returning or discarding a rejected Promise neither handles
+it nor adds a reaction. An explicit await discriminates the returned variant;
+return from an async activation adopts only a selected Promise. Equality,
+truthiness and logical selection keep their existing raw-value behavior.
+
+Native JS, Node-Wasm and Wasmtime comparisons cover early returns, aliases/cells,
+reassignment, nested calls, rejection timing and erased annotations. Separate
+notification tests cover discarded results and later handling. No host protocol,
+kernel record, dependency or source budget changes. This does not admit arbitrary
+heap values, strings, thenables, mixed coercion or synchronous source exceptions.

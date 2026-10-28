@@ -111,6 +111,14 @@ impl Lowering<'_, '_> {
         if !arrow.r#async
             && self
                 .promise_parameters
+                .mixed_results
+                .contains(&arrow.node_id.get())
+        {
+            return Type::AsyncValue;
+        }
+        if !arrow.r#async
+            && self
+                .promise_parameters
                 .results
                 .contains(&arrow.node_id.get())
         {
@@ -679,6 +687,7 @@ impl Lowering<'_, '_> {
         if !match return_type {
             Type::Number
             | Type::General
+            | Type::AsyncValue
             | Type::FulfilledPromise
             | Type::SettledPromise
             | Type::Promise => true,
@@ -866,6 +875,10 @@ impl Lowering<'_, '_> {
         } else if let Some(expression) = arrow.get_expression() {
             if let Type::Closure(signature) = return_type {
                 child.function_value(expression, &mut body, signature, 0)?
+            } else if return_type == Type::AsyncValue {
+                child
+                    .evaluate(expression, &mut body, 0, evaluate::Mode::AsyncValue)?
+                    .expect("raw private mixed result")
             } else if return_type == Type::Promise {
                 child
                     .evaluate(expression, &mut body, 0, evaluate::Mode::Pending)?

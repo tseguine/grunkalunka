@@ -412,7 +412,7 @@ uses adoption only for a selected Promise. Source effect analysis separates
 may-Promise provenance from homogeneous Promise signature facts.
 
 This reuses sixteen-byte storage already required by suspended selections and
-keeps the carrier out of exported completions and private parameter/results.
+kept the carrier out of exported completions and, at that stage, private interfaces.
 Mutable mixed locals and broader value domains remain separate work. The layout
 decision remains provisional; this bounded admission does not select a universal
 heap/object representation.
@@ -448,5 +448,19 @@ reassignment, snapshots, erasure and rejection handling.
 
 Existing homogeneous argument representations remain unchanged. No exported
 input/completion protocol, kernel record or source limit changes. Private
-carrier results and Function/heap mixtures remain excluded; this is another
-bounded use of the provisional carrier, not a universal value/heap decision.
+carrier results are expanded below; Function/heap mixtures remain excluded.
+This is another bounded use of the provisional carrier, not a universal heap decision.
+
+## Mixed private result follow-up
+
+The result restriction is now expanded for synchronous private signatures.
+Original return/call provenance selects AsyncValue, reusing the existing
+sixteen-byte storage and tag/f64 indirect result type. Known, callback and
+factory forwarding retain the raw value; bare return/fallthrough lifts undefined.
+
+Resolving on ordinary return would change identity, truthiness, handling and
+microtask order. Copying both lanes lets existing await/async-return consumers
+make that decision at the source boundary. Differential and notification tests
+cover those observations. Exported roots and async completion signatures remain
+Number/General as before. No new operation, dependency, host tag or universal
+heap representation is selected; broader coercion and value domains remain open.

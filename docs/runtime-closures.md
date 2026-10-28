@@ -496,7 +496,7 @@ Async constructors and supported callbacks now retain General/Promise choices
 through nested logical left operands. Captures, runtime-selected constructors
 and repeated activations keep the selected kind before resolving the return.
 The internal `AsyncValue` carrier uses shared suspended storage and private
-parameter slots, while remaining excluded from private results and exported
+parameter slots and results, while remaining excluded from exported
 completions. Immutable
 selected-value locals and aliases now retain the existing tagged snapshot through
 captured cells. Async helpers returning one receive their own physical activation;
@@ -527,8 +527,8 @@ cells. Constructor/write planning chooses carrier storage before initialization;
 const aliases retain snapshots while closures observe subsequent typed stores.
 Simple and logical assignment results remain raw until an explicit consumer.
 May-Promise effects preserve physical async activations for returns of assignments
-to those cells, separately from homogeneous private call signatures. General mixed
-private results and unrepresented capture kinds remain open.
+to those cells, separately from homogeneous private call signatures. Mixed
+private results now use the carrier below; unrepresented capture kinds remain open.
 
 ### Mixed private input frames
 
@@ -536,10 +536,21 @@ Actual argument provenance now admits represented Promise/General parameters.
 Known binders lift primitives and identities into the existing AsyncValue pair;
 runtime/factory calls marshal sixteen-byte entries alongside Number/Promise and
 callback entries. The callee retains the raw kind through captures, parameter
-stores and suspension. Callback signatures may contain these inputs without
-permitting carrier results or exported carrier values.
+stores and suspension. Callback signatures may contain these inputs and carrier
+results while exported carrier values remain excluded.
 
 Tests compare observable values and microtask traces, including earlier primitive
 payloads in mixed-width normal calls and runtime async calls with 17/32 mixed
 parameters. Passing a rejected Promise does not handle it. Synchronous forwarding
-of the carrier as an ordinary private result remains separate work.
+now retains the same carrier as an ordinary private result.
+
+### Mixed private result pairs
+
+Known and indirect synchronous calls now return raw represented Promise/General
+values. Complete private signatures distinguish these results from General even
+though both reuse the tag/f64 Wasm result type. Callback and factory forwarding
+preserve both lanes, captured cells, callee snapshots and actual-argument order.
+Source return provenance promotes selected constructor alternatives consistently;
+the body checker still validates every branch against the resulting signature.
+Bare return/fallthrough yields undefined. Only a later await or async return
+consumes a selected Promise; returning/discarding alone adds no reaction.
