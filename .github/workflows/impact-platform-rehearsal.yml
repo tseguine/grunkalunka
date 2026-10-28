@@ -1,0 +1,71 @@
+name: Cross-platform partial-PR execution rehearsal
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'ci/impact/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/impact-platform-rehearsal.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rehearsal:
+    name: Scoped PR gate (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux
+            runner: ubuntu-24.04
+          - platform: Windows
+            runner: windows-2025
+          - platform: macOS
+            runner: macos-15
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_INCREMENTAL: '0'
+      RUST_BACKTRACE: '1'
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up exactly pinned Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Install repo Rust toolchain and test components
+        run: |
+          node -e 'require("node:assert/strict").equal(process.version, "v24.21.0")'
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+      - name: Assert native Apple Silicon rather than Rosetta
+        if: runner.os == 'macOS'
+        run: |
+          test "$(uname -m)" = arm64
+          test "$(node -p process.arch)" = arm64
+          test "$(rustc -vV | sed -n 's/^host: //p')" = aarch64-apple-darwin
+          test "$RUNNER_ARCH" = ARM64
+      - name: Restore optional Cargo cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: pr-impact-scoped-${{ matrix.platform }}
+          workspaces: |
+            . -> target
+          cache-bin: 'false'
+          save-if: 'false'
+      - name: Fetch locked workspace dependencies
+        run: cargo fetch --locked
+      - name: Check impact planner and executor fail-closed tests
+        run: node --test ci/impact/*.test.mjs
+      - name: Execute real scoped layout build, format, Clippy and tests
+        run: node ci/impact/platform-rehearsal.mjs
