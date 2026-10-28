@@ -1,0 +1,178 @@
+# Optional P1 toolchain-input experiment; no Rust guest rebuild or CI replacement.
+name: P1 wasm32 Rust target library identity
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-wasm32-sysroot-identity.yml
+      - tools/bench/rust-wasm32-sysroot.mjs
+      - tools/bench/tests/rust-wasm32-sysroot.test.mjs
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-wasm32-sysroot-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  producer:
+    name: Fingerprint installed wasm32 target libraries on Linux x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      receipt64: ${{ steps.transfer.outputs.receipt64 }}
+    steps:
+      - name: Check out exact tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install native Node.js 24.21.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Install Rust target on native Linux x64
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV
+          rustc --print target-libdir --target wasm32-unknown-unknown
+
+      - name: Check comparator boundaries and fingerprint target archives
+        id: transfer
+        run: |
+          set -euo pipefail
+          node --test tools/bench/tests/rust-wasm32-sysroot.test.mjs
+          node tools/bench/rust-wasm32-sysroot.mjs collect > "$RUNNER_TEMP/linux-sysroot.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-sysroot.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const [path, output] = process.argv.slice(2);
+          const bytes = fs.readFileSync(path);
+          assert.ok(bytes.length > 0 && bytes.length <= 128 * 1024);
+          const report = JSON.parse(bytes.toString('utf8'));
+          assert.equal(report.workload, 'p1-rust-wasm32-sysroot');
+          assert.equal(report.target, 'wasm32-unknown-unknown');
+          assert.deepEqual([report.host.os, report.host.arch], ['linux', 'x64']);
+          assert.ok(report.fileCount >= 2 && report.fileCount <= 512);
+          assert.equal(report.fileCount, report.files.length);
+          fs.appendFileSync(output, 'receipt64=' + bytes.toString('base64') + '\n');
+          console.log('PASS native Linux target sysroot fingerprint ' +
+            JSON.stringify({toolchain:report.toolchain,fileCount:report.fileCount,
+              totalBytes:report.totalBytes}));
+          NODE
+
+  compare:
+    name: Compare installed wasm32 Rust libraries on ${{ matrix.platform }}
+    needs: producer
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows x64
+            runner: windows-2025
+            os: Windows
+            arch: X64
+            js_os: win32
+            js_arch: x64
+            rust_host: x86_64-pc-windows-msvc
+          - platform: Apple Silicon macOS ARM64
+            runner: macos-15
+            os: macOS
+            arch: ARM64
+            js_os: darwin
+            js_arch: arm64
+            rust_host: aarch64-apple-darwin
+    steps:
+      - name: Check out same tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install identical Node.js patch release
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: ${{ matrix.js_arch }}
+          package-manager-cache: false
+
+      - name: Verify native Rust host and install same wasm32 target
+        env:
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_RUNNER_ARCH: ${{ matrix.arch }}
+          EXPECTED_JS_OS: ${{ matrix.js_os }}
+          EXPECTED_JS_ARCH: ${{ matrix.js_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "$EXPECTED_OS"
+          test "$RUNNER_ARCH" = "$EXPECTED_RUNNER_ARCH"
+          node -e "if (process.platform !== process.env.EXPECTED_JS_OS || process.arch !== process.env.EXPECTED_JS_ARCH || process.version !== 'v24.21.0') process.exit(1)"
+          if [ "$RUNNER_OS" = macOS ]; then
+            test "$(uname -m)" = arm64
+            test "$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')" = 0
+          fi
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/rustc-host.txt"
+          grep -F "host: $EXPECTED_RUST_HOST" "$RUNNER_TEMP/rustc-host.txt"
+          rustc --print target-libdir --target wasm32-unknown-unknown
+
+      - name: Compare source-identical Rust target distribution library archives
+        env:
+          PRODUCER_RECEIPT64: ${{ needs.producer.outputs.receipt64 }}
+          EXPECTED_JS_OS: ${{ matrix.js_os }}
+          EXPECTED_JS_ARCH: ${{ matrix.js_arch }}
+        run: |
+          set -euo pipefail
+          node --test tools/bench/tests/rust-wasm32-sysroot.test.mjs
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-sysroot.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const encoded = process.env.PRODUCER_RECEIPT64 ?? '';
+          assert.match(encoded, /^[A-Za-z0-9+/]+={0,2}$/, 'canonical receipt encoding');
+          const bytes = Buffer.from(encoded, 'base64');
+          assert.ok(bytes.length > 0 && bytes.length <= 128 * 1024);
+          assert.equal(bytes.toString('base64'), encoded, 'complete literal transfer');
+          fs.writeFileSync(process.argv[2], bytes, { flag: 'wx' });
+          NODE
+          node tools/bench/rust-wasm32-sysroot.mjs collect > "$RUNNER_TEMP/native-sysroot.json"
+          node tools/bench/rust-wasm32-sysroot.mjs compare \
+            "$RUNNER_TEMP/linux-sysroot.json" "$RUNNER_TEMP/native-sysroot.json" \
+            > "$RUNNER_TEMP/sysroot-diff.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/sysroot-diff.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-rust-wasm32-sysroot-comparison');
+          assert.equal(report.target, 'wasm32-unknown-unknown');
+          assert.deepEqual([report.producer.os, report.producer.arch], ['linux', 'x64']);
+          assert.equal(report.receiver.os, process.env.EXPECTED_JS_OS);
+          assert.equal(report.receiver.arch, process.env.EXPECTED_JS_ARCH);
+          assert.equal(report.identicalFiles + report.differingFiles.length +
+            report.producerOnly.length, report.producer.fileCount);
+          assert.equal(report.identicalFiles + report.differingFiles.length +
+            report.receiverOnly.length, report.receiver.fileCount);
+          assert.equal(typeof report.allTargetLibraryBytesIdentical, 'boolean');
+          // Same and different outputs are both observations, never pass thresholds.
+          console.log('PASS cross-host Rust target library identity comparison');
+          console.log(JSON.stringify(report));
+          NODE
