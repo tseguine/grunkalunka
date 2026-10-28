@@ -1,0 +1,13 @@
+{
+  "id": "check:browser-oracle-contracts",
+  "command": "node",
+  "args": [
+    "scripts/check-browser-oracles.mjs"
+  ],
+  "dependsOn": [
+    "test:browser-oracle-contracts"
+  ],
+  "paths": [
+    "scripts/check-browser-oracles.mjs"
+  ]
+}

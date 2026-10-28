@@ -117,10 +117,18 @@ test('type-query research changes select their canonical checks', () => {
   assert.ok(result.tests.includes('check:type-query-format'));
 });
 
-test('a non-Cargo owner with only a descriptive group fails closed', () => {
+test('browser owner now reaches a canonical offline check without unrelated Cargo builds', () => {
   const result = analyze(['tools/browser-oracles/smoke.mjs']);
-  assert.equal(result.full, true);
-  assert.match(result.reasons[0], /no executable test covers changed owner: browser-oracles/);
+  assert.equal(result.full, false, JSON.stringify(result.reasons));
+  assert.ok(result.tests.includes('check:browser-oracle-contracts'));
+  assert.ok(!result.tests.includes('check:compiler-compatibility-replay'));
+  assert.ok(!result.tests.includes('check:workspace-tests'));
+  assert.deepEqual(result.build, ['browser-oracles']);
+  const preview = previewCargoScope(result, cargo);
+  assert.equal(preview.mode, 'scoped-preview', preview.reason);
+  assert.deepEqual(preview.selectedBuildPackages, []);
+  assert.deepEqual(preview.selectedTestPackages, []);
+  assert.equal(preview.commands.build, null);
 });
 
 test('an actual canonical check is reached through a logical group', () => {
