@@ -21,10 +21,12 @@ add checks without conflicting in a shared command list.
 For partial CI, add and review the matching per-command impact descriptor,
 its owner, fixtures and test dependency edges. The canonical runner and the
 impact descriptor catalog are intentionally **independent**; the inventory
-capture and regression tests detect missing or stale mappings. Changes to
-this directory or its loader are global PR inputs and force full verification,
-while unrelated code still uses dependency-selected tests. Full `master`
-checks continue to run all manifests.
+capture and regression tests detect missing or stale mappings. **Adding
+a new command with its matching new impact descriptor** is validated as a
+paired addition and selects that check and its declared dependencies on PRs.
+Changing or deleting an existing registration, an unpaired addition, or
+changing the loader still forces full verification. Full `master` checks
+continue to run all manifests.
 
 Validation: `node --test ci/impact/check-catalog.test.mjs`; the full suite
 is `node scripts/check.mjs`. No test implementation belongs in this directory:
