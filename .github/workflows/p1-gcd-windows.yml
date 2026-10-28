@@ -163,7 +163,7 @@ jobs:
           // Windows checkout may apply core.autocrlf; hash the tracked Git blob instead.
           const { execFileSync } = require('node:child_process');
           const trackedSource = execFileSync('git', ['show', 'HEAD:' + manifest.source.path], {
-            encoding: 'buffer', windowsHide: true, timeout: 5000, maxBuffer: 16384,
+            windowsHide: true, timeout: 5000, maxBuffer: 16384,
           });
           assert.equal(trackedSource.length, manifest.source.bytes);
           assert.equal(hash(trackedSource), manifest.source.sha256);
