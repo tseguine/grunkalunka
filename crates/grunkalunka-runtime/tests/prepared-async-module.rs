@@ -40,7 +40,10 @@ fn prepared_async_module_preserves_fresh_store_and_activation_isolation() {
     assert_number(finish(first), 6.0);
 
     // A later invocation starts clean even after its siblings have settled.
-    assert_number(finish(prepared.instantiate(f64::NAN, 2.0).unwrap()), f64::NAN);
+    assert_number(
+        finish(prepared.instantiate(f64::NAN, 2.0).unwrap()),
+        f64::NAN,
+    );
     // Existing single-invocation API remains behaviorally equivalent.
     assert_number(finish(AsyncInstance::new(&wasm, 4.0, 2.0).unwrap()), 6.0);
 }
@@ -48,10 +51,12 @@ fn prepared_async_module_preserves_fresh_store_and_activation_isolation() {
 #[test]
 fn prepared_module_preserves_import_rejection_and_validates_input() {
     let wasm = wat::parse_str("(module (import \"env\" \"read\" (func)))").unwrap();
-    assert!(PreparedAsyncModule::new(&wasm)
-        .err()
-        .expect("import-bearing module must fail")
-        .to_string()
-        .contains("no module imports"));
+    assert!(
+        PreparedAsyncModule::new(&wasm)
+            .err()
+            .expect("import-bearing module must fail")
+            .to_string()
+            .contains("no module imports")
+    );
     assert!(PreparedAsyncModule::new(b"not wasm").is_err());
 }
