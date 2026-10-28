@@ -82,3 +82,26 @@ to check acceptance/rejection rules, not to claim execution evidence. No runner
 matrix, workflow, dependency, artifact publishing, deployment or release changes
 are introduced. Process memory, frontend-only cost, measured alternative builds
 and broader application workloads remain unfinished P1 work.
+
+## Recorded Rust-process memory integrity
+
+New Markdown cost reports may include a `processMemory` envelope with five
+validated Linux RSS/peak-RSS checkpoints; Windows and macOS record explicit
+unsupported/null observations. The capture and same-process comparator now
+**validate a claimed memory envelope** against the saved native OS and the
+complete ordered lifecycle, including units, snapshot keys, integer bounds,
+RSS no greater than peak and nondecreasing process peak. The comparator uses
+the recorded host instead of assuming the machine reading the JSON is the
+machine that produced it.
+
+Historical `schemaVersion: 1` captures lack memory observations. Those
+remain readable and comparable; absence is **not** represented as a zero
+observation or an implied memory pass. If a receipt *does* claim memory
+values, corrupt or contradictory data fail even when someone recomputes the
+pair's ordinary SHA-256 digest binding. This still does **not** establish a
+signed provenance attestation, genuine physical measurements, guest-only
+memory attribution, cross-host comparability or performance rankings.
+
+These are ordinary pure Node regression assertions in the already canonical
+build/capture and comparison suites. No new Actions workflow, runner, Cargo
+dependency or independent status check is introduced.
