@@ -34,6 +34,9 @@ mod source_identities;
 #[path = "async-suspension/mixed_returns.rs"]
 mod mixed_returns;
 
+#[path = "async-suspension/logical_returns.rs"]
+mod logical_returns;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(

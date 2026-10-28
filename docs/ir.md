@@ -932,6 +932,10 @@ regions and operations without changing logical types, layouts or host ABI.
 
 Async constructor effect inference asks whether any selected return leaf is a
 Promise. Ordinary Promise value positions still require homogeneous provenance;
-this does not introduce a boxed Promise/primitive union. Logical expressions are
-not distributed by this route: adopting their left operand before testing its
-object truthiness would change semantics.
+this does not introduce a boxed Promise/primitive union. Logical returns keep a
+General or Promise left snapshot through the truthiness/nullishness test. The
+kept-left branch adopts a Promise only after selection; the right branch resolves
+its own return expression. Discarded Promise operands retain unhandled rejection
+behavior and add no adoption jobs. Nested heterogeneous left joins remain open.
+Constructor effect inference conservatively retains an activation for logical
+Promise operands, even when runtime short-circuiting discards them.

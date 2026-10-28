@@ -503,8 +503,8 @@ Ordinary numeric/value profiles retain their narrower contracts.
 
 ### Selected async return values
 
-Async conditional and comma returns can select a represented Promise or an
-admitted General primitive/intrinsic Error. Conditions and comma prefixes run
+Async conditional, comma and logical returns can select a represented Promise
+or an admitted General primitive/intrinsic Error. Conditions and comma prefixes run
 once in source order; only the selected Promise is adopted, with the existing
 registration and reaction jobs. A selected primitive returns directly. Rejected
 adoption bypasses the returning activation's catch; throws or rejected awaits
@@ -513,6 +513,13 @@ while evaluating the expression retain lexical handling.
 Known and runtime async constructors receive the adoption effect when any return
 leaf needs it, including through supported async callbacks and captures. Native
 JS, Node-Wasm and Wasmtime tests compare values and full microtask traces, with
-unchanged source-await, runtime-job and fuel limits. Mixed logical returns,
-Promise/scalar private input domains and starting a suspending async callback
-inside a synchronous helper remain separate gaps.
+unchanged source-await, runtime-job and fuel limits. Logical returns test the
+original left value once: a Promise remains truthy/non-nullish even when its
+completion is zero, null or undefined. Adoption stays inside the selected return
+branch, so discarding a Promise with `&&` neither handles it nor adds a job.
+Rejection notification tests compare detached failures with native checkpoints.
+
+The current logical route uses homogeneous General or Promise left operands.
+Nested left expressions that join both kinds still need a representation before
+their truthiness test. Those joins, Promise/scalar private input domains and
+starting a suspending async callback inside a synchronous helper remain separate gaps.

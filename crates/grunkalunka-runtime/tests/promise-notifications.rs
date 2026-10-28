@@ -83,6 +83,9 @@ const BODIES: &[&str] = &[
     "const p=Promise.reject(b);const q=Promise.resolve(p);return p===q?a:a;",
     "const p=Promise.reject(b),q=Promise.reject(b);return p!==q?a:a;",
     "const p=Promise.reject(b);await a;try{await p;}catch(e){}return a;",
+    "const p=Promise.reject(b);return p&&a;",
+    "const f=async()=>{await a;throw b;};const p=f();return p&&a;",
+    "const p=Promise.reject(b);const f=async()=>p||a;try{await f();}catch(e){}return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -162,12 +165,15 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                     .unwrap()
                     .wasm;
                 let mut run = AsyncInstance::new(&wasm, 4.0, reason).unwrap();
-                if index == 0 || (13..=16).contains(&index) {
+                if [0, 18, 19].contains(&index) || (13..=16).contains(&index) {
                     assert!(matches!(
                         run.state().unwrap(),
                         AsyncState::Fulfilled(Value::Number(4.0))
                     ));
-                    assert_eq!(run.pending_job_count().unwrap(), usize::from(index == 0));
+                    assert_eq!(
+                        run.pending_job_count().unwrap(),
+                        usize::from([0, 19].contains(&index))
+                    );
                 }
                 let mut events = run.take_promise_notifications().unwrap();
                 while run.run_one_job().unwrap() {
@@ -192,9 +198,9 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         }
                     }
                 }
-                if [5, 6, 7, 17].contains(&index) {
+                if [5, 6, 7, 17, 20].contains(&index) {
                     assert!(unhandled.is_empty(), "{body}");
-                    if [6, 7, 17].contains(&index) {
+                    if [6, 7, 17, 20].contains(&index) {
                         assert_eq!(events.len(), 2);
                     } else {
                         assert!(events.is_empty());
@@ -212,7 +218,10 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (2, Value::Null)
                         | (3, Value::Boolean(false))
                         | (4, Value::Boolean(true)) => {}
-                        (0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16, Value::Number(x)) => {
+                        (
+                            0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19,
+                            Value::Number(x),
+                        ) => {
                             assert!(
                                 x.is_nan() && reason.is_nan() || x.to_bits() == reason.to_bits()
                             )

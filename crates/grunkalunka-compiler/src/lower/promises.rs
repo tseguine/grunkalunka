@@ -138,6 +138,12 @@ fn return_adopts(
                 work.push((&c.consequent, depth + 1));
                 work.push((&c.alternate, depth + 1));
             }
+            Expression::LogicalExpression(l) => {
+                // Conservatively retain the activation route for a logical
+                // Promise operand. Actual selection happens before adoption.
+                work.push((&l.left, depth + 1));
+                work.push((&l.right, depth + 1));
+            }
             Expression::SequenceExpression(s) => {
                 if let Some(last) = s.expressions.last() {
                     work.push((last, depth + 1));

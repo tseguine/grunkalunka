@@ -480,9 +480,11 @@ General Strings/payloads, thenables and Promise/scalar unions remain open.
 ### Conditional and comma async results
 
 Async closures may select primitive/intrinsic Error and represented Promise
-return leaves through conditionals and comma expressions. Any Promise-return
-leaf gives the constructor its adoption effect; selected primitive branches
+return leaves through conditionals, comma and logical expressions. Any Promise
+return leaf gives the constructor its adoption effect; selected primitive branches
 still complete without adoption jobs. Captures, runtime-selected constructors,
 supported async callbacks and simultaneous activations preserve source snapshots
-and microtask order. Mixed private parameter domains, mixed logical returns and
+and microtask order. Logical returns test the original General or Promise left
+snapshot and resolve only the selected operand; discarded Promise rejections
+remain observable. Mixed private parameter domains, heterogeneous left joins and
 synchronous helpers starting suspending async callbacks remain open.

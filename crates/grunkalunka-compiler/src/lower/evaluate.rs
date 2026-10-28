@@ -1962,7 +1962,23 @@ impl Lowering<'_, '_> {
                     let right = values.pop().expect("logical right").id();
                     let selected = regions.finish(right);
                     let mut skipped = self.region(left_node);
-                    skipped.exit = Exit::Yield(left.id());
+                    let kept = if matches!(mode, Mode::AsyncReturn) {
+                        match left {
+                            Value::Pending(input) => {
+                                let result = self.value(Type::General);
+                                Self::push(
+                                    &mut skipped,
+                                    left_node,
+                                    Op::AdoptPromise { result, input },
+                                );
+                                result
+                            }
+                            _ => left.general(),
+                        }
+                    } else {
+                        left.id()
+                    };
+                    skipped.exit = Exit::Yield(kept);
                     let (consequent, alternate) = if operator == LogicalOperator::And {
                         (selected, skipped)
                     } else {
@@ -2099,6 +2115,24 @@ impl Lowering<'_, '_> {
                         if self.pending_promise_shape(node, depth) {
                             work.push(Work::AdoptResult(node));
                             work.push(Work::Eval(node, depth, Mode::Pending));
+                        } else if let Expression::LogicalExpression(logical) = node {
+                            // Test the original left value; adopting it here would
+                            // replace a truthy Promise with its completion.
+                            let left_mode = if self.pending_promise_shape(&logical.left, depth + 1)
+                            {
+                                Mode::Pending
+                            } else {
+                                Mode::General
+                            };
+                            work.push(Work::LogicalLeft {
+                                node,
+                                left: &logical.left,
+                                right: &logical.right,
+                                operator: logical.operator,
+                                depth: depth + 1,
+                                mode,
+                            });
+                            work.push(Work::Eval(&logical.left, depth + 1, left_mode));
                         } else if !matches!(
                             node,
                             Expression::ConditionalExpression(_)
