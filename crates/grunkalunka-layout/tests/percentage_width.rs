@@ -119,9 +119,11 @@ fn fractional_widths_and_unsupported_percentage_heights_fail_closed() {
 
 #[test]
 fn oversized_percentage_geometry_overflows_instead_of_wrapping() {
+    // This produces an exact integer result, but larger than u32::MAX.
+    // A nonintegral percentage instead takes the fractional-width error.
     let blocks = [Block {
         style: Style {
-            width: Length::Percent(u32::MAX),
+            width: Length::Percent(100_000_000),
             ..Style::default()
         },
         ..Block::default()
@@ -129,6 +131,13 @@ fn oversized_percentage_geometry_overflows_instead_of_wrapping() {
     assert_eq!(
         layout(&blocks, MAX_VIEWPORT, 20),
         Err(LayoutError::Overflow)
+    );
+
+    let mut fractional = blocks;
+    fractional[0].style.width = Length::Percent(u32::MAX);
+    assert_eq!(
+        layout(&fractional, MAX_VIEWPORT, 20),
+        Err(LayoutError::FractionalPercentageWidth { node: 0 })
     );
 }
 
