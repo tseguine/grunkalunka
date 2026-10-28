@@ -1,0 +1,43 @@
+{
+  "id": "workflow:browser-native-bridge",
+  "file": ".github/workflows/browser-native-bridge.yml",
+  "paths": [
+    "crates/grunkalunka-layout/**",
+    "tests/browser-oracles/native-block-bridge.html",
+    "tests/browser-oracles/native-block-bridge.mjs",
+    "tests/browser-oracles/native-block-bridge.test.mjs",
+    "tests/browser-oracles/native-block-bridge-workflow.test.mjs",
+    "tests/browser-oracles/compare.mjs",
+    "tools/browser-oracles/collect.mjs",
+    "tools/browser-oracles/package.json",
+    ".github/workflows/browser-native-bridge.yml",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml"
+  ],
+  "requiredFor": [
+    "crates/grunkalunka-layout/**",
+    "tests/browser-oracles/native-block-bridge.html",
+    "tests/browser-oracles/native-block-bridge.mjs",
+    "tests/browser-oracles/native-block-bridge.test.mjs",
+    "tests/browser-oracles/native-block-bridge-workflow.test.mjs",
+    "tests/browser-oracles/compare.mjs",
+    "tools/browser-oracles/collect.mjs",
+    "tools/browser-oracles/package.json",
+    ".github/workflows/browser-native-bridge.yml",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml"
+  ],
+  "mustContain": [
+    "needs: native",
+    "engine: [chromium, firefox, webkit]",
+    "cargo run --locked --offline -p grunkalunka-layout --example native_block_bridge",
+    "node --test tests/browser-oracles/native-block-bridge.test.mjs tests/browser-oracles/native-block-bridge-workflow.test.mjs",
+    "node tools/browser-oracles/collect.mjs",
+    "node tests/browser-oracles/native-block-bridge.mjs",
+    "actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4",
+    "actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0",
+    "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea"
+  ]
+}
