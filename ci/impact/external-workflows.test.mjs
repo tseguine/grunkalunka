@@ -33,7 +33,7 @@ const audit = (changed, source = sources()) =>
   auditBrowserWorkflows(changed, entries, file => source[file]);
 
 test('known browser workflow source filters parse conservatively', () => {
-  assert.equal(entries.length, 4);
+  assert.equal(entries.length, 2);
   for (const entry of entries) {
     const parsed = parseBrowserTriggers(fakeWorkflow(entry));
     assert.deepEqual(parsed.pull_request, entry.paths);
@@ -57,15 +57,14 @@ test('Windows CRLF checkouts retain browser workflow trigger coverage', () => {
   assert.equal(outcome.valid, true, JSON.stringify(outcome.errors));
   assert.deepEqual(outcome.requiredNotTriggered, []);
   assert.deepEqual(outcome.expectedToTrigger,
-    ['workflow:browser-collector', 'workflow:browser-native-bridge',
-      'workflow:browser-oracles', 'workflow:browser-smoke']);
+    ['workflow:browser-native-bridge', 'workflow:browser-smoke']);
 
-  const odd = crlf['.github/workflows/browser-oracles.yml']
+  const odd = crlf['.github/workflows/browser-smoke.yml']
     .replace('  pull_request:\r\n', '  pull_request:\r');
   assert.throws(() => parseBrowserTriggers(odd), /carriage return/);
 });
 
-test('historical Grid plus layout change triggers all four separate browser workflows', () => {
+test('historical Grid plus layout changes trigger both real-engine workflows', () => {
   const result = audit([
     'tests/browser-oracles/grid-placement.html',
     'tools/browser-oracles/grid-placement.mjs',
@@ -74,17 +73,17 @@ test('historical Grid plus layout change triggers all four separate browser work
   assert.equal(result.valid, true, result.errors.join('; '));
   assert.deepEqual(result.requiredNotTriggered, []);
   assert.deepEqual(result.expectedToTrigger, entries.map(x => x.id));
-  assert.equal(result.workflows.length, 4);
+  assert.equal(result.workflows.length, 2);
   assert.ok(result.workflows.every(x => x.execution.includes('result not inspected')));
 });
 
-test('tool-only source change now triggers all independent browser workflows', () => {
+test('tool-only source change triggers live smoke and the canonical offline suite separately', () => {
   const result = audit(['tools/browser-oracles/grid-placement.mjs']);
   assert.equal(result.valid, true);
   assert.deepEqual(result.requiredNotTriggered, []);
   assert.deepEqual(result.expectedToTrigger,
-    ['workflow:browser-collector', 'workflow:browser-oracles', 'workflow:browser-smoke']);
-  assert.ok(result.expectedToTrigger.includes('workflow:browser-oracles'));
+    ['workflow:browser-smoke']);
+  assert.ok(result.expectedToTrigger.includes('workflow:browser-smoke'));
 });
 
 test('the native negative-control script and its tests rerun real engine checks', () => {
@@ -99,7 +98,7 @@ test('the native negative-control script and its tests rerun real engine checks'
   }
 });
 
-test('native hit sensitivity scripts require the full independent browser workflow set', () => {
+test('native hit sensitivity scripts require both real-engine workflows', () => {
   for (const path of [
     'tools/browser-oracles/native-hit-sensitivity.mjs',
     'tools/browser-oracles/native-hit-sensitivity.test.mjs',
@@ -111,12 +110,12 @@ test('native hit sensitivity scripts require the full independent browser workfl
   }
 });
 
-test('tests-only change needs smoke and oracle contracts, not collector', () => {
+test('tests-only changes trigger live smoke; offline tests are canonical', () => {
   const result = audit(['tests/browser-oracles/grid-placement.html']);
   assert.equal(result.valid, true);
   assert.deepEqual(result.requiredNotTriggered, []);
   assert.deepEqual(result.expectedToTrigger,
-    ['workflow:browser-oracles', 'workflow:browser-smoke']);
+    ['workflow:browser-smoke']);
 });
 
 test('shared comparator and collector changes require live native bridge checks', () => {
@@ -128,7 +127,7 @@ test('shared comparator and collector changes require live native bridge checks'
   assert.equal(shared.valid, true, shared.errors.join('; '));
   assert.deepEqual(shared.requiredNotTriggered, []);
   assert.deepEqual(shared.expectedToTrigger,
-    ['workflow:browser-native-bridge', 'workflow:browser-oracles', 'workflow:browser-smoke']);
+    ['workflow:browser-native-bridge', 'workflow:browser-smoke']);
 
   const collector = audit(['tools/browser-oracles/collect.mjs']);
   assert.equal(collector.valid, true, collector.errors.join('; '));
@@ -192,14 +191,6 @@ test('source-path, executable-command and engine-matrix drift fail closed', () =
     s => { delete s['.github/workflows/browser-smoke.yml']; },
     s => { s['.github/workflows/browser-smoke.yml'] = s['.github/workflows/browser-smoke.yml']
       .replace('engine: [chromium, firefox, webkit]', 'engine: [chromium]'); },
-    s => { s['.github/workflows/browser-oracles.yml'] = s['.github/workflows/browser-oracles.yml']
-      .replace('node --test tests/browser-oracles/*.test.mjs', 'node --test incomplete.mjs'); },
-    s => { s['.github/workflows/browser-oracles.yml'] = s['.github/workflows/browser-oracles.yml']
-      .replace("      - 'tools/browser-oracles/**'", "      - 'tools/other/**'"); },
-    s => { s['.github/workflows/browser-collector.yml'] = s['.github/workflows/browser-collector.yml']
-      .replace("      - 'tools/browser-oracles/**'", "      - 'tools/other/**'"); },
-    s => { s['.github/workflows/browser-collector.yml'] = s['.github/workflows/browser-collector.yml']
-      .replace('  workflow_dispatch:', '  obsolete_dispatch:'); },
     s => { s['.github/workflows/browser-smoke.yml'] = s['.github/workflows/browser-smoke.yml']
       .replace('    branches: [master]', '    branches: [main]'); },
     s => { s['.github/workflows/browser-smoke.yml'] = s['.github/workflows/browser-smoke.yml']
@@ -231,5 +222,21 @@ test('checked-in browser workflows are inspectable or explicitly fail closed', (
     assert.deepEqual(result.requiredNotTriggered, []);
   } else {
     assert.ok(result.errors.length, 'unknown workflow source cannot imply coverage');
+  }
+});
+
+// Real browser workflows do not supersede ordinary canonical offline tests.
+// Their descriptors intentionally cover only externally hosted Playwright checks.
+test('retired offline-only workflow descriptors are not required for source attribution', () => {
+  assert.deepEqual(entries.map(x => x.id),
+    ['workflow:browser-native-bridge', 'workflow:browser-smoke']);
+  for (const path of [
+    'tests/browser-oracles/compare.test.mjs',
+    'tools/browser-oracles/collect.test.mjs',
+  ]) {
+    const result = audit([path]);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    assert.deepEqual(result.requiredNotTriggered, []);
+    assert.ok(result.expectedToTrigger.includes('workflow:browser-smoke'));
   }
 });

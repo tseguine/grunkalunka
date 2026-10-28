@@ -1,40 +1,59 @@
-// The offline oracle suite depends on the tool-side helpers it imports.
-// This source contract guards both GitHub event path filters from regression.
+// Offline browser test registration is a canonical command, not an extra
+// GitHub Actions workflow. The remaining hosted workflows collect real evidence.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { loadCanonicalCommands } from '../../scripts/check-catalog.mjs';
 
-const path = new URL('../../.github/workflows/browser-oracles.yml', import.meta.url);
-const source = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+const read = path => readFileSync(new URL('../../' + path, import.meta.url), 'utf8');
 
-function verifyWorkflowTriggers(workflow) {
-  const pr = workflow.split('  pull_request:\n');
-  assert.equal(pr.length, 2, 'one PR trigger');
-  const push = pr[1].split('  push:\n');
-  assert.equal(push.length, 2, 'one push trigger');
-  const dispatch = push[1].split('  workflow_dispatch:\n');
-  assert.equal(dispatch.length, 2, 'manual dispatch preserved');
+test('offline browser tests are wired into canonical full and partial CI', () => {
+  const runner = read('scripts/check.mjs');
+  const manifest = JSON.parse(read('scripts/checks/004000-browser-oracle-contracts.json'));
+  const descriptor = JSON.parse(read('ci/impact/checks/browser-oracle-contracts.json'));
+  assert.equal(descriptor.id, 'check:browser-oracle-contracts');
+  assert.equal(descriptor.command, 'node');
+  assert.deepEqual(descriptor.args, ['scripts/check-browser-oracles.mjs']);
+  assert.ok(descriptor.dependsOn.includes('test:browser-oracle-contracts'));
+  assert.ok(runner.includes('loadCanonicalCommands()'),
+    'the full CI runner must execute the manifest catalog');
+  assert.deepEqual(manifest, {
+    command: 'node', args: ['scripts/check-browser-oracles.mjs'],
+  });
+  const browserCommands = loadCanonicalCommands().filter(({ command, args }) =>
+    command === manifest.command && JSON.stringify(args) === JSON.stringify(manifest.args));
+  assert.equal(browserCommands.length, 1,
+    'full CI must register the same offline browser command exactly once');
 
-  for (const [name, event] of [['pull_request', push[0]], ['push', dispatch[0]]]) {
-    assert.match(event, /^    branches: \[master\]$/m, name + ' master target');
-    assert.match(event, /^    paths:$/m, name + ' path filter');
-    for (const pattern of ['tests/browser-oracles/**', 'tools/browser-oracles/**',
-      '.github/workflows/browser-oracles.yml']) {
-      const entry = "      - '" + pattern + "'";
-      assert.equal(event.split(entry).length, 2, name + ' must include ' + pattern + ' exactly once');
-    }
-  }
-}
-
-test('both PR and push rerun offline oracles when imported browser tools change', () => {
-  verifyWorkflowTriggers(source);
+  const group = JSON.parse(read('ci/impact/targets/browser-oracle-contracts.json'));
+  assert.ok(group.dependsOn.includes('browser-oracles'));
+  const source = read('scripts/check-browser-oracles.mjs');
+  assert.ok(source.includes("'tests/browser-oracles'"));
+  assert.ok(source.includes("'tools/browser-oracles'"));
+  assert.ok(source.includes("entry.name.endsWith('.test.mjs')"));
+  assert.ok(source.includes("['--test', ...files]"));
 });
 
-test('losing the helper path in either event fails the source contract', () => {
-  const pattern = "      - 'tools/browser-oracles/**'\n";
-  assert.equal(source.split(pattern).length, 3, 'one tool trigger per event');
-  const first = source.replace(pattern, '');
-  assert.throws(() => verifyWorkflowTriggers(first), /must include tools\/browser-oracles/);
-  const last = source.slice(0, source.lastIndexOf(pattern)) + source.slice(source.lastIndexOf(pattern) + pattern.length);
-  assert.throws(() => verifyWorkflowTriggers(last), /must include tools\/browser-oracles/);
+test('retired offline-only workflows cannot silently bypass canonical testing', () => {
+  for (const path of [
+    '.github/workflows/browser-collector.yml',
+    '.github/workflows/browser-oracles.yml',
+    '.github/workflows/impact-browser-mixed.yml',
+    'ci/impact/workflows/browser-collector.json',
+    'ci/impact/workflows/browser-oracles.json',
+  ]) assert.equal(existsSync(new URL('../../' + path, import.meta.url)), false, path);
+});
+
+test('real engine workflows remain independently required', () => {
+  for (const [workflow, command] of [
+    ['browser-smoke', 'node --test tools/browser-oracles/hosted/smoke.test.mjs'],
+    ['browser-native-bridge', 'node --test tools/browser-oracles/hosted/native-bridge.test.mjs'],
+  ]) {
+    const source = read('.github/workflows/' + workflow + '.yml').replace(/\r\n/g, '\n');
+    assert.ok(source.includes('  pull_request:\n'));
+    assert.ok(source.includes('  push:\n'));
+    assert.ok(source.includes('  workflow_dispatch:\n'));
+    assert.ok(source.includes(command));
+    assert.ok(source.includes('engine: [chromium, firefox, webkit]'));
+  }
 });
