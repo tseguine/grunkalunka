@@ -188,7 +188,6 @@ fn numeric_coercion_keeps_erasure_budgets_and_non_numeric_boundaries() {
         );
         for body in [
             "const p=Promise.resolve(a);return p+b;",
-            "const p=Promise.resolve(a);return p<p;",
             "let x=a?Promise.resolve(a):b;return x+b;",
             "let x=a?Promise.resolve(a):b;x-=b;return x;",
             "let x=a?Promise.resolve(a):b;x++;return x;",

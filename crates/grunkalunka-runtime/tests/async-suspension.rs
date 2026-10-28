@@ -22,6 +22,9 @@ mod self_resolution;
 #[path = "async-suspension/relational.rs"]
 mod relational;
 
+#[path = "async-suspension/promise_relational.rs"]
+mod promise_relational;
+
 #[path = "async-suspension/promise_equality.rs"]
 mod promise_equality;
 

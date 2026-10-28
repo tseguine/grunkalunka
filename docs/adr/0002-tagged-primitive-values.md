@@ -91,3 +91,21 @@ rejected; mixed-target writes and legacy non-identity snapshots remain separate.
 Native JS/Node-Wasm/Wasmtime tests and notification fixtures cover represented
 conversion, ordering, snapshots and rejected Promise handling. The precise
 contexts and limitations are in [the contract](../async-number-coercion.md).
+
+## Represented Promise relational consumers (2026-10-28)
+
+RelationalCompare now accepts the existing private Promise/General carrier as
+well as General. The frontend retains raw kinds and ordered operand snapshots;
+the emitter dispatches represented Promise cases before its unchanged General
+comparison. Builtin Promise strings compare equal to one another and after the
+sole intrinsic TypeError string. Promise/non-string primitive comparisons are
+false through NaN. This is independent of numeric-only Promise conversion.
+
+Extending the existing semantic operation avoids a separate opcode, universal
+object conversion mechanism or extra allocation. Unconditionally coercing these
+operands to Number would incorrectly make p<=p false; comparing IDs would make
+results depend on allocation order. Both alternatives are covered by native
+reference tests. The rule relies on the closed builtin domain without custom
+conversion/prototype mutation and must be extended when new Error kinds or
+Strings enter that domain. Visibility, Predicate results, equality type guards,
+host discriminator boundaries and all resource limits remain unchanged.

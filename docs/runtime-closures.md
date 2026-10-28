@@ -562,5 +562,13 @@ results and captured locals through existing variant tests and NumberFromGeneral
 A builtin Promise yields NaN while the primitive branch retains its current
 conversion. Known/runtime/callback calls preserve ordered snapshots and execute
 each operand once. Conversion neither adopts nor handles a Promise and does not
-suspend. [The numeric contract](async-number-coercion.md) keeps addition,
-relations and mixed-target compound/update writes as separate boundaries.
+suspend. [The numeric contract](async-number-coercion.md) keeps addition
+and mixed-target compound/update writes as separate boundaries.
+
+### Relational consumers of mixed inputs/results
+
+Private Promise/General parameters, results and captures can now flow into all
+four relational operators. Calls retain evaluated snapshots and raw kinds before
+comparison; captured cells may change afterward. Neither operand is awaited or
+handled by comparison. Builtin Promise/TypeError string cases and primitive NaN
+cases use [the represented relational contract](async-promise-relational.md).

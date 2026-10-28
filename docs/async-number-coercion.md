@@ -32,7 +32,8 @@ mutation or custom conversion. ECMAScript's
 and [OrdinaryToPrimitive](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-ordinarytoprimitive)
 algorithms were checked on 2026-10-28. The NaN rule is the inference for this
 closed builtin domain, additionally checked against native JS; it is not a rule
-for arbitrary objects. Addition and relational operands retain their guards.
+for arbitrary objects. Addition retains its guards. Represented relational operands use
+[their separate contract](async-promise-relational.md).
 Mixed-target compounds/updates, legacy non-identity snapshots, custom coercion,
 String/heap/BigInt domains and unadmitted operators such as exponentiation remain
 separate work. An explicitly converted Number such as (+p)+b uses ordinary
