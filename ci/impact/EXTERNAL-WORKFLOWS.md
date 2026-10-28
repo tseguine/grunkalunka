@@ -33,12 +33,36 @@ Real-engine source mutations use fresh Chromium/Firefox/WebKit observations,
 including fixture SHA-256 and version provenance.
 
 A change to `tools/browser-oracles/collect.mjs` requires both hosted
-workflows; unrelated oracle fixtures require only browser smoke;
-`crates/grunkalunka-layout/**` requires the native bridge. All browser
-source and fixture changes also select the **canonical offline** check through
-the normal graph. A valid selected test failure is terminal, never a
-fallback-to-full retry. Unknown source ownership, workflow config and
-global CI changes retain conservative full fallback.
+workflows. Only fixtures and modules **actually consumed** by live
+`browser-smoke.yml` trigger its three engines and cross-engine report;
+the native bridge has its own exact inputs. A change to
+`crates/grunkalunka-layout/**` requires the native bridge. Browser
+source, fixture and offline-test edits continue to select the **canonical
+offline** check through the normal graph, including edits that no longer
+allocate hosted browser jobs. A valid selected test failure is terminal,
+never a fallback-to-full retry. Unknown source ownership, workflow config
+and global CI changes retain conservative full fallback.
+
+## Live smoke dependency closure
+
+The smoke workflow's identical PR/push filters now enumerate the actual
+source inputs of its hosted `smoke.test.mjs` and `cross-engine.test.mjs`:
+the baseline/event/flex/grid/shadow fixtures, their collector/validator and
+suite runners, cross-engine comparator, pinned Playwright package, runner
+programs and source-byte checkout attributes. Pure `*.test.mjs` offline
+regression edits, native-bridge-only sensitivity tools and unrelated fixtures
+do **not** restart three browser containers; those are already covered by
+the canonical Node suite or native bridge as appropriate.
+
+`ci/impact/workflows/browser-smoke.json` declares the same paths as
+required inputs. Offline impact regression tests check positive source
+dependencies, excluded standalone tests, both event filters and drift
+failures. When a new fixture, import, runtime helper or engine input is
+introduced, update the source trigger **and** descriptor in the same PR.
+This is exact independent-host execution attribution, **not** a hardcoded
+substitute for the general dependency-selected canonical PR build. A
+valid trigger audit never proves hosted execution; the real engine check
+conclusions remain separate.
 
 The retired `browser-oracles.yml` and `browser-collector.yml` workflows
 used to repeat two subsets of the offline suite as separate GitHub jobs.
