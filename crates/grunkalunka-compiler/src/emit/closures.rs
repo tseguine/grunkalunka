@@ -47,6 +47,13 @@ pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
         )
         .unwrap();
     }
+    if module
+        .functions
+        .iter()
+        .any(|f| f.return_type == Type::Promise)
+    {
+        output.push_str("(type $closure_promise (func (param i32 i32) (result i32)))\n");
+    }
     for (i, function) in module.functions.iter().enumerate() {
         if ir::closure_environment(function).is_some() {
             let target = if outlined {
@@ -145,6 +152,7 @@ impl Emitter<'_> {
         }
         let signature = match self.function.values[result.0] {
             Type::Closure(_) => "$closure_pair",
+            Type::Promise => "$closure_promise",
             Type::General | Type::FulfilledPromise | Type::SettledPromise => "$closure_general",
             _ => "$closure",
         };

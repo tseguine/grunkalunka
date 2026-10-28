@@ -85,9 +85,12 @@ child sites and the separate 32-job runtime limit are unchanged. Pending logical
 operands, storage and adoption remain gaps.
 An executable backend Promise record/reaction kernel now supplies pending state,
 single primitive settlement and FIFO waiter delivery in the existing guest arena.
-Native Promise microtask traces and Wasmtime/Node kernel tests cover it. Pending
-semantic values, coroutine/adapter integration and source storage still follow;
-this prerequisite does not close general Promise support or L5.
+Native Promise microtask traces and Wasmtime/Node kernel tests cover it. Logical
+Promise identities now connect eager async starts, independently suspended frames,
+typed private storage and queued awaits to both adapters. Root settlement and
+remaining jobs are independent. Source pending storage, detached rejection
+ownership and adoption still follow; this does not close general Promise support
+or L5.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

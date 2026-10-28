@@ -8,10 +8,11 @@ pub(super) struct Frame<'a> {
     pub emitter: Emitter<'a>,
     pub lanes: Vec<&'static str>,
     start: usize,
+    header: usize,
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(function: &'a ir::Function, start: usize) -> Self {
+    pub fn new(function: &'a ir::Function, start: usize, queued: bool) -> Self {
         let mut lanes = Vec::new();
         let mut offsets = Vec::new();
         for ty in function
@@ -42,15 +43,16 @@ impl<'a> Frame<'a> {
             },
             lanes,
             start,
+            header: if queued { 32 } else { HEADER },
         }
     }
 
     fn offset(&self, global: usize) -> usize {
-        HEADER + (global - self.start) * 8
+        self.header + (global - self.start) * 8
     }
 
     pub fn bytes(&self) -> usize {
-        (HEADER + self.lanes.len() * 8).div_ceil(16) * 16
+        (self.header + self.lanes.len() * 8).div_ceil(16) * 16
     }
 
     pub fn spill(&self, output: &mut String) {
@@ -59,7 +61,7 @@ impl<'a> Frame<'a> {
                 output,
                 "global.get $async_frame\nglobal.get {}\n{lane}.store offset={}",
                 self.start + index,
-                HEADER + index * 8
+                self.header + index * 8
             )
             .unwrap();
         }
@@ -70,7 +72,7 @@ impl<'a> Frame<'a> {
             writeln!(
                 output,
                 "global.get $async_frame\n{lane}.load offset={}\nglobal.set {}",
-                HEADER + index * 8,
+                self.header + index * 8,
                 self.start + index
             )
             .unwrap();
@@ -134,6 +136,9 @@ impl<'a> Frame<'a> {
         entry: usize,
     ) {
         writeln!(output,"i32.const {}\ncall $closure_frame\nglobal.set $async_next\nglobal.get $async_next\nglobal.get $async_frame\ni32.store\nglobal.get $async_next\ni32.const {returned}\ni32.store offset=4\nglobal.get $async_next\nglobal.get {}\ni32.store offset=8",target.bytes(),self.emitter.value_offsets[callee.0]+1).unwrap();
+        if self.header != HEADER {
+            output.push_str("global.get $async_next\ncall $promise_new\ni32.store offset=16\nglobal.get $async_next\ni32.const 1\ni32.store offset=20\n");
+        }
         for (index, argument) in arguments.iter().enumerate() {
             let source = self.emitter.value_offsets[argument.0];
             let destination = target.emitter.slot_offsets[index];

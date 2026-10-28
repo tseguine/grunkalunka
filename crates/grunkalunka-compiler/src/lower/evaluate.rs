@@ -1573,6 +1573,7 @@ impl Lowering<'_, '_> {
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
                         Type::SettledPromise => Value::Settled(result),
+                        Type::Promise => unreachable!("pending Promise source admission follows"),
                     });
                 }
                 Work::LogicalLeft {
@@ -1710,6 +1711,7 @@ impl Lowering<'_, '_> {
                         Type::Closure(_) => Value::Function(result),
                         Type::FulfilledPromise => Value::Promise(result),
                         Type::SettledPromise => Value::Settled(result),
+                        Type::Promise => unreachable!("pending Promise source admission follows"),
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {

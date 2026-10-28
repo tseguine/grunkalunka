@@ -23,6 +23,21 @@ enum YieldTarget {
 }
 
 enum End {
+    AwaitStarted {
+        reaction: usize,
+    },
+    StartedClosure {
+        result: ValueId,
+        next: usize,
+    },
+    AwaitPromise {
+        input: ValueId,
+        reaction: usize,
+    },
+    Reaction {
+        fulfilled: usize,
+        rejected: usize,
+    },
     InvokeClosure {
         callee: ValueId,
         arguments: Vec<ValueId>,
@@ -71,6 +86,7 @@ struct State<'a> {
 
 #[derive(Default)]
 struct Splitter<'a> {
+    queued: bool,
     function: usize,
     states: Vec<State<'a>>,
     awaits: usize,
@@ -124,7 +140,7 @@ impl<'a> Splitter<'a> {
         let (resumed, target) = caught.unwrap_or((result, next));
         // A private rejection settles this child after its reaction. It must
         // return to its caller, whose await owns a separate reaction boundary.
-        let end = if caught.is_none() && self.function != 0 {
+        let end = if caught.is_none() && (self.function != 0 || self.queued) {
             End::Reject(resumed)
         } else {
             End::Jump(target)
@@ -182,6 +198,34 @@ impl<'a> Splitter<'a> {
             let operation = &region.operations[end - 1];
             next = match &operation.kind {
                 Op::AwaitSite { .. } => next,
+                Op::StartAsyncClosure {
+                    result,
+                    callee,
+                    arguments,
+                } => {
+                    let returned = self.terminal(End::StartedClosure {
+                        result: *result,
+                        next,
+                    })?;
+                    self.terminal(End::InvokeClosure {
+                        callee: *callee,
+                        arguments: arguments.clone(),
+                        returned,
+                    })?
+                }
+                Op::AwaitPromise { result, input } => {
+                    self.charge_await(&region.operations, end - 1)?;
+                    let fulfilled = self.state(&[], Some(*result), End::Jump(next))?;
+                    let (_, rejected) = self.rejection_resume(*result, next)?;
+                    let reaction = self.terminal(End::Reaction {
+                        fulfilled,
+                        rejected,
+                    })?;
+                    self.terminal(End::AwaitPromise {
+                        input: *input,
+                        reaction,
+                    })?
+                }
                 Op::AwaitClosureCall {
                     result,
                     callee,
@@ -189,22 +233,31 @@ impl<'a> Splitter<'a> {
                 } => {
                     self.charge_await(&region.operations, end - 1)?;
                     let fulfilled_resume = self.state(&[], Some(*result), End::Jump(next))?;
-                    let fulfilled = self.terminal(End::Suspend {
-                        input: *result,
-                        rejected: false,
-                        resume: fulfilled_resume,
-                    })?;
-                    let (uncaught, rejected_resume) = self.rejection_resume(*result, next)?;
-                    let rejected = self.terminal(End::Suspend {
-                        input: *result,
-                        rejected: uncaught,
-                        resume: rejected_resume,
-                    })?;
-                    let returned = self.terminal(End::ReturnedClosure {
-                        result: *result,
-                        fulfilled,
-                        rejected,
-                    })?;
+                    let returned = if self.queued {
+                        let (_, rejected) = self.rejection_resume(*result, next)?;
+                        let reaction = self.terminal(End::Reaction {
+                            fulfilled: fulfilled_resume,
+                            rejected,
+                        })?;
+                        self.terminal(End::AwaitStarted { reaction })?
+                    } else {
+                        let fulfilled = self.terminal(End::Suspend {
+                            input: *result,
+                            rejected: false,
+                            resume: fulfilled_resume,
+                        })?;
+                        let (uncaught, rejected_resume) = self.rejection_resume(*result, next)?;
+                        let rejected = self.terminal(End::Suspend {
+                            input: *result,
+                            rejected: uncaught,
+                            resume: rejected_resume,
+                        })?;
+                        self.terminal(End::ReturnedClosure {
+                            result: *result,
+                            fulfilled,
+                            rejected,
+                        })?
+                    };
                     self.terminal(End::InvokeClosure {
                         callee: *callee,
                         arguments: arguments.clone(),
@@ -382,6 +435,8 @@ fn atomic(op: &Op) -> bool {
         op,
         Op::AwaitSite { .. }
             | Op::Await { .. }
+            | Op::AwaitPromise { .. }
+            | Op::StartAsyncClosure { .. }
             | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }
@@ -400,6 +455,13 @@ fn jump(output: &mut String, target: usize) {
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     ir::verify_module_with_entry_type(module, Type::General)?;
+    let queued = module.functions.iter().any(|function| {
+        let mut pending = false;
+        ir::visit_operations(&function.body, &mut |op| {
+            pending |= matches!(op, Op::StartAsyncClosure { .. } | Op::AwaitPromise { .. })
+        });
+        pending
+    });
     let Some((function, outlined)) = module.functions.split_first() else {
         return Err("async profile currently requires a single entry function".into());
     };
@@ -421,7 +483,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     let has_closures = outlined
         .iter()
         .any(|function| ir::closure_environment(function).is_some());
-    let mut split = Splitter::default();
+    let mut split = Splitter {
+        queued,
+        ..Splitter::default()
+    };
     let fresh = split.terminal(End::Trap)?;
     let unreachable = split.terminal(End::Trap)?;
     let entry = split.region(&function.body, unreachable, None, None)?;
@@ -444,11 +509,12 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             frames.push(None);
             continue;
         }
-        let frame = frames::Frame::new(function, types.len());
+        let frame = frames::Frame::new(function, types.len(), queued);
         types.extend(frame.lanes.iter().copied());
         frames.push(Some(frame));
     }
-    let has_cells = has_closures
+    let has_cells = queued
+        || has_closures
         || module
             .functions
             .iter()
@@ -463,8 +529,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     if has_closures {
         output.push_str(&closures::table(module, true));
     }
-    if has_async {
+    if has_async || queued {
         output.push_str(frames::GLOBALS);
+    }
+    if queued {
+        output.push_str(promises::GLOBALS);
     }
     output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\nblock $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
@@ -486,6 +555,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             jump(&mut output, next);
             continue;
         }
+        if queued && state.resumed.is_some() {
+            frame.restore(&mut output);
+        }
         let emitter = &mut frame.emitter;
         if let Some(value) = state.resumed {
             if emitter.function.values[value.0] == Type::General {
@@ -505,7 +577,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             .unwrap();
         }
         if id == fresh {
-            if has_async {
+            if has_async || queued {
                 writeln!(
                     output,
                     "i32.const {}\ncall $closure_frame\nglobal.set $async_frame",
@@ -525,6 +597,33 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let emitter = &frame.emitter;
         match state.end {
             End::EnterClosure { .. } => unreachable!(),
+            End::AwaitStarted { reaction } => {
+                frame.restore(&mut output);
+                writeln!(output, "global.get $async_promise\nglobal.get $async_frame\ni32.const {reaction}\ncall $promise_subscribe").unwrap();
+                promises::park(&mut output);
+            }
+            End::StartedClosure { result, next } => {
+                frame.restore(&mut output);
+                writeln!(
+                    output,
+                    "global.get $async_promise\nglobal.set {}",
+                    emitter.value_offsets[result.0]
+                )
+                .unwrap();
+                jump(&mut output, next);
+            }
+            End::AwaitPromise { input, reaction } => {
+                frame.spill(&mut output);
+                writeln!(output, "global.get {}\nglobal.get $async_frame\ni32.const {reaction}\ncall $promise_subscribe", emitter.value_offsets[input.0]).unwrap();
+                promises::park(&mut output);
+            }
+            End::Reaction {
+                fulfilled,
+                rejected,
+            } => {
+                writeln!(output, "i32.const {rejected}\ni32.const {fulfilled}\nglobal.get $async_rejected\nselect\nglobal.set $pc\nbr $dispatch").unwrap();
+            }
+
             End::InvokeClosure {
                 callee,
                 ref arguments,
@@ -603,6 +702,19 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 rejected,
                 resume,
             } => {
+                if queued {
+                    frame.spill(&mut output);
+                    writeln!(
+                        output,
+                        "global.get $async_frame\ni32.const {resume}\ni32.const {}",
+                        u8::from(rejected)
+                    )
+                    .unwrap();
+                    primitive(&mut output, emitter, input);
+                    output.push_str("call $reaction_schedule\n");
+                    promises::park(&mut output);
+                    continue;
+                }
                 writeln!(
                     output,
                     "i32.const {}\nglobal.set $pc\ni32.const {}",
@@ -614,6 +726,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Return(value) => {
+                if queued {
+                    promises::complete(&mut output, emitter, value, state.function == 0, false);
+                    continue;
+                }
                 if state.function != 0 {
                     primitive(&mut output, emitter, value);
                     frames::complete(&mut output, false);
@@ -624,6 +740,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Reject(value) => {
+                if queued {
+                    promises::complete(&mut output, emitter, value, state.function == 0, true);
+                    continue;
+                }
                 if state.function != 0 {
                     primitive(&mut output, emitter, value);
                     frames::complete(&mut output, true);
@@ -676,8 +796,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(&body);
         needs_remainder |= remainder;
     }
-    output.push_str(
-        r#"(func (export "start") (param f64 f64) (result i32 i32 f64)
+    if queued {
+        output.push_str(promises::WRAPPERS);
+    } else {
+        output.push_str(
+            r#"(func (export "start") (param f64 f64) (result i32 i32 f64)
       global.get $pc if unreachable end
       local.get 0 global.set 0
       local.get 1 global.set 1
@@ -686,15 +809,19 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
       global.get $pc i32.const 0 i32.le_s if unreachable end
       local.get 0 local.get 1 call $advance)
     "#,
-    );
+        );
+    }
     if needs_remainder {
         output.push_str(NUMBER_REMAINDER);
     }
     if has_cells {
         output.push_str(cells::ALLOCATOR);
     }
-    if has_closures {
+    if has_closures || queued {
         output.push_str(closures::FRAME_ALLOCATOR);
+    }
+    if queued {
+        output.push_str(promises::RUNTIME);
     }
     output.push_str(")\n");
     Ok(output)

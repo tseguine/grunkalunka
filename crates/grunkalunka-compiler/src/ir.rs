@@ -29,6 +29,8 @@ pub(crate) enum Type {
     FulfilledPromise,
     // A nonescaping immediate primitive fulfillment or rejection snapshot.
     SettledPromise,
+    // Stable invocation-local Promise identity; completion is a separate value.
+    Promise,
     // Module-local signature ID; numeric leaf IDs equal their arity.
     Closure(usize),
 }
@@ -131,7 +133,8 @@ impl ClosureSignatures {
                     Type::Number
                     | Type::General
                     | Type::FulfilledPromise
-                    | Type::SettledPromise => false,
+                    | Type::SettledPromise
+                    | Type::Promise => false,
                     Type::Closure(callback) => {
                         *callback >= id || !self.is_callback_signature(*callback)
                     }
@@ -141,7 +144,11 @@ impl ClosureSignatures {
                 return false;
             }
             match signature.result {
-                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => {
+                Type::Number
+                | Type::General
+                | Type::FulfilledPromise
+                | Type::SettledPromise
+                | Type::Promise => {
                     return true;
                 }
                 Type::Closure(next) if next < id => id = next,
@@ -163,7 +170,11 @@ impl ClosureSignatures {
             if (signature.asynchronous && signature.result != Type::General)
                 || !matches!(
                     signature.result,
-                    Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise
+                    Type::Number
+                        | Type::General
+                        | Type::FulfilledPromise
+                        | Type::SettledPromise
+                        | Type::Promise
                 )
                 || signature.parameters.len() > 1000
             {
@@ -174,7 +185,8 @@ impl ClosureSignatures {
                     Type::Number
                     | Type::General
                     | Type::FulfilledPromise
-                    | Type::SettledPromise => (),
+                    | Type::SettledPromise
+                    | Type::Promise => (),
                     Type::Closure(callback) if *callback < id => pending.push(*callback),
                     _ => return false,
                 }
@@ -435,6 +447,24 @@ pub(crate) enum Op {
         expect(dead_code, reason = "IR prerequisite; source admission follows")
     )]
     PromiseRejected {
+        result: ValueId,
+        input: ValueId,
+    },
+    // Start eagerly and return identity, not the body's primitive completion.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    StartAsyncClosure {
+        result: ValueId,
+        callee: ValueId,
+        arguments: Vec<ValueId>,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    AwaitPromise {
         result: ValueId,
         input: ValueId,
     },
@@ -870,6 +900,11 @@ impl Verifier<'_> {
                 callee,
                 arguments,
             }
+            | Op::StartAsyncClosure {
+                result,
+                callee,
+                arguments,
+            }
             | Op::AwaitClosureCall {
                 result,
                 callee,
@@ -881,7 +916,10 @@ impl Verifier<'_> {
                 };
                 self.value(*callee, Type::Closure(signature), visible, span)?;
                 if self.closure_signatures.is_async(signature)
-                    != matches!(operation.kind, Op::AwaitClosureCall { .. })
+                    != matches!(
+                        operation.kind,
+                        Op::AwaitClosureCall { .. } | Op::StartAsyncClosure { .. }
+                    )
                 {
                     return Err(invalid(
                         span,
@@ -909,7 +947,16 @@ impl Verifier<'_> {
                     .closure_signatures
                     .result(signature)
                     .expect("checked signature");
-                self.define(*result, result_type, visible, span)?;
+                self.define(
+                    *result,
+                    if matches!(operation.kind, Op::StartAsyncClosure { .. }) {
+                        Type::Promise
+                    } else {
+                        result_type
+                    },
+                    visible,
+                    span,
+                )?;
             }
             Op::CaptureCells { cells } => {
                 for slot in cells {
@@ -949,6 +996,10 @@ impl Verifier<'_> {
             }
             Op::SettledValue { result, input } | Op::AwaitSettled { result, input } => {
                 self.value(*input, Type::SettledPromise, visible, span)?;
+                self.define(*result, Type::General, visible, span)?;
+            }
+            Op::AwaitPromise { result, input } => {
+                self.value(*input, Type::Promise, visible, span)?;
                 self.define(*result, Type::General, visible, span)?;
             }
             Op::PromiseRejected { result, input } => {
@@ -1165,6 +1216,7 @@ impl Verifier<'_> {
                             Op::Await { .. }
                                 | Op::AwaitCall { .. }
                                 | Op::AwaitSettled { .. }
+                                | Op::AwaitPromise { .. }
                                 | Op::AwaitClosureCall { .. }
                         )
                     })
@@ -1174,12 +1226,19 @@ impl Verifier<'_> {
                     "await site must immediately precede an await",
                 ));
             }
+            if frame.settlement && matches!(operation.kind, Op::StartAsyncClosure { .. }) {
+                return Err(invalid(
+                    span,
+                    "settlement bodies cannot start async activations",
+                ));
+            }
             if frame.settlement
                 && matches!(
                     operation.kind,
                     Op::Await { .. }
                         | Op::AwaitCall { .. }
                         | Op::AwaitSettled { .. }
+                        | Op::AwaitPromise { .. }
                         | Op::AwaitClosureCall { .. }
                 )
             {
@@ -1227,6 +1286,7 @@ impl Verifier<'_> {
                             | Type::Closure(_)
                             | Type::FulfilledPromise
                             | Type::SettledPromise
+                            | Type::Promise
                     ) {
                         return Err(invalid(
                             span,
@@ -1528,12 +1588,15 @@ pub(crate) fn verify_module_with_entry_type(
                             | Type::Closure(_)
                             | Type::FulfilledPromise
                             | Type::SettledPromise
+                            | Type::Promise
                     )
                 }))
             || signature.parameters.iter().any(|ty| match ty {
-                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => {
-                    false
-                }
+                Type::Number
+                | Type::General
+                | Type::FulfilledPromise
+                | Type::SettledPromise
+                | Type::Promise => false,
                 Type::Closure(callback) => {
                     *callback >= 1001 + index
                         || !module.closure_signatures.is_callback_signature(*callback)
@@ -1547,6 +1610,7 @@ pub(crate) fn verify_module_with_entry_type(
                     | Type::Closure(_)
                     | Type::FulfilledPromise
                     | Type::SettledPromise
+                    | Type::Promise
             )
             || matches!(signature.result, Type::Closure(id) if id > 1000 && id >= 1001 + index)
             || module.closure_signatures.higher[..index].contains(signature)
@@ -1576,9 +1640,11 @@ pub(crate) fn verify_module_with_entry_type(
             Type::General
         } else if closure_environment(function).is_some() {
             if !match function.return_type {
-                Type::Number | Type::General | Type::FulfilledPromise | Type::SettledPromise => {
-                    true
-                }
+                Type::Number
+                | Type::General
+                | Type::FulfilledPromise
+                | Type::SettledPromise
+                | Type::Promise => true,
                 Type::Closure(signature) => {
                     module.closure_signatures.is_returned_function(signature)
                 }
@@ -1649,7 +1715,7 @@ fn verify_function(
             && !(closure_environment(function).is_some()
                 && (matches!(
                     slot.ty,
-                    Type::General | Type::FulfilledPromise | Type::SettledPromise
+                    Type::General | Type::FulfilledPromise | Type::SettledPromise | Type::Promise
                 ) || matches!(slot.ty, Type::Closure(callback) if closure_signatures.is_callback_signature(callback))))
         {
             return Err(invalid(slot.span, "parameter slots must be Number"));

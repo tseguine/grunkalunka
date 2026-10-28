@@ -8,6 +8,8 @@ export function createAsyncFunction(bytes) {
       if (typeof a !== 'number' || typeof b !== 'number') throw new TypeError('async inputs must be Numbers');
       const guest = new WebAssembly.Instance(module).exports;
       let jobs = 32;
+      let usable = true;
+      const queued = typeof guest.take_jobs === 'function';
       function decode(tag, payload) {
         if (tag === 0 && Object.is(payload, 0)) return undefined;
         if (tag === 1 && Object.is(payload, 0)) return null;
@@ -17,6 +19,22 @@ export function createAsyncFunction(bytes) {
       }
       function accept([status, tag, payload]) {
         const value = decode(tag, payload);
+        if (queued) {
+          if (status !== 0 && status !== 1 && status !== 3) throw new TypeError('invalid queued async protocol status');
+          const issued = guest.take_jobs();
+          if (!Number.isInteger(issued) || issued < 0 || issued > jobs) throw new RangeError('async activation exceeded its 32-job budget');
+          jobs -= issued;
+          // Every enqueue happened before this root settlement. Register each
+          // callback now so other host microtasks see the same FIFO ordering.
+          for (let i = 0; i < issued; i++) queueMicrotask(() => {
+            if (!usable) return;
+            try { accept(guest.resume(0, 0)); }
+            catch (error) { usable = false; reject(error); }
+          });
+          if (status === 0) resolve(value);
+          else if (status === 3) reject(value);
+          return;
+        }
         if (status === 0) resolve(value);
         else if (status === 3) reject(value);
         else if (status === 1 || status === 2) {
@@ -29,7 +47,8 @@ export function createAsyncFunction(bytes) {
           });
         } else throw new TypeError('invalid async protocol status');
       }
-      accept(guest.start(a, b));
+      try { accept(guest.start(a, b)); }
+      catch (error) { usable = false; throw error; }
     });
   };
 }

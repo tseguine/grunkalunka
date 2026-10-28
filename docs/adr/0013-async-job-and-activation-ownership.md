@@ -105,10 +105,20 @@ queue depth. Native Promise traces with external microtask markers and reactions
 that register more reactions verify that distinction. The kernel never invokes
 host callbacks or drains itself inline.
 
-This is a prerequisite for pending IR and adapter integration. Existing source
-guards, generated modules and public start/resume adapters are unchanged. Future
-adapters must retain the instance while owned jobs remain, enqueue one host
-microtask per issue at its semantic point and preserve at-most-once delivery.
+Pending IR and adapter integration now consume this kernel. Logical Promise
+identity is separate from General body completion. An eager start returns its
+handle at first suspension or settlement; queued resumptions restore the specific
+activation's frame, including sibling calls to the same compiled body. A separate
+initial-return flag allows frame address zero and prevents a later continuation
+from returning synchronously through a stale parent link.
+
+The optional `take_jobs` export reports newly issued jobs. Node registers one
+host callback for every issue before exposing root settlement at that boundary.
+Wasmtime reports outstanding callbacks separately through `pending_job_count`;
+an embedding subtracts the callbacks it has already registered before appending
+new ones. Root settlement does not end an invocation while owned work remains.
+Each resume consumes one guest job. Existing source guards and modules without
+identity operations retain the previous protocol and output.
 The handled bit records subscription only; it does not implement host rejection
 notifications, adoption, thenables or a browser event loop.
 

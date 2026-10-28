@@ -42,7 +42,7 @@ pub(super) fn value(ty: Type) -> Layout {
             wat: "f64",
             local: "(local f64)\n",
         },
-        Type::Predicate => Layout {
+        Type::Predicate | Type::Promise => Layout {
             parts: &[Part {
                 lane: I32,
                 byte_offset: 0,
@@ -84,7 +84,7 @@ pub(super) fn value(ty: Type) -> Layout {
 // Argument entries are storage contracts, distinct from captured-cell allocation.
 pub(super) fn argument_bytes(ty: Type) -> usize {
     match ty {
-        Type::Number | Type::Closure(_) => 8,
+        Type::Number | Type::Closure(_) | Type::Promise => 8,
         Type::General | Type::FulfilledPromise | Type::SettledPromise => 16,
         Type::Predicate => unreachable!("Predicate closure parameters are not admitted"),
     }

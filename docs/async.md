@@ -189,13 +189,20 @@ lets alternative continuations share that logical site without merging their
 runtime jobs. Stored pending values, pending `&&`/`||`/`??` operands and adoption
 remain guarded.
 
-The next pending-value prerequisite is an executable guest Promise kernel with
-stable pending/settled records and FIFO reactions. It separates new enqueue
-notifications from ready-job count so subsequent adapter integration can preserve
-host microtask order. [Kernel contracts and limits](ir.md#pending-promise-guest-support)
-describe the bounded primitive domain and arena lifetime. Current source admission
-and the start/resume adapters are unchanged; the kernel is not yet linked into
-their generated modules.
+The IR/backend now connects stable Promise identities to coroutine frames and
+the guest FIFO. `StartAsyncClosure` runs eagerly and returns an identity;
+`AwaitPromise` registers a later continuation. Independent calls can overlap,
+retain separate saved values, and be awaited later through their stored handles.
+Both adapters consume individual enqueue notifications, so a root's settlement
+does not cancel other ready activations. Wasmtime's `pending_job_count()` reports
+outstanding callbacks separately from `state()`; Node schedules each notification
+on the host microtask queue. [IR contracts and limits](ir.md#pending-promise-guest-support)
+describe the protocol and arena lifetime. Source pending storage, detached calls,
+adoption and unhandled-rejection reporting remain subsequent work.
+
+Current source-generated modules retain the legacy primitive protocol described
+below. IR modules using Promise identities additionally export `take_jobs`; their
+queue-aware protocol is described in the linked IR contract above.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;

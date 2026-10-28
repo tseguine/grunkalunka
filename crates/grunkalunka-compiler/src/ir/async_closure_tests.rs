@@ -262,10 +262,13 @@ fn case(script: &mut String, name: &str, module: &Module, source: &str) {
 
 fn finish(mut script: String) {
     use std::{
-        io::Write,
+        io::{Read, Write},
         process::{Command, Stdio},
+        time::{Duration, Instant},
     };
-    script.push_str("})().catch(e=>{console.error(e);process.exitCode=1;});\n");
+    script.push_str(
+        "console.log('IR_FRAME_DONE');})().catch(e=>{console.error(e);process.exitCode=1;});\n",
+    );
     let mut child = Command::new("node")
         .arg("-")
         .stdin(Stdio::piped())
@@ -279,14 +282,42 @@ fn finish(mut script: String) {
         .unwrap()
         .write_all(script.as_bytes())
         .unwrap();
-    let output = child.wait_with_output().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    let read = |mut pipe: Box<dyn Read + Send>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            pipe.read_to_end(&mut bytes).unwrap();
+            bytes
+        })
+    };
+    let stdout = read(Box::new(stdout));
+    let stderr = read(Box::new(stderr));
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            stdout.join().unwrap();
+            stderr.join().unwrap();
+            panic!("Node coroutine test exceeded 30s");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let stdout = stdout.join().unwrap();
+    let stderr = stderr.join().unwrap();
+    assert!(status.success(), "{}", String::from_utf8_lossy(&stderr));
     assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        String::from_utf8_lossy(&stdout)
+            .lines()
+            .any(|line| line == "IR_FRAME_DONE"),
+        "Node exited before all coroutine observations completed"
     );
     if proof() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+        print!("{}", String::from_utf8_lossy(&stdout));
     }
 }
 
@@ -1381,3 +1412,5 @@ fn async_closure_ir_environment_imports_alias_the_call_time_cell() {
     );
     finish(script);
 }
+
+mod pending;

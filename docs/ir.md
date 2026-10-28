@@ -736,14 +736,39 @@ behavior and a FIFO of continuations. Subscribing to a pending Promise retains a
 waiter; settling queues those waiters in order. Subscribing after settlement
 also queues a later reaction. Direct primitive reactions use the same ready FIFO.
 
-Ready-job count and newly-issued-job count are separate. A future adapter must
-schedule one host microtask per enqueue at that boundary, rather than hide the
-queue behind a batched drain. Records share the existing one-MiB arena; handle
-range/alignment/kind checks and canonical primitive validation precede use. A
+Ready-job count and newly-issued-job count are separate. Queue-aware adapters
+schedule one host microtask per enqueue at that boundary, preserving the order
+relative to unrelated host callbacks. Records share the existing one-MiB arena;
+handle range/alignment/kind checks and canonical primitive validation precede use. A
 pending record cannot be projected as a settled primitive.
 
-This kernel is a **pending-IR prerequisite**, not new source admission. Existing
-modules do not include it yet; one narrow unused-helper expectation records that
-following integration. Logical pending values, coroutine integration and adapter
-pumping are the next unit. Adoption, thenables, general payloads, host rejection
-notifications and independently escaping Promises are not provided by this kernel.
+`Promise` is now a distinct logical identity type. `StartAsyncClosure` requires
+an async closure signature, executes its eager prefix, and returns that identity
+at the first suspension or completion. `AwaitPromise` consumes the identity and
+defines a General completion only through a later reaction. Handles can move
+through slots, captured cells, branch results and typed private arguments/results;
+they cannot be packed or projected as primitive completions.
+
+Modules containing those operations link the kernel and use separate invocation
+frames for every activation, including overlapping calls to the same function.
+Starting a child and resuming a reaction use different control links. Each await
+spills its activation; a queued job restores that frame before continuing. Async
+body results remain General primitives, separate from the returned Promise handle.
+
+The queue-aware protocol retains `start`/`resume` argument and triple-result
+shapes. An additional `take_jobs() -> i32` consumes the newly issued count.
+The host schedules that many individual callbacks; each `resume` consumes exactly
+one ready guest job. Status 1 means the root is pending, 0/3 mean fulfilled/rejected.
+Status 2 belongs only to the legacy primitive protocol. A pending root may have no
+ready work, and a settled root may still have ready work. Node retains the instance
+for these callbacks; Wasmtime exposes `pending_job_count()` independently of
+`state()`. Hosts must account for already scheduled callbacks when registering
+new ones. Repeated start and a resume with no ready job trap.
+
+Modules without identity operations retain their previous emitted protocol.
+This is an **IR/backend capability**, not new source admission. Source pending
+storage and detached calls remain guarded until their lowering and rejection
+ownership are implemented. Adoption, thenables, general payloads, host rejection
+notifications and independently escaping Promises remain open. Maintained IR
+tests compare complete native Promise/Node-Wasm microtask traces; separate runtime
+tests cover queue accounting, root settlement, traps and the 32-job boundary.

@@ -260,8 +260,8 @@ Only final primitive settlement is supported. First settlement wins; pending
 result reads trap. Waiters transfer to one ready FIFO on settlement, and late
 registration appends a new ready reaction. Taking one job performs delivery;
 reading the consumed record is pure. Newly enqueued count is consumed separately
-from queue depth, enabling future hosts to schedule individual callbacks without
-overtaking unrelated microtasks. No callback runs inside the kernel.
+from queue depth, enabling queue-aware hosts to schedule individual callbacks
+without overtaking unrelated microtasks. No callback runs inside the kernel.
 
 The contracts follow the primitive portion of
 [FulfillPromise and reaction triggering](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-fulfillpromise)
@@ -274,10 +274,20 @@ semantics depend on host objects, and batching the whole ready queue behind one
 callback, which would change interleaving. The guest state plus explicit enqueue
 boundary is independently testable and reuses the current portable allocator.
 
-The helper is not appended to existing modules until pending IR and coroutine
-integration consumes it; its single unused-helper expectation is intentional.
+The backend links the helper only for modules using Promise identity operations.
+`Promise` uses one private i32 record handle, eight-byte argument entries, and the
+existing sixteen-byte captured-cell allocation. This physical choice remains
+outside source types and logical operations. Queue-mode activation headers are
+32 bytes: the previous parent/PC/environment fields plus the activation's Promise
+handle and initial-return flag. Saved working lanes follow that header. Legacy
+frames keep their previous sixteen-byte header and output. The flag, rather than
+a zero parent address, determines whether an eager child must return its handle.
+Typed synchronous helpers may transport handles but cannot start async bodies;
+starting requires the coroutine dispatcher. Separate narrow unused-constructor
+expectations mark the pending source admission, not missing backend integration.
 Maintained tests execute settlement, alias identity, multiple waiter/Promise FIFO,
 native microtask markers, canonical payload checks, private handle errors and
 arena exhaustion in Wasmtime/Node. Queue capacity is arena-bounded; the existing
 32-site/32-job public profile limits are unchanged. No source pending storage,
-adoption, public API, GC or performance improvement is claimed from this unit.
+adoption, GC or performance improvement is claimed. The additive host scheduler
+count API describes ready work independently of root settlement.
