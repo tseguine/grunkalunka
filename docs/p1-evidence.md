@@ -36,6 +36,7 @@ verification receipts, not saved benchmark performance results.
 | Fixed requested Rust metadata across native hosts | [#135](https://github.com/tseguine/grunkalunka/pull/135), [native metadata identity control](p1-native-markdown-metadata.md) | All three native hosts independently compiled the same Markdown guest both with default flags and with identical requested `RUSTFLAGS="-C metadata=p1crosshostfixed"`. **No pair of independent native guest artifacts became byte-identical.** Compared with Linux, exact raw bodies matching anywhere changed from **945 to 887 on Windows** and **913 to 955 on Apple Silicon**; exact shared diagnostic-name occurrences remained **195** on both. Common requested metadata is insufficient, but effective per-crate Cargo metadata was not yet authenticated |
 | Standalone native Rust Wasm controls | [#137](https://github.com/tseguine/grunkalunka/pull/137), [standalone Rust witnesses](p1-rust-standalone-native.md) | Two independently compiled direct-`rustc` fixtures (`no_std` arithmetic with **5 functions** and `std` allocation with **98 functions**) passed seven independent numeric goldens each on Linux, Windows and Apple Silicon. Linux and Apple Silicon emitted byte-identical core Wasm for both; Windows matched **all function bodies at their original ordinals** but differed only in standard section 11 (data). This is limited to two controlled Rust sources, not the larger Cargo Markdown graph |
 | Guest-only versus global metadata scope | [#138](https://github.com/tseguine/grunkalunka/pull/138), [Rust metadata scope control](p1-markdown-metadata-scope.md) | On one native Linux host, `cargo rustc … -- -C metadata=p1guestcontrol` for the final Markdown guest changed **only the diagnostic `name` section**, preserving all **1,897** raw bodies and standard Wasm sections; applying the **same requested value globally via `RUSTFLAGS`** changed executable sections, reduced the function count to **1,896**, and preserved only **789** order-independent raw bodies. This isolates the breadth of global Cargo/dependency compilation, not a specific offending dependency or cross-OS cause |
+| Actual Cargo-generated per-crate metadata inputs | [#139](https://github.com/tseguine/grunkalunka/pull/139), [real Rust invocation inventory](p1-native-cargo-rustc-metadata.md) | Native Cargo `-vv` builds on Linux x64, Windows x64 and Apple Silicon ARM64 confirmed that **four of five observed crate/target groups** received different generated `-C metadata` and `-C extra-filename` arguments, including native `build_script_build` and wasm32 `pulldown_cmark`, `grunkalunka_markdown`, and `outline_guest`; only `unicase` matched. These generated values remained different even when the **same explicit** `-C metadata=p1crosshostfixed` argument was appended. This establishes a real differing compiler input, not which difference caused the final artifact bytes or runtime behavior |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -102,7 +103,13 @@ reports when explicitly run; the build system does not publish them.
   changed diagnostic names but not executable sections, whereas applying it
   **globally** changed much of the compiled Rust guest. These are bounded
   reproducibility controls, not evidence of semantic incompatibility.
-  No functional fault is established.
+  [#139](https://github.com/tseguine/grunkalunka/pull/139) then captured actual
+  Cargo rustc invocations on all three native hosts: **four of five** observed
+  crate/target groups received different generated `-C metadata` and
+  `-C extra-filename` arguments despite the same explicit requested flag.
+  Thus the cross-host compiler inputs really differ; the effect of those
+  particular values on emitted Wasm remains to be isolated. No functional
+  fault is established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
