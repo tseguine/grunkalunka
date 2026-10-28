@@ -93,16 +93,19 @@ fn rewrite(args: &mut [OsString], mode: &str) -> Result<Option<MetadataRecord>, 
     let Some(crate_name) = crate_name else {
         return Ok(None); // rustc -vV and similar compiler probes
     };
-    let expected = stable_metadata(&crate_name, &target)
-        .ok_or_else(|| format!("unexpected crate or compilation target: {crate_name}/{target}"))?;
+    // The experiment controls five selected crate/target groups only.
+    // Other dependencies (e.g. bitflags) remain exactly as Cargo requested,
+    // and are also logged so their unaltered inputs are visible.
+    let selected = stable_metadata(&crate_name, &target);
     if metadata_slots.len() != 1 || !is_cargo_hash(&metadata_slots[0].1) {
         return Err(format!("expected exactly one generated Cargo metadata value for {crate_name}"));
     }
     let (position, original) = &metadata_slots[0];
-    let replace = mode == "all" || (mode == "target" && target == TARGET);
-    let effective = if replace { expected } else { original };
+    let replace = selected.is_some() &&
+        (mode == "all" || (mode == "target" && target == TARGET));
+    let effective = if replace { selected.unwrap() } else { original };
     if replace {
-        args[*position] = OsString::from(format!("metadata={expected}"));
+        args[*position] = OsString::from(format!("metadata={effective}"));
     }
     Ok(Some(MetadataRecord {
         crate_name,
@@ -188,9 +191,12 @@ mod tests {
         assert_eq!(all.effective, "p1script");
     }
     #[test]
-    fn rejects_unknown_crates_and_missing_or_extra_generated_metadata() {
-        let mut unknown = argv("unknown_crate", true);
-        assert!(rewrite(&mut unknown, "all").unwrap_err().contains("unexpected crate"));
+    fn leaves_unselected_crates_unchanged_and_rejects_malformed_metadata() {
+        let mut unknown = argv("bitflags", true);
+        let original = unknown.clone();
+        let unselected = rewrite(&mut unknown, "all").unwrap().unwrap();
+        assert_eq!(unknown, original);
+        assert_eq!(unselected.original, unselected.effective);
         let mut missing: Vec<OsString> = ["--crate-name", "outline_guest"]
             .into_iter().map(OsString::from).collect();
         assert!(rewrite(&mut missing, "target").is_err());
