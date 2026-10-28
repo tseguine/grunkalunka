@@ -120,3 +120,50 @@ The existing named-body parser's bounds and import-free restriction remain
 in effect; older receipts containing only raw names remain readable, but
 one-sided normalization reports fail closed rather than silently comparing
 different kinds of evidence.
+
+## Legacy Rust mangled `17h…E` control
+
+The [#121 exact-head native workflow](https://github.com/tseguine/grunkalunka/actions/runs/40706269118)
+found **zero** raw names ending in the readable `::h` + 16 lowercase
+hexadecimal digit pattern on Linux, Windows and Apple Silicon. Its
+transformed-name overlap therefore remained exactly the original **195**
+shared diagnostic names and **89** shared names with byte-identical bodies
+on each receiving host. This is a useful negative result for that *one*
+naming convention, not evidence that compiler symbol hashes cannot affect
+other spellings.
+
+A second, independent control tests the *legacy Itanium-like Rust mangled*
+spelling directly, without decoding or demangling symbols. It removes only
+the exact terminal substring `17h` followed by 16 lowercase hex digits
+and final `E`, from names beginning `ZN`, `_ZN` or `__ZN` with at least
+one preceding encoded path character. The final `E` is retained as an
+opaque transformed-name token. For example:
+
+```text
+_ZN4core4item17h0123456789abcdefE
+    → _ZN4core4itemE
+```
+
+Names with v0-style `_R...` mangling, path-like readable names, uppercase
+hashes, embedded hashes, additional suffixes, or unrelated strings are
+left intact. The previous readable `::h` control and the complete raw
+name/body fingerprints remain independently available; the two heuristics
+are **not composed**.
+
+The analyzer now records only a four-category count of syntactic name
+shapes (legacy-mangled, v0-mangled-like, readable path-like, other), how
+many names matched the exact legacy tail pattern, and a separate
+SHA-256 vector of transformed diagnostic names. No original symbol text
+is transferred. It computes and reports the additional shared name
+occurrences and shared name-plus-exact-body occurrences independently
+of the earlier readable-suffix results. Duplicate names are counted
+with multiplicity, missing names remain missing, and malformed/asymmetric
+receipts fail closed.
+
+An improvement would indicate that this *specific textual legacy hash
+component* explains some previously unmatched name strings. It would
+**not** establish source-function identity, a reproducible build or
+semantic equivalence. Stripping hash components can merge legitimately
+distinct symbols, and the statistical name categories do not independently
+validate mangling grammar. A zero count would merely rule out this exact
+pattern; it would not authorize broad name-stripping heuristics.
