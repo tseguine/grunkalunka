@@ -585,3 +585,24 @@ Every call owns a new Promise, activation and captured local cells, including
 recursive and concurrent calls. Module-helper inputs remain Number; results and
 reactions follow [the named-helper contract](async-named-helpers.md). No ordinary
 helper or exported parameter contract, closure layout or host protocol changes.
+
+## Runtime factory call-site type arguments
+
+Calls through represented runtime factories erase TypeScript call-site type
+arguments. For example, `const make=a?x=>()=>x+a:x=>()=>x-b; return make<Missing>(b)();`
+emits the same guest bytes as its JavaScript twin. The existing callable signature
+and constructor body determine input/result kinds; unresolved names, type queries,
+multiple type arguments and misleading claims establish no runtime facts.
+
+The saved callee still precedes ordinary argument evaluation. Returned function
+pairs keep their original capture cells and freshness across later factory calls,
+callee replacement, suspension and rejection. Optional/spread calls, missing or
+over-limit inputs, incompatible function signatures, eight active result-call
+levels and original source budgets retain their checks. No metadata is emitted.
+Direct numeric module calls retain their separate metadata guard.
+
+Four async groups and one numeric/primitive group compare exact JS/TS guest bytes
+and native JS, Node-Wasm and Wasmtime behavior. Existing factory cell/snapshot and
+signature checks also pass. Restoring the obsolete type-argument guard is caught
+by the selected-factory witness. No IR, frame layout, ABI, dependency or limit
+change is introduced.

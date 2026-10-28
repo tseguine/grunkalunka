@@ -137,6 +137,28 @@ fn known_factories_capture_primitive_inputs() {
 }
 
 #[test]
+fn runtime_factory_type_arguments_preserve_numeric_and_primitive_execution() {
+    for body in [
+        "const make=a?x=>()=>x+a:x=>()=>x-b;return make(b)();",
+        "let make=x=>()=>++x;const f=make(a),g=make(b);return f()*100+g()*10+f();",
+        "let make=x=>y=>()=>x+y;return make(a)(b)();",
+        "let make=x=>()=>x+a;const f=make((make=x=>()=>x-b,a));return f()+make(b)();",
+        "let make=(x,y)=>()=>x*10+y;return make(a++,a++)()+a;",
+    ] {
+        let plain = format!("export function run(a,b){{{body}}}");
+        let typed = plain.replace("make(", "make<Missing>(");
+        for compiler in [compile, compile_value] {
+            assert_eq!(
+                compiler(&plain, false).unwrap().wasm,
+                compiler(&typed, true).unwrap().wasm,
+                "{typed}"
+            );
+        }
+        compare_helper_sources(&[&plain]);
+    }
+}
+
+#[test]
 fn known_block_factories_capture_primitive_inputs() {
     compare_helper_sources(&[
         "export function run(a,b){const make=x=>{return ()=>+x;};return make(null)();}",

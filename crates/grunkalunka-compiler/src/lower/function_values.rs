@@ -567,7 +567,6 @@ impl Lowering<'_, '_> {
                 )
             };
             if call.optional
-                || call.type_arguments.is_some()
                 || call.arguments.len() < parameter_count
                 || call.arguments.len() > 1000
             {

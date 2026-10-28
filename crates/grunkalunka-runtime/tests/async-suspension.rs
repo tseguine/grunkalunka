@@ -79,6 +79,9 @@ mod math_type_arguments;
 #[path = "async-suspension/runtime_call_type_arguments.rs"]
 mod runtime_call_type_arguments;
 
+#[path = "async-suspension/factory_type_arguments.rs"]
+mod factory_type_arguments;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(

@@ -770,9 +770,9 @@ exact JS/TS guest bytes and compare native JS, Node-Wasm and Wasmtime outcomes,
 including primitive conversion, signed zero/fractions, surplus effects, await
 snapshots and failure. Five original TS corpus exclusions are now executable
 pairs with frozen source hashes and explicit JS oracles; the remaining rejection
-inventory has 844 records. Direct numeric module and runtime function-result
-call-site type arguments remain gaps; heap JSON and local/runtime closure calls
-erase them under their separate contracts. The Math
+inventory has 844 records. Direct numeric module call-site type arguments remain
+a gap; heap JSON, local/runtime closures and runtime factory-result calls erase
+them under their separate contracts. The Math
 implementation removes only one shared source-admission guard.
 
 ## Heap JSON call-site type erasure (2026-10-28)
@@ -793,7 +793,18 @@ metadata, including async closures and named async helpers. Four async groups an
 a numeric/primitive group check exact JS/TS guest bytes and native JS/Node-Wasm/
 Wasmtime behavior for aliases, selections, callbacks, captures, callee and argument
 snapshots, surplus failure, reactions and admission/source limits. An older exact
-Promise local-call rejection is promoted unchanged. Two shared admission guards
-change; no IR, runtime protocol, dependency or budget change. Separate numeric
-module-call and runtime function-result metadata guards remain open. See
+Promise local-call rejection and the Math local-call guard are promoted unchanged. Two shared admission guards
+change; no IR, runtime protocol, dependency or budget change. The separate
+numeric module-call metadata guard remains open; factory-result metadata now
+erases under its contract below. See
 [the contract](async.md#closure-call-site-type-arguments).
+
+## Runtime factory call-site type erasure (2026-10-28)
+
+Runtime calls that return functions erase call-site TypeScript type arguments
+while retaining the original callee, capture cells, argument effects, callable
+signatures and budgets. Four async and one numeric/primitive group check JS/TS
+guest-byte identity and native JS/Node-Wasm/Wasmtime outcomes; nearby factory
+cell/snapshot and signature checks pass. This removes one admission guard without
+IR, runtime ABI, dependency or limit changes. Other call-site validators remain
+separate; see [the contract](runtime-closures.md#runtime-factory-call-site-type-arguments).
