@@ -8,16 +8,20 @@ this is not a built-in font and a shaped Unicode string is not an accepted input
 ## Binary contract
 
 Canvas::blit_mono(x, y, width, height, bytes, ink) accepts nonnegative
-integer CSS-pixel coordinates and positive mask dimensions up to MAX_VIEWPORT.
+document-space CSS-pixel coordinates and positive mask dimensions up to
+MAX_VIEWPORT. A Canvas returned from `paint_scrolled` uses the same
+document coordinates as the layout Frame; the caller does not pre-translate
+bitmap positions to viewport coordinates.
 Each mask row begins at the next byte boundary and occupies
 ceil(width / 8) bytes. The most-significant bit of the first byte is column 0,
 the next bit is column 1, and so on. Unused **low** bits in the final byte of a
 row do not belong to the mask and are ignored.
 
 A one bit overwrites the corresponding RGB pixel with opaque ink; a zero bit
-leaves the previously painted color unchanged. Blits are clipped against the
-right and bottom of the Canvas. Masks completely beyond those edges are valid
-no-ops when otherwise well formed; negative origins are not admitted.
+leaves the previously painted color unchanged. Blits are clipped against **all four edges of the selected viewport**,
+including discarded leading columns/rows when the Canvas is scrolled.
+Completely offscreen masks are valid no-ops when otherwise well formed;
+negative origins are not admitted.
 
 The API validates all inputs **before** modifying pixels. Zero or oversized
 dimensions and incorrect byte lengths return InvalidBitmap. More than

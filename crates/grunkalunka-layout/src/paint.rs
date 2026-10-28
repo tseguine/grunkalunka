@@ -47,6 +47,7 @@ pub struct PaintNode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PaintError {
     InvalidViewport,
+    InvalidScrollOffset,
     /// Malformed caller-supplied bitpacked monochrome mask.
     InvalidBitmap,
     TooManyPixels,
@@ -70,6 +71,8 @@ pub enum PaintError {
 pub struct Canvas {
     width: u32,
     height: u32,
+    scroll_x: u32,
+    scroll_y: u32,
     pixels: Vec<Rgb>,
 }
 
@@ -102,14 +105,27 @@ impl Canvas {
     }
 
     fn fill(&mut self, rect: Rect, color: Rgb) -> Result<(), PaintError> {
-        let right = rect.right().ok_or(PaintError::Overflow)?.min(self.width);
-        let bottom = rect.bottom().ok_or(PaintError::Overflow)?.min(self.height);
-        let left = rect.x.min(self.width);
-        let top = rect.y.min(self.height);
+        // Clip document-space boxes to the scrolled viewport before indexing.
+        // Subtract only after intersection; offscreen origins stay unsigned.
+        let view_right = self
+            .scroll_x
+            .checked_add(self.width)
+            .ok_or(PaintError::Overflow)?;
+        let view_bottom = self
+            .scroll_y
+            .checked_add(self.height)
+            .ok_or(PaintError::Overflow)?;
+        let left = rect.x.max(self.scroll_x);
+        let top = rect.y.max(self.scroll_y);
+        let right = rect.right().ok_or(PaintError::Overflow)?.min(view_right);
+        let bottom = rect.bottom().ok_or(PaintError::Overflow)?.min(view_bottom);
+        if left >= right || top >= bottom {
+            return Ok(());
+        }
         for y in top..bottom {
-            let row = y as usize * self.width as usize;
+            let row = (y - self.scroll_y) as usize * self.width as usize;
             for x in left..right {
-                self.pixels[row + x as usize] = color;
+                self.pixels[row + (x - self.scroll_x) as usize] = color;
             }
         }
         Ok(())
@@ -204,10 +220,36 @@ fn paint_node(
 /// can draw beyond a parent's border, but are clipped to the output viewport.
 /// No glyphs, images, alpha compositing, positioning or CSS stacking contexts.
 pub fn paint(frame: &Frame, nodes: &[PaintNode], clear: Rgb) -> Result<Canvas, PaintError> {
+    paint_scrolled(frame, nodes, clear, 0, 0)
+}
+
+/// Paint a viewport at an explicitly supplied document-space scroll offset.
+///
+/// No scrollbars or nested scrolling contexts are implemented. The offset must
+/// fit the layout frame's scroll extents; caller UI chooses how to change it.
+/// Coordinates passed to Canvas::blit_mono remain in document space.
+pub fn paint_scrolled(
+    frame: &Frame,
+    nodes: &[PaintNode],
+    clear: Rgb,
+    scroll_x: u32,
+    scroll_y: u32,
+) -> Result<Canvas, PaintError> {
     let width = frame.viewport_width;
     let height = frame.viewport_height;
     if width == 0 || height == 0 || width > MAX_VIEWPORT || height > MAX_VIEWPORT {
         return Err(PaintError::InvalidViewport);
+    }
+    let max_x = frame
+        .scroll_width
+        .checked_sub(width)
+        .ok_or(PaintError::InvalidScrollOffset)?;
+    let max_y = frame
+        .scroll_height
+        .checked_sub(height)
+        .ok_or(PaintError::InvalidScrollOffset)?;
+    if scroll_x > max_x || scroll_y > max_y {
+        return Err(PaintError::InvalidScrollOffset);
     }
     let pixel_count = (width as usize)
         .checked_mul(height as usize)
@@ -244,6 +286,8 @@ pub fn paint(frame: &Frame, nodes: &[PaintNode], clear: Rgb) -> Result<Canvas, P
     let mut canvas = Canvas {
         width,
         height,
+        scroll_x,
+        scroll_y,
         pixels: vec![clear; pixel_count],
     };
     paint_node(0, &children, frame, nodes, &mut canvas)?;
