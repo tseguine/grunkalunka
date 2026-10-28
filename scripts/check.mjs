@@ -32,7 +32,7 @@ run(process.execPath, ['spikes/001-frontend-semantics/oracle.mjs']);
 run(process.execPath, ['scripts/poc.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/remainder-kernel.test.mjs']);
 run(process.execPath, ['--test', 'tests/build/benchmark.test.mjs', 'tests/build/benchmark-integration.test.mjs',
-  'tests/build/benchmark-comparison.test.mjs']);
+  'tests/build/benchmark-comparison.test.mjs', 'tests/build/compare-portable-replays.test.mjs']);
 run(process.execPath, ['scripts/check-markdown-portability.mjs']);
 run(process.execPath, ['scripts/check-markdown-outline.mjs']);
 run(process.execPath, ['scripts/check-document-outline.mjs']);
