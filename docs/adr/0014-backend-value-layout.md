@@ -333,4 +333,10 @@ continues rejecting tag 4. Rust's Value enum includes a typed invocation-local
 descriptor; Node caches actual native objects rather than exposing numeric IDs.
 Rejection, catches, storage and forwarding retain identity. Numeric conversion and
 loose equality must distinguish Error IDs from Numbers, even when payloads match.
-String/relational conversion and general Error construction remain separate work.
+General relational comparison now preserves both tag/payload snapshots in a
+distinct logical operation. It distinguishes equal intrinsic Error strings from
+object identity and explicit numeric NaN conversion, with no additional physical
+lanes or string allocation. The equal-string shortcut relies on the single fixed
+intrinsic Error kind/message; other Error kinds and General Strings must extend
+that dispatch. String-producing conversion and general Error construction remain
+separate work.

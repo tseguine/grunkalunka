@@ -103,9 +103,11 @@ catches, returned-expression failures remain lexical, and sibling frame/handle
 snapshots survive delayed registration. Self-resolution now creates a catchable
 guest TypeError with stable identity through catches, rethrow and host notifications;
 the saved native4/guestpending counterexample now returns4 in both Wasm hosts.
-Error string-sensitive relational conversion remains a demonstrated gap. Snapshot
-adoption and mixed pending/scalar or pending/snapshot inputs also remain gaps. This does not close general Promise support
-or L5.
+General relational IR now closes the saved Error `e<=e` counterexample, preserves
+operand snapshots through calls/suspension, and distinguishes equal intrinsic
+Error strings from object IDs and explicit numeric NaN coercion. General strings,
+snapshot adoption and mixed pending/scalar or pending/snapshot inputs remain gaps.
+This does not close general Promise support or L5.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
 

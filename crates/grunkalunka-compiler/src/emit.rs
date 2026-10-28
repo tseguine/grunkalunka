@@ -6,6 +6,7 @@ mod asynchronous;
 mod cells;
 mod closures;
 mod layout;
+mod relational;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -133,7 +134,7 @@ impl Emitter<'_> {
         self.set(result);
     }
 
-    fn number_from_general(&mut self, result: ValueId, input: ValueId) {
+    fn general_number(&mut self, input: ValueId) {
         // Primitive null/Boolean/Number payloads already equal ToNumber.
         // Undefined and an intrinsic Error's string conversion yield NaN.
         writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
@@ -150,6 +151,10 @@ impl Emitter<'_> {
             .push_str("if (result f64)\nf64.const nan\nelse\n");
         writeln!(self.output, "local.get {}", self.value_offsets[input.0] + 1).unwrap();
         self.output.push_str("end\n");
+    }
+
+    fn number_from_general(&mut self, result: ValueId, input: ValueId) {
+        self.general_number(input);
         self.set(result);
     }
 
@@ -430,6 +435,14 @@ impl Emitter<'_> {
                     right,
                     negated,
                 } => self.primitive_loose_equal(*result, *left, *right, *negated),
+                Op::RelationalCompare {
+                    result,
+                    operator,
+                    left,
+                    right,
+                } => {
+                    self.relational_compare(*result, *operator, *left, *right);
+                }
                 Op::PrimitiveStrictEqual {
                     result,
                     left,

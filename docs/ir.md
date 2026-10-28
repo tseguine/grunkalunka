@@ -835,5 +835,28 @@ registration. Guest catches receive it through existing rejection continuations.
 Error-aware numeric coercion yields NaN, identity comparisons use tag/ID, and
 truthiness/nullish operations retain object behavior. Synchronous private helpers
 in the same module receive the same Error-aware emitter behavior. String-producing
-coercions and relational comparisons that require ToPrimitive strings remain
-separate lowering work; the current relational Number conversion is insufficient.
+coercions remain separate lowering work.
+
+### General relational comparisons
+
+`RelationalCompare` consumes two visible General snapshots and defines a Predicate.
+Its `Relational` operator has exactly `<`, `<=`, `>` and `>=`; equality remains a
+separate operation. Source lowering evaluates each operand once, left to right,
+retaining the first snapshot across RHS writes, private calls and suspension.
+Proven Number operands retain their existing scalar `Compare` specialization.
+
+General kinds survive until comparison, rather than passing through
+`NumberFromGeneral`. This distinction matters for the intrinsic Error extension:
+two represented Errors convert to the same intrinsic TypeError string, so `<` and
+`>` are false and `<=` and `>=` are true even for distinct object IDs. Emission can
+use this equal-string result directly without allocating a temporary string.
+This relies on the current single intrinsic Error kind and fixed message. New
+Error kinds, mutable properties, user coercion and General String values must
+extend the dispatch before admission.
+
+For the remaining represented pairs, numeric conversion applies: Undefined and
+an Error converted alongside a non-string primitive yield NaN; Null converts to
+zero; Boolean and Number payloads supply their numeric values. All four comparisons
+with NaN are false. Explicit unary numeric conversion still happens independently:
+`e <= e` is true, while `+e <= +e` is false. No Error ID participates in numeric
+ordering. Primitive return protocols, General lanes and the async queue are unchanged.

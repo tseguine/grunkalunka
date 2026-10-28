@@ -211,6 +211,17 @@ enum Work<'e, 'a> {
         loose: bool,
         negated: bool,
     },
+    RelationalRight {
+        node: &'e Expression<'a>,
+        right: &'e Expression<'a>,
+        depth: usize,
+        operator: Relational,
+    },
+    Relational {
+        node: &'e Expression<'a>,
+        left: ValueId,
+        operator: Relational,
+    },
     CompareRight {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -1296,6 +1307,39 @@ impl Lowering<'_, '_> {
                         }
                     };
                     Self::push(regions.current(), node, operation);
+                    values.push(Value::Predicate(result));
+                }
+                Work::RelationalRight {
+                    node,
+                    right,
+                    depth,
+                    operator,
+                } => {
+                    let left = values.pop().expect("General relational left").general();
+                    work.push(Work::Relational {
+                        node,
+                        left,
+                        operator,
+                    });
+                    work.push(Work::Eval(right, depth, Mode::General));
+                }
+                Work::Relational {
+                    node,
+                    left,
+                    operator,
+                } => {
+                    let right = values.pop().expect("General relational right").general();
+                    let result = self.value(Type::Predicate);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::RelationalCompare {
+                            result,
+                            operator,
+                            left,
+                            right,
+                        },
+                    );
                     values.push(Value::Predicate(result));
                 }
                 Work::CompareRight {
@@ -2624,6 +2668,28 @@ impl Lowering<'_, '_> {
                                             BinaryOperator::Inequality
                                                 | BinaryOperator::StrictInequality
                                         ),
+                                    });
+                                    work.push(Work::Eval(&binary.left, depth + 1, Mode::General));
+                                    continue;
+                                }
+                                if !equality
+                                    && !(self.numeric_result_shape(&binary.left, depth + 1)
+                                        && self.numeric_result_shape(&binary.right, depth + 1))
+                                {
+                                    let operator = match operator {
+                                        Compare::Less => Relational::Less,
+                                        Compare::LessEqual => Relational::LessEqual,
+                                        Compare::Greater => Relational::Greater,
+                                        Compare::GreaterEqual => Relational::GreaterEqual,
+                                        Compare::Equal | Compare::NotEqual => {
+                                            unreachable!("relational operator")
+                                        }
+                                    };
+                                    work.push(Work::RelationalRight {
+                                        node,
+                                        right: &binary.right,
+                                        depth: depth + 1,
+                                        operator,
                                     });
                                     work.push(Work::Eval(&binary.left, depth + 1, Mode::General));
                                     continue;

@@ -408,9 +408,15 @@ as a Number. Catch cells, closures, private calls and notifications retain its I
 Tests compare Error class and identity rather than engine-specific messages or
 stack traces; previous primitive comparisons remain exact.
 
-This does not implement arbitrary Error constructors/properties or general object
-semantics. Error string conversion and relational operators still need work: the
-admitted catch expression `e <= e` should return true after converting both Error
-objects to strings, but the current numeric relational path returns false. That
-counterexample is a remaining gap, not a passing conformance case. General strings,
-snapshot adoption and other previously recorded JS/TS gaps also remain open.
+All four relational operators now retain General operands until comparison. Two
+intrinsic Errors have equal primitive strings, even when their object identities
+differ: `<` and `>` are false, and `<=` and `>=` are true. The saved `e <= e`
+counterexample now passes. Mixed Error/non-string primitive pairs compare through
+NaN and return false; explicit `+e <= +e` also remains false. Captured operands,
+private calls and suspension retain source evaluation order and snapshots.
+
+This does not implement arbitrary Error constructors/properties, general object
+semantics or String values. The comparison shortcut relies on the current single
+intrinsic Error kind and fixed message; new kinds or custom coercion require an
+extension. String-producing conversions, snapshot adoption and other previously
+recorded JS/TS gaps remain open.

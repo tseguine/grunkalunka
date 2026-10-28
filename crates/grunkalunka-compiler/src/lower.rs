@@ -11,8 +11,8 @@ use oxc_syntax::operator::{
 };
 
 use crate::ir::{
-    self, Binary, Compare, Completion, Exit, Op, Operation, Region, RegionId, Slot, SlotId, Type,
-    Unary, ValueId,
+    self, Binary, Compare, Completion, Exit, Op, Operation, Region, RegionId, Relational, Slot,
+    SlotId, Type, Unary, ValueId,
 };
 use crate::{is_type_declaration, unsupported};
 

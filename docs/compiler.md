@@ -1611,8 +1611,9 @@ JS/TS/profile combinations, plus two semantic mutations.
 
 ## Primitive relational comparisons
 
-`<`, `<=`, `>` and `>=` now admit the four represented primitive kinds through
-existing arithmetic conversion and Number comparisons. Undefined converts to NaN,
+`<`, `<=`, `>` and `>=` admit the four represented primitive kinds through
+General relational comparison or the proven Number specialization. Undefined
+converts to NaN,
 null to +0, and Booleans to 0/1. All four relations are false when either converted
 operand is NaN. In particular, `<=` and `>=` cannot be implemented as simple
 negations of the opposite strict relation. This follows
@@ -1622,9 +1623,13 @@ and [relational evaluation](https://tc39.es/ecma262/multipage/ecmascript-languag
 Both operands evaluate once, left to right, retaining the left snapshot across RHS
 writes, including `>`/`>=`. Conversions are pure for these four kinds. Equality
 routes and their strict Boolean specialization remain separate; positive Number
-operand paths retain their previous output. No IR, ABI, dependency, storage-planning
-or source-budget change is introduced. Strings, BigInts, Symbols, objects and
-observable ToPrimitive conversion remain outside this domain.
+operand paths retain their previous output. General operands now use the logical
+`RelationalCompare` operation, retaining their kinds until comparison. ABI,
+dependencies, storage planning and source budgets stay unchanged. Strings, BigInts,
+Symbols and user-defined observable ToPrimitive conversion remain outside this
+primitive domain. The async intrinsic Error extension also supports relational
+comparison of its fixed equal primitive strings; see
+[General relational IR](ir.md#general-relational-comparisons).
 
 Corpus 63 promotes two exact original JS observations and adds sixteen pairs:
 1739 pairs, 921 numeric rejections and 36 curated references. Its 56 inventory

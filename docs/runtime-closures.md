@@ -442,5 +442,8 @@ callback transport and notification delivery after root settlement. Node receive
 native TypeError objects cached per invocation; Wasmtime reports invocation-local
 typed IDs. Neither a numeric ID surrogate nor a host trap substitutes for the
 guest reason. The primitive protocol remains unchanged. Explicit numeric coercion,
-truthiness and identity equality are covered; arbitrary Error properties, strings
-and string-sensitive relational behavior remain gaps documented in [async](async.md).
+truthiness, identity equality and all four relational operators are covered for
+the represented intrinsic Errors. Relational comparison preserves General operands
+through calls and suspension, distinguishes equal primitive strings from distinct
+object identities, and keeps explicit numeric coercion separate. Arbitrary Error
+properties and general strings remain gaps documented in [async](async.md).

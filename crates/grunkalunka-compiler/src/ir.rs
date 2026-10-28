@@ -9,6 +9,8 @@ mod async_closure_tests;
 #[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
+mod relational_tests;
+#[cfg(test)]
 mod runtime_closure_tests;
 #[cfg(test)]
 mod settled_promise_tests;
@@ -251,6 +253,14 @@ pub(crate) enum Compare {
     NotEqual,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Relational {
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct Slot {
     pub ty: Type,
@@ -485,6 +495,14 @@ pub(crate) enum Op {
         left: ValueId,
         right: ValueId,
         negated: bool,
+    },
+    /// JS relational comparison of captured General operands. Preserve their
+    /// kinds until ToPrimitive; explicit NumberFromGeneral has different semantics.
+    RelationalCompare {
+        result: ValueId,
+        operator: Relational,
+        left: ValueId,
+        right: ValueId,
     },
     Nullish {
         result: ValueId,
@@ -1099,6 +1117,12 @@ impl Verifier<'_> {
                 ..
             }
             | Op::PrimitiveLooseEqual {
+                result,
+                left,
+                right,
+                ..
+            }
+            | Op::RelationalCompare {
                 result,
                 left,
                 right,

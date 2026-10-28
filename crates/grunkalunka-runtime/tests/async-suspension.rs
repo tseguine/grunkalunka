@@ -19,6 +19,9 @@ mod adoption;
 #[path = "async-suspension/self_resolution.rs"]
 mod self_resolution;
 
+#[path = "async-suspension/relational.rs"]
+mod relational;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
