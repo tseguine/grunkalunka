@@ -1,0 +1,14 @@
+{
+  "id": "check:runner-logger",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/check-command.test.mjs"
+  ],
+  "dependsOn": [
+    "test:canonical-runner-contracts"
+  ],
+  "paths": [
+    "tests/build/check-command.test.mjs"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "check:node-execution",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/execution.test.mjs",
+    "tests/build/primitive-execution.test.mjs"
+  ],
+  "dependsOn": [
+    "test:node-build-contracts"
+  ],
+  "paths": [
+    "tests/build/execution.test.mjs",
+    "tests/build/primitive-execution.test.mjs"
+  ]
+}

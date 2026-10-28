@@ -1,0 +1,16 @@
+{
+  "id": "check:build-process-and-source",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/process.test.mjs",
+    "tests/build/source.test.mjs"
+  ],
+  "dependsOn": [
+    "test:node-build-contracts"
+  ],
+  "paths": [
+    "tests/build/process.test.mjs",
+    "tests/build/source.test.mjs"
+  ]
+}

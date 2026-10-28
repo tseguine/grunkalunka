@@ -1,0 +1,14 @@
+{
+  "id": "check:compat-watchdog-budget",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/watchdog-budget.test.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "tests/compatibility/watchdog-budget.test.mjs"
+  ]
+}

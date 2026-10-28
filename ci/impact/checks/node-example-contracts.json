@@ -1,0 +1,16 @@
+{
+  "id": "check:node-example-contracts",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/example-options.test.mjs",
+    "tests/build/example.test.mjs"
+  ],
+  "dependsOn": [
+    "test:node-build-contracts"
+  ],
+  "paths": [
+    "tests/build/example-options.test.mjs",
+    "tests/build/example.test.mjs"
+  ]
+}

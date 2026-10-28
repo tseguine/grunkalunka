@@ -1,0 +1,13 @@
+{
+  "id": "check:spike-format",
+  "command": "cargo",
+  "args": [
+    "fmt",
+    "--manifest-path",
+    "spikes/001-frontend-semantics/Cargo.toml",
+    "--check"
+  ],
+  "dependsOn": [
+    "test:frontend-spike-contracts"
+  ]
+}

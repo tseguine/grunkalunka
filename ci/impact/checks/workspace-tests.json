@@ -1,0 +1,14 @@
+{
+  "id": "check:workspace-tests",
+  "command": "cargo",
+  "args": [
+    "test",
+    "--workspace",
+    "--locked",
+    "--offline",
+    "-j",
+    "4"
+  ],
+  "dependsOn": [],
+  "scope": "workspace"
+}

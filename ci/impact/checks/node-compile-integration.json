@@ -1,0 +1,16 @@
+{
+  "id": "check:node-compile-integration",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/compile.test.mjs",
+    "tests/build/primitive-integration.test.mjs"
+  ],
+  "dependsOn": [
+    "test:node-build-contracts"
+  ],
+  "paths": [
+    "tests/build/compile.test.mjs",
+    "tests/build/primitive-integration.test.mjs"
+  ]
+}

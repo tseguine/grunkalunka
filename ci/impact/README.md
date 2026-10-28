@@ -46,6 +46,37 @@ node ci/impact/plan.mjs origin/master
 The output explicitly says `mode: shadow` and `advisoryOnly: true`; even a
 `full: false` plan **does not certify that skipping other checks is safe**.
 
+## Canonical check inventory (also advisory)
+
+`collect-checks.mjs` imports the existing `scripts/check.mjs` in a separate Node
+process with its `spawnSync` children replaced by record-only stubs. Nothing is
+compiled or tested by this inventory step. It observes the **actual** command
+sequence, including the frontend-spike loop, without copying that sequence into
+a second central runner.
+
+Each `checks/*.json` file maps one actual command (normalized `node` or `cargo`
+plus exact arguments) to a logical test group; files for direct Node tests or
+scripts own their specific entry-point paths. The planner checks a one-to-one
+match with the actual canonical invocations. Missing, duplicate, stale, or
+unrecognized commands **force full verification**; they do not fail other
+workstreams' CI during the shadow period. A newly added check can have its own
+descriptor without editing one shared central manifest.
+
+Directory ownership is deliberately coarse but more specific file owners
+override it, provided the most specific match is unambiguous. This lets changing
+one test source select its check without selecting an entire `tests/build/`
+directory. Workspace-wide Cargo formatting, Clippy and tests dynamically depend
+on every current Cargo package rather than a hardcoded crate list. They remain
+indivisible commands until a future, independently validated partial executor
+translates them into scoped invocations.
+
+The **command inventory is complete for the currently observed canonical
+runner**, not an assertion that our declared semantic/test-time dependencies
+cover every input. The existing `targets/` dependencies remain coarse and
+conservative, and a selected command is a forecast, not permission to skip any
+other command. Source import graphs, generated inputs, cross-script subprocesses,
+and noncanonical workflows require further explicit coverage work.
+
 ## Merge-conflict isolation
 
 The experiment adds a separate workflow, this directory, and individually owned
@@ -55,8 +86,8 @@ Module additions should add one new descriptor when Cargo cannot discover them;
 test additions should add one new target file. Independent workstreams should
 rarely need to edit the same configuration file.
 
-Next stage, requiring independent verification before activation: make the test
-catalog an executable, complete projection of the canonical checks; validate
-all direct/indirect inputs and dependency edges; perform shadow-mode comparisons
-against actual full CI results across representative PRs; then consider a
-separate guarded opt-in partial runner while retaining full `master` checks.
+Next stage, requiring independent verification before activation: audit
+all semantic inputs and indirect dependencies of the canonical command inventory;
+perform shadow-mode comparisons against actual full CI results across
+representative PRs; then consider an opt-in partial executor while retaining
+full `master` checks.

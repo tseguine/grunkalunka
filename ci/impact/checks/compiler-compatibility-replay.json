@@ -1,0 +1,13 @@
+{
+  "id": "check:compiler-compatibility-replay",
+  "command": "node",
+  "args": [
+    "scripts/poc.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "scripts/poc.mjs"
+  ]
+}

@@ -6,6 +6,8 @@
     "grunkalunka-wasm-link",
     "grunkalunka-runtime",
     "canonical-scripts",
-    "compatibility-fixtures"
+    "compatibility-fixtures",
+    "grunkalunka-compiler",
+    "grunkalunka-cli"
   ]
 }
