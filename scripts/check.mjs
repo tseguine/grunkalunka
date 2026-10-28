@@ -20,6 +20,11 @@ for (const spike of ['001-frontend-semantics']) {
   run('cargo', ['fmt', '--manifest-path', manifest, '--check']);
   run('cargo', ['clippy', '--locked', '--offline', '--manifest-path', manifest, '-j', '4', '--', '-D', 'warnings']);
 }
+// The type-query research spike is an independent Cargo workspace.
+run('cargo', ['fetch', '--locked', '--manifest-path', 'spikes/004-tsrs-type-query/Cargo.toml']);
+run('cargo', ['fmt', '--manifest-path', 'spikes/004-tsrs-type-query/Cargo.toml', '--check']);
+run('cargo', ['test', '--manifest-path', 'spikes/004-tsrs-type-query/Cargo.toml',
+  '--locked', '--offline', '-j', '2', '--', '--test-threads=1']);
 run('cargo', ['fmt', '--all', '--check']);
 run('cargo', ['clippy', '--workspace', '--all-targets', '--locked', '--offline', '-j', '4', '--', '-D', 'warnings']);
 run('cargo', ['test', '--workspace', '--locked', '--offline', '-j', '4']);

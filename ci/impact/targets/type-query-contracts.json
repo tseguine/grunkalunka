@@ -1,0 +1,6 @@
+{
+  "id": "test:type-query-contracts",
+  "dependsOn": [
+    "type-query-spike"
+  ]
+}

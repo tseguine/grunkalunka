@@ -105,9 +105,16 @@ test('specific test/script ownership overrides broad directory ownership', () =>
 
 test('unknown code paths force full verification alongside attributed files', () => {
   const result = analyze(['crates/grunkalunka-layout/src/lib.rs',
-    'spikes/004-tsrs-type-query/src/main.rs']);
+    'spikes/999-unattributed/src/main.rs']);
   assert.equal(result.full, true);
   assert.match(result.reasons[0], /unattributed/);
+});
+
+test('type-query research changes select their canonical checks', () => {
+  const result = analyze(['spikes/004-tsrs-type-query/src/main.rs']);
+  assert.equal(result.full, false, JSON.stringify(result.reasons));
+  assert.ok(result.tests.includes('check:type-query-tests'));
+  assert.ok(result.tests.includes('check:type-query-format'));
 });
 
 test('a non-Cargo owner with only a descriptive group fails closed', () => {

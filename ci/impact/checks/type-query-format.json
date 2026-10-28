@@ -1,0 +1,13 @@
+{
+  "id": "check:type-query-format",
+  "command": "cargo",
+  "args": [
+    "fmt",
+    "--manifest-path",
+    "spikes/004-tsrs-type-query/Cargo.toml",
+    "--check"
+  ],
+  "dependsOn": [
+    "test:type-query-contracts"
+  ]
+}

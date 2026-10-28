@@ -1,0 +1,18 @@
+{
+  "id": "check:type-query-tests",
+  "command": "cargo",
+  "args": [
+    "test",
+    "--manifest-path",
+    "spikes/004-tsrs-type-query/Cargo.toml",
+    "--locked",
+    "--offline",
+    "-j",
+    "2",
+    "--",
+    "--test-threads=1"
+  ],
+  "dependsOn": [
+    "test:type-query-contracts"
+  ]
+}

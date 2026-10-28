@@ -1,0 +1,13 @@
+{
+  "id": "check:type-query-fetch",
+  "command": "cargo",
+  "args": [
+    "fetch",
+    "--locked",
+    "--manifest-path",
+    "spikes/004-tsrs-type-query/Cargo.toml"
+  ],
+  "dependsOn": [
+    "test:type-query-contracts"
+  ]
+}
