@@ -3,7 +3,8 @@
 #[path = "../examples/markdown_cost.rs"]
 mod markdown_cost;
 
-use markdown_cost::{Options, Series, Workload, parse_options};
+use markdown_cost::{MEMORY_PHASES, Options, Series, Workload, parse_options};
+use markdown_cost::process_memory::{ProcessMemory, Snapshot};
 
 fn args(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
@@ -76,4 +77,40 @@ fn statistics_keep_all_samples_without_speed_thresholds() {
         even.json()
             .contains("\"samplesMs\":[5.000000000,3.000000000,1.000000000,7.000000000]")
     );
+}
+
+#[test]
+fn process_memory_carries_markdown_phases_without_rewriting_core_cost_phases() {
+    let samples = std::array::from_fn(|index| {
+        Some(Snapshot {
+            rss_bytes: 4096 + index as u64 * 1024,
+            peak_rss_bytes: 8192 + index as u64 * 1024,
+        })
+    });
+    let memory = ProcessMemory::assemble_with_phases(samples, &MEMORY_PHASES).unwrap();
+    let json = memory.json_with_phases(&MEMORY_PHASES);
+    for phase in MEMORY_PHASES {
+        assert!(json.contains(&format!("\"{phase}\":")), "{phase}");
+    }
+    assert!(json.contains("\"source\":\"linux-proc-status\""));
+    assert!(json.contains("\"peakRssBytes\":"));
+    let absent = ProcessMemory::assemble_with_phases([None; 5], &MEMORY_PHASES).unwrap();
+    assert!(absent.json_with_phases(&MEMORY_PHASES).contains("\"snapshots\":null"));
+}
+
+#[test]
+fn process_memory_rejects_incomplete_and_decreasing_peak_series() {
+    let valid = Snapshot {
+        rss_bytes: 1024,
+        peak_rss_bytes: 4096,
+    };
+    let mut partial = [Some(valid); 5];
+    partial[2] = None;
+    assert!(ProcessMemory::assemble_with_phases(partial, &MEMORY_PHASES).is_err());
+    let mut invalid = [Some(valid); 5];
+    invalid[2] = Some(Snapshot {
+        rss_bytes: 2048,
+        peak_rss_bytes: 2048,
+    });
+    assert!(ProcessMemory::assemble_with_phases(invalid, &MEMORY_PHASES).is_err());
 }
