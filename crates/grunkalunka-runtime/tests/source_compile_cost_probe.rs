@@ -3,8 +3,8 @@
 #[path = "../examples/source_compile_cost.rs"]
 mod source_compile_cost;
 
-use source_compile_cost::{Options, Workload, parse_options, probe};
 use sha2::{Digest, Sha256};
+use source_compile_cost::{Options, Workload, parse_options, probe};
 
 fn sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
@@ -20,7 +20,10 @@ fn fixture(workload: Workload) -> (&'static str, bool) {
             include_str!("../../../tests/compatibility/fixtures/affine.ts"),
             true,
         ),
-        Workload::GcdJs => (include_str!("../../../examples/numeric-workflow/gcd.js"), false),
+        Workload::GcdJs => (
+            include_str!("../../../examples/numeric-workflow/gcd.js"),
+            false,
+        ),
     }
 }
 
@@ -86,7 +89,11 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         let artifact = grunkalunka_compiler::compile(input, ts).unwrap();
         assert_eq!(report.wat_sha256, sha256(artifact.wat.as_bytes()));
         assert_eq!(report.wasm_sha256, sha256(&artifact.wasm));
-        for digest in [&report.source_sha256, &report.wat_sha256, &report.wasm_sha256] {
+        for digest in [
+            &report.source_sha256,
+            &report.wat_sha256,
+            &report.wasm_sha256,
+        ] {
             assert_eq!(digest.len(), 64);
             assert!(
                 digest
