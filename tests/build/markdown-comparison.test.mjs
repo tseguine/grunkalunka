@@ -180,3 +180,40 @@ test('CLI accepts saved Unicode pathname/stdin and emits nothing on invalid inpu
   }
   assert.equal(await readFile(file, 'utf8'), '{');
 });
+
+function savedMemory(os) {
+  if (os !== 'linux') {
+    return { scope: 'entire-rust-process', unit: 'bytes',
+      source: 'unsupported-on-this-host', snapshots: null };
+  }
+  const names = [
+    'beforeEmbed', 'afterCompile', 'afterInstantiation', 'afterWarmup', 'afterBatches',
+  ];
+  return {
+    scope: 'entire-rust-process', unit: 'bytes', source: 'linux-proc-status',
+    snapshots: Object.fromEntries(names.map((name, index) => [
+      name, { rssBytes: 1024 + index * 128, peakRssBytes: 2048 + index * 128 },
+    ])),
+  };
+}
+
+test('saved native memory is checked independently of the same-process digest binding', () => {
+  // Missing memory is legitimate for historical receipts.
+  const old = validPair();
+  assert.doesNotThrow(() => compareMarkdownPair(old));
+  const before = receipt();
+  const after = receipt('2026-10-27T17:00:01.000Z');
+  before.report.processMemory = savedMemory(before.report.environment.os);
+  after.report.processMemory = savedMemory(after.report.environment.os);
+  assert.doesNotThrow(() => bindMarkdownPair(before, after));
+  // A forged but newly self-consistently rebound pair must not pass validation.
+  after.report.processMemory.unit = 'pages';
+  assert.throws(() => bindMarkdownPair(before, after), /processMemory scope\/units/);
+  after.report.processMemory.unit = 'bytes';
+  if (after.report.environment.os === 'linux') {
+    after.report.processMemory.snapshots.afterWarmup.peakRssBytes = 0;
+  } else {
+    after.report.processMemory.snapshots = {};
+  }
+  assert.throws(() => bindMarkdownPair(before, after), /Invalid/);
+});
