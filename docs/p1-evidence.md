@@ -28,6 +28,8 @@ verification receipts, not saved benchmark performance results.
 | Rust Markdown guest output variation and controls | [#101](https://github.com/tseguine/grunkalunka/pull/101), [#106](https://github.com/tseguine/grunkalunka/pull/106), [#107](https://github.com/tseguine/grunkalunka/pull/107), [section analysis](p1-markdown-guest-sections.md), [same-host rebuilds](p1-markdown-clean-rebuild.md), [Windows LF control](p1-windows-markdown-eol.md) | Independently compiled Markdown guests differ across native Linux, Windows and Apple Silicon in standard function/element/code/data sections and custom names. Each host reproduced its own exact bytes after a clean rebuild. Windows checkout CRLF-to-LF normalization **did not change** its emitted guest bytes. None of these observations establishes a runtime bug or identifies the remaining host-dependent cause |
 | Defined-function body fingerprint localization | [#110](https://github.com/tseguine/grunkalunka/pull/110), [#113](https://github.com/tseguine/grunkalunka/pull/113), [section/body analysis](p1-markdown-guest-sections.md) | Each native Rust Markdown guest has **1,897** defined-function bodies; raw bodies differ at the same ordinal for 1,313 Windows and 1,374 Apple Silicon bodies relative to Linux. An exact SHA-256 multiset comparison (ignoring function ordinal but retaining duplicate bodies) still leaves **952 Windows** and **984 Apple Silicon** body occurrences unmatched. Reordering alone cannot explain those literal byte differences; neither result proves semantic incompatibility |
 | One-codegen-unit Rust Markdown control | [#115](https://github.com/tseguine/grunkalunka/pull/115), [CGU experiment](p1-markdown-cgu-control.md) | Native Linux, Windows and Apple Silicon independently rebuilt the unchanged Markdown guest with default dev settings and then `-C codegen-units=1` in isolated same-path target directories. Positional body differences versus Linux decreased from **1,313 to 476 on Windows** and **1,374 to 757 on Apple Silicon**, but emitted guest artifacts remained unequal. This is evidence that codegen-unit configuration affects these byte observations, not proof of the remaining cause or semantic differences |
+| Installed wasm32 Rust target-library identity | [#116](https://github.com/tseguine/grunkalunka/pull/116), [sysroot fingerprint experiment](p1-rust-wasm32-sysroot.md) | All **54** installed `wasm32-unknown-unknown` target-library files (103,517,873 bytes total) matched byte-for-byte across Linux x64, Windows x64 and native Apple Silicon ARM64 under observed Rust 1.99.1 and LLVM 23.1.1. This eliminates literal differences in those target files as a direct cause of the Markdown guest artifact divergence, not native host compiler, linker or build-environment differences |
+| Rust diagnostic function-name correlation | [#119](https://github.com/tseguine/grunkalunka/pull/119), [named-body experiment](p1-markdown-named-body-correlation.md) | All **1,897** Markdown guest functions had recorded diagnostic names on each host, but only **195 raw name occurrences** matched Linux on either Windows or Apple Silicon. Among those 195, **89** had matching raw bodies and **106** had changed body bytes. Compiler-emitted diagnostic names are not stable source-level identities, and these observations do not establish semantic incompatibility |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -64,9 +66,13 @@ reports when explicitly run; the build system does not publish them.
   [#115](https://github.com/tseguine/grunkalunka/pull/115), explicit
   `-C codegen-units=1` reduced the number of positional mismatches to
   **476 on Windows** and **757 on Apple Silicon**, without making cross-host
-  Wasm bytes identical. Encoded function references, host-specific compiler
-  behavior, paths and other build inputs still require investigation. No
-  functional fault has been established.
+  Wasm bytes identical. [#116](https://github.com/tseguine/grunkalunka/pull/116)
+  found all 54 installed wasm32 target-library files byte-identical across
+  hosts. [#119](https://github.com/tseguine/grunkalunka/pull/119) showed that
+  only 195 of 1,897 raw compiler-emitted function-name strings match Linux
+  on either receiving host. Native compiler/linker behavior, name-mangling
+  details, encoded index references, paths and other build inputs still
+  require investigation. No functional fault has been established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
