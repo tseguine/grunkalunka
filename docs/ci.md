@@ -10,7 +10,8 @@ that is test input, not a release/distribution pipeline.
 ## Triggers and coverage
 
 Pull requests targeting `master`, pushes to `master`, and manual Actions runs
-execute the same four jobs (including native macOS ARM64). Feature-branch pushes do not also trigger a second
+execute the same three jobs. macOS checks use native Apple Silicon ARM64.
+Feature-branch pushes do not also trigger a second
 copy of the PR build. Runs share a concurrency group for the same event and
 PR/ref; newer runs leave in-progress runs running (`cancel-in-progress: false`).
 There are no scheduled full builds, path filters, or paid/larger runners.
@@ -21,16 +22,14 @@ workflow-level path filter. Failures on one platform do not cancel the others.
 | --- | --- | --- |
 | `Checks (Linux)` | `ubuntu-24.04` | x64 |
 | `Checks (Windows)` | `windows-2025` | x64 |
-| `Checks (macOS)` | `macos-15-intel` | x64, native Intel (retained) |
-| `Checks (macOS ARM64)` | `macos-15` | arm64, native Apple M1 |
+| `Checks (macOS)` | `macos-15` | arm64, native Apple Silicon |
 
-Both macOS jobs use macOS 15. The existing Intel check retains its original
-status context; ARM64 is additive and independent. GitHub's standard
-`macos-15` runner is Apple Silicon with 3 M1 cores and 7 GB RAM; its
-`macos-15-intel` counterpart is Intel with 4 vCPUs and 14 GB RAM. This is
-not a like-for-like CPU/memory comparison, and no performance improvement is
-assumed until the same-run evidence is inspected. The separate ARM64 runner's
-cache key is distinct. See [issue #79](https://github.com/tseguine/grunkalunka/issues/79).
+The standard `macos-15` runner uses an Apple M1 (3 CPUs, 7 GiB RAM). This
+replaces `macos-15-intel` as the sole macOS gate while keeping the existing
+`Checks (macOS)` status-check name. CI no longer covers Intel macOS x64.
+The ARM64 runner's Cargo cache key is distinct from the old Intel runner.
+Native ARM64 validation must pass; a performance improvement is not assumed.
+The prior Intel-versus-ARM64 investigation is [issue #79](https://github.com/tseguine/grunkalunka/issues/79).
 
 Each job has a 60-minute cap. This is a watchdog, not a performance target.
 Bun, Linux/Windows ARM64 and other Node versions are not covered by this matrix.
@@ -38,13 +37,13 @@ Adding a runner does not establish support until its actual checks pass.
 
 ## Build and test contract
 
-Jobs install exactly **Node 24.21.0** across all four platforms and the active
+Jobs install exactly **Node 24.21.0** across all three platforms and the active
 repository Rust toolchain, currently the `stable` channel in
 `rust-toolchain.toml`, with rustfmt, Clippy and `wasm32-unknown-unknown`.
 The Rust compiler remains a floating stable release; it is not pinned to an
 exact version. No npm dependencies need installation.
 
-Both macOS jobs verify the actual machine, Node runtime architecture and
+The macOS job verifies the actual machine, Node runtime architecture and
 `rustc -vV` native host triple **before expensive builds**. ARM64 additionally
 checks the runner architecture and rejects Rosetta-translated execution.
 They log the macOS version, hardware model, CPU count and physical memory.
@@ -75,16 +74,11 @@ cargo build --workspace --locked --offline -j 4
 node scripts/check.mjs
 ```
 
-For the Intel-versus-Apple-Silicon throughput comparison, inspect the
-`CHECK START`/`CHECK END` elapsed times on the *same commit* for
-`cargo test --workspace`, `scripts/poc.mjs`,
-`scripts/check-heap-literals.mjs` and
-`scripts/check-document-outline.mjs`; compare full run duration as well.
-The architecture/hardware data is printed in the corresponding macOS job log.
-Avoid comparing a cached run to a cold one as if it were controlled evidence.
 [Issue #79](https://github.com/tseguine/grunkalunka/issues/79)
-tracks observations and a later decision about Intel coverage; do not remove
-Intel or disable any tests solely to make the build faster.
+documents the earlier Intel performance diagnosis and native ARM64 comparison.
+The maintainer selected ARM64 as primary macOS coverage; do not interpret the
+switch alone as a proven speedup or conformance guarantee. The full canonical
+check, source receipts, assertions and timeouts remain intact.
 
 See [testing](testing.md) for individual checks and evidence limits. Tests emit
 receipts in local target directories, but this workflow does not upload them.
