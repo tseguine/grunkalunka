@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Default)]
 pub(crate) struct Inputs {
     pub(super) identities: bool,
+    named_async: BTreeSet<SymbolId>,
     fulfilled: BTreeSet<SymbolId>,
     pending: BTreeSet<SymbolId>,
     pub(super) values: BTreeSet<SymbolId>,
@@ -22,6 +23,17 @@ pub(crate) struct Inputs {
 }
 
 impl Inputs {
+    fn named_async_call(&self, callee: &Expression<'_>, semantic: &Semantic<'_>) -> bool {
+        let Some(Expression::Identifier(identifier)) = closures::unwrapped(callee, 0) else {
+            return false;
+        };
+        identifier
+            .reference_id
+            .get()
+            .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
+            .is_some_and(|symbol| self.named_async.contains(&symbol))
+    }
+
     pub(super) fn is_mixed(&self, symbol: &SymbolId) -> bool {
         self.mixed.contains(symbol)
     }
@@ -74,6 +86,9 @@ fn pending_shape(
                 }
             }
             Expression::CallExpression(call) => {
+                if inputs.identities && inputs.named_async_call(&call.callee, semantic) {
+                    continue;
+                }
                 if let Some(intrinsic) = awaited::intrinsic(call, semantic).ok().flatten()
                     && (inputs.identities || !intrinsic.rejected)
                 {
@@ -198,12 +213,21 @@ fn return_adopts(
     false
 }
 
-pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
+pub(crate) fn parameters(
+    semantic: &Semantic<'_>,
+    identities: bool,
+    functions: &[NumericFunction],
+) -> Inputs {
+    let named_async: BTreeSet<_> = functions
+        .iter()
+        .filter(|f| f.async_signature.is_some())
+        .map(|f| f.symbol)
+        .collect();
     let mut arrows = BTreeMap::new();
     let mut definitions = Vec::new();
     let mut uninitialized = BTreeSet::new();
     let mut calls = Vec::new();
-    let mut has_constructor = false;
+    let mut has_constructor = !named_async.is_empty();
     for node in semantic.nodes().iter() {
         match node.kind() {
             AstKind::ArrowFunctionExpression(arrow) => {
@@ -392,6 +416,7 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
     }
     let mut inputs = Inputs {
         identities,
+        named_async,
         fulfilled: promises,
         ..Inputs::default()
     };

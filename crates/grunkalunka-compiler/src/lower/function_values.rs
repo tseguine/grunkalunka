@@ -4,6 +4,58 @@ use super::*;
 use std::collections::BTreeMap;
 
 impl Lowering<'_, '_> {
+    pub(super) fn named_async_function(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> Option<(ir::FunctionId, usize)> {
+        let Expression::Identifier(identifier) = closures::unwrapped(expression, depth)? else {
+            return None;
+        };
+        let symbol = self
+            .semantic
+            .scoping()
+            .get_reference(identifier.reference_id.get()?)
+            .symbol_id()?;
+        self.functions
+            .iter()
+            .find(|function| function.symbol == symbol)
+            .and_then(|function| {
+                function
+                    .async_signature
+                    .map(|signature| (function.id, signature))
+            })
+    }
+
+    pub(super) fn named_async_value(
+        &mut self,
+        node: &Expression<'_>,
+        depth: usize,
+        signature: usize,
+        region: &mut Region,
+    ) -> Result<Option<ValueId>, String> {
+        let Some((function, actual)) = self.named_async_function(node, depth) else {
+            return Ok(None);
+        };
+        if actual != signature {
+            return Err(unsupported(
+                node,
+                "named async function requires its complete signature",
+            ));
+        }
+        let result = self.value(Type::Closure(signature));
+        Self::push(
+            region,
+            node,
+            Op::MakeClosure {
+                result,
+                function,
+                captures: Vec::new(),
+            },
+        );
+        Ok(Some(result))
+    }
+
     pub(super) fn arrow_signature(
         &self,
         arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
@@ -410,7 +462,9 @@ impl Lowering<'_, '_> {
                         arity = Some(next);
                         continue;
                     }
-                    if let Some((_, arity)) = self.runtime_closure_callee(node, depth) {
+                    if let Some((_, arity)) = self.named_async_function(node, depth) {
+                        arity
+                    } else if let Some((_, arity)) = self.runtime_closure_callee(node, depth) {
                         arity
                     } else {
                         self.arrow_signature_at(

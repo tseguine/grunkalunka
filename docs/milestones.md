@@ -737,3 +737,16 @@ late handling and unchanged job counts. This extends the existing relational
 operation and verifier; no new representation or host protocol. See
 [the contract and exclusions](async-promise-relational.md). Broader object/String
 conversion, other coercion contexts and general JS/TS remain separate gaps.
+
+## Named module async helpers (2026-10-28)
+
+The async identity profile admits named async helper declarations with Number
+inputs and existing primitive/Error or represented Promise completion. Six
+differential groups cover forward declarations, bare/fallthrough completion,
+catch/finally/adoption, aliases/callbacks, recursive and concurrent activation
+ownership, argument snapshots, erased types and source/resource limits. Separate
+notification fixtures compare native checkpoints and exact guest job counts.
+This reuses private async entries and frames; no new layout, host protocol,
+dependency or limit. Broader module-helper input domains, defaults/rest,
+observable function identity/properties and general module semantics remain gaps.
+See [the bounded contract](async-named-helpers.md).

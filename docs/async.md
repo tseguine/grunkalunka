@@ -22,14 +22,17 @@ The root async function fulfills intrinsic `undefined` for a bare `return;` or
 normal completion, including after awaits, loop exits and catches. Partial
 return/throw paths keep their original values and rejection reasons. Falling off
 the end adds no reaction job, and a binding named `undefined` cannot change the
-implicit result. Ordinary numeric/primitive entries and named helpers retain
-their explicit completion requirements.
+implicit result. Ordinary numeric/primitive entries and synchronous named helpers
+retain their explicit completion requirements. Named async helpers now share the
+async completion rules; see [their contract](async-named-helpers.md).
 
 Plain module-level synchronous Number helpers can be called before or after
 suspension, inside local closures and from known async bodies. They retain their
 existing exact arity (up to 1,000 parameters), Number results and ordinary local
 activations; calling a helper adds no reaction job. Helpers still require explicit
-Number completion and cannot suspend or throw. The async `run` entry cannot be
+Number completion and cannot suspend or throw. Plain named async helpers are
+also admitted with Number inputs and private async activations as described in
+[the named-helper contract](async-named-helpers.md). The async `run` entry cannot be
 called as an ordinary source helper, including from another helper or closure.
 
 The exact current `gap-async-await` source runs in this profile:

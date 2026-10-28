@@ -43,6 +43,7 @@ pub(super) struct NumericFunction {
     pub id: ir::FunctionId,
     pub parameter_count: usize,
     pub return_type: Type,
+    pub async_signature: Option<usize>,
 }
 
 fn numeric_binding<'b>(

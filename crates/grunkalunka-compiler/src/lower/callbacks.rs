@@ -669,6 +669,13 @@ fn refine_shapes<'a>(
                 if !seen.insert(source) {
                     continue;
                 }
+                if let Some(signature) = functions
+                    .iter()
+                    .find(|function| function.symbol == source)
+                    .and_then(|function| function.async_signature)
+                {
+                    kinds.insert(signature);
+                }
                 if !constructors_only
                     && let Some(kind) = parameters
                         .values()

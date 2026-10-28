@@ -165,6 +165,7 @@ fn lower_source_profile_with_identities(
     let entry =
         entry.ok_or_else(|| unsupported(program, "exactly one exported function is admitted"))?;
     let declarations: Vec<_> = std::iter::once(entry).chain(helpers).collect();
+    let closure_signatures = std::cell::RefCell::new(ir::ClosureSignatures::default());
     let mut signatures = Vec::new();
     for (index, function) in declarations.iter().enumerate() {
         if function.r#type != FunctionType::FunctionDeclaration
@@ -174,7 +175,8 @@ fn lower_source_profile_with_identities(
                     .id
                     .as_ref()
                     .is_none_or(|id| id.name.as_str() != "run"))
-            || function.r#async != (index == 0 && async_entry)
+            || (index == 0 && function.r#async != async_entry)
+            || (index != 0 && function.r#async && !async_entry)
             || function.generator
             || function.declare
             || function.this_param.is_some()
@@ -231,15 +233,20 @@ fn lower_source_profile_with_identities(
             symbol,
             id: ir::FunctionId(index),
             parameter_count: function.params.items.len(),
-            return_type: if index == 0 {
+            return_type: if index == 0 || function.r#async {
                 entry_type
             } else {
                 ir::Type::Number
             },
+            async_signature: (index != 0 && function.r#async).then(|| {
+                closure_signatures
+                    .borrow_mut()
+                    .intern_async(vec![ir::Type::Number; function.params.items.len()])
+            }),
         });
     }
-    let closure_signatures = std::cell::RefCell::new(ir::ClosureSignatures::default());
-    let promise_parameters = lower::infer_promise_parameters(&built.semantic, identities);
+    let promise_parameters =
+        lower::infer_promise_parameters(&built.semantic, identities, &signatures);
     let callback_parameters = lower::infer_callback_parameters(
         &built.semantic,
         &signatures,
@@ -300,11 +307,7 @@ fn lower_source_profile_with_identities(
         }
         let body = function.body.as_ref().ok_or("function must have a body")?;
         let mut lowering = Lowering {
-            return_type: if index == 0 {
-                entry_type
-            } else {
-                ir::Type::Number
-            },
+            return_type: signatures[index].return_type,
             semantic: &built.semantic,
             functions: &signatures,
             general_bindings: &general_bindings.storage,
@@ -327,7 +330,7 @@ fn lower_source_profile_with_identities(
             source_charging: true,
             inline_depth: 0,
             statement_depth: 0,
-            allow_await: index == 0 && async_entry,
+            allow_await: function.r#async && async_entry,
             allow_async_closures: async_entry,
             lifted: Vec::new(),
             lifted_base: signatures.len() + lifted.len(),
@@ -357,6 +360,14 @@ fn lower_source_profile_with_identities(
             lowering.charge_statement(directive)?;
         }
         let mut region = lowering.region(body.as_ref());
+        if signatures[index].async_signature.is_some() {
+            region.operations.push(ir::Operation {
+                span: body.span(),
+                kind: ir::Op::AsyncClosureEntry {
+                    captures: Vec::new(),
+                },
+            });
+        }
         lowering.initialize_general_parameters(&mut region);
         let mut completion = lowering.sequence(&body.statements, &mut region, 0)?;
         if lowering.allow_await && completion.normal {

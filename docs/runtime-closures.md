@@ -572,3 +572,13 @@ four relational operators. Calls retain evaluated snapshots and raw kinds before
 comparison; captured cells may change afterward. Neither operand is awaited or
 handled by comparison. Builtin Promise/TypeError string cases and primitive NaN
 cases use [the represented relational contract](async-promise-relational.md).
+
+### Named module async callables
+
+Named async helper declarations now reuse the existing private async signatures,
+empty-capture closure entries and runtime call route. Known aliases, same-signature
+selection and callback forwarding retain the original source symbol and body.
+Every call owns a new Promise, activation and captured local cells, including
+recursive and concurrent calls. Module-helper inputs remain Number; results and
+reactions follow [the named-helper contract](async-named-helpers.md). No ordinary
+helper or exported parameter contract, closure layout or host protocol changes.
