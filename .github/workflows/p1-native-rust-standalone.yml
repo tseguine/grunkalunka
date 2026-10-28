@@ -1,0 +1,207 @@
+# P1 minimal direct-rustc Wasm portability control. Independent of Cargo
+# workspace and Markdown/WIT guest builds; canonical CI remains authoritative.
+name: P1 standalone Rust Wasm native output identity
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-native-rust-standalone.yml
+      - tools/bench/native-rust-standalone.mjs
+      - tools/bench/tests/native-rust-standalone.test.mjs
+      - tools/bench/wasm-section-fingerprint.mjs
+      - tests/build/fixtures/p1-rust-standalone/**
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-rust-standalone-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  linux-producer:
+    name: Compile no_std and std controls with Linux native rustc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      receipt64: ${{ steps.transfer.outputs.receipt64 }}
+    steps:
+      - name: Check out exact tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned native Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Verify native Linux host and install existing Rust wasm32 target
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/native-rustc.txt"
+          grep -F 'host: x86_64-unknown-linux-gnu' "$RUNNER_TEMP/native-rustc.txt"
+
+      - name: Run negative/positive receipt and section tests
+        run: node --test tools/bench/tests/native-rust-standalone.test.mjs
+
+      - name: Compile canonical fixture bytes and verify actual WebAssembly goldens
+        id: transfer
+        run: |
+          set -euo pipefail
+          node tools/bench/native-rust-standalone.mjs collect \
+            > "$RUNNER_TEMP/linux-rust-standalone.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-rust-standalone.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const [reportPath, output] = process.argv.slice(2);
+          const bytes = fs.readFileSync(reportPath);
+          assert.ok(bytes.length > 0 && bytes.length <= 192 * 1024);
+          const report = JSON.parse(bytes.toString('utf8'));
+          assert.equal(report.workload, 'p1-native-rust-standalone-wasm');
+          assert.deepEqual([report.environment.os, report.environment.arch], ['linux', 'x64']);
+          assert.equal(report.environment.node, 'v24.21.0');
+          assert.deepEqual(Object.keys(report.fixtures).sort(), ['core', 'std']);
+          for (const f of Object.values(report.fixtures)) {
+            assert.ok(f.wasm.artifact.bytes > 8 && f.wasm.artifact.bytes <= 16 * 1024 * 1024);
+            assert.match(f.wasm.artifact.sha256, /^[a-f0-9]{64}$/);
+            assert.deepEqual(f.goldens, { gcdCases: 4, extraCases: 3, hostImports: 0 });
+            assert.ok(f.wasm.codeBodies.count > 0);
+          }
+          const encoded = bytes.toString('base64');
+          assert.ok(encoded.length <= 260 * 1024, 'bounded job output');
+          fs.appendFileSync(output, 'receipt64=' + encoded + '\n');
+          console.log('PASS actual native Linux Rust standalone goldens ' +
+            JSON.stringify(Object.fromEntries(Object.entries(report.fixtures)
+              .map(([name, f]) => [name, {
+                sourceSha256: f.source.sha256, artifact: f.wasm.artifact,
+                functions: f.wasm.codeBodies.count, goldens: f.goldens,
+              }]))));
+          NODE
+
+  native-compare:
+    name: Compare independently compiled Rust controls on ${{ matrix.platform }}
+    needs: linux-producer
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows x64
+            runner: windows-2025
+            runner_os: Windows
+            runner_arch: X64
+            node_os: win32
+            node_arch: x64
+            rust_host: x86_64-pc-windows-msvc
+          - platform: Apple Silicon macOS ARM64
+            runner: macos-15
+            runner_os: macOS
+            runner_arch: ARM64
+            node_os: darwin
+            node_arch: arm64
+            rust_host: aarch64-apple-darwin
+    steps:
+      - name: Check out same exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install same native Node.js patch version
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: ${{ matrix.node_arch }}
+          package-manager-cache: false
+
+      - name: Verify native machine and Rust target
+        env:
+          EXPECTED_RUNNER_OS: ${{ matrix.runner_os }}
+          EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
+          EXPECTED_NODE_OS: ${{ matrix.node_os }}
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "$EXPECTED_RUNNER_OS"
+          test "$RUNNER_ARCH" = "$EXPECTED_RUNNER_ARCH"
+          node -e "if (process.platform !== process.env.EXPECTED_NODE_OS || process.arch !== process.env.EXPECTED_NODE_ARCH || process.version !== 'v24.21.0') process.exit(1)"
+          if [ "$RUNNER_OS" = macOS ]; then
+            test "$(uname -m)" = arm64
+            test "$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')" = 0
+          fi
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/native-rustc.txt"
+          grep -F "host: $EXPECTED_RUST_HOST" "$RUNNER_TEMP/native-rustc.txt"
+
+      - name: Validate independent receipt inputs on native host
+        run: node --test tools/bench/tests/native-rust-standalone.test.mjs
+
+      - name: Compile same Git bytes and compare raw artifact identities
+        env:
+          PRODUCER_RECEIPT64: ${{ needs.linux-producer.outputs.receipt64 }}
+          EXPECTED_NODE_OS: ${{ matrix.node_os }}
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-rust-standalone.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const encoded = process.env.PRODUCER_RECEIPT64 ?? '';
+          assert.match(encoded, /^[A-Za-z0-9+/]+={0,2}$/);
+          assert.ok(encoded.length > 0 && encoded.length <= 260 * 1024);
+          const bytes = Buffer.from(encoded, 'base64');
+          assert.ok(bytes.length > 0 && bytes.length <= 192 * 1024);
+          assert.equal(bytes.toString('base64'), encoded, 'complete canonical transfer');
+          fs.writeFileSync(process.argv[2], bytes, { flag: 'wx' });
+          NODE
+          node tools/bench/native-rust-standalone.mjs collect \
+            > "$RUNNER_TEMP/receiver-rust-standalone.json"
+          node tools/bench/native-rust-standalone.mjs compare \
+            "$RUNNER_TEMP/linux-rust-standalone.json" "$RUNNER_TEMP/receiver-rust-standalone.json" \
+            > "$RUNNER_TEMP/rust-standalone-comparison.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/rust-standalone-comparison.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-native-rust-standalone-comparison');
+          assert.deepEqual([report.producer.os, report.producer.arch], ['linux', 'x64']);
+          assert.equal(report.receiver.os, process.env.EXPECTED_NODE_OS);
+          assert.equal(report.receiver.arch, process.env.EXPECTED_NODE_ARCH);
+          assert.equal(report.receiver.rustcHost, process.env.EXPECTED_RUST_HOST);
+          assert.equal(report.producer.rustc, report.receiver.rustc);
+          assert.equal(report.producer.rustcCommit, report.receiver.rustcCommit);
+          assert.equal(report.producer.llvm, report.receiver.llvm);
+          for (const name of ['core', 'std']) {
+            const fixture = report.findings[name];
+            assert.equal(typeof fixture.identicalWasmDigestAndSize, 'boolean');
+            assert.equal(fixture.identicalVerifiedGoldens, true);
+            assert.ok(fixture.rawBodyOverlap.sameIgnoringOrder >= 0);
+            assert.ok(fixture.rawBodyOverlap.sameIgnoringOrder <=
+              Math.min(...fixture.rawBodyOverlap.counts));
+            assert.match(fixture.producerArtifact.sha256, /^[a-f0-9]{64}$/);
+            assert.match(fixture.receiverArtifact.sha256, /^[a-f0-9]{64}$/);
+          }
+          // Identical or differing output hashes are both diagnostic results.
+          console.log('PASS independent native rustc no_std and std guest comparison');
+          console.log(JSON.stringify(report));
+          NODE
