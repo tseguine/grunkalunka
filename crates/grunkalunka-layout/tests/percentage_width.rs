@@ -5,7 +5,12 @@ use grunkalunka_layout::{
 };
 
 fn rect(x: u32, y: u32, width: u32, height: u32) -> Rect {
-    Rect { x, y, width, height }
+    Rect {
+        x,
+        y,
+        width,
+        height,
+    }
 }
 
 #[test]
@@ -67,16 +72,14 @@ fn nested_percent_width_uses_containing_content_width_not_border_width() {
 
 #[test]
 fn percentages_can_overflow_containing_width_without_clamping() {
-    let blocks = [
-        Block {
-            style: Style {
-                width: Length::Percent(200),
-                height: Length::Px(1),
-                ..Style::default()
-            },
-            ..Block::default()
+    let blocks = [Block {
+        style: Style {
+            width: Length::Percent(200),
+            height: Length::Px(1),
+            ..Style::default()
         },
-    ];
+        ..Block::default()
+    }];
     let frame = layout(&blocks, 100, 20).unwrap();
     assert_eq!(frame.boxes[0].unwrap().content.width, 200);
     assert_eq!(frame.scroll_width, 200);
@@ -123,7 +126,10 @@ fn oversized_percentage_geometry_overflows_instead_of_wrapping() {
         },
         ..Block::default()
     }];
-    assert_eq!(layout(&blocks, MAX_VIEWPORT, 20), Err(LayoutError::Overflow));
+    assert_eq!(
+        layout(&blocks, MAX_VIEWPORT, 20),
+        Err(LayoutError::Overflow)
+    );
 }
 
 #[test]
