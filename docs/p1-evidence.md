@@ -21,7 +21,9 @@ verification receipts, not saved benchmark performance results.
 | Oxc parser and semantic controls | [#67](https://github.com/tseguine/grunkalunka/pull/67), [standalone Oxc probe](frontend-cost.md) | Fresh-allocator parse vs reused-AST Oxc semantic-building observations on checked JS/TS fixtures. Not the maintained compiler's lowering/IR/emission costs |
 | Scalar typed WIT resource boundary | [#68](https://github.com/tseguine/grunkalunka/pull/68), [scalar WIT probe](scalar-wit-cost.md) | Real borrowed-resource result, host policy and arithmetic, with native control, independent goldens and call-count checks. Not a pure ABI or import crossing tax |
 | Scalar core-Wasm host import | [#69](https://github.com/tseguine/grunkalunka/pull/69), [host-call calibration](host-call-calibration.md) | Native, guest-only and guest-to-host typed Wasmtime calls with fixed scalar wrapping outputs and host counters. Core-Wasm import is not WIT canonical ABI; do not subtract these series as if work were identical |
-| Identical bytes on another host | [#76](https://github.com/tseguine/grunkalunka/pull/76), [portable GCD replay](portable-core-replay.md) | Produce a bounded manifest for one existing compiler-emitted Wasm artifact, then replay **the same SHA-256 bytes** through Node/V8 and optional Wasmtime CLI without source recompilation on the receiver. [#83](https://github.com/tseguine/grunkalunka/pull/83) additionally verifies the identical x64-produced bytes on native Linux ARM64 using Node/V8 and Wasmtime; this remains one numeric fixture |
+| Same-byte core-Wasm replay across hosts | [#76](https://github.com/tseguine/grunkalunka/pull/76), [#83](https://github.com/tseguine/grunkalunka/pull/83), [#90](https://github.com/tseguine/grunkalunka/pull/90), [#91](https://github.com/tseguine/grunkalunka/pull/91) | One x64-produced GCD artifact executes unchanged in native Linux ARM64 and Windows x64 Node/V8 and Wasmtime; a separate fixed affine artifact executes unchanged on Linux ARM64 with twelve IEEE-754 goldens. These are bounded numeric fixtures, not general application portability |
+| Actual cross-host replay receipts | [#88](https://github.com/tseguine/grunkalunka/pull/88), [#97](https://github.com/tseguine/grunkalunka/pull/97), [receipt comparison](portable-replay-comparison.md) | Synthetic negative tests plus real Linux x64/ARM64 GCD producer/receiver receipts with matching artifact SHA-256, eight goldens and both native engines. Receipts are observations, not signed attestations or host performance rankings |
+| Independent native compiler output identity | [#98](https://github.com/tseguine/grunkalunka/pull/98), [native build identity](p1-native-build-identity.md) | Three native CLI builds on Linux x64, Windows x64 and Apple Silicon macOS ARM64 independently compiled the same Git source into identical 614-byte GCD core Wasm. This does not prove reproducibility for other input programs, Rust-compiled Markdown guests or platform-wide builds |
 | Native Linux ARM64 Markdown/WIT pipeline | [#84](https://github.com/tseguine/grunkalunka/pull/84), [ARM64 component smoke](p1-arm64-markdown.md) | Rebuilds the existing Markdown guest and runs the typed component's native parity, capability denial and cleanup checks on real Linux ARM64. Unlike #83, this does not demonstrate cross-architecture byte identity or application-wide compatibility |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
@@ -34,12 +36,18 @@ reports when explicitly run; the build system does not publish them.
 
 ## Open boundaries and proposed next measurements
 
-- **Broader cross-architecture verification:** [#83](https://github.com/tseguine/grunkalunka/pull/83)
-  has replayed one byte-identical x64-produced GCD artifact on native Linux
-  ARM64 in Node/V8 and Wasmtime. [#84](https://github.com/tseguine/grunkalunka/pull/84)
-  has independently built and tested the Markdown/WIT component on Linux ARM64.
-  Neither establishes identical Markdown guest binaries across hosts, a general
-  application distribution format or other OS/architecture combinations.
+- **Broader cross-host application portability:** [#83](https://github.com/tseguine/grunkalunka/pull/83),
+  [#90](https://github.com/tseguine/grunkalunka/pull/90) and [#91](https://github.com/tseguine/grunkalunka/pull/91)
+  demonstrate same-byte GCD/affine core-Wasm on selected Linux ARM64 and
+  Windows x64 receivers; [#84](https://github.com/tseguine/grunkalunka/pull/84)
+  exercises a separately compiled Markdown/WIT guest on native Linux ARM64.
+  These do not establish a distributed application format or broad JS/TS behavior.
+- **Rust guest reproducibility:** in the same exact-head [#98 canonical CI](https://github.com/tseguine/grunkalunka/actions/runs/40679064524),
+  the Markdown/WIT guest passed its checks on all three hosts but had different
+  emitted Wasm SHA-256 values on Linux, Windows and Apple Silicon despite the
+  same reported Rust 1.99.1. This is a **byte-identity observation**, not a
+  demonstrated functional defect; source checkout bytes, metadata, standard
+  sections and build conditions require separate investigation.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
