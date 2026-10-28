@@ -160,7 +160,13 @@ jobs:
           assert.equal(manifest.artifact.bytes, wasm.length);
           assert.deepEqual([manifest.origin.os, manifest.origin.arch], ['linux', 'x64']);
           assert.equal(manifest.source.path, 'examples/numeric-workflow/gcd.js');
-          assert.equal(hash(fs.readFileSync(manifest.source.path)), manifest.source.sha256);
+          // Windows checkout may apply core.autocrlf; hash the tracked Git blob instead.
+          const { execFileSync } = require('node:child_process');
+          const trackedSource = execFileSync('git', ['show', 'HEAD:' + manifest.source.path], {
+            encoding: 'buffer', windowsHide: true, timeout: 5000, maxBuffer: 16384,
+          });
+          assert.equal(trackedSource.length, manifest.source.bytes);
+          assert.equal(hash(trackedSource), manifest.source.sha256);
           fs.writeFileSync(wasmFile, wasm, { flag: 'wx' });
           fs.writeFileSync(manifestFile, manifestBytes, { flag: 'wx' });
           console.log('PASS Linux-origin GCD bytes restored on Windows x64 SHA-256 ' + expected);
