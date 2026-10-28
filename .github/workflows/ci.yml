@@ -36,13 +36,8 @@ jobs:
             runner: ubuntu-24.04
           - platform: Windows
             runner: windows-2025
+          # Primary macOS CI runs natively on Apple Silicon; preserve status-check name.
           - platform: macOS
-            runner: macos-15-intel
-            node_arch: x64
-            rust_host: x86_64-apple-darwin
-            uname_arch: x86_64
-          # Same macOS 15 release, native Apple Silicon (not Rosetta).
-          - platform: macOS ARM64
             runner: macos-15
             node_arch: arm64
             rust_host: aarch64-apple-darwin
@@ -56,7 +51,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          # Exact patch version on both macOS architectures for same-run comparison.
+          # Exact patch version on every host for reproducibility.
           node-version: '24.21.0'
           package-manager-cache: false
 
@@ -69,8 +64,7 @@ jobs:
           node --version
           node -e 'require("node:assert/strict").equal(process.version, "v24.21.0")'
 
-      # Native runtime check: block accidental Rosetta/x86_64 dependencies on M1.
-      # Intel remains the existing required "Checks (macOS)" status context.
+      # Reject accidental Rosetta/x86_64 execution on the Apple Silicon runner.
       - name: Verify native macOS architecture and record host details
         if: runner.os == 'macOS'
         env:
@@ -90,15 +84,11 @@ jobs:
           test "$actual_node_arch" = "$EXPECTED_NODE_ARCH"
           test "$actual_rust_host" = "$EXPECTED_RUST_HOST"
           test "$actual_machine" = "$EXPECTED_UNAME_ARCH"
-          if [ "$EXPECTED_NODE_ARCH" = arm64 ]; then
-            test "$RUNNER_ARCH" = ARM64
-            # 1 means this process is running through Rosetta translation.
-            translated="$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')"
-            echo "Rosetta translation flag: $translated"
-            test "$translated" = 0
-          else
-            test "$RUNNER_ARCH" = X64
-          fi
+          test "$RUNNER_ARCH" = ARM64
+          # 1 means this process is running through Rosetta translation.
+          translated="$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')"
+          echo "Rosetta translation flag: $translated"
+          test "$translated" = 0
 
       - name: Check formatting before expensive builds
         run: |
