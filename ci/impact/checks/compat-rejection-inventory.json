@@ -1,0 +1,14 @@
+{
+  "id": "check:compat-rejection-inventory",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/rejection-inventory.test.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "tests/compatibility/rejection-inventory.test.mjs"
+  ]
+}

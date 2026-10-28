@@ -24,7 +24,7 @@ jobs:
           node-version: '24.21.0'
           package-manager-cache: false
       - name: Verify the independent impact planner
-        run: node --test ci/impact/impact.test.mjs
+        run: node --test ci/impact/*.test.mjs
       - name: Report advisory impact without skipping canonical checks
         env:
           BASE_BRANCH: ${{ github.base_ref }}

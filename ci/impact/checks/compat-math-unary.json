@@ -1,0 +1,14 @@
+{
+  "id": "check:compat-math-unary",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/numeric-math-unary-kernel.test.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "tests/compatibility/numeric-math-unary-kernel.test.mjs"
+  ]
+}

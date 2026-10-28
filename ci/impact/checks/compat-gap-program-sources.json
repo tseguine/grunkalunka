@@ -1,0 +1,16 @@
+{
+  "id": "check:compat-gap-program-sources",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/gap-oracle.test.mjs",
+    "tests/compatibility/program-sources.test.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "tests/compatibility/gap-oracle.test.mjs",
+    "tests/compatibility/program-sources.test.mjs"
+  ]
+}

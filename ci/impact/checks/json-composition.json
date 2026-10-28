@@ -1,0 +1,13 @@
+{
+  "id": "check:json-composition",
+  "command": "node",
+  "args": [
+    "scripts/check-json-composition.mjs"
+  ],
+  "dependsOn": [
+    "test:json-integration"
+  ],
+  "paths": [
+    "scripts/check-json-composition.mjs"
+  ]
+}

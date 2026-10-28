@@ -98,9 +98,14 @@ export function planImpact({ changedPaths, modules, tests, ignored = [], global 
       ignoredPaths.push(path);
       continue;
     }
-    const owners = definitions.filter(node => (node.paths ?? []).some(rule => matches(path, rule)));
-    if (owners.length !== 1) return failure(`${owners.length ? 'ambiguous' : 'unattributed'} code change: ${path}`);
-    changedOwners.add(owners[0].id);
+    const matching = definitions.flatMap(node => (node.paths ?? [])
+      .filter(rule => matches(path, rule)).map(rule => ({ id: node.id, specificity: rule.length })));
+    if (!matching.length) return failure(`unattributed code change: ${path}`);
+    // Exact files override coarse directory owners; equally specific conflicts fail closed.
+    const best = Math.max(...matching.map(owner => owner.specificity));
+    const owners = new Set(matching.filter(owner => owner.specificity === best).map(owner => owner.id));
+    if (owners.size !== 1) return failure(`ambiguous code change: ${path}`);
+    changedOwners.add([...owners][0]);
   }
   const upward = closure(changedOwners, reverse);
   const selectedTests = [...upward].filter(id => nodes.get(id).kind === 'test').sort();

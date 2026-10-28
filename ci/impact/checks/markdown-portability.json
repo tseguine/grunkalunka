@@ -1,0 +1,13 @@
+{
+  "id": "check:markdown-portability",
+  "command": "node",
+  "args": [
+    "scripts/check-markdown-portability.mjs"
+  ],
+  "dependsOn": [
+    "test:markdown-integration"
+  ],
+  "paths": [
+    "scripts/check-markdown-portability.mjs"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "check:document-outline",
+  "command": "node",
+  "args": [
+    "scripts/check-document-outline.mjs"
+  ],
+  "dependsOn": [
+    "test:markdown-integration"
+  ],
+  "paths": [
+    "scripts/check-document-outline.mjs"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "check:compat-suite-inventory",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/suites.test.mjs",
+    "tests/compatibility/test262.test.mjs",
+    "tests/compatibility/benchmarks-game.test.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "tests/compatibility/suites.test.mjs",
+    "tests/compatibility/test262.test.mjs",
+    "tests/compatibility/benchmarks-game.test.mjs"
+  ]
+}

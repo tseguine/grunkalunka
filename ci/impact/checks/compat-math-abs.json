@@ -1,0 +1,14 @@
+{
+  "id": "check:compat-math-abs",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/numeric-math-abs-kernel.test.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "tests/compatibility/numeric-math-abs-kernel.test.mjs"
+  ]
+}

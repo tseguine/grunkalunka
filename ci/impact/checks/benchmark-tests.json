@@ -1,0 +1,18 @@
+{
+  "id": "check:benchmark-tests",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/benchmark.test.mjs",
+    "tests/build/benchmark-integration.test.mjs",
+    "tests/build/benchmark-comparison.test.mjs"
+  ],
+  "dependsOn": [
+    "test:benchmark-contracts"
+  ],
+  "paths": [
+    "tests/build/benchmark.test.mjs",
+    "tests/build/benchmark-integration.test.mjs",
+    "tests/build/benchmark-comparison.test.mjs"
+  ]
+}

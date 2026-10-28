@@ -1,0 +1,14 @@
+{
+  "id": "check:compat-remainder",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/remainder-kernel.test.mjs"
+  ],
+  "dependsOn": [
+    "test:compiler-compatibility"
+  ],
+  "paths": [
+    "tests/compatibility/remainder-kernel.test.mjs"
+  ]
+}

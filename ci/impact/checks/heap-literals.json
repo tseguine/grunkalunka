@@ -1,0 +1,13 @@
+{
+  "id": "check:heap-literals",
+  "command": "node",
+  "args": [
+    "scripts/check-heap-literals.mjs"
+  ],
+  "dependsOn": [
+    "test:json-integration"
+  ],
+  "paths": [
+    "scripts/check-heap-literals.mjs"
+  ]
+}

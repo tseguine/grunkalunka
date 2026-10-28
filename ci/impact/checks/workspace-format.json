@@ -1,0 +1,11 @@
+{
+  "id": "check:workspace-format",
+  "command": "cargo",
+  "args": [
+    "fmt",
+    "--all",
+    "--check"
+  ],
+  "dependsOn": [],
+  "scope": "workspace"
+}
