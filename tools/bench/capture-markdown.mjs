@@ -87,6 +87,48 @@ function checkSeries(series, count, label) {
   }
 }
 
+// Historical native-v1 receipts did not carry Rust process memory. If a
+// later report claims memory evidence, validate its complete platform-specific
+// envelope rather than treating arbitrary saved values as verified readings.
+export function validateOptionalProcessMemory(report, nativeOs) {
+  if (!Object.hasOwn(report, 'processMemory')) return;
+  const memory = report.processMemory;
+  requireValue(memory && typeof memory === 'object' && !Array.isArray(memory) &&
+    Object.keys(memory).sort().join(',') === 'scope,snapshots,source,unit',
+  'processMemory envelope');
+  requireValue(memory.scope === 'entire-rust-process' && memory.unit === 'bytes',
+    'processMemory scope/units');
+  if (nativeOs !== 'linux') {
+    requireValue(['macos', 'windows'].includes(nativeOs) &&
+      memory.source === 'unsupported-on-this-host' && memory.snapshots === null,
+    'unsupported native process memory');
+    return;
+  }
+  requireValue(memory.source === 'linux-proc-status' &&
+    memory.snapshots && typeof memory.snapshots === 'object' &&
+    !Array.isArray(memory.snapshots), 'Linux native process memory');
+  const phases = [
+    'beforeEmbed', 'afterCompile', 'afterInstantiation', 'afterWarmup', 'afterBatches',
+  ];
+  requireValue(
+    Object.keys(memory.snapshots).sort().join(',') === [...phases].sort().join(','),
+    'complete native process memory phases');
+  let previousPeak = 0;
+  for (const phase of phases) {
+    const sample = memory.snapshots[phase];
+    requireValue(sample && typeof sample === 'object' &&
+      !Array.isArray(sample) &&
+      Object.keys(sample).sort().join(',') === 'peakRssBytes,rssBytes',
+    'process memory sample ' + phase);
+    requireValue(Number.isSafeInteger(sample.rssBytes) && sample.rssBytes >= 0 &&
+      Number.isSafeInteger(sample.peakRssBytes) &&
+      sample.peakRssBytes >= sample.rssBytes &&
+      sample.peakRssBytes >= previousPeak,
+    'process memory RSS/peak ' + phase);
+    previousPeak = sample.peakRssBytes;
+  }
+}
+
 // Report integrity is not a speed threshold or a second CommonMark oracle.
 export function validateNativeReport(report, config, guestBytes) {
   requireValue(valueAt(report, 'schemaVersion') === 1, 'schemaVersion');
@@ -96,6 +138,7 @@ export function validateNativeReport(report, config, guestBytes) {
   }
   requireValue(valueAt(report, 'environment.os') === nativeOS[platform()], 'host OS');
   requireValue(valueAt(report, 'environment.arch') === nativeArch[arch()], 'host architecture');
+  validateOptionalProcessMemory(report, valueAt(report, 'environment.os'));
   requireValue(valueAt(report, 'environment.fuelEnabled') === false, 'fuel policy');
   requireValue(/^=\d+\.\d+\.\d+$/.test(valueAt(report, 'environment.wasmtimeDependency')),
     'Wasmtime dependency declaration');
