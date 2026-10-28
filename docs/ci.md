@@ -10,7 +10,7 @@ that is test input, not a release/distribution pipeline.
 ## Triggers and coverage
 
 Pull requests targeting `master`, pushes to `master`, and manual Actions runs
-execute the same three jobs. Feature-branch pushes do not also trigger a second
+execute the same four jobs (including native macOS ARM64). Feature-branch pushes do not also trigger a second
 copy of the PR build. Runs share a concurrency group for the same event and
 PR/ref; newer runs leave in-progress runs running (`cancel-in-progress: false`).
 There are no scheduled full builds, path filters, or paid/larger runners.
@@ -21,19 +21,36 @@ workflow-level path filter. Failures on one platform do not cancel the others.
 | --- | --- | --- |
 | `Checks (Linux)` | `ubuntu-24.04` | x64 |
 | `Checks (Windows)` | `windows-2025` | x64 |
-| `Checks (macOS)` | `macos-15-intel` | x64 |
+| `Checks (macOS)` | `macos-15-intel` | x64, native Intel (retained) |
+| `Checks (macOS ARM64)` | `macos-15` | arm64, native Apple M1 |
+
+Both macOS jobs use macOS 15. The existing Intel check retains its original
+status context; ARM64 is additive and independent. GitHub's standard
+`macos-15` runner is Apple Silicon with 3 M1 cores and 7 GB RAM; its
+`macos-15-intel` counterpart is Intel with 4 vCPUs and 14 GB RAM. This is
+not a like-for-like CPU/memory comparison, and no performance improvement is
+assumed until the same-run evidence is inspected. The separate ARM64 runner's
+cache key is distinct. See [issue #79](https://github.com/tseguine/grunkalunka/issues/79).
 
 Each job has a 60-minute cap. This is a watchdog, not a performance target.
-ARM64, Bun and other Node versions are not covered by this initial matrix.
+Bun, Linux/Windows ARM64 and other Node versions are not covered by this matrix.
 Adding a runner does not establish support until its actual checks pass.
 
 ## Build and test contract
 
-Jobs install Node 24 and the active repository Rust toolchain, currently the
-`stable` channel in `rust-toolchain.toml`, with rustfmt, Clippy and
-`wasm32-unknown-unknown`. Compiler and Node versions are printed for diagnosis.
-Stable intentionally follows the repository's existing policy; it is not an
-exact compiler-version pin. No npm dependencies need installation.
+Jobs install exactly **Node 24.21.0** across all four platforms and the active
+repository Rust toolchain, currently the `stable` channel in
+`rust-toolchain.toml`, with rustfmt, Clippy and `wasm32-unknown-unknown`.
+The Rust compiler remains a floating stable release; it is not pinned to an
+exact version. No npm dependencies need installation.
+
+Both macOS jobs verify the actual machine, Node runtime architecture and
+`rustc -vV` native host triple **before expensive builds**. ARM64 additionally
+checks the runner architecture and rejects Rosetta-translated execution.
+They log the macOS version, hardware model, CPU count and physical memory.
+An ARM64 runner that accidentally selects x86-64 Node or Rust is a CI failure,
+not silent emulation. Native guest Wasm (`wasm32-unknown-unknown`) is shared
+between hosts, but compiled *host* tools/test binaries must be native.
 
 After a fast formatting check, jobs restore cached Cargo dependencies and fetch
 both the root workspace and the independently locked frontend spike using
@@ -57,6 +74,17 @@ cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
 cargo build --workspace --locked --offline -j 4
 node scripts/check.mjs
 ```
+
+For the Intel-versus-Apple-Silicon throughput comparison, inspect the
+`CHECK START`/`CHECK END` elapsed times on the *same commit* for
+`cargo test --workspace`, `scripts/poc.mjs`,
+`scripts/check-heap-literals.mjs` and
+`scripts/check-document-outline.mjs`; compare full run duration as well.
+The architecture/hardware data is printed in the corresponding macOS job log.
+Avoid comparing a cached run to a cold one as if it were controlled evidence.
+[Issue #79](https://github.com/tseguine/grunkalunka/issues/79)
+tracks observations and a later decision about Intel coverage; do not remove
+Intel or disable any tests solely to make the build faster.
 
 See [testing](testing.md) for individual checks and evidence limits. Tests emit
 receipts in local target directories, but this workflow does not upload them.
