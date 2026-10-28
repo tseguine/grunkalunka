@@ -534,8 +534,9 @@ payloads, Promise identity, short-circuit effects and rejection handling retain
 the existing semantics and budgets.
 
 This carrier does not extend the exported completion protocol. Mixed source
-locals, private parameter domains and mixed values in ordinary comparison or
-coercion positions remain separate work. A helper can resolve its selected
+locals and private parameter domains remain separate work. Equality can consume
+selected raw variants as described below; mixed relational and coercion positions
+remain separate work. A helper can resolve its selected
 async return before the caller compares the resulting primitive/Error value.
 
 ### Starting async children from synchronous helpers
@@ -558,3 +559,21 @@ emission path. No exported protocol, record width, fuel, job or source-await lim
 changes. Actual awaits still require an async source function; typed synchronous
 helpers still cannot contain suspension. General Promise payloads, thenables and
 mixed source storage/private parameter domains remain separate gaps.
+
+### Equality of selected Promise/primitive operands
+
+The four equality operators can compare operands such as `(a ? p : b) === p`
+and `(a && p) != (b ? q : null)`. Conditional, comma and logical operands retain
+their selected raw kind. Each operand executes once, left before right; the left
+snapshot survives RHS mutation, child startup and suspension. Equality does not
+adopt, await, handle or otherwise schedule a reaction for a selected Promise.
+
+When both selected values are Promises, equality compares their identities. When
+both are General values, existing strict or loose primitive/intrinsic Error
+equality applies, including Boolean/Number coercion, NaN and signed zero. A
+Promise is unequal to every currently admitted non-string primitive and intrinsic
+Error; the inequality operators invert that result. The source General profile
+still excludes Strings, so this does not implement Promise/string loose equality,
+custom coercion or arbitrary objects. Mixed source locals/private inputs and mixed
+relational or numeric-coercion operands remain separate gaps. Existing homogeneous
+comparison paths and all source/runtime budgets remain unchanged.

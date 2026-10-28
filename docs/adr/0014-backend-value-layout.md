@@ -389,3 +389,15 @@ parameter/results. It is a bounded implementation for selection, not a chosen
 general object/heap encoding. Invalid projections trap; verified source paths
 discriminate before projection. Tests exercise suspended carrier values across
 two activations of one coroutine, apart from source selection oracles.
+
+## Selected-value equality follow-up
+
+Equality now reuses `AsyncValue` for conditional/comma/logical operands containing
+Promise and General leaves. The lowerer discriminates both selected variants before
+checked projections, then uses existing Promise identity or General strict/loose
+equality. Cross-kind results apply only to admitted non-string primitives and
+intrinsic Errors; future General Strings or custom objects must extend that rule.
+No backend layout or exported/private signature changes are needed. Comparisons
+retain operand snapshots across RHS suspension without adopting or handling a
+Promise. This extends expression use of the carrier, not mixed source storage or
+private parameter domains, and leaves the representation decision provisional.

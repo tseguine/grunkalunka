@@ -212,6 +212,19 @@ enum Work<'e, 'a> {
         loose: bool,
         negated: bool,
     },
+    SelectionCompareRight {
+        node: &'e Expression<'a>,
+        right: &'e Expression<'a>,
+        depth: usize,
+        loose: bool,
+        negated: bool,
+    },
+    SelectionCompare {
+        node: &'e Expression<'a>,
+        left: ValueId,
+        loose: bool,
+        negated: bool,
+    },
     PromiseCompareRight {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -1328,6 +1341,39 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(Value::Number(result));
+                }
+                Work::SelectionCompareRight {
+                    node,
+                    right,
+                    depth,
+                    loose,
+                    negated,
+                } => {
+                    let left = values.pop().expect("selected equality left").id();
+                    work.push(Work::SelectionCompare {
+                        node,
+                        left,
+                        loose,
+                        negated,
+                    });
+                    work.push(Work::Eval(right, depth, Mode::AsyncValue));
+                }
+                Work::SelectionCompare {
+                    node,
+                    left,
+                    loose,
+                    negated,
+                } => {
+                    let right = values.pop().expect("selected equality right").id();
+                    let result = self.compare_async_values(
+                        node,
+                        left,
+                        right,
+                        loose,
+                        negated,
+                        regions.current(),
+                    );
+                    values.push(Value::Predicate(result));
                 }
                 Work::PromiseCompareRight {
                     node,
@@ -2887,6 +2933,30 @@ impl Lowering<'_, '_> {
                                     equality && self.pending_promise_shape(&binary.left, depth + 1);
                                 let right_promise = equality
                                     && self.pending_promise_shape(&binary.right, depth + 1);
+                                if equality
+                                    && ((!left_promise
+                                        && self.has_promise_choice(&binary.left, depth + 1))
+                                        || (!right_promise
+                                            && self.has_promise_choice(&binary.right, depth + 1)))
+                                {
+                                    work.push(Work::SelectionCompareRight {
+                                        node,
+                                        right: &binary.right,
+                                        depth: depth + 1,
+                                        loose: !strict,
+                                        negated: matches!(
+                                            binary.operator,
+                                            BinaryOperator::Inequality
+                                                | BinaryOperator::StrictInequality
+                                        ),
+                                    });
+                                    work.push(Work::Eval(
+                                        &binary.left,
+                                        depth + 1,
+                                        Mode::AsyncValue,
+                                    ));
+                                    continue;
+                                }
                                 if left_promise || right_promise {
                                     work.push(Work::PromiseCompareRight {
                                         node,

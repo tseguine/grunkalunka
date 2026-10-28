@@ -497,7 +497,8 @@ through nested logical left operands. Captures, runtime-selected constructors
 and repeated activations keep the selected kind before resolving the return.
 The internal `AsyncValue` carrier uses shared suspended storage but is excluded
 from private call signatures and exported completions. General/Promise source
-parameter and local-storage unions remain separate work.
+parameter and local-storage unions remain separate work. Equality of selected
+raw operands now uses the same carrier without adopting either operand.
 
 ### Callable async prefix entries
 

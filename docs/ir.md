@@ -961,4 +961,21 @@ resolution projects a selected Promise into the existing `AdoptPromise` route.
 Maintained tests check nested source effects/catches/job limits in native JS,
 Node-Wasm and Wasmtime, plus typed IR misuse, projection traps and carrier
 preservation across suspension and sibling coroutine frames. Source locals,
-private input unions and ordinary mixed comparison operands remain open.
+private input unions and mixed relational/coercion operands remain open. Equality
+can consume selected raw variants as described below.
+
+### Equality over selected raw variants
+
+Mixed Promise/General equality operands reuse `AsyncValue`. The frontend evaluates
+both operands in source order, then emits variant tests and existing structured
+`If` regions. The Promise/Promise branch projects checked handles and uses
+`PromiseIdentityEqual`; the General/General branch projects checked General values
+and uses `PrimitiveStrictEqual` or `PrimitiveLooseEqual`. Cross-variant branches
+produce the appropriate equal/unequal constant for the admitted non-string
+primitive and intrinsic Error domain. Projections execute only in matching branches.
+
+No new IR operation, physical representation, host tag, private call union or
+kernel behavior is introduced. Lift/discrimination/equality add no adoption or
+handling operation. Both carriers use the existing suspended-value mapping when
+the RHS awaits. General String or custom-object admission must revisit loose
+cross-variant equality rather than silently retaining the constant result.

@@ -43,6 +43,9 @@ mod value_joins;
 #[path = "async-suspension/sync_async_starts.rs"]
 mod sync_async_starts;
 
+#[path = "async-suspension/selection_equality.rs"]
+mod selection_equality;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(

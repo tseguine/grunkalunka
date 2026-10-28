@@ -73,9 +73,7 @@ fn nested_join_error_payloads_retain_truthiness_and_identity() {
     let comparison = source_for(&format!(
         "{cycle}try{{await p;}}catch(e){{const p=Promise.resolve(e);return ((a?p:e)&&e)===e;}}"
     ));
-    for ts in [false, true] {
-        assert!(compile_async(&comparison, ts).is_err());
-    }
+    compare_async_sources(&[comparison], &[(4.0, 2.0), (0.0, -0.0)]);
 }
 
 #[test]
