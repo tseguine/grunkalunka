@@ -12,7 +12,10 @@ const names={
   pulldown_cmark:[TARGET,'p1pulldown'],
   grunkalunka_markdown:[TARGET,'p1markdown'],
   outline_guest:[TARGET,'p1guest'],
+  bitflags:[TARGET,'p1bitflags'],
+  memchr:[TARGET,'p1memchr'],
 };
+const extras=new Set(['bitflags','memchr']);
 const paths=[
   'Cargo.toml','Cargo.lock','rust-toolchain.toml',
   'crates/grunkalunka-markdown/Cargo.toml',
@@ -29,7 +32,10 @@ function row(crate,mode,kind='linux'){
   const [target,effective]=names[crate];
   const index=Object.keys(names).sort().indexOf(crate);
   const original=kind==='linux'?hex(index+2):hex(index+22);
-  const changed=mode==='all'||(mode==='target'&&target===TARGET);
+  const changed=extras.has(crate)?
+    mode==='target_plus_deps':
+    (mode==='all'||(target===TARGET&&
+      (mode==='target'||mode==='target_plus_deps')));
   return {crate,target,original,effective:changed?effective:original,changed};
 }
 const metadata=(mode,host)=>Object.keys(names).sort().map(crate=>row(crate,mode,host));
@@ -74,18 +80,18 @@ function receipt(os='linux',arch='x64',body=[0,11]){
         'one fixed wrapper executable and absolute target directory, complete clean between variants',
     },
     inputs:paths.map(src),
-    variants:Object.fromEntries(['passthrough','target','all'].map(mode=>
+    variants:Object.fromEntries(['passthrough','target','target_plus_deps','all'].map(mode=>
       [mode,{mode,actualMetadata:metadata(mode,os),
         report:sectionReceipt(mode,os,arch,body)}])),
   };
 }
 
-test('observed compiler wrapper modes require exact five-crate argument inventory',()=>{
+test('observed compiler wrapper modes require seven selected and additional dependency records',()=>{
   const log=metadata('passthrough','linux').reverse()
     .map(x=>[x.crate,x.target,x.original,x.effective].join('\t')).join('\n')+'\n';
   const rows=parseMetadataOverrideLog(log,'passthrough');
   assert.deepEqual(rows,metadata('passthrough','linux'));
-  assert.equal(rows.length,5);
+  assert.equal(rows.length,7);
   assert.ok(rows.every(x=>!x.changed));
 });
 
@@ -106,18 +112,20 @@ test('all-selected mode replaces generated metadata on all five chosen crate com
   assert.equal(rows.find(x=>x.crate==='build_script_build').effective,'p1script');
 });
 
-test('unselected dependencies are recorded but never have generated metadata changed',()=>{
-  const baseline=metadata('all','linux')
+test('remaining two wasm dependencies are untouched in previous original modes',()=>{
+  for(const mode of ['passthrough','target','all']){
+    const rows=parseMetadataOverrideLog(metadata(mode,'linux')
+      .map(x=>[x.crate,x.target,x.original,x.effective].join('\t')).join('\n'),mode);
+    assert.ok(rows.filter(x=>extras.has(x.crate)).every(x=>!x.changed));
+  }
+  const unexpected=metadata('target','linux')
     .map(x=>[x.crate,x.target,x.original,x.effective].join('\t'));
-  baseline.push(['bitflags',TARGET,'1234567890abcdef','1234567890abcdef'].join('\t'));
-  baseline.push(['getopts',TARGET,'abcdef0123456789','abcdef0123456789'].join('\t'));
-  const rows=parseMetadataOverrideLog(baseline.join('\n'),'all');
-  assert.equal(rows.length,7);
-  assert.equal(rows.filter(x=>x.changed).length,5);
-  assert.equal(rows.find(x=>x.crate==='bitflags').effective,'1234567890abcdef');
+  unexpected.push(['getopts',TARGET,'abcdef0123456789','abcdef0123456789'].join('\t'));
+  const rows=parseMetadataOverrideLog(unexpected.join('\n'),'target');
+  assert.equal(rows.length,8);
   assert.equal(rows.find(x=>x.crate==='getopts').changed,false);
-  baseline[5]=['bitflags',TARGET,'1234567890abcdef','p1bitflags'].join('\t');
-  assert.throws(()=>parseMetadataOverrideLog(baseline.join('\n'),'all'),
+  unexpected[7]=['getopts',TARGET,'abcdef0123456789','p1getopts'].join('\t');
+  assert.throws(()=>parseMetadataOverrideLog(unexpected.join('\n'),'target'),
     /actual selected\/untouched compiler metadata/);
 });
 
@@ -154,6 +162,11 @@ test('same source and native Rust versions permit comparing different generated 
     ['build_script_build']);
   assert.equal(result.metadata.all.effectiveSame,5);
   assert.deepEqual(result.metadata.all.remainingMetadataMismatches,[]);
+  assert.equal(result.metadata.target.extraEffectiveSame,0);
+  assert.equal(result.metadata.target_plus_deps.extraEffectiveSame,2);
+  assert.equal(result.metadata.target_plus_deps.effectiveSame,4);
+  assert.deepEqual(result.metadata.target_plus_deps.extraRemainingMetadataMismatches,[]);
+  assert.equal(result.withinHost.producer.targetToTargetPlusDeps.sameArtifactBytes,true);
   assert.equal(result.crossHost.all.sameArtifactBytes,false);
   assert.equal(result.crossHost.all.matchingIgnoringOrder,0);
   assert.equal(result.withinHost.producer.passthroughToTarget.sameArtifactBytes,true);
@@ -170,17 +183,20 @@ test('output equality and metadata-input equality are independent observations',
 
 test('rejects changing the original Cargo-generated hash between modes on one host',()=>{
   const a=receipt(),b=receipt('win32');
-  b.variants.target.actualMetadata[3].original='1'.repeat(16);
+  const memchr=b.variants.target.actualMetadata.find(x=>x.crate==='memchr');
+  memchr.original='1'.repeat(16);
+  memchr.effective=memchr.original; // unchanged dependency in original target mode
   assert.throws(()=>compareNativeMetadataOverrides(a,b),
     /unchanged Cargo-generated metadata across wrapper modes/);
 });
 
 test('rejects wrong target, unexpected host role and forged compiler/toolchain',()=>{
   const a=receipt(),b=receipt('win32');
-  b.variants.all.actualMetadata[0].target=TARGET;
+  const script=b.variants.all.actualMetadata.find(x=>x.crate==='build_script_build');
+  script.target=TARGET;
   assert.throws(()=>compareNativeMetadataOverrides(a,b),
     /complete observed generated metadata/);
-  b.variants.all.actualMetadata[0].target='host';
+  script.target='host';
   assert.throws(()=>compareNativeMetadataOverrides(b,a),/Linux x64 producer/);
   b.environment.rustcCommit='1'.repeat(40);
   assert.throws(()=>compareNativeMetadataOverrides(a,b),/same Rust\/LLVM\/Node versions/);
@@ -194,4 +210,15 @@ test('rejects incomplete Wasm function vectors and altered canonical Git sources
   b.inputs[0].gitSha256='b'.repeat(64);
   b.inputs[0].checkoutSha256='b'.repeat(64);
   assert.throws(()=>compareNativeMetadataOverrides(a,b),/identical tested revision and canonical Git bytes/);
+});
+
+test('incremental remaining dependency normalization applies only in the fourth mode',()=>{
+  const rows=parseMetadataOverrideLog(metadata('target_plus_deps','linux')
+    .map(x=>[x.crate,x.target,x.original,x.effective].join('\t')).join('\n'),
+    'target_plus_deps');
+  assert.equal(rows.filter(x=>x.changed).length,6);
+  assert.equal(rows.find(x=>x.crate==='build_script_build').changed,false);
+  assert.equal(rows.find(x=>x.crate==='bitflags').effective,'p1bitflags');
+  assert.equal(rows.find(x=>x.crate==='memchr').effective,'p1memchr');
+  assert.equal(rows.find(x=>x.crate==='unicase').effective,'p1unicase');
 });
