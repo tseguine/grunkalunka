@@ -34,8 +34,9 @@ ran the same Markdown/WIT tests on Linux x64, Windows x64 and native Apple
 Silicon ARM64. Their separately built guest SHA-256 values **differed**;
 correctness checks passed. Neither observation establishes general application
 portability, full JavaScript compatibility, identical guest binaries across
-architectures, host memory attribution or performance parity. The existing workload limits remain in
-effect; the workflow has an overall watchdog, not a speed gate.
+architectures, host memory attribution or performance parity. The existing
+workload limits remain in effect; the workflow has an overall watchdog,
+not a speed gate.
 
 Cross-platform host/guest code generation identity and broader app workloads
 remain future P1 questions, not results claimed by this smoke.
