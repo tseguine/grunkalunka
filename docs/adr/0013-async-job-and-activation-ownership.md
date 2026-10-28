@@ -95,6 +95,23 @@ long microtask sequence appear to meet its budget.
 
 ## Scope and non-goals
 
+### Guest kernel implementation evidence
+
+The backend now contains an invocation-local primitive Promise settlement and
+reaction kernel, with executable Wasmtime and Node tests. Pending waiters become
+ready FIFO records on settlement; late subscribers enqueue their own reaction.
+An issued-count read reports each newly enqueued reaction separately from ready
+queue depth. Native Promise traces with external microtask markers and reactions
+that register more reactions verify that distinction. The kernel never invokes
+host callbacks or drains itself inline.
+
+This is a prerequisite for pending IR and adapter integration. Existing source
+guards, generated modules and public start/resume adapters are unchanged. Future
+adapters must retain the instance while owned jobs remain, enqueue one host
+microtask per issue at its semantic point and preserve at-most-once delivery.
+The handled bit records subscription only; it does not implement host rejection
+notifications, adoption, thenables or a browser event loop.
+
 This covers ownership, delivery and ordering for the admitted primitive async
 profile. Preserve its current external status/tag/payload ABI, diagnostics, source
 limits and documented terminal-error behavior unless a separately justified change

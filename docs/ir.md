@@ -726,3 +726,24 @@ site. The verifier requires an actual await immediately after it; the backend
 shares only the logical site count within that compiled function. Child sites,
 other functions and unmarked IR operations retain independent counts. The marker
 emits no instructions and changes no reaction, frame or host protocol.
+
+### Pending Promise guest support
+
+The backend now has an executable guest settlement/reaction kernel in
+`emit/asynchronous/promises.wat`. It owns invocation-local records for pending,
+fulfilled and rejected primitive outcomes, stable handles, first-settlement-wins
+behavior and a FIFO of continuations. Subscribing to a pending Promise retains a
+waiter; settling queues those waiters in order. Subscribing after settlement
+also queues a later reaction. Direct primitive reactions use the same ready FIFO.
+
+Ready-job count and newly-issued-job count are separate. A future adapter must
+schedule one host microtask per enqueue at that boundary, rather than hide the
+queue behind a batched drain. Records share the existing one-MiB arena; handle
+range/alignment/kind checks and canonical primitive validation precede use. A
+pending record cannot be projected as a settled primitive.
+
+This kernel is a **pending-IR prerequisite**, not new source admission. Existing
+modules do not include it yet; one narrow unused-helper expectation records that
+following integration. Logical pending values, coroutine integration and adapter
+pumping are the next unit. Adoption, thenables, general payloads, host rejection
+notifications and independently escaping Promises are not provided by this kernel.

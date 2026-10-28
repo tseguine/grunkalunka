@@ -6,6 +6,7 @@ use crate::ir::{self, Exit, Op, Region, Type, ValueId};
 use std::fmt::Write;
 
 mod frames;
+mod promises;
 
 const MAX_STATES: usize = 4096;
 

@@ -244,3 +244,40 @@ and scheduler decision. Explicit provenance preserves the existing source-budget
 invariant locally while leaving frame encoding, fuel, 32 runtime jobs and 4,096
 physical states unchanged. Pending logical operands, storage and adoption remain
 separate work; source and malformed-IR tests cover the chosen boundary.
+
+## Primitive Promise record and reaction kernel
+
+The pending-value prerequisite uses backend-owned guest records in the existing
+monotonic one-MiB arena. A Promise record is 32 bytes: kind marker, settlement,
+primitive tag, handled flag, f64 payload and waiter head/tail. A reaction record
+is also 32 bytes: kind, next link, opaque frame/continuation IDs, primitive tag,
+rejection flag and payload. Sixteen-byte alignment and typed record checks keep
+these distinct from source cells or host resource handles. Address zero remains
+a valid owner for older arena users; the kernel reserves it only when necessary
+to obtain non-null Promise/queue links. Existing allocations are preserved.
+
+Only final primitive settlement is supported. First settlement wins; pending
+result reads trap. Waiters transfer to one ready FIFO on settlement, and late
+registration appends a new ready reaction. Taking one job performs delivery;
+reading the consumed record is pure. Newly enqueued count is consumed separately
+from queue depth, enabling future hosts to schedule individual callbacks without
+overtaking unrelated microtasks. No callback runs inside the kernel.
+
+The contracts follow the primitive portion of
+[FulfillPromise and reaction triggering](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-fulfillpromise)
+and [PerformPromiseThen](https://tc39.es/ecma262/multipage/control-abstraction-objects.html#sec-performpromisethen).
+This does not implement general resolution/adoption or thenable assimilation.
+The handled bit is not host unhandled-rejection reporting.
+
+Alternatives were a host-only Promise table, which would make standalone Wasm
+semantics depend on host objects, and batching the whole ready queue behind one
+callback, which would change interleaving. The guest state plus explicit enqueue
+boundary is independently testable and reuses the current portable allocator.
+
+The helper is not appended to existing modules until pending IR and coroutine
+integration consumes it; its single unused-helper expectation is intentional.
+Maintained tests execute settlement, alias identity, multiple waiter/Promise FIFO,
+native microtask markers, canonical payload checks, private handle errors and
+arena exhaustion in Wasmtime/Node. Queue capacity is arena-bounded; the existing
+32-site/32-job public profile limits are unchanged. No source pending storage,
+adoption, public API, GC or performance improvement is claimed from this unit.

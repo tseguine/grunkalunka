@@ -189,6 +189,14 @@ lets alternative continuations share that logical site without merging their
 runtime jobs. Stored pending values, pending `&&`/`||`/`??` operands and adoption
 remain guarded.
 
+The next pending-value prerequisite is an executable guest Promise kernel with
+stable pending/settled records and FIFO reactions. It separates new enqueue
+notifications from ready-job count so subsequent adapter integration can preserve
+host microtask order. [Kernel contracts and limits](ir.md#pending-promise-guest-support)
+describe the bounded primitive domain and arena lifetime. Current source admission
+and the start/resume adapters are unchanged; the kernel is not yet linked into
+their generated modules.
+
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;
 status 1 suspends on a resumable primitive await reaction, including a caught
