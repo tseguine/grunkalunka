@@ -1,4 +1,4 @@
-# Optional P1 experiment; required x64 Linux/Windows/Intel macOS CI remains unchanged.
+# Optional P1 experiment; required Linux/Windows x64 and Apple Silicon macOS ARM64 CI unchanged.
 name: P1 portable x64 to ARM64 replay
 
 on:
@@ -33,6 +33,7 @@ jobs:
       wasm64: ${{ steps.transfer.outputs.wasm64 }}
       manifest64: ${{ steps.transfer.outputs.manifest64 }}
       sha256: ${{ steps.transfer.outputs.sha256 }}
+      receipt64: ${{ steps.transfer.outputs.receipt64 }}
     steps:
       - name: Check out the tested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,14 +64,20 @@ jobs:
           set -euo pipefail
           ./target/debug/grunkalunka compile examples/numeric-workflow/gcd.js "$RUNNER_TEMP/gcd.wasm"
           node tools/bench/portable-gcd.mjs prepare "$RUNNER_TEMP/gcd.wasm" --build-label ci-x64-debug > "$RUNNER_TEMP/manifest.json"
-          node --input-type=commonjs - "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" "$GITHUB_OUTPUT" <<'NODE'
+          node tools/bench/portable-gcd.mjs replay "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" \
+            --runner ./target/debug/grunkalunka --samples 2 --iterations 3 --warmup 0 \
+            > "$RUNNER_TEMP/producer-replay.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/producer-replay.json" "$GITHUB_OUTPUT" <<'NODE'
           const fs = require('node:fs');
           const { createHash } = require('node:crypto');
-          const [wasmFile, manifestFile, outputFile] = process.argv.slice(2);
+          const [wasmFile, manifestFile, receiptFile, outputFile] = process.argv.slice(2);
           const wasm = fs.readFileSync(wasmFile);
           const manifestBytes = fs.readFileSync(manifestFile);
-          if (wasm.length < 8 || wasm.length > 65536 || manifestBytes.length > 16384) {
-            throw new Error('Portable artifact exceeds bounded workflow job outputs');
+          const receiptBytes = fs.readFileSync(receiptFile);
+          if (wasm.length < 8 || wasm.length > 65536 ||
+              manifestBytes.length < 1 || manifestBytes.length > 16384 ||
+              receiptBytes.length < 1 || receiptBytes.length > 32768) {
+            throw new Error('Portable artifact or receipt exceeds bounded workflow job outputs');
           }
           const manifest = JSON.parse(manifestBytes.toString('utf8'));
           const hash = createHash('sha256').update(wasm).digest('hex');
@@ -79,13 +86,28 @@ jobs:
               manifest.origin.os !== 'linux' || manifest.origin.arch !== 'x64') {
             throw new Error('Producer identity or artifact hash mismatch');
           }
-          // GitHub job outputs are bounded; no artifact upload or release.
+          const receipt = JSON.parse(receiptBytes.toString('utf8'));
+          const manifestHash = createHash('sha256').update(manifestBytes).digest('hex');
+          if (receipt.workload !== 'portable-core-gcd-replay' ||
+              receipt.manifestSha256 !== manifestHash ||
+              receipt.artifact.sha256 !== hash || receipt.artifact.bytes !== wasm.length ||
+              receipt.original.source.sha256 !== manifest.source.sha256 ||
+              receipt.original.origin.os !== 'linux' || receipt.original.origin.arch !== 'x64' ||
+              receipt.receiver.os !== 'linux' || receipt.receiver.arch !== 'x64' ||
+              receipt.node.environment.arch !== 'x64' ||
+              receipt.node.environment.node !== 'v24.22.1' ||
+              receipt.node.goldenCases !== 8 || receipt.node.checksum !== 33 ||
+              receipt.wasmtime.status !== 'passed' || receipt.wasmtime.goldenCases !== 8) {
+            throw new Error('Invalid producer replay receipt');
+          }
+          // Ephemeral bounded job outputs, never artifact upload, release or retained benchmark.
           fs.appendFileSync(outputFile, [
             'wasm64=' + wasm.toString('base64'),
             'manifest64=' + manifestBytes.toString('base64'),
+            'receipt64=' + receiptBytes.toString('base64'),
             'sha256=' + hash, '',
           ].join('\n'));
-          console.log('PASS x64 producer: fixed golden cases and digest ' + hash);
+          console.log('PASS x64 producer: both engines, eight goldens and digest ' + hash);
           NODE
 
   replay-arm64:
@@ -121,27 +143,34 @@ jobs:
         env:
           TRANSFER_WASM64: ${{ needs.prepare-x64.outputs.wasm64 }}
           TRANSFER_MANIFEST64: ${{ needs.prepare-x64.outputs.manifest64 }}
+          TRANSFER_RECEIPT64: ${{ needs.prepare-x64.outputs.receipt64 }}
           TRANSFER_SHA256: ${{ needs.prepare-x64.outputs.sha256 }}
         run: |
           set -euo pipefail
-          node --input-type=commonjs - "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" <<'NODE'
+          node --input-type=commonjs - "$RUNNER_TEMP/gcd.wasm" "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/producer-replay.json" <<'NODE'
           const fs = require('node:fs');
           const { createHash } = require('node:crypto');
-          const [wasmFile, manifestFile] = process.argv.slice(2);
+          const [wasmFile, manifestFile, receiptFile] = process.argv.slice(2);
           const encodedWasm = process.env.TRANSFER_WASM64 ?? '';
           const encodedManifest = process.env.TRANSFER_MANIFEST64 ?? '';
+          const encodedReceipt = process.env.TRANSFER_RECEIPT64 ?? '';
           const hash = process.env.TRANSFER_SHA256 ?? '';
           if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encodedWasm) ||
               !/^[A-Za-z0-9+/]+={0,2}$/.test(encodedManifest) ||
+              !/^[A-Za-z0-9+/]+={0,2}$/.test(encodedReceipt) ||
               !/^[a-f0-9]{64}$/.test(hash)) {
             throw new Error('Missing, truncated or invalid cross-job byte transfer');
           }
           const wasm = Buffer.from(encodedWasm, 'base64');
           const manifestBytes = Buffer.from(encodedManifest, 'base64');
-          if (wasm.length < 8 || wasm.length > 65536 || manifestBytes.length > 16384 ||
+          const receiptBytes = Buffer.from(encodedReceipt, 'base64');
+          if (wasm.length < 8 || wasm.length > 65536 ||
+              manifestBytes.length < 1 || manifestBytes.length > 16384 ||
+              receiptBytes.length < 1 || receiptBytes.length > 32768 ||
               wasm.toString('base64') !== encodedWasm ||
-              manifestBytes.toString('base64') !== encodedManifest) {
-            throw new Error('Cross-job byte transfer is not canonical or bounded');
+              manifestBytes.toString('base64') !== encodedManifest ||
+              receiptBytes.toString('base64') !== encodedReceipt) {
+            throw new Error('Cross-job byte/receipt transfer is not canonical or bounded');
           }
           const manifest = JSON.parse(manifestBytes.toString('utf8'));
           if (createHash('sha256').update(wasm).digest('hex') !== hash ||
@@ -149,9 +178,24 @@ jobs:
               manifest.origin.os !== 'linux' || manifest.origin.arch !== 'x64') {
             throw new Error('Transferred artifact does not match the x64 producer');
           }
+          const producer = JSON.parse(receiptBytes.toString('utf8'));
+          const manifestHash = createHash('sha256').update(manifestBytes).digest('hex');
+          if (producer.workload !== 'portable-core-gcd-replay' ||
+              producer.artifact.sha256 !== hash ||
+              producer.artifact.bytes !== wasm.length ||
+              producer.manifestSha256 !== manifestHash ||
+              producer.original.source.sha256 !== manifest.source.sha256 ||
+              producer.original.origin.os !== 'linux' || producer.original.origin.arch !== 'x64' ||
+              producer.receiver.os !== 'linux' || producer.receiver.arch !== 'x64' ||
+              producer.node.environment.arch !== 'x64' ||
+              producer.node.goldenCases !== 8 || producer.node.checksum !== 33 ||
+              producer.wasmtime.status !== 'passed' || producer.wasmtime.goldenCases !== 8) {
+            throw new Error('Transferred producer receipt does not match the x64 artifact');
+          }
           fs.writeFileSync(wasmFile, wasm, { flag: 'wx' });
           fs.writeFileSync(manifestFile, manifestBytes, { flag: 'wx' });
-          console.log('PASS transferred identical x64-produced Wasm SHA-256 ' + hash);
+          fs.writeFileSync(receiptFile, receiptBytes, { flag: 'wx' });
+          console.log('PASS identical x64-produced Wasm and producer receipt SHA-256 ' + hash);
           NODE
 
       - name: Replay in ARM64 Node/V8 and ARM64 native Wasmtime
@@ -178,5 +222,33 @@ jobs:
           assert.equal(report.node.checksum, 33);
           assert.deepEqual(report.node.configuration, { samples: 2, iterations: 3, warmup: 0 });
           console.log('PASS cross-architecture GCD: identical bytes, real ARM64 Node and Wasmtime');
+          console.log(JSON.stringify(report));
+          NODE
+
+      - name: Compare actual x64 and ARM64 replay receipts
+        run: |
+          set -euo pipefail
+          node tools/bench/compare-portable-replays.mjs \
+            "$RUNNER_TEMP/producer-replay.json" "$RUNNER_TEMP/replay.json" \
+            > "$RUNNER_TEMP/paired-comparison.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/paired-comparison.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'portable-core-gcd-replay-comparison');
+          assert.deepEqual([report.producer.os, report.producer.arch], ['linux', 'x64']);
+          assert.deepEqual(report.receivers.map(r => [r.host.os, r.host.arch]),
+            [['linux', 'x64'], ['linux', 'arm64']]);
+          for (const receiver of report.receivers) {
+            assert.equal(receiver.node.goldenCases, 8);
+            assert.equal(receiver.node.checksum, 33);
+            assert.deepEqual(receiver.node.configuration, { samples: 2, iterations: 3, warmup: 0 });
+            assert.equal(receiver.wasmtime.status, 'passed');
+            assert.equal(receiver.wasmtime.goldenCases, 8);
+          }
+          assert.match(report.artifact.sha256, /^[a-f0-9]{64}$/);
+          assert.ok(!Object.hasOwn(report, 'timings'));
+          console.log('PASS actual cross-host receipt comparison: Linux x64 and ARM64, both engines');
           console.log(JSON.stringify(report));
           NODE
