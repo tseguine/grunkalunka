@@ -13,6 +13,8 @@ on:
       - 'tools/browser-oracles/collect.mjs'
       - 'tools/browser-oracles/native-bridge-sensitivity.mjs'
       - 'tools/browser-oracles/native-bridge-sensitivity.test.mjs'
+      - 'tools/browser-oracles/native-bridge-hit-sensitivity.mjs'
+      - 'tools/browser-oracles/native-bridge-hit-sensitivity.test.mjs'
       - 'tools/browser-oracles/package.json'
       - '.github/workflows/browser-native-bridge.yml'
       - 'Cargo.toml'
@@ -30,6 +32,8 @@ on:
       - 'tools/browser-oracles/collect.mjs'
       - 'tools/browser-oracles/native-bridge-sensitivity.mjs'
       - 'tools/browser-oracles/native-bridge-sensitivity.test.mjs'
+      - 'tools/browser-oracles/native-bridge-hit-sensitivity.mjs'
+      - 'tools/browser-oracles/native-bridge-hit-sensitivity.test.mjs'
       - 'tools/browser-oracles/package.json'
       - '.github/workflows/browser-native-bridge.yml'
       - 'Cargo.toml'
@@ -107,7 +111,7 @@ jobs:
           name: native-block-bridge
           path: target/native-bridge
       - name: Validate native/browser comparison contracts offline
-        run: node --test tests/browser-oracles/native-block-bridge.test.mjs tests/browser-oracles/native-block-bridge-workflow.test.mjs tools/browser-oracles/native-bridge-sensitivity.test.mjs
+        run: node --test tests/browser-oracles/native-block-bridge.test.mjs tests/browser-oracles/native-block-bridge-workflow.test.mjs tools/browser-oracles/native-bridge-sensitivity.test.mjs tools/browser-oracles/native-bridge-hit-sensitivity.test.mjs
       - name: Install isolated pinned reference-engine automation
         run: |
           test "${PLAYWRIGHT_BROWSERS_PATH:-}" = /ms-playwright
@@ -127,6 +131,11 @@ jobs:
           dir="target/native-bridge/${{ matrix.engine }}"
           node tools/browser-oracles/native-bridge-sensitivity.mjs \
             ${{ matrix.engine }} target/native-bridge/native.json "$dir/sensitivity"
+      - name: Prove a real CSS pointer-events mutation changes only live hit targets
+        run: |
+          dir="target/native-bridge/${{ matrix.engine }}"
+          node tools/browser-oracles/native-bridge-hit-sensitivity.mjs \
+            ${{ matrix.engine }} target/native-bridge/native.json "$dir/hit-sensitivity"
       - name: Retain original native, HTML, browser and comparison evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

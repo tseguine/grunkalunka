@@ -137,3 +137,26 @@ An unchanged observation, missing geometry difference, stale source hash,
 extra discrepancy or malformed evidence fails the engine's CI job. Both raw
 fixture bytes, original mutated capture and complete report are retained.
 The independent baseline comparison continues to require exact agreement.
+
+## Real-engine negative control for hit-target sensitivity
+
+The hosted workflow now uses a **second, independent CSS source mutation**
+after original parity and width sensitivity have succeeded. It injects
+`pointer-events: none` on `#first` in a separate immutable HTML snapshot.
+The native Rust hit-test receipt remains the unmodified reference, while
+a fresh Chromium, Firefox or WebKit instance calls live
+`document.elementFromPoint` on the modified source. The collector hashes the
+**modified** fixture bytes; no observed target is inferred from rectangles.
+
+The expected disagreement is strictly six target changes: original and
+restored `first-center`, `first-lower` and `first-right` move from
+`first` to the underlying `outer`. The hidden-state targets, all
+original/hidden/restored geometry, and remaining hit targets must be
+unchanged. Missing or extra differences and invalid/incompatible evidence
+fail the job. Original fixture bytes, raw mutated browser capture and full
+comparator report are retained in the engine's artifact, even on failure.
+
+As with the width sensitivity check, this **intentionally compares different
+sources**, so it is a negative control of evidence sensitivity, not renderer
+CSS pointer-events support, browser event dispatch or general conformance.
+The original independent native/browser match remains a required prior gate.

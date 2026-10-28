@@ -31,6 +31,8 @@ const requiredPaths = [
   "tools/browser-oracles/collect.mjs",
   "tools/browser-oracles/native-bridge-sensitivity.mjs",
   "tools/browser-oracles/native-bridge-sensitivity.test.mjs",
+  "tools/browser-oracles/native-bridge-hit-sensitivity.mjs",
+  "tools/browser-oracles/native-bridge-hit-sensitivity.test.mjs",
   "tools/browser-oracles/package.json",
   ".github/workflows/browser-native-bridge.yml",
   "Cargo.toml",
@@ -83,6 +85,17 @@ test("real engine width mutation keeps source receipts and fails when sensitivit
   const artifact = source.indexOf("Retain original native, HTML, browser and comparison evidence");
   assert.ok(comparison > 0 && comparison < sensitivity && sensitivity < artifact,
     "run sensitivity after parity and before retaining source evidence");
+});
+
+test("real engine pointer-events mutation follows the baseline and width control", () => {
+  assert.ok(source.includes("tools/browser-oracles/native-bridge-hit-sensitivity.test.mjs"));
+  assert.ok(source.includes("node tools/browser-oracles/native-bridge-hit-sensitivity.mjs"));
+  const baseline = source.indexOf("node tests/browser-oracles/native-block-bridge.mjs");
+  const width = source.indexOf("node tools/browser-oracles/native-bridge-sensitivity.mjs");
+  const hits = source.indexOf("node tools/browser-oracles/native-bridge-hit-sensitivity.mjs");
+  const artifact = source.indexOf("Retain original native, HTML, browser and comparison evidence");
+  assert.ok(baseline > 0 && baseline < width && width < hits && hits < artifact,
+    "run hit-target control after independent baseline and width control, retain evidence");
 });
 
 test("real engines remain pinned and all report differences as test failures", () => {
