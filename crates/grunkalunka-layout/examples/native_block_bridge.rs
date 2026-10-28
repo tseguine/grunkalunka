@@ -139,14 +139,14 @@ fn main() {
     let baseline = boxes_json(&frame);
     let hidden_json = boxes_json(&hidden);
     let restored_json = boxes_json(&restored);
-    println!(
-        "{}{}{}{}{}{}{}",
+    let mut output = String::from(
         r#"{"schemaVersion":1,"kind":"grunkalunka-native-block-geometry","fixtureId":"native-block-bridge-v1","viewport":{"width":800,"height":600,"devicePixelRatio":1},"geometry":{"#,
-        baseline,
-        r#"},"reflow":{"hidden":{"#,
-        hidden_json,
-        r#"},"restored":{"#,
-        restored_json,
-        r#"}}}"#
     );
+    output.push_str(&baseline);
+    output.push_str(r#"},"reflow":{"hidden":{"#);
+    output.push_str(&hidden_json);
+    output.push_str(r#"},"restored":{"#);
+    output.push_str(&restored_json);
+    output.push_str(r#"}}}"#);
+    println!("{output}");
 }
