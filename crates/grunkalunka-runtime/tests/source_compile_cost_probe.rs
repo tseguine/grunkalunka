@@ -12,8 +12,14 @@ fn sha256(bytes: &[u8]) -> String {
 
 fn fixture(workload: Workload) -> (&'static str, bool) {
     match workload {
-        Workload::AffineJs => (include_str!("../../../tests/compatibility/fixtures/affine.js"), false),
-        Workload::AffineTs => (include_str!("../../../tests/compatibility/fixtures/affine.ts"), true),
+        Workload::AffineJs => (
+            include_str!("../../../tests/compatibility/fixtures/affine.js"),
+            false,
+        ),
+        Workload::AffineTs => (
+            include_str!("../../../tests/compatibility/fixtures/affine.ts"),
+            true,
+        ),
         Workload::GcdJs => (include_str!("../../../examples/numeric-workflow/gcd.js"), false),
     }
 }
@@ -82,7 +88,11 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         assert_eq!(report.wasm_sha256, sha256(&artifact.wasm));
         for digest in [&report.source_sha256, &report.wat_sha256, &report.wasm_sha256] {
             assert_eq!(digest.len(), 64);
-            assert!(digest.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()));
+            assert!(
+                digest
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+            );
         }
         assert_eq!(report.samples_ms.len(), options.samples);
         assert_eq!(report.release_ms.len(), options.samples);
