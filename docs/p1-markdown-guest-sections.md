@@ -107,3 +107,35 @@ identical body bytes do not establish identical executable behavior. An
 unexplained mismatch remains a diagnostic observation, not a failing
 reproducibility or performance gate. The prior native Markdown capability
 checks remain separate functional evidence.
+
+## Order-independent exact body overlap
+
+The hosted body-index comparison found **1,313/1,897** differing Windows
+defined-function bodies and **1,374/1,897** differing Apple Silicon bodies
+relative to Linux on the exact #110 test revision. Positional differences
+alone cannot tell whether function ordering accounts for them.
+
+The [same bounded inspector](../tools/bench/wasm-section-fingerprint.mjs) now
+also takes the **multiset intersection** of the raw body length and full
+SHA-256 digest pairs, without using function ordinals. Repeated identical
+bodies are counted with multiplicity, not collapsed into a set.
+
+The report provides matching body occurrences regardless of position,
+unmatched occurrences on each host, the count matching at the same ordinal
+(where both hosts have the same number of functions), and the additional
+matches that appear only when ordinal is disregarded. If the function counts
+differ, only the multiset overlap is compared and positional fields remain
+explicitly unavailable. This works on the existing per-body fingerprint
+receipts, without transferring or persisting generated Wasm.
+
+If almost every body matches as a multiset but many differ positionally,
+reordering is a plausible explanation. If exact multiset overlap is much
+smaller, **permutation alone cannot account for the changed bytes**.
+Neither conclusion identifies JavaScript/Rust source functions, follows
+function call references, normalizes function-index immediates, or proves
+semantic equivalence. Different bodies can still implement equivalent
+behavior; matching bodies can reference different function indices.
+
+The diagnostic workflow asserts only the internal arithmetic consistency
+of the overlap counts, not any required percentage of matching code, so
+host-dependent differences remain observations rather than CI failures.
