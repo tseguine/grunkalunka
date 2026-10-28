@@ -45,7 +45,7 @@ test('changing only the standalone Rust wrapper runs P1 tests without Cargo buil
   const result = plan('tools/bench/fixtures/p1-native-cargo-metadata-wrapper.rs');
   assert.equal(result.full, false);
   assert.deepEqual(result.tests, ['check:p1-bench-tests']);
-  assert.deepEqual(result.build, []);
+  assert.deepEqual(result.build, ['p1-rustc-wrapper']); // owner node, not Cargo
 });
 
 test('P1 entrypoint is one stable canonical Node invocation with glob-discovered cases', () => {
