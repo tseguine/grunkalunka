@@ -177,3 +177,74 @@ test('existing section-only receipts remain readable and comparable', () => {
   const a = receipt(bytes), b = receipt(bytes, 'win32');
   assert.equal(compareMarkdownGuests(a, b).codeBodyComparison, null);
 });
+
+test('exact body multiset overlap finds identical bodies in a different order', () => {
+  const a = receipt(moduleBytes(bodyCode([0, 11], [1, 11], [2, 11])),
+    'linux', 'x64', true);
+  const b = receipt(moduleBytes(bodyCode([2, 11], [0, 11], [1, 11])),
+    'win32', 'x64', true);
+  const result = compareMarkdownGuests(a, b).codeBodyComparison;
+  assert.equal(result.producerCount, 3);
+  assert.equal(result.receiverCount, 3);
+  assert.equal(result.changedCount, 3);
+  assert.equal(result.matchingAtSameOrdinal, 0);
+  assert.equal(result.matchingBodyOccurrencesIgnoringOrder, 3);
+  assert.equal(result.additionalMatchesIgnoringOrdinal, 3);
+  assert.equal(result.producerUnmatchedBodyOccurrences, 0);
+  assert.equal(result.receiverUnmatchedBodyOccurrences, 0);
+});
+
+test('multiset comparison counts duplicate exact bodies with multiplicity', () => {
+  const a = receipt(moduleBytes(bodyCode([0, 11], [0, 11], [1, 11])),
+    'linux', 'x64', true);
+  const b = receipt(moduleBytes(bodyCode([0, 11], [1, 11], [1, 11])),
+    'win32', 'x64', true);
+  const result = compareMarkdownGuests(a, b).codeBodyComparison;
+  assert.equal(result.changedCount, 1);
+  assert.equal(result.matchingAtSameOrdinal, 2);
+  assert.equal(result.matchingBodyOccurrencesIgnoringOrder, 2);
+  assert.equal(result.additionalMatchesIgnoringOrdinal, 0);
+  assert.equal(result.producerUnmatchedBodyOccurrences, 1);
+  assert.equal(result.receiverUnmatchedBodyOccurrences, 1);
+});
+
+test('count differences retain exact multiset overlap without ordinal claims', () => {
+  const a = receipt(moduleBytes(bodyCode([0, 11], [1, 11], [2, 11])),
+    'linux', 'x64', true);
+  const b = receipt(moduleBytes(bodyCode([2, 11], [0, 11])),
+    'darwin', 'arm64', true);
+  const result = compareMarkdownGuests(a, b).codeBodyComparison;
+  assert.equal(result.indicesComparable, false);
+  assert.equal(result.changedCount, null);
+  assert.equal(result.matchingAtSameOrdinal, null);
+  assert.equal(result.additionalMatchesIgnoringOrdinal, null);
+  assert.equal(result.matchingBodyOccurrencesIgnoringOrder, 2);
+  assert.equal(result.producerUnmatchedBodyOccurrences, 1);
+  assert.equal(result.receiverUnmatchedBodyOccurrences, 0);
+});
+
+test('same position and additional out-of-order matches are independently counted', () => {
+  const a = receipt(moduleBytes(bodyCode([0, 11], [1, 11], [2, 11])),
+    'linux', 'x64', true);
+  const b = receipt(moduleBytes(bodyCode([0, 11], [2, 11], [1, 11])),
+    'darwin', 'arm64', true);
+  const result = compareMarkdownGuests(a, b).codeBodyComparison;
+  assert.equal(result.changedCount, 2);
+  assert.equal(result.matchingAtSameOrdinal, 1);
+  assert.equal(result.matchingBodyOccurrencesIgnoringOrder, 3);
+  assert.equal(result.additionalMatchesIgnoringOrdinal, 2);
+});
+
+test('different bytes at every index and any position yield no exact matches', () => {
+  const a = receipt(moduleBytes(bodyCode([0, 11], [1, 11])),
+    'linux', 'x64', true);
+  const b = receipt(moduleBytes(bodyCode([2, 11], [3, 11])),
+    'win32', 'x64', true);
+  const result = compareMarkdownGuests(a, b).codeBodyComparison;
+  assert.equal(result.changedCount, 2);
+  assert.equal(result.matchingAtSameOrdinal, 0);
+  assert.equal(result.matchingBodyOccurrencesIgnoringOrder, 0);
+  assert.equal(result.additionalMatchesIgnoringOrdinal, 0);
+  assert.equal(result.producerUnmatchedBodyOccurrences, 2);
+  assert.equal(result.receiverUnmatchedBodyOccurrences, 2);
+});
