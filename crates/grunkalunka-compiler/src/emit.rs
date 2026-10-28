@@ -208,8 +208,9 @@ impl Emitter<'_> {
                 Op::SettledValue { result, input } => {
                     writeln!(
                         self.output,
-                        "local.get {}\ni32.const 3\ni32.and\nlocal.get {}",
+                        "local.get {}\ni32.const {}\ni32.and\nlocal.get {}",
                         self.value_offsets[input.0],
+                        layout::SETTLED_TAG_MASK,
                         self.value_offsets[input.0] + 1
                     )
                     .unwrap();
@@ -218,8 +219,9 @@ impl Emitter<'_> {
                 Op::PromiseRejected { result, input } => {
                     writeln!(
                         self.output,
-                        "local.get {}\ni32.const 4\ni32.and\ni32.eqz\ni32.eqz",
-                        self.value_offsets[input.0]
+                        "local.get {}\ni32.const {}\ni32.and\ni32.eqz\ni32.eqz",
+                        self.value_offsets[input.0],
+                        layout::SETTLED_REJECTED_BIT
                     )
                     .unwrap();
                     self.set(*result);
@@ -575,8 +577,9 @@ impl Emitter<'_> {
                 ThrowTarget::Settlement(label) => {
                     writeln!(
                         self.output,
-                        "local.get {}\ni32.const 4\ni32.or\nlocal.get {}\nbr $call{label}",
+                        "local.get {}\ni32.const {}\ni32.or\nlocal.get {}\nbr $call{label}",
                         self.value_offsets[value.0],
+                        layout::SETTLED_REJECTED_BIT,
                         self.value_offsets[value.0] + 1
                     )
                     .unwrap();

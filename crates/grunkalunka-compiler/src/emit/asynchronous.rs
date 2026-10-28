@@ -748,7 +748,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 writeln!(output, "i32.const {yes}\ni32.const {no}\nglobal.get {}\nselect\nglobal.set $pc\nbr $dispatch", emitter.value_offsets[condition.0]).unwrap();
             }
             End::SettledTest { input, yes, no } => {
-                writeln!(output, "i32.const {yes}\ni32.const {no}\nglobal.get {}\ni32.const 4\ni32.and\nselect\nglobal.set $pc\nbr $dispatch", emitter.value_offsets[input.0]).unwrap();
+                writeln!(output, "i32.const {yes}\ni32.const {no}\nglobal.get {}\ni32.const {}\ni32.and\nselect\nglobal.set $pc\nbr $dispatch", emitter.value_offsets[input.0],super::layout::SETTLED_REJECTED_BIT).unwrap();
             }
             End::Suspend {
                 input,
@@ -889,7 +889,8 @@ fn primitive(output: &mut String, emitter: &Emitter<'_>, value: ValueId) {
     if emitter.function.values[value.0] == Type::SettledPromise {
         writeln!(
             output,
-            "global.get {offset}\ni32.const 3\ni32.and\nglobal.get {}",
+            "global.get {offset}\ni32.const {}\ni32.and\nglobal.get {}",
+            super::layout::SETTLED_TAG_MASK,
             offset + 1
         )
         .unwrap();

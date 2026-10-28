@@ -649,17 +649,20 @@ primitive/Promise parameter uses and result interfaces remain separate work.
 ### Settled primitive completion snapshots
 
 `SettledPromise` is a distinct private value that retains either
-fulfillment or rejection together with a represented primitive payload.
+fulfillment or rejection together with a represented General payload.
 `SettlePromise` runs a closed General-return region synchronously and captures
-its return or throw. Primitive catches, loops and inline calls keep their lexical
+its return or throw. Lexical catches, loops and inline calls keep their lexical
 boundaries; an inline call's normal result kind does not narrow its General throw
 payload inside this closed scope. Actual suspension anywhere inside is invalid.
 `PromotePromise` explicitly converts a fulfilled snapshot to the settled kind.
-`SettledValue` projects its primitive payload, and `PromiseRejected` queries its
-settlement. None of these operations adds a reaction.
+`SettledValue` projects its General payload, and `PromiseRejected` queries its
+settlement. None of these operations adds a reaction. The backend keeps rejection
+in bit 31 and the General kind in the remaining low bits, so intrinsic Error kind
+4 survives fulfillment, rejection, private transport and either projection. The
+two-lane, sixteen-byte carrier and canonical host General tags are unchanged.
 
 `AwaitSettled` schedules exactly one caller reaction. Fulfillment continues with
-the primitive; rejection enters the caller's nearest catch on that reaction or
+the General value; rejection enters the caller's nearest catch on that reaction or
 rejects the async entry. Both branches count as one logical await site. Private
 closure inputs/results, callbacks, returned functions, captured cells and async
 storage retain the distinct type. Public entries and ordinary helpers still

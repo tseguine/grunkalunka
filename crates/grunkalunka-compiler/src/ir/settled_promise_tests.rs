@@ -32,6 +32,134 @@ fn finish_async(mut script: String) {
 use super::*;
 
 #[test]
+fn settled_extended_kind_survives_status_and_payload_projection() {
+    let cycle = "const f=async()=>{await a;return b;};let p=f();const g=async()=>{await a;return p;};p=g();";
+    let mut script = async_script();
+    for rejected in [false, true] {
+        let mut module = crate::lower_source_profile(
+            &format!(
+                "export async function run(a,b){{{cycle}try{{await p;}}catch(e){{return e;}}}}"
+            ),
+            false,
+            Type::General,
+            true,
+        )
+        .unwrap();
+        let f = &mut module.functions[0];
+        let base = f.values.len();
+        f.values.extend([
+            Type::SettledPromise,
+            Type::General,
+            Type::Predicate,
+            Type::Predicate,
+            Type::Predicate,
+            Type::General,
+            Type::Predicate,
+            Type::General,
+            Type::General,
+        ]);
+        let [
+            snapshot,
+            payload,
+            equal,
+            status,
+            not_status,
+            packed_equal,
+            no,
+            packed_no,
+            result,
+        ] = std::array::from_fn::<_, 9, _>(|i| ValueId(base + i));
+        let handler = f
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|op| {
+                if let Op::TryCatch { handler, .. } = &mut op.kind {
+                    Some(handler)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let Exit::Return(error) = handler.exit else {
+            panic!("Error handler return");
+        };
+        let span = handler.span;
+        let mut push = |kind| handler.operations.push(Operation { span, kind });
+        push(Op::SettlePromise {
+            result: snapshot,
+            body: Region {
+                id: RegionId(10000),
+                span,
+                operations: vec![],
+                exit: if rejected {
+                    Exit::Throw(error)
+                } else {
+                    Exit::Return(error)
+                },
+            },
+        });
+        push(Op::SettledValue {
+            result: payload,
+            input: snapshot,
+        });
+        push(Op::PrimitiveStrictEqual {
+            result: equal,
+            left: error,
+            right: payload,
+            negated: false,
+        });
+        push(Op::PromiseRejected {
+            result: status,
+            input: snapshot,
+        });
+        push(Op::Not {
+            result: not_status,
+            input: status,
+        });
+        push(Op::Pack {
+            result: packed_equal,
+            input: equal,
+        });
+        push(Op::Boolean {
+            result: no,
+            value: false,
+        });
+        push(Op::Pack {
+            result: packed_no,
+            input: no,
+        });
+        push(Op::If {
+            result: Some(result),
+            condition: if rejected { status } else { not_status },
+            consequent: Region {
+                id: RegionId(10001),
+                span,
+                operations: vec![],
+                exit: Exit::Yield(packed_equal),
+            },
+            alternate: Region {
+                id: RegionId(10002),
+                span,
+                operations: vec![],
+                exit: Exit::Yield(packed_no),
+            },
+        });
+        handler.exit = Exit::Return(result);
+        let native = format!(
+            "{cycle}try{{await p;}}catch(e){{try{{if({rejected})throw e;return e===e;}}catch(x){{return x===e;}}}}"
+        );
+        async_case(
+            &mut script,
+            &format!("settled-error-project-{rejected}"),
+            &module,
+            &native,
+        );
+    }
+    finish_async(script);
+}
+
+#[test]
 fn settled_promise_signatures_are_logically_distinct_private_values() {
     let mut signatures = ClosureSignatures::default();
     let settled = signatures.intern(vec![Type::SettledPromise], Type::SettledPromise);

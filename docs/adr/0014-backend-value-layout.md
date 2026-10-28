@@ -145,21 +145,25 @@ The public ABI, arena limit and default fuel budget are unchanged.
 ## Settled primitive snapshot follow-up
 
 The separate `SettledPromise` kind preserves an immediate fulfillment or
-rejection and a primitive payload. It shares the sixteen-byte pair policy for
+rejection and a represented General payload. It shares the sixteen-byte pair policy for
 locals, private results/arguments, captured cells and suspended storage. The
-backend uses rejection mask 4 in its tag word; the primitive tag remains
-in bits 0..1. General and fulfilled-only values keep tags 0..3. Explicit
+backend reserves rejection mask 0x80000000 in its tag word and preserves the
+General kind in the low 31 bits. The old rejection mask 4 collided with the
+intrinsic Error kind 4. General and fulfilled-only values keep canonical kind
+tags; settled values add only the private rejection flag. Explicit
 promotion, payload/status operations and await emission own those conversions;
 the source lowerer and logical IR do not encode bit constants. Both host adapters
 continue to receive only canonical General tags.
 
-A separate 24-byte status/tag/payload triple would work, but adds a lane and
-widens every private transport for one additional state bit. Reinterpreting the
-existing fulfilled-only logical type would weaken its guarantee. A distinct
-logical kind with the existing pair is the bounded choice; it does not decide
-the representation of future pending Promise objects or a scheduler.
-The encoding assumes the current four primitive payload kinds; extending General
-must revisit this backend mapping rather than treating mask 4 as a product limit.
+A separate status/tag/payload triple would add a stack lane and require private
+transport changes, although two i32 fields and an f64 could fit sixteen storage
+bytes. Reinterpreting the fulfilled-only logical type would weaken its guarantee.
+The distinct logical kind retains the existing two-lane, sixteen-byte carrier.
+The rejection flag is now disjoint from current General kinds 0..4, preserving
+intrinsic Error identity through status and payload projection. Future kind tags
+must stay below the reserved status bit or revise this backend policy. This is
+an internal encoding change, not a source language kind limit or a public ABI.
+Pending Promise identities continue to use their separate arena records.
 
 A closed settlement region captures synchronous primitive returns/throws and
 lexical catches without a reaction. It rejects suspension. Awaiting the snapshot

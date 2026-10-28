@@ -441,3 +441,19 @@ intrinsic Error extension. It does not add General Strings, custom ToPrimitive,
 function-object equality or identity for immediate fulfilled/settled snapshots.
 Snapshot materialization remains required for those source Promise domains; see
 [the logical contract](ir.md#represented-promise-identity-equality).
+
+### Error payloads in immediate settled snapshots
+
+Runtime-selected immediate async closures now retain intrinsic Error payloads in
+both fulfillment and rejection. The old private rejection bit collided with Error
+kind 4, corrupting the reason and trapping during canonical payload validation.
+The backend now reserves bit 31 for rejection and preserves the General kind in
+the low bits. This changes private packed snapshot encodings, not their lane or
+frame widths, public statuses, canonical value tags or microtask order.
+
+Maintained source tests cover the original runtime-selected throwing counterexample,
+mixed fulfilling/throwing peers, captured reasons, forwarding, repeated rethrow,
+numeric coercion and all previous primitive payload kinds. A separate typed IR
+fixture checks direct payload/status projection of fulfilled and rejected Errors.
+The already-working direct inline throw remains a control. Snapshot conversion to
+stable Promise identities and other recorded Promise gaps remain separate work.

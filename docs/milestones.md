@@ -110,7 +110,10 @@ snapshot adoption and mixed pending/scalar or pending/snapshot inputs remain gap
 Represented Promise values now support strict/loose equality and inequality,
 preserving alias identity, distinct calls, captured snapshots and operand jobs.
 Comparison does not handle rejection or equate a Promise with its completion or
-numeric ID. Snapshot identity conversion and General String coercion remain open.
+numeric ID. Immediate settled async results now also preserve Error payloads and
+their fulfillment/rejection status through a disjoint backend status bit; direct
+inline and previous primitive cases remain controls. Snapshot identity conversion
+and General String coercion remain open.
 This does not close general Promise support or L5.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.

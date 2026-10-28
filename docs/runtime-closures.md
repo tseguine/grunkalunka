@@ -451,3 +451,13 @@ the represented intrinsic Errors. Relational comparison preserves General operan
 through calls and suspension, distinguishes equal primitive strings from distinct
 object identities, and keeps explicit numeric coercion separate. Arbitrary Error
 properties and general strings remain gaps documented in [async](async.md).
+
+### Error reasons in settled immediate closures
+
+The opt-in intrinsic Error kind is preserved through runtime-selected immediate
+async results, whether fulfilled or rejected. Captured and forwarded reasons keep
+their identity; repeated rethrow and subsequent numeric coercion retain the same
+General semantics. Rejection no longer shares bit 4 with the Error kind: the
+backend reserves its high status bit while retaining the established tag/f64 pair
+and sixteen-byte private storage. Existing primitive values and reaction order
+remain unchanged. This does not materialize immediate snapshots as Promise objects.

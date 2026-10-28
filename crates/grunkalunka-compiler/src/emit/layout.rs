@@ -3,6 +3,11 @@
 //! locals, suspended storage, captured cells and closure argument frames.
 use crate::ir::Type;
 
+// Settled snapshots share General's tag/payload lanes. Reserve a status bit
+// outside the canonical value-kind range so Error tag 4 remains a value kind.
+pub(super) const SETTLED_REJECTED_BIT: u32 = 1 << 31;
+pub(super) const SETTLED_TAG_MASK: u32 = !SETTLED_REJECTED_BIT;
+
 #[derive(Clone, Copy)]
 pub(super) enum Lane {
     I32,
