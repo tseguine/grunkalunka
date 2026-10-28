@@ -13,13 +13,14 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   observeMarkdownGuest, compareMarkdownGuests,
 } from './wasm-section-fingerprint.mjs';
+import { fingerprintWasmData, compareWasmDataFingerprints } from './wasm-data-chunks.mjs';
 
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const TARGET='wasm32-unknown-unknown';
 const SHA=/^[a-f0-9]{64}$/;
 const GIT=/^[a-f0-9]{40}$/;
 const MAX_WASM=16*1024*1024;
-const MAX_RECEIPT=768*1024;
+const MAX_RECEIPT=2*1024*1024;
 const BUILD=[
   'build','--locked','--offline','-j','1',
   '-p','grunkalunka-markdown','--example','outline_guest',
@@ -144,7 +145,7 @@ function validateSources(inputs){
   }
 }
 function validateHost(report){
-  check(report&&report.schemaVersion===1&&report.workload===WORKLOAD&&
+  check(report&&[1,2].includes(report.schemaVersion)&&report.workload===WORKLOAD&&
     GIT.test(report.revision),'native Cargo wrapper report');
   check(report.environment&&['linux','win32','darwin'].includes(report.environment.os)&&
     ['x64','arm64'].includes(report.environment.arch)&&
@@ -226,6 +227,18 @@ function validateHost(report){
     check(identity.sameArtifactBytes&&
       identity.codeBodyComparison!==null,
     'self-consistent actual core Wasm fingerprint for '+mode);
+    // Old schema-1 receipts lack initialized-data fingerprints. New schema-2
+    // observations must bind their data hashes to the actual Wasm section.
+    const data=record.report.initializedData;
+    check(report.schemaVersion!==2||data!==undefined,
+      'schema 2 initialized-data evidence for '+mode);
+    if(data!==undefined){
+      const matching=compareWasmDataFingerprints(data,data);
+      const dataSection=record.report.sections.find(x=>x.id===11);
+      check(dataSection&&data.sectionSha256===dataSection.sha256&&
+        matching.sameDataSectionBytes&&matching.allSegmentsByteIdentical,
+      'bound initialized-data section fingerprint for '+mode);
+    }
   }
   return report;
 }
@@ -241,6 +254,9 @@ function summary(a,b){
     matchingAtOrdinal:bodies.matchingAtSameOrdinal,
     matchingIgnoringOrder:bodies.matchingBodyOccurrencesIgnoringOrder,
     unmatched:[bodies.producerUnmatchedBodyOccurrences,bodies.receiverUnmatchedBodyOccurrences],
+    // Historic missing data is unavailable, never inferred equality.
+    initializedData:a.initializedData&&b.initializedData?
+      compareWasmDataFingerprints(a.initializedData,b.initializedData):null,
   };
 }
 export function compareNativeMetadataOverrides(linux,receiver) {
@@ -321,7 +337,7 @@ export function compareNativeMetadataOverrides(linux,receiver) {
       producer:Object.fromEntries(VARIANTS.map(mode=>[mode,{...linux.variants[mode].report.artifact}])),
       receiver:Object.fromEntries(VARIANTS.map(mode=>[mode,{...receiver.variants[mode].report.artifact}])),
     },
-    interpretation:'staged five selected and two additional wasm dependency metadata overrides under one fixed wrapper; extra-filename and remaining Cargo inputs remain host-dependent',
+    interpretation:'staged native metadata controls with bounded raw initialized-data chunk localization where receipts provide it; extra-filename and other Cargo inputs remain host-dependent',
   };
 }
 
@@ -386,13 +402,14 @@ export async function collectNativeMetadataOverrides() {
       'actual compiled Wasm and native Rust toolchain');
       report.environment.rustflags='';
       report.environment.cargoEncodedRustflags='';
+      report.initializedData=fingerprintWasmData(compiled);
       variants[mode]={mode,actualMetadata,report};
       check(isDeepStrictEqual(await snapshot(),initial),
         'tracked source not modified during '+mode);
     }
     check(run('rustc',['-vV']).trim()===rustc,'stable native toolchain across modes');
     return validateHost({
-      schemaVersion:1,workload:WORKLOAD,revision,
+      schemaVersion:2,workload:WORKLOAD,revision,
       environment:{
         os:platform(),arch:arch(),node:process.version,
         rustc:rustc.split(/\r?\n/)[0],rustcCommit:field('commit-hash'),

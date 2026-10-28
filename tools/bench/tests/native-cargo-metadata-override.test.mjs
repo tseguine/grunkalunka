@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inspectWasmSections } from '../wasm-section-fingerprint.mjs';
+import { fingerprintWasmData } from '../wasm-data-chunks.mjs';
 import {
   parseMetadataOverrideLog, compareNativeMetadataOverrides,
 } from '../native-cargo-metadata-override.mjs';
@@ -40,13 +41,15 @@ function row(crate,mode,kind='linux'){
 }
 const metadata=(mode,host)=>Object.keys(names).sort().map(crate=>row(crate,mode,host));
 const magic=Buffer.from([0,97,115,109,1,0,0,0]);
-function wasm(bytes){
+function wasm(bytes,data=[1,2,3]){
   const body=Buffer.from(bytes);
   const payload=Buffer.from([1,body.length,...body]);
-  return Buffer.concat([magic,Buffer.from([10,payload.length]),payload]);
+  const initialized=Buffer.from([1,0,0x41,0,0x0b,data.length,...data]);
+  return Buffer.concat([magic,Buffer.from([10,payload.length]),payload,
+    Buffer.from([11,initialized.length]),initialized]);
 }
-function sectionReceipt(mode,os,arch,body=[0,11]){
-  const bytes=wasm(body);
+function sectionReceipt(mode,os,arch,body=[0,11],data=[1,2,3]){
+  const bytes=wasm(body,data);
   return {
     schemaVersion:1,workload:'p1-markdown-guest-wasm-sections',
     revision:'e'.repeat(40),
@@ -61,11 +64,12 @@ function sectionReceipt(mode,os,arch,body=[0,11]){
       'crates/grunkalunka-markdown/examples/outline_guest.rs',
     ].map(src),
     ...inspectWasmSections(bytes,{codeBodyDigests:true}),
+    initializedData:fingerprintWasmData(bytes),
   };
 }
 function receipt(os='linux',arch='x64',body=[0,11]){
   return {
-    schemaVersion:1,workload:'p1-native-cargo-metadata-override',
+    schemaVersion:2,workload:'p1-native-cargo-metadata-override',
     revision:'e'.repeat(40),
     environment:{
       os,arch,node:'v24.21.0',rustc:'rustc 1.99.1 (synthetic)',
@@ -221,4 +225,54 @@ test('incremental remaining dependency normalization applies only in the fourth 
   assert.equal(rows.find(x=>x.crate==='bitflags').effective,'p1bitflags');
   assert.equal(rows.find(x=>x.crate==='memchr').effective,'p1memchr');
   assert.equal(rows.find(x=>x.crate==='unicase').effective,'p1unicase');
+});
+
+test('identical code bodies do not hide a differing initialized-data segment',()=>{
+  const linux=receipt(),windows=receipt('win32');
+  for(const mode of ['passthrough','target','target_plus_deps','all']){
+    windows.variants[mode].report=
+      sectionReceipt(mode,'win32','x64',[0,11],[1,9,3]);
+  }
+  const result=compareNativeMetadataOverrides(linux,windows);
+  const x=result.crossHost.target;
+  assert.equal(x.matchingAtOrdinal,1);
+  assert.equal(x.initializedData.sameDataSectionBytes,false);
+  assert.equal(x.initializedData.producerDataBytes,3);
+  assert.equal(x.initializedData.receiverDataBytes,3);
+  assert.equal(x.initializedData.differingSegments.length,1);
+  assert.equal(x.initializedData.differingSegments[0].sameLayout,true);
+  assert.equal(x.initializedData.differingSegments[0].changedChunkCount,1);
+  assert.deepEqual(x.initializedData.differingSegments[0].firstChangedChunks,[0]);
+  assert.equal(result.withinHost.receiver.passthroughToTarget.initializedData.allSegmentsByteIdentical,true);
+});
+
+test('schema 2 requires complete data evidence bound to the observed Wasm section',()=>{
+  const linux=receipt(),windows=receipt('win32');
+  delete windows.variants.all.report.initializedData;
+  assert.throws(()=>compareNativeMetadataOverrides(linux,windows),
+    /schema 2 initialized-data evidence/);
+  windows.variants.all.report=sectionReceipt('all','win32','x64');
+  windows.variants.all.report.initializedData.sectionSha256='f'.repeat(64);
+  assert.throws(()=>compareNativeMetadataOverrides(linux,windows),
+    /bound initialized-data section fingerprint/);
+  windows.variants.all.report=sectionReceipt('all','win32','x64');
+  windows.variants.all.report.initializedData.segments[0].chunkDigestsBase64='not-base64!';
+  assert.throws(()=>compareNativeMetadataOverrides(linux,windows),
+    /bounded Wasm data segment identity/);
+});
+
+test('archived schema 1 receipts report missing data as unavailable',()=>{
+  const linux=receipt(),windows=receipt('win32');
+  for(const report of [linux,windows]){
+    report.schemaVersion=1;
+    for(const variant of Object.values(report.variants))
+      delete variant.report.initializedData;
+  }
+  const old=compareNativeMetadataOverrides(linux,windows);
+  assert.equal(old.crossHost.target.initializedData,null);
+  assert.equal(old.withinHost.producer.targetToAll.initializedData,null);
+  const modern=receipt('win32');
+  const mixed=compareNativeMetadataOverrides(linux,modern);
+  assert.equal(mixed.crossHost.target.initializedData,null);
+  assert.equal(mixed.withinHost.receiver.targetToAll.initializedData.allSegmentsByteIdentical,true);
 });
