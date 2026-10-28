@@ -1,0 +1,54 @@
+name: PR impact scoped Cargo execution sample
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'ci/impact/run-layout-sample.mjs'
+      - 'ci/impact/validate-layout-selection.mjs'
+      - 'ci/impact/validate-layout-selection.test.mjs'
+      - '.github/workflows/impact-layout-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    name: Advisory selected layout checks (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out same PR merge revision tested by full CI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Install native repository Rust host toolchain
+        run: |
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy
+          rustc --version --verbose
+          cargo --version
+          node --version
+      - name: Restore Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: impact-layout-linux
+          workspaces: |
+            . -> target
+          cache-bin: 'false'
+          save-if: 'false'
+      - name: Fetch locked dependencies for the offline sample
+        run: cargo fetch --locked
+      - name: Verify fail-closed sample selection
+        run: node --test ci/impact/validate-layout-selection.test.mjs
+      - name: Run selected package build, Clippy, tests and formatting on real source
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUST_BACKTRACE: '1'
+        run: node ci/impact/run-layout-sample.mjs
