@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const SHA = /^[a-f0-9]{64}$/;
+const COMMIT = /^[a-f0-9]{40}$/;
 const MAX_FILES = 512;
 const MAX_TOTAL_BYTES = 512 * 1024 * 1024;
 const MAX_FILE_BYTES = 128 * 1024 * 1024;
@@ -42,7 +43,7 @@ export function validateSysrootReceipt(receipt) {
   const toolchain = receipt.toolchain;
   required(toolchain && typeof toolchain.release === 'string' &&
     /^\d+\.\d+\.\d+/.test(toolchain.release) &&
-    typeof toolchain.commit === 'string' && SHA.test(toolchain.commit) &&
+    typeof toolchain.commit === 'string' && COMMIT.test(toolchain.commit) &&
     typeof toolchain.llvm === 'string' && toolchain.llvm.length > 0 &&
     typeof toolchain.host === 'string' && toolchain.host.length > 0,
   'target library Rust toolchain');
