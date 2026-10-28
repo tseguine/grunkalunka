@@ -1,0 +1,231 @@
+# P1: independent native Rust compilers emit Markdown guest Wasm under
+# identical explicit crate metadata flags. Canonical CI remains unchanged.
+name: P1 native Markdown metadata output identity
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-native-markdown-metadata.yml
+      - tools/bench/markdown-native-metadata.mjs
+      - tools/bench/tests/markdown-native-metadata.test.mjs
+      - tools/bench/wasm-named-bodies.mjs
+      - tools/bench/wasm-section-fingerprint.mjs
+      - crates/grunkalunka-markdown/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-native-markdown-metadata-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  producer:
+    name: Build default and fixed-metadata Markdown guests on Linux x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      receipt64: ${{ steps.transfer.outputs.receipt64 }}
+    steps:
+      - name: Check out exact tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install exact native Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Install active Rust Wasm target and assert native Linux
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/native-rustc.txt"
+          grep -F 'host: x86_64-unknown-linux-gnu' "$RUNNER_TEMP/native-rustc.txt"
+          cargo fetch --locked
+
+      - name: Run exact metadata/source/receipt regression cases
+        run: node --test tools/bench/tests/markdown-native-metadata.test.mjs
+
+      - name: Build both actual variants and transfer bounded fingerprint receipt
+        id: transfer
+        run: |
+          set -euo pipefail
+          node tools/bench/markdown-native-metadata.mjs collect \
+            > "$RUNNER_TEMP/linux-native-metadata.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-native-metadata.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require('node:fs');
+          const zlib = require('node:zlib');
+          const assert = require('node:assert/strict');
+          const [path, output] = process.argv.slice(2);
+          const bytes = fs.readFileSync(path);
+          assert.ok(bytes.length > 0 && bytes.length <= 768 * 1024, 'bounded local JSON receipt');
+          const report = JSON.parse(bytes.toString('utf8'));
+          assert.equal(report.workload, 'p1-native-markdown-metadata-control');
+          assert.deepEqual([report.environment.os, report.environment.arch], ['linux', 'x64']);
+          assert.equal(report.environment.node, 'v24.21.0');
+          assert.deepEqual(Object.keys(report.variants).sort(), ['default', 'fixed']);
+          assert.equal(report.variants.default.environment.rustflags, '');
+          assert.equal(report.variants.fixed.environment.rustflags,
+            '-C metadata=p1crosshostfixed');
+          for (const variant of Object.values(report.variants)) {
+            assert.match(variant.artifact.sha256, /^[0-9a-f]{64}$/);
+            assert.ok(variant.codeBodies.count > 0 && variant.codeBodies.count <= 4096);
+            assert.ok(variant.namedBodies.mappedCount > 0);
+            assert.equal(variant.namedBodies.normalization, undefined);
+            assert.equal(variant.namedBodies.mangledHashNormalization, undefined);
+          }
+          const compressed = zlib.gzipSync(bytes, { level: 9 });
+          assert.ok(compressed.length > 0 && compressed.length <= 320 * 1024,
+            'bounded ephemeral compressed receipt');
+          const encoded = compressed.toString('base64');
+          assert.ok(encoded.length <= 440 * 1024, 'bounded GitHub job output');
+          fs.appendFileSync(output, 'receipt64=' + encoded + '\n');
+          console.log('PASS native Linux default/fixed Markdown metadata receipts ' +
+            JSON.stringify(Object.fromEntries(Object.entries(report.variants)
+              .map(([name, value]) => [name, {
+                artifact: value.artifact, functions: value.codeBodies.count,
+                names: value.namedBodies.mappedCount,
+              }]))));
+          NODE
+
+  compare:
+    name: Compare independent default/fixed outputs on ${{ matrix.platform }}
+    needs: producer
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows x64
+            runner: windows-2025
+            os: Windows
+            runner_arch: X64
+            node_os: win32
+            node_arch: x64
+            rust_host: x86_64-pc-windows-msvc
+          - platform: Apple Silicon macOS ARM64
+            runner: macos-15
+            os: macOS
+            runner_arch: ARM64
+            node_os: darwin
+            node_arch: arm64
+            rust_host: aarch64-apple-darwin
+    steps:
+      - name: Check out exact same source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install identical Node.js release for this native host
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: ${{ matrix.node_arch }}
+          package-manager-cache: false
+
+      - name: Verify native host and install locked Rust target
+        env:
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
+          EXPECTED_NODE_OS: ${{ matrix.node_os }}
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "$EXPECTED_OS"
+          test "$RUNNER_ARCH" = "$EXPECTED_RUNNER_ARCH"
+          node -e "if (process.platform !== process.env.EXPECTED_NODE_OS || process.arch !== process.env.EXPECTED_NODE_ARCH || process.version !== 'v24.21.0') process.exit(1)"
+          if [ "$RUNNER_OS" = macOS ]; then
+            test "$(uname -m)" = arm64
+            test "$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')" = 0
+          fi
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/native-rustc.txt"
+          grep -F "host: $EXPECTED_RUST_HOST" "$RUNNER_TEMP/native-rustc.txt"
+          cargo fetch --locked
+
+      - name: Verify comparison rejection behavior on native receiver
+        run: node --test tools/bench/tests/markdown-native-metadata.test.mjs
+
+      - name: Compile both variants and compare actual Wasm against Linux
+        env:
+          PRODUCER_RECEIPT64: ${{ needs.producer.outputs.receipt64 }}
+          EXPECTED_NODE_OS: ${{ matrix.node_os }}
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-native-metadata.json" <<'NODE'
+          const fs = require('node:fs');
+          const zlib = require('node:zlib');
+          const assert = require('node:assert/strict');
+          const encoded = process.env.PRODUCER_RECEIPT64 ?? '';
+          assert.match(encoded, /^[A-Za-z0-9+/]+={0,2}$/, 'canonical compressed producer receipt');
+          assert.ok(encoded.length <= 440 * 1024, 'bounded encoded producer transfer');
+          const compressed = Buffer.from(encoded, 'base64');
+          assert.ok(compressed.length > 0 && compressed.length <= 320 * 1024);
+          assert.equal(compressed.toString('base64'), encoded, 'literal producer transfer');
+          const bytes = zlib.gunzipSync(compressed, { maxOutputLength: 768 * 1024 });
+          assert.ok(bytes.length > 0 && bytes.length <= 768 * 1024);
+          fs.writeFileSync(process.argv[2], bytes, { flag: 'wx' });
+          NODE
+          node tools/bench/markdown-native-metadata.mjs collect \
+            > "$RUNNER_TEMP/receiver-native-metadata.json"
+          node tools/bench/markdown-native-metadata.mjs compare \
+            "$RUNNER_TEMP/linux-native-metadata.json" "$RUNNER_TEMP/receiver-native-metadata.json" \
+            > "$RUNNER_TEMP/native-metadata-diff.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/native-metadata-diff.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-native-markdown-metadata-comparison');
+          assert.deepEqual([report.producer.os, report.producer.arch], ['linux', 'x64']);
+          assert.equal(report.receiver.os, process.env.EXPECTED_NODE_OS);
+          assert.equal(report.receiver.arch, process.env.EXPECTED_NODE_ARCH);
+          assert.equal(report.receiver.rustcHost, process.env.EXPECTED_RUST_HOST);
+          assert.equal(report.producer.rustc, report.receiver.rustc,
+            'same Rust release');
+          assert.equal(report.producer.rustcCommit, report.receiver.rustcCommit);
+          assert.equal(report.producer.llvmVersion, report.receiver.llvmVersion);
+          for (const mode of ['default', 'fixed']) {
+            const result = report.acrossHosts[mode];
+            assert.equal(typeof result.sameArtifactBytes, 'boolean');
+            assert.ok(result.sameRawNameOccurrences >= 0);
+            assert.ok(result.sameRawNameAndBodyOccurrences >= 0);
+            assert.ok(result.sameRawNameAndBodyOccurrences <= result.sameRawNameOccurrences);
+            assert.ok(result.sameBodyOccurrencesIgnoringOrder >= 0);
+            assert.ok(result.sameBodyOccurrencesIgnoringOrder <=
+              Math.min(...result.definedFunctionCounts));
+            assert.match(report.artifacts.producer[mode].sha256, /^[a-f0-9]{64}$/);
+            assert.match(report.artifacts.receiver[mode].sha256, /^[a-f0-9]{64}$/);
+          }
+          // A mismatch is evidence, not a failure of this diagnostic.
+          console.log('PASS cross-host default and fixed Rust metadata observation');
+          console.log(JSON.stringify(report));
+          NODE
