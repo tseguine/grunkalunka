@@ -30,6 +30,7 @@ verification receipts, not saved benchmark performance results.
 | One-codegen-unit Rust Markdown control | [#115](https://github.com/tseguine/grunkalunka/pull/115), [CGU experiment](p1-markdown-cgu-control.md) | Native Linux, Windows and Apple Silicon independently rebuilt the unchanged Markdown guest with default dev settings and then `-C codegen-units=1` in isolated same-path target directories. Positional body differences versus Linux decreased from **1,313 to 476 on Windows** and **1,374 to 757 on Apple Silicon**, but emitted guest artifacts remained unequal. This is evidence that codegen-unit configuration affects these byte observations, not proof of the remaining cause or semantic differences |
 | Installed wasm32 Rust target-library identity | [#116](https://github.com/tseguine/grunkalunka/pull/116), [sysroot fingerprint experiment](p1-rust-wasm32-sysroot.md) | All **54** installed `wasm32-unknown-unknown` target-library files (103,517,873 bytes total) matched byte-for-byte across Linux x64, Windows x64 and native Apple Silicon ARM64 under observed Rust 1.99.1 and LLVM 23.1.1. This eliminates literal differences in those target files as a direct cause of the Markdown guest artifact divergence, not native host compiler, linker or build-environment differences |
 | Rust diagnostic function-name correlation | [#119](https://github.com/tseguine/grunkalunka/pull/119), [named-body experiment](p1-markdown-named-body-correlation.md) | All **1,897** Markdown guest functions had recorded diagnostic names on each host, but only **195 raw name occurrences** matched Linux on either Windows or Apple Silicon. Among those 195, **89** had matching raw bodies and **106** had changed body bytes. Compiler-emitted diagnostic names are not stable source-level identities, and these observations do not establish semantic incompatibility |
+| Rust legacy diagnostic hash-suffix controls | [#121](https://github.com/tseguine/grunkalunka/pull/121), [#123](https://github.com/tseguine/grunkalunka/pull/123), [name-format analysis](p1-markdown-named-body-correlation.md) | Across Linux, Windows and Apple Silicon, none of the **1,897** Markdown guest function names matched either tested legacy terminal hash pattern (readable `::h` with 16 lowercase hexadecimal digits or mangled `17h` with 16 digits and `E`). Each host had **1,888 v0-mangled-like** and **9 other** names. Both controls left raw cross-host name overlap at **195**. These are narrow syntactic exclusions, not authenticated v0 parsing or evidence of equivalent code |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -70,9 +71,13 @@ reports when explicitly run; the build system does not publish them.
   found all 54 installed wasm32 target-library files byte-identical across
   hosts. [#119](https://github.com/tseguine/grunkalunka/pull/119) showed that
   only 195 of 1,897 raw compiler-emitted function-name strings match Linux
-  on either receiving host. Native compiler/linker behavior, name-mangling
-  details, encoded index references, paths and other build inputs still
-  require investigation. No functional fault has been established.
+  on either receiving host. Subsequent [#121](https://github.com/tseguine/grunkalunka/pull/121)
+  and [#123](https://github.com/tseguine/grunkalunka/pull/123) found **zero**
+  matches for two specific legacy Rust hash-suffix spellings, while identifying
+  **1,888 v0-mangled-like** symbols on each host. Native compiler/linker
+  behavior, v0 crate identity, encoded index references, source paths and
+  other build inputs still require investigation. No functional fault has
+  been established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
