@@ -1,0 +1,8 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/gap-oracle.test.mjs",
+    "tests/compatibility/program-sources.test.mjs"
+  ]
+}

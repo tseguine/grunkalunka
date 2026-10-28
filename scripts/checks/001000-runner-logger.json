@@ -1,0 +1,7 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/check-command.test.mjs"
+  ]
+}

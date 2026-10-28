@@ -1,0 +1,7 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/p1-native-portability.test.mjs"
+  ]
+}

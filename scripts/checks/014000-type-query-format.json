@@ -1,0 +1,9 @@
+{
+  "command": "cargo",
+  "args": [
+    "fmt",
+    "--manifest-path",
+    "spikes/004-tsrs-type-query/Cargo.toml",
+    "--check"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/suites.test.mjs",
+    "tests/compatibility/test262.test.mjs",
+    "tests/compatibility/benchmarks-game.test.mjs"
+  ]
+}

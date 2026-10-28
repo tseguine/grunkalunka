@@ -1,0 +1,9 @@
+{
+  "command": "cargo",
+  "args": [
+    "fmt",
+    "--manifest-path",
+    "spikes/001-frontend-semantics/Cargo.toml",
+    "--check"
+  ]
+}

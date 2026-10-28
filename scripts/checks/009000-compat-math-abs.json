@@ -1,0 +1,7 @@
+{
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/compatibility/numeric-math-abs-kernel.test.mjs"
+  ]
+}

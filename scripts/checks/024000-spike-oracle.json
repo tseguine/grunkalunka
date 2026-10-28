@@ -1,0 +1,6 @@
+{
+  "command": "node",
+  "args": [
+    "spikes/001-frontend-semantics/oracle.mjs"
+  ]
+}
