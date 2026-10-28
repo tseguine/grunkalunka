@@ -70,6 +70,9 @@ mod number_coercion;
 #[path = "async-suspension/named_async.rs"]
 mod named_async;
 
+#[path = "async-suspension/promise_type_arguments.rs"]
+mod promise_type_arguments;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -772,13 +775,6 @@ fn awaited_input_facts_keep_intrinsic_and_promise_object_guards() {
             assert!(compile_async(&source, typescript).is_err(), "{source}");
         }
     }
-    assert!(
-        compile_async(
-            &source_for("const f=x=>x;return f(await Promise.resolve<number>(null));"),
-            true
-        )
-        .is_err()
-    );
 }
 
 #[test]
@@ -1430,12 +1426,6 @@ fn promise_intrinsic_arguments_keep_erasure_and_resource_boundaries() {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }
     }
-    for body in [
-        "return await Promise.resolve<number>(a,b);",
-        "const p=Promise.resolve<number>(a,b);return await p;",
-    ] {
-        assert!(compile_async(&source_for(body), true).is_err(), "{body}");
-    }
 }
 
 #[test]
@@ -1454,9 +1444,6 @@ fn stored_fulfilled_promises_keep_object_and_intrinsic_boundaries() {
             assert!(compile_async(&source, ts).is_err(), "{source}");
         }
     }
-    let generic =
-        "export async function run(a,b){const p=Promise.resolve<number>(a);return await p;}";
-    assert!(compile_async(generic, true).is_err());
 }
 
 #[test]

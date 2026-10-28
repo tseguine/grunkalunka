@@ -715,3 +715,26 @@ the Promise string orders after it. Promise/non-string primitive pairs compare
 through NaN and yield false. General/General behavior remains unchanged.
 No comparison adopts, handles or schedules a Promise. Custom conversion and
 broader object/String domains remain excluded; see [the precise contract](async-promise-relational.md).
+
+## Promise intrinsic type arguments
+
+TypeScript call-site types on pristine Promise.resolve/reject are now erased:
+`await Promise.resolve<Missing>(a)` has the same runtime behavior and Wasm bytes
+as `await Promise.resolve(a)`. Metadata can contain unresolved names, type queries,
+arbitrary type-argument counts or misleading primitive claims; it adds no runtime
+binding, lookup, conversion, Promise identity or reaction. This is erasure, not
+type checking or a validation of those claims.
+
+The shared intrinsic validator applies this rule to directly awaited, stored,
+returned and privately forwarded constructors. Ordinary value arguments still
+execute left to right, including surplus arguments and their abrupt completion.
+Resolve identity, reject reasons, adoption, catches/finally and notifications keep
+the existing contracts. Tests compare typed guest bytes with JS twins and execute
+those twins against native JS, Node-Wasm and Wasmtime; notification fixtures also
+compare native rejection checkpoints. Four exact former TS guards now execute.
+
+Source bytes, await sites, argument limits, optional/spread calls, value shadowing,
+custom/unknown intrinsics and payload domains retain their guards. Source binding
+checks still distinguish type-only names from actual value references. Generic
+calls to ordinary helpers, Math and heap JSON intrinsics remain separate work.
+No new IR, type checker, runtime operation, dependency, ABI or budget is introduced.
