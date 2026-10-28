@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 import { validateCapture } from "./compare.mjs";
 
 const ids = ["outer", "first", "second"];
+const probes = ["first-center", "first-lower", "second-original", "left-margin",
+  "outer-border", "outside", "first-right"];
 const rectFields = ["x", "y", "width", "height"];
 const computedFields = ["display", "boxSizing", "width", "height", "marginTop",
   "paddingLeft", "borderLeftWidth"];
@@ -90,6 +92,30 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   }
   validateReflow("native", native?.reflow);
   validateReflow("browser", browser?.reflow);
+
+  const targetPhases = ["original", "hidden", "restored"];
+  function validateTargets(owner, value) {
+    const path = "$." + owner + ".hitTargets";
+    if (!record(value) ||
+        Object.keys(value).sort().join(",") !== [...targetPhases].sort().join(",")) {
+      error(path, "exactly original, hidden and restored target phases required");
+      return;
+    }
+    for (const phase of targetPhases) {
+      const map = value[phase];
+      if (!record(map) || Object.keys(map).sort().join(",") !== [...probes].sort().join(",")) {
+        error(path + "." + phase, "exactly the seven named hit probes required");
+        continue;
+      }
+      for (const probe of probes) {
+        if (map[probe] !== null && !ids.includes(map[probe])) {
+          error(path + "." + phase + "." + probe, "known target ID or explicit null required");
+        }
+      }
+    }
+  }
+  validateTargets("native", native?.hitTargets);
+  validateTargets("browser", browser?.hitTargets);
   if (!invalid.length) {
     if (browser.fixtureId !== native.fixtureId) {
       mismatch("$.fixtureId", native.fixtureId, browser.fixtureId);
@@ -159,6 +185,20 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
             left: left[field], right: right[field],
             path: "$.reflow." + phase + "." + id + "." + field });
         }
+      }
+    }
+  }
+  // These targets come from independent source-side elementFromPoint and
+  // native hit_test calls. A missing/outside target is explicit JSON null.
+  for (const phase of targetPhases) {
+    for (const probe of probes) {
+      const left = native.hitTargets[phase][probe];
+      const right = browser.hitTargets[phase][probe];
+      if (left !== right) {
+        differences.push({
+          kind: "hit-target", phase, probe, left, right,
+          path: "$.hitTargets." + phase + "." + probe,
+        });
       }
     }
   }

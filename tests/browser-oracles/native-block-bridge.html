@@ -38,11 +38,31 @@
       return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
     }));
   }
+  // An independent DOM hit-test probe for selected untransformed rectangles.
+  // Its result is an actual element ID, not inferred from the captured boxes.
+  const probes = [
+    ["first-center", 20, 20],
+    ["first-lower", 20, 34],
+    ["second-original", 20, 60],
+    ["left-margin", 13, 14],
+    ["outer-border", 5, 5],
+    ["outside", 300, 20],
+    ["first-right", 133, 20]
+  ];
+  function hitTargets() {
+    return Object.fromEntries(probes.map(([name, x, y]) => {
+      const element = document.elementFromPoint(x, y);
+      return [name, ids.includes(element?.id) ? element.id : null];
+    }));
+  }
+  const originalTargets = hitTargets();
   const first = document.getElementById("first");
   first.style.display = "none";
   const hidden = boxes();
+  const hiddenTargets = hitTargets();
   first.style.removeProperty("display");
   const restored = boxes();
+  const restoredTargets = hitTargets();
   document.getElementById("output").textContent = JSON.stringify({
     schemaVersion: 1,
     fixtureId: "native-block-bridge-v1",
@@ -52,7 +72,10 @@
       url: location.href, timestamp: new Date().toISOString()
     },
     observations,
-    reflow: { hidden, restored }
+    reflow: { hidden, restored },
+    hitTargets: {
+      original: originalTargets, hidden: hiddenTargets, restored: restoredTargets
+    }
   });
 })();
 </script>

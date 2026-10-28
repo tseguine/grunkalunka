@@ -22,12 +22,36 @@ const hidden = () => ({
   first: null,
   second: { x: 12, y: 12, width: 86, height: 16 },
 });
+const originalHits = {
+  "first-center": "first",
+  "first-lower": "first",
+  "second-original": "second",
+  "left-margin": "outer",
+  "outer-border": "outer",
+  outside: null,
+  "first-right": "first",
+};
+const hiddenHits = {
+  "first-center": "second",
+  "first-lower": "outer",
+  "second-original": null,
+  "left-margin": "second",
+  "outer-border": "outer",
+  outside: null,
+  "first-right": "outer",
+};
+const hitTargets = () => ({
+  original: { ...originalHits },
+  hidden: { ...hiddenHits },
+  restored: { ...originalHits },
+});
 const native = () => ({
   schemaVersion: 1, kind: "grunkalunka-native-block-geometry",
   fixtureId: "native-block-bridge-v1",
   viewport: { width: 800, height: 600, devicePixelRatio: 1 },
   geometry: geometryMap(),
   reflow: { hidden: hidden(), restored: geometryMap() },
+  hitTargets: hitTargets(),
 });
 function browser() {
   return {
@@ -45,6 +69,7 @@ function browser() {
       rect: { ...geometry[i] },
     })),
     reflow: { hidden: hidden(), restored: geometryMap() },
+    hitTargets: hitTargets(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
       browserVersion: "1.2", playwrightVersion: "1.64.1",
@@ -68,6 +93,10 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
   assert.ok(source.includes('first.style.removeProperty("display")'),
     "fixture must restore its original CSS state");
   assert.ok(source.includes("reflow: { hidden, restored }"), "both reflow states must be retained");
+  assert.ok(source.includes("document.elementFromPoint(x, y)"),
+    "browser input targets must come from the DOM hit test");
+  assert.ok(source.includes("const hiddenTargets = hitTargets()"));
+  assert.ok(source.includes("const restoredTargets = hitTargets()"));
   assert.ok(!/\b(?:src|href)=["']https?:/i.test(source), "external assets are not modeled");
 });
 
@@ -131,6 +160,49 @@ test("omitted or malformed reflow evidence is invalid, never an unchanged box", 
   const missingNative = native();
   delete missingNative.reflow;
   assert.equal(compareNativeBlockBridge(missingNative, browser(), fixture).status, "invalid");
+});
+
+test("native and browser hit probes match before, during, and after hiding", () => {
+  const report = compareNativeBlockBridge(native(), browser(), fixture);
+  assert.equal(report.status, "equal", JSON.stringify(report.differences));
+  assert.deepEqual(report.browser.hitTargets.original, originalHits);
+  assert.deepEqual(report.browser.hitTargets.hidden, hiddenHits);
+  assert.deepEqual(report.browser.hitTargets.restored, originalHits);
+});
+
+test("a changed browser hit target is a phase-specific difference", () => {
+  for (const [phase, probe, oldTarget, newTarget] of [
+    ["original", "first-center", "first", "outer"],
+    ["hidden", "first-center", "second", "outer"],
+    ["hidden", "second-original", null, "outer"],
+    ["restored", "first-right", "first", null],
+  ]) {
+    const right = browser();
+    right.hitTargets[phase][probe] = newTarget;
+    const report = compareNativeBlockBridge(native(), right, fixture);
+    assert.equal(report.status, "different");
+    const differences = report.differences.filter(d => d.kind === "hit-target");
+    assert.deepEqual(differences.map(d => [d.phase, d.probe, d.left, d.right]),
+      [[phase, probe, oldTarget, newTarget]]);
+  }
+});
+
+test("incomplete, unrecognized or malformed hit observations fail closed", () => {
+  for (const change of [
+    c => { delete c.hitTargets; },
+    c => { delete c.hitTargets.hidden; },
+    c => { delete c.hitTargets.original["first-center"]; },
+    c => { c.hitTargets.hidden["first-center"] = undefined; },
+    c => { c.hitTargets.hidden["first-center"] = "body"; },
+    c => { c.hitTargets.restored["first-center"] = 0; },
+  ]) {
+    const observed = browser();
+    change(observed);
+    assert.equal(compareNativeBlockBridge(native(), observed, fixture).status, "invalid");
+  }
+  const reported = native();
+  reported.hitTargets.original["first-center"] = "html";
+  assert.equal(compareNativeBlockBridge(reported, browser(), fixture).status, "invalid");
 });
 
 test("source hashes, identities and viewport mismatches cannot be compared", () => {
