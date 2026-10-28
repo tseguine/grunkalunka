@@ -27,3 +27,24 @@ attestation. This checks internal consistency and agreement between recorded
 observations, not machine identity, artifact build authenticity, or comparable
 runtime speed. Preserve the original receipts and CI logs alongside the
 comparison if they matter.
+
+## Real cross-host CI integration
+
+The optional [Linux x64 to Linux ARM64 GCD workflow](../.github/workflows/p1-portable-arm64.yml)
+exercises this comparator on **two actual replay receipts**. The x64 producer
+compiles once, validates its artifact in Node/V8 and native Wasmtime, and
+transmits its bounded JSON receipt alongside the original Wasm bytes, manifest
+and SHA-256 as ephemeral job outputs. The ARM64 receiver checks the exact byte
+transfer and the producer receipt's link to the original manifest, runs those
+unchanged Wasm bytes in its native Node/V8 and Wasmtime, then invokes this
+comparator on the producer and receiver JSON reports. It must observe the same
+recorded producer artifact, the expected x64/ARM64 host identities, eight
+independent goldens and both Wasmtime results.
+
+This is a stricter *end-to-end integration of the receipt reader* than the
+synthetic comparator unit tests, but not authenticated evidence: GitHub logs and
+job outputs contain observations, not signatures or hardware attestation.
+It does **not** compare runtime durations across hosts, establish performance
+parity, upload benchmark data or retain a separate comparison artifact.
+An absent, truncated or secret-filtered job output is an explicit failure.
+A passing CI job establishes the check for that exact tested revision only.
