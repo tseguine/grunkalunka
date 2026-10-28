@@ -15,6 +15,7 @@ on:
       - 'tools/browser-oracles/native-bridge-sensitivity.test.mjs'
       - 'tools/browser-oracles/native-hit-sensitivity.mjs'
       - 'tools/browser-oracles/native-hit-sensitivity.test.mjs'
+      - 'tools/browser-oracles/hosted/native-bridge.test.mjs'
       - 'tools/browser-oracles/package.json'
       - '.github/workflows/browser-native-bridge.yml'
       - 'Cargo.toml'
@@ -34,6 +35,7 @@ on:
       - 'tools/browser-oracles/native-bridge-sensitivity.test.mjs'
       - 'tools/browser-oracles/native-hit-sensitivity.mjs'
       - 'tools/browser-oracles/native-hit-sensitivity.test.mjs'
+      - 'tools/browser-oracles/hosted/native-bridge.test.mjs'
       - 'tools/browser-oracles/package.json'
       - '.github/workflows/browser-native-bridge.yml'
       - 'Cargo.toml'
@@ -110,32 +112,15 @@ jobs:
         with:
           name: native-block-bridge
           path: target/native-bridge
-      - name: Validate native/browser comparison contracts offline
-        run: node --test tests/browser-oracles/native-block-bridge.test.mjs tests/browser-oracles/native-block-bridge-workflow.test.mjs tools/browser-oracles/native-bridge-sensitivity.test.mjs tools/browser-oracles/native-hit-sensitivity.test.mjs
       - name: Install isolated pinned reference-engine automation
-        run: |
-          test "${PLAYWRIGHT_BROWSERS_PATH:-}" = /ms-playwright
-          npm --prefix tools/browser-oracles install --ignore-scripts --no-audit --no-fund
-          node -e 'require("node:assert/strict").equal(require("./tools/browser-oracles/package.json").dependencies.playwright, "1.64.1")'
-      - name: Collect live engine output and compare to native boxes
-        run: |
-          dir="target/native-bridge/${{ matrix.engine }}"
-          mkdir -p "$dir"
-          cp tests/browser-oracles/native-block-bridge.html "$dir/snapshot.html"
-          node tools/browser-oracles/collect.mjs \
-            --engine=${{ matrix.engine }} --fixture="$dir/snapshot.html" --output-dir="$dir/captures"
-          node tests/browser-oracles/native-block-bridge.mjs \
-            target/native-bridge/native.json "$dir/captures/${{ matrix.engine }}.json" > "$dir/comparison.json"
-      - name: Prove a real CSS width mutation causes exact geometry differences
-        run: |
-          dir="target/native-bridge/${{ matrix.engine }}"
-          node tools/browser-oracles/native-bridge-sensitivity.mjs \
-            ${{ matrix.engine }} target/native-bridge/native.json "$dir/sensitivity"
-      - name: Prove real pointer-events mutation changes only hit targets
-        run: |
-          dir="target/native-bridge/${{ matrix.engine }}"
-          node tools/browser-oracles/native-hit-sensitivity.mjs \
-            ${{ matrix.engine }} target/native-bridge/native.json "$dir/hit-sensitivity"
+        run: npm --prefix tools/browser-oracles install --ignore-scripts --no-audit --no-fund
+      - name: Run native/browser parity and negative controls as node:test
+        env:
+          BROWSER_NODE_VERSION: '24.21.0'
+          BROWSER_ENGINE: ${{ matrix.engine }}
+          BROWSER_BRIDGE_NATIVE: target/native-bridge/native.json
+          BROWSER_BRIDGE_OUTPUT: target/native-bridge/${{ matrix.engine }}
+        run: node --test tools/browser-oracles/hosted/native-bridge.test.mjs
       - name: Retain original native, HTML, browser and comparison evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
