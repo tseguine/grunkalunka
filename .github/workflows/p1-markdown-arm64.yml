@@ -1,0 +1,67 @@
+# Optional P1 component portability observation; no required CI replacement.
+name: P1 Markdown WIT on ARM64
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-markdown-arm64.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-markdown-arm64-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  markdown-arm64:
+    name: WIT Markdown guest and component on Linux ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact test revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install native ARM64 Node.js 24.22.1
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.22.1'
+          architecture: arm64
+          package-manager-cache: false
+
+      - name: Validate actual ARM64 host and install Rust Wasm target
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "aarch64"
+          node --version
+          node -e "if (process.arch !== 'arm64' || process.platform !== 'linux') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/rustc-version.txt"
+          grep -F "host: aarch64-unknown-linux-gnu" "$RUNNER_TEMP/rustc-version.txt"
+          cargo --version
+
+      - name: Fetch exact locked Rust inputs for native and Wasm guest
+        run: |
+          set -euo pipefail
+          cargo fetch --locked
+
+      - name: Execute real native Markdown parity and WIT component checks
+        run: |
+          set -euo pipefail
+          node scripts/check-document-outline.mjs | tee "$RUNNER_TEMP/markdown-arm64.log"
+          grep -F "PASS capability-backed Markdown outlines:" "$RUNNER_TEMP/markdown-arm64.log"
+          echo "PASS native ARM64 host: real Markdown core guest, typed WIT profiles, parity and cleanup"
