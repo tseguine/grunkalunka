@@ -97,6 +97,12 @@ fn rewrite(args: &mut [OsString], mode: &str) -> Result<Option<MetadataRecord>, 
     // Other dependencies (e.g. bitflags) remain exactly as Cargo requested,
     // and are also logged so their unaltered inputs are visible.
     let selected = stable_metadata(&crate_name, &target);
+    if matches!(crate_name.as_str(), "build_script_build" | "unicase" |
+        "pulldown_cmark" | "grunkalunka_markdown" | "outline_guest") &&
+        selected.is_none()
+    {
+        return Err(format!("selected crate on unexpected compilation target: {crate_name}/{target}"));
+    }
     if metadata_slots.len() != 1 || !is_cargo_hash(&metadata_slots[0].1) {
         return Err(format!("expected exactly one generated Cargo metadata value for {crate_name}"));
     }
@@ -221,10 +227,10 @@ mod tests {
         let before = args.clone();
         assert_eq!(rewrite(&mut args, "target").unwrap(), None);
         assert_eq!(args, before);
-        let mut unrecognized: Vec<OsString> = ["--crate-name", "___",
+        let mut selected_wrong_target: Vec<OsString> = ["--crate-name", "outline_guest",
             "-C", "metadata=0123456789abcdef"]
             .into_iter().map(OsString::from).collect();
-        assert!(rewrite(&mut unrecognized, "target").is_err());
+        assert!(rewrite(&mut selected_wrong_target, "target").is_err());
     }
     #[test]
     fn rejects_invalid_modes_or_unsupported_combined_flags() {
