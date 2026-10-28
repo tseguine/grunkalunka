@@ -33,7 +33,7 @@ const audit = (changed, source = sources()) =>
   auditBrowserWorkflows(changed, entries, file => source[file]);
 
 test('known browser workflow source filters parse conservatively', () => {
-  assert.equal(entries.length, 3);
+  assert.equal(entries.length, 4);
   for (const entry of entries) {
     const parsed = parseBrowserTriggers(fakeWorkflow(entry));
     assert.deepEqual(parsed.pull_request, entry.paths);
@@ -57,14 +57,15 @@ test('Windows CRLF checkouts retain browser workflow trigger coverage', () => {
   assert.equal(outcome.valid, true, JSON.stringify(outcome.errors));
   assert.deepEqual(outcome.requiredNotTriggered, []);
   assert.deepEqual(outcome.expectedToTrigger,
-    ['workflow:browser-collector', 'workflow:browser-oracles', 'workflow:browser-smoke']);
+    ['workflow:browser-collector', 'workflow:browser-native-bridge',
+      'workflow:browser-oracles', 'workflow:browser-smoke']);
 
   const odd = crlf['.github/workflows/browser-oracles.yml']
     .replace('  pull_request:\r\n', '  pull_request:\r');
   assert.throws(() => parseBrowserTriggers(odd), /carriage return/);
 });
 
-test('historical Grid plus layout change triggers all three separate browser workflows', () => {
+test('historical Grid plus layout change triggers all four separate browser workflows', () => {
   const result = audit([
     'tests/browser-oracles/grid-placement.html',
     'tools/browser-oracles/grid-placement.mjs',
@@ -73,7 +74,7 @@ test('historical Grid plus layout change triggers all three separate browser wor
   assert.equal(result.valid, true, result.errors.join('; '));
   assert.deepEqual(result.requiredNotTriggered, []);
   assert.deepEqual(result.expectedToTrigger, entries.map(x => x.id));
-  assert.equal(result.workflows.length, 3);
+  assert.equal(result.workflows.length, 4);
   assert.ok(result.workflows.every(x => x.execution.includes('result not inspected')));
 });
 
@@ -94,10 +95,64 @@ test('tests-only change needs smoke and oracle contracts, not collector', () => 
     ['workflow:browser-oracles', 'workflow:browser-smoke']);
 });
 
-test('layout-only edit has no browser CI implication', () => {
+test('shared comparator and collector changes require live native bridge checks', () => {
+  const descriptor = entries.find(x => x.id === 'workflow:browser-native-bridge');
+  assert.ok(descriptor, 'registered native browser workflow');
+  assert.ok(descriptor.requiredFor.includes('tests/browser-oracles/compare.mjs'));
+  assert.ok(descriptor.requiredFor.includes('tools/browser-oracles/collect.mjs'));
+  const shared = audit(['tests/browser-oracles/compare.mjs']);
+  assert.equal(shared.valid, true, shared.errors.join('; '));
+  assert.deepEqual(shared.requiredNotTriggered, []);
+  assert.deepEqual(shared.expectedToTrigger,
+    ['workflow:browser-native-bridge', 'workflow:browser-oracles', 'workflow:browser-smoke']);
+
+  const collector = audit(['tools/browser-oracles/collect.mjs']);
+  assert.equal(collector.valid, true, collector.errors.join('; '));
+  assert.deepEqual(collector.requiredNotTriggered, []);
+  assert.deepEqual(collector.expectedToTrigger, entries.map(x => x.id));
+
+  const unrelated = audit(['tests/browser-oracles/grid-placement.html']);
+  assert.equal(unrelated.valid, true);
+  assert.ok(!unrelated.expectedToTrigger.includes('workflow:browser-native-bridge'),
+    'unrelated browser suites must not launch the native bridge');
+});
+
+test('native bridge trigger or executable drift cannot imply verified coverage', () => {
+  const changed = ['tests/browser-oracles/compare.mjs'];
+  for (const modify of [
+    s => { delete s['.github/workflows/browser-native-bridge.yml']; },
+    s => { s['.github/workflows/browser-native-bridge.yml'] =
+      s['.github/workflows/browser-native-bridge.yml']
+        .replace("      - 'tests/browser-oracles/compare.mjs'",
+          "      - 'tests/browser-oracles/unrelated.mjs'"); },
+    s => { s['.github/workflows/browser-native-bridge.yml'] =
+      s['.github/workflows/browser-native-bridge.yml']
+        .replace('engine: [chromium, firefox, webkit]', 'engine: [chromium]'); },
+    s => { s['.github/workflows/browser-native-bridge.yml'] =
+      s['.github/workflows/browser-native-bridge.yml']
+        .replace('node tests/browser-oracles/native-block-bridge.mjs', 'node incomplete.mjs'); },
+  ]) {
+    const src = sources();
+    modify(src);
+    const result = audit(changed, src);
+    assert.equal(result.valid, false, JSON.stringify(result));
+    assert.ok(result.errors.length);
+  }
+});
+
+test('checked-in native bridge workflow matches registered audit paths and commands', () => {
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  const actual = auditBrowserWorkflows(['tests/browser-oracles/compare.mjs'],
+    entries, file => readFileSync(join(root, file), 'utf8'));
+  assert.equal(actual.valid, true, actual.errors.join('; '));
+  assert.deepEqual(actual.requiredNotTriggered, []);
+  assert.ok(actual.expectedToTrigger.includes('workflow:browser-native-bridge'));
+});
+
+test('layout-only edit requires the independent native bridge workflow', () => {
   const result = audit(['crates/grunkalunka-layout/src/lib.rs']);
   assert.equal(result.valid, true);
-  assert.deepEqual(result.expectedToTrigger, []);
+  assert.deepEqual(result.expectedToTrigger, ['workflow:browser-native-bridge']);
   assert.deepEqual(result.requiredNotTriggered, []);
 });
 

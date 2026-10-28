@@ -43,3 +43,34 @@ real-engine agreement. Native CI validates the example as a Rust target;
 actual Blink/Gecko/WebKit comparisons require the commands above or a
 separate hosted workflow. Never substitute synthetic captures for browser
 evidence.
+## Hosted three-engine evidence
+
+The optional [native block bridge workflow](../.github/workflows/browser-native-bridge.yml)
+executes the real Rust layout example once on Linux and uploads its unmodified
+JSON output. Independent Chromium, Firefox and WebKit jobs download that
+exact artifact, collect fresh Playwright observations of a retained HTML
+snapshot, then run the geometry comparator against the Rust output.
+An observed difference or incompatible source receipt fails its engine job;
+the original captures, snapshot, native receipt and comparison reports are
+retained even when differences occur. Version-pinned Playwright packages
+and container-image identity match the main browser-smoke workflow.
+
+This added real-engine evidence is a bounded box-layout comparison, not
+general DOM/layout conformance or a replacement for cross-engine reports.
+Changes in the native Rust engine or the fixture should therefore be reviewed
+against the independent CSS/HTML expectations as well as the observed
+browser coordinates.
+
+## Shared validator and CI trigger coverage
+
+The native comparator imports `tests/browser-oracles/compare.mjs` for
+capture validation. The hosted native bridge workflow retriggers when that
+shared file, `tools/browser-oracles/collect.mjs`, the pinned Playwright
+package, its own fixture/tests/CLI, or its Rust layout inputs change.
+Both PR and push filters use exact file paths and an audited layout subtree.
+
+The fourth `ci/impact/workflows/browser-native-bridge.json` descriptor
+checks those source filters and key native/browser commands. It reports
+**expected triggers only**, not verified hosted execution or success.
+The Windows selective-CI gate still requires a complete canonical plan;
+the independent browser workflows retain separate check conclusions.

@@ -1,18 +1,19 @@
 # Independent browser workflow impact audit (advisory)
 
 The canonical CI check catalog enumerates only the commands in
-`scripts/check.mjs`. Browser-specific tests run in three **independent,
+`scripts/check.mjs`. Browser-specific tests run in four **independent,
 path-filtered workflows** that are not represented by those commands:
 `browser-smoke.yml` (Chromium, Firefox and WebKit plus cross-engine report),
-`browser-oracles.yml` (offline oracle tests), and `browser-collector.yml`
-(offline collector contracts). The new browser workflow descriptors under
+`browser-oracles.yml` (offline oracle tests), `browser-collector.yml`
+(offline collector contracts), and `browser-native-bridge.yml` (real
+Grunkalunka layout compared with three browser engines). The new browser workflow descriptors under
 `ci/impact/workflows/` record the actual PR/push trigger paths and expected
 source commands. The read-only planner validates both trigger sections and
 reports which workflows **should be triggered by path filters**, not which
 hosted jobs actually ran or passed.
 
 The audit is deliberately narrow. It only understands the literal YAML
-path-list forms presently used by these three workflows; unfamiliar YAML,
+path-list forms presently used by these four workflows; unfamiliar YAML,
 negative filters, absent or changed source commands, missing engine matrix,
 or an outdated descriptor produces a **fail-closed full plan**. The
 browser workflows themselves are unchanged and continue to trigger
@@ -30,8 +31,10 @@ The browser-oracles workflow now declares `tools/browser-oracles/**` for
 and workflow paths. The source-level regression tests protect these
 trigger relationships. No browser tool or oracle semantics were changed.
 
-With the new filter, the audit is expected to select the offline oracle,
-collector, and three-engine smoke workflows for a tool-only browser change.
+With the corrected filter, tool-only changes still select the offline
+oracle, collector and three-engine smoke workflows; a change to the shared
+`tools/browser-oracles/collect.mjs` collector **also** selects the native
+layout bridge.
 This describes workflow **trigger intent**, not confirmed execution or a
 replacement for the real browser results.
 
@@ -40,4 +43,25 @@ a general YAML evaluator or a map of every optional workflow (P1, type
 query, etc.). An eventually authoritative selective gate would also have
 to verify the actual GitHub run conclusions on the tested merge revision,
 account for transitive test/fixture inputs, and retain all applicable
-browser-engine checks. No current PR skips canonical CI.
+browser-engine checks. On Windows PRs a valid canonical impact plan may select partial checks;
+Linux/macOS PR CI and all `master` CI still run full. A valid external
+workflow trigger audit never proves that GitHub executed or passed the job.
+
+## Native layout bridge dependencies
+
+`tests/browser-oracles/native-block-bridge.mjs` imports the shared
+`tests/browser-oracles/compare.mjs` validator; the hosted bridge also
+invokes `tools/browser-oracles/collect.mjs` with its pinned Playwright
+dependency. The native workflow now lists **exact, supported trigger paths**
+for these inputs, the native bridge fixture/tests, the Rust layout crate,
+Cargo inputs and its own workflow, identically on PR and push events.
+The independent `workflows/browser-native-bridge.json` descriptor checks
+both filters and the expected real Rust/native and three-engine commands.
+
+The audit should report the native bridge when shared `compare.mjs` changes
+alongside the offline oracle and general smoke; the shared collector requires
+all four browser workflows. Unrelated browser fixtures should not require
+this additional native comparison. A missing or stale workflow descriptor,
+unsupported glob, or changed source executable contract forces full
+canonical fallback rather than assuming coverage. **Actual GitHub workflow
+status remains outside the advisory audit.**
