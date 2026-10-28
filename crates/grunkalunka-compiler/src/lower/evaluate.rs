@@ -9,6 +9,7 @@ pub(super) enum Mode {
     Predicate,
     Discard,
     Arithmetic,
+    Numeric,
     General,
     Function(usize),
     Promise,
@@ -78,6 +79,20 @@ impl Value {
 struct Regions<'r> {
     root: &'r mut Region,
     children: Vec<Region>,
+}
+
+fn numeric<'e, 'a>(
+    lowering: &Lowering<'_, '_>,
+    work: &mut Vec<Work<'e, 'a>>,
+    node: &'e Expression<'a>,
+    depth: usize,
+) {
+    if lowering.allow_async_closures && lowering.has_promise_choice(node, depth) {
+        work.push(Work::NumberFromAsyncValue(node));
+        work.push(Work::Eval(node, depth, Mode::AsyncValue));
+    } else {
+        work.push(Work::Eval(node, depth, Mode::Arithmetic));
+    }
 }
 
 fn call_result<'e, 'a>(
@@ -200,6 +215,7 @@ enum Work<'e, 'a> {
     Truthy(&'e Expression<'a>),
     GeneralTruthy(&'e Expression<'a>),
     NumberFromGeneral(&'e Expression<'a>),
+    NumberFromAsyncValue(&'e Expression<'a>),
     Not(&'e Expression<'a>),
     Unary(&'e Expression<'a>, Unary),
     BinaryRight {
@@ -1331,14 +1347,10 @@ impl Lowering<'_, '_> {
                     Self::push(regions.current(), node, Op::Pack { result, input });
                     values.push(Value::General(result));
                 }
-                Work::NumberFromGeneral(node) => {
-                    let input = values.pop().expect("General numeric input").general();
-                    let result = self.value(Type::Number);
-                    Self::push(
-                        regions.current(),
-                        node,
-                        Op::NumberFromGeneral { result, input },
-                    );
+                Work::NumberFromGeneral(node) | Work::NumberFromAsyncValue(node) => {
+                    let input = values.pop().expect("raw numeric operand").id();
+                    let result =
+                        self.number_from_general_or_async_value(node, input, regions.current());
                     values.push(Value::Number(result));
                 }
                 Work::GeneralTruthy(node) => {
@@ -1888,7 +1900,7 @@ impl Lowering<'_, '_> {
                             argument,
                             depth,
                             if index == 0 {
-                                Mode::Arithmetic
+                                Mode::Numeric
                             } else {
                                 Mode::Discard
                             },
@@ -2204,6 +2216,9 @@ impl Lowering<'_, '_> {
                     };
                     work.push(Work::Forget);
                     work.push(Work::Eval(node, depth, mode));
+                }
+                Work::Eval(node, depth, Mode::Numeric) => {
+                    numeric(self, &mut work, node, depth);
                 }
                 Work::Eval(node, depth, Mode::Arithmetic) => {
                     if self.operand_boolean_shape(node, depth) {
@@ -3399,10 +3414,10 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(
                                 &assignment.right,
                                 depth + 1,
-                                if operator.is_some() {
-                                    Mode::Arithmetic
-                                } else {
-                                    Mode::Number
+                                match operator {
+                                    Some(Binary::Add) => Mode::Arithmetic,
+                                    Some(_) => Mode::Numeric,
+                                    None => Mode::Number,
                                 },
                             ));
                         }
@@ -3525,7 +3540,7 @@ impl Lowering<'_, '_> {
                                 }
                             };
                             work.push(Work::Unary(node, operator));
-                            work.push(Work::Eval(&unary.argument, depth + 1, Mode::Arithmetic));
+                            work.push(Work::Eval(&unary.argument, depth + 1, Mode::Numeric));
                         }
                         Expression::BinaryExpression(binary) => {
                             let operator = match binary.operator {
@@ -3547,7 +3562,11 @@ impl Lowering<'_, '_> {
                                     ));
                                 }
                             };
-                            let mode = Mode::Arithmetic;
+                            let mode = if matches!(operator, Binary::Add) {
+                                Mode::Arithmetic
+                            } else {
+                                Mode::Numeric
+                            };
                             work.push(Work::BinaryRight {
                                 node,
                                 right: &binary.right,

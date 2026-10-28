@@ -170,8 +170,10 @@ Closed completion snapshots now materialize into stable identities when their
 source results escape the direct-await optimization. Rejected results can be
 stored, discarded, tested for truthiness, passed through homogeneous Promise
 parameters and adopted on async return. Rejection notifications retain the
-existing host-checkpoint policy. Numeric/String coercion of Promise objects,
-general payloads and thenables remain separate work.
+existing host-checkpoint policy.
+[Numeric-only Promise coercion](async-number-coercion.md) now works in the identity
+profile. String-producing operations, general payloads and thenables
+remain separate work.
 Known directly awaited async calls retain their existing `AwaitCall` boundary.
 
 Runtime-selected async bodies with their own await now use async private effects and
@@ -536,7 +538,8 @@ the existing semantics and budgets.
 
 This carrier does not extend the exported completion protocol. Const/let locals
 and represented mixed private inputs/results use it as described below.
-Mixed relational and coercion positions remain separate work.
+Numeric-only coercion uses this carrier as described below. Mixed addition and
+relational positions remain separate work.
 A helper can resolve its selected async return before the caller compares the
 resulting primitive/Error value.
 
@@ -575,8 +578,8 @@ equality applies, including Boolean/Number coercion, NaN and signed zero. A
 Promise is unequal to every currently admitted non-string primitive and intrinsic
 Error; the inequality operators invert that result. The source General profile
 still excludes Strings, so this does not implement Promise/string loose equality,
-custom coercion or arbitrary objects. Mixed relational/numeric-coercion operands
-remain separate gaps. Existing homogeneous
+custom coercion or arbitrary objects. Mixed addition and relational operands
+remain separate gaps; numeric-only coercion is described below. Existing homogeneous
 comparison paths and all source/runtime budgets remain unchanged.
 
 ### Immutable selected-value locals
@@ -601,7 +604,7 @@ binding mutation, primitive bits/kinds, Error identity, logical/comma/conditiona
 consumers and job traces. Notification tests cover discarded rejected values and
 later handling. No new layout, exported completion, private signature, fuel, job or
 source-await budget is introduced. Mutable represented mixed locals now use the
-same carrier as described below. Mixed relational/coercion operands,
+same carrier as described below. Mixed addition/relational operands,
 general Promise payloads, Strings and
 thenables remain open.
 
@@ -627,9 +630,9 @@ or return-adoption routes as immutable locals. Storage, equality and logical tes
 do not handle a rejected Promise. Differential traces and notification tests cover
 tag changes, aliases/captures, RHS suspension, selected errors, late handling and
 source limits. No backend layout, exported/private ABI, arena, fuel, job or
-source-budget changes are needed. Mixed numeric compounds/coercions/relational
-operands, unrepresented heap values and broader
-Promise/thenable behavior remain open.
+source-budget changes are needed. Mixed-target numeric compounds/updates and mixed
+addition/relational operands, unrepresented heap values and broader Promise/thenable
+behavior remain open.
 
 ### Mixed private inputs
 
@@ -655,7 +658,7 @@ subject to ordinary fuel and arena limits.
 
 Private results now use the same carrier below. Exported entry inputs remain two
 Numbers and exported completions remain General. Function/heap-value mixtures and
-mixed coercion remain separate work.
+mixed addition/relational coercion remain separate work.
 
 ### Ordinary private mixed returns
 
@@ -675,7 +678,8 @@ Native JS, Node-Wasm and Wasmtime comparisons cover early returns, aliases/cells
 reassignment, nested calls, rejection timing and erased annotations. Separate
 notification tests cover discarded results and later handling. No host protocol,
 kernel record, dependency or source budget changes. This does not admit arbitrary
-heap values, strings, thenables, mixed coercion or synchronous source exceptions.
+heap values, strings, thenables, mixed addition/relations or synchronous source
+exceptions.
 
 ### Finally completion scopes
 
@@ -686,3 +690,15 @@ raw until all active finalizers finish; only then does async return adopt it.
 Nested catches, callbacks and private activations retain their lexical boundaries.
 Terminal host failures do not enter cleanup. Existing value and resource limits
 remain; this does not add general synchronous source exceptions.
+
+### Numeric conversion of represented Promise/General values
+
+The async identity profile now admits unary +, - and ~, non-additive arithmetic,
+bitwise and shift operands, existing unary Math first arguments, and non-additive
+compound RHS values on primitive target cells. A represented builtin Promise
+converts to NaN without settlement, adoption, handling or jobs. Selected General
+values use the existing primitive/intrinsic Error conversion. Source evaluation,
+snapshots, surplus arguments, suspension and abrupt completion retain their order.
+See [the bounded contract and evidence](async-number-coercion.md). Addition,
+relational operators, mixed-target compounds/updates, legacy snapshot profiles
+and custom object conversion remain separate work.

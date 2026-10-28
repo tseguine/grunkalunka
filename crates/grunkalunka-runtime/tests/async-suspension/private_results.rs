@@ -129,7 +129,6 @@ fn private_mixed_results_keep_erasure_limits_and_export_boundaries() {
     for body in [
         "const p=Promise.resolve(a);const choose=()=>a?p:{};return choose();",
         "const p=Promise.resolve(a);const choose=()=>a?p:()=>b;return choose();",
-        "const p=Promise.resolve(a);const choose=()=>a?p:b;return +choose();",
     ] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");

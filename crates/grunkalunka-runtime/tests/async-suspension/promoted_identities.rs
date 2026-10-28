@@ -1,6 +1,7 @@
 // Original compile guards promoted to executed native/Node-Wasm/Wasmtime cases.
 // Kept separate so detached rejection reporting can use an owned Node checkpoint.
 pub const SOURCES: &[&str] = &[
+    "export async function run(a,b){let f=async()=>{throw a;};return +f();}",
     "export async function run(a,b){const f=async()=>a;return f();}",
     "export async function run(a,b){const f=async()=>Promise.reject(b);return await f();}",
     "export async function run(a,b){const p=Promise.reject(a);return await p;}",

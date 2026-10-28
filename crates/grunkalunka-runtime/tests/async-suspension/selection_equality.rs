@@ -161,13 +161,9 @@ fn selected_equality_preserves_erasure_budgets_and_remaining_storage_guards() {
         &["const p=Promise.resolve(a);const eq=x=>x===p;eq(p);return eq(a);"],
         &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
     );
-    for body in [
-        "const p=Promise.resolve(a);return +(a?p:b);",
-        "const p=Promise.resolve(a);return (a?p:b)<a;",
-    ] {
-        assert!(
-            compile_async(&source_for(body), false).is_err(),
-            "remaining gap: {body}"
-        );
-    }
+    let body = "const p=Promise.resolve(a);return (a?p:b)<a;";
+    assert!(
+        compile_async(&source_for(body), false).is_err(),
+        "remaining gap: {body}"
+    );
 }

@@ -963,7 +963,7 @@ Maintained tests check nested source effects/catches/job limits in native JS,
 Node-Wasm and Wasmtime, plus typed IR misuse, projection traps and carrier
 preservation across suspension and sibling coroutine frames. Const and let source
 locals and captures now use these same slot/cell operations. Private input unions
-and mixed relational/coercion operands remain open. Equality
+now use this carrier. Mixed addition/relational operands remain open. Equality
 can consume selected raw variants as described below.
 
 ### Equality over selected raw variants
@@ -1041,3 +1041,13 @@ the return continuation and its other abrupt exits replace the pending completio
 Nested finally scopes keep returns raw until the outer async boundary resolves
 them through existing projection/adoption operations. No host completion kind
 or physical activation-header field was added.
+
+### Numeric-only selected-value conversion
+
+The async frontend's Numeric context evaluates a may-Promise operand into the
+existing AsyncValue carrier once. AsyncValueIsPromise selects an existing If:
+the Promise branch yields Number NaN; the other projects AsyncValuePrimitive
+and applies NumberFromGeneral. This adds no operation, tag, frame layout or
+settlement boundary. Operands without Promise provenance retain the former
+Arithmetic route and emission. Addition and relational contexts do not enter
+this route because their object primitive-conversion semantics differ.
