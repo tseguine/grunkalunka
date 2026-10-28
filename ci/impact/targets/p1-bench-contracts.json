@@ -4,6 +4,7 @@
     "node-bench",
     "build-test-sources",
     "example-workflows",
+    "p1-bench-unit-tests",
     "p1-rustc-wrapper"
   ],
   "buildDependsOn": []
