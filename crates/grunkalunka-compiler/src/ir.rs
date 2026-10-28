@@ -448,6 +448,16 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    /// Allocate a fresh Promise identity from a completion snapshot. This is a
+    /// constructor effect, not an identity-preserving cast or an alias read.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    MaterializePromise {
+        result: ValueId,
+        input: ValueId,
+    },
     #[cfg_attr(
         not(test),
         expect(dead_code, reason = "IR prerequisite; source admission follows")
@@ -1024,6 +1034,22 @@ impl Verifier<'_> {
             Op::PromotePromise { result, input } => {
                 self.value(*input, Type::FulfilledPromise, visible, span)?;
                 self.define(*result, Type::SettledPromise, visible, span)?;
+            }
+            Op::MaterializePromise { result, input } => {
+                let ty = self
+                    .function
+                    .values
+                    .get(input.0)
+                    .copied()
+                    .ok_or_else(|| invalid(span, "invalid snapshot input"))?;
+                if !matches!(ty, Type::FulfilledPromise | Type::SettledPromise) {
+                    return Err(invalid(
+                        span,
+                        "Promise materialization requires a completion snapshot",
+                    ));
+                }
+                self.value(*input, ty, visible, span)?;
+                self.define(*result, Type::Promise, visible, span)?;
             }
             Op::SettledValue { result, input } | Op::AwaitSettled { result, input } => {
                 self.value(*input, Type::SettledPromise, visible, span)?;

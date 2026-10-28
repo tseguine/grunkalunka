@@ -457,3 +457,16 @@ numeric coercion and all previous primitive payload kinds. A separate typed IR
 fixture checks direct payload/status projection of fulfilled and rejected Errors.
 The already-working direct inline throw remains a control. Snapshot conversion to
 stable Promise identities and other recorded Promise gaps remain separate work.
+
+### Snapshot identities: IR foundation
+
+The IR now has `MaterializePromise` to allocate a fresh identity from a completed
+fulfilled or settled snapshot. It preserves rejection status and intrinsic Error
+payloads through the existing Promise kernel, without adding jobs or handling the
+rejection. Repeated execution creates distinct identities; aliases retain one.
+IR execution tests cover await, adoption, equality, synchronous private creators
+and native rejection checkpoints. See [the IR contract](ir.md#completion-snapshot-materialization).
+
+Source constructor/alias normalization remains open. In particular, allocation
+must occur once at creation, rather than whenever a snapshot alias is read.
+Existing source snapshot guards and mixed-interface restrictions remain in force.

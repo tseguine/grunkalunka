@@ -482,7 +482,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         ir::visit_operations(&function.body, &mut |op| {
             pending |= matches!(
                 op,
-                Op::StartAsyncClosure { .. } | Op::AwaitPromise { .. } | Op::AdoptPromise { .. }
+                Op::StartAsyncClosure { .. }
+                    | Op::AwaitPromise { .. }
+                    | Op::AdoptPromise { .. }
+                    | Op::MaterializePromise { .. }
             )
         });
         pending

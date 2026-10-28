@@ -461,3 +461,13 @@ General semantics. Rejection no longer shares bit 4 with the Error kind: the
 backend reserves its high status bit while retaining the established tag/f64 pair
 and sixteen-byte private storage. Existing primitive values and reaction order
 remain unchanged. This does not materialize immediate snapshots as Promise objects.
+
+### Materializing completed results in private helpers
+
+`MaterializePromise` lets synchronous private IR helpers return fresh Promise
+identities from fulfilled/settled completion snapshots. Construction is eager and
+non-suspending; repeated calls allocate distinct records and preserve aliases,
+payload kinds and rejection status. Await and async-return adoption retain their
+existing reaction semantics. Constructor-only modules link the same guest kernel.
+This is tested executable IR support; frontend snapshot constructors and their
+alias/return normalization remain a separate source-lowering gap.

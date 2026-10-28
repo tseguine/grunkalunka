@@ -888,3 +888,27 @@ cast is used, even for a Number equal to the opaque ID. General String
 admission or custom Promise coercion must extend this source route; these are
 not covered by the current constant cross-kind result. Immediate snapshots still
 need conversion to stable identity records before identity comparison.
+
+### Completion snapshot materialization
+
+`MaterializePromise { result, input }` consumes a visible `FulfilledPromise` or
+`SettledPromise` snapshot and defines a fresh `Promise` identity. The verifier
+rejects other input kinds, undefined inputs and non-Promise results. Each execution
+allocates once, even for the same snapshot; copying the result retains that identity.
+This is a constructor effect, not a cast or an allocation on alias access.
+
+Emission reuses `$promise_new` and `$promise_settle`, preserving the completion's
+canonical kind, payload and rejection status, including intrinsic Error identity.
+Construction adds no reaction or job and does not mark a rejection handled.
+The result supports existing identity equality, await, adoption and synchronous
+private helper returns. Constructor-only modules also link the queued kernel;
+ordinary numeric and value profiles reject this runtime-dependent operation.
+No Promise layout, physical lane width or host interface changes are needed.
+
+Maintained IR tests compare native JavaScript and Node-Wasm results and complete
+microtask traces, including repeated helper calls, Error payloads, adoption and
+detached rejection reporting. This unit provides the IR bridge only. Source
+constructor/alias normalization must place materialization once at construction,
+retain aliases and preserve the existing identity path for `Promise.resolve(p)`.
+It does not yet admit snapshot identity comparisons or snapshot async returns
+from source, mixed Promise interfaces, general payloads or thenables.

@@ -354,3 +354,14 @@ uses current non-string General kinds to determine inequality, retaining a clear
 extension point for future String/custom-coercion support. Comparison has no
 queue or rejection-handling effect and allocates no new identity on access.
 Immediate snapshots still require materialization before identity comparison.
+
+
+## Completion snapshots to Promise records
+
+`MaterializePromise` is a distinct allocation effect from a logical completion
+snapshot to an opaque Promise identity. It reuses the existing allocator and
+settlement kernel, preserving kinds and status without changing lanes or record
+headers. An implicit cast on every alias read would create incorrect identities;
+source normalization must allocate once at construction and retain the result.
+Executable IR tests establish the bridge, including private synchronous creators,
+while frontend adoption of this operation remains outstanding.

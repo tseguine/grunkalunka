@@ -31,6 +31,9 @@ fn finish_async(mut script: String) {
 
 use super::*;
 
+#[path = "promise_materialization_tests.rs"]
+mod materialization;
+
 #[test]
 fn settled_extended_kind_survives_status_and_payload_projection() {
     let cycle = "const f=async()=>{await a;return b;};let p=f();const g=async()=>{await a;return p;};p=g();";

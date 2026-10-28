@@ -6,6 +6,7 @@ mod asynchronous;
 mod cells;
 mod closures;
 mod layout;
+mod materialization;
 mod relational;
 pub(crate) use asynchronous::emit_async;
 
@@ -168,6 +169,9 @@ impl Emitter<'_> {
                 | Op::PromotePromise { result, input } => {
                     self.get(*input);
                     self.set(*result);
+                }
+                Op::MaterializePromise { result, input } => {
+                    self.materialize_promise(*result, *input)
                 }
                 Op::MakeClosure {
                     result,
@@ -633,6 +637,9 @@ pub(crate) fn emit_with_entry_type(
 }
 
 fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String> {
+    if module_materializes_promises(module) {
+        return Err("Promise materialization requires the async runtime profile".into());
+    }
     if module
         .functions
         .iter()
@@ -698,6 +705,16 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
     }
     output.push_str(")\n");
     Ok(output)
+}
+
+fn module_materializes_promises(module: &ir::Module) -> bool {
+    module.functions.iter().any(|function| {
+        let mut found = false;
+        ir::visit_operations(&function.body, &mut |op| {
+            found |= matches!(op, Op::MaterializePromise { .. })
+        });
+        found
+    })
 }
 
 fn region_has_await(region: &Region) -> bool {
