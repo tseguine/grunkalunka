@@ -37,7 +37,7 @@ timing, speedup or memory claims.
 
 ## Native Linux ARM64 execution
 
-The separate [optional workflow](../.github/workflows/p1-affine-arm64.yml)
+The separate [optional workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-affine-arm64.yml)
 uses standard Linux x64 and native Linux ARM64 hosts with Node 24.22.1. Its
 x64 job compiles **one** module from the repository source, checks both engines
 and emits its bounded literal base64 bytes, SHA-256 and source hash through

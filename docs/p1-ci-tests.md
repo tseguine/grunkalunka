@@ -13,12 +13,30 @@ request new Cargo package builds; changes to actual Rust/compiler sources
 still get their appropriate build closure. Unknown inputs and changes to
 CI itself continue to trigger full verification. Test failures remain fatal.
 
+A second canonical command, `node --test tests/build/p1-native-portability.test.mjs`,
+is a **real native-host integration test**, with a separately declared
+`grunkalunka-cli` build prerequisite. It compiles the repository GCD and
+affine programs using the maintained CLI, then exercises their actual Wasm
+with both Node and native Wasmtime against fixed independent numeric
+goldens. Each of the three existing CI hosts executes this same test.
+Changing that integration test alone selects only the CLI's Cargo
+dependency closure rather than rebuilding the entire workspace.
+
+The original *transferred identical artifact* cross-host investigations
+cannot be reproduced by independent per-host tests alone. Their archived
+workflow versions, scripts and recorded evidence remain available for
+explicit repeat experiments, but those observations are no longer separate
+automatic PR status checks.
+
 The native build / three-host receipt comparison scripts under
 `tools/bench/` are **diagnostic experiments**, not tiny unit tests.
 They can be run explicitly to collect fresh platform-specific evidence.
 A local-only synthetic receipt must never be confused with an actual
 cross-host reproduction. Existing reports under `docs/p1-*.md` retain
 their provenance and are not turned into artificial always-equal golden
-hashes. Separate PR-triggered experimental workflows will be retired
-once canonical P1 test registration passes all three platforms, to avoid
-rebuilding full Cargo workspaces repeatedly for observational checks.
+hashes. The former PR-triggered P1 experiment workflows were retired after
+canonical P1 test registration was verified. Their historical source is
+linked from experiment documentation at a pinned Git commit. The optional
+cross-host collectors still require independent native hosts for new actual
+observations; the canonical unit suite asserts only the receipt and
+comparison contracts, not a fabricated cross-host equality result.

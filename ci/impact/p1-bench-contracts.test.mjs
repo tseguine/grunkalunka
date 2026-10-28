@@ -7,8 +7,10 @@ const read = path => JSON.parse(readFileSync(new URL(path, import.meta.url), 'ut
 const group = read('./targets/p1-bench-contracts.json');
 const check = read('./checks/p1-bench-tests.json');
 const unitOwner = read('./owners/p1-bench-unit-tests.json');
+const wrapper = read('./owners/p1-rustc-wrapper.json');
 const modules = [
   unitOwner,
+  wrapper,
   { id: 'node-bench', paths: ['tools/bench/'],
     dependsOn: ['grunkalunka-runtime', 'grunkalunka-markdown', 'grunkalunka-cli'] },
   { id: 'build-test-sources', paths: ['tests/build/'] },
@@ -39,6 +41,13 @@ test('P1 implementation, fixture and Markdown changes select the same canonical 
     assert.equal(result.full, false, `${path}: ${result.reasons}`);
     assert.ok(result.tests.includes('check:p1-bench-tests'), path);
   }
+});
+
+test('changing only the standalone Rust wrapper runs P1 tests without Cargo builds', () => {
+  const result = plan('tools/bench/fixtures/p1-native-cargo-metadata-wrapper.rs');
+  assert.equal(result.full, false);
+  assert.deepEqual(result.tests, ['check:p1-bench-tests']);
+  assert.deepEqual(result.build, ['p1-rustc-wrapper']); // owner node, not Cargo
 });
 
 test('P1 entrypoint is one stable canonical Node invocation with glob-discovered cases', () => {

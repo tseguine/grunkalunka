@@ -3,7 +3,7 @@
 The [GCD portable-artifact helper](portable-core-replay.md) can replay the
 maintained compiler's numeric GCD module on native Node/V8 and Wasmtime without
 recompiling the source. The optional
-[Linux x64 to Windows x64 CI workflow](../.github/workflows/p1-gcd-windows.yml)
+[Linux x64 to Windows x64 CI workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-gcd-windows.yml)
 tests **operating-system portability** of the exact artifact, complementing
 the established Linux x64 to Linux ARM64 replay in #83.
 

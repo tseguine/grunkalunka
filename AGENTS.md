@@ -109,8 +109,10 @@ authorized **dependency-selected verification on all three native PR runners**
 through `ci/impact/pr-gate.mjs`, using the same general dependency graph
 (no hand-maintained path whitelist). Unknown or unsafe selections run the
 **original full** checks on that PR host. **Every `master` push and manual
-workflow run retains full three-platform CI.** External browser/P1 workflows
-remain independently triggered and required.
+workflow run retains full three-platform CI.** Independent browser workflows
+retain their own triggers and gates. P1 regressions and native-host integration
+checks are canonical selectable tests; historical P1 multi-host experiments
+are not automatic PR merge gates.
 
 - Cargo workspace package ownership/dependencies come from Cargo metadata;
   non-Cargo paths use independent `ci/impact/owners/*.json` descriptors.
@@ -130,10 +132,11 @@ remain independently triggered and required.
   select zero tests. A failed selected check is a failure, **not** a planning
   fallback. An inability to independently validate a dependency or target
   cannot justify marking it safely excluded.
-- Independent workflows (including P1 portability and the browser's live
-  engine oracles) are **not covered** merely because canonical commands
-  match. Maintain their separate triggers and requirements, and include their
-  inputs before trusting selection. Run `node --test ci/impact/*.test.mjs`,
+- Independent browser workflows (including live engine oracles) are **not
+  covered** merely because canonical commands match. Maintain their separate
+  triggers and requirements, and include their inputs before trusting selection.
+  P1's selected native-host tests do not establish the separate, historical
+  cross-host artifact-transfer experiments. Run `node --test ci/impact/*.test.mjs`,
   review `node ci/impact/plan.mjs origin/master` from a full-history checkout,
   and use `ci/impact/platform-rehearsal.mjs` for a bounded native-host
   execution control. These checks **do not replace** the actual exact-head

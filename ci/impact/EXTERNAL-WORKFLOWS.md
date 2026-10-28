@@ -39,8 +39,9 @@ This describes workflow **trigger intent**, not confirmed execution or a
 replacement for the real browser results.
 
 This audit is a first step toward complete external CI attribution, not
-a general YAML evaluator or a map of every optional workflow (P1, type
-query, etc.). An eventually authoritative selective gate would also have
+a general YAML evaluator or a map of every optional workflow (such as
+type-query). Historical P1 experiments now live in canonical test modules
+or archived reproducibility scripts, rather than independent PR workflows. An eventually authoritative selective gate would also have
 to verify the actual GitHub run conclusions on the tested merge revision,
 account for transitive test/fixture inputs, and retain all applicable
 browser-engine checks. On Linux, Windows and macOS PRs a valid canonical impact plan may select

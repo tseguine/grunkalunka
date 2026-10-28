@@ -107,11 +107,15 @@ translations or stale command mapping fall back to original full commands
 
 Set `PARTIAL_PR_CI` to `'false'` on the PR CI step to disable partial execution
 on all hosts. Existing `Checks (Linux)`, `Checks (Windows)` and
-`Checks (macOS)` job names remain unchanged, as do optional P1/browser workflows.
+`Checks (macOS)` job names remain unchanged; independent browser workflows retain
+separate triggers. P1's previous per-experiment PR workflows have been replaced
+by canonical regression and native artifact tests; archived native cross-host
+experiments remain explicitly reproducible.
 The [native scoped rehearsal](../.github/workflows/impact-platform-rehearsal.yml)
 executes real layout checks on all three hosted OSes. A successful partial gate
 proves only its selected canonical checks, **not** that independently triggered
-browser/P1 jobs passed. The graph still needs independent dynamic dependency
+browser jobs passed or that archived P1 multi-host studies were reproduced.
+The graph still needs independent dynamic dependency
 coverage audits; [#126](https://github.com/tseguine/grunkalunka/issues/126)
 tracks known gaps and the proposed lint. Compare host-specific timings to
 assess actual savings; never treat skipped checks as tested.

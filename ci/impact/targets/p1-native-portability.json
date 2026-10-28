@@ -1,0 +1,11 @@
+{
+  "id": "test:p1-native-portability",
+  "dependsOn": [
+    "grunkalunka-cli",
+    "example-workflows",
+    "node-bench"
+  ],
+  "buildDependsOn": [
+    "grunkalunka-cli"
+  ]
+}

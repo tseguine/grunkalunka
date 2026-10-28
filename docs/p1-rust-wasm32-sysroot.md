@@ -11,7 +11,7 @@ by each host's native Rust distribution.
 
 ## Bounded experiment
 
-The [optional workflow](../.github/workflows/p1-wasm32-sysroot-identity.yml)
+The [optional workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-wasm32-sysroot-identity.yml)
 installs the repository's Rust toolchain and
 `rustup ... --target wasm32-unknown-unknown` on Linux x64, Windows x64 and
 native Apple Silicon ARM64, using Node 24.21.0 for the hash collector.
