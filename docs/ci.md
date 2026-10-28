@@ -33,7 +33,7 @@ The prior Intel-versus-ARM64 investigation is [issue #79](https://github.com/tse
 
 Each job has a 60-minute cap. This is a watchdog, not a performance target.
 Bun, Linux/Windows ARM64 and other Node versions are not covered by this matrix.
-Adding a runner does not establish support until its actual checks pass.
+Switching runner architecture does not establish support until its actual checks pass.
 
 ## Build and test contract
 
@@ -43,13 +43,14 @@ repository Rust toolchain, currently the `stable` channel in
 The Rust compiler remains a floating stable release; it is not pinned to an
 exact version. No npm dependencies need installation.
 
-The macOS job verifies the actual machine, Node runtime architecture and
-`rustc -vV` native host triple **before expensive builds**. ARM64 additionally
-checks the runner architecture and rejects Rosetta-translated execution.
-They log the macOS version, hardware model, CPU count and physical memory.
-An ARM64 runner that accidentally selects x86-64 Node or Rust is a CI failure,
-not silent emulation. Native guest Wasm (`wasm32-unknown-unknown`) is shared
-between hosts, but compiled *host* tools/test binaries must be native.
+The macOS job verifies the actual machine (`uname -m`), Node runtime
+architecture, `rustc -vV` native host triple, and `RUNNER_ARCH` **before
+expensive builds**. It rejects Rosetta-translated execution and logs the
+macOS version, hardware model, CPU count and physical memory. Accidentally
+selecting x86-64 Node or Rust is a CI failure, not silent emulation.
+The `wasm32-unknown-unknown` guest target is architecture-independent;
+native host tools and tests execute from the installed ARM64 Node/Rust
+toolchains or locally compiled host binaries.
 
 After a fast formatting check, jobs restore cached Cargo dependencies and fetch
 both the root workspace and the independently locked frontend spike using
