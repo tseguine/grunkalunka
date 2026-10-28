@@ -175,10 +175,16 @@ fn promise_type_arguments_keep_value_binding_and_source_budget_guards() {
             .unwrap()
             .contains("16 KiB")
     );
-    compare_typed(&[(
-        &source_for("return Math.abs(a);"),
-        &source_for("return Math.abs<never>(a);"),
-    )]);
+    compare_typed(&[
+        (
+            &source_for("return Math.abs(a);"),
+            &source_for("return Math.abs<never>(a);"),
+        ),
+        (
+            &source_for("const f=x=>x;return await f(a);"),
+            &source_for("const f=x=>x;return await f<never>(a);"),
+        ),
+    ]);
     for body in [
         "const Promise=a;return await Promise.resolve<never>(b);",
         "return await Promise.other<never>(a);",
@@ -189,7 +195,6 @@ fn promise_type_arguments_keep_value_binding_and_source_budget_guards() {
         "return await Promise.resolve<never>({});",
         "return await Promise.reject<never>(()=>a);",
         "const p=Promise.resolve(a);return await Promise.reject<never>(p);",
-        "const f=x=>x;return await f<never>(a);",
         "return await Promise.resolve<Missing>(a);type Missing=typeof absent;return absent;",
     ] {
         assert!(compile_async(&source_for(body), true).is_err(), "{body}");

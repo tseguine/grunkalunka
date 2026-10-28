@@ -398,11 +398,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
         call: &CallExpression<'_>,
         closure: &LocalClosure,
     ) -> Result<(), String> {
-        if call.optional || call.type_arguments.is_some() {
-            return Err(unsupported(
-                call,
-                "optional and generic local calls are not admitted",
-            ));
+        if call.optional {
+            return Err(unsupported(call, "optional local calls are not admitted"));
         }
         if call.arguments.len() > 1000 {
             return Err(unsupported(

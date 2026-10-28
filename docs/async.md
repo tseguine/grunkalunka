@@ -736,7 +736,34 @@ compare native rejection checkpoints. Four exact former TS guards now execute.
 Source bytes, await sites, argument limits, optional/spread calls, value shadowing,
 custom/unknown intrinsics and payload domains retain their guards. Source binding
 checks still distinguish type-only names from actual value references. Generic
-calls to ordinary helpers and heap JSON intrinsics remain separate work.
-Supported unary Math intrinsics now use the same erasure principle; see
-[their contract](compiler.md#math-intrinsic-type-arguments).
+calls through the separate direct numeric module-call validator remain open.
+Known local and runtime closure calls use
+[the contract below](#closure-call-site-type-arguments); runtime factory-result
+calls follow [their contract](runtime-closures.md#runtime-factory-call-site-type-arguments).
+Supported unary Math intrinsics follow
+[their contract](compiler.md#math-intrinsic-type-arguments). The separate
+[heap profile](heap-literals.md) erases JSON call-site types within its existing
+String-operand and String-result bounds.
 No new IR, type checker, runtime operation, dependency, ABI or budget is introduced.
+
+## Closure call-site type arguments
+
+Known local arrow calls and represented runtime closure calls erase TypeScript
+call-site types. This includes async closures, named async helpers, callable
+aliases/selections, callbacks and known local factories. For example,
+`const f=async x=>await x; return await f<Missing>(a);` emits the same guest bytes
+as its JavaScript twin. Unresolved names, type queries, multiple arguments and
+misleading primitive claims create no runtime binding, lookup, kind or conversion.
+
+The existing callee is evaluated and saved before ordinary arguments. Declared
+inputs and surplus effects retain their order, snapshots, failures and async jobs;
+replacing the callable during argument evaluation cannot change the saved callee.
+Optional/spread calls, missing inputs, unsupported values and source/argument
+limits keep their guards. The separate direct numeric module-call validator
+still rejects explicit call-site types; runtime factories follow their contract.
+
+Four maintained async groups compare exact JS/TS Wasm bytes and native JS,
+Node-Wasm and Wasmtime outcomes. A synchronous numeric/primitive group checks the
+same shared admission rules. The exact older `f<never>(a)` Promise and Math guards
+now have positive byte-identity and execution tests. No IR, runtime ABI, frame layout,
+dependency, type checker or resource-limit change is introduced.

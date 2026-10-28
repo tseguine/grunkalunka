@@ -14,6 +14,13 @@ shadows, optional calls, computed properties, spreads, callbacks and extra argum
 are rejected. This profile supplies pristine intrinsics.
 Parentheses and erased TypeScript wrappers preserve runtime values, including
 String lone surrogates and NUL.
+Call-site TypeScript type arguments are erased on these admitted JSON intrinsics.
+For example, `JSON.stringify<Missing>(JSON.parse<string>('{"x":[1,true,null]}'))`
+emits the same guest bytes as its JavaScript twin. Unresolved names, type queries,
+multiple type arguments and misleading claims cause no runtime lookup or conversion.
+They cannot establish a String operand/result proof, admit extra ordinary arguments,
+or bypass intrinsic identity and source/expression budgets. The original
+`JSON.stringify<number>("x")` rejection is now a positive byte-identity test.
 The implementation uses a small AST path rather than the shared typed-region
 lowerer. It checks original Module semantics, entry shape and parameter effects,
 with a 16,384-byte source limit and 128 expression nodes along the operand path,
@@ -34,15 +41,16 @@ Run:
 
     node scripts/check-heap-literals.mjs
 
-The current 28 JS/TS examples execute 14,000 direct-import calls in Node, then
-14,000 calls in each engine against identical composed, import-free modules.
+The current 34 JS/TS examples execute 17,000 direct-import calls in Node, then
+17,000 calls in each engine against identical composed, import-free modules.
 Each returned root is read and released. The Wasmtime path uses the experimental
 `grunkalunka_runtime::HeapInstance`, returning an owned `Vec<u16>` rather than a
 lossy Rust String or a borrowed guest pointer. The playback retains every result
 through later calls and destruction of the host instance. Receipts record the
 guest and composed module hashes.
-Cases include raw String quoting, parsed scalars/arrays/objects, duplicate and
-integer-like keys, overflow and lone surrogates. A chain of 35 parse/stringify
+Every JS/TS pair must emit identical guest bytes. Cases include raw String quoting,
+parsed scalars/arrays/objects, duplicate and integer-like keys, overflow, lone
+surrogates and three call-site type-argument pairs. A chain of 35 parse/stringify
 pairs crosses the 64-root quota in cumulative allocations per invocation, checking
 temporary reclamation. Compiler tests also check intrinsic identity, admission
 limits and rejected calls/entry effects. These checks run in the normal command.

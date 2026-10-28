@@ -76,6 +76,12 @@ mod promise_type_arguments;
 #[path = "async-suspension/math_type_arguments.rs"]
 mod math_type_arguments;
 
+#[path = "async-suspension/runtime_call_type_arguments.rs"]
+mod runtime_call_type_arguments;
+
+#[path = "async-suspension/factory_type_arguments.rs"]
+mod factory_type_arguments;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -990,7 +996,21 @@ fn source_promise_parameters_keep_erasure_domains_and_await_bounds() {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }
     }
-    assert!(compile_async("export async function run(a,b){const id=p=>p;return await id<number>(Promise.resolve(a));}",true).is_err());
+    let typed = "export async function run(a,b){const id=p=>p;return await id<number>(Promise.resolve(a));}";
+    let plain = typed.replace("id<number>(", "id(");
+    assert_eq!(
+        compile_async(&plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    compare_async_sources(
+        &[plain],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-2.0, -4.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
 }
 
 #[test]
@@ -1148,7 +1168,22 @@ fn known_promise_results_keep_erasure_interfaces_and_completion_guards() {
         "const make=x=>Promise.resolve(x);return await make<number>(a);",
         "const make=x=>{return Promise.resolve(x);};return await make<number>(a);",
     ] {
-        assert!(compile_async(&source_for(body), true).is_err(), "{body}");
+        let typed = source_for(body);
+        let plain = source_for(&body.replace("make<number>(", "make("));
+        assert_eq!(
+            compile_async(&plain, false).unwrap().wasm,
+            compile_async(&typed, true).unwrap().wasm,
+            "{typed}"
+        );
+        compare_async_sources(
+            &[plain],
+            &[
+                (4.0, 2.0),
+                (0.0, -0.0),
+                (-2.0, -4.0),
+                (f64::NAN, f64::INFINITY),
+            ],
+        );
     }
 }
 

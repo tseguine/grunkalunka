@@ -36,6 +36,12 @@ const cases=[
   ['json-raw-string','return JSON.stringify("A\\ud800\\0");'],
   ['json-wrapped','return JSON.stringify(("wrapped"));',
     'return (JSON.stringify(("wrapped" as unknown as number)) as unknown as number);'],
+  ['json-type-string','return JSON.stringify("A\\ud800\\0");',
+    'return JSON.stringify<Missing>("A\\ud800\\0");'],
+  ['json-type-nested','return JSON.stringify(JSON.parse(\'{"x":[1,true,null]}\'));',
+    'return JSON.stringify<never>(JSON.parse<string>(\'{"x":[1,true,null]}\'));'],
+  ['json-type-chain','return JSON.stringify(JSON.parse(JSON.stringify("x")));',
+    'return JSON.stringify<Missing,Other>(JSON.parse<never>(JSON.stringify<typeof absent>("x")));'],
 ];
 for(const [name,text] of [
   ['null','null'],['boolean','true'],['number','-0'],['overflow','1e400'],
@@ -54,6 +60,10 @@ for(const [name,body,tsBody=body] of cases)for(const language of ['js','ts']){
 }
 run('cargo',['build','--locked','--offline','-j','2','-p','grunkalunka-json-guest','--target','wasm32-unknown-unknown','--release']);
 run('cargo',['run','--locked','--offline','-j','2','-p','grunkalunka-compiler','--example','heap_literals','--',out]);
+for(const [name] of cases){
+  assert.deepEqual(fs.readFileSync(path.join(out,name+'.ts.wasm')),
+    fs.readFileSync(path.join(out,name+'.js.wasm')),name+' JS/TS guest bytes');
+}
 const bytes=fs.readFileSync(path.join(target,'wasm32-unknown-unknown/release/grunkalunka_json_guest.wasm'));
 const guestModule=new WebAssembly.Module(bytes);
 let calls=0;

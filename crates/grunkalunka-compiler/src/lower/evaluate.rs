@@ -3608,10 +3608,10 @@ impl Lowering<'_, '_> {
         depth: usize,
         region_depth: usize,
     ) -> Result<ValueId, String> {
-        if call.optional || call.type_arguments.is_some() {
+        if call.optional {
             return Err(unsupported(
                 node,
-                "optional and generic runtime closure calls are not admitted",
+                "optional runtime closure calls are not admitted",
             ));
         }
         if call.arguments.len() > 1000 {
