@@ -1,0 +1,103 @@
+# Optional P1 controlled build-path experiment; required canonical CI unchanged.
+name: P1 Markdown Linux checkout-path control
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-markdown-linux-checkout-path.yml
+      - tools/bench/markdown-linux-checkout-path.mjs
+      - tools/bench/tests/markdown-linux-checkout-path.test.mjs
+      - crates/grunkalunka-markdown/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-markdown-checkout-path-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  linux-path-control:
+    name: Four bounded Markdown guest builds from two checkout paths
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out the exact tested PR revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install fixed Node.js 24.21.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Verify native Linux and install unchanged Rust Wasm toolchain
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV
+          cargo --version
+          cargo fetch --locked
+
+      - name: Verify code/section comparison and invalid-input handling
+        run: node --test tools/bench/tests/markdown-linux-checkout-path.test.mjs
+
+      - name: Build unchanged Markdown guest from two independent source paths
+        run: |
+          set -euo pipefail
+          node tools/bench/markdown-linux-checkout-path.mjs \
+            > "$RUNNER_TEMP/linux-checkout-path.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-checkout-path.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-markdown-linux-checkout-path-control');
+          assert.deepEqual([report.environment.os, report.environment.arch], ['linux', 'x64']);
+          assert.equal(report.environment.node, 'v24.21.0');
+          assert.equal(report.environment.target, 'wasm32-unknown-unknown');
+          assert.equal(report.environment.cargoIncremental, '0');
+          assert.equal(report.sourceInputs.length, 6);
+          assert.ok(report.sourceInputs.every(i => i.checkoutMatchesGit));
+          assert.deepEqual(Object.keys(report.phases).sort(),
+            ['defaultA', 'defaultB', 'remappedA', 'remappedB']);
+          for (const value of Object.values(report.phases)) {
+            assert.match(value.artifact.sha256, /^[a-f0-9]{64}$/);
+            assert.ok(value.artifact.bytes > 8 && value.artifact.bytes <= 16 * 1024 * 1024);
+            assert.ok(value.functionCount > 0 && value.functionCount <= 4096);
+          }
+          for (const key of ['defaultAcrossPaths', 'remappedAcrossPaths']) {
+            const result = report.matrix[key];
+            assert.equal(typeof result.sameArtifactBytes, 'boolean');
+            assert.ok(result.matchingIgnoringOrdinal >= 0);
+            assert.ok(result.matchingIgnoringOrdinal <=
+              Math.min(result.producerFunctionCount, result.receiverFunctionCount));
+            if (result.matchingAtSameOrdinal !== null) {
+              assert.ok(result.matchingAtSameOrdinal <= result.matchingIgnoringOrdinal);
+            }
+          }
+          console.log('PASS controlled native Linux checkout-path and remap observation');
+          console.log(JSON.stringify(report));
+          NODE
