@@ -118,6 +118,19 @@ test('live grid fixture edits trigger real smoke; offline tests remain canonical
     ['workflow:browser-smoke']);
 });
 
+test('native-only fixtures and comparator tests do not restart general engine smoke', () => {
+  for (const input of [
+    'tests/browser-oracles/native-block-bridge.html',
+    'tests/browser-oracles/native-block-bridge.mjs',
+    'tools/browser-oracles/hosted/native-bridge.test.mjs',
+  ]) {
+    const result = audit([input]);
+    assert.equal(result.valid, true, result.errors.join('; '));
+    assert.deepEqual(result.requiredNotTriggered, []);
+    assert.deepEqual(result.expectedToTrigger, ['workflow:browser-native-bridge'], input);
+  }
+});
+
 test('shared comparator and collector changes require live native bridge checks', () => {
   const descriptor = entries.find(x => x.id === 'workflow:browser-native-bridge');
   assert.ok(descriptor, 'registered native browser workflow');
