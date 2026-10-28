@@ -114,7 +114,7 @@ test('rejects altered tracked source, source metadata and code fingerprints', ()
   other.variants.single.inputs[0].checkoutSha256 = 'f'.repeat(64);
   assert.throws(() => compareCguControls(first, other), /single observed canonical source identity/);
   other.variants.single.inputs[0] = source(sourceSubset[0]);
-  other.variants.default.codeBodies.bodyDigestsBase64 = 'broken';
+  other.variants.default.codeBodies.bodyDigestsBase64 = 'not canonical!';
   assert.throws(() => compareCguControls(first, other), /reported code body fingerprints/);
 });
 
