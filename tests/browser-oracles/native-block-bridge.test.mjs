@@ -15,11 +15,19 @@ const geometry = [
   { x: 16, y: 16, width: 118, height: 42 },
   { x: 12, y: 58, width: 86, height: 16 },
 ];
+const geometryMap = () => Object.fromEntries(
+  ["outer", "first", "second"].map((id, i) => [id, { ...geometry[i] }]));
+const hidden = () => ({
+  outer: { x: 0, y: 0, width: 284, height: 40 },
+  first: null,
+  second: { x: 12, y: 12, width: 86, height: 16 },
+});
 const native = () => ({
   schemaVersion: 1, kind: "grunkalunka-native-block-geometry",
   fixtureId: "native-block-bridge-v1",
   viewport: { width: 800, height: 600, devicePixelRatio: 1 },
-  geometry: Object.fromEntries(["outer", "first", "second"].map((id, i) => [id, { ...geometry[i] }])),
+  geometry: geometryMap(),
+  reflow: { hidden: hidden(), restored: geometryMap() },
 });
 function browser() {
   return {
@@ -36,6 +44,7 @@ function browser() {
       },
       rect: { ...geometry[i] },
     })),
+    reflow: { hidden: hidden(), restored: geometryMap() },
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
       browserVersion: "1.2", playwrightVersion: "1.64.1",
@@ -55,6 +64,10 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
+  assert.ok(source.includes('first.style.display = "none"'), "live display:none phase must be measured");
+  assert.ok(source.includes('first.style.removeProperty("display")'),
+    "fixture must restore its original CSS state");
+  assert.ok(source.includes("reflow: { hidden, restored }"), "both reflow states must be retained");
   assert.ok(!/\b(?:src|href)=["']https?:/i.test(source), "external assets are not modeled");
 });
 
@@ -76,6 +89,48 @@ test("geometric changes remain differences, never normalized to browser consensu
   assert.deepEqual(report.differences.map(d => [d.id, d.field, d.left, d.right]), [
     ["first", "width", 118, 118.25],
   ]);
+});
+
+test("hidden siblings reflow and restored boxes are compared independently", () => {
+  const right = browser();
+  right.reflow.hidden.second.y += 2;
+  let report = compareNativeBlockBridge(native(), right, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences.map(d => [d.phase, d.id, d.field, d.left, d.right]),
+    [["hidden", "second", "y", 12, 14]]);
+
+  const stillVisible = browser();
+  stillVisible.reflow.hidden.first = { ...geometry[1] };
+  report = compareNativeBlockBridge(native(), stillVisible, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences.map(d => [d.kind, d.phase, d.id]),
+    [["visibility", "hidden", "first"]]);
+
+  const didNotRestore = browser();
+  didNotRestore.reflow.restored.first.y += 1;
+  report = compareNativeBlockBridge(native(), didNotRestore, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences.map(d => [d.phase, d.id, d.field]),
+    [["restored", "first", "y"]]);
+});
+
+test("omitted or malformed reflow evidence is invalid, never an unchanged box", () => {
+  for (const mutate of [
+    c => { delete c.reflow; },
+    c => { delete c.reflow.hidden; },
+    c => { delete c.reflow.hidden.second; },
+    c => { c.reflow.hidden.second = undefined; },
+    c => { c.reflow.hidden.second.y = Number.NaN; },
+    c => { c.reflow.restored.outer.width = -1; },
+  ]) {
+    const capture = browser();
+    mutate(capture);
+    assert.equal(compareNativeBlockBridge(native(), capture, fixture).status, "invalid",
+      "missing/malformed browser reflow must never compare equal");
+  }
+  const missingNative = native();
+  delete missingNative.reflow;
+  assert.equal(compareNativeBlockBridge(missingNative, browser(), fixture).status, "invalid");
 });
 
 test("source hashes, identities and viewport mismatches cannot be compared", () => {

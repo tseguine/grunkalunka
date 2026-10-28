@@ -54,6 +54,42 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
     }
   }
   for (const item of validateCapture(browser)) error("$.browser" + item.path.slice(1), item.message);
+
+  // The collector preserves extra fixture observations without rewriting
+  // them. Both the native and browser records must independently include all
+  // reflow states: missing data must never pass as an unchanged rectangle.
+  const phases = ["hidden", "restored"];
+  const sortedIds = [...ids].sort().join(",");
+  function validateReflow(name, value) {
+    if (!record(value) || Object.keys(value).sort().join(",") !== phases.join(",")) {
+      error("$." + name + ".reflow", "exactly hidden and restored phases required");
+      return;
+    }
+    for (const phase of phases) {
+      const state = value[phase];
+      if (!record(state) || Object.keys(state).sort().join(",") !== sortedIds) {
+        error("$." + name + ".reflow." + phase, "three named rectangles required");
+        continue;
+      }
+      for (const id of ids) {
+        const box = state[id];
+        if (box === null) continue; // Explicit display:none; never missing/undefined.
+        if (!record(box) || Object.keys(box).sort().join(",") !== [...rectFields].sort().join(",")) {
+          error("$." + name + ".reflow." + phase + "." + id, "complete rectangle or null required");
+          continue;
+        }
+        for (const field of rectFields) {
+          if (!Number.isFinite(box[field]) ||
+              ((field === "width" || field === "height") && box[field] < 0)) {
+            error("$." + name + ".reflow." + phase + "." + id + "." + field,
+              "finite CSS-pixel rectangle coordinate required");
+          }
+        }
+      }
+    }
+  }
+  validateReflow("native", native?.reflow);
+  validateReflow("browser", browser?.reflow);
   if (!invalid.length) {
     if (browser.fixtureId !== native.fixtureId) {
       mismatch("$.fixtureId", native.fixtureId, browser.fixtureId);
@@ -101,6 +137,28 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
       const left = native.geometry[id][field], right = browser.observations[index].rect[field];
       if (!Object.is(left, right)) {
         differences.push({ id, field, left, right, path: "$.observations[" + index + "].rect." + field });
+      }
+    }
+  }
+  // A hidden node has no box at all. Compare visibility as well as border
+  // geometry, then compare the restored state independently of the baseline.
+  for (const phase of phases) {
+    for (const id of ids) {
+      const left = native.reflow[phase][id], right = browser.reflow[phase][id];
+      if (left === null || right === null) {
+        if (left !== right) {
+          differences.push({ kind: "visibility", phase, id, field: "visible",
+            left: left !== null, right: right !== null,
+            path: "$.reflow." + phase + "." + id });
+        }
+        continue;
+      }
+      for (const field of rectFields) {
+        if (!Object.is(left[field], right[field])) {
+          differences.push({ kind: "geometry", phase, id, field,
+            left: left[field], right: right[field],
+            path: "$.reflow." + phase + "." + id + "." + field });
+        }
       }
     }
   }
