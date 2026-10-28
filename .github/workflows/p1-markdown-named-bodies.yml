@@ -89,6 +89,14 @@ jobs:
           assert.ok(report.namedBodies.normalization.matchingTerminalSuffixCount >= 0);
           assert.ok(report.namedBodies.normalization.matchingTerminalSuffixCount <=
             report.namedBodies.mappedCount);
+          const legacy = report.namedBodies.mangledHashNormalization;
+          assert.equal(legacy.method, 'rust-legacy-mangled-itanium-hash-v1');
+          assert.ok(legacy.matchingTerminalSuffixCount >= 0 &&
+            legacy.matchingTerminalSuffixCount <= report.namedBodies.mappedCount);
+          assert.ok(legacy.nameSyntaxCounts.legacyMangled >=
+            legacy.matchingTerminalSuffixCount);
+          assert.equal(Object.values(legacy.nameSyntaxCounts)
+            .reduce((a, b) => a + b, 0), report.namedBodies.mappedCount);
           fs.appendFileSync(outputFile, 'receipt64=' + bytes.toString('base64') + '\n');
           console.log('PASS Linux Markdown names/body provenance ' +
             JSON.stringify({artifact:report.artifact,functions:report.namedBodies.count,
@@ -217,6 +225,23 @@ jobs:
           assert.equal(normalized.additionalNameAndExactBodyMatchesAfterNormalization,
             normalized.normalizedSharedNameAndExactBodyOccurrences -
             report.sharedNameAndExactBodyOccurrences);
-          console.log('PASS native Markdown named-body and terminal Rust hash-tail comparison');
+          const mangled = report.mangledRustHashControl;
+          assert.ok(mangled, 'both hosts must report mangled-name control');
+          assert.equal(mangled.method, 'rust-legacy-mangled-itanium-hash-v1');
+          assert.ok(mangled.producerSuffixesStripped >= 0 &&
+            mangled.producerSuffixesStripped <= mangled.producerSyntaxCounts.legacyMangled);
+          assert.ok(mangled.receiverSuffixesStripped >= 0 &&
+            mangled.receiverSuffixesStripped <= mangled.receiverSyntaxCounts.legacyMangled);
+          assert.ok(mangled.normalizedSharedNameOccurrences >= report.sharedNameOccurrences);
+          assert.ok(mangled.normalizedSharedNameAndExactBodyOccurrences >=
+            report.sharedNameAndExactBodyOccurrences);
+          assert.ok(mangled.normalizedSharedNameAndExactBodyOccurrences <=
+            mangled.normalizedSharedNameOccurrences);
+          assert.equal(mangled.additionalNameMatchesAfterNormalization,
+            mangled.normalizedSharedNameOccurrences - report.sharedNameOccurrences);
+          assert.equal(mangled.additionalNameAndExactBodyMatchesAfterNormalization,
+            mangled.normalizedSharedNameAndExactBodyOccurrences -
+            report.sharedNameAndExactBodyOccurrences);
+          console.log('PASS native Markdown raw and two Rust hash controls');
           console.log(JSON.stringify(report));
           NODE
