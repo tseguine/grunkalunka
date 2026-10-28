@@ -5,12 +5,14 @@ on:
     branches: [master]
     paths:
       - 'tests/browser-oracles/**'
+      - 'tools/browser-oracles/**'
       - 'docs/browser-oracle-comparison.md'
       - '.github/workflows/browser-oracles.yml'
   push:
     branches: [master]
     paths:
       - 'tests/browser-oracles/**'
+      - 'tools/browser-oracles/**'
       - 'docs/browser-oracle-comparison.md'
       - '.github/workflows/browser-oracles.yml'
   workflow_dispatch:
