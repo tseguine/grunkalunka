@@ -52,6 +52,37 @@
 (global $reaction_count (mut i32) (i32.const 0))
 (global $reaction_new_count (mut i32) (i32.const 0))
 
+;; Ordered host tracking events, separate from continuation jobs. The host
+;; decides which rejections remain unhandled at its microtask checkpoint.
+(global $promise_event_head (mut i32) (i32.const 0))
+(global $promise_event_tail (mut i32) (i32.const 0))
+(func $promise_event (param $id i32) (param $kind i32)
+  (param $tag i32) (param $payload f64) (local $event i32)
+  call $promise_alloc local.tee $event i32.const 0x45564e54 i32.store
+  local.get $event local.get $id i32.store offset=8
+  local.get $event local.get $kind i32.store offset=12
+  local.get $event local.get $tag i32.store offset=16
+  local.get $event local.get $payload f64.store offset=24
+  global.get $promise_event_tail
+  if global.get $promise_event_tail local.get $event i32.store offset=4
+  else local.get $event global.set $promise_event_head end
+  local.get $event global.set $promise_event_tail)
+
+;; kind 0 = empty, 1 = rejected without a handler, 2 = subsequently handled.
+(func $promise_event_take (result i32 i32 i32 f64) (local $event i32)
+  global.get $promise_event_head local.tee $event i32.eqz
+  if i32.const 0 i32.const 0 i32.const 0 f64.const 0 return end
+  local.get $event call $promise_range
+  local.get $event i32.load i32.const 0x45564e54 i32.ne if unreachable end
+  local.get $event i32.load offset=4 global.set $promise_event_head
+  global.get $promise_event_head i32.eqz
+  if i32.const 0 global.set $promise_event_tail end
+  local.get $event i32.const 0 i32.store
+  local.get $event i32.load offset=12
+  local.get $event i32.load offset=8
+  local.get $event i32.load offset=16
+  local.get $event f64.load offset=24)
+
 (func $reaction_new (param $frame i32) (param $continuation i32) (result i32)
   (local $p i32)
   call $promise_alloc local.tee $p i32.const 0x57414954 i32.store
@@ -84,6 +115,8 @@
   local.get $p local.get $rejected i32.const 1 i32.add i32.store offset=4
   local.get $p local.get $tag i32.store offset=8
   local.get $p local.get $payload f64.store offset=16
+  local.get $rejected local.get $p i32.load offset=12 i32.eqz i32.and
+  if local.get $p i32.const 1 local.get $tag local.get $payload call $promise_event end
   local.get $p i32.load offset=24 local.set $waiter
   local.get $p i32.const 0 i32.store offset=24
   local.get $p i32.const 0 i32.store offset=28
@@ -121,6 +154,9 @@
   (local $waiter i32) (local $tail i32)
   local.get $p call $promise_check
   local.get $frame local.get $continuation call $reaction_new local.set $waiter
+  local.get $p i32.load offset=4 i32.const 2 i32.eq
+  local.get $p i32.load offset=12 i32.eqz i32.and
+  if local.get $p i32.const 2 i32.const 0 f64.const 0 call $promise_event end
   local.get $p i32.const 1 i32.store offset=12
   local.get $p i32.load offset=4 i32.eqz
   if

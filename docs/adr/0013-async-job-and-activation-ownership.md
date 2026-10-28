@@ -122,8 +122,17 @@ without identity operations retain the previous protocol and output. Separate
 source requests now create pending-capable identities, preserve them through
 bindings/cells/getters and register later awaits. Discarding a call releases its
 source reference but does not cancel the invocation's owned ready work.
-The handled bit records subscription only; it does not implement host rejection
-notifications, adoption, thenables or a browser event loop.
+The handled bit records subscription. First rejection without a handler emits an
+ordered tracking event; the first subsequent subscription emits a handled event.
+These are distinct from guest continuation jobs. `take_promise_event` consumes
+events at each boundary before exposing root settlement. Node creates rejected
+Promise proxies and attaches handlers as notified, so native host checkpoints
+decide which rejections remain unhandled. Wasmtime exposes the ordered
+`PromiseNotification` stream for an embedding's checkpoint policy. The primitive
+reason and invocation-local ID survive root settlement; no guest execution state
+is exposed through a Node proxy. Tracking uses bounded arena records and does not
+change reaction-job accounting. Adoption, thenables and a browser event loop remain
+outside this slice.
 
 This covers ownership, delivery and ordering for the admitted primitive async
 profile. Preserve its current external status/tag/payload ABI, diagnostics, source
@@ -131,18 +140,18 @@ limits and documented terminal-error behavior unless a separately justified chan
 updates compiler and adapters together.
 
 It does not complete arbitrary Promise/thenable values, finally, generators,
-workers, cross-agent sharing, host I/O, unhandled-rejection reporting, JS cancellation,
+workers, cross-agent sharing, host I/O, JS cancellation,
 a new GC, or a general reentrant host-call model.
 
-The PoC implementation sequence now admits stored/discarded pending calls before
-host unhandled-event delivery is complete. Its executable counterexample is
-recorded in [pending source values](../runtime-closures.md#pending-source-values):
-root settlement agrees while native Node alone reports the rejected child. The
-handled flag and guest queue establish ownership but are insufficient to deliver
-that event. The next ownership unit must close this visible gap. Requiring event
-delivery before all source identity admission would couple two independently
-testable changes; the current sequence retains the known failing case and avoids
-claiming full Promise compatibility. Other unsupported source remains explicit.
+The PoC sequence admitted stored/discarded pending calls before host event delivery.
+That unit's detached-child counterexample is now a maintained native/Node-Wasm
+regression: root fulfillment and the child's unhandled reason agree. Separate
+tests cover same-checkpoint late handling, repeated awaits, primitive reason bits,
+cross-instance event order and Wasmtime notification consumption. Publishing only
+after an instance drains would reorder an early rejection behind a later rejection
+from an instance with less unrelated work; boundary delivery avoids that error.
+Other unsupported source remains explicit; this does not claim full Promise
+compatibility or universal host checkpoint conformance.
 
 ## Alternatives considered
 

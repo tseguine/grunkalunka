@@ -7,7 +7,7 @@ use wasmtime::{Config, Engine, Instance, Module, Store, TypedFunc};
 mod heap;
 pub use heap::HeapInstance;
 mod asynchronous;
-pub use asynchronous::{AsyncInstance, AsyncState};
+pub use asynchronous::{AsyncInstance, AsyncState, PromiseNotification};
 
 /// Current execution budget, renewed before each call.
 pub const FUEL_PER_CALL: u64 = 10_000;

@@ -766,6 +766,19 @@ for these callbacks; Wasmtime exposes `pending_job_count()` independently of
 `state()`. Hosts must account for already scheduled callbacks when registering
 new ones. Repeated start and a resume with no ready job trap.
 
+Queue modules also export `take_promise_event() -> (i32,i32,i32,f64)`, consuming
+one FIFO tracking event: `(kind, invocation-local ID, primitive tag, payload)`.
+Kind 1 reports the first rejected settlement without a handler; kind 2 reports
+its first subsequent subscription (tag and payload are zero). Kind 0 is an empty
+queue with all remaining lanes positive zero. A handler registered while pending
+prevents both events. Repeated settlement or subscription produces no duplicate
+event. Tracking records share the existing bounded arena but consume no reaction
+jobs. First rejection and later handling may cross guest boundaries within one
+host checkpoint; hosts must publish tracking at each boundary rather than wait
+for an instance's ready queue to empty. This preserves cross-instance event order.
+The Node bridge uses native rejected Promise proxies; Wasmtime exposes a consuming
+`PromiseNotification` API and leaves checkpoint policy to its embedding.
+
 Modules without identity operations retain their previous emitted protocol.
 Source pending-value requests now construct these operations. Positive queries
 follow original bindings and signatures without executing source expressions.
@@ -778,9 +791,8 @@ evaluating surplus arguments in order.
 
 This does not complete Promise compatibility. Adoption, thenables, general
 payloads, source identity comparison, mixed snapshot/identity storage, pending
-parameter inference, host rejection notifications and independently escaping
-Promises remain open. Detached execution is admitted before host unhandled-event
-delivery; its known failing counterexample is documented in
+parameter inference and independently escaping Promises remain open. Detached
+primitive rejection reporting is covered by
 [pending source values](runtime-closures.md#pending-source-values). Maintained IR
 tests compare complete native Promise/Node-Wasm microtask traces; separate runtime
 tests cover queue accounting, root settlement, traps and the 32-job boundary.

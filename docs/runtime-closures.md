@@ -385,10 +385,9 @@ explicit source gaps. Immediate non-suspending async closures retain their
 fulfilled/settled snapshot contracts.
 
 Awaited primitive rejection reaches its lexical catch, including repeated and
-late awaits. **Host unhandled-child rejection events are not implemented.** The
-admitted source below is a diagnosed counterexample: at `(4, 2)` both engines
-fulfill the root with `4`; native Node reports an unhandled child reason `2`, and
-the current Wasm adapter reports no event.
+late awaits. Detached child rejections now produce host notifications. At `(4, 2)`
+the source below fulfills the root with `4` and reports child reason `2` through
+Node's `unhandledRejection` event in both native JS and the Wasm adapter.
 
 ```js
 export async function run(a, b) {
@@ -398,10 +397,19 @@ export async function run(a, b) {
 }
 ```
 
-This gap is retained for the next async ownership unit. The current PoC sequence
-admits core identity/queue behavior before host event delivery is complete; it
-does not claim all Promise semantics. Both adapters continue ready work after
-root settlement. Source tests compare full native/Node-Wasm marker traces;
+The guest emits ordered rejection and subsequent-handling notifications with
+invocation-local Promise IDs. The Node adapter creates native rejected Promise
+proxies at each guest boundary and attaches a handler when the guest observes
+the rejection. Native host checkpoint policy then reports only rejections still
+unhandled; awaiting a rejected child later in the same checkpoint suppresses the
+event. Proxies carry primitive reasons and do not expose guest execution state.
+Wasmtime's `take_promise_notifications()` consumes the same ordered events;
+embeddings apply their own checkpoint policy. Events are separate from runnable
+jobs and remain observable after root settlement. This is not general Promise
+adoption, escaping Promise objects or HTML event-loop conformance.
+
+Both adapters continue ready work after root settlement. Source tests compare
+full native/Node-Wasm marker traces;
 Wasmtime uses an explicit shared FIFO and marker chain, drains remaining work,
 and compares completion bits and marker positions. Counting continuations alone
 would incorrectly equate sibling jobs with external ticks. Existing site, job,

@@ -22,10 +22,49 @@ fn wasm() -> Vec<u8> {
         ("issued", "reaction_issued"),
         ("take", "reaction_take"),
         ("read", "reaction_read"),
+        ("event", "promise_event_take"),
     ]
     .map(|(name, function)| format!("(export \"{name}\" (func ${function}))"))
     .join("\n");
     wat::parse_str(format!("(module (memory (export \"memory\") 1 16) (global $cell_top (mut i32) (i32.const 0)) {allocator} {kernel} {exports} (func (export \"top\") (result i32) global.get $cell_top) (func (export \"prime\") (result i32) i32.const 16 call $closure_frame))")).unwrap()
+}
+
+#[test]
+fn rejection_events_are_fifo_single_assignment_and_cancel_on_first_late_subscription() {
+    let (mut store, instance) = instance();
+    let new = instance
+        .get_typed_func::<(), i32>(&mut store, "new")
+        .unwrap();
+    let settle = instance
+        .get_typed_func::<(i32, i32, i32, f64), i32>(&mut store, "settle")
+        .unwrap();
+    let subscribe = instance
+        .get_typed_func::<(i32, i32, i32), ()>(&mut store, "subscribe")
+        .unwrap();
+    let event = instance
+        .get_typed_func::<(), (i32, i32, i32, f64)>(&mut store, "event")
+        .unwrap();
+    let p = new.call(&mut store, ()).unwrap();
+    let q = new.call(&mut store, ()).unwrap();
+    let r = new.call(&mut store, ()).unwrap();
+    subscribe.call(&mut store, (r, 0, 1)).unwrap();
+    settle.call(&mut store, (p, 1, 3, -0.0)).unwrap();
+    settle.call(&mut store, (q, 1, 1, 0.0)).unwrap();
+    assert_eq!(settle.call(&mut store, (p, 1, 3, 99.0)).unwrap(), 0);
+    settle.call(&mut store, (r, 1, 2, 1.0)).unwrap();
+    subscribe.call(&mut store, (p, 0, 2)).unwrap();
+    subscribe.call(&mut store, (p, 0, 3)).unwrap();
+    let first = event.call(&mut store, ()).unwrap();
+    assert_eq!((first.0, first.1, first.2), (1, p, 3));
+    assert_eq!(first.3.to_bits(), (-0.0_f64).to_bits());
+    assert_eq!(event.call(&mut store, ()).unwrap(), (1, q, 1, 0.0));
+    assert_eq!(event.call(&mut store, ()).unwrap(), (2, p, 0, 0.0));
+    for _ in 0..2 {
+        assert_eq!(event.call(&mut store, ()).unwrap(), (0, 0, 0, 0.0));
+    }
+    subscribe.call(&mut store, (q, 0, 4)).unwrap();
+    assert_eq!(event.call(&mut store, ()).unwrap(), (2, q, 0, 0.0));
+    assert_eq!(event.call(&mut store, ()).unwrap(), (0, 0, 0, 0.0));
 }
 
 fn instance() -> (Store<()>, Instance) {

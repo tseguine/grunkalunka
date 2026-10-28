@@ -1,5 +1,15 @@
 use wasmtime::{Store, TypedFunc};
 
+/// Guest rejection tracking, in occurrence order at each invocation boundary.
+/// IDs are private to one invocation. An embedding reports rejected IDs still
+/// unhandled at its microtask checkpoint; a later Handled cancels that report
+/// or provides the host's rejection-handled notification.
+#[derive(Clone, Debug)]
+pub enum PromiseNotification {
+    Rejected { id: u32, reason: super::Value },
+    Handled { id: u32 },
+}
+
 /// Observable settlement of the experimental primitive Promise profile.
 #[derive(Clone, Debug)]
 pub enum AsyncState {
@@ -16,6 +26,9 @@ pub struct AsyncInstance {
     store: Store<()>,
     resume: TypedFunc<(i32, f64), (i32, i32, f64)>,
     take_jobs: Option<TypedFunc<(), i32>>,
+    take_promise_event: Option<TypedFunc<(), (i32, i32, i32, f64)>>,
+    notifications: Vec<PromiseNotification>,
+    rejections: std::collections::BTreeSet<u32>,
     ready_jobs: u8,
     state: AsyncState,
     pending: Option<(i32, i32, f64)>,
@@ -33,12 +46,22 @@ impl AsyncInstance {
             .get_func(&mut store, "take_jobs")
             .map(|f| f.typed(&store))
             .transpose()?;
+        let take_promise_event = instance
+            .get_func(&mut store, "take_promise_event")
+            .map(|f| f.typed(&store))
+            .transpose()?;
+        if take_promise_event.is_some() && take_jobs.is_none() {
+            wasmtime::bail!("Promise events require queued async protocol");
+        }
         store.set_fuel(super::FUEL_PER_CALL)?;
         let result = start.call(&mut store, (a, b))?;
         let mut activation = Self {
             store,
             resume,
             take_jobs,
+            take_promise_event,
+            notifications: Vec::new(),
+            rejections: std::collections::BTreeSet::new(),
             ready_jobs: 0,
             state: AsyncState::Pending,
             pending: None,
@@ -54,6 +77,13 @@ impl AsyncInstance {
             wasmtime::bail!("async activation is unusable after an earlier error");
         }
         Ok(self.state.clone())
+    }
+
+    /// Consume tracking events after construction and every job, including jobs
+    /// after root settlement. This does not run a job or perform a checkpoint.
+    pub fn take_promise_notifications(&mut self) -> wasmtime::Result<Vec<PromiseNotification>> {
+        self.state()?;
+        Ok(std::mem::take(&mut self.notifications))
     }
 
     /// Outstanding callbacks, including those already placed on a host queue.
@@ -111,6 +141,7 @@ impl AsyncInstance {
             }
             self.jobs_left -= issued as u8;
             self.ready_jobs += issued as u8;
+            self.collect_notifications()?;
             self.state = match kind {
                 0 => AsyncState::Fulfilled(value),
                 3 => AsyncState::Rejected(value),
@@ -137,5 +168,37 @@ impl AsyncInstance {
             _ => wasmtime::bail!("invalid async protocol status {kind}"),
         }
         Ok(())
+    }
+
+    fn collect_notifications(&mut self) -> wasmtime::Result<()> {
+        let Some(take) = &self.take_promise_event else {
+            return Ok(());
+        };
+        for _ in 0..32768 {
+            let (kind, id, tag, payload) = take.call(&mut self.store, ())?;
+            if kind == 0 {
+                if id != 0 || tag != 0 || payload.to_bits() != 0 {
+                    wasmtime::bail!("invalid empty Promise event");
+                }
+                return Ok(());
+            }
+            if id < 16 || id % 16 != 0 {
+                wasmtime::bail!("invalid Promise event identity");
+            }
+            let id = id as u32;
+            let event = match kind {
+                1 if !self.rejections.contains(&id) => {
+                    let reason = super::decode_primitive(tag, payload)?;
+                    self.rejections.insert(id);
+                    PromiseNotification::Rejected { id, reason }
+                }
+                2 if tag == 0 && payload.to_bits() == 0 && self.rejections.remove(&id) => {
+                    PromiseNotification::Handled { id }
+                }
+                _ => wasmtime::bail!("invalid Promise event transition"),
+            };
+            self.notifications.push(event);
+        }
+        wasmtime::bail!("too many Promise events")
     }
 }

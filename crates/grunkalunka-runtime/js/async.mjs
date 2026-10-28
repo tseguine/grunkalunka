@@ -10,6 +10,9 @@ export function createAsyncFunction(bytes) {
       let jobs = 32;
       let usable = true;
       const queued = typeof guest.take_jobs === 'function';
+      const tracked = typeof guest.take_promise_event === 'function';
+      const rejections = new Map();
+      if (tracked && !queued) throw new TypeError('Promise events require queued async protocol');
       function decode(tag, payload) {
         if (tag === 0 && Object.is(payload, 0)) return undefined;
         if (tag === 1 && Object.is(payload, 0)) return null;
@@ -24,6 +27,24 @@ export function createAsyncFunction(bytes) {
           const issued = guest.take_jobs();
           if (!Number.isInteger(issued) || issued < 0 || issued > jobs) throw new RangeError('async activation exceeded its 32-job budget');
           jobs -= issued;
+          if (tracked) {
+            // Publish at each boundary, before root settlement. Native rejected
+            // proxies let the host apply its own end-of-checkpoint reporting.
+            for (let count = 0; ; count++) {
+              if (count === 32768) throw new RangeError('too many Promise events');
+              const [kind, id, eventTag, eventPayload] = guest.take_promise_event();
+              if (kind === 0) {
+                if (id !== 0 || eventTag !== 0 || !Object.is(eventPayload, 0)) throw new TypeError('invalid empty Promise event');
+                break;
+              }
+              if (!Number.isInteger(id) || id < 16 || id % 16 !== 0) throw new TypeError('invalid Promise event identity');
+              if (kind === 1 && !rejections.has(id)) rejections.set(id, Promise.reject(decode(eventTag, eventPayload)));
+              else if (kind === 2 && rejections.has(id) && eventTag === 0 && Object.is(eventPayload, 0)) {
+                rejections.get(id).catch(() => {});
+                rejections.delete(id);
+              } else throw new TypeError('invalid Promise event transition');
+            }
+          }
           // Every enqueue happened before this root settlement. Register each
           // callback now so other host microtasks see the same FIFO ordering.
           for (let i = 0; i < issued; i++) queueMicrotask(() => {

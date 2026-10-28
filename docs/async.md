@@ -206,10 +206,14 @@ awaits preserve primitive completion and lexical rejection handling.
 extras after the argument, including their effects and suspension. This does not
 implement general Promise adoption. Typed annotations remain erased.
 
-Source using these identities exports `take_jobs`; other source modules retain
-the legacy primitive protocol described below. Unhandled child rejection reporting
-is a demonstrated remaining gap, including for newly admitted detached calls;
-see [pending source values](runtime-closures.md#pending-source-values). Adoption,
+Source using these identities exports `take_jobs` and `take_promise_event`; other
+source modules retain the legacy primitive protocol described below. Detached
+child rejection and subsequent handling are delivered in occurrence order, before
+root settlement is exposed at each boundary. Node bridges these notifications to
+native rejected Promise proxies, leaving checkpoint reporting to the host;
+Wasmtime exposes `take_promise_notifications()` for an embedding's checkpoint
+policy. Awaiting a child later in the same checkpoint prevents a false unhandled
+event. See [pending source values](runtime-closures.md#pending-source-values). Adoption,
 mixed snapshot/identity storage, pending input inference and general payloads also
 remain open.
 
