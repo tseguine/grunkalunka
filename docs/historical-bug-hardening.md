@@ -1,5 +1,12 @@
 # Historical browser and embedder bugs as regression-hardening inputs
 
+This is the narrow **executable regression** use case of proposed
+[ADR 0017: Upstream issue evidence](adr/0017-upstream-issue-evidence.md).
+The broader evidence method also retains distinct contributions from duplicates,
+WONTFIX, disputed and unresolved issues, including UX/design pressures with no
+immediate regression test. Upstream resolutions and maintainer judgments are
+sources of evidence, not normative Grunkalunka decisions.
+
 **Status: proposed test-design technique, not an assigned roadmap milestone or a
 standing bug-mining task.** The maintainer explicitly selects priorities and
 workstream ownership under [AGENTS.md](../AGENTS.md). Recording this idea does
@@ -14,10 +21,12 @@ Grunkalunka contract. Translate the underlying failure scenario into a small,
 independently justified regression. This lets our implementation learn from
 other engines' historical mistakes without copying their architecture.
 
-Prefer **resolved bugs with a minimal reproducer, an explained fix and an
-upstream regression test**: those usually offer better evidence than an
-unconfirmed open report. Open reports may still identify useful edge cases,
-but are hypotheses until their expected behavior is established separately.
+For **executable regression extraction**, prefer resolved bugs with a minimal
+reproducer, an explained fix and an upstream regression test: those usually
+offer better evidence than an unconfirmed report. For the wider evidence base,
+never discard a report merely because it was marked duplicate, WONTFIX, invalid
+or closed. Preserve independently useful details and label the strength and
+kind of evidence; a report is not itself proof of a defect.
 
 ### Candidate sources and overlapping product surfaces
 
@@ -60,10 +69,12 @@ JavaScript or CSS specification failure.
    fault sensitivity with a deliberately broken source or fixture; preserve
    original input, expected observations and exact executed revision. Keep
    reference-browser tests distinct from our own implementation tests.
-6. **Record only actionable evidence.** Link the upstream issue and our
-   fixture, PR or bounded steering finding. Note what actually executed in
-   Grunkalunka and what remains conjectural. Do not create a giant imported
-   bug database, automatic compatibility percentage or repetitive issue churn.
+6. **Separate retained evidence from actionable work.** Preserve a report's
+   distinct technical, interoperability or UX contributions even when no test
+   or implementation change is justified. Link any resulting local fixture, PR
+   or bounded steering finding; note what actually executed in Grunkalunka and
+   what remains conjectural. Do not create a giant imported issue mirror,
+   automatic compatibility percentage or repetitive GitHub issue churn.
 
 A potential bug in a **currently owned** implementation belongs with that
 workstream's existing PR/issue or a narrowly evidenced `steering:` issue.
