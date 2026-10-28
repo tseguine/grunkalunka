@@ -226,8 +226,14 @@ Oxc parsing and semantic phase probe](frontend-cost.md) does not isolate product
 Grunkalunka frontend/lowering or emission costs. The [scalar WIT resource-call
 control](scalar-wit-cost.md) and [core-Wasm host-import calibration](host-call-calibration.md)
 exercise different boundaries, not a measured universal host-call tax.
+The [portable core-Wasm GCD replay](portable-core-replay.md) now carries
+the same compiled bytes between hosts without recompiling on the receiver, but
+the current hosted checks remain x64 only. The [repeated public compiler API
+probe](source-compile-cost.md) checks byte-identical JS/TS outputs and raw
+compile batches without attributing their individual internal stages.
 These experiments do not supply production throughput, retained comparable
-multi-host performance rankings or a completed P1 milestone; see
+multi-host performance rankings or a completed P1 milestone; see the
+[P1 evidence ledger](p1-evidence.md) and
 [status and remaining gaps](milestones.md#compatibility-runtime-and-application-tracks).
 Keep profiles, input bytes, environment provenance and raw dispersion visible,
 and check correctness outside timed loops.
