@@ -124,6 +124,9 @@ test('rejects omitted goldens, malformed code-body digests or invalid host role'
   assert.throws(()=>compareNativeRustWitnesses(a,b),/observed bounded execution goldens/);
   b.fixtures.core.goldens.gcdCases=4;
   b.fixtures.std.wasm.codeBodies.bodyDigestsBase64='not canonical!';
+  assert.throws(()=>compareNativeRustWitnesses(a,b),/bounded code bodies/);
+  // Canonically encoded but truncated digest vector must fail independently.
+  b.fixtures.std.wasm.codeBodies.bodyDigestsBase64=Buffer.from([1]).toString('base64');
   assert.throws(()=>compareNativeRustWitnesses(a,b),/canonical complete Wasm function body hashes/);
   b.fixtures.std=fixture('std',[[0,11]]);
   assert.throws(()=>compareNativeRustWitnesses(b,a),/Linux x64 producer/);
