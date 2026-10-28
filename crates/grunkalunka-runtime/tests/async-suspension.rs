@@ -73,6 +73,9 @@ mod named_async;
 #[path = "async-suspension/promise_type_arguments.rs"]
 mod promise_type_arguments;
 
+#[path = "async-suspension/math_type_arguments.rs"]
+mod math_type_arguments;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(

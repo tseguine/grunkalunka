@@ -482,7 +482,8 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   Abs maps negative zero to positive zero; the other four preserve input negative
   zero. Ceil/trunc may also return negative zero for negative fractions. Negative
   nonzero sqrt inputs, including negative infinity, return NaN. Computed, optional,
-  generic, wrapped-callee, spread, aliased and first-class forms remain rejected.
+  wrapped-callee, spread, aliased and first-class forms remain rejected. Call-site
+  type arguments now erase as described [below](#math-intrinsic-type-arguments).
   Global Math writes, property patches, reification and external realm integration
   remain open work; Math and its methods are not immutable language globals.
   See [Math.abs](https://tc39.es/ecma262/multipage/numbers-and-dates.html#sec-math.abs),
@@ -1170,8 +1171,9 @@ as unvalidated metadata. The original TypeScript Module AST and Semantic pass re
 constraints, defaults and `const` type parameters do not create runtime bindings,
 change numeric parameter eligibility or establish inferred runtime types. This follows
 the declaration syntax in the [TypeScript generics handbook](https://www.typescriptlang.org/docs/handbook/2/generics.html).
-Explicit type arguments on ordinary calls remain unsupported. Pristine async
-Promise.resolve/reject now erase call-site types as described in
+Explicit type arguments on ordinary calls remain unsupported. Pristine
+[unary Math calls](#math-intrinsic-type-arguments) and async Promise.resolve/reject
+now erase call-site types; see also
 [the async contract](async.md#promise-intrinsic-type-arguments). Async/generator/ambient functions,
 `this` parameters and other parameter-shape restrictions retain their existing guards.
 
@@ -2193,3 +2195,24 @@ opaque-ID numeric conversion substitutes for object identity. The primitive
 return profiles and immediate snapshot domains retain their existing boundaries.
 See [Promise equality](async.md#represented-promise-identity-equality) for coverage
 and remaining String, snapshot and object-coercion gaps.
+
+## Math intrinsic type arguments
+
+Call-site TypeScript types on pristine Math.abs/sqrt/floor/ceil/trunc are erased
+in numeric, primitive and async profiles. The typed call emits the same Wasm bytes
+as its JavaScript twin. Metadata does not perform value lookup, choose a method,
+change conversion or default/surplus argument behavior, or add an effect or job.
+This remains unvalidated type metadata, including misleading primitive claims,
+unresolved names and type queries.
+
+The five exact former generic-call exclusions now execute with their original
+TS source hashes and explicit JS oracles. Maintained tests compare numeric and
+primitive guest results with native JS, and cover async snapshots, private inputs,
+represented Promise-to-Number conversion and argument failure. Signed zero,
+fractions, NaN and infinities retain the existing comparison contract.
+
+Type-only Math names do not shadow its value binding. Actual value shadows,
+patches, unsupported methods, optional/computed/wrapped calls, spread arguments,
+unsupported payloads and source limits retain their guards. Ordinary helper and
+heap JSON call-site types remain separate work. No type checker, IR, emitter,
+runtime ABI, dependency or budget changes are needed.

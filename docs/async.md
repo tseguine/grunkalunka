@@ -736,5 +736,7 @@ compare native rejection checkpoints. Four exact former TS guards now execute.
 Source bytes, await sites, argument limits, optional/spread calls, value shadowing,
 custom/unknown intrinsics and payload domains retain their guards. Source binding
 checks still distinguish type-only names from actual value references. Generic
-calls to ordinary helpers, Math and heap JSON intrinsics remain separate work.
+calls to ordinary helpers and heap JSON intrinsics remain separate work.
+Supported unary Math intrinsics now use the same erasure principle; see
+[their contract](compiler.md#math-intrinsic-type-arguments).
 No new IR, type checker, runtime operation, dependency, ABI or budget is introduced.

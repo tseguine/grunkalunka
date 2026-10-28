@@ -471,6 +471,19 @@ fn unary_math_surplus_arguments_keep_width_type_and_namespace_guards() {
     for method in ["abs", "sqrt", "floor", "ceil", "trunc"] {
         let source = format!("export function run(a,b){{return Math.{method}(a,{extras});}}");
         compare_helper_sources(&[&source]);
+        let plain = format!("export function run(a,b){{return Math.{method}();}}");
+        let typed = format!("export function run(a,b){{return Math.{method}<number>();}}");
+        assert_eq!(
+            compile(&typed, true).unwrap().wasm,
+            compile(&plain, false).unwrap().wasm,
+            "{typed}"
+        );
+        assert_eq!(
+            compile_value(&typed, true).unwrap().wasm,
+            compile_value(&plain, false).unwrap().wasm,
+            "{typed}"
+        );
+        compare_helper_sources(&[&plain]);
         for body in [
             format!("return Math.{method}(a,{extras},b);"),
             format!("return Math.{method}(\"3\",a);"),
@@ -488,7 +501,6 @@ fn unary_math_surplus_arguments_keep_width_type_and_namespace_guards() {
             format!("return Math.{method}?.();"),
             format!("return Math[\"{method}\"]();"),
             format!("return (Math.{method})();"),
-            format!("return Math.{method}<number>();"),
             format!("if(false)Math.{method}=a;return Math.{method}();"),
         ] {
             let source = format!("export function run(a,b){{{body}}}");

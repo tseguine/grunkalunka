@@ -761,3 +761,14 @@ effects, rejection/adoption and source guards. Four former TS rejection sources
 now execute unchanged. Two additional notification fixtures preserve discarded
 rejections and later handling. Other generic source calls, Math/JSON call-site
 types and arbitrary runtime TypeScript constructs remain separate gaps.
+
+## Unary Math call-site type erasure (2026-10-28)
+
+The five supported pristine unary Math intrinsics erase call-site TypeScript
+types across numeric, primitive and async profiles. Four maintained groups prove
+exact JS/TS guest bytes and compare native JS, Node-Wasm and Wasmtime outcomes,
+including primitive conversion, signed zero/fractions, surplus effects, await
+snapshots and failure. Five original TS corpus exclusions are now executable
+pairs with frozen source hashes and explicit JS oracles; the remaining rejection
+inventory has 844 records. Ordinary helper and heap JSON call-site type arguments
+remain gaps. The implementation removes only one shared source-admission guard.
