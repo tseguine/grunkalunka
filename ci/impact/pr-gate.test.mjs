@@ -120,10 +120,10 @@ test('all-doc PRs can select no commands after validated planning', () => {
 
 test('independent browser workflow expectations stay visible but are not claimed executed', () => {
   const input = compiler();
-  input.externalWorkflows.expectedToTrigger = ['workflow:browser-oracles'];
+  input.externalWorkflows.expectedToTrigger = ['workflow:browser-smoke'];
   const result = choose(input);
   assert.equal(result.mode, 'partial', result.reason);
-  assert.deepEqual(result.independentWorkflowsExpected, ['workflow:browser-oracles']);
+  assert.deepEqual(result.independentWorkflowsExpected, ['workflow:browser-smoke']);
   assert.equal(result.externalJobsVerified, false);
 });
 
@@ -174,7 +174,7 @@ test('ambiguous, stale or missing selection safely runs full CI', () => {
     p => { p.tests.push('external:unverified-workflow'); },
     p => { p.build = ['not-a-workspace-package']; },
     p => { p.build = []; },
-    p => { p.externalWorkflows.requiredNotTriggered.push('workflow:browser-oracles'); },
+    p => { p.externalWorkflows.requiredNotTriggered.push('workflow:browser-smoke'); },
     p => { p.externalWorkflows.valid = false; },
     p => { p.externalWorkflows.errors.push('unsupported paths'); },
     p => { delete p.externalWorkflows; },
