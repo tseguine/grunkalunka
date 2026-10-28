@@ -47,6 +47,13 @@ are attributed. `docs/**`, `README.md`, `AGENTS.md`, and `LICENSE` are treated
 as non-code for impact selection. Unknown/ambiguous source paths,
 root build inputs, GitHub workflow changes, changes to the planner itself,
 invalid descriptors, and missing Cargo/Git input yield a full-verification plan.
+An exception permits **paired, newly added** `scripts/checks/NNNNNN-name.json`
+and `ci/impact/checks/name.json` entries to select their one new canonical
+test plus declared dependencies. Both paths must be new in the base-to-HEAD
+diff, the live command catalog must match the descriptor, and missing or
+modified registrations still fall back to full verification. Existing test
+files covered by a registered suite are selected by their normal ownership
+edges without changing the canonical catalog.
 The classification of documentation and test ownership must be re-audited
 before any result can influence required CI coverage.
 

@@ -52,7 +52,8 @@ function closure(start, edges) {
 }
 
 // All tests are planned in shadow mode; no skip decision is authoritative yet.
-export function planImpact({ changedPaths, modules, groups = [], tests, ignored = [], global = [] }) {
+export function planImpact({ changedPaths, modules, groups = [], tests, ignored = [], global = [],
+  scopedPaths = {} }) {
   const definitions = [
     ...modules.map(node => ({ ...node, kind: 'module' })),
     ...groups.map(node => ({ ...node, kind: 'group' })),
@@ -99,11 +100,26 @@ export function planImpact({ changedPaths, modules, groups = [], tests, ignored 
   if (!Array.isArray(changedPaths) || !Array.isArray(ignored) || !Array.isArray(global)) {
     return failure('invalid change/path-policy list');
   }
+  // Only validated additive test registrations can override global scoping.
+  // Callers must supply a path -> executable check ID for each such addition.
+  if (!scopedPaths || typeof scopedPaths !== 'object' || Array.isArray(scopedPaths) ||
+      Object.entries(scopedPaths).some(([path, id]) =>
+        !validatePath(path) || !changedPaths.includes(path) ||
+        !nodes.has(id) || nodes.get(id).kind !== 'test' ||
+        !id.startsWith('check:'))) {
+    return failure('invalid additive test registration mapping');
+  }
   const changedOwners = new Set(), ignoredPaths = [];
   for (const path of changedPaths) {
     if (!validatePath(path)) return failure(`invalid Git path: ${path}`);
-    if (global.some(rule => matches(path, rule)) || /(?:^|\/)Cargo\.(?:toml|lock)$/.test(path)) {
+    const registered = Object.hasOwn(scopedPaths, path);
+    if ((!registered && global.some(rule => matches(path, rule))) ||
+        /(?:^|\/)Cargo\.(?:toml|lock)$/.test(path)) {
       return failure(`global build input changed: ${path}`);
+    }
+    if (registered) {
+      changedOwners.add(scopedPaths[path]);
+      continue;
     }
     if (ignored.some(rule => matches(path, rule))) {
       ignoredPaths.push(path);
