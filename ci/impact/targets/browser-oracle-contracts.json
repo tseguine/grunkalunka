@@ -1,0 +1,6 @@
+{
+  "id": "test:browser-oracle-contracts",
+  "dependsOn": [
+    "browser-oracles"
+  ]
+}

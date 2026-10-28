@@ -1,0 +1,7 @@
+{
+  "id": "test:canonical-runner-contracts",
+  "dependsOn": [
+    "canonical-scripts",
+    "build-test-sources"
+  ]
+}

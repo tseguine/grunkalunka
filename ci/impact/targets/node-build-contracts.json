@@ -1,0 +1,10 @@
+{
+  "id": "test:node-build-contracts",
+  "dependsOn": [
+    "node-build",
+    "node-runtime",
+    "grunkalunka-cli",
+    "build-test-sources",
+    "example-workflows"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "test:json-integration",
+  "dependsOn": [
+    "grunkalunka-json",
+    "grunkalunka-json-guest",
+    "grunkalunka-wasm-link",
+    "grunkalunka-runtime",
+    "canonical-scripts",
+    "compatibility-fixtures"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "test:benchmark-contracts",
+  "dependsOn": [
+    "node-bench",
+    "grunkalunka-runtime",
+    "build-test-sources"
+  ]
+}

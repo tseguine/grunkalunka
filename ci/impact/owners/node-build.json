@@ -1,0 +1,10 @@
+{
+  "id": "node-build",
+  "paths": [
+    "tools/build/"
+  ],
+  "dependsOn": [
+    "grunkalunka-cli",
+    "grunkalunka-compiler"
+  ]
+}

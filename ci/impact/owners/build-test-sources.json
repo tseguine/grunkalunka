@@ -1,0 +1,6 @@
+{
+  "id": "build-test-sources",
+  "paths": [
+    "tests/build/"
+  ]
+}
