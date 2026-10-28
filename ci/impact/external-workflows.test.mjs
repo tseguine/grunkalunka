@@ -87,6 +87,18 @@ test('tool-only source change now triggers all independent browser workflows', (
   assert.ok(result.expectedToTrigger.includes('workflow:browser-oracles'));
 });
 
+test('the native negative-control script and its tests rerun real engine checks', () => {
+  for (const changed of [
+    ['tools/browser-oracles/native-bridge-sensitivity.mjs'],
+    ['tools/browser-oracles/native-bridge-sensitivity.test.mjs'],
+  ]) {
+    const outcome = audit(changed);
+    assert.equal(outcome.valid, true, outcome.errors.join('; '));
+    assert.deepEqual(outcome.requiredNotTriggered, []);
+    assert.deepEqual(outcome.expectedToTrigger, entries.map(x => x.id));
+  }
+});
+
 test('tests-only change needs smoke and oracle contracts, not collector', () => {
   const result = audit(['tests/browser-oracles/grid-placement.html']);
   assert.equal(result.valid, true);
