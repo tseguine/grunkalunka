@@ -236,7 +236,7 @@ export async function collectNativeRustWitnesses() {
   const fixtures = {};
   try {
     for (const [name, fixture] of Object.entries(FIXTURES)) {
-      const original = run('git', ['show', 'HEAD:' + fixture.path], process.env, true);
+      const original = run('git', ['show', 'HEAD:' + fixture.path], true);
       required(original.length > 0 && original.length <= 1024 * 1024,
         'bounded canonical Rust source');
       const sourceFile = join(directory, fixture.crate + '.rs');
