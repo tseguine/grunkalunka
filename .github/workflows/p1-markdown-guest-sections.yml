@@ -1,0 +1,181 @@
+# Optional P1 diagnostic; do not replace canonical full CI.
+name: P1 Markdown guest section differences
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-markdown-guest-sections.yml
+      - tools/bench/wasm-section-fingerprint.mjs
+      - tools/bench/tests/wasm-section-fingerprint.test.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-markdown-sections-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  baseline:
+    name: Fingerprint Linux x64 Markdown guest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    outputs:
+      report64: ${{ steps.transfer.outputs.report64 }}
+    steps:
+      - name: Check out exact tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install native Node.js 24.21.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Build existing Markdown guest using native Rust cross-compiler
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          node -e "if (process.arch !== 'x64' || process.platform !== 'linux' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV
+          cargo fetch --locked
+          cargo build --locked --offline -j 4 -p grunkalunka-markdown \
+            --example outline_guest --target wasm32-unknown-unknown
+
+      - name: Test section parser and classify Linux Wasm
+        id: transfer
+        run: |
+          set -euo pipefail
+          node --test tools/bench/tests/wasm-section-fingerprint.test.mjs
+          node tools/bench/wasm-section-fingerprint.mjs inspect \
+            target/wasm32-unknown-unknown/debug/examples/outline_guest.wasm \
+            > "$RUNNER_TEMP/guest-sections.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/guest-sections.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const [path, output] = process.argv.slice(2);
+          const bytes = fs.readFileSync(path);
+          assert.ok(bytes.length > 0 && bytes.length <= 48 * 1024);
+          const report = JSON.parse(bytes.toString('utf8'));
+          assert.equal(report.workload, 'p1-markdown-guest-wasm-sections');
+          assert.deepEqual([report.environment.os, report.environment.arch], ['linux', 'x64']);
+          assert.match(report.artifact.sha256, /^[a-f0-9]{64}$/);
+          assert.ok(report.sections.some(x => x.id === 10));
+          fs.appendFileSync(output, 'report64=' + bytes.toString('base64') + '\n');
+          console.log('PASS Linux Markdown guest section receipt ' +
+            JSON.stringify({ artifact: report.artifact, sections: report.sections }));
+          NODE
+
+  compare:
+    name: Compare independent Markdown guest on ${{ matrix.platform }}
+    needs: baseline
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows x64
+            runner: windows-2025
+            os: Windows
+            arch: X64
+            js_os: win32
+            js_arch: x64
+            rust_host: x86_64-pc-windows-msvc
+          - platform: Apple Silicon macOS ARM64
+            runner: macos-15
+            os: macOS
+            arch: ARM64
+            js_os: darwin
+            js_arch: arm64
+            rust_host: aarch64-apple-darwin
+    steps:
+      - name: Check out same revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install native Node.js 24.21.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: ${{ matrix.js_arch }}
+          package-manager-cache: false
+
+      - name: Build identical target guest with host-native Rust compiler
+        env:
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+          EXPECTED_JS_OS: ${{ matrix.js_os }}
+          EXPECTED_JS_ARCH: ${{ matrix.js_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "$EXPECTED_OS"
+          test "$RUNNER_ARCH" = "$EXPECTED_ARCH"
+          node -e "if (process.platform !== process.env.EXPECTED_JS_OS || process.arch !== process.env.EXPECTED_JS_ARCH || process.version !== 'v24.21.0') process.exit(1)"
+          if [ "$RUNNER_OS" = macOS ]; then
+            test "$(uname -m)" = arm64
+            test "$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')" = 0
+          fi
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/native-rustc.txt"
+          grep -F "host: $EXPECTED_RUST_HOST" "$RUNNER_TEMP/native-rustc.txt"
+          cargo fetch --locked
+          cargo build --locked --offline -j 4 -p grunkalunka-markdown \
+            --example outline_guest --target wasm32-unknown-unknown
+
+      - name: Fingerprint actual guest and localize section differences
+        env:
+          ORIGINAL_REPORT64: ${{ needs.baseline.outputs.report64 }}
+          EXPECTED_JS_OS: ${{ matrix.js_os }}
+          EXPECTED_JS_ARCH: ${{ matrix.js_arch }}
+        run: |
+          set -euo pipefail
+          node --test tools/bench/tests/wasm-section-fingerprint.test.mjs
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-sections.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const encoded = process.env.ORIGINAL_REPORT64 ?? '';
+          assert.match(encoded, /^[A-Za-z0-9+/]+={0,2}$/);
+          const bytes = Buffer.from(encoded, 'base64');
+          assert.ok(bytes.length > 0 && bytes.length <= 48 * 1024);
+          assert.equal(bytes.toString('base64'), encoded);
+          fs.writeFileSync(process.argv[2], bytes, { flag: 'wx' });
+          NODE
+          node tools/bench/wasm-section-fingerprint.mjs inspect \
+            target/wasm32-unknown-unknown/debug/examples/outline_guest.wasm \
+            > "$RUNNER_TEMP/native-sections.json"
+          node tools/bench/wasm-section-fingerprint.mjs compare \
+            "$RUNNER_TEMP/linux-sections.json" "$RUNNER_TEMP/native-sections.json" \
+            > "$RUNNER_TEMP/section-differences.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/section-differences.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const result = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(result.workload, 'p1-markdown-guest-section-comparison');
+          assert.deepEqual([result.producer.os, result.producer.arch], ['linux', 'x64']);
+          assert.equal(result.receiver.os, process.env.EXPECTED_JS_OS);
+          assert.equal(result.receiver.arch, process.env.EXPECTED_JS_ARCH);
+          assert.equal(result.sameObservedRustcVersion, true);
+          console.log('PASS independent Markdown guest section comparison');
+          console.log(JSON.stringify(result));
+          NODE
