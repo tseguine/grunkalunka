@@ -1,0 +1,118 @@
+# Optional P1 native compiler metadata perturbation; full canonical CI unchanged.
+name: P1 Markdown Rust metadata disambiguator control
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-markdown-metadata-control.yml
+      - tools/bench/markdown-crate-metadata-control.mjs
+      - tools/bench/tests/markdown-crate-metadata-control.test.mjs
+      - tools/bench/wasm-named-bodies.mjs
+      - tools/bench/wasm-section-fingerprint.mjs
+      - crates/grunkalunka-markdown/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-markdown-rust-metadata-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  metadata-control:
+    name: Three native Linux Rust metadata variants of same Markdown guest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned native Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Assert native Linux host and install existing Rust Wasm target
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV
+          cargo --version
+          cargo fetch --locked
+
+      - name: Test controlled flag, provenance and raw body/name comparisons
+        run: |
+          set -euo pipefail
+          node --test tools/bench/tests/markdown-crate-metadata-control.test.mjs
+
+      - name: Independently compile default and two metadata-flag guest variants
+        run: |
+          set -euo pipefail
+          node tools/bench/markdown-crate-metadata-control.mjs \
+            > "$RUNNER_TEMP/rust-metadata-control.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/rust-metadata-control.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-markdown-crate-metadata-control');
+          assert.deepEqual([report.environment.os, report.environment.arch],
+            ['linux', 'x64']);
+          assert.equal(report.environment.node, 'v24.21.0');
+          assert.equal(report.environment.target, 'wasm32-unknown-unknown');
+          assert.deepEqual(Object.keys(report.artifacts).sort(),
+            ['alpha', 'beta', 'default']);
+          assert.deepEqual(Object.keys(report.comparisons).sort(),
+            ['alphaToBeta', 'defaultToAlpha', 'defaultToBeta']);
+          assert.equal(report.environment.rustflagsByVariant.default, '');
+          assert.equal(report.environment.rustflagsByVariant.alpha,
+            '-C metadata=p1controlalpha');
+          assert.equal(report.environment.rustflagsByVariant.beta,
+            '-C metadata=p1controlbeta');
+          assert.equal(report.sourceInputs.length, 6);
+          for (const artifact of Object.values(report.artifacts)) {
+            assert.ok(artifact.bytes > 8 && artifact.bytes <= 16 * 1024 * 1024);
+            assert.match(artifact.sha256, /^[0-9a-f]{64}$/);
+            assert.ok(artifact.functions > 0 && artifact.functions <= 4096);
+            assert.ok(artifact.namesPresent > 0 &&
+              artifact.namesPresent <= artifact.functions);
+          }
+          for (const compared of Object.values(report.comparisons)) {
+            assert.equal(typeof compared.sameWasmBytes, 'boolean');
+            assert.ok(compared.rawNameSharedOccurrences >= 0);
+            assert.ok(compared.rawNameAndExactBodySharedOccurrences >= 0);
+            assert.ok(compared.rawNameAndExactBodySharedOccurrences <=
+              compared.rawNameSharedOccurrences);
+            assert.ok(compared.matchingRawBodiesIgnoringOrder >=
+              (compared.matchingRawBodiesAtSameOrdinal ?? 0));
+            assert.ok(compared.matchingRawBodiesIgnoringOrder <=
+              Math.min(...compared.totalDefinedFunctions));
+          }
+          // Same or different is a diagnostic observation, never a speed or
+          // output-identity pass threshold. Invalid builds/receipts do fail.
+          console.log('PASS controlled Rust crate-metadata / Wasm-body observation');
+          console.log(JSON.stringify(report));
+          NODE
