@@ -12,7 +12,16 @@ import test from 'node:test';
 import { inspectWasmSections } from '../wasm-section-fingerprint.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
-const fixture = 'tests/build/fixtures/p1-rust-standalone/no_std.rs';
+const fixtures = Object.freeze({
+  core: {
+    path: 'tests/build/fixtures/p1-rust-standalone/no_std.rs',
+    crate: 'p1_rust_core',
+  },
+  std: {
+    path: 'tests/build/fixtures/p1-rust-standalone/std_alloc.rs',
+    crate: 'p1_rust_std',
+  },
+});
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const variants = ['-p1alpha', '-p1beta'];
 const fixedFlags = [
@@ -34,7 +43,7 @@ function run(command, args, binary = false) {
   return result.stdout;
 }
 
-function verifyGuest(bytes) {
+function verifyGuest(bytes, kind) {
   assert.ok(bytes.length >= 8 && bytes.length <= 16 * 1024 * 1024);
   assert.equal(WebAssembly.validate(bytes), true);
   const module = new WebAssembly.Module(bytes);
@@ -43,8 +52,15 @@ function verifyGuest(bytes) {
   for (const [a, b, expected] of [
     [48, 18, 6], [0, 0, 0], [270, 192, 6], [7, 0, 7],
   ]) assert.equal(exports.gcd(a, b), expected, 'independent GCD golden');
-  for (const [value, expected] of [[0, 7], [5, 22], [-1, 4]]) {
-    assert.equal(exports.multiply_add(value), expected, 'independent wrap golden');
+  if (kind === 'core') {
+    for (const [value, expected] of [[0, 7], [5, 22], [-1, 4]]) {
+      assert.equal(exports.multiply_add(value), expected, 'independent wrap golden');
+    }
+  } else {
+    assert.equal(kind, 'std');
+    for (const [value, expected] of [[0, 6], [5, 26], [-2, -2]]) {
+      assert.equal(exports.sum_four(value), expected, 'independent allocated-sum golden');
+    }
   }
   return inspectWasmSections(bytes, { codeBodyDigests: true });
 }
@@ -79,14 +95,14 @@ function countOrdinalBodies(a, b) {
   return matches;
 }
 
-test('two distinct -C extra-filename values compile and execute independently', async () => {
-  const canonicalSource = run('git', ['show', 'HEAD:' + fixture], true);
+async function runControl(kind, fixture) {
+  const canonicalSource = run('git', ['show', 'HEAD:' + fixture.path], true);
   assert.ok(canonicalSource.length > 0 && canonicalSource.length < 1024 * 1024);
   const version = run('rustc', ['-vV']).trim();
   assert.match(version, /rustc 1\.\d+\.\d+/);
   const directory = await mkdtemp(join(tmpdir(), 'grunkalunka-p1-extra-filename-'));
   try {
-    const sourceFile = join(directory, 'no_std.rs');
+    const sourceFile = join(directory, kind + '.rs');
     const output = join(directory, 'out');
     await mkdir(output);
     await writeFile(sourceFile, canonicalSource, { flag: 'wx' });
@@ -95,7 +111,7 @@ test('two distinct -C extra-filename values compile and execute independently', 
       const args = [
         ...fixedFlags,
         '-C', 'extra-filename=' + suffix,
-        '--crate-name', 'p1_rust_core',
+        '--crate-name', fixture.crate,
         '--remap-path-prefix=' + directory + '=/p1/standalone',
         '--out-dir', output,
         sourceFile,
@@ -106,7 +122,7 @@ test('two distinct -C extra-filename values compile and execute independently', 
       assert.equal(matches.length, 1,
         'rustc must actually honor the requested extra-filename suffix');
       const bytes = await readFile(join(output, matches[0]));
-      const fingerprint = verifyGuest(bytes);
+      const fingerprint = verifyGuest(bytes, kind);
       assert.equal(fingerprint.artifact.sha256, digest(bytes));
       observations.push({ suffix, filename: matches[0], fingerprint });
     }
@@ -115,7 +131,7 @@ test('two distinct -C extra-filename values compile and execute independently', 
     assert.notEqual(observations[0].filename, observations[1].filename);
     const [first, second] = observations;
     console.log('P1 native rustc extra-filename control ' + JSON.stringify({
-      os: platform(), arch: arch(), rustc: version.split(/\r?\n/)[0],
+      fixture: kind, os: platform(), arch: arch(), rustc: version.split(/\r?\n/)[0],
       inputSha256: digest(canonicalSource), fixedMetadata: 'p1standalonecontrol',
       extraFilenames: variants,
       artifacts: observations.map(x => x.fingerprint.artifact),
@@ -131,4 +147,9 @@ test('two distinct -C extra-filename values compile and execute independently', 
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-});
+}
+
+for (const [kind, fixture] of Object.entries(fixtures)) {
+  test('real ' + kind + ' Wasm preserves numeric goldens across extra-filename variants',
+    async () => runControl(kind, fixture));
+}
