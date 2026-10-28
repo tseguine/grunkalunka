@@ -8,6 +8,7 @@ const run = (command, args) => runCheck(command, args, root);
 run(process.execPath, ['--test', 'tests/build/check-command.test.mjs']);
 run(process.execPath, ['--test', 'tests/build/process.test.mjs', 'tests/build/source.test.mjs']);
 run(process.execPath, ['--test', 'tests/build/execution.test.mjs', 'tests/build/primitive-execution.test.mjs']);
+run(process.execPath, ['scripts/check-browser-oracles.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/suites.test.mjs', 'tests/compatibility/test262.test.mjs',
   'tests/compatibility/benchmarks-game.test.mjs']);
 run(process.execPath, ['--test', 'tests/compatibility/gap-oracle.test.mjs', 'tests/compatibility/program-sources.test.mjs']);

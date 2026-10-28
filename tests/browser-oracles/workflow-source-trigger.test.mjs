@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const path = new URL('../../.github/workflows/browser-oracles.yml', import.meta.url);
-const source = readFileSync(path, 'utf8');
+const source = readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
 
 function verifyWorkflowTriggers(workflow) {
   const pr = workflow.split('  pull_request:\n');

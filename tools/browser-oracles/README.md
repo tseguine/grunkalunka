@@ -7,8 +7,9 @@ and saves the fixture's own browser-native JSON observations without changing
 their semantics.
 
 The optional Playwright dependency is isolated under this directory and fixed
-to version **1.64.1**. The normal Cargo workspace, root Node scripts and
-cross-platform canonical CI do not depend on it. Browser binaries are
+to version **1.64.1**. The normal Cargo workspace and canonical offline Node tests
+do not require Playwright or any browser binary. Only the independent hosted
+reference-engine workflows install it. Browser binaries are
 installed explicitly, as required by [Playwright](https://playwright.dev/docs/browsers).
 
 ```sh
@@ -38,13 +39,21 @@ specification pass. This initial collector does not pin installed system
 fonts, OS text rendering, display color management or a frozen transitive npm
 lockfile. Pixel screenshots and WPT coverage are separate future slices.
 
-Run the dependency-free collector contract checks without installing Playwright:
+Run all dependency-free browser-oracle, comparator, workflow and collector
+contracts using the same **canonical offline test runner** as full and
+dependency-selected PR CI:
 
 ```sh
-node --test tools/browser-oracles/collect.test.mjs
+node scripts/check-browser-oracles.mjs
+# Equivalent package-local entry point:
+npm --prefix tools/browser-oracles test
 ```
 
-These checks use fake browsers to verify invocation, payload preservation,
-viewport assertions, source provenance and resource cleanup. They do not
-execute any actual browser. A later CI step should run real engines with
-artifact retention once the initial HTML fixture and comparator land on master.
+The runner uses `node:test` and discovers `*.test.mjs` under
+`tests/browser-oracles/` and `tools/browser-oracles/`, excluding the
+optional `hosted/` test subtree that requires Playwright. Collector tests
+use fake browser instances; offline receipts do **not** establish real-engine
+agreement. The existing hosted Chromium/Firefox/WebKit workflows retain
+independent source-hashed evidence and required results. Browser-only PR
+changes select this canonical Node check through `ci/impact` rather than
+forcing an unrelated Cargo workspace build.

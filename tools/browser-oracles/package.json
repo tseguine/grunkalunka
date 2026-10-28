@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Optional local reference-engine oracle collector; not part of the Grunkalunka runtime",
   "scripts": {
-    "test": "node --test collect.test.mjs",
+    "test": "node ../../scripts/check-browser-oracles.mjs",
     "collect": "node collect.mjs"
   },
   "dependencies": {
