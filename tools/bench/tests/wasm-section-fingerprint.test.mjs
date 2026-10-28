@@ -97,6 +97,7 @@ test('refuses comparison across different revisions or canonical tracked source'
   assert.throws(() => compareMarkdownGuests(first, second), /shared tested Git revision/);
   second.revision = first.revision;
   second.inputs[1].gitSha256 = '2'.repeat(64);
+  second.inputs[1].checkoutSha256 = '2'.repeat(64);
   assert.throws(() => compareMarkdownGuests(first, second), /shared canonical Git inputs/);
 });
 
