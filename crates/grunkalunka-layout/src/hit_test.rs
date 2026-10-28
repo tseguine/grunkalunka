@@ -128,9 +128,13 @@ pub fn hit_test_scrolled(
         }
     }
 
-    let max_x = frame.scroll_width.checked_sub(frame.viewport_width)
+    let max_x = frame
+        .scroll_width
+        .checked_sub(frame.viewport_width)
         .ok_or(HitError::InvalidScrollOffset)?;
-    let max_y = frame.scroll_height.checked_sub(frame.viewport_height)
+    let max_y = frame
+        .scroll_height
+        .checked_sub(frame.viewport_height)
         .ok_or(HitError::InvalidScrollOffset)?;
     if scroll_x > max_x || scroll_y > max_y {
         return Err(HitError::InvalidScrollOffset);

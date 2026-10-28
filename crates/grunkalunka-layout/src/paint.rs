@@ -107,8 +107,14 @@ impl Canvas {
     fn fill(&mut self, rect: Rect, color: Rgb) -> Result<(), PaintError> {
         // Clip document-space boxes to the scrolled viewport before indexing.
         // Subtract only after intersection; offscreen origins stay unsigned.
-        let view_right = self.scroll_x.checked_add(self.width).ok_or(PaintError::Overflow)?;
-        let view_bottom = self.scroll_y.checked_add(self.height).ok_or(PaintError::Overflow)?;
+        let view_right = self
+            .scroll_x
+            .checked_add(self.width)
+            .ok_or(PaintError::Overflow)?;
+        let view_bottom = self
+            .scroll_y
+            .checked_add(self.height)
+            .ok_or(PaintError::Overflow)?;
         let left = rect.x.max(self.scroll_x);
         let top = rect.y.max(self.scroll_y);
         let right = rect.right().ok_or(PaintError::Overflow)?.min(view_right);
@@ -234,8 +240,14 @@ pub fn paint_scrolled(
     if width == 0 || height == 0 || width > MAX_VIEWPORT || height > MAX_VIEWPORT {
         return Err(PaintError::InvalidViewport);
     }
-    let max_x = frame.scroll_width.checked_sub(width).ok_or(PaintError::InvalidScrollOffset)?;
-    let max_y = frame.scroll_height.checked_sub(height).ok_or(PaintError::InvalidScrollOffset)?;
+    let max_x = frame
+        .scroll_width
+        .checked_sub(width)
+        .ok_or(PaintError::InvalidScrollOffset)?;
+    let max_y = frame
+        .scroll_height
+        .checked_sub(height)
+        .ok_or(PaintError::InvalidScrollOffset)?;
     if scroll_x > max_x || scroll_y > max_y {
         return Err(PaintError::InvalidScrollOffset);
     }

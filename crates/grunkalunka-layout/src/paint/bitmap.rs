@@ -47,8 +47,14 @@ impl Canvas {
             return Err(PaintError::InvalidBitmap);
         }
 
-        let viewport_right = self.scroll_x.checked_add(self.width).ok_or(PaintError::Overflow)?;
-        let viewport_bottom = self.scroll_y.checked_add(self.height).ok_or(PaintError::Overflow)?;
+        let viewport_right = self
+            .scroll_x
+            .checked_add(self.width)
+            .ok_or(PaintError::Overflow)?;
+        let viewport_bottom = self
+            .scroll_y
+            .checked_add(self.height)
+            .ok_or(PaintError::Overflow)?;
         let left = x.max(self.scroll_x);
         let top = y.max(self.scroll_y);
         let right = (x + width).min(viewport_right);
