@@ -22,8 +22,9 @@ inputs return an explicit **full** plan rather than silently omitting work.
 
 This preview alone does not prove equivalence between `--workspace` and
 several `-p` invocations. The maintainer approved all three native PR runners
-using the same fail-closed plan, with full `master` checks, the separate
-browser/P1 workflows, and a real three-host scoped rehearsal as safety nets. Keep
+using the same fail-closed plan, with full `master` checks, separate
+browser workflows, canonical P1 tests, and a real three-host scoped rehearsal
+as safety nets. Keep
 auditing dev/build dependencies, features, examples, integration and doc
 tests, target-specific code, generated artifacts and early-build watchdogs. Cross-language scripts such as
 `scripts/poc.mjs` currently invoke their own full builds and require separate

@@ -30,7 +30,7 @@ comparison if they matter.
 
 ## Real cross-host CI integration
 
-The optional [Linux x64 to Linux ARM64 GCD workflow](../.github/workflows/p1-portable-arm64.yml)
+The optional [Linux x64 to Linux ARM64 GCD workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-portable-arm64.yml)
 exercises this comparator on **two actual replay receipts**. The x64 producer
 compiles once, validates its artifact in Node/V8 and native Wasmtime, and
 transmits its bounded JSON receipt alongside the original Wasm bytes, manifest

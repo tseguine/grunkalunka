@@ -17,7 +17,7 @@ text is the same.
 
 ## Capture actual native Cargo Rust compiler invocations
 
-The [optional workflow](../.github/workflows/p1-native-cargo-metadata.yml)
+The [optional workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-native-cargo-metadata.yml)
 runs independently on Linux x64, Windows x64 and native Apple Silicon
 ARM64. Each host builds the unchanged
 `grunkalunka-markdown --example outline_guest` for

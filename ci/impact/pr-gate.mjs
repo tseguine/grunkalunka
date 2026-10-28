@@ -119,7 +119,7 @@ export function choosePrChecks({
       selectedPackages: [...preview.selectedTestPackages],
       commands: structuredClone(commands),
       independentWorkflowsExpected: [...(external.expectedToTrigger ?? [])],
-      // Browser/P1 workflows remain independently triggered and verified.
+      // Independent browser workflows retain separate triggers; P1 tests are canonical.
       externalJobsVerified: false,
     };
   } catch (error) {

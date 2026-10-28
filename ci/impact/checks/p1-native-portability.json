@@ -1,0 +1,14 @@
+{
+  "id": "check:p1-native-portability",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/build/p1-native-portability.test.mjs"
+  ],
+  "dependsOn": [
+    "test:p1-native-portability"
+  ],
+  "paths": [
+    "tests/build/p1-native-portability.test.mjs"
+  ]
+}

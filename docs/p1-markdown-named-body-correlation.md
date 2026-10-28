@@ -29,7 +29,7 @@ or out-of-range function indices, malformed LEB128 lengths, truncated
 UTF-8 names, duplicate function-name subsections and missing required
 metadata. It has strict Wasm size, function-count and saved JSON bounds.
 
-The [optional hosted workflow](../.github/workflows/p1-markdown-named-bodies.yml)
+The [optional hosted workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-named-bodies.yml)
 compiles the unchanged Markdown guest independently on Linux x64, Windows
 x64 and native Apple Silicon ARM64 with locked/offline Rust and Node 24.21.0.
 Linux transfers only its bounded **JSON fingerprint receipt** through

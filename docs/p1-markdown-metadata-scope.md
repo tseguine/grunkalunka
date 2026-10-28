@@ -19,7 +19,7 @@ reference](https://doc.rust-lang.org/cargo/commands/cargo-rustc.html).
 
 ## Three real compile modes on one native Linux runner
 
-The [optional P1 workflow](../.github/workflows/p1-markdown-metadata-scope.yml)
+The [optional P1 workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-metadata-scope.yml)
 builds the **existing unchanged** `grunkalunka-markdown --example outline_guest`
 for `wasm32-unknown-unknown` with locked/offline Cargo, stable Rust,
 the same checked-out source and development profile. It runs:

@@ -15,7 +15,7 @@ change the Grunkalunka JavaScript compiler, or measure performance.
 
 ## Two independent compiled fixtures
 
-The [optional hosted workflow](../.github/workflows/p1-native-rust-standalone.yml)
+The [optional hosted workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-native-rust-standalone.yml)
 builds these exact checked-in Rust sources on independent native Rust
 installations on Linux x64, Windows x64 and Apple Silicon ARM64:
 

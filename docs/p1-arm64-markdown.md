@@ -6,7 +6,7 @@ more than one closed numeric function: they build a real Rust Markdown core-Wasm
 guest, embed those bytes into a typed component, inspect explicitly authorized
 in-memory document text, and compare headings with the native Markdown library.
 
-The [optional ARM64 workflow](../.github/workflows/p1-markdown-arm64.yml)
+The [optional ARM64 workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-arm64.yml)
 runs the **unchanged** `node scripts/check-document-outline.mjs` on a real
 GitHub-hosted `ubuntu-24.04-arm` runner. It verifies Linux `aarch64` and native
 ARM64 Node.js 24.22.1, installs the same repository Rust toolchain for native
@@ -21,7 +21,7 @@ can also use the GitHub workflow-dispatch control. It neither changes the
 required canonical Linux/Windows/native Apple Silicon macOS checks nor publishes releases,
 packages, generated artifacts or benchmark reports. Its output is retained
 only in GitHub Actions logs. The separate [x64-to-ARM64 GCD workflow]
-(../.github/workflows/p1-portable-arm64.yml) passes identical binary bytes
+(https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-portable-arm64.yml) passes identical binary bytes
 between different host architectures; **this Markdown workflow does not do
 that**. It builds its own `wasm32-unknown-unknown` guest from checked-in source
 on the ARM64 runner. The resulting guest SHA is observation metadata, not

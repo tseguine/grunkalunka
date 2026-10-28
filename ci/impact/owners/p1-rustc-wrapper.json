@@ -1,0 +1,6 @@
+{
+  "id": "p1-rustc-wrapper",
+  "paths": [
+    "tools/bench/fixtures/p1-native-cargo-metadata-wrapper.rs"
+  ]
+}

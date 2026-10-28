@@ -45,7 +45,7 @@ consistency throughout the host's four builds, and rejects unexpected
 targets, missing or duplicate records or malformed input. Any other
 actual compiled crates remain untouched.
 
-The [existing optional native workflow](../.github/workflows/p1-native-cargo-metadata-override.yml)
+The [existing optional native workflow](https://github.com/tseguine/grunkalunka/blob/d8e5bdc6d413722ebcc90878744a1a2be18e5096/.github/workflows/p1-native-cargo-metadata-override.yml)
 rebuilds the unchanged Markdown guest on Linux x64, Windows x64 and native
 Apple Silicon ARM64. The bounded JSON receipt records exact artifact
 SHA-256 and size and complete standard/custom Wasm section and raw
