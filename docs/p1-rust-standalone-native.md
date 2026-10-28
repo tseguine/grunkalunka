@@ -140,3 +140,32 @@ node --test tools/bench/tests/wasm-data-chunks.test.mjs
 Actual native-host compilation and receipt comparison remain in
 the existing #137 workflow, alongside unchanged functional goldens.
 Differences are observations rather than portability or timing gates.
+
+## Direct-rustc output filename identity control
+
+The [ordinary P1 regression test](../tools/bench/tests/native-rust-extra-filename.test.mjs)
+independently compiles the original Git bytes of the small `no_std` fixture
+twice on **each native CI host**. Both invocations use the same source path,
+Rust executable, target, crate name, codegen-unit count, optimization,
+panic strategy, fixed `-C metadata=p1standalonecontrol`, logical remapped
+source prefix and output directory. Only the requested
+`-C extra-filename=-p1alpha` versus `-p1beta` differs. The test requires
+the actual generated Wasm filenames to contain the selected suffix, and
+verifies all seven independent numeric goldens, no imports and valid Wasm
+for **each** compiled variant.
+
+The test prints both exact artifact hashes and sizes, changed raw standard/
+custom section identities, number of defined bodies, and matches at the same
+ordinal. Byte equality **or** difference is a diagnostic observation,
+not a failure, a speed result, or proof of equivalent code. It deliberately
+does not normalize or compare Cargo's dependency-generated `extra-filename`
+hashes, compiler/linker binaries, package fingerprints or the full Markdown
+guest. A direct `rustc` output-filename perturbation is narrower than a
+cross-host Cargo causality experiment; the old #147/#152 metadata controls
+remain historical and optional.
+
+This executable test is discovered by the existing
+`tools/bench/tests/*.test.mjs` canonical P1 command and partial-impact
+selector. It uses the already installed Rust wasm32 target, a bounded
+temporary directory with cleanup, and no network, workflow, new runner,
+Cargo build or extra required status check.
