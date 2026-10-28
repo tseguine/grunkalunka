@@ -25,6 +25,7 @@ verification receipts, not saved benchmark performance results.
 | Actual cross-host replay receipts | [#88](https://github.com/tseguine/grunkalunka/pull/88), [#97](https://github.com/tseguine/grunkalunka/pull/97), [receipt comparison](portable-replay-comparison.md) | Synthetic negative tests plus real Linux x64/ARM64 GCD producer/receiver receipts with matching artifact SHA-256, eight goldens and both native engines. Receipts are observations, not signed attestations or host performance rankings |
 | Independent native compiler output identity | [#98](https://github.com/tseguine/grunkalunka/pull/98), [native build identity](p1-native-build-identity.md) | Three native CLI builds on Linux x64, Windows x64 and Apple Silicon macOS ARM64 independently compiled the same Git source into identical 614-byte GCD core Wasm. This does not prove reproducibility for other input programs, Rust-compiled Markdown guests or platform-wide builds |
 | Native Linux ARM64 Markdown/WIT pipeline | [#84](https://github.com/tseguine/grunkalunka/pull/84), [ARM64 component smoke](p1-arm64-markdown.md) | Rebuilds the existing Markdown guest and runs the typed component's native parity, capability denial and cleanup checks on real Linux ARM64. Unlike #83, this does not demonstrate cross-architecture byte identity or application-wide compatibility |
+| Rust Markdown guest output variation and controls | [#101](https://github.com/tseguine/grunkalunka/pull/101), [#106](https://github.com/tseguine/grunkalunka/pull/106), [#107](https://github.com/tseguine/grunkalunka/pull/107), [section analysis](p1-markdown-guest-sections.md), [same-host rebuilds](p1-markdown-clean-rebuild.md), [Windows LF control](p1-windows-markdown-eol.md) | Independently compiled Markdown guests differ across native Linux, Windows and Apple Silicon in standard function/element/code/data sections and custom names. Each host reproduced its own exact bytes after a clean rebuild. Windows checkout CRLF-to-LF normalization **did not change** its emitted guest bytes. None of these observations establishes a runtime bug or identifies the remaining host-dependent cause |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -42,12 +43,17 @@ reports when explicitly run; the build system does not publish them.
   Windows x64 receivers; [#84](https://github.com/tseguine/grunkalunka/pull/84)
   exercises a separately compiled Markdown/WIT guest on native Linux ARM64.
   These do not establish a distributed application format or broad JS/TS behavior.
-- **Rust guest reproducibility:** in the same exact-head [#98 canonical CI](https://github.com/tseguine/grunkalunka/actions/runs/40679064524),
-  the Markdown/WIT guest passed its checks on all three hosts but had different
-  emitted Wasm SHA-256 values on Linux, Windows and Apple Silicon despite the
-  same reported Rust 1.99.1. This is a **byte-identity observation**, not a
-  demonstrated functional defect; source checkout bytes, metadata, standard
-  sections and build conditions require separate investigation.
+- **Rust guest cross-host reproducibility:** in the exact-head
+  [#98 canonical CI](https://github.com/tseguine/grunkalunka/actions/runs/40679064524),
+  the Markdown/WIT guest passed on all three hosts but emitted different bytes
+  despite reported Rust 1.99.1. [#101](https://github.com/tseguine/grunkalunka/pull/101)
+  localized differences to standard function, element, code and data sections
+  plus custom names. [#106](https://github.com/tseguine/grunkalunka/pull/106)
+  found stable bytes across two clean rebuilds on each individual host.
+  [#107](https://github.com/tseguine/grunkalunka/pull/107) showed that
+  Windows checkout CRLF conversion **alone** does not cause its different
+  output. Host-specific code generation, paths and other build inputs still
+  require investigation. No functional fault has been established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
