@@ -234,12 +234,15 @@ fn lower_source_profile(
         &promise_parameters,
         &closure_signatures,
     )?;
-    let general_bindings = lower::general_mutable_bindings(
+    let mut general_bindings = lower::general_mutable_bindings(
         &built.semantic,
         &signatures,
         &callback_parameters,
         &closure_signatures.borrow(),
     );
+    general_bindings
+        .async_results
+        .extend(&promise_parameters.asynchronous);
     let mut functions = Vec::new();
     let mut lifted = Vec::new();
     let mut local_count = 0;

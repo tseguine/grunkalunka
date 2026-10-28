@@ -191,7 +191,8 @@ impl Emitter<'_> {
                 | Op::AwaitCall { .. }
                 | Op::AwaitClosureCall { .. }
                 | Op::StartAsyncClosure { .. }
-                | Op::AwaitPromise { .. } => {
+                | Op::AwaitPromise { .. }
+                | Op::AdoptPromise { .. } => {
                     unreachable!("async control uses the async emitter")
                 }
                 Op::Nullish { result, value } => {
@@ -652,6 +653,7 @@ fn region_has_await(region: &Region) -> bool {
             Op::Await { .. }
             | Op::AsyncClosureEntry { .. }
             | Op::AwaitPromise { .. }
+            | Op::AdoptPromise { .. }
             | Op::StartAsyncClosure { .. }
             | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }

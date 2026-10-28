@@ -131,8 +131,19 @@ decide which rejections remain unhandled. Wasmtime exposes the ordered
 `PromiseNotification` stream for an embedding's checkpoint policy. The primitive
 reason and invocation-local ID survive root settlement; no guest execution state
 is exposed through a Node proxy. Tracking uses bounded arena records and does not
-change reaction-job accounting. Adoption, thenables and a browser event loop remain
-outside this slice.
+change reaction-job accounting. Pending async returns now use `AdoptPromise`:
+a queued registration subscribes to the returned identity, then a separate
+reaction forwards its primitive settlement. Returning a Promise is therefore
+distinct from awaiting it. Adopted rejection settles the owning physical
+activation outside its lexical catches; errors during return-expression
+evaluation still follow lexical handling. Source inference marks adopting
+constructors as asynchronous even when they contain no explicit await.
+The verifier forbids adoption in an inlined `AwaitCall` child without its own
+activation, and in immediate snapshot settlement bodies. Frame restoration at
+registration preserves handles across shared callee invocations. Implicit jobs
+retain the runtime budget without charging explicit await-site provenance.
+Snapshot adoption, arbitrary thenables and a browser event loop remain outside
+this slice.
 
 This covers ownership, delivery and ordering for the admitted primitive async
 profile. Preserve its current external status/tag/payload ABI, diagnostics, source

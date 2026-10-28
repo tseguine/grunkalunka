@@ -23,6 +23,13 @@ enum YieldTarget {
 }
 
 enum End {
+    AdoptPromise {
+        subscription: usize,
+    },
+    AdoptSubscription {
+        input: ValueId,
+        reaction: usize,
+    },
     AwaitStarted {
         reaction: usize,
     },
@@ -225,6 +232,19 @@ impl<'a> Splitter<'a> {
                         input: *input,
                         reaction,
                     })?
+                }
+                Op::AdoptPromise { result, input } => {
+                    let fulfilled = self.state(&[], Some(*result), End::Jump(next))?;
+                    let rejected = self.state(&[], Some(*result), End::Reject(*result))?;
+                    let reaction = self.terminal(End::Reaction {
+                        fulfilled,
+                        rejected,
+                    })?;
+                    let subscription = self.terminal(End::AdoptSubscription {
+                        input: *input,
+                        reaction,
+                    })?;
+                    self.terminal(End::AdoptPromise { subscription })?
                 }
                 Op::AwaitClosureCall {
                     result,
@@ -436,6 +456,7 @@ fn atomic(op: &Op) -> bool {
         Op::AwaitSite { .. }
             | Op::Await { .. }
             | Op::AwaitPromise { .. }
+            | Op::AdoptPromise { .. }
             | Op::StartAsyncClosure { .. }
             | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }
@@ -458,7 +479,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     let queued = module.functions.iter().any(|function| {
         let mut pending = false;
         ir::visit_operations(&function.body, &mut |op| {
-            pending |= matches!(op, Op::StartAsyncClosure { .. } | Op::AwaitPromise { .. })
+            pending |= matches!(
+                op,
+                Op::StartAsyncClosure { .. } | Op::AwaitPromise { .. } | Op::AdoptPromise { .. }
+            )
         });
         pending
     });
@@ -555,7 +579,8 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             jump(&mut output, next);
             continue;
         }
-        if queued && state.resumed.is_some() {
+        if queued && (state.resumed.is_some() || matches!(state.end, End::AdoptSubscription { .. }))
+        {
             frame.restore(&mut output);
         }
         let emitter = &mut frame.emitter;
@@ -596,6 +621,15 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let frame = frames[state.function].as_ref().expect("coroutine frame");
         let emitter = &frame.emitter;
         match state.end {
+            End::AdoptPromise { subscription } => {
+                frame.spill(&mut output);
+                writeln!(output,"global.get $async_frame\ni32.const {subscription}\ni32.const 0\ni32.const 0\nf64.const 0\ncall $reaction_schedule").unwrap();
+                promises::park(&mut output);
+            }
+            End::AdoptSubscription { input, reaction } => {
+                writeln!(output,"global.get {}\nglobal.get $async_frame\ni32.const {reaction}\ncall $promise_subscribe",emitter.value_offsets[input.0]).unwrap();
+                promises::park(&mut output);
+            }
             End::EnterClosure { .. } => unreachable!(),
             End::AwaitStarted { reaction } => {
                 frame.restore(&mut output);

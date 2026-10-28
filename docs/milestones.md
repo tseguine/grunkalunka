@@ -96,8 +96,12 @@ Detached primitive child rejection and subsequent handling now reach host
 notifications. Homogeneous pending parameter inference and transport now cover
 known calls, runtime-selected functions, higher-order callbacks, factories and
 captured formals, preserving passed handles and reaction order. Synchronous
-forwarders return the same identity; async adoption and mixed pending/scalar or
-pending/snapshot inputs remain gaps. This does not close general Promise support
+forwarders return the same identity. Async roots/private functions now adopt
+returned pending identities through distinct registration and reaction jobs;
+no-await constructors retain an async effect. Adopted rejection bypasses local
+catches, returned-expression failures remain lexical, and sibling frame/handle
+snapshots survive delayed registration. Snapshot adoption and mixed pending/scalar
+or pending/snapshot inputs remain gaps. This does not close general Promise support
 or L5.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.

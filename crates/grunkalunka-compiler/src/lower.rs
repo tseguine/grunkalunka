@@ -1089,8 +1089,12 @@ impl Lowering<'_, '_> {
                     self.evaluate(expression, region, 0, evaluate::Mode::Promise)?
                         .expect("fulfilled Promise return")
                 } else if self.return_type == Type::General {
-                    self.evaluate(expression, region, 0, evaluate::Mode::General)?
-                        .expect("General expression result")
+                    if self.allow_await {
+                        self.async_result(expression, region, 0)?
+                    } else {
+                        self.evaluate(expression, region, 0, evaluate::Mode::General)?
+                            .expect("General expression result")
+                    }
                 } else {
                     self.expression(expression, region, 0)?
                 };

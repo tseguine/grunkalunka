@@ -13,6 +13,9 @@ mod pending;
 #[path = "async-suspension/pending_inputs.rs"]
 mod pending_inputs;
 
+#[path = "async-suspension/adoption.rs"]
+mod adoption;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -340,9 +343,7 @@ for(const [a,b] of [[4,2],[0,-0],[NaN,Infinity]])assert.deepEqual(await observe(
 fn suspending_async_closures_keep_pending_and_signature_guards() {
     for body in [
         "let f=async()=>{await a;return b;};return +f();",
-        "let f=async()=>{await a;return b;};return f();",
         "let f=async()=>{await a;return b;};return await Promise.reject(f());",
-        "let f=async()=>{await a;return b;};const g=async()=>f();return await g();",
         "const f=a?async()=>{await a;return b;}:()=>b;return await f();",
         "const f=a?async x=>{await a;return x;}:async(x,y)=>{await b;return x+y;};return await f(a,b);",
         "const f=a?async x=>{await a;return x;}:async x=>{await b;return x;};return await f();",
@@ -3530,10 +3531,8 @@ fn known_concise_async_bodies_preserve_body_and_caller_jobs() {
 
 #[test]
 fn concise_async_promise_object_guards_do_not_change_root_rejection() {
-    for body in [
-        "const f=async()=>await a;return f();",
-        "const f=async()=>await({});return await f();",
-    ] {
+    {
+        let body = "const f=async()=>await({});return await f();";
         let source = source_for(body);
         assert!(compile_async(&source, false).is_err(), "{source}");
     }
@@ -3592,7 +3591,6 @@ fn known_async_blocks_preserve_body_and_caller_jobs() {
 #[test]
 fn async_blocks_keep_promise_object_and_sync_guards() {
     for body in [
-        "const f=async()=>{return await a;};return f();",
         "const f=()=>{return await a;};return await f();",
         "const f=async()=>{return ()=>a;};return await f();",
     ] {

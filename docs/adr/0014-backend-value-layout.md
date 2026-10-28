@@ -293,7 +293,7 @@ Maintained tests execute settlement, alias identity, multiple waiter/Promise FIF
 native microtask markers, canonical payload checks, private handle errors and
 arena exhaustion in Wasmtime/Node. Queue capacity is arena-bounded; the existing
 32-site/32-job public profile limits are unchanged. Source pending storage now uses
-these handles; adoption, GC and performance improvements are not claimed. The
+these handles; general adoption, GC and performance improvements are not claimed. The
 additive host scheduler count API describes ready work independently of root
 settlement. Ordered host child-rejection/handled notifications now connect the
 guest to Node checkpoint reporting and Wasmtime's consuming event API, as recorded
@@ -305,8 +305,18 @@ constructors, aliases, assignments and call origins propagate over finite source
 symbols; every actual call and body is still checked against its chosen signature.
 Known calls, runtime callbacks, captured formals and synchronous forwarders retain
 the handle without a representation change. This extends source admission, not
-the IR/backend ABI. Mixed pending/scalar or pending/snapshot inputs and async-return
-adoption still require later work. Source tests check snapshots, eager effects,
+the IR/backend ABI. Mixed pending/scalar or pending/snapshot inputs and snapshot
+async-return adoption still require later work. Source tests check snapshots, eager effects,
 primitive rejection and reaction order in Node and Wasmtime, execute 32-parameter
 calls and separately check 1,000/1,001-parameter admission. Wide admission does not
 promise execution within the existing default per-call fuel budget.
+
+Pending identity async returns now use a distinct logical `AdoptPromise` operation.
+The existing i32 handle is saved in the activation frame, restored by a queued
+registration job and subscribed through the unchanged kernel. A later reaction
+forwards the primitive completion; rejection settles the physical activation
+rather than entering a lexical catch around its return statement. This adds no
+lane, record layout, host import or adapter API. Concise adopting constructors
+acquire the existing async signature/effect, independently of annotations.
+Source/IR tests distinguish adoption from await and reject unsafe inline-child
+or immediate-snapshot use. Arbitrary thenables and snapshot conversion remain gaps.

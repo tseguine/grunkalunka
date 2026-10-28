@@ -3,6 +3,8 @@ use oxc_span::Span;
 use std::collections::BTreeSet;
 
 #[cfg(test)]
+mod adoption_tests;
+#[cfg(test)]
 mod async_closure_tests;
 #[cfg(test)]
 mod fulfilled_promise_tests;
@@ -460,6 +462,13 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    /// Resolve the current physical async activation with a represented Promise.
+    /// Registers in a later job, then forwards its reaction. Rejection bypasses
+    /// lexical catches in this activation, unlike AwaitPromise.
+    AdoptPromise {
+        result: ValueId,
+        input: ValueId,
+    },
     // One caller reaction, regardless of which settlement is represented.
     AwaitSettled {
         result: ValueId,
@@ -728,6 +737,7 @@ struct RegionFrame<'a> {
     ancestors: Vec<RegionId>,
     allow_loop_control: bool,
     settlement: bool,
+    inline_async: bool,
     return_type: Type,
     entered: bool,
     index: usize,
@@ -751,6 +761,7 @@ impl<'a> RegionFrame<'a> {
             ancestors: self.ancestors.iter().copied().chain([region.id]).collect(),
             allow_loop_control,
             settlement: self.settlement,
+            inline_async: self.inline_async,
             return_type,
             entered: false,
             index: 0,
@@ -990,7 +1001,7 @@ impl Verifier<'_> {
                 self.value(*input, Type::SettledPromise, visible, span)?;
                 self.define(*result, Type::General, visible, span)?;
             }
-            Op::AwaitPromise { result, input } => {
+            Op::AwaitPromise { result, input } | Op::AdoptPromise { result, input } => {
                 self.value(*input, Type::Promise, visible, span)?;
                 self.define(*result, Type::General, visible, span)?;
             }
@@ -1165,6 +1176,7 @@ impl Verifier<'_> {
             ancestors: ancestors.iter().copied().chain([region.id]).collect(),
             allow_loop_control,
             settlement: false,
+            inline_async: false,
             return_type: self.return_type,
             entered: false,
             index: 0,
@@ -1197,6 +1209,12 @@ impl Verifier<'_> {
         }
         while let Some(operation) = frame.region.operations.get(frame.index) {
             let span = operation.span;
+            if frame.inline_async && matches!(operation.kind, Op::AdoptPromise { .. }) {
+                return Err(invalid(
+                    span,
+                    "Promise adoption requires its own physical async activation",
+                ));
+            }
             if matches!(operation.kind, Op::AwaitSite { .. })
                 && !frame
                     .region
@@ -1231,6 +1249,7 @@ impl Verifier<'_> {
                         | Op::AwaitCall { .. }
                         | Op::AwaitSettled { .. }
                         | Op::AwaitPromise { .. }
+                        | Op::AdoptPromise { .. }
                         | Op::AwaitClosureCall { .. }
                 )
             {
@@ -1286,12 +1305,9 @@ impl Verifier<'_> {
                         ));
                     }
                     frame.pending = PendingRegion::Inline(ty);
-                    return Ok(RegionCheck::Child(frame.child(
-                        body,
-                        Contract::Function,
-                        false,
-                        ty,
-                    )));
+                    let mut child = frame.child(body, Contract::Function, false, ty);
+                    child.inline_async |= matches!(operation.kind, Op::AwaitCall { .. });
+                    return Ok(RegionCheck::Child(child));
                 }
                 (
                     Op::InlineCall { result, .. } | Op::AwaitCall { result, .. },

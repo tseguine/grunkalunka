@@ -213,8 +213,8 @@ root settlement is exposed at each boundary. Node bridges these notifications to
 native rejected Promise proxies, leaving checkpoint reporting to the host;
 Wasmtime exposes `take_promise_notifications()` for an embedding's checkpoint
 policy. Awaiting a child later in the same checkpoint prevents a false unhandled
-event. See [pending source values](runtime-closures.md#pending-source-values). Adoption,
-mixed snapshot/identity storage and general payloads remain open.
+event. See [pending source values](runtime-closures.md#pending-source-values). Snapshot
+adoption, mixed snapshot/identity storage and general payloads remain open.
 
 Pending identities can now be passed through homogeneous source parameters in
 known calls, runtime-selected functions, higher-order callbacks and factories.
@@ -223,11 +223,36 @@ arguments to a fixed point; annotations supply no runtime evidence. Every actual
 argument and body must still match the inferred private signature. A parameter
 retains the passed handle across suspension, captures and later caller binding
 replacement. Synchronous helpers may return that same identity; async returns
-still require adoption and remain guarded. Fulfilled snapshots retain their
+now adopt pending identities as described below. Fulfilled snapshots retain their
 separate representation. Mixed pending/scalar or pending/snapshot input domains
 remain unsupported. Tests execute 32-parameter calls and separately check the
 existing 1,000-parameter admission bound; wide admission is not a production-fuel
 guarantee.
+
+### Pending async-return adoption
+
+An async root or private function can now return a represented pending identity,
+including from a concise arrow without an explicit `await`. It adopts that
+Promise's eventual primitive completion. `AdoptPromise` schedules a registration
+job, then uses a separate reaction job to forward fulfillment or rejection; this
+keeps native job order rather than rewriting `return p` as `return await p`.
+The returning activation saves its frame before registration and restores it
+when that job runs, retaining the original handle across sibling calls.
+
+An adopted rejection bypasses the returning function's lexical catches. A throw
+while evaluating the returned expression still enters its lexical catch. An
+outer caller's explicit await may catch the adopting function's rejection.
+Implicit adoption jobs consume the existing 32-job runtime budget, not additional
+source await sites. The 32 explicit-site, 4,096-state, arena and fuel limits remain.
+Tests compare native JS, Node-Wasm and Wasmtime results and full microtask traces,
+including later registration, shared callees, primitive reasons and host error
+budgets. Tracking suppresses the adopted child's handled rejection and reports
+an unhandled adopting activation once.
+
+This covers represented pending identities only. Fulfilled/settled snapshot
+adoption, mixed identity/primitive expression joins, arbitrary thenables and
+escaping Promise objects remain gaps. A branch may return a pending identity
+while a separate return statement completes with a primitive.
 
 The import-free module exports `start(f64,f64)` and `resume(i32,f64)`, each returning
 `(i32,i32,f64)` for status, primitive tag and payload. Status 0 is fulfillment;

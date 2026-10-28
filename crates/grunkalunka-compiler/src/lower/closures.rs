@@ -291,12 +291,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else {
                 closure.result = if check.pending_promise_shape(expression, 0) {
                     if arrow.r#async {
-                        return Err(unsupported(
-                            expression,
-                            "async Promise-valued returns require Promise adoption",
-                        ));
+                        Type::General
+                    } else {
+                        Type::Promise
                     }
-                    Type::Promise
                 } else if check.settled_promise_shape_in(
                     expression,
                     0,
@@ -323,22 +321,26 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 } else {
                     Type::General
                 };
-                check.evaluate(
-                    expression,
-                    &mut region,
-                    0,
-                    if closure.result == Type::Promise {
-                        evaluate::Mode::Pending
-                    } else if closure.result == Type::SettledPromise {
-                        evaluate::Mode::Settled
-                    } else if closure.result == Type::FulfilledPromise {
-                        evaluate::Mode::Promise
-                    } else if closure.result == Type::General {
-                        evaluate::Mode::General
-                    } else {
-                        evaluate::Mode::Number
-                    },
-                )?;
+                if arrow.r#async && closure.result == Type::General {
+                    check.async_result(expression, &mut region, 0)?;
+                } else {
+                    check.evaluate(
+                        expression,
+                        &mut region,
+                        0,
+                        if closure.result == Type::Promise {
+                            evaluate::Mode::Pending
+                        } else if closure.result == Type::SettledPromise {
+                            evaluate::Mode::Settled
+                        } else if closure.result == Type::FulfilledPromise {
+                            evaluate::Mode::Promise
+                        } else if closure.result == Type::General {
+                            evaluate::Mode::General
+                        } else {
+                            evaluate::Mode::Number
+                        },
+                    )?;
+                }
             }
         } else if let Some(arity) = check.block_function_arity(arrow, 0) {
             if arrow.r#async {

@@ -485,7 +485,10 @@ fn refine_shapes<'a>(
                             parameters: &Parameters,
                             kinds: &storage::BindingKinds| {
         let arrow = arrows[&body];
-        if arrow.r#async && kinds.async_results.contains(&body) {
+        if arrow.r#async
+            && (kinds.async_results.contains(&body)
+                || promise_parameters.asynchronous.contains(&body))
+        {
             return signatures.borrow_mut().intern_async(parameter_types(
                 arrow,
                 parameters,

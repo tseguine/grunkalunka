@@ -797,7 +797,19 @@ kind. Captures and synchronous forwarding keep the existing i32 handle and its
 private frame/cell layout. This adds no IR operation or host call. Conflicting
 actual kinds remain rejected rather than implicitly packing a handle as a primitive.
 
-This does not complete Promise compatibility. Adoption, thenables, general
+`AdoptPromise { result: General, input: Promise }` resolves the current physical
+async activation through a queued registration and a subsequent reaction. A
+fulfilled reaction continues with the primitive result; a rejected reaction
+settles that activation and bypasses its lexical catches. Source emits it for
+pending async return values. It is not interchangeable with `AwaitPromise`.
+The verifier rejects adoption in snapshot settlement bodies and inside an
+inlined `AwaitCall` child, which lacks a separate physical activation; ordinary
+structural `InlineCall` regions in the owning activation remain valid. The backend
+saves/restores the frame before the registration callback. Both callbacks use
+the existing reaction queue and runtime job budget, with no new host ABI, kernel
+record layout or explicit await-site charge.
+
+This does not complete Promise compatibility. Snapshot adoption, thenables, general
 payloads, source identity comparison, mixed snapshot/identity storage, mixed
 pending/scalar input interfaces and independently escaping Promises remain open. Detached
 primitive rejection reporting is covered by

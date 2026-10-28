@@ -380,7 +380,7 @@ The argument runs before all extras; extras may mutate captures or suspend befor
 the caller registers its await. Captured callee pairs and argument snapshots
 survive this work. This is the existing-Promise identity case, not general adoption.
 Mixed identity/snapshot storage, mixed pending/scalar parameter domains, identity
-comparison, primitive coercion and returning a Promise for async adoption remain
+comparison, primitive coercion and snapshot async-return adoption remain
 explicit source gaps. Immediate non-suspending async closures retain their
 fulfilled/settled snapshot contracts.
 
@@ -391,8 +391,15 @@ preserve it. Caller argument evaluation snapshots the handle before later actual
 or surplus arguments can replace the caller's binding. Parameter reassignment may
 store another represented pending identity. Awaiting through the formal preserves
 primitive rejection handling and the caller's separate reaction. TypeScript
-annotations are erased, not used to infer these kinds. Async-return adoption and
-mixed pending/snapshot/scalar input interfaces remain separate gaps.
+annotations are erased, not used to infer these kinds. Mixed pending/snapshot/scalar
+input interfaces remain separate gaps. Async roots/private functions now adopt
+returned pending identities, including concise helpers without an explicit await.
+Registration and forwarding use separate jobs and the original saved frame.
+Rejected adoption bypasses local catches while returned-expression evaluation
+errors retain lexical handling. Outer awaits may catch the adopting function's
+rejection. Primitive results, captured handles, sibling frames, later registration
+and notification ownership are checked against native Promise traces. Snapshot
+returns and arbitrary thenable/identity-primitive joins still need further work.
 
 Awaited primitive rejection reaches its lexical catch, including repeated and
 late awaits. Detached child rejections now produce host notifications. At `(4, 2)`

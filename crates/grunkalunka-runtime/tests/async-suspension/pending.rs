@@ -66,7 +66,6 @@ fn stored_pending_async_results_keep_erasure_admission_and_site_limits() {
         }
     }
     for body in [
-        "const f=async()=>{await a;return b;};const p=f();return p;",
         "const f=async()=>{await a;return b;};const p=f();return +p;",
         "const f=async()=>{await a;return b;};let p=f();p=b;return await p;",
         "const f=async()=>{await a;return b;};const p=f();p=f();return await p;",

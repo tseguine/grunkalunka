@@ -586,6 +586,10 @@ impl Lowering<'_, '_> {
                         .is_some_and(|closure| {
                             let arrow = self.arrow(closure.arrow);
                             arrow.r#async
+                                && !self
+                                    .promise_parameters
+                                    .adopting
+                                    .contains(&arrow.node_id.get())
                                 && (operand.extras.is_empty()
                                     || !awaited::eager_async_arrow(arrow, self.semantic))
                         });

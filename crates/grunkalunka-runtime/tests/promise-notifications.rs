@@ -19,6 +19,7 @@ const BODIES: &[&str] = &[
     "const f=async()=>{if(a){await a;}else{await a;await b;}throw b;};f();if(a){await a;await b;await a;await b;}return a;",
     "const f=async()=>{await a;throw b;};const g=async()=>{try{await f();}catch(e){throw e;}};g();return a;",
     "const f=async()=>{await a;throw b;};const use=async p=>await p;use(f());return a;",
+    "const f=async()=>{await a;throw b;};const p=f();const use=async p=>p;use(p);return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -137,14 +138,14 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                     }
                 } else {
                     assert_eq!(unhandled.len(), if index == 8 { 2 } else { 1 }, "{body}");
-                    assert_eq!(events.len(), unhandled.len());
+                    assert_eq!(events.len(), if index == 12 { 3 } else { unhandled.len() });
                     let first = unhandled.values().next().unwrap();
                     match (index, *first) {
                         (1, Value::Undefined)
                         | (2, Value::Null)
                         | (3, Value::Boolean(false))
                         | (4, Value::Boolean(true)) => {}
-                        (0 | 8 | 9 | 10 | 11, Value::Number(x)) => assert!(
+                        (0 | 8 | 9 | 10 | 11 | 12, Value::Number(x)) => assert!(
                             x.is_nan() && reason.is_nan() || x.to_bits() == reason.to_bits()
                         ),
                         _ => panic!("unexpected reason {first:?} in {body}"),

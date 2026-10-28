@@ -11,6 +11,8 @@ pub(crate) struct Inputs {
     pending: BTreeSet<SymbolId>,
     pub(super) values: BTreeSet<SymbolId>,
     pub(super) results: BTreeSet<NodeId>,
+    pub(crate) asynchronous: BTreeSet<NodeId>,
+    pub(super) adopting: BTreeSet<NodeId>,
 }
 
 impl Inputs {
@@ -301,11 +303,13 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> Inputs {
             break;
         }
     }
+    inputs.asynchronous = inputs.results.clone();
     loop {
         let old = (
             inputs.values.len(),
             inputs.pending.len(),
             inputs.results.len(),
+            inputs.asynchronous.len(),
         );
         for (symbol, expression) in &definitions {
             if pending_shape(expression, semantic, &returns, &inputs) {
@@ -331,15 +335,42 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> Inputs {
             }
         }
         for (id, arrow) in &arrows {
-            if !arrow.r#async
-                && storage::arrow_returns(arrow, semantic).is_some_and(|results| {
-                    !results.is_empty()
-                        && results
+            let results = if arrow.r#async {
+                arrow
+                    .get_expression()
+                    .map(|body| vec![body])
+                    .unwrap_or_else(|| {
+                        super::block_results::return_statements(semantic, *id)
                             .into_iter()
-                            .all(|e| pending_shape(e, semantic, &returns, &inputs))
-                })
-            {
-                inputs.results.insert(*id);
+                            .filter_map(|s| s.argument.as_ref())
+                            .collect()
+                    })
+            } else {
+                storage::arrow_returns(arrow, semantic).unwrap_or_default()
+            };
+            if !results.is_empty() {
+                let facts: Vec<_> = results
+                    .into_iter()
+                    .map(|e| pending_shape(e, semantic, &returns, &inputs))
+                    .collect();
+                if arrow.r#async && facts.iter().any(|p| *p) {
+                    inputs.results.insert(*id);
+                    inputs.asynchronous.insert(*id);
+                    inputs.adopting.insert(*id);
+                } else if !arrow.r#async && facts.iter().all(|p| *p) {
+                    inputs.results.insert(*id);
+                }
+            }
+        }
+        for bodies in targets.values() {
+            if !bodies.is_disjoint(&inputs.asynchronous) {
+                let added: Vec<_> = bodies
+                    .iter()
+                    .filter(|id| arrows[id].r#async)
+                    .copied()
+                    .collect();
+                inputs.results.extend(&added);
+                inputs.asynchronous.extend(added);
             }
         }
         if old
@@ -347,6 +378,7 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> Inputs {
                 inputs.values.len(),
                 inputs.pending.len(),
                 inputs.results.len(),
+                inputs.asynchronous.len(),
             )
         {
             return inputs;

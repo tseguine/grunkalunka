@@ -769,9 +769,7 @@ impl Lowering<'_, '_> {
         child.bindings.extend(capture_bindings);
         let returned = if asynchronous {
             if let Some(expression) = arrow.get_expression() {
-                child
-                    .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
-                    .expect("async primitive body completion")
+                child.async_result(expression, &mut body, 0)?
             } else {
                 let region = child.arrow_block_result(arrow, 0, Type::General)?;
                 let result = child.value(Type::General);
