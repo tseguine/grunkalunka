@@ -11,9 +11,9 @@ that is test input, not a release/distribution pipeline.
 
 Pull requests targeting `master`, pushes to `master`, and manual Actions runs
 execute the same three named jobs. macOS uses native Apple Silicon ARM64.
-**Windows PRs alone** may execute dependency-selected checks; Windows falls back
-to the full suite on an unsafe plan. Linux and macOS always execute full PR
-CI, and pushes to `master` and manual runs execute full CI on all platforms.
+**All three native PR jobs** may execute validated dependency-selected checks;
+any unsafe or unknown plan falls back to full build/check commands on that
+host. Pushes to `master` and manual runs remain full CI on every platform.
 Feature-branch pushes do not also trigger a second
 copy of the PR build. Runs share a concurrency group for the same event and
 PR/ref; newer runs leave in-progress runs running (`cancel-in-progress: false`).
@@ -58,17 +58,17 @@ toolchains or locally compiled host binaries.
 After a fast formatting check, jobs restore cached Cargo dependencies and fetch
 both the root workspace and the independently locked frontend spike using
 `cargo fetch --locked`. A cache miss must work; caches are not prerequisites.
-Builds and checks use locked/offline commands. On Windows PRs,
-`ci/impact/windows-pr-gate.mjs` may execute the dependency-selected canonical
-commands and package-scoped Cargo build/Clippy/tests. It records selected
-commands and fallbacks. A planner error falls back to full verification;
+Builds and checks use locked/offline commands. On Linux, Windows and macOS PRs,
+`ci/impact/pr-gate.mjs` may execute selected canonical commands and package-
+scoped Cargo build/Clippy/tests. It records decisions and receipts with the
+runner's native OS. A planner error falls back to full verification;
 a **failing selected test fails the job** rather than triggering a full retry.
 This is offline Cargo verification after setup, not a network-isolated sandbox.
 
 In full mode the workspace is built before `node scripts/check.mjs`; early
 kernel tests have short build watchdogs that must not include a cold dependency
-build. For Windows PR partial mode, the dependency graph determines prebuild
-packages. `node scripts/check.mjs` remains the source of truth for canonical
+build. For any native PR partial mode, the dependency graph determines
+prebuild packages. `node scripts/check.mjs` remains the source of truth for canonical
 Clippy, Rust and JS checks. The per-command descriptors are verified against
 its live command inventory before selection. No tests, assertions or timeouts
 are relaxed.
@@ -93,23 +93,32 @@ See [testing](testing.md) for individual checks and evidence limits. Tests emit
 receipts in local target directories, but this workflow does not upload them.
 Inspect the job log and reproduce locally when a retained receipt is needed.
 
-## Windows-only partial PR canary
+## All-platform partial PR gate
 
-The maintainer explicitly authorized using the **general** dependency-aware
-selector on Windows PRs without a hardcoded path whitelist. See
-[impact planning](../ci/impact/README.md). The planner diffs the PR merge
-base, follows reverse test dependencies and forward build dependencies,
-verifies the live canonical command catalog and checks independently triggered
-browser workflows. Unknown paths, missing or ambiguous metadata, unsupported
-Cargo translations and stale command mappings fall back to the original full
-Windows suite. Linux/macOS PR and all `master` builds retain full verification.
+The maintainer explicitly authorized the **general dependency graph**, not a
+hardcoded source allowlist, for Linux, Windows and macOS PRs. See
+[impact planning](../ci/impact/README.md). Each host diffs its exact PR merge
+base with full Git history, follows reverse test and forward build closures,
+verifies the live canonical command inventory, includes separately declared
+Rust test-time fixture inputs, and audits independent browser workflow
+triggers. Unknown paths, missing or ambiguous dependencies, unsafe Cargo
+translations or stale command mapping fall back to original full commands
+**on that host**. The full `master` and manual gates are unchanged.
 
-Set `WINDOWS_PARTIAL_CI` to `'false'` on the Windows CI step to disable the
-canary. The existing `Checks (Linux)`, `Checks (Windows)` and `Checks (macOS)`
-status names are unchanged, as are separate P1/browser workflows. A partial
-success is evidence for selected checks, **not** proof that independently
-triggered jobs passed. Compare actual Windows PR timings with full-platform
-results as the dependency model evolves.
+Set `PARTIAL_PR_CI` to `'false'` on the PR CI step to disable partial execution
+on all hosts. Existing `Checks (Linux)`, `Checks (Windows)` and
+`Checks (macOS)` job names remain unchanged; independent browser workflows retain
+separate triggers. P1's previous per-experiment PR workflows have been replaced
+by canonical regression and native artifact tests; archived native cross-host
+experiments remain explicitly reproducible.
+The [native scoped rehearsal](../.github/workflows/impact-platform-rehearsal.yml)
+executes real layout checks on all three hosted OSes. A successful partial gate
+proves only its selected canonical checks, **not** that independently triggered
+browser jobs passed or that archived P1 multi-host studies were reproduced.
+The graph still needs independent dynamic dependency
+coverage audits; [#126](https://github.com/tseguine/grunkalunka/issues/126)
+tracks known gaps and the proposed lint. Compare host-specific timings to
+assess actual savings; never treat skipped checks as tested.
 
 ## Locating slow or interrupted checks
 

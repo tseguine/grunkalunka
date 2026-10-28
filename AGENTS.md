@@ -100,41 +100,79 @@ another agent's branch or merge its implementation PR without delegated authorit
 Re-read branch heads before writes; use expected-head safeguards where available.
 Use independent useful work during CI waits instead of manufacturing extra churn.
 
-## Partial-PR CI coordination (Windows PR canary)
+## Partial-PR CI coordination (Linux, Windows and macOS PRs)
 
 Read [impact planning](ci/impact/README.md) and [Cargo scoping](ci/impact/CARGO-SCOPE.md)
 when changing modules, tests, fixtures, build inputs, or workflows. The
 `.github/workflows/impact-shadow.yml` workflow remains read-only. The maintainer
-authorized **Windows-PR-only** selective execution through
-`ci/impact/windows-pr-gate.mjs`, using the general dependency graph (no
-hand-maintained path whitelist). Unsafe/unknown inputs use the original
-full Windows checks. **Linux/macOS PR CI and every `master` run remain full**.
-External browser/P1 workflows remain independently triggered and required.
+authorized **dependency-selected verification on all three native PR runners**
+through `ci/impact/pr-gate.mjs`, using the same general dependency graph
+(no hand-maintained path whitelist). Unknown or unsafe selections run the
+**original full** checks on that PR host. **Every `master` push and manual
+workflow run retains full three-platform CI.** Independent browser workflows
+retain their own triggers and gates. P1 regressions and native-host integration
+checks are canonical selectable tests; historical P1 multi-host experiments
+are not automatic PR merge gates.
 
 - Cargo workspace package ownership/dependencies come from Cargo metadata;
-  non-Cargo paths use independent `ci/impact/owners/*.json` descriptors. The
-  planner selects tests by **reverse dependency closure**, then selects build
-  prerequisites by a **forward dependency closure**. Build-only dependencies
-  do not acquire tests. `ci/impact/targets/*.json` describe logical dependency
-  groups, **not executable tests**; `ci/impact/checks/*.json` map the real
-  canonical commands. Workspace-wide check nodes are selection umbrellas, not
-  reasons to build every crate in the package-scoping preview.
-- When adding, removing, or changing a canonical check invocation, update its
-  matching per-command descriptor in the same PR. Account for new non-Cargo
-  modules, test fixtures, imports, generated inputs, and spawned tools in the
-  relevant owner/test dependencies. Prefer separate descriptor files over
-  editing shared registries. Unknown or ambiguous paths/dependencies, stale
-  command mappings, and global build/CI changes must **fall back to full CI**,
-  never silently select zero tests. Selected check failures must fail the
-  gate, never be silently reclassified as a planning fallback.
-- Independent workflows (such as P1 portability and browser-oracle smoke) are
-  **not covered** just because the canonical check catalog matches. Preserve
-  their own triggers and verification; include their inputs before any future
-  selective gate can be trusted. Check planner changes with
-  `node --test ci/impact/*.test.mjs` and review
-  `node ci/impact/plan.mjs origin/master` from a checkout with merge-base
-  history. Windows selection still requires its exact-head CI result and the
-  full Linux/macOS results; shadow checks cannot substitute for a required gate.
+  non-Cargo paths use independent `ci/impact/owners/*.json` descriptors.
+  Tests are selected by **reverse dependency closure**, and build prerequisites
+  by **forward dependency closure**. Build-only dependencies do not acquire
+  their tests. `ci/impact/targets/*.json` describe logical dependency groups,
+  **not executable tests**; `ci/impact/checks/*.json` map real canonical
+  commands. `ci/impact/cargo-tests/*.json` records additional non-Cargo
+  source/test-time inputs of Cargo package tests, such as Rust `include_str!`
+  fixtures; these are selection edges, not extra build prerequisites.
+- When adding, removing or changing a canonical check invocation, update its
+  matching per-command descriptor in the same PR. Account for new modules,
+  fixtures, imports, generated inputs, and spawned tools in the relevant owner,
+  test and Cargo-test descriptors. Prefer separate descriptor files over shared
+  registries. Unknown or ambiguous paths/dependencies, stale command mappings,
+  and global build/CI changes **must fall back to full CI**, never silently
+  select zero tests. A failed selected check is a failure, **not** a planning
+  fallback. An inability to independently validate a dependency or target
+  cannot justify marking it safely excluded.
+- Independent browser workflows (including live engine oracles) are **not
+  covered** merely because canonical commands match. Maintain their separate
+  triggers and requirements, and include their inputs before trusting selection.
+  P1's selected native-host tests do not establish the separate, historical
+  cross-host artifact-transfer experiments. Run `node --test ci/impact/*.test.mjs`,
+  review `node ci/impact/plan.mjs origin/master` from a full-history checkout,
+  and use `ci/impact/platform-rehearsal.mjs` for a bounded native-host
+  execution control. These checks **do not replace** the actual exact-head
+  Linux, Windows, macOS or independent-workflow results. Audit actual
+  source/test dependencies before further reducing selected checks.
+
+## CI runner budget and test placement policy
+
+Tests and experiments should be implemented as **ordinary repository tests** and
+registered with the existing canonical check runner by default. Provide accurate
+ownership, source/fixture dependencies and per-command check descriptors so the
+same tests participate in dependency-selected PR CI on Linux, Windows and macOS.
+A regression test must not require its own Actions workflow merely because it
+originated in a research or implementation workstream.
+
+Avoid adding standalone PR-triggered workflows, status checks, duplicated Cargo
+builds, or extra runner matrices to execute tests that the canonical runner can
+select. Runner capacity and **push-to-merge latency across parallel PRs** are
+shared resources. Prefer adding coverage to an existing test suite over creating
+another Actions job; do not use workflow YAML as the test implementation.
+
+An independent workflow is an exception for a demonstrated execution requirement
+that canonical CI cannot reasonably provide (for example, an actual independent
+browser engine, a distinct native-host experiment, or a specialized integration
+environment). Document why that requirement cannot be represented in the normal
+runner, keep triggers and the matrix minimal, and prefer manual or narrowly
+scoped execution for exploratory experiments. Do not make diagnostic or advisory
+workflows required merge gates without explicit maintainer direction. Periodically
+remove obsolete rehearsals and redundant checks once their purpose is served.
+
+When migrating existing workflow-based tests, **first** land equivalent canonical
+tests and impact-selection dependencies, verify real selected and full execution,
+and **then** retire redundant workflow triggers/jobs. Preserve any genuinely
+independent validation and required check behavior until a safe replacement is
+proven. Do not silently remove coverage, fake a passing check, or weaken full
+`master` validation or fail-closed PR selection.
 
 ## Verification and merging
 
