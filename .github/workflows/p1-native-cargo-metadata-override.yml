@@ -89,7 +89,14 @@ jobs:
           assert.deepEqual(Object.keys(data.variants).sort(),['all','passthrough','target']);
           const modes={};
           for(const [name,mode] of Object.entries(data.variants)){
-            assert.ok(mode.actualMetadata.length===5);
+            assert.ok(mode.actualMetadata.length>=5&&mode.actualMetadata.length<=128);
+            const selected=['build_script_build','grunkalunka_markdown',
+              'outline_guest','pulldown_cmark','unicase'];
+            assert.deepEqual(mode.actualMetadata
+              .filter(x=>selected.includes(x.crate))
+              .map(x=>x.crate).sort(),selected);
+            assert.ok(mode.actualMetadata
+              .filter(x=>!selected.includes(x.crate)).every(x=>!x.changed));
             assert.ok(mode.report.codeBodies.count>=1&&mode.report.codeBodies.count<=4096);
             assert.match(mode.report.artifact.sha256,/^[a-f0-9]{64}$/);
             modes[name]={
