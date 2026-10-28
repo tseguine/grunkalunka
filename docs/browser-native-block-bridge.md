@@ -93,3 +93,28 @@ node has **no box** (explicit JSON `null`), not an invented zero-sized
 rectangle. Geometry and visibility differences identify the phase, node and
 field. This remains a narrow selected-fixture test, not general DOM mutation,
 CSS `display` conformance or browser rendering equivalence.
+
+## Native hit-target comparison (next bounded slice)
+
+The fixture additionally records seven fixed viewport sample points using
+`document.elementFromPoint`, before hiding the first child, while it is
+hidden, and after restoration. Only the three deliberately modeled element
+IDs (`outer`, `first`, `second`) are reported; HTML/body/outside hits are
+recorded as explicit `null`. This normalization is about the selected
+comparison scope, not a claim that these outer ancestors are non-targetable.
+
+The independent Rust example calls `grunkalunka_layout::hit_test` on each
+recomputed frame using its explicit caller-selected targetable policy.
+It asserts independent per-phase expected targets before emitting the
+`hitTargets.original`, `hitTargets.hidden` and `hitTargets.restored` maps.
+The comparator requires all seven named probes in all three phases, rejects
+unknown/missing targets, and reports disagreements with probe/phase paths.
+No hit is derived from browser rectangle observations or from source code
+executed in the native runtime.
+
+The selected probes distinguish child, parent, margin, sibling, off-box,
+and restored hits; this does **not** implement DOM event dispatch, pointer
+capture, CSS pointer-events, transforms, clipping, scroll-coordinate
+translation, stacking contexts or trusted input events. The browser's DOM
+hit testing and native target selection have only been compared for these
+specific nonoverlapping, untransformed boxes.
