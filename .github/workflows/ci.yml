@@ -47,8 +47,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Only Windows PRs need Git history for merge-base impact selection.
-          fetch-depth: ${{ github.event_name == 'pull_request' && matrix.platform == 'Windows' && '0' || '1' }}
+          # Each PR runner needs merge-base history for independent impact planning.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -113,21 +113,21 @@ jobs:
           cargo fetch --locked
           cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
 
-      # Full Linux/macOS checks stay unchanged. Every master push and manual
-      # workflow run still verifies the entire workspace on all three hosts.
+      # Every master push and manual workflow run still verifies the
+      # entire workspace on all three hosts. Only PRs can select checks.
       - name: Build the workspace offline (full verification)
-        if: github.event_name != 'pull_request' || matrix.platform != 'Windows'
+        if: github.event_name != 'pull_request'
         run: cargo build --workspace --locked --offline -j 4
 
       - name: Run the canonical checks (full verification)
-        if: github.event_name != 'pull_request' || matrix.platform != 'Windows'
+        if: github.event_name != 'pull_request'
         run: node scripts/check.mjs
 
-      # Windows PRs use the general dependency graph, not a path allowlist.
-      # Unknown or unsafe plans revert to the exact full build + check pair.
-      # Disable this canary by switching WINDOWS_PARTIAL_CI to 'false'.
-      - name: Verify Windows PR (partial or full fallback)
-        if: github.event_name == 'pull_request' && matrix.platform == 'Windows'
+      # All three native PR hosts use the same dependency graph, not a path allowlist.
+      # Unknown/unsafe plans revert to the exact full build + check pair.
+      # Disable all-platform selective PR verification with PARTIAL_PR_CI='false'.
+      - name: Verify PR (dependency-selected or full fallback)
+        if: github.event_name == 'pull_request'
         env:
-          WINDOWS_PARTIAL_CI: 'true'
-        run: node ci/impact/windows-pr-gate.mjs
+          PARTIAL_PR_CI: 'true'
+        run: node ci/impact/pr-gate.mjs

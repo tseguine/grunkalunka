@@ -1,6 +1,6 @@
-// Real Windows-only execution of a historic layout impact selection on current
-// source. Demonstrates the exact general candidate executor, not a hardcoded
-// production path allowlist. Canonical CI still runs independently on this PR.
+// Real native-platform execution of a historic layout impact selection against
+// current source. Validates the exact shared PR executor on Linux, Windows and
+// macOS. The canonical full suite runs separately on the same PR.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -8,9 +8,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { cargoModules, planImpact } from './impact.mjs';
+import { cargoTestNodes } from './cargo-test-nodes.mjs';
 import { checkNodes, verifyCanonicalChecks } from './canonical.mjs';
 import { auditBrowserWorkflows } from './external-workflows.mjs';
-import { chooseWindowsPrChecks, runDecision } from './windows-pr-gate.mjs';
+import { choosePrChecks, runDecision } from './pr-gate.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -20,7 +21,7 @@ const readCatalog = folder => readdirSync(join(directory, folder))
 
 function invoke(command, args, { capture = false, timeout = 300000 } = {}) {
   const started = performance.now();
-  console.log('WINDOWS REHEARSAL START ' + JSON.stringify({ command, args }));
+  console.log('PLATFORM REHEARSAL START ' + JSON.stringify({ command, args }));
   const result = spawnSync(command === 'node' ? process.execPath : command, args, {
     cwd: root, shell: false, timeout,
     encoding: capture ? 'utf8' : undefined,
@@ -28,7 +29,7 @@ function invoke(command, args, { capture = false, timeout = 300000 } = {}) {
     maxBuffer: 16 * 1024 * 1024,
   });
   const elapsedMs = Math.round(performance.now() - started);
-  console.log('\nWINDOWS REHEARSAL END ' + JSON.stringify({
+  console.log('\nPLATFORM REHEARSAL END ' + JSON.stringify({
     command, args, elapsedMs, status: result.status, error: result.error?.code ?? null,
   }));
   if (result.error || result.signal || result.status !== 0) {
@@ -40,7 +41,10 @@ function invoke(command, args, { capture = false, timeout = 300000 } = {}) {
 }
 
 if (process.argv.length !== 2) throw new Error('unexpected CLI arguments');
-if (process.env.RUNNER_OS !== 'Windows') throw new Error('rehearsal requires native Windows');
+const nativePlatform = process.env.RUNNER_OS;
+if (!['Linux', 'Windows', 'macOS'].includes(nativePlatform)) {
+  throw new Error('rehearsal requires a supported native CI platform');
+}
 const historicalPaths = [
   // Exact source-file changes in merged browser/layout PR #75.
   'crates/grunkalunka-layout/examples/click_reflow_ppm.rs',
@@ -57,9 +61,10 @@ const observed = JSON.parse(invoke('node',
 const coverage = verifyCanonicalChecks(observed, declared);
 const modules = [...cargoModules(metadata, root), ...readCatalog('owners')];
 const groups = readCatalog('targets');
+const cargoTests = cargoTestNodes(packages, readCatalog('cargo-tests'));
 const tests = [
-  ...packages.map(pkg => ({ id: 'cargo-test:' + pkg.name, dependsOn: [pkg.name] })),
-  ...checkNodes(declared, workspacePackages),
+  ...cargoTests,
+  ...checkNodes(declared, workspacePackages, cargoTests.map(t => t.id)),
 ];
 const externalWorkflows = auditBrowserWorkflows(historicalPaths, readCatalog('workflows'),
   file => readFileSync(join(root, file), 'utf8'));
@@ -73,8 +78,8 @@ const plan = {
   selectedCommands: impact.full ? declared.map(d => d.id).sort() :
     impact.tests.filter(id => id.startsWith('check:')),
 };
-const choice = chooseWindowsPrChecks({
-  eventName: 'pull_request', runnerOS: 'Windows', enabled: true,
+const choice = choosePrChecks({
+  eventName: 'pull_request', runnerOS: nativePlatform, enabled: true,
   plan, declared, observed, workspacePackages,
 });
 assert.equal(choice.mode, 'partial', choice.reason);
@@ -87,13 +92,14 @@ assert.deepEqual(choice.commands, [
   ['cargo', 'test', '--locked', '--offline', '-j', '4', '-p', 'grunkalunka-layout'],
 ]);
 const revision = invoke('git', ['rev-parse', 'HEAD'], { capture: true }).trim();
-console.log('WINDOWS REHEARSAL PLAN ' + JSON.stringify({
-  revision, advisoryOnly: true, historicalPaths,
+console.log('PLATFORM REHEARSAL PLAN ' + JSON.stringify({
+  revision, nativePlatform, advisoryOnly: true, historicalPaths,
   affectedTests: choice.selectedTests, selectedPackages: choice.selectedPackages,
   canonicalCoverage: coverage, externalWorkflows, commands: choice.commands,
 }));
 const receipts = runDecision(choice, (command, args) => invoke(command, args));
-console.log('PASS Windows candidate partial rehearsal ' + JSON.stringify({
-  revision, receipts, elapsedMs: receipts.reduce((sum, r) => sum + r.elapsedMs, 0),
+console.log('PASS native-platform partial rehearsal ' + JSON.stringify({
+  revision, nativePlatform, receipts,
+  elapsedMs: receipts.reduce((sum, r) => sum + r.elapsedMs, 0),
   caveat: 'historical changed paths replayed against current source; full PR CI is authoritative',
 }));

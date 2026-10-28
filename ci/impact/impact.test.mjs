@@ -106,6 +106,22 @@ test('checked-in metadata has complete references to known Rust modules', () => 
   assert.ok(!result.tests.includes('check:json-composition'));
 });
 
+test('benchmark checks are reached by the real Node build module and GCD example', () => {
+  const rust = ['grunkalunka-cli', 'grunkalunka-compiler', 'grunkalunka-json',
+    'grunkalunka-json-guest', 'grunkalunka-layout', 'grunkalunka-markdown',
+    'grunkalunka-runtime', 'grunkalunka-wasm-link'];
+  const catalog = [...descriptors('owners'), ...rust.map(id => ({
+    id, paths: ['crates/' + id + '/'],
+  }))];
+  const tests = descriptors('checks');
+  const groups = descriptors('targets');
+  for (const path of ['tools/build/compile.mjs', 'examples/numeric-workflow/gcd.js']) {
+    const impact = planImpact({ changedPaths: [path], modules: catalog, groups, tests });
+    assert.equal(impact.full, false, JSON.stringify(impact.reasons));
+    assert.ok(impact.tests.includes('check:benchmark-tests'), path);
+  }
+});
+
 test('owned code without any reachable test triggers full verification', () => {
   const orphan = { id: 'new-module', paths: ['modules/new/'] };
   const noTests = planImpact({

@@ -1,5 +1,5 @@
-// Windows PR canary: execute the general dependency impact plan when it is
-// complete; all other hosts, events and unknown inputs retain the full suite.
+// Cross-platform PR impact gate: selectively run the validated dependency plan
+// on native Linux, Windows and macOS; all other events fall back to full CI.
 // Only planning failures fall back. A selected check failure is always fatal.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -22,6 +22,9 @@ const workspaceChecks = Object.freeze({
 });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const sorted = values => [...values].sort();
+const nativePlatforms = new Set(['Linux', 'Windows', 'macOS']);
+const selectivePr = (eventName, runnerOS, enabled) =>
+  eventName === 'pull_request' && nativePlatforms.has(runnerOS) && enabled === true;
 
 function fallback(reason) {
   return { mode: 'full', reason, commands: structuredClone(fullCommands) };
@@ -30,11 +33,11 @@ function fallback(reason) {
 // No path, package or workstream whitelist: the real plan owns selection.
 // The canonical check inventory and Cargo metadata independently guard the
 // translation from advisory check IDs into executable commands.
-export function chooseWindowsPrChecks({
+export function choosePrChecks({
   eventName, runnerOS, enabled, plan, declared, observed, workspacePackages,
 }) {
-  if (eventName !== 'pull_request' || runnerOS !== 'Windows' || enabled !== true) {
-    return fallback('only enabled Windows pull requests use partial verification');
+  if (!selectivePr(eventName, runnerOS, enabled)) {
+    return fallback('only enabled native-platform pull requests use partial verification');
   }
   if (!plan || plan.mode !== 'shadow' || plan.advisoryOnly !== true ||
       plan.full !== false || !Array.isArray(plan.reasons) || plan.reasons.length) {
@@ -157,11 +160,11 @@ function captureInputs() {
 }
 
 export function chooseWithFallback({ eventName, runnerOS, enabled, capture = captureInputs }) {
-  if (eventName !== 'pull_request' || runnerOS !== 'Windows' || enabled !== true) {
-    return fallback('only enabled Windows pull requests use partial verification');
+  if (!selectivePr(eventName, runnerOS, enabled)) {
+    return fallback('only enabled native-platform pull requests use partial verification');
   }
   try {
-    return chooseWindowsPrChecks({ eventName, runnerOS, enabled, ...capture() });
+    return choosePrChecks({ eventName, runnerOS, enabled, ...capture() });
   } catch (error) {
     return fallback('impact planning unavailable: ' + error.message);
   }
@@ -191,25 +194,26 @@ export function runDecision(decision, execute) {
 
 function execute(command, args) {
   const started = performance.now();
-  console.log('WINDOWS CI START ' + JSON.stringify({ command, args }));
+  console.log('PR CI START ' + JSON.stringify({ command, args }));
   invoke(command, args, { timeout: 45 * 60_000 });
   const elapsedMs = Math.round(performance.now() - started);
-  console.log('\nWINDOWS CI END ' + JSON.stringify({ command, args, elapsedMs, status: 'passed' }));
+  console.log('\nPR CI END ' + JSON.stringify({ command, args, elapsedMs, status: 'passed' }));
   return elapsedMs;
 }
 
 function main() {
   if (process.argv.length !== 2) {
-    throw new Error('usage: node ci/impact/windows-pr-gate.mjs');
+    throw new Error('usage: node ci/impact/pr-gate.mjs');
   }
   const decision = chooseWithFallback({
     eventName: process.env.GITHUB_EVENT_NAME,
     runnerOS: process.env.RUNNER_OS,
-    enabled: process.env.WINDOWS_PARTIAL_CI === 'true',
+    enabled: process.env.PARTIAL_PR_CI === 'true',
   });
-  console.log('WINDOWS CI DECISION ' + JSON.stringify(decision));
+  console.log('PR CI DECISION ' + JSON.stringify({ runnerOS: process.env.RUNNER_OS, ...decision }));
   const receipts = runDecision(decision, execute);
-  console.log('PASS Windows PR CI ' + JSON.stringify({
+  console.log('PASS PR CI ' + JSON.stringify({
+    runnerOS: process.env.RUNNER_OS,
     mode: decision.mode, receipts,
     externalJobsVerified: decision.externalJobsVerified ?? false,
   }));

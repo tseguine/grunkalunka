@@ -52,6 +52,21 @@ test('workspace commands inherit newly discovered Cargo package IDs', () => {
   }
 });
 
+test('workspace-test wrapper follows Cargo test nodes with external fixture inputs', () => {
+  const extended = checkNodes(declared, ['grunkalunka-runtime', 'grunkalunka-layout'],
+    ['cargo-test:grunkalunka-runtime', 'cargo-test:grunkalunka-layout']);
+  const workspace = extended.find(node => node.id === 'check:workspace-tests');
+  assert.deepEqual(workspace.dependsOn, [
+    'grunkalunka-runtime', 'grunkalunka-layout',
+    'cargo-test:grunkalunka-runtime', 'cargo-test:grunkalunka-layout',
+  ]);
+  assert.deepEqual(workspace.buildDependsOn, []);
+  const formatting = extended.find(node => node.id === 'check:workspace-format');
+  assert.deepEqual(formatting.dependsOn, ['grunkalunka-runtime', 'grunkalunka-layout']);
+  assert.throws(() => checkNodes(declared, ['grunkalunka-runtime'],
+    ['cargo-test:grunkalunka-runtime', 'cargo-test:grunkalunka-runtime']), /Cargo/);
+});
+
 const cargo = ['grunkalunka-cli', 'grunkalunka-compiler', 'grunkalunka-runtime',
   'grunkalunka-json', 'grunkalunka-json-guest', 'grunkalunka-wasm-link',
   'grunkalunka-markdown', 'grunkalunka-layout', 'grunkalunka-string-spike'];
