@@ -156,7 +156,6 @@ fn immutable_mixed_values_preserve_erasure_limits_and_remaining_guards() {
     );
     for body in [
         "const p=Promise.resolve(a);const x=a?p:b;x=b;return x;",
-        "const p=Promise.resolve(a);const x=a?p:b;return +x;",
         "const p=Promise.resolve(a);const x=a?p:b;return x<b;",
     ] {
         assert!(compile_async(&source_for(body), false).is_err(), "{body}");

@@ -61,6 +61,9 @@ mod private_results;
 #[path = "async-suspension/finally.rs"]
 mod finally;
 
+#[path = "async-suspension/number_coercion.rs"]
+mod number_coercion;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -390,7 +393,6 @@ for(const [a,b] of [[4,2],[0,-0],[NaN,Infinity]])assert.deepEqual(await observe(
 #[test]
 fn suspending_async_closures_keep_pending_and_signature_guards() {
     for body in [
-        "let f=async()=>{await a;return b;};return +f();",
         "let f=async()=>{await a;return b;};return await Promise.reject(f());",
         "const f=a?async()=>{await a;return b;}:()=>b;return await f();",
         "const f=a?async x=>{await a;return x;}:async(x,y)=>{await b;return x+y;};return await f(a,b);",
@@ -524,7 +526,6 @@ fn throwing_async_closures_forward_through_private_callbacks() {
 #[test]
 fn throwing_async_closures_keep_unobserved_rejections_guarded() {
     for body in [
-        "let f=async()=>{throw a;};return +f();",
         "let f=async()=>{throw a;};return await Promise.reject(f());",
         "const f=a?async()=>{throw 'x';}:async()=>b;return await f();",
         "const f=a?async()=>{throw {};}:async()=>b;return await f();",
@@ -972,7 +973,6 @@ fn source_promise_parameters_keep_erasure_domains_and_await_bounds() {
     }
     for body in [
         "const apply=(fn,p)=>fn(p);return await apply(x=>x,Promise.resolve(a))+apply(x=>x,b);",
-        "const id=p=>p;return +id(Promise.resolve(a));",
         "const id=p=>p;return await id?.(Promise.resolve(a));",
         "const id=p=>p;return await id(...a);",
         "const id=(p,x)=>p;return await id(Promise.resolve(a));",
@@ -1168,7 +1168,6 @@ fn runtime_promise_results_keep_logical_interfaces_and_bounds() {
         }
     }
     for body in [
-        "let f=()=>Promise.resolve(a);return +f();",
         "let f=()=>f();return await f();",
         "const f=a?()=>missing():()=>Promise.resolve(a);return await f();",
     ] {
@@ -1299,7 +1298,6 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
     }
     for body in [
         "const p=Promise.resolve(a);p=Promise.resolve(b);return await p;",
-        "const p=Promise.resolve(a);return +p;",
         "const p=Promise.resolve(a);throw p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
     ] {
@@ -1437,7 +1435,6 @@ fn promise_intrinsic_arguments_keep_erasure_and_resource_boundaries() {
 #[test]
 fn stored_fulfilled_promises_keep_object_and_intrinsic_boundaries() {
     for body in [
-        "const p=Promise.resolve(a);return +p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
         "const Promise=a;const p=Promise.resolve(b);return await p;",
         "const p=Promise.resolve(...a);return await p;",

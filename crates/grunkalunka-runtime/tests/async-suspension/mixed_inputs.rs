@@ -144,7 +144,6 @@ fn mixed_private_inputs_preserve_erasure_limits_and_private_return_boundaries() 
         compare_promises(&[&body], &[(4.0, 2.0), (0.0, -0.0)]);
     }
     for body in [
-        "const p=Promise.resolve(a);const plus=x=>+x;plus(p);return plus(b);",
         "const p=Promise.resolve(a);const same=x=>x===p;same(p);return same(()=>a);",
         "const p=Promise.resolve(a);const same=x=>x===p;same(p);return same({});",
     ] {

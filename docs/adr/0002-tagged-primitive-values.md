@@ -72,3 +72,22 @@ exhaustion. Keep every existing numeric source artifact and diagnostic unchanged
 Flattening General parameters into pairs could exceed embedding parameter limits;
 this decision covers only the fixed two-Number-input result boundary. It does not
 reduce the existing 1000-source-parameter policy or claim a general helper ABI.
+
+## Represented Promise numeric consumers (2026-10-28)
+
+Numeric-only positions in the async identity profile now branch on the existing
+private AsyncValue discriminator. A represented builtin Promise yields NaN;
+General values retain NumberFromGeneral. The source domain excludes prototype
+mutation, custom conversion and arbitrary host objects, so this is a closed-domain
+lowering rule, not general object ToPrimitive. Existing If/projection operations
+avoid a new IR opcode, tag, host value, dependency or layout. No await, adoption
+or rejection-handling effect is introduced.
+
+This local extension reuses the primitive conversion contract and preserves
+ordinary emission for operands without Promise provenance. The alternative of
+unconditionally converting all object-like source expressions would silently
+admit unsupported custom conversion and string-producing addition. Those remain
+rejected; mixed-target writes and legacy non-identity snapshots remain separate.
+Native JS/Node-Wasm/Wasmtime tests and notification fixtures cover represented
+conversion, ordering, snapshots and rejected Promise handling. The precise
+contexts and limitations are in [the contract](../async-number-coercion.md).

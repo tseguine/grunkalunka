@@ -711,3 +711,16 @@ original curated `gap-nullish` source. Its selected result is always a Number, b
 the compiler retains a General join; narrowing it for the numeric profile remains
 separate work. Constructor-free closure selectors using `??` now specialize successfully.
 `??=` and `void` remain separate units. See [the contract](compiler.md#binary-nullish-coalescing).
+
+## Represented numeric coercion (2026-10-28)
+
+The async identity profile now supports numeric-only coercion of represented
+Promise/General operands in unary operations, non-additive arithmetic/bitwise/
+shifts, existing unary Math first arguments, and non-additive compound RHS values
+on primitive cells. Six maintained differential groups execute native JS,
+Node-Wasm and Wasmtime with ordering, mixed private calls/captures, erased types,
+source limits and notification checks. Thirteen exact old guard assertions (twelve
+unique sources) are promoted to execution; detached rejections retain an owned
+native notification checkpoint. See [the contract](async-number-coercion.md).
+Mixed addition/relations, mixed-target compound/update writes, broader objects,
+Strings/BigInts, thenables and general synchronous exceptions remain gaps.

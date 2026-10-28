@@ -2,6 +2,74 @@
 use super::*;
 
 impl Lowering<'_, '_> {
+    pub(super) fn number_from_general_or_async_value(
+        &mut self,
+        node: &Expression<'_>,
+        input: ValueId,
+        region: &mut Region,
+    ) -> ValueId {
+        if self.values[input.0] == Type::General {
+            let result = self.value(Type::Number);
+            Self::push(region, node, Op::NumberFromGeneral { result, input });
+            return result;
+        }
+        assert_eq!(self.values[input.0], Type::AsyncValue);
+        let condition = self.value(Type::Predicate);
+        Self::push(
+            region,
+            node,
+            Op::AsyncValueIsPromise {
+                result: condition,
+                input,
+            },
+        );
+        let mut consequent = self.region(node);
+        // Built-in Promise conversion is nonnumeric in this closed source domain.
+        // This is a value conversion, never settlement/adoption or handling.
+        let nan = self.value(Type::Number);
+        Self::push(
+            &mut consequent,
+            node,
+            Op::Constant {
+                result: nan,
+                value: f64::NAN,
+            },
+        );
+        consequent.exit = Exit::Yield(nan);
+        let mut alternate = self.region(node);
+        let primitive = self.value(Type::General);
+        Self::push(
+            &mut alternate,
+            node,
+            Op::AsyncValuePrimitive {
+                result: primitive,
+                input,
+            },
+        );
+        let number = self.value(Type::Number);
+        Self::push(
+            &mut alternate,
+            node,
+            Op::NumberFromGeneral {
+                result: number,
+                input: primitive,
+            },
+        );
+        alternate.exit = Exit::Yield(number);
+        let result = self.value(Type::Number);
+        Self::push(
+            region,
+            node,
+            Op::If {
+                result: Some(result),
+                condition,
+                consequent,
+                alternate,
+            },
+        );
+        result
+    }
+
     pub(super) fn lift_async_input(
         &mut self,
         node: &impl GetSpan,
