@@ -98,7 +98,7 @@ test('explicit target-only overrides four crates and preserves native build-scri
   assert.equal(rows.find(x=>x.crate==='outline_guest').effective,'p1guest');
 });
 
-test('all-crate mode replaces generated metadata on all five crate commands',()=>{
+test('all-selected mode replaces generated metadata on all five chosen crate commands',()=>{
   const log=metadata('all','win32')
     .map(x=>[x.crate,x.target,x.original,x.effective].join('\t')).join('\n');
   const rows=parseMetadataOverrideLog(log,'all');
@@ -106,7 +106,22 @@ test('all-crate mode replaces generated metadata on all five crate commands',()=
   assert.equal(rows.find(x=>x.crate==='build_script_build').effective,'p1script');
 });
 
-test('rejects forged values, unknown crates, duplicate rows and malformed generated metadata',()=>{
+test('unselected dependencies are recorded but never have generated metadata changed',()=>{
+  const baseline=metadata('all','linux')
+    .map(x=>[x.crate,x.target,x.original,x.effective].join('\t'));
+  baseline.push(['bitflags',TARGET,'1234567890abcdef','1234567890abcdef'].join('\t'));
+  baseline.push(['getopts',TARGET,'abcdef0123456789','abcdef0123456789'].join('\t'));
+  const rows=parseMetadataOverrideLog(baseline.join('\n'),'all');
+  assert.equal(rows.length,7);
+  assert.equal(rows.filter(x=>x.changed).length,5);
+  assert.equal(rows.find(x=>x.crate==='bitflags').effective,'1234567890abcdef');
+  assert.equal(rows.find(x=>x.crate==='getopts').changed,false);
+  baseline[5]=['bitflags',TARGET,'1234567890abcdef','p1bitflags'].join('\t');
+  assert.throws(()=>parseMetadataOverrideLog(baseline.join('\n'),'all'),
+    /actual selected\/untouched compiler metadata/);
+});
+
+test('rejects forged values, unsupported target for selected crate, duplicate rows and malformed generated metadata',()=>{
   const good=metadata('all','linux')
     .map(x=>[x.crate,x.target,x.original,x.effective].join('\t'));
   for(const replacement of [
