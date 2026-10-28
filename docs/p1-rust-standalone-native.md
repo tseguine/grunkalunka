@@ -169,3 +169,26 @@ This executable test is discovered by the existing
 selector. It uses the already installed Rust wasm32 target, a bounded
 temporary directory with cleanup, and no network, workflow, new runner,
 Cargo build or extra required status check.
+
+### Standard-library and allocation control
+
+The next [P1 regression](../tools/bench/tests/native-rust-extra-filename.test.mjs)
+extends the same two-variant compiler intervention to the independently
+maintained `std_alloc.rs` fixture. It retains the exact native source bytes,
+one source directory, common requested metadata, output directory and
+identical native codegen flags except for the two chosen filename suffixes,
+but **separately** records each fixture's artifact and section identities.
+
+Both Rust controls require four GCD goldens and three case-specific goldens:
+wrapping arithmetic for `no_std`, and the real four-element `Vec`
+construction/sum for `std_alloc`. Source and artifact hashes, code-body
+counts and exact ordinal body overlap remain observations, never expected
+byte-equality thresholds. The earlier direct no-std experiment found
+only diagnostic-name changes between suffixes on each native host, with
+all five function bodies unchanged; Linux and Apple Silicon produced
+identical binaries for the respective suffix, while Windows's bytes
+differed across hosts. That is historical evidence from
+[PR #185](https://github.com/tseguine/grunkalunka/pull/185), not an
+established prediction for this more complex `std` control.
+
+No extra Actions workflow, runner or canonical check command is required.
