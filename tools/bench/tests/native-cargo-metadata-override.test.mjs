@@ -183,7 +183,9 @@ test('output equality and metadata-input equality are independent observations',
 
 test('rejects changing the original Cargo-generated hash between modes on one host',()=>{
   const a=receipt(),b=receipt('win32');
-  b.variants.target.actualMetadata[3].original='1'.repeat(16);
+  const memchr=b.variants.target.actualMetadata.find(x=>x.crate==='memchr');
+  memchr.original='1'.repeat(16);
+  memchr.effective=memchr.original; // unchanged dependency in original target mode
   assert.throws(()=>compareNativeMetadataOverrides(a,b),
     /unchanged Cargo-generated metadata across wrapper modes/);
 });
