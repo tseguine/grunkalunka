@@ -125,8 +125,9 @@ not be promoted unchanged as a verified metadata interface.
 ## Verification and evidence
 
 **Inspected:** the pinned spike, its documented playback, production annotation
-handling, backend-layout decision, and CI scope. Spike 004 is not exercised by
-`node scripts/check.mjs`; its focused research workflow is a separate check.
+handling, backend-layout decision, and CI scope. Spike 004 remains an independent Cargo workspace; since PR #159 its focused
+formatting and checker tests run through `node scripts/check.mjs` and participate
+in dependency-selected PR verification rather than a standalone Actions job.
 
 **Executable witnesses:** `tests/checker-hints.rs` in spike 004 retains the original
 playback and tests Unicode/CRLF byte positions, duplicate-text ambiguity, an
