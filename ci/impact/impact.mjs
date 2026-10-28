@@ -52,9 +52,10 @@ function closure(start, edges) {
 }
 
 // All tests are planned in shadow mode; no skip decision is authoritative yet.
-export function planImpact({ changedPaths, modules, tests, ignored = [], global = [] }) {
+export function planImpact({ changedPaths, modules, groups = [], tests, ignored = [], global = [] }) {
   const definitions = [
     ...modules.map(node => ({ ...node, kind: 'module' })),
+    ...groups.map(node => ({ ...node, kind: 'group' })),
     ...tests.map(node => ({ ...node, kind: 'test' })),
   ];
   const nodes = new Map();
@@ -109,6 +110,15 @@ export function planImpact({ changedPaths, modules, tests, ignored = [], global 
   }
   const upward = closure(changedOwners, reverse);
   const selectedTests = [...upward].filter(id => nodes.get(id).kind === 'test').sort();
+  // Logical test groups connect dependencies but do not execute a check.
+  // Each changed non-test owner must reach an actual executable test target.
+  // This remains fail-closed even when some *other* owner has runnable tests.
+  for (const id of changedOwners) {
+    if (nodes.get(id).kind === 'test') continue;
+    if (![...closure([id], reverse)].some(node => nodes.get(node).kind === 'test')) {
+      return failure(`no executable test covers changed owner: ${id}`);
+    }
+  }
   const downward = closure([...changedOwners, ...selectedTests], forward);
   const requiredBuild = [...downward].filter(id => nodes.get(id).kind === 'module').sort();
   return { full: false, reasons: [], changedPaths, changedOwners: [...changedOwners].sort(),
