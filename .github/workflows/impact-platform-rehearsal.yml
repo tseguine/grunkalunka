@@ -4,7 +4,15 @@ on:
   pull_request:
     branches: [master]
     paths:
-      - 'ci/impact/**'
+      # Only changes to executable planning/gating logic need an extra
+      # three-native-host rehearsal; ordinary descriptor/test additions are
+      # already checked by canonical CI and planner regression tests.
+      - 'ci/impact/pr-gate.mjs'
+      - 'ci/impact/cargo-scope.mjs'
+      - 'ci/impact/canonical.mjs'
+      - 'ci/impact/impact.mjs'
+      - 'ci/impact/platform-rehearsal.mjs'
+      - 'ci/impact/plan.mjs'
       - '.github/workflows/ci.yml'
       - '.github/workflows/impact-platform-rehearsal.yml'
   workflow_dispatch:
