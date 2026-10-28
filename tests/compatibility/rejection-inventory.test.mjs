@@ -213,7 +213,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 849);
+  assert.equal(inventory.records.size, 844);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -678,5 +678,17 @@ test('primitive bitwise compounds retain three exact prior rejection sources',()
     const fixture=numericBitwiseCompounds.find(([name])=>name===id);
     assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
     assert.equal(createHash('sha256').update(programSources(fixture).sourceJS).digest('hex'),hash,id);
+  }
+});
+
+test('unary Math call-site type erasure preserves five exact TS sources and JS oracles',()=>{
+  const expected={"math-abs-generic":"563de76a79db6b7ebbd91df53c2f28dd1a8086ab8632483e8b1057e3ea39722e","math-unary-sqrt-generic":"1a5670133f818e0738e0b00d4b8a8a1bdb9645e0941acfcc0834531411846d37","math-unary-floor-generic":"151585822751248ff754ee4c3b09e2c710888db37d5000d6ebb4b3e95865abd4","math-unary-ceil-generic":"cdadbfc58bf3fac84dd41f16574884a56568274b646d907b7f028d6b7d780bca","math-unary-trunc-generic":"2cc41c159e4be0bc12161d7b2fb6f1e9a34ac9634fad22bb5d5113d04c41ada8"};
+  for(const [id,hash] of Object.entries(expected)){
+    const fixture=[...numericMathAbs,...numericMathUnary].find(([name])=>name===id);
+    assert.ok(fixture,id);assert.ok(!rejected.some(([name])=>name===id),id);
+    const {sourceJS,sourceTS,oracleSource}=programSources(fixture);
+    assert.equal(createHash('sha256').update(sourceTS).digest('hex'),hash,id);
+    assert.equal(sourceJS,sourceTS.replace('<number>',''),id);
+    assert.equal(oracleSource,sourceJS,id);
   }
 });

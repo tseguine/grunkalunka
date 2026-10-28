@@ -5080,13 +5080,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-abs-generic",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "563de76a79db6b7ebbd91df53c2f28dd1a8086ab8632483e8b1057e3ea39722e",
-      "group": "function-calls"
-    },
-    {
       "id": "math-abs-global-write",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5206,13 +5199,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-sqrt-generic",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "1a5670133f818e0738e0b00d4b8a8a1bdb9645e0941acfcc0834531411846d37",
-      "group": "function-calls"
-    },
-    {
       "id": "math-unary-sqrt-computed",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5287,13 +5273,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "6f65ef151abbb19617fda307872b8e0022a96e38c7a6b1f087d497b0dac1758c",
-      "group": "function-calls"
-    },
-    {
-      "id": "math-unary-floor-generic",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "151585822751248ff754ee4c3b09e2c710888db37d5000d6ebb4b3e95865abd4",
       "group": "function-calls"
     },
     {
@@ -5374,13 +5353,6 @@
       "group": "function-calls"
     },
     {
-      "id": "math-unary-ceil-generic",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "cdadbfc58bf3fac84dd41f16574884a56568274b646d907b7f028d6b7d780bca",
-      "group": "function-calls"
-    },
-    {
       "id": "math-unary-ceil-computed",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5455,13 +5427,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "b8fb519cb0a710bca186d73b2cb3a58ef0e69c41a5144fbd37a3b8defb16ad0c",
-      "group": "function-calls"
-    },
-    {
-      "id": "math-unary-trunc-generic",
-      "extension": "ts",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2cc41c159e4be0bc12161d7b2fb6f1e9a34ac9634fad22bb5d5113d04c41ada8",
       "group": "function-calls"
     },
     {

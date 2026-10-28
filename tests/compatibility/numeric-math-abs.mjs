@@ -56,7 +56,7 @@ for(const [id,body] of [
  ['dead-unsupported','return 1?a:Math.abs(Math.random());'],
  ]) reject(id,body);
 reject('spread','return Math.abs(...a);','spread call arguments');
-reject('generic','return Math.abs<number>(a);',expression,'ts');
+full('generic','export function run(a,b) { return Math.abs(a); }','export function run(a,b) { return Math.abs<number>(a); }');
 reject('global-write','Math=a; return Math.abs(b);',reference);
 reject('global-update','Math++; return Math.abs(a);',reference);
 reject('property-write','Math.abs=a; return Math.abs(b);',assignment);

@@ -77,7 +77,6 @@ fn math_unary(call: &CallExpression<'_>, semantic: &Semantic<'_>) -> Option<(Una
     };
     let reference = object.reference_id.get()?;
     if call.optional
-        || call.type_arguments.is_some()
         || member.optional
         || object.name != "Math"
         || semantic
