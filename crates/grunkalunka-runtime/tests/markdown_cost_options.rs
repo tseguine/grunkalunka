@@ -3,8 +3,8 @@
 #[path = "../examples/markdown_cost.rs"]
 mod markdown_cost;
 
-use markdown_cost::{MEMORY_PHASES, Options, Series, Workload, parse_options};
 use markdown_cost::process_memory::{ProcessMemory, Snapshot};
+use markdown_cost::{MEMORY_PHASES, Options, Series, Workload, parse_options};
 
 fn args(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
