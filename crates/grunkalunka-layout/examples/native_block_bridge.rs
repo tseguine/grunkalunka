@@ -48,9 +48,36 @@ fn main() {
     ];
     let frame = layout(&blocks, 800, 600).expect("native block bridge must lay out");
     let expected = [
-        ("outer", 2, Rect { x: 0, y: 0, width: 284, height: 86 }),
-        ("first", 3, Rect { x: 16, y: 16, width: 118, height: 42 }),
-        ("second", 4, Rect { x: 12, y: 58, width: 86, height: 16 }),
+        (
+            "outer",
+            2,
+            Rect {
+                x: 0,
+                y: 0,
+                width: 284,
+                height: 86,
+            },
+        ),
+        (
+            "first",
+            3,
+            Rect {
+                x: 16,
+                y: 16,
+                width: 118,
+                height: 42,
+            },
+        ),
+        (
+            "second",
+            4,
+            Rect {
+                x: 12,
+                y: 58,
+                width: 86,
+                height: 16,
+            },
+        ),
     ];
     let entries: Vec<_> = expected
         .iter()
