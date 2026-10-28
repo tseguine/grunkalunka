@@ -14,6 +14,9 @@ of visible blocks, plus scroll extents.
   content widths may overflow. Auto heights contain laid-out children and
   an optional caller-supplied intrinsic content height.
 - Nonnegative integer CSS-pixel margins, borders and padding; no margin collapse.
+- Explicit integer-percentage content widths relative to the containing content
+  width (e.g. 50% of 210 px = 105 px); fractional CSS-pixel results fail
+  explicitly rather than being silently rounded. Values above 100% may overflow.
 - Display:none removes an entire subtree. Changing the display value and
   running layout again restores boxes without modifying document ownership.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
@@ -24,7 +27,8 @@ of visible blocks, plus scroll extents.
 
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
 tokenizer, selectors/cascade, text shaping, inline formatting, negative or auto
-margins, collapsed margins, floats, positioning, percentages, scrollbars,
+margins, collapsed margins, floats, positioning, fractional percent widths,
+percentage heights, scrollbars,
 CSS painting, hit testing, event loop or native window. Input text heights are
 provided by a separate caller, not guessed. All coordinates are unsigned
 integers. This is a small, experimental implementation component, NOT an
@@ -92,3 +96,23 @@ The separate [RGB paint-surface experiment](block-paint.md) can draw solid
 backgrounds and border strips from the block geometry into a bounded PPM
 image. This does not add text/glyph rendering, CSS painting rules, a native
 window or scripting to the block layout or semantic projection modules.
+
+## Whole-percentage widths (small native geometry experiment)
+
+The `Length::Percent(n)` representation denotes a **whole percentage of
+the containing block's content width**. `Percent(50)` in a 210px containing
+content width computes a 105px content width; edges are applied independently.
+The native block engine performs checked `u64` arithmetic and rejects a
+fractional CSS-pixel result with `FractionalPercentageWidth { node }`,
+rather than inventing subpixel rounding that its integer `Rect` cannot
+represent. Excessive percentages causing unrepresentable geometry return
+`Overflow`. `height: Percent(...)` returns `UnsupportedPercentageHeight`
+because percentage height requires a definite containing-block-height model.
+
+`crates/grunkalunka-layout/tests/percentage_width.rs` includes separate
+goldens for parent padding/borders, nested percentages and a following
+sibling, over-100% widths and scroll extents, fractional/overflow failures,
+and display:none isolation. The 210px/50%/105px/119px example deliberately
+aligns with the known mathematical part of the independent baseline browser
+fixture; it is not derived from browser output or evidence of general
+CSS sizing conformance.

@@ -36,6 +36,10 @@ pub enum Length {
     #[default]
     Auto,
     Px(u32),
+    /// Whole percent of the containing content width. Fractional pixel
+    /// results are rejected rather than rounded. Percent heights are not
+    /// supported because they need a definite containing-block height.
+    Percent(u32),
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -118,6 +122,8 @@ pub enum LayoutError {
     InvalidRoot,
     InvalidParent { node: usize },
     TooDeep { node: usize },
+    FractionalPercentageWidth { node: usize },
+    UnsupportedPercentageHeight { node: usize },
     Overflow,
 }
 
@@ -157,6 +163,15 @@ impl Engine<'_> {
         let content_width = match style.width {
             Length::Auto => available_width.saturating_sub(horizontal),
             Length::Px(value) => value,
+            Length::Percent(value) => {
+                let scaled = u64::from(available_width)
+                    .checked_mul(u64::from(value))
+                    .ok_or(LayoutError::Overflow)?;
+                if scaled % 100 != 0 {
+                    return Err(LayoutError::FractionalPercentageWidth { node });
+                }
+                u32::try_from(scaled / 100).map_err(|_| LayoutError::Overflow)?
+            }
         };
 
         let border_left = add(containing_x, style.margin.left)?;
@@ -176,6 +191,7 @@ impl Engine<'_> {
         let content_height = match style.height {
             Length::Auto => natural_height,
             Length::Px(value) => value,
+            Length::Percent(_) => return Err(LayoutError::UnsupportedPercentageHeight { node }),
         };
         let padding_width = add(content_width, padding_x)?;
         let padding_height = add(content_height, padding_y)?;
@@ -225,9 +241,11 @@ impl Engine<'_> {
 
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
-/// Only nonnegative resolved CSS pixels, vertical block flow and display:none
-/// are admitted. Positive margins do not collapse; inline layout, text shaping,
-/// floats, CSS selectors and painting are not provided. Fixed heights may
+/// Only nonnegative resolved integer CSS pixels, vertical block flow,
+/// display:none, and whole percentage widths with exact integral results are
+/// admitted. Percentage heights and fractional pixel widths are rejected.
+/// Positive margins do not collapse; inline layout, text shaping, floats,
+/// CSS selectors and painting are not provided. Fixed heights may
 /// overflow, and all descendants contribute to the resulting scroll extents.
 pub fn layout(
     blocks: &[Block],
