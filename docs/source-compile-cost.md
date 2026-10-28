@@ -35,6 +35,13 @@ Separate warmup compilations must emit **identical WAT and Wasm bytes** to the
 preflight artifact. Each timed batch invokes the *full, public in-process
 compiler API* repeatedly, retaining each emitted artifact in an owned vector.
 After the timer stops, all artifacts must match the original WAT and Wasm bytes.
+After that validation succeeds, a **separate per-batch release timer** measures
+the explicit drop of the retained WAT/Wasm artifacts. The report retains its raw
+`artifactRelease.samplesMs` observations and min/median/max separately from
+the compilation batch times; it never adds one series to the other or silently
+changes the existing measured compiler-API boundary. The preflight golden
+artifact remains alive throughout both series.
+
 This preserves full artifact identity as a correctness check without including
 the byte comparisons inside the timed interval. The timer includes parsing,
 semantic analysis, numeric admission and lowering, IR verification, WAT
@@ -47,11 +54,16 @@ comparable to the standalone Oxc stages or subprocess-based build API.
 The JSON result reports source, WAT and Wasm byte sizes, host OS/architecture,
 workspace version, debug/release profile, exact call controls, first compile
 elapsed milliseconds and every timed batch's raw milliseconds plus min/median/max.
-Results retain source language and fixture identity. There are **no timing
-thresholds, speed rankings, winner selection or implied speedup ratios**.
+Results retain source language and fixture identity. The separate artifact
+release observation measures Rust destructor/deallocation work in this process,
+not all downstream allocator or operating-system memory reclamation. It is not
+part of the public `compile` API timing and is not directly comparable to
+other compiler implementations. There are **no timing thresholds, speed
+rankings, winner selection or implied speedup ratios**.
 The normal Rust workspace test runs tiny 2-sample profiles for all three
 fixtures, checks Wasmtime goldens and source-mode correctness, artifact
-repeatability and output fields, then exercises invalid settings. Existing
+repeatability, independently bounded compilation/release samples and output
+fields, then exercises invalid settings. Existing
 Linux/Windows/macOS CI runs this test; the PR does not change the shared runner,
 compiler, dependencies, or CI platform matrix.
 
