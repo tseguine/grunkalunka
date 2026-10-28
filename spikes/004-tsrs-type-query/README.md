@@ -94,12 +94,15 @@ kinds: an assertion mismatch, mutable aliasing without `any` or assertions, and 
 primitive snapshot taken before the same mutation. Missing Node fails the tests.
 They do not compile those object examples to Wasm or expand supported source.
 
-[Type-query research](../../.github/workflows/type-query.yml) runs these checks on
-Linux for changes to this spike, its workflow or the repository toolchain. It is
-separate from canonical CI, with locked dependency setup and offline execution,
-no artifact uploads, deployment or cancellation policy changes. Do not require
-this path-filtered research check on unrelated PRs. Its dependency graph remains
-outside the main license-screening command; no production adoption is implied.
+These focused tests and formatting checks are now ordinary canonical tests
+registered in [`scripts/check.mjs`](../../scripts/check.mjs) with explicit
+[dependency-selected PR coverage](../../ci/impact/README.md), following
+[PR #159](https://github.com/tseguine/grunkalunka/pull/159). Changes to this
+spike select its locked dependency fetch, formatting and offline checker tests;
+unrelated PRs do not launch a separate research job or build this spike. Full
+`master` CI continues to execute the canonical checks on all three native
+platforms. The spike remains outside the main Cargo workspace and main
+license-screening command; no production adoption is implied.
 [Proposed ADR 0015](../../docs/adr/0015-checker-hints-and-runtime-facts.md) defines
 the intended consumer contract. These witnesses do not implement that contract,
 a general identity validator, or a profitable specialization.
