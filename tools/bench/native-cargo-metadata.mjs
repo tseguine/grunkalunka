@@ -116,7 +116,7 @@ function validateReport(r){
       v.artifact.bytes<=MAX_WASM&&
       Array.isArray(v.invocations)&&v.invocations.length>=2&&
       v.invocations.length<=MAX_ENTRIES,'native '+mode+' metadata mode');
-    let prior='',guest=false,parser=false,fixed=false;
+    let prior='',guest=false,parser=false,flagConsistent=true;
     for(const x of v.invocations){
       const entry=JSON.stringify(x);
       check(x&&/^[A-Za-z_][A-Za-z0-9_]*$/.test(x.crate)&&
@@ -133,11 +133,12 @@ function validateReport(r){
       if(x.target==='wasm32-unknown-unknown'){
         if(x.crate==='outline_guest')guest=true;
         if(x.crate==='pulldown_cmark')parser=true;
-        if(x.metadataValues.includes('p1crosshostfixed'))fixed=true;
+        flagConsistent &&=
+          x.metadataValues.includes('p1crosshostfixed') === (mode === 'fixed');
       }
     }
-    check(guest&&parser&&(mode==='fixed'?fixed:!fixed),
-      'actual Markdown rustc commands with expected metadata control');
+    check(guest&&parser&&flagConsistent,
+      'real guest/parser rustc and expected explicit metadata flags');
   }
   return r;
 }
