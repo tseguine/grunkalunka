@@ -1,0 +1,14 @@
+{
+  "id": "workflow:browser-collector",
+  "file": ".github/workflows/browser-collector.yml",
+  "paths": [
+    "tools/browser-oracles/**",
+    ".github/workflows/browser-collector.yml"
+  ],
+  "requiredFor": [
+    "tools/browser-oracles/**"
+  ],
+  "mustContain": [
+    "node --test tools/browser-oracles/collect.test.mjs"
+  ]
+}
