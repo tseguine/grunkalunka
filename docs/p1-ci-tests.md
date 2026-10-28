@@ -9,7 +9,11 @@ The wildcard lets later P1 `*.test.mjs` cases participate automatically.
 
 The P1 command is selected by the same reverse-dependency rules as the
 rest of canonical CI. A change to a P1 unit-test file alone does **not**
-request new Cargo package builds; changes to actual Rust/compiler sources
+request new Cargo package builds; pure P1-only diagnostic scripts also have
+explicit file ownership under `ci/impact/owners/p1-diagnostic-tools.json`,
+so editing their receipt parsers or optional collectors does not demand an
+unrelated CLI, Markdown or document-outline build. General benchmark-facing
+helpers retain their original Cargo dependencies; changes to actual Rust/compiler sources
 still get their appropriate build closure. Unknown inputs and changes to
 CI itself continue to trigger full verification. Test failures remain fatal.
 
