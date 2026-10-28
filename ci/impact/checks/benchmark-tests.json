@@ -5,7 +5,8 @@
     "--test",
     "tests/build/benchmark.test.mjs",
     "tests/build/benchmark-integration.test.mjs",
-    "tests/build/benchmark-comparison.test.mjs"
+    "tests/build/benchmark-comparison.test.mjs",
+    "tests/build/compare-portable-replays.test.mjs"
   ],
   "dependsOn": [
     "test:benchmark-contracts"
@@ -13,6 +14,7 @@
   "paths": [
     "tests/build/benchmark.test.mjs",
     "tests/build/benchmark-integration.test.mjs",
-    "tests/build/benchmark-comparison.test.mjs"
+    "tests/build/benchmark-comparison.test.mjs",
+    "tests/build/compare-portable-replays.test.mjs"
   ]
 }
