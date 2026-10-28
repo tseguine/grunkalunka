@@ -1,4 +1,4 @@
-use wasmtime::{Store, TypedFunc};
+use wasmtime::{Config, Engine, Instance, Module, Store, TypedFunc};
 
 /// Guest rejection tracking, in occurrence order at each invocation boundary.
 /// IDs are private to one invocation. An embedding reports rejected IDs still
@@ -16,6 +16,37 @@ pub enum AsyncState {
     Pending,
     Fulfilled(super::Value),
     Rejected(super::Value),
+}
+
+/// A compiled import-free async module that can be instantiated repeatedly.
+/// Each activation receives a fresh Store and guest Instance, preserving independent
+/// fuel budgets, queued jobs, rejection identities and mutable guest state.
+/// Keep the prepared module alive while creating new activations.
+pub struct PreparedAsyncModule {
+    engine: Engine,
+    module: Module,
+}
+
+impl PreparedAsyncModule {
+    /// Validate and compile once, rather than recompiling for each input vector.
+    pub fn new(wasm: &[u8]) -> wasmtime::Result<Self> {
+        let mut config = Config::new();
+        config.consume_fuel(true);
+        let engine = Engine::new(&config)?;
+        let module = Module::from_binary(&engine, wasm)?;
+        if module.imports().len() != 0 {
+            wasmtime::bail!("this experiment admits no module imports");
+        }
+        Ok(Self { engine, module })
+    }
+
+    /// Start an isolated async invocation using the already compiled Wasm.
+    pub fn instantiate(&self, a: f64, b: f64) -> wasmtime::Result<AsyncInstance> {
+        let mut store = Store::new(&self.engine, ());
+        store.set_fuel(super::FUEL_PER_CALL)?;
+        let instance = Instance::new(&mut store, &self.module, &[])?;
+        AsyncInstance::start_with_instance(store, instance, a, b)
+    }
 }
 
 /// One invocation. After creation and each callback, enqueue any newly owed
@@ -38,9 +69,18 @@ pub struct AsyncInstance {
 }
 
 impl AsyncInstance {
-    /// Run the synchronous prefix, stopping at the first await or settlement.
+    /// Compile and run one invocation. For multiple input vectors, prefer
+    /// PreparedAsyncModule::new followed by repeated instantiate calls.
     pub fn new(wasm: &[u8], a: f64, b: f64) -> wasmtime::Result<Self> {
-        let (mut store, instance) = super::instantiate(wasm, super::FUEL_PER_CALL)?;
+        PreparedAsyncModule::new(wasm)?.instantiate(a, b)
+    }
+
+    fn start_with_instance(
+        mut store: Store<()>,
+        instance: Instance,
+        a: f64,
+        b: f64,
+    ) -> wasmtime::Result<Self> {
         let start = instance.get_typed_func::<(f64, f64), (i32, i32, f64)>(&mut store, "start")?;
         let resume = instance.get_typed_func(&mut store, "resume")?;
         let take_jobs = instance

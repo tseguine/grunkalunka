@@ -1,5 +1,5 @@
 use grunkalunka_compiler::compile_async;
-use grunkalunka_runtime::{AsyncInstance, AsyncState, Value};
+use grunkalunka_runtime::{AsyncInstance, AsyncState, PreparedAsyncModule, Value};
 use std::{
     io::Write,
     process::{Command, Stdio},
@@ -2808,9 +2808,12 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
         for typescript in [false, true] {
             let artifact = compile_async(source, typescript)
                 .unwrap_or_else(|error| panic!("{source}: {error}"));
+            // One Wasmtime engine + compiled Module per source/mode.
+            // Every vector still receives a fresh Store and Instance.
+            let prepared = PreparedAsyncModule::new(&artifact.wasm).unwrap();
             let mut rust = Vec::new();
             for &(a, b) in vectors {
-                let (state, ticks) = observe_rust_fifo(&artifact.wasm, a, b);
+                let (state, ticks) = observe_rust_fifo(&prepared, a, b);
                 let (kind, value) = match state {
                     AsyncState::Fulfilled(value) => ("fulfilled", value),
                     AsyncState::Rejected(value) => ("rejected", value),
@@ -2827,14 +2830,14 @@ assert.equal(createHash('sha256').update('export async function run(a,b) { retur
 
 // Observe the same external marker chain as Node. Several ready guest jobs may
 // precede one marker; root settlement can precede the last owned guest job.
-fn observe_rust_fifo(wasm: &[u8], a: f64, b: f64) -> (AsyncState, usize) {
+fn observe_rust_fifo(prepared: &PreparedAsyncModule, a: f64, b: f64) -> (AsyncState, usize) {
     use std::collections::VecDeque;
     enum Job {
         Guest,
         Tick(u8),
         Observe(AsyncState),
     }
-    let mut activation = AsyncInstance::new(wasm, a, b).unwrap();
+    let mut activation = prepared.instantiate(a, b).unwrap();
     let mut queue = VecDeque::new();
     let mut scheduled = activation.pending_job_count().unwrap();
     for _ in 0..scheduled {
