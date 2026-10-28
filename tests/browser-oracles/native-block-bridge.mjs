@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { validateCapture } from "./compare.mjs";
 
 const ids = ["outer", "first", "second"];
+const heightIds = ["height-host", "height-first", "height-second"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
 const rectFields = ["x", "y", "width", "height"];
@@ -27,7 +28,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "three border rectangles from an explicit resolved block tree; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "three original and three definite-percentage-height border rectangles from caller-resolved trees; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -92,6 +93,32 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   }
   validateReflow("native", native?.reflow);
   validateReflow("browser", browser?.reflow);
+
+  // Independent CSS percentage-height observations remain a separate
+  // measurement channel; incomplete boxes never count as agreement.
+  function validateHeightBoxes(owner, value) {
+    const path = "$." + owner + ".percentageHeights";
+    if (!record(value) ||
+        Object.keys(value).sort().join(",") !== [...heightIds].sort().join(",")) {
+      error(path, "exactly the three named percentage-height border boxes required");
+      return;
+    }
+    for (const id of heightIds) {
+      const box = value[id];
+      if (!record(box) || Object.keys(box).sort().join(",") !== [...rectFields].sort().join(",")) {
+        error(path + "." + id, "complete percentage-height rectangle required");
+        continue;
+      }
+      for (const field of rectFields) {
+        if (!Number.isFinite(box[field]) ||
+            (["width", "height"].includes(field) && box[field] < 0)) {
+          error(path + "." + id + "." + field, "finite CSS-pixel rectangle required");
+        }
+      }
+    }
+  }
+  validateHeightBoxes("native", native?.percentageHeights);
+  validateHeightBoxes("browser", browser?.percentageHeights);
 
   const targetPhases = ["original", "hidden", "restored"];
   function validateTargets(owner, value) {
@@ -185,6 +212,18 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
             left: left[field], right: right[field],
             path: "$.reflow." + phase + "." + id + "." + field });
         }
+      }
+    }
+  }
+  for (const id of heightIds) {
+    for (const field of rectFields) {
+      const left = native.percentageHeights[id][field];
+      const right = browser.percentageHeights[id][field];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "percentage-height", id, field, left, right,
+          path: "$.percentageHeights." + id + "." + field,
+        });
       }
     }
   }
