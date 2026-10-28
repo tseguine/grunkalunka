@@ -58,10 +58,11 @@ its JSON report to stdout and removes disposable local files.
 
 ## Interpretation and limits
 
-A **passing exact-head hosted run** would establish only that these
-particular native CLI builds emit byte-identical portable core-Wasm for
-this canonical GCD source. Unlike a same-byte *replay*, this experiment
-compiles the source separately on each host. Passing numeric execution
+The successful [exact-head #98 run](https://github.com/tseguine/grunkalunka/actions/runs/40679064547)
+established that independently built native CLI compilers on Linux x64,
+Windows x64 and Apple Silicon ARM64 all emitted the **same 614-byte GCD Wasm**,
+SHA-256 `85524b17227917bbfafa71fce3129a2003c8a84e21ba9c32c0cc7f4183980bce`.
+Unlike a same-byte *replay*, this experiment compiles the source separately on each host. Passing numeric execution
 does not alone satisfy the stricter artifact identity check.
 
 The observation is not a guarantee of build reproducibility for all

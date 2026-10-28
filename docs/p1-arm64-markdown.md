@@ -29,11 +29,14 @@ a cross-host identity comparison or attestation of compiler provenance.
 
 The successful [exact-head #84 ARM64 run](https://github.com/tseguine/grunkalunka/actions/runs/40653367674)
 demonstrated **only** this bounded Rust Markdown guest and typed WIT component
-pipeline on Linux ARM64. It would not establish
-general application portability, full JavaScript compatibility, identical
-guest binaries across architectures, host memory attribution, macOS ARM64
-behavior or performance parity. The existing workload limits remain in
-effect; the workflow has an overall watchdog, not a speed gate.
+pipeline on Linux ARM64. Later [canonical #98 CI](https://github.com/tseguine/grunkalunka/actions/runs/40679064524)
+ran the same Markdown/WIT tests on Linux x64, Windows x64 and native Apple
+Silicon ARM64. Their separately built guest SHA-256 values **differed**;
+correctness checks passed. Neither observation establishes general application
+portability, full JavaScript compatibility, identical guest binaries across
+architectures, host memory attribution or performance parity. The existing
+workload limits remain in effect; the workflow has an overall watchdog,
+not a speed gate.
 
 Cross-platform host/guest code generation identity and broader app workloads
 remain future P1 questions, not results claimed by this smoke.
