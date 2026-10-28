@@ -75,3 +75,35 @@ separate correctness evidence; this experiment does not replace them.
 
 P1 remains open for broader application portability, attributable memory,
 measured cost boundaries and independent build reproducibility.
+
+## Defined-function body localization (follow-up experiment)
+
+Section-level digests previously established that both the executable code and
+data sections differ across the native hosts. A different code-section hash,
+however, cannot tell whether one or hundreds of individual function bodies
+differ.
+
+The [same P1 optional workflow](../.github/workflows/p1-markdown-guest-sections.yml)
+now also records a **bounded, ordered vector of complete SHA-256 digests** for
+each size-prefixed function body in the standard Wasm code section, plus body
+byte lengths. The scanner decodes only the code-section vector and its
+lengths; it **does not** parse Wasm instructions, infer source function names,
+associate local bodies with imports, or claim that ordinal equality establishes
+semantic equivalence. Invalid count/length boundaries and incomplete vectors
+fail closed. To avoid inflated reports, at most 4,096 defined functions are
+admitted, with a 256 KiB receipt limit.
+
+Comparisons report both hosts' defined-function counts. If the counts match,
+they report the number of differing ordinal bodies, an upper bound on the
+combined sizes of those bodies, and the first 24 differing **defined-function
+indices**, while preserving the raw section-level hashes. If the counts differ,
+they explicitly mark positional body comparison as unavailable. Full hashes
+remain in the bounded input receipts; only aggregate differences are printed
+in the comparison report.
+
+This further localizes *where* native builds diverge, not *why* they diverge.
+Even one changed body can shift function references and affect other sections;
+identical body bytes do not establish identical executable behavior. An
+unexplained mismatch remains a diagnostic observation, not a failing
+reproducibility or performance gate. The prior native Markdown capability
+checks remain separate functional evidence.
