@@ -160,5 +160,5 @@ fn represented_promise_comparisons_keep_erasure_and_await_site_limits() {
     }
     let snapshot =
         "const f=async()=>{await a;return b;};const p=f();return p===Promise.resolve(b);";
-    assert!(compile_async(&source_for(snapshot), false).is_err());
+    compare_promises(&[snapshot], &[(4.0, 2.0), (0.0, -0.0)]);
 }

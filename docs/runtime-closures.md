@@ -320,10 +320,10 @@ export async function run(a, b) {
 }
 ```
 
-Immediate settled snapshots cannot yet be stored, discarded, coerced, tested
-or passed as source Promise parameters. Their conversion to identity records and
-async-return adoption remain open. Pending-capable identity calls use the separate
-source path below.
+Completed async source results now materialize once into identity records. They
+can be stored, discarded, tested for truthiness, passed through homogeneous
+Promise parameters and adopted on async return. Source object coercion and
+general Promise payloads remain open; the logical snapshots remain internal.
 Maintained source tests compare JS/TS native execution with Node-Wasm and Wasmtime
 outcomes, primitive bits, callee/actual/capture snapshots and complete reaction
 traces. They retain 1,000/1,001 parameter and 32/33 await boundaries and compare
@@ -469,5 +469,10 @@ identities from fulfilled/settled completion snapshots. Construction is eager an
 non-suspending; repeated calls allocate distinct records and preserve aliases,
 payload kinds and rejection status. Await and async-return adoption retain their
 existing reaction semantics. Constructor-only modules link the same guest kernel.
-This is tested executable IR support; frontend snapshot constructors and their
-alias/return normalization remain a separate source-lowering gap.
+The async frontend now uses this operation for completed source constructors and
+immediate async results. Alias reads preserve the handle; synchronous callbacks,
+factories and captured bindings retain it, and async returns adopt it. Completed
+and pending results share the private Promise interface. Immediate bodies retain
+compact synchronous completion code; only suspending/adopting constructors need
+coroutine frames. Existing host protocols, record widths and budgets are unchanged.
+General Strings/payloads, thenables and Promise/scalar unions remain open.

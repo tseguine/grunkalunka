@@ -117,6 +117,7 @@ impl Lowering<'_, '_> {
             let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
                 return false;
             };
+            asynchronous |= self.pending_promise_shape(expression, depth);
             match expression {
                 Expression::ConditionalExpression(conditional) => {
                     selected = true;

@@ -81,6 +81,18 @@ fn lower_source_profile(
     entry_type: ir::Type,
     async_entry: bool,
 ) -> Result<ir::Module, String> {
+    lower_source_profile_with_identities(source, typescript, entry_type, async_entry, async_entry)
+}
+
+// Snapshot IR fixtures can exercise the logical completion operations without
+// depending on the public async frontend's constructor normalization.
+fn lower_source_profile_with_identities(
+    source: &str,
+    typescript: bool,
+    entry_type: ir::Type,
+    async_entry: bool,
+    identities: bool,
+) -> Result<ir::Module, String> {
     if source.len() > 16_384 {
         return Err("source exceeds this experiment's 16 KiB limit".into());
     }
@@ -227,7 +239,7 @@ fn lower_source_profile(
         });
     }
     let closure_signatures = std::cell::RefCell::new(ir::ClosureSignatures::default());
-    let promise_parameters = lower::infer_promise_parameters(&built.semantic);
+    let promise_parameters = lower::infer_promise_parameters(&built.semantic, identities);
     let callback_parameters = lower::infer_callback_parameters(
         &built.semantic,
         &signatures,
@@ -239,6 +251,7 @@ fn lower_source_profile(
         &signatures,
         &callback_parameters,
         &closure_signatures.borrow(),
+        &promise_parameters,
     );
     general_bindings
         .async_results

@@ -63,8 +63,11 @@ impl Lowering<'_, '_> {
                 }
                 Expression::CallExpression(call) => {
                     if let Some(intrinsic) = awaited::intrinsic(call, self.semantic).ok().flatten()
-                        && !intrinsic.rejected
+                        && (self.promise_parameters.identities || !intrinsic.rejected)
                     {
+                        if self.promise_parameters.identities {
+                            continue;
+                        }
                         let Some(argument) = intrinsic.argument else {
                             return false;
                         };

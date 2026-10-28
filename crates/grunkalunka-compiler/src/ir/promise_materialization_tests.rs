@@ -384,11 +384,12 @@ fn materialized_snapshots_keep_intrinsic_error_identity_and_settlement() {
     let body = format!(
         "{cycle}try{{await p;}}catch(e){{const h=a?async x=>x:async x=>{{throw x;}};try{{const x=await h(e);return a?x===e:false;}}catch(x){{return a?false:x===e;}}}}"
     );
-    let mut module = crate::lower_source_profile(
+    let mut module = crate::lower_source_profile_with_identities(
         &format!("export async function run(a,b){{{body}}}"),
         false,
         Type::General,
         true,
+        false,
     )
     .unwrap();
     let mut changed = 0;

@@ -1,5 +1,15 @@
 # Experimental primitive async profile
 
+In this async source profile, represented Promise constructors produce stable
+identities. `Promise.resolve` over supported values, `Promise.reject`, and
+immediate or suspending async calls now share the `Promise` interface. Aliases,
+captured bindings and homogeneous private parameters retain the handle;
+`Promise.resolve(p)` returns the same represented Promise. Returning a Promise
+from an async body adopts it. See [source constructor identities](#source-constructor-identities).
+The snapshot descriptions below also explain the internal completion operations
+and earlier optimizations; their former source escape restrictions are superseded.
+
+
 `grunkalunka_compiler::compile_async(source, typescript)` accepts one exported
 `async function run(a,b)` with Number inputs and undefined/null/Boolean/Number
 fulfillment values or rejection reasons, and up to 32 await
@@ -156,14 +166,12 @@ Constructor groups join throwing async arrows with fulfilling async or synchrono
 fulfilled-Promise peers. Selection, reassignment, returned factories and supported
 callback forwarding preserve code, input and captured-cell snapshots.
 
-Settled source results must reach an immediate await, optionally through a
-synchronous result-forwarding call or a conditional/comma result. An unshadowed
-`Promise.resolve` wrapper without surplus intrinsic arguments is also admitted.
-Fulfilled branches explicitly promote their snapshots. Storing, discarding,
-coercing, testing or passing potentially rejected snapshots as Promise inputs
-remains guarded: these uses need unhandled-rejection tracking. Returning one from
-an async body requires adoption, which remains open. General payloads and
-snapshot-to-identity conversion also remain open; pending records are described below.
+Closed completion snapshots now materialize into stable identities when their
+source results escape the direct-await optimization. Rejected results can be
+stored, discarded, tested for truthiness, passed through homogeneous Promise
+parameters and adopted on async return. Rejection notifications retain the
+existing host-checkpoint policy. Numeric/String coercion of Promise objects,
+general payloads and thenables remain separate work.
 Known directly awaited async calls retain their existing `AwaitCall` boundary.
 
 Runtime-selected async bodies with their own await now use async private effects and
@@ -213,8 +221,9 @@ root settlement is exposed at each boundary. Node bridges these notifications to
 native rejected Promise proxies, leaving checkpoint reporting to the host;
 Wasmtime exposes `take_promise_notifications()` for an embedding's checkpoint
 policy. Awaiting a child later in the same checkpoint prevents a false unhandled
-event. See [pending source values](runtime-closures.md#pending-source-values). Snapshot
-adoption, mixed snapshot/identity storage and general payloads remain open.
+event. See [pending source values](runtime-closures.md#pending-source-values).
+Completed and pending source Promises now share identities; general payloads and
+thenable resolution remain open.
 
 Pending identities can now be passed through homogeneous source parameters in
 known calls, runtime-selected functions, higher-order callbacks and factories.
@@ -223,9 +232,8 @@ arguments to a fixed point; annotations supply no runtime evidence. Every actual
 argument and body must still match the inferred private signature. A parameter
 retains the passed handle across suspension, captures and later caller binding
 replacement. Synchronous helpers may return that same identity; async returns
-now adopt pending identities as described below. Fulfilled snapshots retain their
-separate representation. Mixed pending/scalar or pending/snapshot input domains
-remain unsupported. Tests execute 32-parameter calls and separately check the
+now adopt identities as described below. Completed and pending source Promises
+share one private interface. Mixed Promise/scalar input domains remain unsupported. Tests execute 32-parameter calls and separately check the
 existing 1,000-parameter admission bound; wide admission is not a production-fuel
 guarantee.
 
@@ -467,6 +475,28 @@ rejection. Repeated execution creates distinct identities; aliases retain one.
 IR execution tests cover await, adoption, equality, synchronous private creators
 and native rejection checkpoints. See [the IR contract](ir.md#completion-snapshot-materialization).
 
-Source constructor/alias normalization remains open. In particular, allocation
-must occur once at creation, rather than whenever a snapshot alias is read.
-Existing source snapshot guards and mixed-interface restrictions remain in force.
+### Source constructor identities
+
+Constructor normalization now allocates once at creation in the async source
+profile, never on an alias read. Immediate primitive async bodies keep compact
+closed completion operations and materialize the result; bodies that suspend or
+adopt use coroutine frames. Synchronous factories and callbacks can return the
+same handle. Fulfilled and rejected primitive constructors preserve payloads,
+status, eager effects and left-to-right argument evaluation, including ignored
+surplus arguments that suspend. Construction adds no reaction or handling;
+await and async-return adoption retain their distinct job sequences.
+
+The completed-record kernel helper specializes fresh allocation and settlement,
+retaining canonical payload validation, the arena cap and rejection events.
+Immutable General/Fulfilled SSA carriers can share physical locals; mutable slots
+remain separate. Modules with no coroutine functions keep root globals across
+reactions without redundant frame spills. Modules with coroutine children retain
+spills and restores. The default 10,000 fuel and 32-job limits are unchanged;
+the existing 140-constructor and 1,000-argument stress cases still execute.
+
+Maintained source tests compare values and full microtask traces in native JS,
+Node-Wasm and Wasmtime. Former source guards also execute through native
+checkpoint reporting and default-budget Wasmtime, including detached rejections.
+General Strings, arbitrary objects/functions/Promises as payloads or rejection
+reasons, custom thenables and mixed Promise/scalar private interfaces remain open.
+Ordinary numeric/value profiles retain their narrower contracts.

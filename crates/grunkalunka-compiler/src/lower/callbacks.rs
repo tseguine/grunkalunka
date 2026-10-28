@@ -631,7 +631,9 @@ fn refine_shapes<'a>(
             );
         signatures.borrow_mut().intern(
             parameter_types(arrow, parameters, &kinds.inputs, promise_parameters),
-            if !arrow.r#async && promise_parameters.results.contains(&body) {
+            if (promise_parameters.identities || !arrow.r#async)
+                && promise_parameters.results.contains(&body)
+            {
                 Type::Promise
             } else if synchronous_settled {
                 Type::SettledPromise
@@ -693,6 +695,7 @@ fn refine_shapes<'a>(
                 functions,
                 &working,
                 &signatures.borrow(),
+                promise_parameters,
             );
             demands.clear();
             for call in calls {
@@ -765,8 +768,13 @@ fn refine_shapes<'a>(
         // target shapes after any demanded-formal promotion in this phase.
         demands.clear();
         let mut target_refined = false;
-        let general =
-            storage::general_mutable_bindings(semantic, functions, &working, &signatures.borrow());
+        let general = storage::general_mutable_bindings(
+            semantic,
+            functions,
+            &working,
+            &signatures.borrow(),
+            promise_parameters,
+        );
         for call in calls {
             let (sources, _) = origins(&call.callee, semantic);
             let expected = function_kind(&call.callee, &working, false, &general);

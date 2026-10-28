@@ -450,10 +450,6 @@ pub(crate) enum Op {
     },
     /// Allocate a fresh Promise identity from a completion snapshot. This is a
     /// constructor effect, not an identity-preserving cast or an alias read.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     MaterializePromise {
         result: ValueId,
         input: ValueId,

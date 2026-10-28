@@ -1,9 +1,18 @@
 use super::*;
 
+fn snapshot_profile(
+    source: &str,
+    typescript: bool,
+    entry_type: Type,
+    async_entry: bool,
+) -> Result<Module, String> {
+    crate::lower_source_profile_with_identities(source, typescript, entry_type, async_entry, false)
+}
+
 #[test]
 fn fulfilled_promise_closure_results_keep_logical_signatures() {
     let make = || {
-        crate::lower_source_profile(
+        snapshot_profile(
             "export async function run(a,b){let f=x=>Promise.resolve(x);return await f(a);}",
             false,
             Type::General,
@@ -50,7 +59,7 @@ fn fulfilled_promise_closure_results_keep_logical_signatures() {
 #[test]
 fn fulfilled_promise_inline_results_keep_return_and_async_contracts() {
     let make = || {
-        crate::lower_source_profile(
+        snapshot_profile(
         "export async function run(a,b){const make=x=>{return Promise.resolve(x);};const p=make(a);return await p;}",
         false, Type::General, true,
     ).unwrap()
@@ -98,7 +107,7 @@ fn fulfilled_promise_inline_results_keep_return_and_async_contracts() {
 }
 
 fn module() -> Module {
-    crate::lower_source_profile(
+    snapshot_profile(
         "export async function run(a,b){const p=Promise.resolve(a);return await p;}",
         false,
         Type::General,
@@ -157,7 +166,7 @@ fn fulfilled_promise_wraps_and_projections_require_distinct_types() {
 
 #[test]
 fn fulfilled_promises_cannot_be_public_entry_results() {
-    let mut module = crate::lower_source_profile(
+    let mut module = snapshot_profile(
         "export function run(a,b){const p=Promise.resolve(a);return a;}",
         false,
         Type::General,
@@ -188,7 +197,7 @@ fn fulfilled_promises_cannot_be_public_entry_results() {
 
 #[test]
 fn fulfilled_promises_cannot_be_public_parameters() {
-    let mut module = crate::lower_source_profile(
+    let mut module = snapshot_profile(
         "export function run(a,b){return b;}",
         false,
         Type::General,

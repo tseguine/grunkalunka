@@ -812,9 +812,9 @@ saves/restores the frame before the registration callback. Both callbacks use
 the existing reaction queue and runtime job budget, with no new host ABI, kernel
 record layout or explicit await-site charge.
 
-This does not complete Promise compatibility. Snapshot adoption, thenables, general
-payloads, snapshot identity conversion, mixed snapshot/identity storage, mixed
-pending/scalar input interfaces and independently escaping Promises remain open. Detached
+This does not complete Promise compatibility. Source snapshots now normalize to
+identities before escape and adoption. Thenables, general payloads, mixed
+Promise/scalar input interfaces and independently escaping Promises remain open. Detached
 primitive rejection reporting is covered by
 [pending source values](runtime-closures.md#pending-source-values). Maintained IR
 tests compare complete native Promise/Node-Wasm microtask traces; separate runtime
@@ -897,7 +897,7 @@ rejects other input kinds, undefined inputs and non-Promise results. Each execut
 allocates once, even for the same snapshot; copying the result retains that identity.
 This is a constructor effect, not a cast or an allocation on alias access.
 
-Emission reuses `$promise_new` and `$promise_settle`, preserving the completion's
+Emission uses the fresh-record `$promise_completed` kernel helper, preserving the completion's
 canonical kind, payload and rejection status, including intrinsic Error identity.
 Construction adds no reaction or job and does not mark a rejection handled.
 The result supports existing identity equality, await, adoption and synchronous
@@ -907,8 +907,16 @@ No Promise layout, physical lane width or host interface changes are needed.
 
 Maintained IR tests compare native JavaScript and Node-Wasm results and complete
 microtask traces, including repeated helper calls, Error payloads, adoption and
-detached rejection reporting. This unit provides the IR bridge only. Source
-constructor/alias normalization must place materialization once at construction,
-retain aliases and preserve the existing identity path for `Promise.resolve(p)`.
-It does not yet admit snapshot identity comparisons or snapshot async returns
-from source, mixed Promise interfaces, general payloads or thenables.
+detached rejection reporting. The async frontend now uses this bridge for
+completed source constructors and immediate async results, allocating once and
+retaining aliases. `Promise.resolve(p)` preserves the existing identity. Those
+values support comparison and async-return adoption, including through homogeneous
+private interfaces. General payloads, Promise/scalar unions and thenables remain.
+
+The fresh-record helper validates canonical kind/payload/status and initializes
+the existing header directly, avoiding checks for previous settlement or waiters
+that a new record cannot have. Fixed 32-byte allocation preserves alignment,
+memory-growth checks and the 1 MiB arena cap. Rejected creation emits the existing
+notification. General/Fulfilled immutable SSA pairs may share physical locals;
+source slots remain separate. Snapshot IR fixtures explicitly exercise the
+logical operations independently of frontend constructor normalization.

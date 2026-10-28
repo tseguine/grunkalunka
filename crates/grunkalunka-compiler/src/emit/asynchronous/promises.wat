@@ -29,6 +29,37 @@
   call $promise_alloc local.tee $p i32.const 0x50524d53 i32.store
   local.get $p)
 
+;; A completed snapshot creates a fresh record with no waiters or handler.
+;; Validate the same payload as settlement, without rechecking a new pointer or
+;; zeroing fields immediately before overwriting them.
+(func $promise_completed (param $rejected i32) (param $tag i32)
+  (param $payload f64) (result i32) (local $p i32) (local $end i32)
+  ;; Number payloads have no bit-pattern restriction. Keep the status check;
+  ;; every other kind uses the complete canonical payload validator.
+  local.get $tag i32.const 3 i32.eq
+  if local.get $rejected i32.const 1 i32.gt_u if unreachable end
+  else local.get $rejected local.get $tag local.get $payload call $promise_payload end
+  ;; Constant-size specialization of closure_frame: same alignment, arena cap
+  ;; and checked memory growth, without dynamic size/alignment checks.
+  global.get $cell_top local.tee $p i32.eqz
+  if i32.const 16 local.set $p end
+  local.get $p i32.const 32 i32.add local.tee $end
+  i32.const 1048576 i32.gt_u if unreachable end
+  local.get $end memory.size i32.const 16 i32.shl i32.gt_u
+  if
+    local.get $end i32.const 65535 i32.add i32.const 16 i32.shr_u
+    memory.size i32.sub memory.grow i32.const -1 i32.eq if unreachable end
+  end
+  local.get $end global.set $cell_top
+  local.get $p i64.const 0x0000000150524d53 i64.store
+  local.get $rejected if local.get $p i32.const 2 i32.store offset=4 end
+  local.get $p local.get $tag i64.extend_i32_u i64.store offset=8
+  local.get $p local.get $payload f64.store offset=16
+  local.get $p i64.const 0 i64.store offset=24
+  local.get $rejected
+  if local.get $p i32.const 1 local.get $tag local.get $payload call $promise_event end
+  local.get $p)
+
 (func $promise_state (param $p i32) (result i32)
   local.get $p call $promise_check
   local.get $p i32.load offset=4)

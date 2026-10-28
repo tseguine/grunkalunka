@@ -61,7 +61,9 @@ impl Lowering<'_, '_> {
             }
         }
         let mut result = if arrow.r#async {
-            if awaited::owns_throw(arrow, self.semantic)
+            if self.promise_parameters.identities {
+                Type::Promise
+            } else if awaited::owns_throw(arrow, self.semantic)
                 || self.settled_results.contains(&arrow.node_id.get())
             {
                 Type::SettledPromise
@@ -104,6 +106,16 @@ impl Lowering<'_, '_> {
         bindings: &BTreeMap<SymbolId, Option<usize>>,
         calls: usize,
     ) -> Type {
+        // Original-source provenance also sees aliases declared inside a block
+        // before this definition checker has lowered their local bindings.
+        if !arrow.r#async
+            && self
+                .promise_parameters
+                .results
+                .contains(&arrow.node_id.get())
+        {
+            return Type::Promise;
+        }
         if !arrow.r#async
             && storage::arrow_returns(arrow, self.semantic).is_some_and(|results| {
                 !results.is_empty()
@@ -783,9 +795,14 @@ impl Lowering<'_, '_> {
                 );
                 result
             }
-        } else if arrow.r#async && return_type == Type::SettledPromise {
-            // This private body closes its primitive rejection synchronously;
-            // only the caller's AwaitSettled schedules a reaction.
+        } else if arrow.r#async
+            && (return_type == Type::SettledPromise
+                || (return_type == Type::Promise
+                    && (awaited::owns_throw(arrow, self.semantic)
+                        || self.settled_results.contains(&arrow.node_id.get()))))
+        {
+            // Close the primitive completion synchronously. Materialization below
+            // adds no job; the caller's await schedules its reaction.
             child.allow_await = true;
             let region = if let Some(expression) = arrow.get_expression() {
                 let mut region = child.region(arrow);
@@ -807,7 +824,14 @@ impl Lowering<'_, '_> {
                     body: region,
                 },
             );
-            result
+            if return_type == Type::Promise {
+                let input = result;
+                let result = child.value(Type::Promise);
+                Self::push(&mut body, arrow, Op::MaterializePromise { result, input });
+                result
+            } else {
+                result
+            }
         } else if arrow.r#async {
             let input = if let Some(expression) = arrow.get_expression() {
                 child
@@ -828,7 +852,14 @@ impl Lowering<'_, '_> {
             };
             let result = child.value(Type::FulfilledPromise);
             Self::push(&mut body, arrow, Op::FulfillPromise { result, input });
-            result
+            if return_type == Type::Promise {
+                let input = result;
+                let result = child.value(Type::Promise);
+                Self::push(&mut body, arrow, Op::MaterializePromise { result, input });
+                result
+            } else {
+                result
+            }
         } else if let Some(expression) = arrow.get_expression() {
             if let Type::Closure(signature) = return_type {
                 child.function_value(expression, &mut body, signature, 0)?

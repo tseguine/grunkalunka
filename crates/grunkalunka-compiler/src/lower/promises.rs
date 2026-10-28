@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Default)]
 pub(crate) struct Inputs {
+    pub(super) identities: bool,
     fulfilled: BTreeSet<SymbolId>,
     pending: BTreeSet<SymbolId>,
     pub(super) values: BTreeSet<SymbolId>,
@@ -62,8 +63,11 @@ fn pending_shape(
             }
             Expression::CallExpression(call) => {
                 if let Some(intrinsic) = awaited::intrinsic(call, semantic).ok().flatten()
-                    && !intrinsic.rejected
+                    && (inputs.identities || !intrinsic.rejected)
                 {
+                    if inputs.identities {
+                        continue;
+                    }
                     let Some(argument) = intrinsic.argument else {
                         return false;
                     };
@@ -116,7 +120,7 @@ fn callees(
     (!bodies.is_empty()).then_some(bodies)
 }
 
-pub(crate) fn parameters(semantic: &Semantic<'_>) -> Inputs {
+pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
     let mut arrows = BTreeMap::new();
     let mut definitions = Vec::new();
     let mut calls = Vec::new();
@@ -161,7 +165,7 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> Inputs {
                 has_constructor |= awaited::intrinsic(call, semantic)
                     .ok()
                     .flatten()
-                    .is_some_and(|intrinsic| !intrinsic.rejected);
+                    .is_some_and(|intrinsic| identities || !intrinsic.rejected);
                 calls.push(call);
             }
             _ => (),
@@ -281,13 +285,15 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> Inputs {
         }
     }
     let mut inputs = Inputs {
+        identities,
         fulfilled: promises,
         ..Inputs::default()
     };
     inputs
         .results
         .extend(arrows.iter().filter_map(|(id, arrow)| {
-            (arrow.r#async && !awaited::immediate_async_arrow(arrow, semantic)).then_some(*id)
+            (arrow.r#async && (identities || !awaited::immediate_async_arrow(arrow, semantic)))
+                .then_some(*id)
         }));
     // Match the existing async effect interface shared by selected constructors.
     loop {
@@ -303,7 +309,11 @@ pub(crate) fn parameters(semantic: &Semantic<'_>) -> Inputs {
             break;
         }
     }
-    inputs.asynchronous = inputs.results.clone();
+    inputs
+        .asynchronous
+        .extend(arrows.iter().filter_map(|(id, arrow)| {
+            (arrow.r#async && !awaited::immediate_async_arrow(arrow, semantic)).then_some(*id)
+        }));
     loop {
         let old = (
             inputs.values.len(),

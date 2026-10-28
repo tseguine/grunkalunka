@@ -174,6 +174,7 @@ enum Work<'e, 'a> {
     PendingTruthy(&'e Expression<'a>),
     AwaitSettled(&'e Expression<'a>, Option<usize>),
     FulfillPromise(&'e Expression<'a>),
+    CreatePromise(&'e Expression<'a>, bool),
     PromotePromise(&'e Expression<'a>),
     PromiseValue(&'e Expression<'a>),
     PromiseTruthy(&'e Expression<'a>),
@@ -837,6 +838,34 @@ impl Lowering<'_, '_> {
                         Op::FulfillPromise { result, input },
                     );
                     values.push(Value::Promise(result));
+                }
+                Work::CreatePromise(node, rejected) => {
+                    let payload = values.pop().expect("Promise constructor payload").general();
+                    let input = if rejected {
+                        let mut body = self.region(node);
+                        body.exit = Exit::Throw(payload);
+                        let result = self.value(Type::SettledPromise);
+                        Self::push(regions.current(), node, Op::SettlePromise { result, body });
+                        result
+                    } else {
+                        let result = self.value(Type::FulfilledPromise);
+                        Self::push(
+                            regions.current(),
+                            node,
+                            Op::FulfillPromise {
+                                result,
+                                input: payload,
+                            },
+                        );
+                        result
+                    };
+                    let result = self.value(Type::Promise);
+                    Self::push(
+                        regions.current(),
+                        node,
+                        Op::MaterializePromise { result, input },
+                    );
+                    values.push(Value::Pending(result));
                 }
                 Work::PromiseValue(node) => {
                     let input = values.pop().expect("awaited Promise").promise();
@@ -2123,6 +2152,32 @@ impl Lowering<'_, '_> {
                             continue;
                         }
                         if let Expression::CallExpression(call) = node {
+                            if self.promise_parameters.identities
+                                && let Some(intrinsic) = awaited::intrinsic(call, self.semantic)
+                                    .map_err(|message| unsupported(node, message))?
+                                && (intrinsic.rejected
+                                    || !intrinsic.argument.is_some_and(|argument| {
+                                        self.pending_promise_shape(argument, depth + 1)
+                                    }))
+                            {
+                                work.push(Work::CreatePromise(node, intrinsic.rejected));
+                                for extra in intrinsic.extras.iter().rev() {
+                                    work.push(Work::Eval(
+                                        extra
+                                            .as_expression()
+                                            .expect("validated intrinsic argument"),
+                                        depth + 1,
+                                        Mode::Discard,
+                                    ));
+                                }
+                                if let Some(argument) = intrinsic.argument {
+                                    work.push(Work::Eval(argument, depth + 1, Mode::General));
+                                } else {
+                                    let input = self.undefined_value(node, regions.current());
+                                    values.push(Value::General(input));
+                                }
+                                continue;
+                            }
                             if let Some(intrinsic) = awaited::intrinsic(call, self.semantic)
                                 .map_err(|message| unsupported(node, message))?
                                 && !intrinsic.rejected

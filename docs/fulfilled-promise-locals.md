@@ -1,5 +1,13 @@
 # Stored fulfilled primitive Promises
 
+The async source profile now gives these constructors stable Promise identities;
+aliases, homogeneous private parameters and async returns preserve/adopt the
+handle. `Promise.reject` and immediate async calls use the same identity interface.
+See [the current async contract](async.md#source-constructor-identities). Snapshot
+types below remain logical IR operations and the narrower synchronous-profile
+representation; they no longer restrict async source identity or adoption.
+
+
 Initialized `const` and `let` locals can hold an unshadowed `Promise.resolve` over
 Undefined, Null, Boolean or Number. The payload evaluates once at construction:
 

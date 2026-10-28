@@ -633,7 +633,6 @@ fn function_results_do_not_cross_unsupported_kinds_or_runtime_signatures() {
         "const id=fn=>fn;return +id(()=>a);",
         "const choose=(f,g,c)=>c?f:g;const h=choose(()=>a,x=>x,a);return h();",
         "const choose=(f,g,c)=>c?f:g;const h=choose(()=>a,b,a);return h();",
-        "const id=fn=>fn;const f=id(async()=>a);return f();",
         "const id=fn=>fn;const f=id?.(()=>a);return f();",
         "const id=fn=>fn;const f=id(...a);return f();",
         "const id=fn=>fn;const f=id(()=>a);return f?.();",
@@ -807,7 +806,6 @@ fn local_callback_constraints_reject_conflicting_kinds_and_runtime_signatures() 
     for body in [
         "const apply=(fn,x)=>fn(x);return apply(a,b);",
         "const apply=fn=>fn();return apply(x=>x);",
-        "const apply=(fn,x)=>fn(x);return apply(async x=>x,b);",
         "const apply=fn=>{fn=a;return fn();};return apply(()=>a);",
         "const apply=fn=>fn;return apply(()=>a);",
         "const apply=(fn,x)=>fn?.(x);return a;",
@@ -1690,7 +1688,6 @@ fn higher_order_signatures_reject_mixed_parameter_kinds_and_non_leaf_callbacks()
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn+x;return h(y=>y,b);",
         "let h=(fn,x)=>fn(x);h=(fn,x)=>fn+x;return h(y=>y,b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(a,b);",
-        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(async y=>y,b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h((g,y)=>g(y),b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(y=>()=>y,b);",
         "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h?.(y=>y,b);",
@@ -2110,7 +2107,6 @@ fn runtime_factory_results_require_matching_parameter_and_result_chains() {
         "let make=x=>()=>x;make=x=>x;return make(a)();",
         "let make=x=>()=>null;make=x=>y=>false;return make(a)();",
         "let make=x=>y=>()=>x+y;make=x=>()=>()=>x;return a;",
-        "let make=x=>async()=>x;return make(a)();",
         "let make=x=>()=>x;return make(a);",
         "let make=x=>()=>x;return +make(a);",
         "let make=x=>()=>x;return make?.(a)();",
@@ -2547,6 +2543,22 @@ fn function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack() 
                 assert!(!admitted);
                 assert!(error.contains("128"), "{error}");
             }
+        }
+    }
+}
+
+#[test]
+fn promise_returning_callbacks_keep_synchronous_profile_guards() {
+    for body in [
+        "let make=x=>async()=>x;return make(a)();",
+        "const h=a?(fn,x)=>fn(x):(fn,x)=>fn(x);return h(async y=>y,b);",
+        "const apply=(fn,x)=>fn(x);return apply(async x=>x,b);",
+        "const id=fn=>fn;const f=id(async()=>a);return f();",
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            assert!(compile(&source, typescript).is_err(), "{source}");
+            assert!(compile_value(&source, typescript).is_err(), "{source}");
         }
     }
 }

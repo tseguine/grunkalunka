@@ -363,5 +363,12 @@ snapshot to an opaque Promise identity. It reuses the existing allocator and
 settlement kernel, preserving kinds and status without changing lanes or record
 headers. An implicit cast on every alias read would create incorrect identities;
 source normalization must allocate once at construction and retain the result.
-Executable IR tests establish the bridge, including private synchronous creators,
-while frontend adoption of this operation remains outstanding.
+The async frontend now adopts this operation for completed constructors and
+immediate async results. Source aliases retain identity and async returns adopt;
+homogeneous completed/pending inputs share one private handle interface. Compact
+immediate bodies avoid unnecessary coroutine frames. Fresh-record construction
+specializes fixed allocation and settlement with the same validation, cap and
+notifications. Pure General/Fulfilled SSA carriers can share physical locals;
+mutable source slots cannot. Root spills are omitted only when no coroutine
+function can overwrite globals. Existing 10,000-fuel and 32-job limits remain,
+with executed stress regressions rather than widened budgets.

@@ -167,8 +167,10 @@ impl Emitter<'_> {
                 Op::FulfillPromise { result, input }
                 | Op::PromiseValue { result, input }
                 | Op::PromotePromise { result, input } => {
-                    self.get(*input);
-                    self.set(*result);
+                    if self.value_offsets[result.0] != self.value_offsets[input.0] {
+                        self.get(*input);
+                        self.set(*result);
+                    }
                 }
                 Op::MaterializePromise { result, input } => {
                     self.materialize_promise(*result, *input)
@@ -772,7 +774,7 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
             current
         })
         .collect();
-    let value_offsets = function
+    let mut value_offsets: Vec<usize> = function
         .values
         .iter()
         .map(|ty| {
@@ -783,6 +785,7 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
         .collect();
     let cell_offsets = cells::offsets(function, &mut offset);
     let arena_temp = closures::temporary(function, offset);
+    layout::share_fulfilled_storage(function, &mut value_offsets);
     let mut emitter = Emitter {
         function,
         slot_offsets,

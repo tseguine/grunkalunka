@@ -9,10 +9,17 @@ pub(super) struct Frame<'a> {
     pub lanes: Vec<&'static str>,
     start: usize,
     header: usize,
+    needs_spills: bool,
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(function: &'a ir::Function, start: usize, queued: bool, errors: bool) -> Self {
+    pub fn new(
+        function: &'a ir::Function,
+        start: usize,
+        queued: bool,
+        errors: bool,
+        needs_spills: bool,
+    ) -> Self {
         let mut lanes = Vec::new();
         let mut offsets = Vec::new();
         for ty in function
@@ -28,11 +35,13 @@ impl<'a> Frame<'a> {
         let cell_offsets = cells::offsets(function, &mut offset);
         let arena_temp = closures::temporary(function, offset);
         lanes.resize(offset - start + usize::from(arena_temp.is_some()), "i32");
+        let mut value_offsets = offsets[function.slots.len()..].to_vec();
+        layout::share_fulfilled_storage(function, &mut value_offsets);
         Self {
             emitter: Emitter {
                 function,
                 slot_offsets: offsets[..function.slots.len()].to_vec(),
-                value_offsets: offsets[function.slots.len()..].to_vec(),
+                value_offsets,
                 cell_offsets,
                 arena_temp,
                 output: String::new(),
@@ -45,6 +54,7 @@ impl<'a> Frame<'a> {
             lanes,
             start,
             header: if queued { 32 } else { HEADER },
+            needs_spills,
         }
     }
 
@@ -57,6 +67,11 @@ impl<'a> Frame<'a> {
     }
 
     pub fn spill(&self, output: &mut String) {
+        // Synchronous private helpers own Wasm locals. Without coroutine children
+        // no activation can overwrite this invocation's persistent globals.
+        if !self.needs_spills {
+            return;
+        }
         for (index, lane) in self.lanes.iter().enumerate() {
             writeln!(
                 output,
@@ -69,6 +84,9 @@ impl<'a> Frame<'a> {
     }
 
     pub fn restore(&self, output: &mut String) {
+        if !self.needs_spills {
+            return;
+        }
         for (index, lane) in self.lanes.iter().enumerate() {
             writeln!(
                 output,

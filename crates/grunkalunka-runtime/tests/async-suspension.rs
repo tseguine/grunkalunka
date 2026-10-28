@@ -28,6 +28,9 @@ mod promise_equality;
 #[path = "async-suspension/settled_errors.rs"]
 mod settled_errors;
 
+#[path = "async-suspension/source_identities.rs"]
+mod source_identities;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -361,7 +364,6 @@ fn suspending_async_closures_keep_pending_and_signature_guards() {
         "const f=a?async x=>{await a;return x;}:async x=>{await b;return x;};return await f();",
         "let f=async x=>{await a;return x;};return await f?.(b);",
         "let f=async x=>{await a;return x;};return await f(...a);",
-        "let f=async()=>{await a;return Promise.resolve(b);};return await f();",
         "let f=async()=>{await a;throw Promise.resolve(b);};return await f();",
         "let f=async()=>{await a;return 'x';};return await f();",
         "let f=async()=>{await a;return {};};return await f();",
@@ -490,19 +492,8 @@ fn throwing_async_closures_forward_through_private_callbacks() {
 #[test]
 fn throwing_async_closures_keep_unobserved_rejections_guarded() {
     for body in [
-        "let f=async()=>{throw a;};const p=f();return await p;",
-        "let f=async()=>{throw a;};f();return b;",
-        "let f=async()=>{throw a;};return void f();",
         "let f=async()=>{throw a;};return +f();",
-        "let f=async()=>{throw a;};if(f())return a;return b;",
-        "let f=async()=>{throw a;};return f();",
         "let f=async()=>{throw a;};return await Promise.reject(f());",
-        "let f=async()=>{throw a;};return await Promise.resolve(f(),await b);",
-        "let f=async()=>{throw a;};return await(f()&&Promise.resolve(b));",
-        "let f=async()=>{throw a;};return await(f()||Promise.resolve(b));",
-        "let f=async()=>{throw a;};const take=p=>p;return await take(f());",
-        "let f=async()=>{throw a;};const g=async()=>f();return await g();",
-        "let f=async()=>{throw a;};const g=()=>{f();return b;};return g();",
         "const f=a?async()=>{throw 'x';}:async()=>b;return await f();",
         "const f=a?async()=>{throw {};}:async()=>b;return await f();",
         "const f=a?async()=>{throw ()=>a;}:async()=>b;return await f();",
@@ -564,10 +555,8 @@ fn eager_async_closures_preserve_values_and_jobs() {
 #[test]
 fn eager_async_closures_keep_completion_and_domain_guards() {
     for body in [
-        "const f=a?async()=>Promise.resolve(a):async()=>Promise.resolve(b);return await f();",
         "const f=a?async()=>()=>a:async()=>()=>b;return await f();",
         "const f=a?async()=>({}):async()=>({});return await f();",
-        "const f=a?async()=>a:async()=>b;return f();",
         "const f=a?async x=>x:async x=>x;return await f();",
         "const f=a?async x=>x:async x=>x;return await f(...a);",
         "const f=a?async x=>x:async x=>x;return await f?.(b);",
@@ -734,7 +723,6 @@ fn awaited_intrinsic_inputs_do_not_need_a_prior_successful_call() {
 #[test]
 fn awaited_input_facts_keep_intrinsic_and_promise_object_guards() {
     for body in [
-        "const f=x=>x;return f(Promise.resolve(null));",
         "const Promise=a;const f=x=>x;return f(await Promise.resolve(null));",
         "const f=x=>x;return f(await Promise.resolve?.(null));",
         "const f=x=>x;return f(await Promise.resolve(...a));",
@@ -955,9 +943,6 @@ fn source_promise_parameters_keep_erasure_domains_and_await_bounds() {
         "let id=p=>p;id(Promise.resolve(a));return await id(b);",
         "const apply=(fn,p)=>fn(p);return await apply(x=>x,Promise.resolve(a))+apply(x=>x,b);",
         "const id=p=>{p=b;return p;};return await id(Promise.resolve(a));",
-        "const id=async p=>p;return await id(Promise.resolve(a));",
-        "const id=p=>p;return await id(Promise.reject(a));",
-        "const id=p=>p;return id(Promise.resolve(a));",
         "const id=p=>p;return +id(Promise.resolve(a));",
         "const id=p=>p;return await id?.(Promise.resolve(a));",
         "const id=p=>p;return await id(...a);",
@@ -1116,8 +1101,6 @@ fn known_promise_results_keep_erasure_interfaces_and_completion_guards() {
         }
     }
     for body in [
-        "const make=x=>Promise.resolve(x);return make(a);",
-        "const make=async()=>Promise.resolve(a);return await make();",
         "const make=()=>{if(a)return Promise.resolve(b);};return b;",
         "const make=()=>{if(a)return Promise.resolve(b);return a;};return b;",
         "const make=()=>{const p=p;return p;};return a;",
@@ -1158,12 +1141,10 @@ fn runtime_promise_results_keep_logical_interfaces_and_bounds() {
         }
     }
     for body in [
-        "let f=()=>Promise.resolve(a);return f();",
         "let f=()=>Promise.resolve(a);return +f();",
         "let f=()=>Promise.resolve(a);f=()=>b;return await f();",
         "const f=a?()=>Promise.resolve(b):()=>b;return await f();",
         "const apply=(fn,x)=>fn(x);apply(x=>x,a);return await apply(x=>Promise.resolve(x),b);",
-        "let f=async()=>Promise.resolve(a);return await f();",
         "let f=()=>f();return await f();",
         "const f=a?()=>missing():()=>Promise.resolve(a);return await f();",
         "const f=a?()=>{if(a)return Promise.resolve(b);}:()=>Promise.resolve(a);return await f();",
@@ -1292,12 +1273,9 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
     }
     for body in [
         "const p=Promise.resolve(a);p=Promise.resolve(b);return await p;",
-        "let p=Promise.resolve(a);p=Promise.reject(b);return await p;",
         "let p=Promise.resolve(a);p=null;return await p;",
         "let p; p=Promise.resolve(b);return await p;",
-        "const p=Promise.resolve(a);return p;",
         "const p=Promise.resolve(a);return +p;",
-        "const p=Promise.resolve(a);return p===p;",
         "const p=Promise.resolve(a);return await (p&&a);",
         "const p=Promise.resolve(a);throw p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
@@ -1425,9 +1403,6 @@ fn promise_intrinsic_arguments_keep_erasure_and_resource_boundaries() {
 #[test]
 fn stored_fulfilled_promises_keep_object_and_intrinsic_boundaries() {
     for body in [
-        "const p=Promise.reject(a);return await p;",
-        "const p=Promise.resolve(a);return p;",
-        "const p=Promise.resolve(a);return p===p;",
         "const p=Promise.resolve(a);return +p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
         "const Promise=a;const p=Promise.resolve(b);return await p;",
@@ -3474,9 +3449,7 @@ fn known_async_arrows_fulfill_primitives_without_extra_jobs() {
 #[test]
 fn known_async_arrows_keep_promise_object_and_body_boundaries() {
     for body in [
-        "const f=async()=>a;return f();",
         "const f=async()=>a;return f;",
-        "const f=async()=>Promise.reject(b);return await f();",
         "const f=async()=>()=>a;return await f();",
         "const f=async()=>{return ()=>a;};return await f();",
         "const f=async()=>'';return await f();",
@@ -3908,7 +3881,7 @@ fn void_preserves_async_jobs_effects_and_rejection() {
         ],
     );
     let body = "const f=async()=>Promise.reject(a);return void await f();";
-    assert!(compile_async(&source_for(body), false).is_err(), "{body}");
+    compare_promises(&[body], &[(4.0, 2.0), (0.0, -0.0)]);
 }
 
 #[test]

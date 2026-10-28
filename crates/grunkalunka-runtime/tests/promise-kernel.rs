@@ -12,6 +12,7 @@ fn wasm() -> Vec<u8> {
     let kernel = include_str!("../../grunkalunka-compiler/src/emit/asynchronous/promises.wat");
     let exports = [
         ("new", "promise_new"),
+        ("completed", "promise_completed"),
         ("state", "promise_state"),
         ("settle", "promise_settle"),
         ("result", "promise_result"),
@@ -76,6 +77,87 @@ fn instance() -> (Store<()>, Instance) {
     store.set_fuel(10_000_000).unwrap();
     let instance = Instance::new(&mut store, &module, &[]).unwrap();
     (store, instance)
+}
+
+#[test]
+fn completed_records_preserve_payloads_freshness_and_canonical_validation() {
+    for rejected in [0, 1] {
+        let (mut store, instance) = instance();
+        let completed = instance
+            .get_typed_func::<(i32, i32, f64), i32>(&mut store, "completed")
+            .unwrap();
+        let result = instance
+            .get_typed_func::<i32, (i32, i32, f64)>(&mut store, "result")
+            .unwrap();
+        let event = instance
+            .get_typed_func::<(), (i32, i32, i32, f64)>(&mut store, "event")
+            .unwrap();
+        let issued = instance
+            .get_typed_func::<(), i32>(&mut store, "issued")
+            .unwrap();
+        let mut ids = std::collections::BTreeSet::new();
+        for (tag, payload) in [
+            (0, 0.0),
+            (1, 0.0),
+            (2, 0.0),
+            (2, 1.0),
+            (3, -0.0),
+            (3, f64::NAN),
+            (3, f64::INFINITY),
+        ] {
+            for _ in 0..2 {
+                let p = completed
+                    .call(&mut store, (rejected, tag, payload))
+                    .unwrap();
+                assert!(p >= 16 && p % 16 == 0 && ids.insert(p));
+                let actual = result.call(&mut store, p).unwrap();
+                assert_eq!((actual.0, actual.1), (rejected, tag));
+                assert!(
+                    actual.2.is_nan() && payload.is_nan()
+                        || actual.2.to_bits() == payload.to_bits()
+                );
+                let notification = event.call(&mut store, ()).unwrap();
+                if rejected == 1 {
+                    assert_eq!(
+                        (notification.0, notification.1, notification.2),
+                        (1, p, tag)
+                    );
+                    assert!(
+                        notification.3.is_nan() && payload.is_nan()
+                            || notification.3.to_bits() == payload.to_bits()
+                    );
+                } else {
+                    assert_eq!(notification, (0, 0, 0, 0.0));
+                }
+                assert_eq!(issued.call(&mut store, ()).unwrap(), 0);
+            }
+        }
+        for invalid in [
+            (2, 3, 0.0),
+            (-1, 3, 0.0),
+            (2, 0, 0.0),
+            (0, 4, 0.0),
+            (0, 0, -0.0),
+            (1, 1, 1.0),
+            (0, 2, -0.0),
+            (1, 2, 2.0),
+        ] {
+            assert!(completed.call(&mut store, invalid).is_err(), "{invalid:?}");
+        }
+    }
+    let (mut store, instance) = instance();
+    let completed = instance
+        .get_typed_func::<(i32, i32, f64), i32>(&mut store, "completed")
+        .unwrap();
+    while completed.call(&mut store, (0, 3, 2.0)).is_ok() {}
+    assert!(
+        store.get_fuel().unwrap() > 0,
+        "arena guard must precede fuel exhaustion"
+    );
+    let top = instance
+        .get_typed_func::<(), i32>(&mut store, "top")
+        .unwrap();
+    assert!(top.call(&mut store, ()).unwrap() <= 1_048_576);
 }
 
 #[test]

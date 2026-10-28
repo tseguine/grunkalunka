@@ -90,8 +90,6 @@ fn pending_promise_returns_keep_erasure_and_distinct_site_job_budgets() {
     }
     for body in [
         "const f=async()=>{await a;return b;};const p=f();return a?p:b;",
-        "return Promise.resolve(b);",
-        "const f=async()=>Promise.reject(b);return f();",
         "const f=async()=>{await a;return {};};return f();",
     ] {
         for ts in [false, true] {

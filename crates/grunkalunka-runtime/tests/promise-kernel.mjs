@@ -12,6 +12,26 @@ function bits(value) {
   view.setFloat64(0, value);
   return view.getBigUint64(0).toString(16).padStart(16, '0');
 }
+
+for (const rejected of [0, 1]) {
+  const kernel = new WebAssembly.Instance(module).exports, ids = new Set();
+  for (const [tag, payload] of [[0,0],[1,0],[2,0],[2,1],[3,-0],[3,NaN],[3,Infinity]]) {
+    for (let i = 0; i < 2; i++) {
+      const p = kernel.completed(rejected,tag,payload);
+      assert(p >= 16 && p % 16 === 0 && !ids.has(p)); ids.add(p);
+      const actual = kernel.result(p);
+      assert.deepEqual(actual.slice(0,2),[rejected,tag]);
+      assert(Object.is(actual[2],payload));
+      const event = kernel.event();
+      if (rejected) { assert.deepEqual(event.slice(0,3),[1,p,tag]); assert(Object.is(event[3],payload)); }
+      else assert.deepEqual(event,[0,0,0,0]);
+      assert.equal(kernel.issued(),0);
+    }
+  }
+  for (const invalid of [[2,3,0],[-1,3,0],[2,0,0],[0,4,0],[0,0,-0],[1,1,1],[0,2,-0],[1,2,2]]) {
+    assert.throws(() => kernel.completed(...invalid),WebAssembly.RuntimeError);
+  }
+}
 function native(trace) {
   return {
     new() { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return {promise,resolve,reject}; },

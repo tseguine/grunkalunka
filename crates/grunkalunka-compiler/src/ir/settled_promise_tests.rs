@@ -542,11 +542,12 @@ fn settled_region(
 }
 
 fn settled_seed(body: &str, rejected: bool, typescript: bool) -> Module {
-    let mut module = crate::lower_source_profile(
+    let mut module = crate::lower_source_profile_with_identities(
         &format!("export async function run(a,b){{{body}}}"),
         typescript,
         Type::General,
         true,
+        false,
     )
     .unwrap();
     let settle_type = |ty: &mut Type| {

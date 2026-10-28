@@ -544,7 +544,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             frames.push(None);
             continue;
         }
-        let frame = frames::Frame::new(function, types.len(), queued, errors);
+        let frame = frames::Frame::new(function, types.len(), queued, errors, has_async);
         types.extend(frame.lanes.iter().copied());
         frames.push(Some(frame));
     }

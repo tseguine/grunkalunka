@@ -352,10 +352,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
             region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
             closure.factory = true;
         } else {
-            closure.result = if check.arrow_fulfilled_promise_result(arrow) {
+            let inferred = check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
+            closure.result = if inferred == Type::Promise {
+                inferred
+            } else if check.arrow_fulfilled_promise_result(arrow) {
                 Type::FulfilledPromise
             } else {
-                check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new())
+                inferred
             };
             region = check.arrow_block_result(arrow, 0, closure.result)?;
         }

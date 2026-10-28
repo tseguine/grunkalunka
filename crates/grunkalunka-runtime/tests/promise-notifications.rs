@@ -6,6 +6,64 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "async-suspension/promoted_identities.rs"]
+mod promoted_identities;
+
+fn promoted_identity_case(source: &str, typescript: bool) -> String {
+    fn bits(value: Value) -> String {
+        match value {
+            Value::Undefined => "undefined".into(),
+            Value::Null => "null".into(),
+            Value::Boolean(value) => value.to_string(),
+            Value::Number(value) if value.is_nan() => "nan".into(),
+            Value::Number(value) => format!("{:016x}", value.to_bits()),
+            Value::TypeError { .. } => {
+                panic!("promoted primitive fixtures must not create TypeErrors")
+            }
+        }
+    }
+    let wasm = compile_async(source, typescript).unwrap().wasm;
+    let mut rows = Vec::new();
+    for (a, b) in [
+        (4.0, 2.0),
+        (4.0, -0.0),
+        (4.0, f64::NAN),
+        (0.0, f64::INFINITY),
+        (0.0, -0.0),
+    ] {
+        let mut run = AsyncInstance::new(&wasm, a, b).unwrap();
+        let mut events = run.take_promise_notifications().unwrap();
+        while run.run_one_job().unwrap() {
+            events.extend(run.take_promise_notifications().unwrap());
+        }
+        let mut unhandled = Vec::new();
+        for event in events {
+            match event {
+                PromiseNotification::Rejected { id, reason } => unhandled.push((id, bits(reason))),
+                PromiseNotification::Handled { id } => unhandled.retain(|(p, _)| *p != id),
+            }
+        }
+        let (status, value) = match run.state().unwrap() {
+            AsyncState::Fulfilled(value) => ("fulfilled", value),
+            AsyncState::Rejected(value) => ("rejected", value),
+            AsyncState::Pending => panic!("drained promoted fixture is still pending: {source}"),
+        };
+        rows.push(format!(
+            "{{\"value\":[{status:?},{:?}],\"unhandled\":[{}]}}",
+            bits(value),
+            unhandled
+                .iter()
+                .map(|(_, reason)| format!("{reason:?}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+    }
+    format!(
+        "{{\"source\":{source:?},\"wasm\":{wasm:?},\"rust\":[{}]}}",
+        rows.join(",")
+    )
+}
+
 const BODIES: &[&str] = &[
     "const f=async()=>{await a;throw b;};f();return a;",
     "const f=async()=>{await a;throw void 0;};f();return a;",
@@ -20,6 +78,11 @@ const BODIES: &[&str] = &[
     "const f=async()=>{await a;throw b;};const g=async()=>{try{await f();}catch(e){throw e;}};g();return a;",
     "const f=async()=>{await a;throw b;};const use=async p=>await p;use(f());return a;",
     "const f=async()=>{await a;throw b;};const p=f();const use=async p=>p;use(p);return a;",
+    "Promise.reject(b);return a;",
+    "const f=async()=>{throw b;};f();return a;",
+    "const p=Promise.reject(b);const q=Promise.resolve(p);return p===q?a:a;",
+    "const p=Promise.reject(b),q=Promise.reject(b);return p!==q?a:a;",
+    "const p=Promise.reject(b);await a;try{await p;}catch(e){}return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -99,12 +162,12 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                     .unwrap()
                     .wasm;
                 let mut run = AsyncInstance::new(&wasm, 4.0, reason).unwrap();
-                if index == 0 {
+                if index == 0 || (13..=16).contains(&index) {
                     assert!(matches!(
                         run.state().unwrap(),
                         AsyncState::Fulfilled(Value::Number(4.0))
                     ));
-                    assert_eq!(run.pending_job_count().unwrap(), 1);
+                    assert_eq!(run.pending_job_count().unwrap(), usize::from(index == 0));
                 }
                 let mut events = run.take_promise_notifications().unwrap();
                 while run.run_one_job().unwrap() {
@@ -129,15 +192,19 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         }
                     }
                 }
-                if [5, 6, 7].contains(&index) {
+                if [5, 6, 7, 17].contains(&index) {
                     assert!(unhandled.is_empty(), "{body}");
-                    if index == 6 || index == 7 {
+                    if [6, 7, 17].contains(&index) {
                         assert_eq!(events.len(), 2);
                     } else {
                         assert!(events.is_empty());
                     }
                 } else {
-                    assert_eq!(unhandled.len(), if index == 8 { 2 } else { 1 }, "{body}");
+                    assert_eq!(
+                        unhandled.len(),
+                        if [8, 16].contains(&index) { 2 } else { 1 },
+                        "{body}"
+                    );
                     assert_eq!(events.len(), if index == 12 { 3 } else { unhandled.len() });
                     let first = unhandled.values().next().unwrap();
                     match (index, *first) {
@@ -145,9 +212,11 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (2, Value::Null)
                         | (3, Value::Boolean(false))
                         | (4, Value::Boolean(true)) => {}
-                        (0 | 8 | 9 | 10 | 11 | 12, Value::Number(x)) => assert!(
-                            x.is_nan() && reason.is_nan() || x.to_bits() == reason.to_bits()
-                        ),
+                        (0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16, Value::Number(x)) => {
+                            assert!(
+                                x.is_nan() && reason.is_nan() || x.to_bits() == reason.to_bits()
+                            )
+                        }
                         _ => panic!("unexpected reason {first:?} in {body}"),
                     }
                 }
@@ -167,6 +236,11 @@ fn node_reports_detached_child_rejections_like_native_promises() {
                 "{{\"source\":{source:?},\"wasm\":{:?}}}",
                 compiled.wasm
             ));
+        }
+    }
+    for source in promoted_identities::SOURCES {
+        for typescript in [false, true] {
+            cases.push(promoted_identity_case(source, typescript));
         }
     }
     for (kind, id, tag, payload, next) in [

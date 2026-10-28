@@ -106,7 +106,7 @@ the saved native4/guestpending counterexample now returns4 in both Wasm hosts.
 General relational IR now closes the saved Error `e<=e` counterexample, preserves
 operand snapshots through calls/suspension, and distinguishes equal intrinsic
 Error strings from object IDs and explicit numeric NaN coercion. General strings,
-snapshot adoption and mixed pending/scalar or pending/snapshot inputs remain gaps.
+Promise/scalar unions and general Promise payloads remain gaps.
 Represented Promise values now support strict/loose equality and inequality,
 preserving alias identity, distinct calls, captured snapshots and operand jobs.
 Comparison does not handle rejection or equate a Promise with its completion or
@@ -114,8 +114,11 @@ numeric ID. Immediate settled async results now also preserve Error payloads and
 their fulfillment/rejection status through a disjoint backend status bit; direct
 inline and previous primitive cases remain controls. A tested IR materialization
 operation now creates fresh identities from fulfilled/settled snapshots without
-adding jobs or handling rejection. Source constructor/alias normalization and
-General String coercion remain open.
+adding jobs or handling rejection. Async source constructors now materialize once,
+preserve aliases, support homogeneous private forwarding and adopt on async return.
+Completed and pending results share identities. Default fuel/job limits stay fixed;
+former source guards execute against native JS, Node-Wasm and Wasmtime, including
+detached rejection checkpoints. General String coercion and general payloads remain open.
 This does not close general Promise support or L5.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.
@@ -145,7 +148,7 @@ changing those streams' scope or the maintainer's priorities.
 | L2 — mutable control flow | Demonstrated | Numeric mutation, lexical blocks, `if`/`else`, early returns, numeric truthiness and `while`/`for`/`do...while`; the initial L2 run had 72 JS/TS pairs, 177,696 comparisons and 100 rejections. NaN/±0 conditions, nested loops, per-entry initialization and selected branches agree with JS. A separate runtime test observes OutOfFuel and successful instance reuse. Numeric compound assignments, prefix/postfix updates and parenthesized write statements are now admitted. Unlabelled break/continue now target the nearest while/for/do loop; switch, labels and other control forms remain explicit compatibility gaps. |
 | L3 — functions and modules | In progress | Numeric helpers preserve ordered argument snapshots and self/mutual recursion. Initialized local/runtime function pairs, returned closures and captured cells work in the [admitted scalar/callback domains](runtime-closures.md). General function forms, nested declarations and module graphs/initialization remain. |
 | L4 — JS value semantics | In progress | Undefined, Null, Boolean and Number values and their admitted coercions have executable coverage. The separate [experimental String/JSON source profile](heap-literals.md) and [JSON guest operations](json.md) admit bounded literal-origin parse/stringify chains outside the shared General-value lowerer. General source strings, arrays, objects/prototypes and a general heap/GC strategy remain open. |
-| L5 — exceptions, closures and async | In progress | Local/runtime closures preserve captured cells and scoped block returns. The async profile preserves represented primitives and internal function pairs across suspension. [Lexical async catch and primitive source throw](async-catch.md) have differential result/job-order tests. Non-suspending primitive async closures use fulfilled or settled snapshots; throwing results require immediate await or synchronous forwarding. General synchronous exceptions, finally, recursive initialization, mixed pending/scalar input domains and general Promise/thenable values remain. Homogeneous pending inputs now retain handles through known/runtime calls, callbacks, captures and synchronous forwarding. Detached primitive child rejections and later handling now use guest FIFO notifications, Node native checkpoint reporting and a consuming Wasmtime API; this does not complete arbitrary Promise objects or HTML event-loop policy. No blanket compatibility claim from these slices. |
+| L5 — exceptions, closures and async | In progress | Local/runtime closures preserve captured cells and scoped block returns. The async profile preserves represented primitives and internal function pairs across suspension. [Lexical async catch and primitive source throw](async-catch.md) have differential result/job-order tests. Immediate primitive async closures materialize stable Promise identities from compact completions; stored rejection, homogeneous forwarding and async-return adoption are supported. General synchronous exceptions, finally, recursive initialization, mixed pending/scalar input domains and general Promise/thenable values remain. Homogeneous pending inputs now retain handles through known/runtime calls, callbacks, captures and synchronous forwarding. Detached primitive child rejections and later handling now use guest FIFO notifications, Node native checkpoint reporting and a consuming Wasmtime API; this does not complete arbitrary Promise objects or HTML event-loop policy. No blanket compatibility claim from these slices. |
 | T1 — tsrs integration | Research gate | Pin source; perform one real type query associated with an expression; compare tsrs-only against Oxc+tsrs representations. Type information must not erase observable JS behavior. |
 
 L1/L2 retain an explicitly numeric ABI during the experiment. They expand a

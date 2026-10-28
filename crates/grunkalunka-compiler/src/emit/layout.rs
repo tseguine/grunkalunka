@@ -3,6 +3,17 @@
 //! locals, suspended storage, captured cells and closure argument frames.
 use crate::ir::Type;
 
+// FulfillPromise changes the logical kind of an immutable SSA pair, not its
+// physical bits. Sharing value storage preserves later uses of both values;
+// mutable source slots always retain their separate storage.
+pub(super) fn share_fulfilled_storage(function: &crate::ir::Function, offsets: &mut [usize]) {
+    crate::ir::visit_operations(&function.body, &mut |op| {
+        if let crate::ir::Op::FulfillPromise { result, input } = op {
+            offsets[result.0] = offsets[input.0];
+        }
+    });
+}
+
 // Settled snapshots share General's tag/payload lanes. Reserve a status bit
 // outside the canonical value-kind range so Error tag 4 remains a value kind.
 pub(super) const SETTLED_REJECTED_BIT: u32 = 1 << 31;

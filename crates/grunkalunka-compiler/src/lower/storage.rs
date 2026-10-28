@@ -283,6 +283,7 @@ pub(crate) fn general_mutable_bindings(
     functions: &[NumericFunction],
     callback_parameters: &super::callbacks::Parameters,
     signatures: &ir::ClosureSignatures,
+    promises: &super::promises::Inputs,
 ) -> BindingKinds {
     // Also retain non-Number facts for immutable definitions: nested signature
     // queries may inspect their captures before those definitions are lowered.
@@ -573,7 +574,7 @@ pub(crate) fn general_mutable_bindings(
             continue;
         };
         let runtime_input = static_constructor(&call.callee, &static_targets)
-            .is_none_or(|body| arrows[&body].r#async);
+            .is_none_or(|body| arrows[&body].r#async || promises.results.contains(&body));
         let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
         for source in sources {
             if let Some(known) = targets.get(&source) {

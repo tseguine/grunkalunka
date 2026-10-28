@@ -23,7 +23,7 @@ async function observe(run,inputs) {
   } finally {process.off('unhandledRejection',listener);process.off('rejectionHandled',handled);}
 }
 const cases=JSON.parse(readFileSync(0,'utf8'));
-for (const [index,{source,wasm,protocol,later}] of cases.entries()) {
+for (const [index,{source,wasm,protocol,later,rust}] of cases.entries()) {
   if(protocol) {
     const reasons=[];
     const listener=reason=>reasons.push(reason);
@@ -38,8 +38,16 @@ for (const [index,{source,wasm,protocol,later}] of cases.entries()) {
     continue;
   }
   const native=new Function(source.replace('export ','')+';return run;')();
-  for (const inputs of [[[4,2]],[[4,-0]],[[4,NaN]],[[0,Infinity]],[[4,2],[0,-0]]]) {
+  for (const [vectorIndex,inputs] of [[[4,2]],[[4,-0]],[[4,NaN]],[[0,Infinity]],[[4,2],[0,-0]]].entries()) {
     const expected=await observe(native,inputs);
+    if(rust) {
+      const rows=(inputs.length===1?[vectorIndex]:[0,4]).map(i=>rust[i]);
+      assert.deepEqual(rows.map(row=>row.value),expected.values,source);
+      if(inputs.length===1) {
+        assert(expected.reasons.every(event=>event[0]==='unhandled'));
+        assert.deepEqual(rows[0].unhandled,expected.reasons.map(event=>event[1]),source);
+      }
+    }
     if(index<2 && inputs.length===1) assert.deepEqual(expected.reasons,[['unhandled',bits(inputs[0][1]),1]]);
     const actual=await observe(createAsyncFunction(Uint8Array.from(wasm)),inputs);
     assert.deepEqual(actual,expected,source);
