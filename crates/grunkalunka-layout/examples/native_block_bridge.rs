@@ -41,15 +41,15 @@ fn hit_targets(frame: &Frame) -> Vec<Option<&'static str>> {
     ];
     PROBES
         .iter()
-        .map(|&(_, x, y)| {
-            match hit_test(frame, &nodes, x, y).expect("headless hit test") {
+        .map(
+            |&(_, x, y)| match hit_test(frame, &nodes, x, y).expect("headless hit test") {
                 Some(2) => Some("outer"),
                 Some(3) => Some("first"),
                 Some(4) => Some("second"),
                 None | Some(0) | Some(1) => None,
                 Some(other) => panic!("unexpected input node {other}"),
-            }
-        })
+            },
+        )
         .collect()
 }
 
