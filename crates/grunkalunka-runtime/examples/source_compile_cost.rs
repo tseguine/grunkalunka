@@ -178,25 +178,34 @@ pub struct Report {
     pub wasm_bytes: usize,
     pub first_compile_ms: f64,
     pub samples_ms: Vec<f64>,
+    pub release_ms: Vec<f64>,
     pub golden_cases: usize,
+}
+
+// Keep each observed series in its original measurement order, reporting
+// distribution statistics separately without making a performance judgment.
+fn statistics(samples: &[f64]) -> (String, f64, f64, f64) {
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let middle = sorted.len() / 2;
+    let median = if sorted.len().is_multiple_of(2) {
+        sorted[middle - 1] / 2.0 + sorted[middle] / 2.0
+    } else {
+        sorted[middle]
+    };
+    let ordered = samples
+        .iter()
+        .map(|value| format!("{value:.9}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    (ordered, sorted[0], median, *sorted.last().unwrap())
 }
 
 impl Report {
     pub fn json(&self) -> String {
-        let mut sorted = self.samples_ms.clone();
-        sorted.sort_by(f64::total_cmp);
-        let middle = sorted.len() / 2;
-        let median = if sorted.len().is_multiple_of(2) {
-            sorted[middle - 1] / 2.0 + sorted[middle] / 2.0
-        } else {
-            sorted[middle]
-        };
-        let samples = self
-            .samples_ms
-            .iter()
-            .map(|value| format!("{value:.9}"))
-            .collect::<Vec<_>>()
-            .join(",");
+        let (samples, min, median, max) = statistics(&self.samples_ms);
+        let (release_samples, release_min, release_median, release_max) =
+            statistics(&self.release_ms);
         let language = if self.options.workload == Workload::AffineTs {
             "ts"
         } else {
@@ -208,7 +217,7 @@ impl Report {
             "release"
         };
         format!(
-            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"watBytes":{wat_bytes},"wasmBytes":{wasm_bytes}}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"goldenCases":{golden_cases}}}"#,
+            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"watBytes":{wat_bytes},"wasmBytes":{wasm_bytes}}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"artifactRelease":{{"unit":"milliseconds per batch","samplesMs":[{release_samples}],"minMs":{release_min:.9},"medianMs":{release_median:.9},"maxMs":{release_max:.9}}},"goldenCases":{golden_cases}}}"#,
             case = self.options.workload.name(),
             sample_count = self.options.samples,
             iterations = self.options.iterations,
@@ -220,8 +229,12 @@ impl Report {
             wat_bytes = self.wat_bytes,
             wasm_bytes = self.wasm_bytes,
             first = self.first_compile_ms,
-            min = sorted[0],
-            max = sorted.last().unwrap(),
+            min = min,
+            max = max,
+            release_samples = release_samples,
+            release_min = release_min,
+            release_median = release_median,
+            release_max = release_max,
             golden_cases = self.golden_cases,
         )
     }
@@ -247,6 +260,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     drop(warmed);
 
     let mut samples_ms = Vec::with_capacity(options.samples);
+    let mut release_ms = Vec::with_capacity(options.samples);
     for _ in 0..options.samples {
         let started = Instant::now();
         // This timing includes each complete public API compile and holding the
@@ -254,6 +268,11 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         let artifacts = batch(source, ts, options.iterations)?;
         samples_ms.push(started.elapsed().as_secs_f64() * 1000.0);
         verify_identical(&artifacts, &golden)?;
+        // Explicitly measure dropping the retained WAT/Wasm outputs, after
+        // verification and outside the public compiler call's timing window.
+        let started_release = Instant::now();
+        drop(artifacts);
+        release_ms.push(started_release.elapsed().as_secs_f64() * 1000.0);
     }
     Ok(Report {
         options,
@@ -262,6 +281,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         wasm_bytes: golden.wasm.len(),
         first_compile_ms,
         samples_ms,
+        release_ms,
         golden_cases: options.workload.cases().len(),
     })
 }
