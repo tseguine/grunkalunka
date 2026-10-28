@@ -1,0 +1,7 @@
+{
+  "package": "grunkalunka-runtime",
+  "dependsOn": [
+    "compatibility-fixtures",
+    "example-workflows"
+  ]
+}
