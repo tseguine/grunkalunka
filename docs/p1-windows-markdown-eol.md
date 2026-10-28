@@ -13,7 +13,7 @@ This could contribute to output differences, but does not prove causation.
 
 ## Controlled Windows experiment
 
-The [optional workflow](../.github/workflows/p1-markdown-windows-eol.yml)
+The [optional workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-windows-eol.yml)
 runs only on native Windows x64. Its
 [helper](../tools/bench/windows-eol-markdown.mjs) creates a **disposable
 independent Git checkout** of the same tested revision and uses **one physical

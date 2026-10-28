@@ -22,7 +22,7 @@ or compiler nonconformance.
 
 ## Bounded section-difference experiment
 
-The [optional native-host workflow](../.github/workflows/p1-markdown-guest-sections.yml)
+The [optional native-host workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-guest-sections.yml)
 builds the **existing unchanged Rust `outline_guest`** independently on
 Linux x64, Windows x64 and Apple Silicon ARM64, using locked Cargo
 dependencies and the same `wasm32-unknown-unknown` target. It runs the
@@ -83,7 +83,7 @@ data sections differ across the native hosts. A different code-section hash,
 however, cannot tell whether one or hundreds of individual function bodies
 differ.
 
-The [same P1 optional workflow](../.github/workflows/p1-markdown-guest-sections.yml)
+The [same P1 optional workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-guest-sections.yml)
 now also records a **bounded, ordered vector of complete SHA-256 digests** for
 each size-prefixed function body in the standard Wasm code section, plus body
 byte lengths. The scanner decodes only the code-section vector and its

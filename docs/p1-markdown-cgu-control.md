@@ -9,7 +9,7 @@ function/codegen-unit ordering from other Rust code-generation differences.
 
 ## Bounded paired configuration experiment
 
-The [optional hosted workflow](../.github/workflows/p1-markdown-cgu-control.yml)
+The [optional hosted workflow](https://github.com/tseguine/grunkalunka/blob/4977a9d8d8025252c48c6fcd7fa87f858bb35035/.github/workflows/p1-markdown-cgu-control.yml)
 compiles the **existing, unchanged** Rust `outline_guest` for
 `wasm32-unknown-unknown` with Node 24.21.0 and the repository's active stable
 Rust compiler, independently on Linux x64, Windows x64 and native Apple
