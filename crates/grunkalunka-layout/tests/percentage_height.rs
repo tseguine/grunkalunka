@@ -181,7 +181,10 @@ fn extreme_percentage_height_fails_without_wrapping_and_hidden_nodes_skip_it() {
         },
         ..Block::default()
     }];
-    assert_eq!(layout(&extreme, 100, MAX_VIEWPORT), Err(LayoutError::Overflow));
+    assert_eq!(
+        layout(&extreme, 100, MAX_VIEWPORT),
+        Err(LayoutError::Overflow)
+    );
 
     let blocks = [
         Block::default(),
