@@ -43,8 +43,8 @@ a general YAML evaluator or a map of every optional workflow (P1, type
 query, etc.). An eventually authoritative selective gate would also have
 to verify the actual GitHub run conclusions on the tested merge revision,
 account for transitive test/fixture inputs, and retain all applicable
-browser-engine checks. On Windows PRs a valid canonical impact plan may select partial checks;
-Linux/macOS PR CI and all `master` CI still run full. A valid external
+browser-engine checks. On Linux, Windows and macOS PRs a valid canonical impact plan may select
+partial checks; all `master` and manually triggered CI remains full. A valid external
 workflow trigger audit never proves that GitHub executed or passed the job.
 
 ## Native layout bridge dependencies

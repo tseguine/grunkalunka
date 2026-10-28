@@ -1,11 +1,12 @@
-# PR impact selection with Windows-only PR canary
+# PR impact selection on native Linux, Windows and macOS pull requests
 
 The impact planner still emits a shadow/advisory result. The maintainer has
-authorized **Windows PR only** to translate validated selections into actual
-canonical and package-scoped Cargo checks via `windows-pr-gate.mjs`. Unsafe
-plans fall back to full Windows CI. **Linux/macOS PRs and every `master` build
-continue full verification.** The separate `impact-shadow.yml` workflow
-remains a read-only report and does not execute or skip required checks.
+authorized **all three native PR runners** to translate independently validated
+selections into canonical and package-scoped Cargo checks via `pr-gate.mjs`.
+Unsafe or unknown plans fall back to the original full build/check commands
+**on that same host**. Every `master` push and manual workflow dispatch stays
+full on Linux, Windows and macOS. The separate `impact-shadow.yml` workflow
+remains read-only; its successful plan does not replace executable checks.
 
 ## Attribution and dependency model
 
@@ -19,10 +20,12 @@ remains a read-only report and does not execute or skip required checks.
   that file. This is intentionally coarse, especially for test fixtures and
   shared scripts. Refine boundaries only after measuring useful savings.
 - Test-group dependency declarations live in **independent files** under
-  `targets/`. Rust package test groups are generated automatically. The current
-  non-Cargo groups are *illustrative, not an executable or complete manifest of
-  the canonical check sequence*. Do not enable pruning from this inventory
-  without accounting for every canonical check and generated/test-time input.
+  `targets/`. Rust package test groups are generated automatically. Additional
+  cross-package source/test-time inputs of Rust package tests (for example
+  `include_str!` of JS fixtures) live in `cargo-tests/` and are represented as
+  selection dependencies, not unrelated build prerequisites. The canonical
+  check catalog is complete for the current observed runner; semantic imports,
+  generated files and indirect fixture relationships still need continued audit.
 - Graph edges point from a module or test group to its dependencies. First
   traverse **reverse** selection edges from changed owners to select affected
   tests; then traverse **forward** build edges from changed owners and selected
@@ -32,8 +35,8 @@ remains a read-only report and does not execute or skip required checks.
   but have empty build dependencies because the preview lowers them to package-
   scoped invocations. Actual affected Cargo tests and integration groups supply
   the necessary build closure. Merely entering the build closure never selects
-  a dependency's own tests. Only the Windows PR runner can act on a validated selection; Linux/macOS PRs
-  and all `master` runs retain the full checks.
+  a dependency's own tests. Linux, Windows and macOS PR runners can act on a
+  validated selection; all `master` runs retain the full checks.
 
 `plan.mjs` diffs the merge base of `HEAD` against an explicit base ref. It uses
 `git diff --name-only --no-renames -z`, so both old and new paths of a rename
@@ -52,8 +55,8 @@ node ci/impact/plan.mjs origin/master
 ```
 
 The output explicitly says `mode: shadow` and `advisoryOnly: true`. Only the
-Windows PR runner may act on a validated subset; it does not verify the
-conclusions of independent GitHub workflows.
+three native PR runners may act on a validated subset; a plan does not verify
+independent GitHub workflow conclusions.
 
 ## Canonical check inventory (also advisory)
 
@@ -75,8 +78,9 @@ Directory ownership is deliberately coarse but more specific file owners
 override it, provided the most specific match is unambiguous. This lets changing
 one test source select its check without selecting an entire `tests/build/`
 directory. Workspace-wide Cargo formatting, Clippy and tests dynamically depend
-on every current Cargo package rather than a hardcoded crate list. Windows PR CI may translate these workspace checks into package-scoped
-invocations; full CI retains the original commands.
+on every current Cargo package rather than a hardcoded crate list. All native
+PR CI jobs may translate these workspace checks into package-scoped invocations;
+full `master` CI retains the original commands.
 
 The **command inventory is complete for the currently observed canonical
 runner**, not an assertion that our declared semantic/test-time dependencies
@@ -89,25 +93,31 @@ For independent browser workflow path-trigger accounting, see
 [the external-workflow audit](EXTERNAL-WORKFLOWS.md). This
 report does not establish that any external GitHub job actually passed.
 
-## Windows PR partial executor
+## Native PR partial executor
 
-`windows-pr-gate.mjs` validates the actual merge-base plan, the live command
-catalog, Cargo metadata and the optional browser workflow audit. It uses
-**the full dependency graph**, not a path or package whitelist; it preserves
-the source canonical command order and replaces only workspace-wide Cargo
-commands with package-scoped variants. Unsafe plans run the original
-`cargo build --workspace` then `node scripts/check.mjs`; failing selected
-commands remain failures. No other platform or `master` run uses partial CI.
+`pr-gate.mjs` validates the actual merge-base plan, live canonical command
+catalog, Cargo metadata (including per-package external fixture inputs), and
+the independent browser workflow trigger audit. It uses the **general graph**,
+not a path/package allowlist, preserves canonical command order and replaces
+only workspace-wide Cargo commands with package-scoped variants. Invalid plans
+run the original `cargo build --workspace` and `node scripts/check.mjs` on
+that host. A selected check failure **fails immediately**, not via full retry.
 
-The `WINDOWS_PARTIAL_CI` step environment variable in `ci.yml` is a
-one-line rollback switch. The maintainer chose this Windows-only rollout
-while full Linux/macOS CI provides cross-platform coverage. Continue
-auditing generated artifacts, indirect fixture inputs and optional
-workflow dependencies before expanding to other platforms.
+The `PARTIAL_PR_CI` environment variable in `ci.yml` is the one-line rollback
+switch for all three PR jobs. `pull_request` check names, independent
+browser/P1 workflows and full `master`/manual verification are unchanged.
+A real [three-platform scoped rehearsal](../../.github/workflows/impact-platform-rehearsal.yml)
+runs a selected historical layout path set against current native code, without
+claiming a partial gate covers unspecified inputs or optional workflow results.
+
+[Steering #126](https://github.com/tseguine/grunkalunka/issues/126) identified
+real missing benchmark and Rust external-fixture selection edges; both now have
+regression coverage. This is not a complete dynamic source-dependency lint.
+Continue auditing imports, generated inputs, fixtures and subprocesses; changing
+an unrecognized/ambiguous input must force full verification.
 
 ## Merge-conflict isolation
 
-Owners and checks use independent descriptor files; the only central
-workflow change for this canary is `.github/workflows/ci.yml`.
-`scripts/check.mjs` and the other workstreams' source and workflows are
-unchanged.
+Owners, checks, and additional Cargo-test inputs use independent descriptors.
+The selected executor is shared across runners, avoiding three divergent CI
+implementations. `scripts/check.mjs` and other workstreams' source are unchanged.

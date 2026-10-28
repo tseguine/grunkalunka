@@ -2,6 +2,8 @@
   "id": "test:benchmark-contracts",
   "dependsOn": [
     "node-bench",
+    "node-build",
+    "example-workflows",
     "grunkalunka-runtime",
     "build-test-sources"
   ]

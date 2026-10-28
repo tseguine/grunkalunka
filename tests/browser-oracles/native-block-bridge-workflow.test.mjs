@@ -29,6 +29,10 @@ const requiredPaths = [
   "tests/browser-oracles/native-block-bridge-workflow.test.mjs",
   "tests/browser-oracles/compare.mjs",
   "tools/browser-oracles/collect.mjs",
+  "tools/browser-oracles/native-bridge-sensitivity.mjs",
+  "tools/browser-oracles/native-bridge-sensitivity.test.mjs",
+  "tools/browser-oracles/native-hit-sensitivity.mjs",
+  "tools/browser-oracles/native-hit-sensitivity.test.mjs",
   "tools/browser-oracles/package.json",
   ".github/workflows/browser-native-bridge.yml",
   "Cargo.toml",
@@ -70,6 +74,28 @@ test("real Rust example and source receipts feed independently launched engines"
   assert.match(source, /node tests\/browser-oracles\/native-block-bridge\.mjs/);
   assert.match(source, /"\$dir\/captures\/\$\{\{ matrix\.engine \}\}\.json"/);
   assert.match(source, /target\/native-bridge\/native\.json/);
+});
+
+test("real engine width mutation keeps source receipts and fails when sensitivity is lost", () => {
+  assert.match(source, /tools\/browser-oracles\/native-bridge-sensitivity\.test\.mjs/);
+  assert.match(source, /node tools\/browser-oracles\/native-bridge-sensitivity\.mjs/);
+  assert.match(source, /test\s+"\$\{PLAYWRIGHT_BROWSERS_PATH:-\}"/);
+  const comparison = source.indexOf("node tests/browser-oracles/native-block-bridge.mjs");
+  const sensitivity = source.indexOf("node tools/browser-oracles/native-bridge-sensitivity.mjs");
+  const artifact = source.indexOf("Retain original native, HTML, browser and comparison evidence");
+  assert.ok(comparison > 0 && comparison < sensitivity && sensitivity < artifact,
+    "run sensitivity after parity and before retaining source evidence");
+});
+
+test("real hit-target mutation keeps its own receipt and exact workflow triggers", () => {
+  assert.match(source, /node tools\/browser-oracles\/native-hit-sensitivity\.mjs/);
+  assert.match(source, /tools\/browser-oracles\/native-hit-sensitivity\.test\.mjs/);
+  const original = source.indexOf("node tests/browser-oracles/native-block-bridge.mjs");
+  const widthMutation = source.indexOf("node tools/browser-oracles/native-bridge-sensitivity.mjs");
+  const hitMutation = source.indexOf("node tools/browser-oracles/native-hit-sensitivity.mjs");
+  const artifact = source.indexOf("Retain original native, HTML, browser and comparison evidence");
+  assert.ok(original > 0 && original < widthMutation && widthMutation < hitMutation &&
+    hitMutation < artifact, "each real-engine mutation must run after baseline parity");
 });
 
 test("real engines remain pinned and all report differences as test failures", () => {

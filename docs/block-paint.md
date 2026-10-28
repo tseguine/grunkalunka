@@ -83,3 +83,26 @@ Canvas::blit_mono method for **caller-supplied** MSB-first row-padded 1-bit mask
 It overlays opaque RGB ink at selected bits while leaving zero bits and earlier
 box paint intact, with validated input and viewport clipping. This does not
 implement fonts, Unicode shaping, text measurement or glyph rasterization.
+
+## Explicit global viewport scrolling (experimental)
+
+The frame already tracks document-space scroll extents. A host may now call
+`paint_scrolled(frame, nodes, clear, scroll_x, scroll_y)` and
+`hit_test_scrolled(frame, nodes, viewport_x, viewport_y, scroll_x, scroll_y)`
+with the **same explicit offsets**. Paint and hit selection use a document
+coordinate translated from the viewport; neither operation mutates layout,
+scrolls implicitly, or dispatches input events. The existing `paint` and
+`hit_test` functions remain zero-offset wrappers.
+
+`Canvas::blit_mono` still accepts document-space bitmap positions and now
+clips masks on left/top as well as right/bottom in scrolled views. The frame's
+scroll extents bound offsets; out-of-range offsets return errors rather than
+silently clamping. New integration tests verify exact pixel and target
+coordinates, zero-offset parity, partial bitmap clipping, and invalid offset
+rejection without reference-browser involvement.
+
+This is a **single viewport origin only**, not CSS `overflow`, nested
+scroll containers, scrollbars, scroll anchoring, sticky positioning, wheel
+input, or a browser scroll lifecycle. In particular, `scroll_width` and
+`scroll_height` describe this toy layout's positive margin-box extents,
+not general DOM `scrollWidth` / `scrollHeight` semantics.

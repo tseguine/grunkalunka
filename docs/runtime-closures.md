@@ -554,3 +554,13 @@ Source return provenance promotes selected constructor alternatives consistently
 the body checker still validates every branch against the resulting signature.
 Bare return/fallthrough yields undefined. Only a later await or async return
 consumes a selected Promise; returning/discarding alone adds no reaction.
+
+### Numeric consumers of mixed inputs/results
+
+Numeric-only consumers now convert represented Promise/General private inputs,
+results and captured locals through existing variant tests and NumberFromGeneral.
+A builtin Promise yields NaN while the primitive branch retains its current
+conversion. Known/runtime/callback calls preserve ordered snapshots and execute
+each operand once. Conversion neither adopts nor handles a Promise and does not
+suspend. [The numeric contract](async-number-coercion.md) keeps addition,
+relations and mixed-target compound/update writes as separate boundaries.

@@ -167,7 +167,6 @@ fn mutable_mixed_values_keep_erasure_limits_and_unrepresented_boundaries() {
         );
         for body in [
             "const p=Promise.resolve(a);const x=a?p:b;x=b;return x;",
-            "let x=a?Promise.resolve(a):b;return +x;",
             "let x=a?Promise.resolve(a):b;x+=b;return x;",
             "let x=a?Promise.resolve(a):b;x++;return x;",
             "let x=a?Promise.resolve(a):b;x=()=>b;return x;",

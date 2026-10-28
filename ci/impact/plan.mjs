@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cargoModules, planImpact } from './impact.mjs';
+import { cargoTestNodes } from './cargo-test-nodes.mjs';
 import { checkNodes, verifyCanonicalChecks } from './canonical.mjs';
 import { auditBrowserWorkflows } from './external-workflows.mjs';
 
@@ -49,9 +50,11 @@ try {
   const coverage = verifyCanonicalChecks(canonical, declared);
   // Group entries are dependency junctions, not runnable tests.
   const groups = readCatalog('targets');
+  const cargoTests = cargoTestNodes(workspacePackages, readCatalog('cargo-tests'));
   const tests = [
-    ...workspacePackages.map(pkg => ({ id: `cargo-test:${pkg.name}`, dependsOn: [pkg.name] })),
-    ...checkNodes(declared, workspacePackages.map(pkg => pkg.name)),
+    ...cargoTests,
+    ...checkNodes(declared, workspacePackages.map(pkg => pkg.name),
+      cargoTests.map(test => test.id)),
   ];
   result = { ...planImpact({ changedPaths: changes, modules, groups, tests, global, ignored }),
     canonicalCoverage: coverage, externalWorkflows };

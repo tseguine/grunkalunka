@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  chooseWindowsPrChecks, chooseWithFallback, runDecision,
-} from './windows-pr-gate.mjs';
+  choosePrChecks, chooseWithFallback, runDecision,
+} from './pr-gate.mjs';
 
 const host = { eventName: 'pull_request', runnerOS: 'Windows', enabled: true };
 const packages = [
@@ -56,7 +56,7 @@ const compiler = () => plan([
   'crates/grunkalunka-runtime/tests/async-suspension.rs',
 ], compilerTests, ['grunkalunka-compiler', 'grunkalunka-runtime']);
 
-const choose = input => chooseWindowsPrChecks({
+const choose = input => choosePrChecks({
   ...host, declared, observed, workspacePackages: packages,
   plan: input ?? compiler(),
 });
@@ -127,15 +127,31 @@ test('independent browser workflow expectations stay visible but are not claimed
   assert.equal(result.externalJobsVerified, false);
 });
 
-test('Linux/macOS, master pushes, disabled fast path always run full checks', () => {
+test('Linux, Windows and macOS use identical dependency-selected PR commands', () => {
+  const original = choose(compiler());
+  for (const runnerOS of ['Linux', 'Windows', 'macOS']) {
+    const result = choosePrChecks({
+      ...host, runnerOS, plan: compiler(), declared, observed,
+      workspacePackages: packages,
+    });
+    assert.deepEqual(result, original, runnerOS);
+    assert.equal(result.mode, 'partial');
+    assert.ok(!result.commands.flat().includes('scripts/check.mjs'));
+  }
+});
+
+test('master pushes, manual runs, disabled selection and unknown platforms stay full', () => {
   for (const value of [
-    { eventName: 'pull_request', runnerOS: 'Linux', enabled: true },
-    { eventName: 'pull_request', runnerOS: 'macOS', enabled: true },
-    { eventName: 'push', runnerOS: 'Windows', enabled: true },
-    { eventName: 'workflow_dispatch', runnerOS: 'Windows', enabled: true },
-    { eventName: 'pull_request', runnerOS: 'Windows', enabled: false },
+    ...['Linux', 'Windows', 'macOS'].flatMap(runnerOS => [
+      { eventName: 'push', runnerOS, enabled: true },
+      { eventName: 'workflow_dispatch', runnerOS, enabled: true },
+      { eventName: 'pull_request', runnerOS, enabled: false },
+    ]),
+    { eventName: 'pull_request', runnerOS: 'FreeBSD', enabled: true },
+    { eventName: 'pull_request', runnerOS: 'windows', enabled: true },
+    { eventName: 'pull_request', runnerOS: undefined, enabled: true },
   ]) {
-    const result = chooseWindowsPrChecks({
+    const result = choosePrChecks({
       ...value, plan: compiler(), declared, observed, workspacePackages: packages,
     });
     assert.equal(result.mode, 'full', JSON.stringify(value));
@@ -174,12 +190,12 @@ test('ambiguous, stale or missing selection safely runs full CI', () => {
     assert.equal(result.mode, 'full', mutate.toString());
   }
   for (const malformed of [null, {}, { full: false }, { mode: 'shadow' }]) {
-    assert.equal(chooseWindowsPrChecks({
+    assert.equal(choosePrChecks({
       ...host, plan: malformed, declared, observed, workspacePackages: packages,
     }).mode, 'full');
   }
   const stale = observed.slice(1);
-  assert.equal(chooseWindowsPrChecks({
+  assert.equal(choosePrChecks({
     ...host, plan: compiler(), declared, observed: stale, workspacePackages: packages,
   }).mode, 'full');
 });
@@ -209,7 +225,7 @@ test('invalid executable decisions are rejected before execution', () => {
   const choice = choose(compiler());
   choice.commands[0][0] = 'sh';
   assert.throws(() => runDecision(choice, () => {}), /invalid selected executable/);
-  const full = chooseWindowsPrChecks({
+  const full = choosePrChecks({
     eventName: 'push', runnerOS: 'Windows', enabled: true,
   });
   full.commands.pop();

@@ -118,3 +118,41 @@ capture, CSS pointer-events, transforms, clipping, scroll-coordinate
 translation, stacking contexts or trusted input events. The browser's DOM
 hit testing and native target selection have only been compared for these
 specific nonoverlapping, untransformed boxes.
+
+## Real-engine negative control for geometry sensitivity
+
+The hosted bridge workflow also runs a deliberately different, source-checked
+reference fixture in each engine. After normal native-versus-browser agreement,
+`native-bridge-sensitivity.mjs` changes exactly one reviewed CSS declaration:
+`#first` has a content width of 101 px instead of 100 px. It writes a separate
+read-only fixture snapshot and collects a **fresh real engine** capture.
+The original Rust layout receipt remains unchanged; the comparison verifies
+the capture's **mutated** source hash and expects **exactly two** geometry
+differences: the original first-child border width and its restored width
+must both be 119 CSS px instead of 118. The hidden first box stays absent.
+
+This negative control is **intentional cross-source disagreement**, not a
+normal conformance comparison, and never modifies or repairs browser receipts.
+An unchanged observation, missing geometry difference, stale source hash,
+extra discrepancy or malformed evidence fails the engine's CI job. Both raw
+fixture bytes, original mutated capture and complete report are retained.
+The independent baseline comparison continues to require exact agreement.
+
+## Selected DOM hit-target negative control
+
+The hosted bridge also varies *input targetability* without changing the
+manually resolved native layout or any CSS dimensions. The independent
+`native-hit-sensitivity.mjs` tool adds `pointer-events: none` to the
+fixture's single `#first` rule, captures a **fresh real browser instance**
+and checks source SHA-256 provenance against those changed HTML bytes.
+
+The native fixture remains unchanged and continues to treat `first` as
+targetable. Exactly six mismatches are required: `first-center`,
+`first-lower` and `first-right` in both original and restored phases must
+switch from the native `first` to browser `outer`. The hidden phase and
+all measured rectangles must remain unchanged. Unexpected geometry,
+invalid source hashes, missing target observations or extra differences
+fail the check. Source copies, raw captures and full reports are retained.
+
+This is a **sensitivity control**, not a claim that the native engine
+implements CSS `pointer-events` or general DOM hit-testing semantics.

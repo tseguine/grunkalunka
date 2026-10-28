@@ -12,8 +12,9 @@ impl Canvas {
     /// Rows start at byte boundaries: each row occupies ceil(width / 8) bytes,
     /// with unused low bits of its final byte ignored. A one bit overwrites the
     /// corresponding pixel, while a zero bit leaves existing paint untouched.
-    /// Only right/bottom viewport clipping is needed because positions are
-    /// nonnegative integer pixels; masks wholly outside the viewport are valid.
+    /// Positions are document-space pixels, including on a scrolled Canvas.
+    /// Clipping on all four viewport edges is permitted; wholly offscreen
+    /// masks are valid and leave the canvas unchanged.
     ///
     /// Every input and coordinate is checked before any pixel is modified.
     /// Neither this function nor its caller owns a font or text rasterizer.
@@ -46,15 +47,29 @@ impl Canvas {
             return Err(PaintError::InvalidBitmap);
         }
 
-        let rows = height.min(self.height.saturating_sub(y));
-        let columns = width.min(self.width.saturating_sub(x));
-        for row in 0..rows {
-            let mask_row = row as usize * stride;
-            let destination_row = (y + row) as usize * self.width as usize;
-            for column in 0..columns {
-                let byte = mask[mask_row + (column as usize / 8)];
+        let viewport_right = self
+            .scroll_x
+            .checked_add(self.width)
+            .ok_or(PaintError::Overflow)?;
+        let viewport_bottom = self
+            .scroll_y
+            .checked_add(self.height)
+            .ok_or(PaintError::Overflow)?;
+        let left = x.max(self.scroll_x);
+        let top = y.max(self.scroll_y);
+        let right = (x + width).min(viewport_right);
+        let bottom = (y + height).min(viewport_bottom);
+        if left >= right || top >= bottom {
+            return Ok(());
+        }
+        for doc_y in top..bottom {
+            let mask_row = (doc_y - y) as usize * stride;
+            let destination_row = (doc_y - self.scroll_y) as usize * self.width as usize;
+            for doc_x in left..right {
+                let column = (doc_x - x) as usize;
+                let byte = mask[mask_row + column / 8];
                 if byte & (0x80 >> (column % 8)) != 0 {
-                    self.pixels[destination_row + (x + column) as usize] = ink;
+                    self.pixels[destination_row + (doc_x - self.scroll_x) as usize] = ink;
                 }
             }
         }
