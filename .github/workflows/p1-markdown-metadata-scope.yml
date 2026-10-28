@@ -1,0 +1,117 @@
+# Optional P1 causal control. cargo rustc final-target-only metadata versus
+# global RUSTFLAGS metadata; no change to canonical checks or Rust sources.
+name: P1 Markdown guest-only versus global metadata
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-markdown-metadata-scope.yml
+      - tools/bench/markdown-metadata-scope.mjs
+      - tools/bench/tests/markdown-metadata-scope.test.mjs
+      - tools/bench/wasm-named-bodies.mjs
+      - tools/bench/wasm-section-fingerprint.mjs
+      - crates/grunkalunka-markdown/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-markdown-metadata-scope-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  metadata-scope:
+    name: Compile actual Rust guest with default, guest-only and global metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out the exact PR revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js v24.21.0 on native Linux
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Validate native Linux Rust and install Wasm target
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/native-rustc.txt"
+          grep -F 'host: x86_64-unknown-linux-gnu' "$RUNNER_TEMP/native-rustc.txt"
+          cargo fetch --locked
+
+      - name: Test source, flags, byte hashes and fail-closed report validation
+        run: node --test tools/bench/tests/markdown-metadata-scope.test.mjs
+
+      - name: Build three real Markdown guest variants and compare
+        run: |
+          set -euo pipefail
+          node tools/bench/markdown-metadata-scope.mjs \
+            > "$RUNNER_TEMP/markdown-metadata-scope.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/markdown-metadata-scope.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-markdown-metadata-scope-control');
+          assert.deepEqual([report.environment.os, report.environment.arch], ['linux', 'x64']);
+          assert.equal(report.environment.node, 'v24.21.0');
+          assert.equal(report.environment.target, 'wasm32-unknown-unknown');
+          assert.equal(report.environment.cargoIncremental, '0');
+          assert.deepEqual(Object.keys(report.artifacts).sort(), ['default', 'global', 'guestOnly']);
+          assert.equal(report.sourceInputs.length, 6);
+          assert.deepEqual(Object.keys(report.comparisons).sort(),
+            ['defaultToGlobal', 'defaultToGuestOnly', 'guestOnlyToGlobal']);
+          assert.equal(report.environment.modes.default.command, 'cargo build');
+          assert.equal(report.environment.modes.default.rustflags, '');
+          assert.equal(report.environment.modes.guestOnly.command, 'cargo rustc');
+          assert.equal(report.environment.modes.guestOnly.rustflags, '');
+          assert.deepEqual(report.environment.modes.guestOnly.rustcExtras,
+            ['--', '-C', 'metadata=p1guestcontrol']);
+          assert.equal(report.environment.modes.global.command, 'cargo build');
+          assert.equal(report.environment.modes.global.rustflags,
+            '-C metadata=p1guestcontrol');
+          for (const artifact of Object.values(report.artifacts)) {
+            assert.ok(artifact.bytes > 8 && artifact.bytes <= 16 * 1024 * 1024);
+            assert.match(artifact.sha256, /^[a-f0-9]{64}$/);
+            assert.ok(artifact.functions >= 1 && artifact.functions <= 4096);
+            assert.ok(artifact.namedFunctions >= 1 &&
+              artifact.namedFunctions <= artifact.functions);
+          }
+          for (const result of Object.values(report.comparisons)) {
+            assert.equal(typeof result.sameWasmBytes, 'boolean');
+            assert.ok(result.nameOccurrences >= 0);
+            assert.ok(result.nameWithExactBodyOccurrences <= result.nameOccurrences);
+            assert.ok(result.bodiesIgnoringOrder >=
+              (result.bodiesAtSameOrdinal ?? 0));
+            assert.ok(result.bodiesIgnoringOrder <= Math.min(...result.definedFunctions));
+          }
+          // Each actual compilation is required; matching or nonmatching
+          // artifacts remain an observed result, never a performance gate.
+          console.log('PASS native Linux guest-only vs global metadata control');
+          console.log(JSON.stringify(report));
+          NODE
