@@ -11,6 +11,17 @@ const MAX_WASM = 16 * 1024 * 1024;
 const MAX_FUNCTIONS = 4096;
 const MAX_RECEIPT = 512 * 1024;
 const UTF8 = new TextDecoder('utf-8', { fatal: true });
+const NORMALIZATION_METHOD = 'rust-legacy-terminal-hex-hash-v1';
+const LEGACY_HASH_SUFFIX = /::h[0-9a-f]{16}$/;
+
+// Deliberately narrow, mechanical text transformation. Do not strip embedded
+// hashes, arbitrary hexadecimal strings or Rust v0 mangling; those remain as-is.
+// A transformed name is a heuristic token, never a source-level identity.
+export function stripTerminalRustHash(name) {
+  check(typeof name === 'string', 'Rust diagnostic function name');
+  return name.length > 19 && LEGACY_HASH_SUFFIX.test(name) ?
+    name.slice(0, -19) : name;
+}
 const check = (condition, label) => {
   if (!condition) throw new TypeError('Invalid ' + label);
 };
@@ -88,14 +99,25 @@ export function extractNamedBodyHashes(input, count) {
   check(found && foundNameMap && names.size > 0,
     'actual Wasm name section with function names');
   const digests = Buffer.alloc(count * 32);
+  const normalizedDigests = Buffer.alloc(count * 32);
+  let matchingTerminalSuffixCount = 0;
   for (const [index, name] of names) {
     createHash('sha256').update(Buffer.from(name, 'utf8'))
       .digest().copy(digests, index * 32);
+    const normalized = stripTerminalRustHash(name);
+    if (normalized !== name) matchingTerminalSuffixCount++;
+    createHash('sha256').update(Buffer.from(normalized, 'utf8'))
+      .digest().copy(normalizedDigests, index * 32);
   }
   return {
     count, mappedCount: names.size, missingCount: count - names.size,
     nameDigestsBase64: digests.toString('base64'),
-    interpretation: 'SHA-256 of raw Rust Wasm function name bytes by defined-function ordinal; zero digest slots mark missing names',
+    normalization: {
+      method: NORMALIZATION_METHOD,
+      matchingTerminalSuffixCount,
+      normalizedNameDigestsBase64: normalizedDigests.toString('base64'),
+    },
+    interpretation: 'SHA-256 of raw and narrowly suffix-normalized diagnostic name bytes by function ordinal; zero digest slots mark missing names',
   };
 }
 
@@ -122,6 +144,37 @@ function validateNamedBodyReceipt(receipt) {
   }
   check(present === mappedCount, 'actual count of hashed function names');
   return names;
+}
+
+function normalizedNameVector(receipt, raw) {
+  const normalization = receipt.namedBodies.normalization;
+  if (normalization === undefined) return null;
+  const { method, matchingTerminalSuffixCount, normalizedNameDigestsBase64 } =
+    normalization ?? {};
+  check(method === NORMALIZATION_METHOD &&
+    Number.isSafeInteger(matchingTerminalSuffixCount) &&
+    matchingTerminalSuffixCount >= 0 &&
+    matchingTerminalSuffixCount <= receipt.namedBodies.mappedCount &&
+    typeof normalizedNameDigestsBase64 === 'string' &&
+    /^[A-Za-z0-9+/]+={0,2}$/.test(normalizedNameDigestsBase64),
+  'bounded terminal Rust hash normalization receipt');
+  const vector = Buffer.from(normalizedNameDigestsBase64, 'base64');
+  check(vector.length === raw.length &&
+    vector.toString('base64') === normalizedNameDigestsBase64,
+  'complete canonical normalized name hash vector');
+  let changed = 0;
+  for (let i = 0; i < receipt.namedBodies.count; i++) {
+    const start = i * 32, end = start + 32;
+    const rawName = raw.subarray(start, end);
+    const normalizedName = vector.subarray(start, end);
+    check(rawName.every(byte => byte === 0) ===
+      normalizedName.every(byte => byte === 0),
+    'unchanged presence of optional function names');
+    if (!rawName.equals(normalizedName)) changed++;
+  }
+  check(changed === matchingTerminalSuffixCount,
+    'consistent number of normalized name hashes');
+  return vector;
 }
 
 const multiset = entries => {
@@ -158,6 +211,10 @@ export function compareNamedBodyReceipts(producer, receiver) {
   const right = validateNamedBodyReceipt(receiver);
   const a = namedOccurrences(producer, left);
   const b = namedOccurrences(receiver, right);
+  const producerNormalized = normalizedNameVector(producer, left);
+  const receiverNormalized = normalizedNameVector(receiver, right);
+  check((producerNormalized === null) === (receiverNormalized === null),
+    'both hosts must provide normalized name observations');
   const sharedNameOccurrences = intersection(multiset(a.byName), multiset(b.byName));
   const sharedNameAndExactBodyOccurrences =
     intersection(multiset(a.byNameAndBody), multiset(b.byNameAndBody));
@@ -169,6 +226,36 @@ export function compareNamedBodyReceipts(producer, receiver) {
     const x = left.subarray(i * 32, (i + 1) * 32);
     const y = right.subarray(i * 32, (i + 1) * 32);
     if (!x.every(byte => byte === 0) && x.equals(y)) namesMatchingAtSameOrdinal++;
+  }
+  let terminalRustHashControl = null;
+  if (producerNormalized !== null) {
+    const normalizedA = namedOccurrences(producer, producerNormalized);
+    const normalizedB = namedOccurrences(receiver, receiverNormalized);
+    const normalizedSharedNames = intersection(
+      multiset(normalizedA.byName), multiset(normalizedB.byName));
+    const normalizedSharedNamesAndBodies = intersection(
+      multiset(normalizedA.byNameAndBody),
+      multiset(normalizedB.byNameAndBody));
+    // A common deterministic transformation cannot erase an existing exact
+    // name match; it can only merge distinct names into the same token.
+    check(normalizedSharedNames >= sharedNameOccurrences &&
+      normalizedSharedNamesAndBodies >= sharedNameAndExactBodyOccurrences &&
+      normalizedSharedNamesAndBodies <= normalizedSharedNames,
+    'order-independent normalized name overlap');
+    terminalRustHashControl = {
+      method: NORMALIZATION_METHOD,
+      producerSuffixesStripped:
+        producer.namedBodies.normalization.matchingTerminalSuffixCount,
+      receiverSuffixesStripped:
+        receiver.namedBodies.normalization.matchingTerminalSuffixCount,
+      normalizedSharedNameOccurrences: normalizedSharedNames,
+      normalizedSharedNameAndExactBodyOccurrences: normalizedSharedNamesAndBodies,
+      additionalNameMatchesAfterNormalization:
+        normalizedSharedNames - sharedNameOccurrences,
+      additionalNameAndExactBodyMatchesAfterNormalization:
+        normalizedSharedNamesAndBodies - sharedNameAndExactBodyOccurrences,
+      interpretation: 'mechanically strips only final ::h plus exactly sixteen lowercase hexadecimal digits; merged names may be unrelated source functions',
+    };
   }
   return {
     schemaVersion: 1, workload: 'p1-markdown-named-body-comparison',
@@ -187,7 +274,8 @@ export function compareNamedBodyReceipts(producer, receiver) {
     receiverNamedUnmatchedOccurrences:
       receiver.namedBodies.mappedCount - sharedNameOccurrences,
     rawCodeBodyComparison: basic.codeBodyComparison,
-    interpretation: 'raw hashed Rust name symbol occurrences versus exact body bytes, not canonical source identities, opcode normalization or semantic equivalence',
+    terminalRustHashControl,
+    interpretation: 'raw and narrowly suffix-normalized Rust diagnostic symbol occurrences against exact body bytes; normalization does not establish source identities, opcode equivalence or comparable performance',
   };
 }
 
