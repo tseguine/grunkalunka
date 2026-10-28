@@ -130,7 +130,7 @@ jobs:
   macos-fallback:
     name: Native macOS fallback (only if baseline unhealthy)
     needs: macos-probe
-    if: ${{ always() && github.event_name == 'pull_request' && (needs.macos-probe.result != 'success' || needs.macos-probe.outputs.fresh != 'true') }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.macos-probe.result != 'success' || needs.macos-probe.outputs.fresh != 'true') }}
     uses: ./.github/workflows/macos.yml
     permissions:
       contents: read
@@ -138,7 +138,7 @@ jobs:
   macos-verification:
     name: macOS verification (baseline or native fallback)
     needs: [macos-probe, macos-fallback]
-    if: ${{ always() && github.event_name == 'pull_request' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
