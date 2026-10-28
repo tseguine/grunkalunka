@@ -750,3 +750,14 @@ This reuses private async entries and frames; no new layout, host protocol,
 dependency or limit. Broader module-helper input domains, defaults/rest,
 observable function identity/properties and general module semantics remain gaps.
 See [the bounded contract](async-named-helpers.md).
+
+## Promise call-site type erasure (2026-10-28)
+
+The async identity profile erases call-site type arguments on pristine
+Promise.resolve/reject, reusing the shared intrinsic validator. Five maintained
+groups prove exact JS/TS Wasm identity and exercise native JS, Node-Wasm and
+Wasmtime reference behavior for awaits, stored identities, private flow, argument
+effects, rejection/adoption and source guards. Four former TS rejection sources
+now execute unchanged. Two additional notification fixtures preserve discarded
+rejections and later handling. Other generic source calls, Math/JSON call-site
+types and arbitrary runtime TypeScript constructs remain separate gaps.

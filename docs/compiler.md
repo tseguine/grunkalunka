@@ -1170,7 +1170,9 @@ as unvalidated metadata. The original TypeScript Module AST and Semantic pass re
 constraints, defaults and `const` type parameters do not create runtime bindings,
 change numeric parameter eligibility or establish inferred runtime types. This follows
 the declaration syntax in the [TypeScript generics handbook](https://www.typescriptlang.org/docs/handbook/2/generics.html).
-Explicit type arguments on calls remain unsupported. Async/generator/ambient functions,
+Explicit type arguments on ordinary calls remain unsupported. Pristine async
+Promise.resolve/reject now erase call-site types as described in
+[the async contract](async.md#promise-intrinsic-type-arguments). Async/generator/ambient functions,
 `this` parameters and other parameter-shape restrictions retain their existing guards.
 
 Original source bytes, statement/depth budgets, SymbolIds, ordered argument snapshots,

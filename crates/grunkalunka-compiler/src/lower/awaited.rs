@@ -547,11 +547,10 @@ pub(super) fn intrinsic<'e, 'a>(
     if !unresolved
         || call.optional
         || member.optional
-        || call.type_arguments.is_some()
         || !matches!(member.property.name.as_str(), "resolve" | "reject")
     {
         return Err(
-            "await Promise calls require the unshadowed nonoptional nongeneric resolve/reject intrinsic",
+            "await Promise calls require the unshadowed nonoptional resolve/reject intrinsic",
         );
     }
     if call.arguments.len() > 1000 {
