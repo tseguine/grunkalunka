@@ -68,6 +68,7 @@ struct Emitter<'a> {
     value_offsets: Vec<usize>,
     cell_offsets: Vec<Option<usize>>,
     arena_temp: Option<usize>,
+    call_boundary: Option<Box<CallBoundary>>,
     output: String,
     // One ID names paired exit/body-end targets, active only inside its loop body.
     loop_label: Option<usize>,
@@ -75,6 +76,13 @@ struct Emitter<'a> {
     throw_to: Option<ThrowTarget>,
     needs_remainder: bool,
     errors: bool,
+}
+
+// Ordinary helpers use Wasm locals. A coroutine caller additionally preserves
+// its persistent lanes when a helper may start another coroutine synchronously.
+struct CallBoundary {
+    spill: String,
+    restore: String,
 }
 
 impl Emitter<'_> {
@@ -240,6 +248,11 @@ impl Emitter<'_> {
                     result,
                     callee,
                     arguments,
+                }
+                | Op::StartAsyncClosure {
+                    result,
+                    callee,
+                    arguments,
                 } => self.call_closure(*result, *callee, arguments),
                 Op::InlineCall { result, body } => {
                     let outer = self.inline_return.replace(body.id.0);
@@ -313,7 +326,6 @@ impl Emitter<'_> {
                 | Op::AwaitSettled { .. }
                 | Op::AwaitCall { .. }
                 | Op::AwaitClosureCall { .. }
-                | Op::StartAsyncClosure { .. }
                 | Op::AwaitPromise { .. }
                 | Op::AdoptPromise { .. } => {
                     unreachable!("async control uses the async emitter")
@@ -343,7 +355,13 @@ impl Emitter<'_> {
                     for argument in arguments {
                         self.get(*argument);
                     }
+                    if let Some(boundary) = &self.call_boundary {
+                        self.output.push_str(&boundary.spill);
+                    }
                     writeln!(self.output, "call {}", function.0).unwrap();
+                    if let Some(boundary) = &self.call_boundary {
+                        self.output.push_str(&boundary.restore);
+                    }
                     self.set(*result);
                 }
                 Op::NumberFromPredicate { result, input } => {
@@ -719,7 +737,7 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         output.push_str(cells::MEMORY);
     }
     if has_closures {
-        output.push_str(&closures::table(module, false));
+        output.push_str(&closures::table(module, false, false));
     }
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
@@ -776,6 +794,10 @@ fn module_materializes_promises(module: &ir::Module) -> bool {
 }
 
 fn region_has_await(region: &Region) -> bool {
+    region_has_control(region, true)
+}
+
+fn region_has_control(region: &Region, starts: bool) -> bool {
     if matches!(region.exit, Exit::Throw(_)) {
         return true;
     }
@@ -787,31 +809,33 @@ fn region_has_await(region: &Region) -> bool {
             | Op::AsyncClosureEntry { .. }
             | Op::AwaitPromise { .. }
             | Op::AdoptPromise { .. }
-            | Op::StartAsyncClosure { .. }
             | Op::AwaitClosureCall { .. }
             | Op::AwaitSettled { .. }
             | Op::AwaitCall { .. }
             | Op::TryCatch { .. } => true,
+            Op::StartAsyncClosure { .. } => starts,
             // Verified settlement bodies close primitive throws and cannot await.
             Op::SettlePromise { .. } => false,
-            Op::InlineCall { body, .. } => region_has_await(body),
-            Op::Block(child) => region_has_await(child),
+            Op::InlineCall { body, .. } => region_has_control(body, starts),
+            Op::Block(child) => region_has_control(child, starts),
             Op::If {
                 consequent,
                 alternate,
                 ..
-            } => region_has_await(consequent) || region_has_await(alternate),
+            } => region_has_control(consequent, starts) || region_has_control(alternate, starts),
             Op::While {
                 condition,
                 body,
                 step,
             } => {
-                region_has_await(condition)
-                    || region_has_await(body)
-                    || step.as_ref().is_some_and(region_has_await)
+                region_has_control(condition, starts)
+                    || region_has_control(body, starts)
+                    || step
+                        .as_ref()
+                        .is_some_and(|step| region_has_control(step, starts))
             }
             Op::DoWhile { body, condition } => {
-                region_has_await(body) || region_has_await(condition)
+                region_has_control(body, starts) || region_has_control(condition, starts)
             }
             _ => false,
         })
@@ -840,7 +864,7 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
         })
         .collect();
     let cell_offsets = cells::offsets(function, &mut offset);
-    let arena_temp = closures::temporary(function, offset);
+    let arena_temp = closures::temporary(function, offset, true);
     layout::share_fulfilled_storage(function, &mut value_offsets);
     let mut emitter = Emitter {
         function,
@@ -848,6 +872,7 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
         value_offsets,
         cell_offsets,
         arena_temp,
+        call_boundary: None,
         loop_label: None,
         inline_return: None,
         throw_to: None,

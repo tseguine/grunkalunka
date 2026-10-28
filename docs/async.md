@@ -521,8 +521,8 @@ Rejection notification tests compare detached failures with native checkpoints.
 
 Homogeneous logical left operands keep the existing direct evaluation route.
 Nested left expressions now use the selection-local carrier described below.
-Promise/scalar private input domains and
-starting a suspending async callback inside a synchronous helper remain separate gaps.
+Promise/scalar private input domains remain separate work. Synchronous helper
+starts now use the callable prefix entries described below.
 
 ### Nested Promise/primitive selections
 
@@ -537,3 +537,24 @@ This carrier does not extend the exported completion protocol. Mixed source
 locals, private parameter domains and mixed values in ordinary comparison or
 coercion positions remain separate work. A helper can resolve its selected
 async return before the caller compares the resulting primitive/Error value.
+
+### Starting async children from synchronous helpers
+
+A synchronous helper may call a represented async function and receive its
+Promise after the child's synchronous prefix. The helper does not await that
+Promise or add a reaction merely by forwarding it. Known, runtime-selected and
+nested helpers preserve captures, argument order, child identity and FIFO jobs.
+Ordinary source helpers can start a child, discard its handle and return a Number.
+Detached rejection and later handling remain observable through guest notifications
+and native Node checkpoints.
+
+When such a helper exists, the backend provides callable private async entries
+which allocate a child activation and Promise, run its prefix through the existing
+dispatcher, then restore the caller's frame and continuation. Coroutine callers
+spill and restore persistent snapshots across ordinary calls, including re-entry
+of one coroutine body before its outer activation suspends. Normal helper locals
+remain on the Wasm stack. Modules without these helper starts retain their existing
+emission path. No exported protocol, record width, fuel, job or source-await limit
+changes. Actual awaits still require an async source function; typed synchronous
+helpers still cannot contain suspension. General Promise payloads, thenables and
+mixed source storage/private parameter domains remain separate gaps.

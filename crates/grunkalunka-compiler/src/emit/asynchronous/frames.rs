@@ -33,7 +33,7 @@ impl<'a> Frame<'a> {
         }
         let mut offset = start + lanes.len();
         let cell_offsets = cells::offsets(function, &mut offset);
-        let arena_temp = closures::temporary(function, offset);
+        let arena_temp = closures::temporary(function, offset, false);
         lanes.resize(offset - start + usize::from(arena_temp.is_some()), "i32");
         let mut value_offsets = offsets[function.slots.len()..].to_vec();
         layout::share_fulfilled_storage(function, &mut value_offsets);
@@ -44,6 +44,7 @@ impl<'a> Frame<'a> {
                 value_offsets,
                 cell_offsets,
                 arena_temp,
+                call_boundary: None,
                 output: String::new(),
                 loop_label: None,
                 inline_return: None,
@@ -60,6 +61,10 @@ impl<'a> Frame<'a> {
 
     fn offset(&self, global: usize) -> usize {
         self.header + (global - self.start) * 8
+    }
+
+    pub fn parameter_offset(&self, parameter: usize, part: usize) -> usize {
+        self.offset(self.emitter.slot_offsets[parameter] + part)
     }
 
     pub fn bytes(&self) -> usize {

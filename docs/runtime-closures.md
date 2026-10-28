@@ -487,8 +487,8 @@ supported async callbacks and simultaneous activations preserve source snapshots
 and microtask order. Logical returns test the original General or Promise left
 snapshot and resolve only the selected operand; discarded Promise rejections
 remain observable. Nested heterogeneous left joins use the carrier below.
-Mixed private parameter domains and
-synchronous helpers starting suspending async callbacks remain open.
+Mixed private parameter domains remain open. Synchronous helpers may start
+suspending async callbacks through the callable entries described below.
 
 ### Nested async selection carriers
 
@@ -498,3 +498,20 @@ and repeated activations keep the selected kind before resolving the return.
 The internal `AsyncValue` carrier uses shared suspended storage but is excluded
 from private call signatures and exported completions. General/Promise source
 parameter and local-storage unions remain separate work.
+
+### Callable async prefix entries
+
+Synchronous closure helpers can start represented async callbacks, return their
+Promise handles, forward them through further helpers or discard them. Starting
+runs only the synchronous prefix and does not imply awaiting or handling the child.
+Private argument frames preserve General pairs, Promise handles and callback pairs.
+
+The backend supplies callable entries only when ordinary helpers contain starts.
+The Wasm call stack retains each entry's caller frame and continuation while its
+child prefix runs. The coroutine caller preserves its persistent lanes around
+ordinary direct and indirect calls; a nested prefix can re-enter the same body
+without overwriting the outer activation. Child reaction jobs retain their own
+frames. Existing actual-suspension guards and all budgets remain unchanged.
+This does not admit arbitrary recursive initialization, thenables or mixed private
+input/storage domains. Native JS, Node-Wasm and Wasmtime source tests compare
+results and marker order, with separate detached-rejection notification checks.

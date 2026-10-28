@@ -88,6 +88,8 @@ const BODIES: &[&str] = &[
     "const p=Promise.reject(b);const f=async()=>p||a;try{await f();}catch(e){}return a;",
     "const p=Promise.reject(b);return (a?p:0)&&a;",
     "const p=Promise.reject(b);const f=async()=>(a?p:0)||a;try{await f();}catch(e){}return a;",
+    "const apply=(fn,x)=>fn(x);let f=async x=>{await x;throw b;};apply(f,a);return a;",
+    "const apply=(fn,x)=>fn(x);let f=async x=>{await x;throw b;};const p=apply(f,a);await a;await b;try{await p;}catch(e){}return a;",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -200,9 +202,9 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         }
                     }
                 }
-                if [5, 6, 7, 17, 20, 22].contains(&index) {
+                if [5, 6, 7, 17, 20, 22, 24].contains(&index) {
                     assert!(unhandled.is_empty(), "{body}");
-                    if [6, 7, 17, 20, 22].contains(&index) {
+                    if [6, 7, 17, 20, 22, 24].contains(&index) {
                         assert_eq!(events.len(), 2);
                     } else {
                         assert!(events.is_empty());
@@ -221,7 +223,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (3, Value::Boolean(false))
                         | (4, Value::Boolean(true)) => {}
                         (
-                            0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19 | 21,
+                            0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19 | 21 | 23,
                             Value::Number(x),
                         ) => {
                             assert!(

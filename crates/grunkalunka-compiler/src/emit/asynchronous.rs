@@ -8,6 +8,7 @@ use std::fmt::Write;
 mod errors;
 mod frames;
 mod promises;
+mod starters;
 
 const MAX_STATES: usize = 4096;
 
@@ -477,6 +478,7 @@ fn jump(output: &mut String, target: usize) {
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     ir::verify_module_with_entry_type(module, Type::General)?;
+    let starters = starters::needed(module);
     let queued = module.functions.iter().any(|function| {
         let mut pending = false;
         ir::visit_operations(&function.body, &mut |op| {
@@ -510,7 +512,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         if source_call {
             return Err("async profile forbids source function calls to the async entry".into());
         }
-        if index != 0 && !ir::is_async_closure(function) && super::region_has_await(&function.body)
+        if index != 0
+            && !ir::is_async_closure(function)
+            && super::region_has_control(&function.body, false)
         {
             return Err("async closure bodies must be synchronous".into());
         }
@@ -544,7 +548,14 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             frames.push(None);
             continue;
         }
-        let frame = frames::Frame::new(function, types.len(), queued, errors, has_async);
+        let mut frame = frames::Frame::new(function, types.len(), queued, errors, has_async);
+        if starters {
+            let mut spill = String::new();
+            let mut restore = String::new();
+            frame.spill(&mut spill);
+            frame.restore(&mut restore);
+            frame.emitter.call_boundary = Some(Box::new(super::CallBoundary { spill, restore }));
+        }
         types.extend(frame.lanes.iter().copied());
         frames.push(Some(frame));
     }
@@ -562,7 +573,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(cells::MEMORY);
     }
     if has_closures {
-        output.push_str(&closures::table(module, true));
+        output.push_str(&closures::table(module, true, starters));
     }
     if has_async || queued {
         output.push_str(frames::GLOBALS);
@@ -821,6 +832,15 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         .any(|frame| frame.emitter.needs_remainder);
     for (index, function) in outlined.iter().enumerate() {
         if ir::is_async_closure(function) {
+            if starters {
+                starters::emit(
+                    &mut output,
+                    frames[index + 1].as_ref().expect("async frame"),
+                    index + 1,
+                    entries[index + 1].expect("async entry"),
+                );
+                continue;
+            }
             writeln!(
                 output,
                 "(func $closure_body{} (param i32 i32) (result i32 f64) unreachable)",

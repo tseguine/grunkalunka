@@ -86,15 +86,11 @@ fn selected_returns_preserve_intrinsic_error_payloads() {
 
 #[test]
 fn selected_returns_keep_erasure_and_separate_source_sites_from_runtime_jobs() {
-    // Starting a suspending callback inside a synchronous helper is a separate gap.
-    let synchronous = source_for(
-        "const apply=(fn,p,x)=>fn(p,x);const f=async(p,x)=>a?p:x;return await apply(f,Promise.resolve(b),a);",
-    );
-    assert!(
-        compile_async(&synchronous, false)
-            .err()
-            .unwrap()
-            .contains("starting pending async calls requires a coroutine function")
+    compare_promises(
+        &[
+            "const apply=(fn,p,x)=>fn(p,x);const f=async(p,x)=>a?p:x;return await apply(f,Promise.resolve(b),a);",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0)],
     );
     let plain = source_for("const p=Promise.resolve(a);const f=async x=>x?p:b;return await f(a);");
     let typed = plain

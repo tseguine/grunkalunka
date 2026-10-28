@@ -2297,10 +2297,13 @@ impl Lowering<'_, '_> {
                                     )
                                 })?;
                             let asynchronous = self.closure_signatures.borrow().is_async(signature);
-                            if asynchronous && !self.allow_await {
+                            if asynchronous
+                                && !self.allow_await
+                                && !self.promise_parameters.identities
+                            {
                                 return Err(unsupported(
                                     node,
-                                    "starting pending async calls requires a coroutine function",
+                                    "starting pending async calls requires the async source profile",
                                 ));
                             }
                             if !asynchronous

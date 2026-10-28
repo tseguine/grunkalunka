@@ -16,7 +16,7 @@ pub(super) const FRAME_ALLOCATOR: &str = r#"(func $closure_frame (param $bytes i
   local.get $old)
 "#;
 
-pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
+pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool) -> String {
     let mut output = format!(
         "(type $closure (func (param i32 i32) (result {})))\n(table {} funcref)\n",
         layout::value(Type::Number).wat,
@@ -50,7 +50,7 @@ pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
     if module
         .functions
         .iter()
-        .any(|f| f.return_type == Type::Promise)
+        .any(|f| f.return_type == Type::Promise || (starters && ir::is_async_closure(f)))
     {
         output.push_str("(type $closure_promise (func (param i32 i32) (result i32)))\n");
     }
@@ -67,10 +67,11 @@ pub(super) fn table(module: &ir::Module, outlined: bool) -> String {
     output
 }
 
-pub(super) fn temporary(function: &Function, offset: usize) -> Option<usize> {
+pub(super) fn temporary(function: &Function, offset: usize, starts: bool) -> Option<usize> {
     let mut used = false;
     ir::visit_operations(&function.body, &mut |op| {
         used |= matches!(op, Op::MakeClosure { .. } | Op::ClosureCall { .. })
+            || (starts && matches!(op, Op::StartAsyncClosure { .. }))
     });
     used.then_some(offset)
 }
@@ -157,12 +158,18 @@ impl Emitter<'_> {
             _ => "$closure",
         };
         let callee = self.value_offsets[callee.0];
+        if let Some(boundary) = &self.call_boundary {
+            self.output.push_str(&boundary.spill);
+        }
         writeln!(
             self.output,
             "local.get {}\nlocal.get {temp}\nlocal.get {callee}\ncall_indirect (type {signature})",
             callee + 1
         )
         .unwrap();
+        if let Some(boundary) = &self.call_boundary {
+            self.output.push_str(&boundary.restore);
+        }
         self.set(result);
     }
 }
