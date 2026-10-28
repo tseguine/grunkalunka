@@ -65,6 +65,13 @@ pub struct ProcessMemory {
 
 impl ProcessMemory {
     pub fn assemble(samples: [Option<Snapshot>; 5]) -> Result<Self, String> {
+        Self::assemble_with_phases(samples, &PHASES)
+    }
+
+    pub fn assemble_with_phases(
+        samples: [Option<Snapshot>; 5],
+        phases: &[&str; 5],
+    ) -> Result<Self, String> {
         let present = samples.iter().filter(|sample| sample.is_some()).count();
         if present == 0 {
             return Ok(Self { snapshots: None });
@@ -75,7 +82,7 @@ impl ProcessMemory {
         let values = samples.map(|sample| sample.expect("all samples present"));
         for (index, sample) in values.iter().enumerate() {
             if sample.peak_rss_bytes < sample.rss_bytes {
-                return Err(format!("peak RSS below RSS at {}", PHASES[index]));
+                return Err(format!("peak RSS below RSS at {}", phases[index]));
             }
             if index > 0 && sample.peak_rss_bytes < values[index - 1].peak_rss_bytes {
                 return Err("process peak RSS decreased".into());
@@ -87,10 +94,14 @@ impl ProcessMemory {
     }
 
     pub fn json(&self) -> String {
+        self.json_with_phases(&PHASES)
+    }
+
+    pub fn json_with_phases(&self, phase_names: &[&str; 5]) -> String {
         let Some(values) = self.snapshots else {
             return r#"{"scope":"entire-rust-process","unit":"bytes","source":"unsupported-on-this-host","snapshots":null}"#.into();
         };
-        let phases = PHASES
+        let phases = phase_names
             .iter()
             .zip(values)
             .map(|(phase, value)| {
