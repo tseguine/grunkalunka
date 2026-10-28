@@ -36,9 +36,9 @@ pub enum Length {
     #[default]
     Auto,
     Px(u32),
-    /// Whole percent of the containing content width. Fractional pixel
-    /// results are rejected rather than rounded. Percent heights are not
-    /// supported because they need a definite containing-block height.
+    /// Whole percent of the containing content width or height. Fractional
+    /// results are rejected. Heights need a definite containing content
+    /// height (viewport for the root, explicit height for descendants).
     Percent(u32),
 }
 
@@ -123,6 +123,7 @@ pub enum LayoutError {
     InvalidParent { node: usize },
     TooDeep { node: usize },
     FractionalPercentageWidth { node: usize },
+    FractionalPercentageHeight { node: usize },
     UnsupportedPercentageHeight { node: usize },
     Overflow,
 }
@@ -133,6 +134,22 @@ fn add(a: u32, b: u32) -> Result<u32, LayoutError> {
 
 fn insets(edges: Edges) -> Result<(u32, u32), LayoutError> {
     Ok((add(edges.left, edges.right)?, add(edges.top, edges.bottom)?))
+}
+
+// Preserve the integer-box contract for either dimension. Rounding CSS
+// subpixels is deliberately not part of this selected geometry experiment.
+fn whole_percent(
+    containing: u32,
+    percent: u32,
+    fractional: LayoutError,
+) -> Result<u32, LayoutError> {
+    let scaled = u64::from(containing)
+        .checked_mul(u64::from(percent))
+        .ok_or(LayoutError::Overflow)?;
+    if scaled % 100 != 0 {
+        return Err(fractional);
+    }
+    u32::try_from(scaled / 100).map_err(|_| LayoutError::Overflow)
 }
 
 struct Engine<'a> {
@@ -149,6 +166,7 @@ impl Engine<'_> {
         containing_x: u32,
         cursor_y: u32,
         available_width: u32,
+        containing_height: Option<u32>,
     ) -> Result<u32, LayoutError> {
         let block = self.nodes[node];
         let style = block.style;
@@ -163,15 +181,11 @@ impl Engine<'_> {
         let content_width = match style.width {
             Length::Auto => available_width.saturating_sub(horizontal),
             Length::Px(value) => value,
-            Length::Percent(value) => {
-                let scaled = u64::from(available_width)
-                    .checked_mul(u64::from(value))
-                    .ok_or(LayoutError::Overflow)?;
-                if scaled % 100 != 0 {
-                    return Err(LayoutError::FractionalPercentageWidth { node });
-                }
-                u32::try_from(scaled / 100).map_err(|_| LayoutError::Overflow)?
-            }
+            Length::Percent(value) => whole_percent(
+                available_width,
+                value,
+                LayoutError::FractionalPercentageWidth { node },
+            )?,
         };
 
         let border_left = add(containing_x, style.margin.left)?;
@@ -181,18 +195,26 @@ impl Engine<'_> {
         let padding_top = add(border_top, style.border.top)?;
         let content_y = add(padding_top, style.padding.top)?;
 
+        // A child's percentage height uses this box's definite content height,
+        // not its border/padding dimensions. Auto height is indefinite even if
+        // the parent's own containing height was definite.
+        let definite_height = match style.height {
+            Length::Auto => None,
+            Length::Px(value) => Some(value),
+            Length::Percent(value) => Some(whole_percent(
+                containing_height.ok_or(LayoutError::UnsupportedPercentageHeight { node })?,
+                value,
+                LayoutError::FractionalPercentageHeight { node },
+            )?),
+        };
         let mut next_y = content_y;
         for index in 0..self.children[node].len() {
             let child = self.children[node][index];
-            let consumed = self.place(child, content_x, next_y, content_width)?;
+            let consumed = self.place(child, content_x, next_y, content_width, definite_height)?;
             next_y = add(next_y, consumed)?;
         }
         let natural_height = (next_y - content_y).max(block.intrinsic_height);
-        let content_height = match style.height {
-            Length::Auto => natural_height,
-            Length::Px(value) => value,
-            Length::Percent(_) => return Err(LayoutError::UnsupportedPercentageHeight { node }),
-        };
+        let content_height = definite_height.unwrap_or(natural_height);
         let padding_width = add(content_width, padding_x)?;
         let padding_height = add(content_height, padding_y)?;
         let border_width = add(padding_width, border_x)?;
@@ -242,8 +264,9 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// display:none, and whole percentage widths with exact integral results are
-/// admitted. Percentage heights and fractional pixel widths are rejected.
+/// display:none, and whole percentage dimensions with exact integral results
+/// are admitted. Percentage heights require a definite containing content
+/// height; unresolved heights and fractional pixel results are rejected.
 /// Positive margins do not collapse; inline layout, text shaping, floats,
 /// CSS selectors and painting are not provided. Fixed heights may
 /// overflow, and all descendants contribute to the resulting scroll extents.
@@ -296,7 +319,7 @@ pub fn layout(
             scroll_height: viewport_height,
         },
     };
-    engine.place(0, 0, 0, viewport_width)?;
+    engine.place(0, 0, 0, viewport_width, Some(viewport_height))?;
     Ok(engine.frame)
 }
 
