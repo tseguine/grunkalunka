@@ -90,17 +90,26 @@ export function parseMetadataOverrideLog(raw,mode) {
     const fields=line.split('\t');
     check(fields.length===4,'four rustc wrapper metadata log fields');
     const [crate,target,original,observed]=fields;
-    check(Object.hasOwn(NAMES,crate)&&target===NAMES[crate].target&&
+    const selected=Object.hasOwn(NAMES,crate);
+    check(/^[A-Za-z_][A-Za-z0-9_]*$/.test(crate)&&
+      (target===TARGET||target==='host')&&
+      (!selected||target===NAMES[crate].target)&&
       /^[0-9a-f]{16}$/.test(original)&&
       /^[a-z0-9]+$/.test(observed)&&
-      observed===effective(mode,crate,original),
-    'actual compiler metadata substitution for '+crate);
+      observed===(selected?effective(mode,crate,original):original),
+    'actual selected/untouched compiler metadata for '+crate);
     rows.push({crate,target,original,effective:observed,changed:original!==observed});
   }
-  rows.sort((a,b)=>a.crate<b.crate?-1:a.crate>b.crate?1:0);
+  rows.sort((a,b)=>{
+    const left=a.crate+'|'+a.target+'|'+a.original;
+    const right=b.crate+'|'+b.target+'|'+b.original;
+    return left<right?-1:left>right?1:0;
+  });
+  const selected=rows.filter(x=>Object.hasOwn(NAMES,x.crate));
   const names=Object.keys(NAMES).sort();
-  check(rows.length===names.length&&
-    rows.every((row,i)=>row.crate===names[i]),
+  check(rows.length>=names.length&&rows.length<=128&&
+    selected.length===names.length&&
+    selected.every((row,i)=>row.crate===names[i]),
   'one real rustc invocation per expected crate');
   return rows;
 }
@@ -145,7 +154,8 @@ function validateHost(report){
     const record=report.variants[mode];
     check(record&&record.mode===mode&&
       Array.isArray(record.actualMetadata)&&
-      record.actualMetadata.length===Object.keys(NAMES).length&&
+      record.actualMetadata.length>=Object.keys(NAMES).length&&
+      record.actualMetadata.length<=128&&
       record.report&&record.report.schemaVersion===1&&
       record.report.workload==='p1-markdown-guest-wasm-sections'&&
       record.report.revision===report.revision&&
@@ -165,17 +175,28 @@ function validateHost(report){
         isDeepStrictEqual(x,expectedInputs.get(x.path))),
     'complete observed Wasm receipt for '+mode);
     const names=Object.keys(NAMES).sort();
-    for(let i=0;i<names.length;i++){
-      const row=record.actualMetadata[i],crate=names[i];
-      check(row&&row.crate===crate&&row.target===NAMES[crate].target&&
+    const selected=record.actualMetadata.filter(x=>Object.hasOwn(NAMES,x.crate));
+    check(selected.length===names.length&&
+      selected.every((row,i)=>row.crate===names[i]),
+    'all five selected compiler metadata records in '+mode);
+    for(const row of record.actualMetadata){
+      const crate=row.crate;
+      const selectedCrate=Object.hasOwn(NAMES,crate);
+      const isSelectedTarget=selectedCrate&&row.target===NAMES[crate].target;
+      check(/^[A-Za-z_][A-Za-z0-9_]*$/.test(crate)&&
+        (row.target==='host'||row.target===TARGET)&&
+        (!selectedCrate||isSelectedTarget)&&
         /^[0-9a-f]{16}$/.test(row.original)&&
-        row.effective===effective(mode,crate,row.original)&&
+        row.effective===(selectedCrate?
+          effective(mode,crate,row.original):row.original)&&
         row.changed===(row.original!==row.effective),
       'complete observed generated metadata for '+mode+'/'+crate);
-      if(originalByCrate.has(crate)){
-        check(originalByCrate.get(crate)===row.original,
-          'unchanged Cargo-generated metadata across wrapper modes for '+crate);
-      }else originalByCrate.set(crate,row.original);
+      if(selectedCrate){
+        if(originalByCrate.has(crate)){
+          check(originalByCrate.get(crate)===row.original,
+            'unchanged Cargo-generated metadata across wrapper modes for '+crate);
+        }else originalByCrate.set(crate,row.original);
+      }
     }
     // Existing inspector validates bounded data/section and full body SHA-256
     // vectors. Self-compare requires no host identity assumption.
@@ -219,10 +240,12 @@ export function compareNativeMetadataOverrides(linux,receiver) {
   const crossHost={};
   for(const mode of VARIANTS){
     const left=linux.variants[mode],right=receiver.variants[mode];
+    const selectedLeft=left.actualMetadata.filter(x=>Object.hasOwn(NAMES,x.crate));
+    const selectedRight=right.actualMetadata.filter(x=>Object.hasOwn(NAMES,x.crate));
     let generatedSame=0,effectiveSame=0;
     const mismatches=[];
-    for(let i=0;i<left.actualMetadata.length;i++){
-      const l=left.actualMetadata[i],r=right.actualMetadata[i];
+    for(let i=0;i<selectedLeft.length;i++){
+      const l=selectedLeft[i],r=selectedRight[i];
       check(l.crate===r.crate&&l.target===r.target,
         'comparable crate targets at the same ordinal');
       if(l.original===r.original)generatedSame++;
@@ -230,10 +253,12 @@ export function compareNativeMetadataOverrides(linux,receiver) {
       else mismatches.push(l.crate);
     }
     metadata[mode]={
-      generatedSame,effectiveSame,totalCrates:left.actualMetadata.length,
+      generatedSame,effectiveSame,totalCrates:selectedLeft.length,
       remainingMetadataMismatches:mismatches,
-      producerModifiedCrates:left.actualMetadata.filter(x=>x.changed).map(x=>x.crate),
-      receiverModifiedCrates:right.actualMetadata.filter(x=>x.changed).map(x=>x.crate),
+      producerModifiedCrates:selectedLeft.filter(x=>x.changed).map(x=>x.crate),
+      receiverModifiedCrates:selectedRight.filter(x=>x.changed).map(x=>x.crate),
+      producerUnselectedCrates:left.actualMetadata.filter(x=>!Object.hasOwn(NAMES,x.crate)).map(x=>x.crate),
+      receiverUnselectedCrates:right.actualMetadata.filter(x=>!Object.hasOwn(NAMES,x.crate)).map(x=>x.crate),
     };
     crossHost[mode]=summary(left.report,right.report);
   }
@@ -257,7 +282,7 @@ export function compareNativeMetadataOverrides(linux,receiver) {
       producer:Object.fromEntries(VARIANTS.map(mode=>[mode,{...linux.variants[mode].report.artifact}])),
       receiver:Object.fromEntries(VARIANTS.map(mode=>[mode,{...receiver.variants[mode].report.artifact}])),
     },
-    interpretation:'experimental replacement of Cargo-generated metadata under one fixed rustc wrapper; extra-filename and all other Cargo inputs remain host-dependent',
+    interpretation:'selected five Cargo-generated metadata groups overridden under one wrapper; other actual compiled dependencies, extra-filename and all other Cargo inputs remain host-dependent',
   };
 }
 
