@@ -435,6 +435,18 @@ impl Emitter<'_> {
                     right,
                     negated,
                 } => self.primitive_loose_equal(*result, *left, *right, *negated),
+                Op::PromiseIdentityEqual {
+                    result,
+                    left,
+                    right,
+                    negated,
+                } => {
+                    self.get(*left);
+                    self.get(*right);
+                    self.output
+                        .push_str(if *negated { "i32.ne\n" } else { "i32.eq\n" });
+                    self.set(*result);
+                }
                 Op::RelationalCompare {
                     result,
                     operator,

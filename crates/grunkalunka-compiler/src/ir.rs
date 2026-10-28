@@ -9,6 +9,8 @@ mod async_closure_tests;
 #[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
+mod promise_equality_tests;
+#[cfg(test)]
 mod relational_tests;
 #[cfg(test)]
 mod runtime_closure_tests;
@@ -478,6 +480,14 @@ pub(crate) enum Op {
     AdoptPromise {
         result: ValueId,
         input: ValueId,
+    },
+    /// Compare stable Promise identities without observing their completion or
+    /// registering a reaction. Strict and loose equality coincide for two Promises.
+    PromiseIdentityEqual {
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+        negated: bool,
     },
     // One caller reaction, regardless of which settlement is represented.
     AwaitSettled {
@@ -1109,6 +1119,16 @@ impl Verifier<'_> {
             Op::Unary { result, input, .. } => {
                 self.value(*input, Type::Number, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::PromiseIdentityEqual {
+                result,
+                left,
+                right,
+                ..
+            } => {
+                self.value(*left, Type::Promise, visible, span)?;
+                self.value(*right, Type::Promise, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::PrimitiveStrictEqual {
                 result,

@@ -420,3 +420,24 @@ semantics or String values. The comparison shortcut relies on the current single
 intrinsic Error kind and fixed message; new kinds or custom coercion require an
 extension. String-producing conversions, snapshot adoption and other previously
 recorded JS/TS gaps remain open.
+
+### Represented Promise identity equality
+
+Stored identity values from suspending or adopting async calls now support
+`===`, `!==`, `==` and `!=`. Aliases compare equal; separate activations compare
+unequal even when their completions match. Comparisons preserve left-to-right
+snapshots through reassignments, private callbacks and suspension. Comparing with
+an awaited primitive compares the object with its completion, not two completions.
+
+Both operands keep their eager effects, but comparison adds no await reaction or
+job and does not mark a rejection handled. Tests retain the one child job and
+unhandled notification of a discarded rejecting child even when its Promise is
+compared. A measured opaque ID supplied as an ordinary Number never aliases the
+Promise. TypeScript annotations remain erased and the existing await-site and
+runtime-job limits remain unchanged.
+
+The current mixed equality route covers General non-string primitives and the
+intrinsic Error extension. It does not add General Strings, custom ToPrimitive,
+function-object equality or identity for immediate fulfilled/settled snapshots.
+Snapshot materialization remains required for those source Promise domains; see
+[the logical contract](ir.md#represented-promise-identity-equality).

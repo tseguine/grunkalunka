@@ -2179,3 +2179,13 @@ Every source arrow seeds this query independently, so a lone unused factory may
 return a conditional or logical choice of primitive-result functions without a
 call first establishing their shared interface. Singleton seeds do not themselves
 become shared ABI groups; ordinary generic identity specialization is preserved.
+
+## Represented Promise equality in async source
+
+The async identity domain supports strict/loose equality and inequality of
+represented Promises, retaining both operands' effects and captured handles.
+Comparison with currently supported General values is unequal; no completion or
+opaque-ID numeric conversion substitutes for object identity. The primitive
+return profiles and immediate snapshot domains retain their existing boundaries.
+See [Promise equality](async.md#represented-promise-identity-equality) for coverage
+and remaining String, snapshot and object-coercion gaps.

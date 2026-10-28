@@ -205,6 +205,21 @@ enum Work<'e, 'a> {
         loose: bool,
         negated: bool,
     },
+    PromiseCompareRight {
+        node: &'e Expression<'a>,
+        right: &'e Expression<'a>,
+        depth: usize,
+        left_promise: bool,
+        right_promise: bool,
+        negated: bool,
+    },
+    PromiseCompare {
+        node: &'e Expression<'a>,
+        left: ValueId,
+        left_promise: bool,
+        right_promise: bool,
+        negated: bool,
+    },
     PrimitiveCompare {
         node: &'e Expression<'a>,
         left: ValueId,
@@ -1266,6 +1281,71 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(Value::Number(result));
+                }
+                Work::PromiseCompareRight {
+                    node,
+                    right,
+                    depth,
+                    left_promise,
+                    right_promise,
+                    negated,
+                } => {
+                    let left = values.pop().expect("Promise comparison left");
+                    let left = if left_promise {
+                        left.pending()
+                    } else {
+                        left.general()
+                    };
+                    work.push(Work::PromiseCompare {
+                        node,
+                        left,
+                        left_promise,
+                        right_promise,
+                        negated,
+                    });
+                    work.push(Work::Eval(
+                        right,
+                        depth,
+                        if right_promise {
+                            Mode::Pending
+                        } else {
+                            Mode::General
+                        },
+                    ));
+                }
+                Work::PromiseCompare {
+                    node,
+                    left,
+                    left_promise,
+                    right_promise,
+                    negated,
+                } => {
+                    let right = values.pop().expect("Promise comparison right");
+                    let right = if right_promise {
+                        right.pending()
+                    } else {
+                        right.general()
+                    };
+                    let result = self.value(Type::Predicate);
+                    let op = if left_promise && right_promise {
+                        Op::PromiseIdentityEqual {
+                            result,
+                            left,
+                            right,
+                            negated,
+                        }
+                    } else {
+                        // Current General contains non-string primitives and intrinsic
+                        // Errors. A Promise is distinct from every such value; loose
+                        // numeric comparison also yields false after ToPrimitive.
+                        // General String admission must extend the loose-equality path.
+                        Op::Boolean {
+                            result,
+                            value: negated,
+                        }
+                    };
+                    Self::push(regions.current(), node, op);
+                    values.push(Value::Predicate(result));
                 }
                 Work::PrimitiveCompareRight {
                     node,
@@ -2653,6 +2733,34 @@ impl Lowering<'_, '_> {
                                         binary.operator,
                                         BinaryOperator::Equality | BinaryOperator::Inequality
                                     );
+                                let left_promise =
+                                    equality && self.pending_promise_shape(&binary.left, depth + 1);
+                                let right_promise = equality
+                                    && self.pending_promise_shape(&binary.right, depth + 1);
+                                if left_promise || right_promise {
+                                    work.push(Work::PromiseCompareRight {
+                                        node,
+                                        right: &binary.right,
+                                        depth: depth + 1,
+                                        left_promise,
+                                        right_promise,
+                                        negated: matches!(
+                                            binary.operator,
+                                            BinaryOperator::Inequality
+                                                | BinaryOperator::StrictInequality
+                                        ),
+                                    });
+                                    work.push(Work::Eval(
+                                        &binary.left,
+                                        depth + 1,
+                                        if left_promise {
+                                            Mode::Pending
+                                        } else {
+                                            Mode::General
+                                        },
+                                    ));
+                                    continue;
+                                }
                                 if equality
                                     && !(strict && booleans)
                                     && !(self.numeric_result_shape(&binary.left, depth + 1)

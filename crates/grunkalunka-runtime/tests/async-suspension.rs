@@ -22,6 +22,9 @@ mod self_resolution;
 #[path = "async-suspension/relational.rs"]
 mod relational;
 
+#[path = "async-suspension/promise_equality.rs"]
+mod promise_equality;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(

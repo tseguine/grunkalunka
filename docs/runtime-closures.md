@@ -379,10 +379,14 @@ export async function run(a, b) {
 The argument runs before all extras; extras may mutate captures or suspend before
 the caller registers its await. Captured callee pairs and argument snapshots
 survive this work. This is the existing-Promise identity case, not general adoption.
-Mixed identity/snapshot storage, mixed pending/scalar parameter domains, identity
-comparison, primitive coercion and snapshot async-return adoption remain
-explicit source gaps. Immediate non-suspending async closures retain their
-fulfilled/settled snapshot contracts.
+Strict/loose equality and inequality now compare represented Promise identities,
+including aliases, distinct calls with equal completions, captured/private inputs
+and operands spanning suspension. Supported General values remain distinct from
+a Promise, preserving both operands' effects. Comparison neither awaits the
+Promise nor handles its rejection. Mixed identity/snapshot storage, mixed
+pending/scalar parameter domains, primitive coercion and snapshot async-return
+adoption remain explicit source gaps. Immediate non-suspending async closures
+retain their fulfilled/settled snapshot contracts.
 
 Homogeneous pending inputs now follow positive original-source provenance into
 private signatures. Known calls, runtime selection, higher-order callbacks and

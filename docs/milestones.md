@@ -107,6 +107,10 @@ General relational IR now closes the saved Error `e<=e` counterexample, preserve
 operand snapshots through calls/suspension, and distinguishes equal intrinsic
 Error strings from object IDs and explicit numeric NaN coercion. General strings,
 snapshot adoption and mixed pending/scalar or pending/snapshot inputs remain gaps.
+Represented Promise values now support strict/loose equality and inequality,
+preserving alias identity, distinct calls, captured snapshots and operand jobs.
+Comparison does not handle rejection or equate a Promise with its completion or
+numeric ID. Snapshot identity conversion and General String coercion remain open.
 This does not close general Promise support or L5.
 [Runtime closure contracts](runtime-closures.md) and the maintained
 `async-suspension` tests supply existing behavior and guards to preserve.

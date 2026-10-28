@@ -810,7 +810,7 @@ the existing reaction queue and runtime job budget, with no new host ABI, kernel
 record layout or explicit await-site charge.
 
 This does not complete Promise compatibility. Snapshot adoption, thenables, general
-payloads, source identity comparison, mixed snapshot/identity storage, mixed
+payloads, snapshot identity conversion, mixed snapshot/identity storage, mixed
 pending/scalar input interfaces and independently escaping Promises remain open. Detached
 primitive rejection reporting is covered by
 [pending source values](runtime-closures.md#pending-source-values). Maintained IR
@@ -860,3 +860,28 @@ zero; Boolean and Number payloads supply their numeric values. All four comparis
 with NaN are false. Explicit unary numeric conversion still happens independently:
 `e <= e` is true, while `+e <= +e` is false. No Error ID participates in numeric
 ordering. Primitive return protocols, General lanes and the async queue are unchanged.
+
+### Represented Promise identity equality
+
+`PromiseIdentityEqual` consumes two visible `Promise` values and defines a
+Predicate. Its negated form implements inequality. The verifier rejects General,
+Number and immediate fulfilled/settled snapshots as identity operands. Emission
+compares the existing i32 handles; completion records are never read. No reaction,
+rejection-handler registration, allocation, await-site charge or job is added.
+
+Source `===`, `!==`, `==` and `!=` share this operation for two represented Promise
+identities. Operand evaluation remains once, left to right, preserving the first
+handle across RHS rebindings, helper calls and suspension. Equal completions do
+not make distinct Promises equal, and `Promise.resolve(p, extras)` retains its
+existing handle/effect contract. Private Promise inputs and captured aliases use
+the same comparison.
+
+When exactly one operand is a represented Promise and the other is a supported
+General value, both are evaluated and the equality result is false. General
+currently contains non-string primitives and intrinsic Error objects: numeric
+loose comparison cannot equal a Promise's ordinary primitive string, and the
+Error is a distinct object. Inequality negates that result. No handle-to-Number
+cast is used, even for a Number equal to the opaque ID. General String
+admission or custom Promise coercion must extend this source route; these are
+not covered by the current constant cross-kind result. Immediate snapshots still
+need conversion to stable identity records before identity comparison.

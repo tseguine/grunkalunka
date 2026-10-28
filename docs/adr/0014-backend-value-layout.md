@@ -340,3 +340,13 @@ lanes or string allocation. The equal-string shortcut relies on the single fixed
 intrinsic Error kind/message; other Error kinds and General Strings must extend
 that dispatch. String-producing conversion and general Error construction remain
 separate work.
+
+## Represented Promise equality
+
+`PromiseIdentityEqual` compares existing logical Promise handles without changing
+their i32 layout or reading completion payloads. General/scalar/snapshot operands
+cannot enter that operation. Source mixed comparison evaluates both sides and
+uses current non-string General kinds to determine inequality, retaining a clear
+extension point for future String/custom-coercion support. Comparison has no
+queue or rejection-handling effect and allocates no new identity on access.
+Immediate snapshots still require materialization before identity comparison.
