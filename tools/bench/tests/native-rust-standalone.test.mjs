@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inspectWasmSections } from '../wasm-section-fingerprint.mjs';
+import { fingerprintWasmData } from '../wasm-data-chunks.mjs';
 import { compareNativeRustWitnesses } from '../native-rust-standalone.mjs';
 
 const magic = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
@@ -19,16 +20,19 @@ const segment=(id,bytes)=>{
   assert.ok(bytes.length<128);
   return Buffer.from([id,bytes.length,...bytes]);
 };
-function artifact(bodies, custom=null) {
+function moduleBytes(bodies, custom=null) {
   const chunks=[magic,segment(10,[bodies.length,
     ...bodies.flatMap(b=>[b.length,...b])])];
   if(custom!==null) chunks.push(segment(0,[4,...Buffer.from('name'),...custom]));
-  return inspectWasmSections(Buffer.concat(chunks),{codeBodyDigests:true});
+  chunks.push(segment(11,[1,0,0x41,0,0x0b,3,1,2,3]));
+  return Buffer.concat(chunks);
 }
 function fixture(name,bodies,custom=null) {
+  const bytes=moduleBytes(bodies,custom);
   return {
     source:{...fixturePaths[name],sha256:'a'.repeat(64),bytes:32},
-    wasm:artifact(bodies,custom),
+    wasm:inspectWasmSections(bytes,{codeBodyDigests:true}),
+    data:fingerprintWasmData(bytes),
     goldens:{gcdCases:4,extraCases:3,hostImports:0},
   };
 }
@@ -56,6 +60,8 @@ test('same compiler output across native hosts gives exact artifact identity',()
     assert.deepEqual(f.changedSections,[]);
     assert.deepEqual(f.rawBodyOverlap.counts,[1,1]);
     assert.equal(f.rawBodyOverlap.sameAtOrdinal,1);
+    assert.equal(f.dataChunks.sameDataSectionBytes,true);
+    assert.equal(f.dataChunks.differingSegments.length,0);
     assert.equal(f.rawBodyOverlap.sameIgnoringOrder,1);
     assert.deepEqual(f.rawBodyOverlap.unmatched,[0,0]);
     assert.equal(f.identicalVerifiedGoldens,true);
