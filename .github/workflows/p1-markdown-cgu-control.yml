@@ -1,0 +1,204 @@
+# Optional P1 experiment; no changes to canonical CI or source compiler.
+name: P1 Markdown single-codegen-unit control
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - .github/workflows/p1-markdown-cgu-control.yml
+      - tools/bench/markdown-cgu-control.mjs
+      - tools/bench/tests/markdown-cgu-control.test.mjs
+      - crates/grunkalunka-markdown/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-markdown-cgu-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  producer:
+    name: Build default and one-CGU guests on Linux x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      receipt64: ${{ steps.transfer.outputs.receipt64 }}
+    steps:
+      - name: Check out exact tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install fixed native Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: x64
+          package-manager-cache: false
+
+      - name: Validate Linux host and install native Rust Wasm toolchain
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          node -e "if (process.platform !== 'linux' || process.arch !== 'x64' || process.version !== 'v24.21.0') process.exit(1)"
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV
+          cargo fetch --locked
+
+      - name: Verify pure config and provenance comparator
+        run: node --test tools/bench/tests/markdown-cgu-control.test.mjs
+
+      - name: Build two controlled Wasm guests in one isolated directory
+        id: transfer
+        run: |
+          set -euo pipefail
+          node tools/bench/markdown-cgu-control.mjs collect > "$RUNNER_TEMP/cgu-control.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/cgu-control.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const [reportFile, outputFile] = process.argv.slice(2);
+          const bytes = fs.readFileSync(reportFile);
+          assert.ok(bytes.length > 0 && bytes.length <= 384 * 1024,
+            'bounded producer receipt');
+          const report = JSON.parse(bytes.toString('utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-markdown-cgu-control');
+          assert.deepEqual([report.environment.os, report.environment.arch], ['linux', 'x64']);
+          assert.equal(report.environment.node, 'v24.21.0');
+          assert.deepEqual(Object.keys(report.variants).sort(), ['default', 'single']);
+          assert.equal(report.variants.default.environment.rustflags, '');
+          assert.equal(report.variants.single.environment.rustflags, '-C codegen-units=1');
+          for (const variant of Object.values(report.variants)) {
+            assert.match(variant.artifact.sha256, /^[a-f0-9]{64}$/);
+            assert.ok(variant.codeBodies.count > 0 && variant.codeBodies.count <= 4096);
+          }
+          fs.appendFileSync(outputFile, 'receipt64=' + bytes.toString('base64') + '\n');
+          console.log('PASS Linux native Markdown codegen-unit control ' +
+            JSON.stringify({ artifacts: Object.fromEntries(Object.entries(report.variants)
+              .map(([key, value]) => [key, value.artifact])),
+              sameHost: report.sameHost }));
+          NODE
+
+  compare:
+    name: Compare default and one-CGU guests on ${{ matrix.platform }}
+    needs: producer
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows x64
+            runner: windows-2025
+            os: Windows
+            runner_arch: X64
+            js_os: win32
+            js_arch: x64
+            rust_host: x86_64-pc-windows-msvc
+          - platform: Apple Silicon macOS ARM64
+            runner: macos-15
+            os: macOS
+            runner_arch: ARM64
+            js_os: darwin
+            js_arch: arm64
+            rust_host: aarch64-apple-darwin
+    steps:
+      - name: Check out same tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install identical Node.js release on native host
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          architecture: ${{ matrix.js_arch }}
+          package-manager-cache: false
+
+      - name: Verify native host and install Rust Wasm target
+        env:
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_RUNNER_ARCH: ${{ matrix.runner_arch }}
+          EXPECTED_JS_OS: ${{ matrix.js_os }}
+          EXPECTED_JS_ARCH: ${{ matrix.js_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = "$EXPECTED_OS"
+          test "$RUNNER_ARCH" = "$EXPECTED_RUNNER_ARCH"
+          node -e "if (process.platform !== process.env.EXPECTED_JS_OS || process.arch !== process.env.EXPECTED_JS_ARCH || process.version !== 'v24.21.0') process.exit(1)"
+          if [ "$RUNNER_OS" = macOS ]; then
+            test "$(uname -m)" = arm64
+            test "$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')" = 0
+          fi
+          toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
+          rustup toolchain install "$toolchain" --profile minimal --target wasm32-unknown-unknown
+          rustc -vV | tee "$RUNNER_TEMP/rustc-host.txt"
+          grep -F "host: $EXPECTED_RUST_HOST" "$RUNNER_TEMP/rustc-host.txt"
+          cargo fetch --locked
+
+      - name: Validate comparison inputs before compiling
+        run: node --test tools/bench/tests/markdown-cgu-control.test.mjs
+
+      - name: Independently rebuild both variants and compare with Linux
+        env:
+          PRODUCER_RECEIPT64: ${{ needs.producer.outputs.receipt64 }}
+          EXPECTED_JS_OS: ${{ matrix.js_os }}
+          EXPECTED_JS_ARCH: ${{ matrix.js_arch }}
+          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
+        run: |
+          set -euo pipefail
+          node --input-type=commonjs - "$RUNNER_TEMP/linux-cgu-control.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const value = process.env.PRODUCER_RECEIPT64 ?? '';
+          assert.match(value, /^[A-Za-z0-9+/]+={0,2}$/, 'bounded canonical receipt transfer');
+          const bytes = Buffer.from(value, 'base64');
+          assert.ok(bytes.length > 0 && bytes.length <= 384 * 1024);
+          assert.equal(bytes.toString('base64'), value, 'complete canonical transfer');
+          fs.writeFileSync(process.argv[2], bytes, { flag: 'wx' });
+          NODE
+          node tools/bench/markdown-cgu-control.mjs collect \
+            > "$RUNNER_TEMP/native-cgu-control.json"
+          node tools/bench/markdown-cgu-control.mjs compare \
+            "$RUNNER_TEMP/linux-cgu-control.json" "$RUNNER_TEMP/native-cgu-control.json" \
+            > "$RUNNER_TEMP/cgu-comparison.json"
+          node --input-type=commonjs - "$RUNNER_TEMP/cgu-comparison.json" <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const report = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          assert.equal(report.schemaVersion, 1);
+          assert.equal(report.workload, 'p1-markdown-cgu-cross-host-comparison');
+          assert.deepEqual([report.producer.os, report.producer.arch], ['linux', 'x64']);
+          assert.equal(report.receiver.os, process.env.EXPECTED_JS_OS);
+          assert.equal(report.receiver.arch, process.env.EXPECTED_JS_ARCH);
+          assert.equal(report.receiver.rustcHost, process.env.EXPECTED_RUST_HOST);
+          for (const name of ['default', 'single']) {
+            const comparison = report.acrossHosts[name];
+            assert.equal(typeof comparison.sameArtifactBytes, 'boolean');
+            assert.equal(typeof comparison.sameNonCustomSections, 'boolean');
+            assert.ok(comparison.codeBodyComparison !== null);
+            assert.match(report.artifactIdentity.producer[name].sha256, /^[a-f0-9]{64}$/);
+            assert.match(report.artifactIdentity.receiver[name].sha256, /^[a-f0-9]{64}$/);
+          }
+          // Equality or inequality is evidence to report, not a pass threshold.
+          console.log('PASS cross-host single-codegen-unit control observation');
+          console.log(JSON.stringify(report));
+          NODE
