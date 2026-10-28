@@ -125,10 +125,14 @@ are not automatic PR merge gates.
   source/test-time inputs of Cargo package tests, such as Rust `include_str!`
   fixtures; these are selection edges, not extra build prerequisites.
 - When adding, removing or changing a canonical check invocation, update its
-  matching per-command descriptor in the same PR. Account for new modules,
-  fixtures, imports, generated inputs, and spawned tools in the relevant owner,
-  test and Cargo-test descriptors. Prefer separate descriptor files over shared
-  registries. Unknown or ambiguous paths/dependencies, stale command mappings,
+  matching per-command descriptor in the same PR. Add new commands via an
+  independently named `scripts/checks/NNNNNN-name.json` manifest, not by
+  editing `scripts/check.mjs`. Paired new manifest/descriptor files are eligible
+  for selected tests; edits/deletions or incomplete pairs still force full CI.
+  Account for new modules, fixtures, imports, generated inputs, and spawned
+  tools in the relevant owner, test and Cargo-test descriptors. Prefer
+  separate descriptor files over shared registries. Unknown or ambiguous
+  paths/dependencies, stale command mappings,
   and global build/CI changes **must fall back to full CI**, never silently
   select zero tests. A failed selected check is a failure, **not** a planning
   fallback. An inability to independently validate a dependency or target
