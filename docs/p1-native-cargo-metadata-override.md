@@ -2,7 +2,7 @@
 
 The [actual native Cargo rustc argument experiment](p1-native-cargo-rustc-metadata.md)
 established that Linux x64, Windows x64 and native Apple Silicon ARM64
-receive **different generated \`-C metadata\` values** for four of the five
+receive **different generated `-C metadata` values** for four of the five
 Rust Markdown guest crate/target groups, even when every host appends the
 same explicitly requested extra metadata argument. The earlier
 [global versus guest-only metadata experiment](p1-markdown-metadata-scope.md)
@@ -17,25 +17,25 @@ much cross-host Rust Markdown guest Wasm identity actually changes.
 
 The [temporary native rustc wrapper](../tools/bench/fixtures/p1-native-cargo-metadata-wrapper.rs)
 uses Cargo's documented
-[\`RUSTC_WRAPPER\` interface](https://doc.rust-lang.org/cargo/reference/config.html#buildrustc-wrapper).
+[`RUSTC_WRAPPER` interface](https://doc.rust-lang.org/cargo/reference/config.html#buildrustc-wrapper).
 Cargo invokes the wrapper with the path to its *actual* native rustc
 executable as the first argument. The wrapper forwards that same compiler
 and all of its original arguments, changing **only one** actual
-Cargo-generated \`-C metadata=...\` codegen argument per expected crate.
+Cargo-generated `-C metadata=...` codegen argument per expected crate.
 
 The wrapper accepts precisely five observed crate/target groups and
 requires one sixteen-lowercase-hex-generated metadata value on each:
 
 | Compiled crate | Target | Replacement value |
 | --- | --- | --- |
-| \`build_script_build\` | Native host | \`p1script\` |
-| \`unicase\` | \`wasm32-unknown-unknown\` | \`p1unicase\` |
-| \`pulldown_cmark\` | \`wasm32-unknown-unknown\` | \`p1pulldown\` |
-| \`grunkalunka_markdown\` | \`wasm32-unknown-unknown\` | \`p1markdown\` |
-| \`outline_guest\` | \`wasm32-unknown-unknown\` | \`p1guest\` |
+| `build_script_build` | Native host | `p1script` |
+| `unicase` | `wasm32-unknown-unknown` | `p1unicase` |
+| `pulldown_cmark` | `wasm32-unknown-unknown` | `p1pulldown` |
+| `grunkalunka_markdown` | `wasm32-unknown-unknown` | `p1markdown` |
+| `outline_guest` | `wasm32-unknown-unknown` | `p1guest` |
 
 A missing/extra generated metadata flag or an unknown compiled crate
-fails closed. Cargo's \`--extern\`, \`-C extra-filename\`, target,
+fails closed. Cargo's `--extern`, `-C extra-filename`, target,
 feature configuration, source, linker arguments, and every other
 compiler flag are passed **unchanged**. The wrapper preserves real
 rustc exit codes, and leaves compiler version/probe invocations alone.
@@ -43,24 +43,24 @@ rustc exit codes, and leaves compiler version/probe invocations alone.
 The [independent three-host workflow](../.github/workflows/p1-native-cargo-metadata-override.yml)
 compiles this wrapper locally with the installed host rustc, runs its
 native Rust unit tests, and then builds the *unchanged* existing
-\`grunkalunka-markdown --example outline_guest\` three times on each
+`grunkalunka-markdown --example outline_guest` three times on each
 host:
 
 | Mode | Wrapper's action |
 | --- | --- |
 | Pass-through | Forward all compiler arguments unchanged, but log original generated metadata |
 | Target-only | Replace generated metadata for the four wasm32-target crates; keep native build-script metadata |
-| All | Also replace the native \`build_script_build\` generated metadata |
+| All | Also replace the native `build_script_build` generated metadata |
 
 All three modes use exactly **the same wrapper executable path and
-the same absolute private \`CARGO_TARGET_DIR\`** on their runner. The
-collector runs \`cargo clean\` (including host *and* wasm target products)
+the same absolute private `CARGO_TARGET_DIR`** on their runner. The
+collector runs `cargo clean` (including host *and* wasm target products)
 between modes and checks that the previous compiled guest was removed.
 The builds use locked/offline dependencies, the same Git checkout and
-Rust toolchain, empty \`RUSTFLAGS\`, \`CARGO_INCREMENTAL=0\` and
-**serialized \`-j 1\` compilation** to keep the short wrapper records
+Rust toolchain, empty `RUSTFLAGS`, `CARGO_INCREMENTAL=0` and
+**serialized `-j 1` compilation** to keep the short wrapper records
 unambiguous. Neither the project build configuration nor the
-developer's normal \`target/\` is changed.
+developer's normal `target/` is changed.
 
 A compact temporary wrapper record gives only crate name, target,
 actual original generated metadata and effective forwarded metadata
@@ -98,18 +98,18 @@ unexpected compiler versions and invalid Wasm do fail.
 
 After installing the Rust wasm target and fetching Cargo dependencies:
 
-\`\`\`sh
+```sh
 node --test tools/bench/tests/native-cargo-metadata-override.test.mjs
 node tools/bench/native-cargo-metadata-override.mjs collect > host-control.json
 node tools/bench/native-cargo-metadata-override.mjs compare linux-control.json host-control.json
-\`\`\`
+```
 
 ## Limitations
 
 This is an intentionally invasive *diagnostic build* only. It changes
 rustc's identity inputs under a temporary wrapper and must **not**
 be silently adopted as a normal or production build configuration.
-It does not replace Cargo's generated \`-C extra-filename\` values,
+It does not replace Cargo's generated `-C extra-filename` values,
 Cargo package/features/fingerprint logic, native build scripts' other
 host inputs, final linker flags or native rustc/LLVM executables.
 
