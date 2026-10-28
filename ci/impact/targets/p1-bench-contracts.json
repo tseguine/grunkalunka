@@ -1,0 +1,9 @@
+{
+  "id": "test:p1-bench-contracts",
+  "dependsOn": [
+    "node-bench",
+    "build-test-sources",
+    "example-workflows"
+  ],
+  "buildDependsOn": []
+}
