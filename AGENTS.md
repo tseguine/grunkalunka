@@ -100,6 +100,40 @@ another agent's branch or merge its implementation PR without delegated authorit
 Re-read branch heads before writes; use expected-head safeguards where available.
 Use independent useful work during CI waits instead of manufacturing extra churn.
 
+## Partial-PR CI coordination (currently advisory)
+
+Read [impact planning](ci/impact/README.md) and [Cargo scoping](ci/impact/CARGO-SCOPE.md)
+when changing modules, tests, fixtures, build inputs, or CI workflows. The
+`.github/workflows/impact-shadow.yml` planner only **reports** affected work;
+`.github/workflows/ci.yml` and `node scripts/check.mjs` still run the complete
+canonical suite on PRs and `master`. The scoped layout rehearsal is also
+non-gating. Do not skip or replace required checks based on a shadow plan, or
+claim a proposed selection establishes test coverage. Activating partial PR
+gates requires an explicit maintainer decision and separate verification.
+
+- Cargo workspace package ownership/dependencies come from Cargo metadata;
+  non-Cargo paths use independent `ci/impact/owners/*.json` descriptors. The
+  planner selects tests by **reverse dependency closure**, then selects build
+  prerequisites by a **forward dependency closure**. Build-only dependencies
+  do not acquire tests. `ci/impact/targets/*.json` describe logical dependency
+  groups, **not executable tests**; `ci/impact/checks/*.json` map the real
+  canonical commands. Workspace-wide check nodes are selection umbrellas, not
+  reasons to build every crate in the package-scoping preview.
+- When adding, removing, or changing a canonical check invocation, update its
+  matching per-command descriptor in the same PR. Account for new non-Cargo
+  modules, test fixtures, imports, generated inputs, and spawned tools in the
+  relevant owner/test dependencies. Prefer separate descriptor files over
+  editing shared registries. Unknown or ambiguous paths/dependencies, stale
+  command mappings, and global build/CI changes must **fall back to full CI**,
+  never silently select zero tests.
+- Independent workflows (such as P1 portability and browser-oracle smoke) are
+  **not covered** just because the canonical check catalog matches. Preserve
+  their own triggers and verification; include their inputs before any future
+  selective gate can be trusted. Check planner changes with
+  `node --test ci/impact/*.test.mjs` and review
+  `node ci/impact/plan.mjs origin/master` from a checkout with merge-base
+  history. These checks never replace the full exact-head CI gate.
+
 ## Verification and merging
 
 Use the current [CI contract](docs/ci.md), [testing plan](docs/testing.md) and
