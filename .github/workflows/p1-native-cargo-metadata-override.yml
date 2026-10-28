@@ -86,12 +86,12 @@ jobs:
           assert.equal(data.workload,'p1-native-cargo-metadata-override');
           assert.deepEqual([data.environment.os,data.environment.arch],['linux','x64']);
           assert.equal(data.environment.node,'v24.21.0');
-          assert.deepEqual(Object.keys(data.variants).sort(),['all','passthrough','target']);
+          assert.deepEqual(Object.keys(data.variants).sort(),['all','passthrough','target','target_plus_deps']);
           const modes={};
           for(const [name,mode] of Object.entries(data.variants)){
-            assert.ok(mode.actualMetadata.length>=5&&mode.actualMetadata.length<=128);
-            const selected=['build_script_build','grunkalunka_markdown',
-              'outline_guest','pulldown_cmark','unicase'];
+            assert.ok(mode.actualMetadata.length>=7&&mode.actualMetadata.length<=128);
+            const selected=['bitflags','build_script_build','grunkalunka_markdown',
+              'memchr','outline_guest','pulldown_cmark','unicase'];
             assert.deepEqual(mode.actualMetadata
               .filter(x=>selected.includes(x.crate))
               .map(x=>x.crate).sort(),selected);
@@ -217,12 +217,15 @@ jobs:
           assert.equal(result.producer.rustcCommit,result.receiver.rustcCommit);
           assert.equal(result.producer.llvm,result.receiver.llvm);
           assert.deepEqual(Object.keys(result.crossHost).sort(),
-            ['all','passthrough','target']);
-          for(const mode of ['passthrough','target','all']){
+            ['all','passthrough','target','target_plus_deps']);
+          for(const mode of ['passthrough','target','target_plus_deps','all']){
             const actual=result.metadata[mode];
             assert.equal(actual.totalCrates,5);
+            assert.equal(actual.extraTotalCrates,2);
             assert.ok(actual.generatedSame>=0&&actual.generatedSame<=5);
             assert.ok(actual.effectiveSame>=0&&actual.effectiveSame<=5);
+            assert.ok(actual.extraGeneratedSame>=0&&actual.extraGeneratedSame<=2);
+            assert.ok(actual.extraEffectiveSame>=0&&actual.extraEffectiveSame<=2);
             const compared=result.crossHost[mode];
             assert.equal(typeof compared.sameArtifactBytes,'boolean');
             assert.ok(compared.matchingIgnoringOrder>=0);
