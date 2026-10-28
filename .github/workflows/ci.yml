@@ -112,6 +112,7 @@ jobs:
         run: |
           cargo fetch --locked
           cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
+          cargo fetch --locked --manifest-path spikes/004-tsrs-type-query/Cargo.toml
 
       # Every master push and manual workflow run still verifies the
       # entire workspace on all three hosts. Only PRs can select checks.
