@@ -18,7 +18,7 @@ policy results, cleanup, repeated workload and captured-receipt checks.
 
 Only PRs editing the optional workflow trigger it automatically; maintainers
 can also use the GitHub workflow-dispatch control. It neither changes the
-required canonical Linux/Windows/**Intel macOS** checks nor publishes releases,
+required canonical Linux/Windows/native Apple Silicon macOS checks nor publishes releases,
 packages, generated artifacts or benchmark reports. Its output is retained
 only in GitHub Actions logs. The separate [x64-to-ARM64 GCD workflow]
 (../.github/workflows/p1-portable-arm64.yml) passes identical binary bytes
@@ -27,8 +27,9 @@ that**. It builds its own `wasm32-unknown-unknown` guest from checked-in source
 on the ARM64 runner. The resulting guest SHA is observation metadata, not
 a cross-host identity comparison or attestation of compiler provenance.
 
-A successful run would demonstrate **only** this bounded Rust Markdown guest
-and typed WIT component pipeline on Linux ARM64. It would not establish
+The successful [exact-head #84 ARM64 run](https://github.com/tseguine/grunkalunka/actions/runs/40653367674)
+demonstrated **only** this bounded Rust Markdown guest and typed WIT component
+pipeline on Linux ARM64. It would not establish
 general application portability, full JavaScript compatibility, identical
 guest binaries across architectures, host memory attribution, macOS ARM64
 behavior or performance parity. The existing workload limits remain in

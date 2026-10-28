@@ -55,10 +55,13 @@ startup/warmed samples and whole-process memory snapshots, and the actual
 Wasmtime CLI executable hash and result checks when selected. The received
 artifact is rehashed after both engine checks to reject observed replacement.
 
-A successful replay on today's hosted Linux, Windows and macOS x64 checks
-confirms three **x64 environments**, not ARM64 support. Collect this same pair
-of files on an actual ARM64 host and retain the receiver report before claiming
-cross-architecture execution. Equal emitted binaries establish artifact
+The canonical replay tests on hosted Linux and Windows x64 and the
+native Apple Silicon macOS ARM64 gate confirm their respective environments.
+The dedicated [#83](https://github.com/tseguine/grunkalunka/pull/83)
+Linux x64-to-ARM64 job additionally transferred the **identical producer bytes**
+and verified all eight GCD goldens in native ARM64 Node/V8 and Wasmtime.
+This is verified cross-architecture execution for one bounded numeric artifact,
+not broad ARM64 compiler or application compatibility. Equal emitted binaries establish artifact
 identity, **not** equal runtime costs or cross-machine speed rankings. Node's
 startup, cache state, flags, JIT tiering, CPU load and memory footprint remain
 uncontrolled. Native CLI `eval` checks correctness only; its process launch
@@ -70,8 +73,8 @@ The canonical benchmark integration test compiles the real GCD source through
 the maintained CLI, prepares the manifest and verifies Node and Wasmtime against
 exact binary64 goldens. It also checks explicit Node-only mode, malformed
 manifest data and changed Wasm bytes. No shared CI runner or new dependencies
-are added. P1 remains in progress pending actual ARM64 observations, broader
-workloads and comparable measured application costs.
+are added. P1 remains in progress pending broader workload portability and
+comparable measured application costs.
 
 ## Optional x64-to-ARM64 hosted execution
 
@@ -80,7 +83,8 @@ is separate from the required three-platform x64 CI. It uses a standard
 `ubuntu-24.04` x64 producer and `ubuntu-24.04-arm` Linux ARM64 receiver,
 with Node **24.22.1** selected on both. Only changes to that workflow itself
 trigger this optional PR smoke; it can also be dispatched manually after merge.
-The existing Windows, Linux and **Intel macOS** canonical gates are unchanged.
+The independently maintained canonical gates now run on Windows x64, Linux x64
+and native Apple Silicon macOS ARM64; this optional workflow does not modify them.
 
 The producer builds the existing native compiler, compiles the checked-in GCD
 source once, validates that output with Node/V8 and passes the exact Wasm bytes,
@@ -92,8 +96,9 @@ the **same x64-produced bytes** in Node/V8 and Wasmtime without recompiling
 GCD source. The exact binary64 golden results and receipt hashes are checked,
 and the receiver report is printed into the job log.
 
-A successful ARM64 run would establish **only that core-Wasm GCD fixture**
-executing on Linux aarch64 through Node and Wasmtime. It would **not** establish
+The successful [exact-head #83 workflow](https://github.com/tseguine/grunkalunka/actions/runs/40652492744)
+established **only that core-Wasm GCD fixture** executing on Linux aarch64
+through Node and Wasmtime. It would **not** establish
 general JS/TS compatibility, a complete ARM64 Grunkalunka platform, macOS
 ARM64 support, comparable performance or guest-attributed memory.
 Timings are observations, never thresholds. Workflow job outputs have size
