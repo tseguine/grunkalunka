@@ -63,10 +63,12 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         assert!(report.wat_bytes > 0 && report.wasm_bytes >= 8 && report.wasm_bytes <= 1024 * 1024);
         assert!(report.first_compile_ms.is_finite() && report.first_compile_ms >= 0.0);
         assert_eq!(report.samples_ms.len(), options.samples);
+        assert_eq!(report.release_ms.len(), options.samples);
         assert!(
             report
                 .samples_ms
                 .iter()
+                .chain(report.release_ms.iter())
                 .all(|ms| ms.is_finite() && *ms >= 0.0)
         );
         assert_eq!(
@@ -79,6 +81,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
             "\"workload\":\"in-process-source-compile\"",
             "\"samplesMs\":",
             "\"firstCompileMs\":",
+            "\"artifactRelease\":{",
             "\"goldenCases\":",
             "\"profile\":",
             "\"watBytes\":",
@@ -86,6 +89,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
             assert!(json.contains(expected), "missing {expected}");
         }
         assert!(json.contains(&format!("\"case\":\"{}\"", workload.name())));
+        assert_eq!(json.matches("\"samplesMs\":").count(), 2);
     }
 }
 
