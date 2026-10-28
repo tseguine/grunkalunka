@@ -4,10 +4,10 @@ The path-filtered [rehearsal workflow](../../.github/workflows/impact-layout-val
 executes a **real** `grunkalunka-layout` Cargo build, Clippy, tests and
 repository-wide formatting check on Linux. It uses the current checked-out
 source, Rust stable host toolchain, locked/offline Cargo inputs and Node
-24.21.0. Locked Cargo dependencies are fetched before offline execution. The
-the normal CI jobs execute according to their independently validated
-partial-or-full plans on the same
-PR revision. The additional job is diagnostic, not a replacement check.
+24.21.0. Locked Cargo dependencies are fetched before offline execution.
+The normal CI jobs independently execute their validated partial-or-full
+selection on the same PR revision. The additional job is diagnostic, not a
+replacement check.
 
 The change input is deliberately fixed to the **actual changed-file list of
 [merged PR #75](https://github.com/tseguine/grunkalunka/pull/75)**:
@@ -26,11 +26,13 @@ code. The script:
 5. Executes the four selected commands with bounded subprocess timeouts and
    `SCOPED START/END` receipts. No command is executed before validation.
 
-A successful hosted rehearsal would provide one bounded observation that
-historically affected commands can compile/test current real code, on the same
-revision whose **full** suite is independently checked by standard CI. It does **not** validate
+A successful hosted rehearsal provides one bounded observation that historically
+affected commands can compile/test current real code. It does **not** validate
 the completeness of the semantic dependency graph, other module selections,
 other operating systems, or equivalence of every Cargo feature/test profile.
-It never skips the ordinary full PR checks. Activating selective PR gates
-requires additional real-change scenarios, indirect input audits and a
-separate explicit maintainer decision.
+The separate [native three-platform PR rehearsal](../../.github/workflows/impact-platform-rehearsal.yml)
+uses the shared production selector on Linux, Windows and macOS; it is also
+non-substitutive evidence. Neither rehearsal permits skipping required
+PR or independent-workflow checks. All three PR runners now use the validated
+dependency-selected gate, with full fallback for unknown inputs and full
+verification on every `master` push.
