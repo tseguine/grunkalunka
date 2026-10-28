@@ -223,20 +223,54 @@ function validateReport(report) {
   return report;
 }
 
-// Compare hashes by defined-function ordinal only when both compilers emitted
-// the same number of bodies. Differences may reflect shifted indices/order,
-// not necessarily a change to the semantic behavior of the functions.
+// A multiset intersection recognizes exact raw bodies irrespective of ordinal.
+// It respects repeated identical functions; an ordinary Set would overcount
+// matches or silently discard duplicate bodies.
+function matchingBodyOccurrences(left, right) {
+  const leftDigests = Buffer.from(left.bodyDigestsBase64, 'base64');
+  const rightDigests = Buffer.from(right.bodyDigestsBase64, 'base64');
+  const occurrence = new Map();
+  const key = (vector, lengths, i) =>
+    lengths[i] + ':' + vector.toString('hex', i * 32, (i + 1) * 32);
+  for (let i = 0; i < left.count; i++) {
+    const body = key(leftDigests, left.lengths, i);
+    occurrence.set(body, (occurrence.get(body) ?? 0) + 1);
+  }
+  let commonCount = 0;
+  for (let i = 0; i < right.count; i++) {
+    const body = key(rightDigests, right.lengths, i);
+    const available = occurrence.get(body) ?? 0;
+    if (available > 0) {
+      occurrence.set(body, available - 1);
+      commonCount++;
+    }
+  }
+  return commonCount;
+}
+
+// Positional comparisons are meaningful only when the compilers emitted the
+// same number of bodies. Multiset overlap is still measurable if counts differ.
+// Neither observation identifies source functions or normalizes call indices.
 function compareCodeBodies(first, second) {
   const left = first.codeBodies, right = second.codeBodies;
   if (left === undefined && right === undefined) return null;
   check(left !== undefined && right !== undefined,
     'both hosts must report code body fingerprints');
+  const matchingBodyOccurrencesIgnoringOrder = matchingBodyOccurrences(left, right);
+  const exactBodyOverlap = {
+    matchingBodyOccurrencesIgnoringOrder,
+    producerUnmatchedBodyOccurrences: left.count - matchingBodyOccurrencesIgnoringOrder,
+    receiverUnmatchedBodyOccurrences: right.count - matchingBodyOccurrencesIgnoringOrder,
+  };
   if (left.count !== right.count) {
     return {
       producerCount: left.count, receiverCount: right.count,
       indicesComparable: false, changedCount: null,
       firstChangedDefinedFunctionIndices: [],
-      interpretation: 'different function counts; positional comparison is not meaningful',
+      ...exactBodyOverlap,
+      matchingAtSameOrdinal: null,
+      additionalMatchesIgnoringOrdinal: null,
+      interpretation: 'different function counts; only exact body multiset overlap is comparable',
     };
   }
   const a = Buffer.from(left.bodyDigestsBase64, 'base64');
@@ -254,11 +288,19 @@ function compareCodeBodies(first, second) {
       }
     }
   }
+  const matchingAtSameOrdinal = left.count - changedCount;
+  const additionalMatchesIgnoringOrdinal =
+    matchingBodyOccurrencesIgnoringOrder - matchingAtSameOrdinal;
+  check(additionalMatchesIgnoringOrdinal >= 0,
+    'order-independent overlap must include all positional matches');
   return {
     producerCount: left.count, receiverCount: right.count,
     indicesComparable: true, changedCount, changedBodyBytes,
     firstChangedDefinedFunctionIndices,
-    interpretation: 'defined-function ordinal/body comparison, not semantic identity or a mapped source function',
+    ...exactBodyOverlap,
+    matchingAtSameOrdinal,
+    additionalMatchesIgnoringOrdinal,
+    interpretation: 'raw body hashes by ordinal and exact multiset overlap; additional matches do not prove source-function reordering or semantic identity',
   };
 }
 

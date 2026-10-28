@@ -181,12 +181,27 @@ jobs:
           const bodies = result.codeBodyComparison;
           assert.ok(bodies, 'real code-body fingerprints required on both hosts');
           assert.ok(bodies.producerCount >= 1 && bodies.receiverCount >= 1);
+          const overlap = bodies.matchingBodyOccurrencesIgnoringOrder;
+          assert.ok(Number.isSafeInteger(overlap) &&
+            overlap >= 0 && overlap <= Math.min(bodies.producerCount, bodies.receiverCount),
+          'bounded order-independent exact matches');
+          assert.equal(bodies.producerUnmatchedBodyOccurrences + overlap,
+            bodies.producerCount);
+          assert.equal(bodies.receiverUnmatchedBodyOccurrences + overlap,
+            bodies.receiverCount);
           if (bodies.indicesComparable) {
             assert.ok(bodies.changedCount >= 0 &&
               bodies.changedCount <= bodies.producerCount);
             assert.ok(bodies.firstChangedDefinedFunctionIndices.length <= 24);
+            assert.equal(bodies.matchingAtSameOrdinal,
+              bodies.producerCount - bodies.changedCount);
+            assert.ok(bodies.additionalMatchesIgnoringOrdinal >= 0);
+            assert.equal(bodies.additionalMatchesIgnoringOrdinal,
+              overlap - bodies.matchingAtSameOrdinal);
           } else {
             assert.equal(bodies.changedCount, null);
+            assert.equal(bodies.matchingAtSameOrdinal, null);
+            assert.equal(bodies.additionalMatchesIgnoringOrdinal, null);
           }
           console.log('PASS independent Markdown guest section and code-body comparison');
           console.log(JSON.stringify(result));
