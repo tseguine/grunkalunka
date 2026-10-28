@@ -40,7 +40,13 @@ export function verifyCanonicalChecks(observed, declared) {
 // Workspace-wide canonical commands must track new Cargo members automatically.
 // These commands are still indivisible; only a future selective runner can
 // translate a selected package into a per-package Cargo invocation.
-export function checkNodes(declared, workspaceModules) {
+export function checkNodes(declared, workspaceModules, cargoTestTargets = []) {
+  if (!Array.isArray(cargoTestTargets) ||
+      cargoTestTargets.some(id => typeof id !== 'string' ||
+        !id.startsWith('cargo-test:') || !id.slice('cargo-test:'.length)) ||
+      new Set(cargoTestTargets).size !== cargoTestTargets.length) {
+    throw new Error('invalid Cargo executable test targets');
+  }
   if (!Array.isArray(workspaceModules) ||
       !workspaceModules.every(id => typeof id === 'string' && id)) {
     throw new Error('invalid Cargo workspace package IDs');
@@ -51,7 +57,11 @@ export function checkNodes(declared, workspaceModules) {
     }
     return scope === 'workspace' ?
       { ...node,
-        dependsOn: [...new Set([...(node.dependsOn ?? []), ...workspaceModules])],
+        dependsOn: [...new Set([...(node.dependsOn ?? []), ...workspaceModules,
+          // A runtime test can depend on a non-Cargo fixture (include_str!).
+          // The virtual workspace test must be reached whenever that Cargo
+          // test is selected, even though its build edge remains empty.
+          ...(node.id === 'check:workspace-tests' ? cargoTestTargets : [])])],
         // In the selective preview this check is lowered to package-scoped
         // invocations. Its broad impact edges must not force all crates to build.
         buildDependsOn: [] } : node;
