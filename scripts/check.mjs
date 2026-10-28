@@ -36,6 +36,8 @@ run(process.execPath, ['--test', 'tests/build/benchmark.test.mjs', 'tests/build/
 // P1 diagnostic and portability contracts are regular Node tests. Individual
 // empirical cross-host builds remain explicit, not a required PR check per experiment.
 run(process.execPath, ["--test", "tools/bench/tests/*.test.mjs", "tests/build/native-build-identity.test.mjs", "tests/build/portable-affine.test.mjs", "tests/build/markdown-capture.test.mjs", "tests/build/markdown-comparison.test.mjs"]);
+// Native-host P1 portability: compile once, execute actual Wasm on Node and Wasmtime.
+run(process.execPath, ['--test', 'tests/build/p1-native-portability.test.mjs']);
 run(process.execPath, ['scripts/check-markdown-portability.mjs']);
 run(process.execPath, ['scripts/check-markdown-outline.mjs']);
 run(process.execPath, ['scripts/check-document-outline.mjs']);
