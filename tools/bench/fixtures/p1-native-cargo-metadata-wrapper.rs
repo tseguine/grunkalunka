@@ -218,7 +218,7 @@ mod tests {
             assert_eq!(args, old);
             let changed = rewrite(&mut args, "target_plus_deps").unwrap().unwrap();
             assert_eq!(changed.effective, replacement);
-            assert_eq!(args[5], format!("metadata={replacement}"));
+            assert_eq!(args[5], OsString::from(format!("metadata={replacement}")));
         }
         let mut script = argv("build_script_build", false);
         assert_eq!(rewrite(&mut script, "target_plus_deps").unwrap().unwrap().effective,
