@@ -46,7 +46,28 @@ function varUint32(data, cursor, limit) {
   throw new TypeError('Invalid unterminated Wasm varuint');
 }
 
-export function inspectWasmSections(input) {
+// The code section is a vector of size-prefixed function bodies. Hash the raw
+// bodies, including locals, without interpreting instructions or assuming that
+// equal defined-function indices imply equal runtime call targets.
+function fingerprintCodeBodies(bytes, start, end) {
+  const cursor = { offset: start };
+  const count = varUint32(bytes, cursor, end);
+  check(count >= 1 && count <= 4096, 'bounded defined-function count');
+  const lengths = [];
+  const digests = Buffer.alloc(count * 32);
+  for (let i = 0; i < count; i++) {
+    const length = varUint32(bytes, cursor, end);
+    check(length >= 2 && length <= end - cursor.offset, 'bounded function body');
+    const body = bytes.subarray(cursor.offset, cursor.offset + length);
+    createHash('sha256').update(body).digest().copy(digests, i * 32);
+    lengths.push(length);
+    cursor.offset += length;
+  }
+  check(cursor.offset === end, 'complete code section body vector');
+  return { count, lengths, bodyDigestsBase64: digests.toString('base64') };
+}
+
+export function inspectWasmSections(input, { codeBodyDigests = false } = {}) {
   check(input instanceof Uint8Array && input.length >= 8 &&
     input.length <= MAX_WASM, 'bounded Wasm bytes');
   const bytes = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
@@ -54,6 +75,7 @@ export function inspectWasmSections(input) {
     'core Wasm magic and version');
   const cursor = { offset: 8 };
   const sections = [];
+  let codeBodies = null;
   while (cursor.offset < bytes.length) {
     const id = bytes[cursor.offset++];
     check(id >= 0 && id <= 13, 'core Wasm section id');
@@ -69,6 +91,10 @@ export function inspectWasmSections(input) {
       name = new TextDecoder('utf-8', { fatal: true }).decode(
         bytes.subarray(cursor.offset, cursor.offset + nameLength));
     }
+    if (codeBodyDigests && id === 10) {
+      check(codeBodies === null, 'one core Wasm code section');
+      codeBodies = fingerprintCodeBodies(bytes, start, end);
+    }
     const payload = bytes.subarray(start, end);
     sections.push({ id, name, bytes: length, sha256: hash(payload) });
     cursor.offset = end;
@@ -79,6 +105,7 @@ export function inspectWasmSections(input) {
   return {
     artifact: { bytes: bytes.length, sha256: hash(bytes) },
     sections,
+    ...(codeBodyDigests ? { codeBodies } : {}),
   };
 }
 
@@ -100,7 +127,8 @@ async function sourceRecords() {
 
 export async function observeMarkdownGuest(file) {
   const bytes = await readFile(resolve(file));
-  const artifact = inspectWasmSections(bytes);
+  check(WebAssembly.validate(bytes), 'valid built core Wasm');
+  const artifact = inspectWasmSections(bytes, { codeBodyDigests: true });
   const revision = run('git', ['rev-parse', 'HEAD']).trim();
   check(COMMIT.test(revision), 'Git revision');
   const rustc = run('rustc', ['-vV']).trim();
@@ -174,7 +202,64 @@ function validateReport(report) {
         (input.gitSha256 === input.checkoutSha256 && input.gitBytes === input.checkoutBytes),
     'reported source identity ' + trackedInputs[i]);
   }
+  if (report.codeBodies !== undefined) {
+    const { count, lengths, bodyDigestsBase64 } = report.codeBodies;
+    check(Number.isSafeInteger(count) && count >= 1 && count <= 4096 &&
+      Array.isArray(lengths) && lengths.length === count &&
+      lengths.every(x => Number.isSafeInteger(x) && x >= 2 && x <= MAX_WASM),
+    'reported code body lengths');
+    const codeSection = report.sections.filter(x => x.id === 10);
+    check(codeSection.length === 1 &&
+      lengths.reduce((sum, x) => sum + x, 0) <= codeSection[0].bytes,
+    'reported code section bounds');
+    check(typeof bodyDigestsBase64 === 'string' &&
+      /^[A-Za-z0-9+/]+={0,2}$/.test(bodyDigestsBase64),
+    'reported code body fingerprints');
+    const hashes = Buffer.from(bodyDigestsBase64, 'base64');
+    check(hashes.length === count * 32 &&
+      hashes.toString('base64') === bodyDigestsBase64,
+    'canonical complete SHA-256 body vector');
+  }
   return report;
+}
+
+// Compare hashes by defined-function ordinal only when both compilers emitted
+// the same number of bodies. Differences may reflect shifted indices/order,
+// not necessarily a change to the semantic behavior of the functions.
+function compareCodeBodies(first, second) {
+  const left = first.codeBodies, right = second.codeBodies;
+  if (left === undefined && right === undefined) return null;
+  check(left !== undefined && right !== undefined,
+    'both hosts must report code body fingerprints');
+  if (left.count !== right.count) {
+    return {
+      producerCount: left.count, receiverCount: right.count,
+      indicesComparable: false, changedCount: null,
+      firstChangedDefinedFunctionIndices: [],
+      interpretation: 'different function counts; positional comparison is not meaningful',
+    };
+  }
+  const a = Buffer.from(left.bodyDigestsBase64, 'base64');
+  const b = Buffer.from(right.bodyDigestsBase64, 'base64');
+  let changedCount = 0;
+  const firstChangedDefinedFunctionIndices = [];
+  let changedBodyBytes = 0;
+  for (let i = 0; i < left.count; i++) {
+    if (left.lengths[i] !== right.lengths[i] ||
+        !a.subarray(i * 32, (i + 1) * 32).equals(b.subarray(i * 32, (i + 1) * 32))) {
+      changedCount++;
+      changedBodyBytes += Math.max(left.lengths[i], right.lengths[i]);
+      if (firstChangedDefinedFunctionIndices.length < 24) {
+        firstChangedDefinedFunctionIndices.push(i);
+      }
+    }
+  }
+  return {
+    producerCount: left.count, receiverCount: right.count,
+    indicesComparable: true, changedCount, changedBodyBytes,
+    firstChangedDefinedFunctionIndices,
+    interpretation: 'defined-function ordinal/body comparison, not semantic identity or a mapped source function',
+  };
 }
 
 export function compareMarkdownGuests(producer, receiver) {
@@ -200,6 +285,7 @@ export function compareMarkdownGuests(producer, receiver) {
     sameNonCustomSections: !changed.some(x => x.section.startsWith('section:')),
     sameCustomSections: !changed.some(x => x.section.startsWith('custom:')),
     changedSections: changed,
+    codeBodyComparison: compareCodeBodies(producer, receiver),
     sourceCheckoutDifferences: [producer, receiver].map(x => ({
       host: { os: x.environment.os, arch: x.environment.arch },
       paths: x.inputs.filter(input => !input.checkoutMatchesGit).map(input => input.path),
