@@ -33,6 +33,7 @@ verification receipts, not saved benchmark performance results.
 | Rust legacy diagnostic hash-suffix controls | [#121](https://github.com/tseguine/grunkalunka/pull/121), [#123](https://github.com/tseguine/grunkalunka/pull/123), [name-format analysis](p1-markdown-named-body-correlation.md) | Across Linux, Windows and Apple Silicon, none of the **1,897** Markdown guest function names matched either tested legacy terminal hash pattern (readable `::h` with 16 lowercase hexadecimal digits or mangled `17h` with 16 digits and `E`). Each host had **1,888 v0-mangled-like** and **9 other** names. Both controls left raw cross-host name overlap at **195**. These are narrow syntactic exclusions, not authenticated v0 parsing or evidence of equivalent code |
 | Native Linux source-checkout path control | [#127](https://github.com/tseguine/grunkalunka/pull/127), [checkout/remap experiment](p1-markdown-checkout-path-control.md) | Two physically distinct clean Git checkouts of the same Markdown guest produced **identical 735,367-byte Wasm** on one Linux x64 host. With identical logical `--remap-path-prefix` destinations, the two independently built artifacts remained identical; within either checkout, remapping changed only the Wasm diagnostic `name` section and left **all 1,897 code bodies unchanged**. This rules out the physical checkout path *alone* as a sufficient cause on that host, not cross-OS source-path interactions or compiler differences |
 | Rust crate-metadata perturbation on one Linux host | [#130](https://github.com/tseguine/grunkalunka/pull/130), [metadata control](p1-markdown-crate-metadata-control.md) | Rebuilding one unchanged Rust Markdown guest on native Linux with `-C metadata=p1controlalpha` or `p1controlbeta` changed the **default 1,897 defined functions to 1,896** and altered standard code/data/function/element sections and diagnostic names. Versus default, only **151** raw name occurrences, **25** name-plus-exact-body occurrences and **814/854** raw body occurrences ignoring order matched. This demonstrates same-host sensitivity to requested metadata, not that native Windows/macOS builds used different effective crate metadata |
+| Fixed requested Rust metadata across native hosts | [#135](https://github.com/tseguine/grunkalunka/pull/135), [native metadata identity control](p1-native-markdown-metadata.md) | All three native hosts independently compiled the same Markdown guest both with default flags and with identical requested `RUSTFLAGS="-C metadata=p1crosshostfixed"`. **No pair of independent native guest artifacts became byte-identical.** Compared with Linux, exact raw bodies matching anywhere changed from **945 to 887 on Windows** and **913 to 955 on Apple Silicon**; exact shared diagnostic-name occurrences remained **195** on both. Common requested metadata is insufficient, but effective per-crate Cargo metadata was not yet authenticated |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -85,8 +86,13 @@ reports when explicitly run; the build system does not publish them.
   build inputs still require investigation. In [#130](https://github.com/tseguine/grunkalunka/pull/130),
   changing only requested Rust crate metadata on a single Linux host changed
   diagnostic names **and** standard Wasm sections. That establishes metadata
-  sensitivity, not that metadata was the actual cross-OS cause. No functional
-  fault is established.
+  sensitivity, not that metadata was the actual cross-OS cause.
+  [#135](https://github.com/tseguine/grunkalunka/pull/135) then showed that
+  identical requested metadata flags across Linux, Windows and Apple Silicon
+  **did not make guest binaries identical**; raw body overlap decreased on
+  Windows and increased on Apple Silicon. Cargo's actual generated per-crate
+  `-C metadata` and other host compiler inputs require independent verification.
+  No functional fault is established.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
