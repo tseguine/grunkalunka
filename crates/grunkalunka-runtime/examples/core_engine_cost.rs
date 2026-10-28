@@ -111,6 +111,8 @@ pub struct Report {
     pub instantiation_ms: f64,
     pub first_call_ms: f64,
     pub wasmtime_samples_ms: Vec<f64>,
+    pub fresh_instantiation_ms: Vec<f64>,
+    pub fresh_first_call_ms: Vec<f64>,
     pub rust_process_memory: process_memory::ProcessMemory,
     pub node_json: String,
 }
@@ -153,11 +155,14 @@ impl Report {
         .unwrap();
         write!(
             out,
-            r#""wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{},"processMemory":{}}},"#,
+            r#""wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{},"freshInstances":{{"count":{},"instantiation":{},"firstCall":{}}},"processMemory":{}}},"#,
             self.module_compile_ms,
             self.instantiation_ms,
             self.first_call_ms,
             statistics(&self.wasmtime_samples_ms),
+            self.options.samples,
+            statistics(&self.fresh_instantiation_ms),
+            statistics(&self.fresh_first_call_ms),
             self.rust_process_memory.json()
         )
         .unwrap();
@@ -166,6 +171,38 @@ impl Report {
         out.push('}');
         out
     }
+}
+
+// Instantiate an already compiled module in an independent Store per sample.
+// Store construction and typed export lookup are not part of these timers.
+// Every fresh instance is checked against all eight independent goldens.
+fn measure_fresh_instances(
+    engine: &Engine,
+    module: &Module,
+    count: usize,
+) -> wasmtime::Result<(Vec<f64>, Vec<f64>)> {
+    let mut instantiations = Vec::with_capacity(count);
+    let mut first_calls = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut fresh_store = Store::new(engine, ());
+        let started = Instant::now();
+        let fresh_instance = Instance::new(&mut fresh_store, module, &[])?;
+        instantiations.push(milliseconds(started));
+        let fresh_run =
+            fresh_instance.get_typed_func::<(f64, f64), f64>(&mut fresh_store, "run")?;
+        let started = Instant::now();
+        let first = fresh_run.call(&mut fresh_store, (CASES[0].0, CASES[0].1))?;
+        first_calls.push(milliseconds(started));
+        if first.to_bits() != CASES[0].2.to_bits() {
+            wasmtime::bail!("Wasmtime fresh-instance first-call golden mismatch");
+        }
+        for &(a, b, expected) in &CASES {
+            if fresh_run.call(&mut fresh_store, (a, b))?.to_bits() != expected.to_bits() {
+                wasmtime::bail!("Wasmtime fresh-instance golden mismatch");
+            }
+        }
+    }
+    Ok((instantiations, first_calls))
 }
 
 fn measure_node(bytes: &[u8], options: Options) -> wasmtime::Result<String> {
@@ -260,6 +297,9 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         after_batches,
     ])
     .map_err(std::io::Error::other)?;
+    // The existing whole-process memory series ends before these repetitions.
+    let (fresh_instantiation_ms, fresh_first_call_ms) =
+        measure_fresh_instances(&engine, &module, options.samples)?;
     // The Node subprocess receives these same compiled bytes through stdin.
     let node_json = measure_node(&artifact.wasm, options)?;
     Ok(Report {
@@ -270,6 +310,8 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         instantiation_ms,
         first_call_ms,
         wasmtime_samples_ms: samples,
+        fresh_instantiation_ms,
+        fresh_first_call_ms,
         rust_process_memory,
         node_json,
     })
