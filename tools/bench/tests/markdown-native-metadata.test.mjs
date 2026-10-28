@@ -141,11 +141,13 @@ test('rejects forged requested metadata flags and missing report variants', () =
 
 test('rejects different canonical source identities, Git revisions and Rust releases', () => {
   const linux = receipt(), windows = receipt('win32', 'x64');
-  windows.sourceInputs[1].gitSha256 = 'b'.repeat(64);
-  windows.sourceInputs[1].checkoutSha256 = 'b'.repeat(64);
+  // Change a canonical manifest outside the inspector's narrower three-file
+  // subset; both receipts remain individually valid, but hosts disagree.
+  windows.sourceInputs[0].gitSha256 = 'b'.repeat(64);
+  windows.sourceInputs[0].checkoutSha256 = 'b'.repeat(64);
   assert.throws(() => compareNativeMetadataControls(linux, windows),
     /identical canonical Git source inputs/);
-  windows.sourceInputs[1] = source(SOURCE_PATHS[1]);
+  windows.sourceInputs[0] = source(SOURCE_PATHS[0]);
   windows.revision = 'f'.repeat(40);
   windows.variants.fixed.revision = windows.revision;
   windows.variants.default.revision = windows.revision;
