@@ -1,0 +1,6 @@
+# Browser fixture source hashes, CSS mutation sites, and workflow source
+# contracts must observe identical bytes on Windows, Linux and macOS.
+# Never make source-sensitive browser evidence depend on core.autocrlf.
+tests/browser-oracles/** text eol=lf
+tools/browser-oracles/** text eol=lf
+.github/workflows/browser-*.yml text eol=lf
