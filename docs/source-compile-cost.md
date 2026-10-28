@@ -51,7 +51,8 @@ execution, and artifact byte comparisons. Retaining every artifact within a
 batch affects allocation and memory cost; these totals are **not** directly
 comparable to the standalone Oxc stages or subprocess-based build API.
 
-The JSON result reports source, WAT and Wasm byte sizes, host OS/architecture,
+The JSON result reports source, WAT and Wasm byte sizes **and SHA-256 digests
+of the actual preflight source/WAT/Wasm bytes**, host OS/architecture,
 workspace version, debug/release profile, exact call controls, first compile
 elapsed milliseconds and every timed batch's raw milliseconds plus min/median/max.
 Results retain source language and fixture identity. The separate artifact
@@ -79,7 +80,9 @@ cannot compare machines, architectures or alternative implementations.
 
 For reproducibility, retain exact Git revision, Rust and toolchain versions,
 profile and build flags, CPU/platform information, raw samples and cache/load
-conditions alongside the result. The report does not cryptographically attest
+conditions alongside the result. The hashes establish recorded byte identity for these inputs and outputs,
+not that the bytes were produced by a particular compiler binary or from a
+verifiable command line. The report does not cryptographically attest
 the compiler executable or capture all provenance. This experiment complements
 [portable replay of the same artifact](portable-core-replay.md) without claiming
 full P1 completion. It neither releases nor persists build artifacts or

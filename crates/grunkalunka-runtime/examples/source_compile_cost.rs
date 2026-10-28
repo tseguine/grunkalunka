@@ -1,5 +1,6 @@
 //! P1 repeated in-process source compilation, without compiler internals or speed gates.
 use grunkalunka_compiler::{Artifact, compile};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::hint::black_box;
 use std::time::Instant;
@@ -130,6 +131,10 @@ pub fn parse_options(args: &[String]) -> Result<Options, String> {
     Ok(options)
 }
 
+fn sha256(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
 fn compile_one(source: &str, ts: bool) -> wasmtime::Result<Artifact> {
     compile(source, ts)
         .map_err(std::io::Error::other)
@@ -176,6 +181,9 @@ pub struct Report {
     pub source_bytes: usize,
     pub wat_bytes: usize,
     pub wasm_bytes: usize,
+    pub source_sha256: String,
+    pub wat_sha256: String,
+    pub wasm_sha256: String,
     pub first_compile_ms: f64,
     pub samples_ms: Vec<f64>,
     pub release_ms: Vec<f64>,
@@ -217,7 +225,7 @@ impl Report {
             "release"
         };
         format!(
-            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"watBytes":{wat_bytes},"wasmBytes":{wasm_bytes}}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"artifactRelease":{{"unit":"milliseconds per batch","samplesMs":[{release_samples}],"minMs":{release_min:.9},"medianMs":{release_median:.9},"maxMs":{release_max:.9}}},"goldenCases":{golden_cases}}}"#,
+            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"sourceSha256":"{source_sha256}","watBytes":{wat_bytes},"watSha256":"{wat_sha256}","wasmBytes":{wasm_bytes},"wasmSha256":"{wasm_sha256}"}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"artifactRelease":{{"unit":"milliseconds per batch","samplesMs":[{release_samples}],"minMs":{release_min:.9},"medianMs":{release_median:.9},"maxMs":{release_max:.9}}},"goldenCases":{golden_cases}}}"#,
             case = self.options.workload.name(),
             sample_count = self.options.samples,
             iterations = self.options.iterations,
@@ -228,6 +236,9 @@ impl Report {
             source_bytes = self.source_bytes,
             wat_bytes = self.wat_bytes,
             wasm_bytes = self.wasm_bytes,
+            source_sha256 = self.source_sha256,
+            wat_sha256 = self.wat_sha256,
+            wasm_sha256 = self.wasm_sha256,
             first = self.first_compile_ms,
             min = min,
             max = max,
@@ -246,6 +257,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     if source.len() > 16_384 {
         wasmtime::bail!("selected source exceeds the numeric compiler source bound");
     }
+    let source_sha256 = sha256(source.as_bytes());
 
     // One independently executed emitted artifact, before any timing samples.
     let started = Instant::now();
@@ -255,6 +267,10 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         wasmtime::bail!("numeric artifact outside the bounded Wasm size profile");
     }
     verify_golden(&golden, options.workload)?;
+    // Hash the actual preflight artifact outside timing; later calls must
+    // independently reproduce both WAT and Wasm before disposal.
+    let wat_sha256 = sha256(golden.wat.as_bytes());
+    let wasm_sha256 = sha256(&golden.wasm);
     let warmed = batch(source, ts, options.warmup)?;
     verify_identical(&warmed, &golden)?;
     drop(warmed);
@@ -279,6 +295,9 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         source_bytes: source.len(),
         wat_bytes: golden.wat.len(),
         wasm_bytes: golden.wasm.len(),
+        source_sha256,
+        wat_sha256,
+        wasm_sha256,
         first_compile_ms,
         samples_ms,
         release_ms,
