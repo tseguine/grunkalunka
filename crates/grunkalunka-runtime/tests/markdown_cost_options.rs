@@ -95,7 +95,11 @@ fn process_memory_carries_markdown_phases_without_rewriting_core_cost_phases() {
     assert!(json.contains("\"source\":\"linux-proc-status\""));
     assert!(json.contains("\"peakRssBytes\":"));
     let absent = ProcessMemory::assemble_with_phases([None; 5], &MEMORY_PHASES).unwrap();
-    assert!(absent.json_with_phases(&MEMORY_PHASES).contains("\"snapshots\":null"));
+    assert!(
+        absent
+            .json_with_phases(&MEMORY_PHASES)
+            .contains("\"snapshots\":null")
+    );
 }
 
 #[test]
