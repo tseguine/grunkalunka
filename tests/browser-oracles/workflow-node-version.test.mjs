@@ -5,7 +5,7 @@ import test from "node:test";
 // A narrow source-layout contract, not a general YAML parser. The runtime
 // assertions in both jobs independently check what setup-node actually selected.
 test("browser producers and report job use one exact Node version", async () => {
-  const workflow = await readFile(new URL("../../.github/workflows/browser-smoke.yml", import.meta.url), "utf8");
+  const workflow = (await readFile(new URL("../../.github/workflows/browser-smoke.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const header = workflow.split("\njobs:\n", 1)[0];
   assert.match(header, /^env:\n(?:  #[^\n]*\n)*  BROWSER_NODE_VERSION: '\d+\.\d+\.\d+'$/m,
     "declare an exact patch version at workflow scope, not a floating range");
@@ -16,9 +16,13 @@ test("browser producers and report job use one exact Node version", async () => 
   assert.deepEqual(selectors, Array(2).fill("${{ env.BROWSER_NODE_VERSION }}"));
   const jobs = workflow.split(/^  (?:smoke|cross-engine):\n/m).slice(1);
   assert.equal(jobs.length, 2);
-  const check = 'node -e \'require("node:assert/strict").equal(process.versions.node, process.env.BROWSER_NODE_VERSION)\'';
   for (const job of jobs) {
-    assert.match(job, /uses: actions\/setup-node@/);
-    assert.ok(job.includes(`run: ${check}`), "verify the selected version before producing/consuming evidence");
+    assert.ok(job.includes("uses: actions/setup-node@"));
+  }
+  for (const file of ["smoke.test.mjs", "cross-engine.test.mjs"]) {
+    const source = await readFile(new URL("../../tools/browser-oracles/hosted/" + file,
+      import.meta.url), "utf8");
+    assert.ok(source.includes("process.versions.node"));
+    assert.ok(source.includes("process.env.BROWSER_NODE_VERSION"));
   }
 });

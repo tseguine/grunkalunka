@@ -156,3 +156,15 @@ fail the check. Source copies, raw captures and full reports are retained.
 
 This is a **sensitivity control**, not a claim that the native engine
 implements CSS `pointer-events` or general DOM hit-testing semantics.
+
+## Hosted assertions as ordinary tests
+
+The browser jobs now run
+`node --test tools/browser-oracles/hosted/native-bridge.test.mjs`
+with the selected engine, original Rust receipt and new evidence directory
+supplied explicitly by the host. The test itself checks real browser/native
+parity, then executes the independent width and hit-target sensitivity tools
+and retains all their reports. GitHub Actions remains responsible only for
+the pinned browser environment, layout-only Rust artifact, and evidence upload.
+The independent Node regression contracts run in the canonical offline suite,
+not again inside each browser job. This adds no checks to the existing matrix.
