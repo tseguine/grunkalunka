@@ -74,3 +74,22 @@ checks those source filters and key native/browser commands. It reports
 **expected triggers only**, not verified hosted execution or success.
 The Windows selective-CI gate still requires a complete canonical plan;
 the independent browser workflows retain separate check conclusions.
+
+## Native-to-browser visibility and reflow
+
+The reference fixture now measures **three states**: the original fixed-size
+block geometry, a live `display:none` mutation hiding the first child, and
+restored geometry after removing the inline display override. The independent
+Rust example recomputes the same parent-before-child tree for each state,
+asserting literal goldens (including the parent shrinking from 86 to 40 px
+and the following sibling moving upward from y=58 to y=12), and asserts full
+frame equality after restoration. It does not cache or parse browser styles.
+
+The browser collector preserves `reflow.hidden` and `reflow.restored` in its
+original source-hashed receipt; it does not derive those values from the Rust
+result. The bridge comparator rejects missing, incomplete, nonfinite or
+unattributed state data rather than treating absence as no change. A hidden
+node has **no box** (explicit JSON `null`), not an invented zero-sized
+rectangle. Geometry and visibility differences identify the phase, node and
+field. This remains a narrow selected-fixture test, not general DOM mutation,
+CSS `display` conformance or browser rendering equivalence.
