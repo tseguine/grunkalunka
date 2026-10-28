@@ -1,0 +1,6 @@
+{
+  "id": "p1-bench-unit-tests",
+  "paths": [
+    "tools/bench/tests/"
+  ]
+}

@@ -3,7 +3,8 @@
   "dependsOn": [
     "node-bench",
     "build-test-sources",
-    "example-workflows"
+    "example-workflows",
+    "p1-bench-unit-tests"
   ],
   "buildDependsOn": []
 }

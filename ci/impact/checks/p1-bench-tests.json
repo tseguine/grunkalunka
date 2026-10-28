@@ -14,7 +14,6 @@
   ],
   "buildDependsOn": [],
   "paths": [
-    "tools/bench/tests/",
     "tests/build/native-build-identity.test.mjs",
     "tests/build/portable-affine.test.mjs",
     "tests/build/markdown-capture.test.mjs",
