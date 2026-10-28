@@ -27,6 +27,21 @@ and warmed batches. Timings use each runtime's monotonic timer and retain raw
 samples plus min/median/max in milliseconds per batch. Each engine processes
 the identical eight fixed numeric input pairs in the same cyclic order.
 
+After the initial and warmed-batch measurements, both engines also take
+`samples` repeated fresh-instance observations **from the same already
+compiled module**, retaining independent instantiation and first-call
+timings (raw samples, min/median/max). Each repetition creates a new Wasmtime
+Store and Instance or a new Node WebAssembly Instance; no source or Wasm
+module recompilation occurs. Store creation and export lookup are outside the
+timed instantiation/first-call operations. Each fresh instance must pass
+the same eight independent numeric goldens, with golden checks outside the
+instantiation timer. The existing 2..20 sample bound also bounds these
+repetitions, with no extra CLI flags or runner jobs.
+
+These are **post-warmup** observations, not cold application startup.
+Wasmtime Store setup and Node module/instance runtime behavior differ, and
+both may reuse caches; this is not a machine-independent engine speed ratio.
+
 Goldens for all eight pairs and warmup checksums are verified outside timed
 batches. Batch checksums are verified immediately after each timed batch,
 without accepting a silently wrong result. The GCD result must match the
@@ -47,7 +62,8 @@ ratios, production throughput or a comparative benchmark score.
 The Node subprocess now records five **instantaneous process-memory snapshots**:
 after receiving the Wasm bytes but before module construction, immediately after
 module compilation, after instantiation, after fixed goldens and warmup, and after
-all timed batches. Each snapshot reports Node process.memoryUsage() fields as
+all timed batches **before the fresh-instance repetitions**. Each snapshot
+reports Node process.memoryUsage() fields as
 bytes: resident set size (RSS), V8 heap total and used, external memory, and
 ArrayBuffer allocations. Snapshots are collected **outside** timed intervals
 and validated for well-formed byte counts without any memory threshold.
@@ -72,7 +88,8 @@ On Linux, the Rust-side replay also records process-wide resident memory at
 five phase boundaries: after the original JS source has been compiled and the
 Wasmtime Engine created but before compiling the Wasm module, after module
 compilation, after instance creation, after independent goldens and warmup, and
-after the measured batches but **before launching the separate Node subprocess**.
+after the measured batches but **before the fresh-instance repetitions and
+separate Node subprocess**.
 The observations use `/proc/self/status`: `VmRSS` for current resident bytes
 and `VmHWM` for the process-lifetime peak resident bytes (both converted from
 kibibytes). Reports retain the raw five phase snapshots in
@@ -126,7 +143,8 @@ To check the real two-engine replay with minimal work:
 
 The test uses the same Rust binary logic and Node script, checks option bounds,
 an independently checked result for the emitted binary in both engines,
-sample counts and nonnegative timing values. The canonical workspace checks
+sample counts, independent fresh-instance goldens, and nonnegative timing
+values. The canonical workspace checks
 discover it without modifying the shared runner. CI verifies correctness, not
 performance. This complements the private [WIT document-cost probe](document-cost.md)
 and the earlier [numeric report](numeric-benchmark.md); it does not complete
