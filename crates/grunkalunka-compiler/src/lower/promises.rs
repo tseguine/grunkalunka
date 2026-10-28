@@ -11,6 +11,8 @@ pub(crate) struct Inputs {
     fulfilled: BTreeSet<SymbolId>,
     pending: BTreeSet<SymbolId>,
     pub(super) values: BTreeSet<SymbolId>,
+    // May contain a Promise; separate from the homogeneous value/signature fact.
+    choices: BTreeSet<SymbolId>,
     pub(super) results: BTreeSet<NodeId>,
     pub(crate) asynchronous: BTreeSet<NodeId>,
     pub(super) adopting: BTreeSet<NodeId>,
@@ -134,6 +136,15 @@ fn return_adopts(
             return false;
         };
         match node {
+            Expression::Identifier(id)
+                if id
+                    .reference_id
+                    .get()
+                    .and_then(|r| semantic.scoping().get_reference(r).symbol_id())
+                    .is_some_and(|s| inputs.choices.contains(&s)) =>
+            {
+                return true;
+            }
             Expression::ConditionalExpression(c) => {
                 work.push((&c.consequent, depth + 1));
                 work.push((&c.alternate, depth + 1));
@@ -353,6 +364,7 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
     loop {
         let old = (
             inputs.values.len(),
+            inputs.choices.len(),
             inputs.pending.len(),
             inputs.results.len(),
             inputs.asynchronous.len(),
@@ -360,6 +372,9 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
         for (symbol, expression) in &definitions {
             if pending_shape(expression, semantic, &returns, &inputs) {
                 inputs.values.insert(*symbol);
+            }
+            if inputs.identities && return_adopts(expression, semantic, &returns, &inputs) {
+                inputs.choices.insert(*symbol);
             }
         }
         for call in &calls {
@@ -428,6 +443,7 @@ pub(crate) fn parameters(semantic: &Semantic<'_>, identities: bool) -> Inputs {
         if old
             == (
                 inputs.values.len(),
+                inputs.choices.len(),
                 inputs.pending.len(),
                 inputs.results.len(),
                 inputs.asynchronous.len(),

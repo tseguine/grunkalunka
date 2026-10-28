@@ -31,7 +31,7 @@ pub(crate) enum Type {
     Number,
     Predicate,
     General,
-    // Selection-local General value or represented Promise. Never a host completion.
+    // Selected/local General value or represented Promise. Never a host completion.
     AsyncValue,
     // A nonescaping fulfilled primitive Promise; distinct from its completion.
     FulfilledPromise,

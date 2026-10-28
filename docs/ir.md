@@ -941,7 +941,7 @@ selection-local carrier below.
 Constructor effect inference conservatively retains an activation for logical
 Promise operands, even when runtime short-circuiting discards them.
 
-### Selection-local async values
+### Selected and local async values
 
 `AsyncValue` is a private logical union of General values and represented
 Promise identities. `ToAsyncValue` accepts only those two visible input kinds;
@@ -960,7 +960,8 @@ resolution projects a selected Promise into the existing `AdoptPromise` route.
 
 Maintained tests check nested source effects/catches/job limits in native JS,
 Node-Wasm and Wasmtime, plus typed IR misuse, projection traps and carrier
-preservation across suspension and sibling coroutine frames. Source locals,
+preservation across suspension and sibling coroutine frames. Immutable source
+locals and captures now use these same slot/cell operations; mutable local unions,
 private input unions and mixed relational/coercion operands remain open. Equality
 can consume selected raw variants as described below.
 
@@ -979,3 +980,12 @@ kernel behavior is introduced. Lift/discrimination/equality add no adoption or
 handling operation. Both carriers use the existing suspended-value mapping when
 the RHS awaits. General String or custom-object admission must revisit loose
 cross-variant equality rather than silently retaining the constant result.
+
+### Immutable source storage
+
+Immutable AsyncValue source slots retain raw snapshots using existing Initialize,
+Load and captured-cell storage. Explicit source awaits discriminate before either
+AwaitPromise or primitive Await, with both branches sharing the original source
+site identity. Async returns instead use the existing AdoptPromise branch.
+The carrier remains excluded from exported completions and private parameters or
+results; no operation or physical layout was added for local storage.

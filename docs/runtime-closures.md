@@ -497,8 +497,12 @@ through nested logical left operands. Captures, runtime-selected constructors
 and repeated activations keep the selected kind before resolving the return.
 The internal `AsyncValue` carrier uses shared suspended storage but is excluded
 from private call signatures and exported completions. General/Promise source
-parameter and local-storage unions remain separate work. Equality of selected
-raw operands now uses the same carrier without adopting either operand.
+parameter and mutable local-storage unions remain separate work. Immutable
+selected-value locals and aliases now retain the existing tagged snapshot through
+captured cells. Async helpers returning one receive their own physical activation;
+may-Promise effect facts do not admit mixed private input/result signatures.
+Equality of selected raw operands uses the same carrier without adopting either
+operand.
 
 ### Callable async prefix entries
 

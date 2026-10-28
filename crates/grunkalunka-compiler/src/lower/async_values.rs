@@ -165,13 +165,27 @@ impl Lowering<'_, '_> {
         result
     }
 
+    pub(super) fn async_value_slot(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> Option<SlotId> {
+        let (Expression::Identifier(id), _) = closures::unwrapped_at(expression, depth)? else {
+            return None;
+        };
+        let binding = numeric_binding(id, self.semantic, &self.bindings).ok()?;
+        (self.slots[binding.slot.0].ty == Type::AsyncValue).then_some(binding.slot)
+    }
+
     pub(super) fn has_promise_choice(&self, expression: &Expression<'_>, depth: usize) -> bool {
         let mut work = vec![(expression, depth)];
         while let Some((node, depth)) = work.pop() {
             let Some((node, depth)) = closures::unwrapped_at(node, depth) else {
                 return false;
             };
-            if self.pending_promise_shape(node, depth) {
+            if self.pending_promise_shape(node, depth)
+                || self.async_value_slot(node, depth).is_some()
+            {
                 return true;
             }
             match node {
@@ -281,6 +295,26 @@ impl Lowering<'_, '_> {
         input: ValueId,
         region: &mut Region,
     ) -> ValueId {
+        self.consume_async_value(node, input, None, region)
+    }
+
+    pub(super) fn await_async_value(
+        &mut self,
+        node: &Expression<'_>,
+        input: ValueId,
+        site: usize,
+        region: &mut Region,
+    ) -> ValueId {
+        self.consume_async_value(node, input, Some(site), region)
+    }
+
+    fn consume_async_value(
+        &mut self,
+        node: &Expression<'_>,
+        input: ValueId,
+        await_site: Option<usize>,
+        region: &mut Region,
+    ) -> ValueId {
         let condition = self.value(Type::Predicate);
         Self::push(
             region,
@@ -301,14 +335,26 @@ impl Lowering<'_, '_> {
             },
         );
         let adopted = self.value(Type::General);
-        Self::push(
-            &mut consequent,
-            node,
-            Op::AdoptPromise {
-                result: adopted,
-                input: promise,
-            },
-        );
+        if let Some(site) = await_site {
+            Self::push_await(
+                &mut consequent,
+                node,
+                Some(site),
+                Op::AwaitPromise {
+                    result: adopted,
+                    input: promise,
+                },
+            );
+        } else {
+            Self::push(
+                &mut consequent,
+                node,
+                Op::AdoptPromise {
+                    result: adopted,
+                    input: promise,
+                },
+            );
+        }
         consequent.exit = Exit::Yield(adopted);
         let mut alternate = self.region(node);
         let primitive = self.value(Type::General);
@@ -320,7 +366,23 @@ impl Lowering<'_, '_> {
                 input,
             },
         );
-        alternate.exit = Exit::Yield(primitive);
+        let completion = if let Some(site) = await_site {
+            let result = self.value(Type::General);
+            Self::push_await(
+                &mut alternate,
+                node,
+                Some(site),
+                Op::Await {
+                    result,
+                    input: primitive,
+                    rejected: false,
+                },
+            );
+            result
+        } else {
+            primitive
+        };
+        alternate.exit = Exit::Yield(completion);
         let result = self.value(Type::General);
         Self::push(
             region,

@@ -401,3 +401,18 @@ No backend layout or exported/private signature changes are needed. Comparisons
 retain operand snapshots across RHS suspension without adopting or handling a
 Promise. This extends expression use of the carrier, not mixed source storage or
 private parameter domains, and leaves the representation decision provisional.
+
+## Immutable selected-value storage follow-up
+
+Const locals, aliases and captured cells now retain the existing AsyncValue pair.
+The earlier expression-only limit has expanded without a physical layout change:
+ordinary slot/cell Initialize and Load preserve the tag and payload. Explicit await
+discriminates into the existing Promise/primitive await operations; async return
+uses adoption only for a selected Promise. Source effect analysis separates
+may-Promise provenance from homogeneous Promise signature facts.
+
+This reuses sixteen-byte storage already required by suspended selections and
+keeps the carrier out of exported completions and private parameter/results.
+Mutable mixed locals and broader value domains remain separate work. The layout
+decision remains provisional; this bounded admission does not select a universal
+heap/object representation.

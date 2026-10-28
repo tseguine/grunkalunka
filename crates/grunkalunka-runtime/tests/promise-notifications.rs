@@ -92,6 +92,9 @@ const BODIES: &[&str] = &[
     "const apply=(fn,x)=>fn(x);let f=async x=>{await x;throw b;};const p=apply(f,a);await a;await b;try{await p;}catch(e){}return a;",
     "const p=Promise.reject(b);return (a?p:0)==p?a:a;",
     "const f=async()=>{await a;throw b;};const p=f();return (a?p:0)===p?a:a;",
+    "const p=Promise.reject(b);const x=a?p:0;const y=x;y;return x==p?a:a;",
+    "const f=async()=>{await a;throw b;};const p=f();const x=a?p:0;return x===p?a:a;",
+    "const p=Promise.reject(b);const x=a?p:0;const read=async()=>{await a;try{await x;}catch(e){}return a;};return await read();",
 ];
 
 // Deliberately malformed scheduler peers test adapter validation independently
@@ -171,14 +174,14 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                     .unwrap()
                     .wasm;
                 let mut run = AsyncInstance::new(&wasm, 4.0, reason).unwrap();
-                if [0, 18, 19, 21, 25, 26].contains(&index) || (13..=16).contains(&index) {
+                if [0, 18, 19, 21, 25, 26, 27, 28].contains(&index) || (13..=16).contains(&index) {
                     assert!(matches!(
                         run.state().unwrap(),
                         AsyncState::Fulfilled(Value::Number(4.0))
                     ));
                     assert_eq!(
                         run.pending_job_count().unwrap(),
-                        usize::from([0, 19, 26].contains(&index))
+                        usize::from([0, 19, 26, 28].contains(&index))
                     );
                 }
                 let mut events = run.take_promise_notifications().unwrap();
@@ -204,9 +207,9 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         }
                     }
                 }
-                if [5, 6, 7, 17, 20, 22, 24].contains(&index) {
+                if [5, 6, 7, 17, 20, 22, 24, 29].contains(&index) {
                     assert!(unhandled.is_empty(), "{body}");
-                    if [6, 7, 17, 20, 22, 24].contains(&index) {
+                    if [6, 7, 17, 20, 22, 24, 29].contains(&index) {
                         assert_eq!(events.len(), 2);
                     } else {
                         assert!(events.is_empty());
@@ -226,7 +229,7 @@ fn wasmtime_tracks_rejection_identity_and_late_handling_after_root_settlement() 
                         | (4, Value::Boolean(true)) => {}
                         (
                             0 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 19 | 21 | 23 | 25
-                            | 26,
+                            | 26 | 27 | 28,
                             Value::Number(x),
                         ) => {
                             assert!(

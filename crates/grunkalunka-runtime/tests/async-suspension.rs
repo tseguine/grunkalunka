@@ -46,6 +46,9 @@ mod sync_async_starts;
 #[path = "async-suspension/selection_equality.rs"]
 mod selection_equality;
 
+#[path = "async-suspension/const_values.rs"]
+mod const_values;
+
 #[test]
 fn selected_async_await_operands_keep_the_selected_reactions() {
     compare_promises(
@@ -167,14 +170,19 @@ fn selected_async_await_operands_keep_limits_and_erased_types() {
 
 #[test]
 fn selected_async_await_operands_keep_pending_and_domain_guards() {
+    compare_promises(
+        &[
+            "let f=async()=>{await a;return b;};const p=a?f():b;return await p;",
+            "let f=async()=>{await a;return b;};return await(f()||b);",
+            "let f=async()=>{await a;return b;};return await(f()&&b);",
+            "let f=async()=>{await a;return b;};return await(f()??b);",
+            "let f=async()=>{await a;return b;};return await(a?(f()||b):b);",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
     for body in [
-        "let f=async()=>{await a;return b;};const p=a?f():b;return await p;",
         "let f=async()=>{await a;return b;};return await Promise.reject(a?f():b);",
         "let f=async()=>{await a;return b;};return await Promise.resolve(a?f():b,await a);",
-        "let f=async()=>{await a;return b;};return await(f()||b);",
-        "let f=async()=>{await a;return b;};return await(f()&&b);",
-        "let f=async()=>{await a;return b;};return await(f()??b);",
-        "let f=async()=>{await a;return b;};return await(a?(f()||b):b);",
         "let f=async()=>{await a;return b;};return await(a?f():{});",
         "let f=async()=>{await a;return b;};return await(a?f():'x');",
         "let f=async()=>{await a;return b;};return await(a?f():(()=>b));",
@@ -1289,7 +1297,6 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
         "let p=Promise.resolve(a);p=null;return await p;",
         "let p; p=Promise.resolve(b);return await p;",
         "const p=Promise.resolve(a);return +p;",
-        "const p=Promise.resolve(a);return await (p&&a);",
         "const p=Promise.resolve(a);throw p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
     ] {
@@ -1297,6 +1304,10 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }
     }
+    compare_promises(
+        &["const p=Promise.resolve(a);return await (p&&a);"],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
 }
 
 #[test]

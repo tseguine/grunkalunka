@@ -533,11 +533,12 @@ adopting it. Only the final selected return is resolved. Primitive and Error
 payloads, Promise identity, short-circuit effects and rejection handling retain
 the existing semantics and budgets.
 
-This carrier does not extend the exported completion protocol. Mixed source
-locals and private parameter domains remain separate work. Equality can consume
-selected raw variants as described below; mixed relational and coercion positions
-remain separate work. A helper can resolve its selected
-async return before the caller compares the resulting primitive/Error value.
+This carrier does not extend the exported completion protocol. Immutable source
+locals now use it as described below; mutable mixed locals and private parameter
+domains remain separate work. Equality can consume selected raw variants as
+described below; mixed relational and coercion positions remain separate work.
+A helper can resolve its selected async return before the caller compares the
+resulting primitive/Error value.
 
 ### Starting async children from synchronous helpers
 
@@ -558,7 +559,7 @@ remain on the Wasm stack. Modules without these helper starts retain their exist
 emission path. No exported protocol, record width, fuel, job or source-await limit
 changes. Actual awaits still require an async source function; typed synchronous
 helpers still cannot contain suspension. General Promise payloads, thenables and
-mixed source storage/private parameter domains remain separate gaps.
+mutable mixed source storage/private parameter domains remain separate gaps.
 
 ### Equality of selected Promise/primitive operands
 
@@ -574,6 +575,31 @@ equality applies, including Boolean/Number coercion, NaN and signed zero. A
 Promise is unequal to every currently admitted non-string primitive and intrinsic
 Error; the inequality operators invert that result. The source General profile
 still excludes Strings, so this does not implement Promise/string loose equality,
-custom coercion or arbitrary objects. Mixed source locals/private inputs and mixed
-relational or numeric-coercion operands remain separate gaps. Existing homogeneous
+custom coercion or arbitrary objects. Mutable mixed source locals/private inputs
+and mixed relational or numeric-coercion operands remain separate gaps. Existing homogeneous
 comparison paths and all source/runtime budgets remain unchanged.
+
+### Immutable selected-value locals
+
+In the async identity profile, a const initializer may select a represented
+Promise or General primitive/intrinsic Error. The local and const aliases retain
+that raw tagged snapshot, including across suspension and captured cells. Reading,
+discarding, comparing or testing it does not adopt, await or handle a Promise.
+Logical selection tests the stored kind before choosing an operand. The same
+await cursor also handles direct logical selections of represented Promise and
+primitive operands, without requiring an intermediate local.
+
+An explicit await consumes the selected primitive with its ordinary reaction or
+awaits the selected Promise; rejection reaches the lexical catch. Returning the
+local from an async activation adopts only a selected Promise, whose rejection
+bypasses that activation's catch. Primitive returns add no reaction. Static effect
+analysis tracks "may contain a Promise" separately from homogeneous Promise
+signature facts, preserving the required physical activation for captured returns.
+
+Native JS, Node-Wasm and Wasmtime comparisons cover aliases, captures, original
+binding mutation, primitive bits/kinds, Error identity, logical/comma/conditional
+consumers and job traces. Notification tests cover discarded rejected values and
+later handling. No new layout, exported completion, private signature, fuel, job or
+source-await budget is introduced. Mutable mixed bindings, private mixed inputs or
+ordinary mixed returns, mixed relational/coercion operands, general Promise
+payloads, Strings and thenables remain open.

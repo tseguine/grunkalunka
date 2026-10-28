@@ -177,6 +177,7 @@ enum Work<'e, 'a> {
     AwaitPending(&'e Expression<'a>, Option<usize>),
     AdoptResult(&'e Expression<'a>),
     LiftAsyncValue(&'e Expression<'a>),
+    AwaitAsyncValue(&'e Expression<'a>, usize),
     PendingTruthy(&'e Expression<'a>),
     AwaitSettled(&'e Expression<'a>, Option<usize>),
     FulfillPromise(&'e Expression<'a>),
@@ -907,6 +908,11 @@ impl Lowering<'_, '_> {
                     let input = values.pop().expect("async return Promise").pending();
                     let result = self.value(Type::General);
                     Self::push(regions.current(), node, Op::AdoptPromise { result, input });
+                    values.push(Value::General(result));
+                }
+                Work::AwaitAsyncValue(node, site) => {
+                    let input = values.pop().expect("selected await operand").id();
+                    let result = self.await_async_value(node, input, site, regions.current());
                     values.push(Value::General(result));
                 }
                 Work::LiftAsyncValue(node) => {
@@ -2085,6 +2091,11 @@ impl Lowering<'_, '_> {
                     });
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
+                    if self.async_value_slot(node, depth).is_some() {
+                        work.push(Work::Forget);
+                        work.push(Work::Eval(node, depth, Mode::AsyncValue));
+                        continue;
+                    }
                     if self.pending_promise_shape(node, depth) {
                         work.push(Work::Forget);
                         work.push(Work::Eval(node, depth, Mode::Pending));
@@ -2179,6 +2190,12 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if let Some(result) =
+                        self.stored_async_value(node, depth, mode, regions.current())
+                    {
+                        values.push(result);
                         continue;
                     }
                     if matches!(mode, Mode::AsyncValue) {
@@ -2392,6 +2409,13 @@ impl Lowering<'_, '_> {
                         ));
                     }
                     if let Mode::Awaited(site) = mode {
+                        if matches!(node, Expression::LogicalExpression(_))
+                            && self.has_promise_choice(node, depth)
+                        {
+                            work.push(Work::AwaitAsyncValue(node, site));
+                            work.push(Work::Eval(node, depth, Mode::AsyncValue));
+                            continue;
+                        }
                         if matches!(
                             node,
                             Expression::ConditionalExpression(_)
@@ -3533,7 +3557,53 @@ impl Lowering<'_, '_> {
         Ok(callee)
     }
 
-    fn push_await(region: &mut Region, node: &impl GetSpan, site: Option<usize>, kind: Op) {
+    // Keep this dispatch outside the large cursor frame: deeply nested constructor
+    // validation re-enters evaluate on the existing two-MiB native-stack contract.
+    fn stored_async_value(
+        &mut self,
+        node: &Expression<'_>,
+        depth: usize,
+        mode: Mode,
+        region: &mut Region,
+    ) -> Option<Value> {
+        if !matches!(
+            mode,
+            Mode::AsyncValue | Mode::AsyncReturn | Mode::Predicate | Mode::Awaited(_)
+        ) {
+            return None;
+        }
+        let slot = self.async_value_slot(node, depth)?;
+        let input = self.value(Type::AsyncValue);
+        Self::push(
+            region,
+            node,
+            Op::Load {
+                result: input,
+                slot,
+            },
+        );
+        Some(match mode {
+            Mode::AsyncValue => Value::Selection(input),
+            Mode::AsyncReturn => Value::General(self.resolve_async_value(node, input, region)),
+            Mode::Awaited(site) => {
+                Value::General(self.await_async_value(node, input, site, region))
+            }
+            Mode::Predicate => Value::Predicate(self.async_value_condition(
+                node,
+                input,
+                LogicalOperator::Or,
+                region,
+            )),
+            _ => unreachable!("checked mixed-value consumer"),
+        })
+    }
+
+    pub(super) fn push_await(
+        region: &mut Region,
+        node: &impl GetSpan,
+        site: Option<usize>,
+        kind: Op,
+    ) {
         if let Some(site) = site {
             Self::push(region, node, Op::AwaitSite { site });
         }

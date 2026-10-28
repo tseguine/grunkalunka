@@ -153,8 +153,11 @@ fn selected_equality_preserves_erasure_budgets_and_remaining_storage_guards() {
             .unwrap()
             .contains("32 await sites")
     );
+    compare_promises(
+        &["const p=Promise.resolve(a);const x=a?p:b;return x===p;"],
+        &[(4.0, 2.0), (0.0, -0.0)],
+    );
     for body in [
-        "const p=Promise.resolve(a);const x=a?p:b;return x===p;",
         "const p=Promise.resolve(a);const eq=x=>x===p;eq(p);return eq(a);",
         "const p=Promise.resolve(a);return +(a?p:b);",
         "const p=Promise.resolve(a);return (a?p:b)<a;",

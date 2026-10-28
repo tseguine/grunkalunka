@@ -118,7 +118,16 @@ impl Lowering<'_, '_> {
                 return false;
             };
             asynchronous |= self.pending_promise_shape(expression, depth);
+            if self.async_value_slot(expression, depth).is_some() {
+                selected = true;
+                asynchronous = true;
+            }
             match expression {
+                Expression::LogicalExpression(logical) => {
+                    selected = true;
+                    pending.push((&logical.left, depth + 1));
+                    pending.push((&logical.right, depth + 1));
+                }
                 Expression::ConditionalExpression(conditional) => {
                     selected = true;
                     pending.push((&conditional.consequent, depth + 1));

@@ -708,7 +708,12 @@ impl Lowering<'_, '_> {
             } else if let Some(value) = promise {
                 (Type::FulfilledPromise, value)
             } else if let Some(initializer) = local.init.as_ref() {
-                let ty = if !mutable && self.const_boolean_initializer(initializer, 0) {
+                let ty = if !mutable
+                    && self.promise_parameters.identities
+                    && self.has_promise_choice(initializer, 0)
+                {
+                    Type::AsyncValue
+                } else if !mutable && self.const_boolean_initializer(initializer, 0) {
                     Type::Predicate
                 } else if identifier
                     .symbol_id
@@ -726,7 +731,9 @@ impl Lowering<'_, '_> {
                         .expect("General initializer"),
                     Type::Predicate => self.predicate(initializer, region, 0)?,
                     Type::Number => self.expression(initializer, region, 0)?,
-                    Type::AsyncValue => unreachable!("selection carriers are not source locals"),
+                    Type::AsyncValue => self
+                        .evaluate(initializer, region, 0, evaluate::Mode::AsyncValue)?
+                        .expect("mixed async-value initializer"),
                     Type::Closure(_) => unreachable!("function values use their own cursor"),
                     Type::FulfilledPromise => unreachable!("Promise initializer handled above"),
                     Type::SettledPromise | Type::Promise => {
