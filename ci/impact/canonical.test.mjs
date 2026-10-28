@@ -60,10 +60,11 @@ const modules = [...cargo.map(id => ({ id, paths: [
   id === 'grunkalunka-string-spike' ? 'spikes/003-lossless-string-literals/' :
     'crates/' + id + '/'], dependsOn: localDeps[id] ?? [] })),
   ...readCatalog('owners')];
+const groups = readCatalog('targets');
 const tests = [...cargo.map(id => ({ id: 'cargo-test:' + id, dependsOn: [id] })),
-  ...readCatalog('targets'), ...checkNodes(declared, cargo)];
+  ...checkNodes(declared, cargo)];
 const analyze = paths => planImpact({
-  changedPaths: paths, modules, tests, global: ['ci/impact/'], ignored: ['docs/'],
+  changedPaths: paths, modules, groups, tests, global: ['ci/impact/'], ignored: ['docs/'],
 });
 
 test('isolated layout code selects workspace checks but no unrelated integrations', () => {
@@ -88,4 +89,17 @@ test('unknown code paths force full verification alongside attributed files', ()
     'spikes/004-tsrs-type-query/src/main.rs']);
   assert.equal(result.full, true);
   assert.match(result.reasons[0], /unattributed/);
+});
+
+test('a non-Cargo owner with only a descriptive group fails closed', () => {
+  const result = analyze(['tools/browser-oracles/smoke.mjs']);
+  assert.equal(result.full, true);
+  assert.match(result.reasons[0], /no executable test covers changed owner: browser-oracles/);
+});
+
+test('an actual canonical check is reached through a logical group', () => {
+  const result = analyze(['crates/grunkalunka-json/src/lib.rs']);
+  assert.equal(result.full, false, JSON.stringify(result.reasons));
+  assert.ok(result.tests.includes('check:json-composition'));
+  assert.ok(!result.tests.includes('test:json-integration'));
 });

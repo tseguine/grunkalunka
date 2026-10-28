@@ -41,12 +41,13 @@ try {
   const declared = readCatalog('checks');
   const canonical = JSON.parse(run(process.execPath, ['ci/impact/collect-checks.mjs']));
   const coverage = verifyCanonicalChecks(canonical, declared);
+  // Group entries are dependency junctions, not runnable tests.
+  const groups = readCatalog('targets');
   const tests = [
     ...workspacePackages.map(pkg => ({ id: `cargo-test:${pkg.name}`, dependsOn: [pkg.name] })),
-    ...readCatalog('targets'),
     ...checkNodes(declared, workspacePackages.map(pkg => pkg.name)),
   ];
-  result = { ...planImpact({ changedPaths: changes, modules, tests, global, ignored }),
+  result = { ...planImpact({ changedPaths: changes, modules, groups, tests, global, ignored }),
     canonicalCoverage: coverage };
   result.selectedCommands = result.full ? declared.map(x => x.id).sort() :
     result.tests.filter(id => id.startsWith('check:'));

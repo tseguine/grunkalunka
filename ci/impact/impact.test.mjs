@@ -97,10 +97,55 @@ test('checked-in metadata has complete references to known Rust modules', () => 
     'grunkalunka-runtime', 'grunkalunka-wasm-link'];
   const catalog = [...descriptors('owners'), ...rust.map(id => ({ id }))];
   const targets = descriptors('targets');
+  const checks = descriptors('checks');
   const result = planImpact({ changedPaths: ['crates/grunkalunka-markdown/src/lib.rs'],
     modules: catalog.map(node => node.paths ? node : { ...node, paths: [`crates/${node.id}/`] }),
-    tests: targets });
+    groups: targets, tests: checks });
   assert.equal(result.full, false, JSON.stringify(result.reasons));
-  assert.ok(result.tests.includes('test:markdown-integration'));
-  assert.ok(!result.tests.includes('test:json-integration'));
+  assert.ok(result.tests.includes('check:markdown-portability'));
+  assert.ok(!result.tests.includes('check:json-composition'));
+});
+
+test('owned code without any reachable test triggers full verification', () => {
+  const orphan = { id: 'new-module', paths: ['modules/new/'] };
+  const noTests = planImpact({
+    changedPaths: ['modules/new/new.js'], modules: [...modules, orphan], tests,
+  });
+  assert.equal(noTests.full, true);
+  assert.match(noTests.reasons[0], /no executable test covers changed owner: new-module/);
+});
+
+test('an untested owner fails closed even when another changed owner has tests', () => {
+  const orphan = { id: 'new-module', paths: ['modules/new/'] };
+  const mixed = planImpact({
+    changedPaths: ['crates/core/src/lib.rs', 'modules/new/new.js'],
+    modules: [...modules, orphan], tests,
+  });
+  assert.equal(mixed.full, true);
+  assert.match(mixed.reasons[0], /no executable test covers changed owner: new-module/);
+});
+
+test('an owned test source is itself a selected test, not an orphaned module', () => {
+  const selected = analyze(['tests/api/contract.test.mjs']);
+  assert.equal(selected.full, false);
+  assert.ok(selected.tests.includes('api-tests'));
+});
+
+test('logical groups are dependency junctions, never runnable test targets', () => {
+  const orphan = { id: 'new-module', paths: ['modules/new/'] };
+  const advisoryGroup = { id: 'group:new-module', dependsOn: ['new-module'] };
+  const missing = planImpact({
+    changedPaths: ['modules/new/new.js'], modules: [...modules, orphan],
+    groups: [advisoryGroup], tests,
+  });
+  assert.equal(missing.full, true);
+  assert.match(missing.reasons[0], /no executable test covers changed owner: new-module/);
+  const covered = planImpact({
+    changedPaths: ['modules/new/new.js'], modules: [...modules, orphan],
+    groups: [advisoryGroup],
+    tests: [...tests, { id: 'check:new-module', dependsOn: [advisoryGroup.id] }],
+  });
+  assert.equal(covered.full, false, JSON.stringify(covered.reasons));
+  assert.ok(covered.tests.includes('check:new-module'));
+  assert.ok(!covered.tests.includes(advisoryGroup.id));
 });
