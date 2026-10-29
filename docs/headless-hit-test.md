@@ -16,7 +16,8 @@ fonts, images or external dependencies.
 - The topmost candidate is chosen by the reverse of the toy painter's
   **depth-first traversal**: descendants over parents, later siblings over
   earlier siblings. The flat parent-before-child representation need not
-  itself be preorder.
+  itself be preorder. An active `display: contents` wrapper has no hit box;
+  its descendants remain in traversal order and inherit ancestor clips.
 - Only visible **border rectangles** are hit regions; margins are excluded.
   Descendants can be hit outside their parent's border when not clipped.
   `DescendantClip::PaddingBox` restricts hits by every clipping ancestor's
@@ -27,8 +28,8 @@ fonts, images or external dependencies.
   `hit_test_scrolled` translates viewport points by a checked global
   document-space offset; nested scroll containers are not represented.
 - The function validates all tree and box inputs before accepting any hit:
-  viewport dimensions, exact frame/node/visibility/clip count, at most 4,096
-  nodes, depth
+  viewport dimensions, exact frame/node/visibility/clip/contents count,
+  at most 4,096 nodes, depth
   at most 64, ordered valid parents, no visible descendants of hidden parents,
   checked rectangle arithmetic and content-within-padding-within-border-
   within-margin geometry. Malformed input returns a typed error.
@@ -62,6 +63,16 @@ restore targetability, and a targetable child cannot escape its ancestor's
 clip (including under viewport scrolling). Geometry and current document
 scroll extents still include clipped overflow, so the feature does not
 implement CSS scroll containers or full `overflow` semantics.
+
+## Boxless wrapper input
+
+The native `Display::Contents` case preserves child input targets even
+though their wrapper itself has no border box and is not targetable. It
+is distinguished from `display:none` when validating a visible child of
+a boxless parent. The independent `tests/display_contents.rs` checks
+nested wrappers, inherited visibility, exact targets and malformed
+parent/frame metadata. This does not imply DOM event bubbling,
+accessibility tree preservation or CSS display conformance.
 
 ## Intentional limitations
 

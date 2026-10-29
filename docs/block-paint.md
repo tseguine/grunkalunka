@@ -15,7 +15,9 @@ window display, or a commitment to the final rendering architecture.
   explicit tree traversal rather than assuming the flat parent-before-child
   input is itself preorder. Later opaque paint covers earlier pixels.
 - `display:none` and descendants stay absent, following the layout
-  `Frame`. `visibility:hidden` instead preserves layout: the painter
+  `Frame`. `Display::Contents` removes the wrapper's paint box but retains
+  its descendants in normal depth-first paint order. `visibility:hidden`
+  instead preserves layout: the painter
   skips that node's own paints, but still visits descendants so an explicitly
   visible child can paint.
 - Caller-resolved `DescendantClip::PaddingBox` clips descendants'
@@ -23,8 +25,8 @@ window display, or a commitment to the final rendering architecture.
   own border/background normally. Nested and disjoint intersections are
   checked before applying the existing viewport clip.
 - Invalid root/parent indices, excessive depth, malformed nested box
-  rectangles and mismatched `Frame`/paint-list/visibility/clip lengths fail
-  closed.
+  rectangles and mismatched `Frame`/paint-list/visibility/clip/contents
+  lengths fail closed.
   Integer arithmetic is checked. Pixel allocation is limited to **4 million
   RGB pixels** and viewport dimensions are already bounded by the core.
 - `Canvas.pixel(x,y)` permits diagnostic sampling. `Canvas.ppm()` returns
@@ -59,6 +61,16 @@ unchanged. The integration test `tests/descendant_clip.rs` verifies
 exact output pixels for a clipped child and nested/disjoint clips alongside
 the headless hit tester. This is not CSS overflow, compositing or a
 general glyph clipping implementation.
+
+## Boxless wrapper painting
+
+The optional paint module does not draw a `Display::Contents` node's
+background, border or padding: it has no principal box. Its children
+still paint in the original tree order, subject to inherited visibility
+and any earlier ancestor padding-box clips. An inactive `display:none`
+subtree still does not paint, and malformed boxless metadata fails closed.
+The ordinary native `tests/display_contents.rs` exercises exact paint
+pixels and sibling order without claiming full browser conformance.
 
 ## Deliberate omissions
 

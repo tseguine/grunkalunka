@@ -29,6 +29,9 @@ of visible blocks, plus scroll extents.
   Values above 100% may overflow.
 - Display:none removes an entire subtree. Changing the display value and
   running layout again restores boxes without modifying document ownership.
+- Explicit boxless `display: contents` flattens a wrapper's descendants into
+  its containing block's normal flow without removing DOM-tree identity or
+  changing children's inherited visibility.
 - Resolved inherited visibility controls painting and input separately:
   hidden boxes remain in geometry and flow, while an explicitly visible
   descendant can override a hidden ancestor without reflow.
@@ -37,6 +40,40 @@ of visible blocks, plus scroll extents.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
   1–16,384 CSS pixels per viewport dimension. Malformed parent indices
   and overflowing dimensions fail instead of wrapping or silently truncating.
+
+## Boxless display:contents (headless normal-flow feature)
+
+`Display::Contents` removes only the wrapper's own box. Its children are
+laid out in the wrapper's containing block's flow at the current cursor,
+with the containing content width and definite height passed through.
+Nested boxless wrappers work identically, and both the document root and
+ordinary descendants may be contents wrappers. The wrapper's own margins,
+padding, border, width/height, min/max constraints, intrinsic height and
+padding-box descendant clip are ignored because no principal box exists.
+The next sibling follows the consumed heights of the flattened descendants.
+
+`Frame::contents` marks **active** contents wrappers. The corresponding
+`Frame::boxes` entry is `None`, which differs from the hidden subtree of
+`display:none`: visible descendants under contents remain laid out,
+painted and targetable. The RGB painter traverses through the boxless
+wrapper without painting its own background/border; the hit tester does
+the same without selecting the wrapper as a target. Both consumers
+reject missing/inconsistent frame metadata and still reject children of
+genuinely hidden parents. Inherited `visibility` continues across the
+boxless wrapper, including explicit visible overrides.
+
+The typed semantic-tree adapter admits only **text-free** contents
+containers. Direct text or a measured text height on an active boxless
+node is rejected as `SemanticError::BoxlessText`, because anonymous
+inline/text-box construction is not implemented. Regular text-bearing
+descendants keep their own paint anchors. This is not HTML parsing,
+`display:contents` accessibility or event-bubbling semantics, CSS
+pseudo-elements, replaced element behavior or a full formatting context.
+
+The independently authored `tests/display_contents.rs` checks exact
+flattened coordinates, nested contents, paint and hit order, visibility
+inheritance, `display:none` isolation, a boxless root, semantic text
+rejection and corrupt frame metadata.
 
 ## Inherited visibility without reflow
 

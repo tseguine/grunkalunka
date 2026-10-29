@@ -162,7 +162,18 @@ fn paint_node(
     canvas: &mut Canvas,
     ancestor_clip: Option<Rect>,
 ) -> Result<(), PaintError> {
+    if frame.contents[index] && frame.boxes[index].is_some() {
+        return Err(PaintError::InvalidBox { node: index });
+    }
     let Some(geometry) = frame.boxes[index] else {
+        // A boxless display:contents wrapper retains its children in normal
+        // painting order. It has no own background, border, padding clip,
+        // or principal box to paint, even when caller paint metadata exists.
+        if frame.contents[index] {
+            for &child in &children[index] {
+                paint_node(child, children, frame, nodes, canvas, ancestor_clip)?;
+            }
+        }
         return Ok(());
     };
     if !contains(geometry.margin, geometry.border)?
@@ -253,7 +264,9 @@ fn paint_node(
 
 /// Fill already-calculated boxes in depth-first tree order with viewport clipping.
 ///
-/// Transparent/absent paints leave earlier pixels intact. Resolved hidden
+/// Active display:contents wrappers contribute no paint box, but their
+/// children remain in depth-first paint order with the inherited ancestor
+/// clip. Transparent/absent paints leave earlier pixels intact. Resolved hidden
 /// elements suppress their own paint, not the paint of an explicitly visible
 /// descendant; sibling flow and box geometry are unaffected.
 /// Overflowing children can draw beyond their parents' borders unless the
@@ -303,6 +316,7 @@ pub fn paint_scrolled(
         || nodes.len() != frame.boxes.len()
         || frame.visibility.len() != frame.boxes.len()
         || frame.clip_descendants.len() != frame.boxes.len()
+        || frame.contents.len() != frame.boxes.len()
     {
         return Err(PaintError::NodeCountMismatch);
     }
@@ -323,7 +337,10 @@ pub fn paint_scrolled(
         if depths[index] > MAX_DEPTH {
             return Err(PaintError::TooDeep { node: index });
         }
-        if frame.boxes[index].is_some() && frame.boxes[parent].is_none() {
+        if frame.boxes[index].is_some()
+            && frame.boxes[parent].is_none()
+            && !frame.contents[parent]
+        {
             return Err(PaintError::VisibleChildOfHiddenParent { node: index });
         }
         children[parent].push(index);

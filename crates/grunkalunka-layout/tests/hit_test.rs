@@ -221,6 +221,7 @@ fn corrupt_frames_parents_depth_and_viewports_fail_closed() {
     invalid.boxes = vec![None; MAX_BLOCKS + 1];
     invalid.visibility = vec![true; MAX_BLOCKS + 1];
     invalid.clip_descendants = vec![false; MAX_BLOCKS + 1];
+    invalid.contents = vec![false; MAX_BLOCKS + 1];
     let many = vec![HitNode::new(None); MAX_BLOCKS + 1];
     assert_eq!(hit_test(&invalid, &many, 1, 1), Err(HitError::TooManyNodes));
 
@@ -228,6 +229,7 @@ fn corrupt_frames_parents_depth_and_viewports_fail_closed() {
     invalid.boxes = vec![None; MAX_DEPTH + 2];
     invalid.visibility = vec![true; MAX_DEPTH + 2];
     invalid.clip_descendants = vec![false; MAX_DEPTH + 2];
+    invalid.contents = vec![false; MAX_DEPTH + 2];
     let mut deep = vec![HitNode::new(None); MAX_DEPTH + 2];
     for (index, node) in deep.iter_mut().enumerate().skip(1) {
         node.parent = Some(index - 1);

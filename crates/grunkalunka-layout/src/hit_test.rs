@@ -52,6 +52,8 @@ fn contains_point(border: Rect, x: u32, y: u32) -> Result<bool, HitError> {
 
 /// Return the topmost caller-targetable element at one viewport coordinate.
 ///
+/// Active display:contents wrappers have no hit box of their own, but their
+/// children remain in depth-first hit order and inherit ancestor clips.
 /// The selected toy hit region is each visible element's border rectangle:
 /// margins are excluded; overflow children can receive hits beyond parents.
 /// Hidden elements are skipped without changing layout; descendants explicitly
@@ -96,6 +98,7 @@ pub fn hit_test_scrolled(
         || nodes.len() != frame.boxes.len()
         || frame.visibility.len() != frame.boxes.len()
         || frame.clip_descendants.len() != frame.boxes.len()
+        || frame.contents.len() != frame.boxes.len()
     {
         return Err(HitError::NodeCountMismatch);
     }
@@ -119,13 +122,19 @@ pub fn hit_test_scrolled(
         if depths[index] > MAX_DEPTH {
             return Err(HitError::TooDeep { node: index });
         }
-        if frame.boxes[index].is_some() && frame.boxes[parent].is_none() {
+        if frame.boxes[index].is_some()
+            && frame.boxes[parent].is_none()
+            && !frame.contents[parent]
+        {
             return Err(HitError::VisibleChildOfHiddenParent { node: index });
         }
         children[parent].push(index);
     }
 
     for (index, geometry) in frame.boxes.iter().enumerate() {
+        if frame.contents[index] && geometry.is_some() {
+            return Err(HitError::InvalidBox { node: index });
+        }
         if let Some(geometry) = geometry
             && (!encloses(geometry.margin, geometry.border)?
                 || !encloses(geometry.border, geometry.padding)?

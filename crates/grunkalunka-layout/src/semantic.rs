@@ -21,8 +21,9 @@ pub enum ElementKind {
 
 /// A node already constructed by a trusted caller/parser, in parent-before-child order.
 ///
-/// Nodes with direct text must have no children in this selected subset. The text
-/// is inert data: markup-like characters are not parsed or executed.
+/// Nodes with direct text must have no children in this selected subset.
+/// Only boxless containers without direct text are admitted for
+/// display:contents; text remains inert data and is never parsed as markup.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Element<'a> {
     pub parent: Option<usize>,
@@ -62,6 +63,7 @@ pub enum SemanticError {
     InvalidHeadingLevel { node: usize },
     MixedTextAndChildren { node: usize },
     UnmeasuredText { node: usize },
+    BoxlessText { node: usize },
     TextQuotaExceeded,
 }
 
@@ -158,6 +160,17 @@ pub fn layout_semantic<'a>(
             && !(1..=6).contains(&level)
         {
             return Err(SemanticError::InvalidHeadingLevel { node });
+        }
+        // Direct text in display:contents requires anonymous inline/text
+        // box construction, which this typed block adapter does not provide.
+        // Reject instead of silently losing the text and its measurement.
+        if !element.hidden
+            && element
+                .resolved_style
+                .is_some_and(|style| style.display == Display::Contents)
+            && (!element.text.is_empty() || element.measured_text_height != 0)
+        {
+            return Err(SemanticError::BoxlessText { node });
         }
         if !element.text.is_empty() && element.measured_text_height == 0 {
             return Err(SemanticError::UnmeasuredText { node });
