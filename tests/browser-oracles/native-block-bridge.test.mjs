@@ -207,6 +207,35 @@ const relativeStates = () => ({
   parentMoved: relativePhase(true),
   restored: relativePhase(false),
 });
+const percentGeometry = changed => ({
+  "percent-host": { x: 0, y: 574, width: 212, height: 102 },
+  "percent-first": { x: 46, y: changed ? 590 : 600, width: 150, height: 8 },
+  "percent-next": { x: 6, y: changed ? 628 : 638, width: 24, height: 6 },
+  "percent-after": { x: 250, y: 676, width: 20, height: 5 },
+});
+const percentPhase = changed => ({
+  scrollY: 200,
+  boxes: percentGeometry(changed),
+  computed: {
+    top: changed ? "10px" : "20px",
+    right: "10px", bottom: "30px", left: "40px",
+  },
+  hits: {
+    "baseline-first": changed ? "percent-host" : "percent-first",
+    "shifted-first": changed ? "percent-first" : "percent-host",
+    "top-margin": "percent-host",
+    "baseline-next": changed ? "percent-host" : "percent-next",
+    "shifted-next": changed ? "percent-next" : "percent-host",
+    "host-bottom": "percent-host",
+    "following-sibling": "percent-after",
+    outside: null,
+  },
+});
+const percentStates = () => ({
+  original: percentPhase(false),
+  changed: percentPhase(true),
+  restored: percentPhase(false),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -261,6 +290,7 @@ const native = () => ({
   pointerStates: pointerStates(),
   autoMarginStates: autoMarginStates(),
   relativeStates: relativeStates(),
+  percentStates: percentStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -292,6 +322,7 @@ function browser() {
     pointerStates: pointerStates(),
   autoMarginStates: autoMarginStates(),
   relativeStates: relativeStates(),
+  percentStates: percentStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -346,11 +377,15 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#relative-host { width: 60px; height: 32px; margin-left: 240px; position: relative; left: 12px; top: 9px; }",
     "#relative-child { width: 18px; height: 8px; position: relative; left: 4px; top: 5px; }",
     "#relative-sibling { width: 24px; height: 6px; margin-left: 350px; }",
+    "#percent-host { width: 200px; height: 90px; border: 2px solid black; padding: 4px; box-sizing: content-box; }",
+    "#percent-first { width: 150px; height: 8px; margin: 10% 5% 15% 20%; }",
+    "#percent-next { width: 24px; height: 6px; }",
+    "#percent-after { width: 20px; height: 5px; margin-left: 250px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div><div id="percent-host"><div id="percent-first"></div><div id="percent-next"></div></div><div id="percent-after"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -362,6 +397,16 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "percentage boxes must be independently measured from DOM rectangles");
   assert.ok(source.includes("const borderBoxes = Object.fromEntries(borderIds.map("),
     "border-box observations must come from independent DOM rectangles");
+  assert.ok(source.includes('percentFirst.style.marginTop = "5%"'),
+    "source must change actual CSS margin declaration");
+  assert.ok(source.includes('percentFirst.style.removeProperty("margin-top")'),
+    "source must restore percentage declaration");
+  assert.ok(source.includes("const percentStates = {"),
+    "all three percentage margin phases must be measured from DOM");
+  assert.ok(source.includes("window.scrollTo(0, 200)"),
+    "percent group must be observed with actual viewport scrolling");
+  assert.ok(source.includes("rect.y + window.scrollY"),
+    "source must use real scrolled DOM rectangles");
   assert.ok(source.includes('relativeHost.style.left = "20px"'),
     "source must apply a real relative offset change");
   assert.ok(source.includes('relativeHost.style.removeProperty("left")'),
@@ -982,6 +1027,80 @@ test("missing, partial and invalid relative receipts never compare equal", () =>
   const emitted = native();
   delete emitted.relativeStates.restored.computed["relative-child"].top;
   assert.equal(compareNativeBlockBridge(emitted, browser(), fixture).status, "invalid");
+});
+
+
+
+test("source-checked four-sided percentage margins move normal-flow siblings vertically", () => {
+  const report = compareNativeBlockBridge(native(), browser(), fixture);
+  assert.equal(report.status, "equal", JSON.stringify(report.differences));
+  const phases = browser().percentStates;
+  assert.deepEqual(phases.original, phases.restored);
+  assert.deepEqual(phases.original.boxes, percentGeometry(false));
+  assert.deepEqual(phases.changed.boxes, percentGeometry(true));
+  assert.deepEqual(phases.original.computed,
+    { top: "20px", right: "10px", bottom: "30px", left: "40px" });
+  assert.deepEqual(phases.changed.computed,
+    { top: "10px", right: "10px", bottom: "30px", left: "40px" });
+  assert.deepEqual(phases.original.hits, {
+    "baseline-first": "percent-first", "shifted-first": "percent-host",
+    "top-margin": "percent-host", "baseline-next": "percent-next",
+    "shifted-next": "percent-host", "host-bottom": "percent-host",
+    "following-sibling": "percent-after", outside: null,
+  });
+  assert.deepEqual(phases.changed.hits, {
+    "baseline-first": "percent-host", "shifted-first": "percent-first",
+    "top-margin": "percent-host", "baseline-next": "percent-host",
+    "shifted-next": "percent-next", "host-bottom": "percent-host",
+    "following-sibling": "percent-after", outside: null,
+  });
+});
+
+test("percentage margin rectangles, CSS used values and hits report separate drift", () => {
+  const observed = browser();
+  observed.percentStates.original.boxes["percent-first"].y += 1;
+  observed.percentStates.changed.computed.top = "11px";
+  observed.percentStates.restored.hits["baseline-first"] = "percent-host";
+  const report = compareNativeBlockBridge(native(), observed, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences, [{
+    kind: "percent-margin-box", phase: "original", id: "percent-first", field: "y",
+    left: 600, right: 601, path: "$.percentStates.original.boxes.percent-first.y",
+  }, {
+    kind: "percent-margin-computed", phase: "changed", side: "top",
+    left: "10px", right: "11px", path: "$.percentStates.changed.computed.top",
+  }, {
+    kind: "percent-margin-hit", phase: "restored", probe: "baseline-first",
+    left: "percent-first", right: "percent-host",
+    path: "$.percentStates.restored.hits.baseline-first",
+  }]);
+});
+
+test("missing, incomplete, invalid or unscrolled percentage receipts fail closed", () => {
+  for (const change of [
+    r => { delete r.percentStates; },
+    r => { delete r.percentStates.changed; },
+    r => { delete r.percentStates.original.scrollY; },
+    r => { r.percentStates.changed.scrollY = 0; },
+    r => { r.percentStates.original.scrollY = 199; },
+    r => { delete r.percentStates.restored.boxes["percent-next"]; },
+    r => { r.percentStates.restored.boxes["percent-host"].height = -1; },
+    r => { r.percentStates.original.boxes["percent-first"].x = Infinity; },
+    r => { delete r.percentStates.original.computed.top; },
+    r => { r.percentStates.changed.computed.left = "10%"; },
+    r => { r.percentStates.changed.computed.top = "-1px"; },
+    r => { delete r.percentStates.restored.hits["baseline-first"]; },
+    r => { r.percentStates.changed.hits["top-margin"] = "body"; },
+    r => { r.percentStates.changed.unexpected = 1; },
+    r => { r.percentStates.other = {}; },
+  ]) {
+    const observed = browser();
+    change(observed);
+    assert.equal(compareNativeBlockBridge(native(), observed, fixture).status, "invalid");
+  }
+  const nativeBad = native();
+  delete nativeBad.percentStates.original.computed.bottom;
+  assert.equal(compareNativeBlockBridge(nativeBad, browser(), fixture).status, "invalid");
 });
 
 test("page scroll translates independent viewport hits and restores positions", () => {
