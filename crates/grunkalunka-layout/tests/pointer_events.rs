@@ -151,7 +151,10 @@ fn inherited_none_skips_only_that_target_and_auto_descendants_restore_hits() {
     let full = layout(&enabled, 40, 30).unwrap();
     assert_eq!(frame.boxes, full.boxes);
     assert_eq!(full.pointer_events, [true; 7]);
-    assert_eq!(paint(&frame, &paints, Rgb::WHITE), paint(&full, &paints, Rgb::WHITE));
+    assert_eq!(
+        paint(&frame, &paints, Rgb::WHITE),
+        paint(&full, &paints, Rgb::WHITE)
+    );
     assert_eq!(hit_test(&full, &hits, 4, 3), Ok(Some(2)));
     assert_eq!(hit_test(&full, &hits, 6, 19), Ok(Some(5)));
 
@@ -186,8 +189,14 @@ fn contents_and_hidden_ancestors_pass_down_pointer_policy_without_new_boxes() {
     let frame = layout(&blocks, 40, 30).unwrap();
     assert_eq!(frame.contents[1], true);
     assert_eq!(frame.boxes[1], None);
-    assert_eq!(frame.pointer_events, [true, false, false, true, true, false, true]);
-    assert_eq!(frame.visibility, [true, false, false, true, true, true, true]);
+    assert_eq!(
+        frame.pointer_events,
+        [true, false, false, true, true, false, true]
+    );
+    assert_eq!(
+        frame.visibility,
+        [true, false, false, true, true, true, true]
+    );
     assert_eq!(frame.boxes[2].unwrap().border.y, 0);
     assert_eq!(frame.boxes[3].unwrap().border.y, 6);
     assert_eq!(frame.boxes[4].unwrap().border.y, 13);
@@ -256,6 +265,8 @@ fn pointer_events_do_not_change_visibility_text_anchor_or_pixel_results() {
         hit_test(&invalid, &hits, 4, 10),
         Err(HitError::NodeCountMismatch)
     );
-    assert!(paint(&invalid, &paints, Rgb::WHITE).is_ok(),
-        "pointer eligibility is irrelevant to painting");
+    assert!(
+        paint(&invalid, &paints, Rgb::WHITE).is_ok(),
+        "pointer eligibility is irrelevant to painting"
+    );
 }
