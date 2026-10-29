@@ -3,8 +3,7 @@
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
     Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, Length, Rect, Style,
-    Visibility,
-    WidthBound, layout,
+    Visibility, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -1150,7 +1149,9 @@ fn descendant_clip_states_json() -> String {
     ];
     for &(id, index, rect) in &goldens {
         assert_eq!(
-            clipped.boxes[index].expect("clip witness box exists").border,
+            clipped.boxes[index]
+                .expect("clip witness box exists")
+                .border,
             rect,
             "native independent clip geometry for {id}"
         );
@@ -1194,18 +1195,13 @@ fn descendant_clip_states_json() -> String {
         ("sibling", 105, 412),
         ("parent-border", 101, 389),
     ];
-    let expected_clipped = [
-        Some(9),
-        Some(9),
-        Some(8),
-        None,
-        Some(8),
-        Some(10),
-        Some(8),
-    ];
+    let expected_clipped = [Some(9), Some(9), Some(8), None, Some(8), Some(10), Some(8)];
     blocks[8].style.descendant_clip = DescendantClip::None;
     let visible = layout(&blocks, 800, 600).expect("unclipped descendant layout");
-    assert_eq!(clipped.boxes, visible.boxes, "clip must not change normal flow");
+    assert_eq!(
+        clipped.boxes, visible.boxes,
+        "clip must not change normal flow"
+    );
     assert_eq!((visible.scroll_width, visible.scroll_height), (800, 958));
     blocks[8].style.descendant_clip = DescendantClip::PaddingBox;
     let restored = layout(&blocks, 800, 600).expect("restored descendant clip");
@@ -1215,7 +1211,15 @@ fn descendant_clip_states_json() -> String {
         (&clipped, expected_clipped),
         (
             &visible,
-            [Some(9), Some(9), Some(9), Some(9), Some(9), Some(10), Some(8)],
+            [
+                Some(9),
+                Some(9),
+                Some(9),
+                Some(9),
+                Some(9),
+                Some(10),
+                Some(8),
+            ],
         ),
         (&restored, expected_clipped),
     ] {
