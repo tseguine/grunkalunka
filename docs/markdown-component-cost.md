@@ -46,6 +46,21 @@ rebuild of the component:
   including host dispatch, Rust guest Markdown parsing, original byte positions,
   canonical ABI list/string lifting, allocations and post-return cleanup.
 
+A further `timings.nativeOutline` control calls the **same pinned Markdown
+parser and source fixture** through the native `grunkalunka_markdown::outline`
+library inside the Rust cost process. It runs **after all pre-existing WIT
+timing, memory and fresh lifecycle observations**, so the earlier boundaries
+are unchanged. For each bounded sample, it times `iterations` complete
+native outline calls, with native allocation and disposal of intermediate
+results; preflight, warmup and each sample's final native result are checked
+byte-for-byte against the actual typed WIT projection **outside** the
+timed interval. The reported series retains raw input-order milliseconds,
+min/median/max and the existing controls. This is a native *parsing* control
+rather than identical work: it excludes capability mediation, document
+transfer, WIT lifting, post-return cleanup and component call overhead.
+No native-vs-WIT ratio, per-call overhead subtraction, speed ranking or
+performance threshold is justified.
+
 A second **one-shot lifecycle** measurement runs only *after* the original
 five host-memory snapshots, repeated-call measurements, correctness-count
 checks and disposal of their persistent Stores. For each bounded sample,
@@ -157,7 +172,8 @@ shaped Markdown reports, rank hosts or infer isolated host overhead.
 This cannot isolate *pure* host-call overhead or pure Markdown parser cost:
 the full component path includes transport, guest parsing, result projection
 and cleanup, while the prior WIT read fixture measures a different operation.
-There is no native timing series to subtract, no aggregate memory accounting,
+The native parse control is not an identical-operation subtraction baseline;
+there is no aggregate memory accounting,
 no controlled cold caches, no parallel host concurrency and no production vault.
 Fuel is intentionally disabled for this trusted measurement; normal tests cover
 the separate execution-budget failure behavior. Retain raw reports with commit
