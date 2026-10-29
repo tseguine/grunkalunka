@@ -145,6 +145,17 @@ impl HorizontalAutoMargins {
     }
 }
 
+/// A selected, already-resolved positive post-flow displacement of an
+/// element and its subtree. Coordinates are integer CSS pixels to the right
+/// and down. This is NOT full CSS positioned layout: negative offsets, inset
+/// precedence, stacking contexts, absolute/fixed/sticky and z-index remain
+/// outside this headless normal-flow model.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct RelativeOffset {
+    pub x: u32,
+    pub y: u32,
+}
+
 /// Caller-resolved minimum/maximum width bound, with no `auto` value.
 /// A percent is relative to the containing block's content width.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -176,6 +187,9 @@ pub struct Style {
     pub box_sizing: BoxSizing,
     pub margin: Edges,
     pub horizontal_auto_margins: HorizontalAutoMargins,
+    /// A positive relative visual translation; ignored on boxless wrappers.
+    /// Affects this node and descendants, but not following siblings' flow.
+    pub relative_offset: RelativeOffset,
     pub border: Edges,
     pub padding: Edges,
 }
@@ -358,6 +372,12 @@ impl Engine<'_> {
             return Ok(next_y - cursor_y);
         }
 
+        // Relative positioning changes the *visual* origin of this box and
+        // its descendants, without consuming additional normal-flow space.
+        // A boxless/hidden wrapper was returned above and has no offset.
+        let visual_x = add(containing_x, style.relative_offset.x)?;
+        let visual_y = add(cursor_y, style.relative_offset.y)?;
+
         let (auto_left, auto_right) = style.horizontal_auto_margins.sides();
         // Auto sides do not participate in the tentative width calculation.
         // A width:auto block therefore fills the remaining space and uses
@@ -419,10 +439,10 @@ impl Engine<'_> {
             }
         };
 
-        let border_left = add(containing_x, margin_left)?;
+        let border_left = add(visual_x, margin_left)?;
         let padding_left = add(border_left, style.border.left)?;
         let content_x = add(padding_left, style.padding.left)?;
-        let border_top = add(cursor_y, style.margin.top)?;
+        let border_top = add(visual_y, style.margin.top)?;
         let padding_top = add(border_top, style.border.top)?;
         let content_y = add(padding_top, style.padding.top)?;
 
@@ -480,8 +500,8 @@ impl Engine<'_> {
 
         let geometry = BoxGeometry {
             margin: Rect {
-                x: containing_x,
-                y: cursor_y,
+                x: visual_x,
+                y: visual_y,
                 width: margin_width,
                 height: margin_height,
             },
@@ -523,8 +543,11 @@ impl Engine<'_> {
 /// display:none, boxless display:contents, inherited visibility, resolved
 /// pointer-events input policy, optional padding-box descendant clipping,
 /// content-box/border-box sizing, min/max width/height constraints,
-/// nonnegative horizontal auto margins and whole percentage dimensions
-/// with exact integral results are admitted. Auto margins consume remaining
+/// nonnegative horizontal auto margins, positive post-flow relative offsets,
+/// and whole percentage dimensions with exact integral results are admitted.
+/// Relative displacements move an element and descendants for geometry,
+/// painting, hit testing and scroll extent but do not advance sibling flow
+/// or change natural parent heights. Auto margins consume remaining
 /// width after min/max constraints; both auto sides share it equally.
 /// Fractional halves are rejected, and overconstrained auto margins become
 /// zero (negative CSS margins are outside this nonnegative model).
