@@ -50,6 +50,27 @@ pub enum Display {
 }
 
 /// Explicitly resolved box sizing, not a CSS declaration parser.
+/// Already-resolved visibility declaration. Children inherit unless explicitly
+/// overridden; unlike display:none, a hidden ancestor retains its boxes and
+/// an explicitly visible descendant can be painted and hit.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Visibility {
+    #[default]
+    Inherit,
+    Visible,
+    Hidden,
+}
+
+impl Visibility {
+    fn resolve(self, inherited: bool) -> bool {
+        match self {
+            Self::Inherit => inherited,
+            Self::Visible => true,
+            Self::Hidden => false,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum BoxSizing {
     #[default]
@@ -87,6 +108,7 @@ pub enum HeightBound {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Style {
     pub display: Display,
+    pub visibility: Visibility,
     pub width: Length,
     pub min_width: Option<WidthBound>,
     pub max_width: Option<WidthBound>,
@@ -148,6 +170,9 @@ pub struct BoxGeometry {
 pub struct Frame {
     /// None represents display:none and its descendants.
     pub boxes: Vec<Option<BoxGeometry>>,
+    /// Computed inherited visibility per node; independent of layout box
+    /// existence. Explicit visible descendants can override hidden ancestors.
+    pub visibility: Vec<bool>,
     pub viewport_width: u32,
     pub viewport_height: u32,
     pub scroll_width: u32,
@@ -355,8 +380,9 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// display:none, explicit content-box/border-box sizing, optional min/max
-/// width/height constraints, and whole percentage dimensions with exact
+/// display:none, inherited visibility, explicit content-box/border-box
+/// sizing, optional min/max width/height constraints and whole percentage
+/// dimensions with exact
 /// integral results are admitted. Percentage heights
 /// require a definite containing content
 /// height; unresolved heights and fractional pixel results are rejected.
@@ -387,6 +413,8 @@ pub fn layout(
 
     let mut children = vec![Vec::new(); blocks.len()];
     let mut depths = vec![0usize; blocks.len()];
+    let mut visibility = vec![true; blocks.len()];
+    visibility[0] = blocks[0].style.visibility.resolve(true);
     for (node, block) in blocks.iter().enumerate().skip(1) {
         let Some(parent) = block.parent else {
             return Err(LayoutError::InvalidParent { node });
@@ -395,6 +423,7 @@ pub fn layout(
             return Err(LayoutError::InvalidParent { node });
         }
         depths[node] = depths[parent] + 1;
+        visibility[node] = block.style.visibility.resolve(visibility[parent]);
         if depths[node] > MAX_DEPTH {
             return Err(LayoutError::TooDeep { node });
         }
@@ -406,6 +435,7 @@ pub fn layout(
         children,
         frame: Frame {
             boxes: vec![None; blocks.len()],
+            visibility,
             viewport_width,
             viewport_height,
             scroll_width: viewport_width,

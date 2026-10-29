@@ -165,10 +165,14 @@ fn paint_node(
     let padding_right = padding.right().ok_or(PaintError::Overflow)?;
     let padding_bottom = padding.bottom().ok_or(PaintError::Overflow)?;
 
-    if let Some(color) = nodes[index].background {
+    if frame.visibility[index]
+        && let Some(color) = nodes[index].background
+    {
         canvas.fill(padding, color)?;
     }
-    if let Some(color) = nodes[index].border {
+    if frame.visibility[index]
+        && let Some(color) = nodes[index].border
+    {
         canvas.fill(
             Rect {
                 x: border.x,
@@ -216,8 +220,11 @@ fn paint_node(
 
 /// Fill already-calculated boxes in depth-first tree order with viewport clipping.
 ///
-/// Transparent/absent paints leave earlier pixels intact. Overflowing children
-/// can draw beyond a parent's border, but are clipped to the output viewport.
+/// Transparent/absent paints leave earlier pixels intact. Resolved hidden
+/// elements suppress their own paint, not the paint of an explicitly visible
+/// descendant; sibling flow and box geometry are unaffected.
+/// Overflowing children can draw beyond a parent's border, but are clipped
+/// to the output viewport.
 /// No glyphs, images, alpha compositing, positioning or CSS stacking contexts.
 pub fn paint(frame: &Frame, nodes: &[PaintNode], clear: Rgb) -> Result<Canvas, PaintError> {
     paint_scrolled(frame, nodes, clear, 0, 0)
@@ -257,7 +264,11 @@ pub fn paint_scrolled(
     if pixel_count > MAX_CANVAS_PIXELS {
         return Err(PaintError::TooManyPixels);
     }
-    if nodes.is_empty() || nodes.len() > MAX_BLOCKS || nodes.len() != frame.boxes.len() {
+    if nodes.is_empty()
+        || nodes.len() > MAX_BLOCKS
+        || nodes.len() != frame.boxes.len()
+        || frame.visibility.len() != frame.boxes.len()
+    {
         return Err(PaintError::NodeCountMismatch);
     }
     if nodes[0].parent.is_some() {

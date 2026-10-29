@@ -15,10 +15,12 @@ window display, or a commitment to the final rendering architecture.
   explicit tree traversal rather than assuming the flat parent-before-child
   input is itself preorder. Later opaque paint covers earlier pixels.
 - `display:none` and descendants stay absent, following the layout
-  `Frame`. Children with overflow visible can paint beyond parent borders,
-  but coordinates are clipped to the output viewport.
+  `Frame`. `visibility:hidden` instead preserves layout: the painter
+  skips that node's own paints, but still visits descendants so an explicitly
+  visible child can paint. Children with overflow visible can paint beyond
+  parent borders, but coordinates are clipped to the output viewport.
 - Invalid root/parent indices, excessive depth, malformed nested box
-  rectangles and mismatched `Frame`/paint-list lengths fail closed.
+  rectangles and mismatched `Frame`/paint-list/visibility lengths fail closed.
   Integer arithmetic is checked. Pixel allocation is limited to **4 million
   RGB pixels** and viewport dimensions are already bounded by the core.
 - `Canvas.pixel(x,y)` permits diagnostic sampling. `Canvas.ppm()` returns
@@ -68,6 +70,10 @@ layout and moves the paragraph to a new location.
 cargo run -q -p grunkalunka-layout --example semantic_ppm --locked --offline > outline.ppm
 cargo test -p grunkalunka-layout --locked --offline
 ```
+
+The `tests/visibility.rs` integration tests additionally assert inherited
+visibility, explicit visible descendants and exactly hidden or painted
+RGB pixels without changing any block geometry.
 
 The independent `tests/semantic_paint.rs` test checks ten exact expanded
 pixel samples, four collapsed-state samples, the two visible text-anchor lists,

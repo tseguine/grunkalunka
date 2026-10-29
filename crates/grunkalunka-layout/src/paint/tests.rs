@@ -213,6 +213,7 @@ fn caps_allocation_and_rejects_bad_viewports_or_excessive_depth() {
 
     let mut malformed = small.clone();
     malformed.boxes = vec![small.boxes[0]; MAX_DEPTH + 2];
+    malformed.visibility = vec![true; MAX_DEPTH + 2];
     let mut nodes = vec![PaintNode::default(); MAX_DEPTH + 2];
     for (i, node) in nodes.iter_mut().enumerate().skip(1) {
         node.parent = Some(i - 1);

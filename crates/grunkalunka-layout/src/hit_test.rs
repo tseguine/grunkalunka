@@ -54,10 +54,12 @@ fn contains_point(border: Rect, x: u32, y: u32) -> Result<bool, HitError> {
 ///
 /// The selected toy hit region is each visible element's border rectangle:
 /// margins are excluded; overflow children can receive hits beyond parents.
+/// Hidden elements are skipped without changing layout; descendants explicitly
+/// overridden to visible can still be targeted.
 /// Children cover parents and later siblings cover earlier siblings, following
 /// the RGB painter's depth-first tree traversal even if a flat input is not
-/// preorder. A targetable element may be visually transparent. Input policy
-/// is supplied explicitly instead of inferred from computed CSS styles.
+/// preorder. A targetable element may be visually transparent. Independent
+/// caller input policy cannot override resolved inherited visibility.
 ///
 /// The entire frame/tree is checked before any hit is accepted, including
 /// bad parents, tree depth and nested box rectangles. Point coordinates beyond
@@ -89,7 +91,10 @@ pub fn hit_test_scrolled(
     {
         return Err(HitError::InvalidViewport);
     }
-    if nodes.is_empty() || nodes.len() != frame.boxes.len() {
+    if nodes.is_empty()
+        || nodes.len() != frame.boxes.len()
+        || frame.visibility.len() != frame.boxes.len()
+    {
         return Err(HitError::NodeCountMismatch);
     }
     if nodes.len() > MAX_BLOCKS {
@@ -157,6 +162,7 @@ pub fn hit_test_scrolled(
     }
     for index in order.into_iter().rev() {
         if nodes[index].targetable
+            && frame.visibility[index]
             && let Some(geometry) = frame.boxes[index]
             && contains_point(geometry.border, x, y)?
         {

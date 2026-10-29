@@ -71,7 +71,8 @@ impl From<LayoutError> for SemanticError {
     }
 }
 
-/// Unshaped text paired with the corresponding content rectangle.
+/// Unshaped, visible text paired with the corresponding content rectangle.
+/// Hidden text still participates in block geometry but has no paint anchor.
 /// Drawing and clipping glyphs require an independent text/paint implementation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TextBox<'a> {
@@ -200,7 +201,7 @@ pub fn layout_semantic<'a>(
         .iter()
         .enumerate()
         .filter_map(|(node, element)| {
-            if element.text.is_empty() {
+            if element.text.is_empty() || !frame.visibility[node] {
                 return None;
             }
             frame.boxes[node].map(|geometry| TextBox {
