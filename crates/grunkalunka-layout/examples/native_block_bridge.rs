@@ -2400,7 +2400,12 @@ fn relative_states_json() -> String {
 // percentages on ALL four margins, including vertical margins, use that width.
 // Hit probes use a real +200px document-space scroll translation.
 fn percent_states_json() -> String {
-    let rect = |x, y, width, height| Rect { x, y, width, height };
+    let rect = |x, y, width, height| Rect {
+        x,
+        y,
+        width,
+        height,
+    };
     let mut blocks = [
         Block {
             style: Style {
@@ -2473,14 +2478,24 @@ fn percent_states_json() -> String {
         ("percent-after", 5, rect(250, 676, 20, 5)),
     ];
     for &(id, index, golden) in &expected {
-        assert_eq!(baseline.boxes[index].unwrap().border, golden, "{id} baseline");
+        assert_eq!(
+            baseline.boxes[index].unwrap().border,
+            golden,
+            "{id} baseline"
+        );
     }
     assert_eq!(baseline.boxes[3].unwrap().margin, rect(6, 580, 90, 58));
     assert_eq!(baseline.boxes[3].unwrap().content, rect(46, 600, 40, 8));
     assert_eq!(changed.boxes[3].unwrap().border, rect(26, 600, 40, 8));
     assert_eq!(changed.boxes[3].unwrap().margin, rect(6, 580, 70, 58));
-    assert_eq!(changed.boxes[4], baseline.boxes[4], "vertical flow must persist");
-    assert_eq!(changed.boxes[5], baseline.boxes[5], "outer normal flow persists");
+    assert_eq!(
+        changed.boxes[4], baseline.boxes[4],
+        "vertical flow must persist"
+    );
+    assert_eq!(
+        changed.boxes[5], baseline.boxes[5],
+        "outer normal flow persists"
+    );
     assert_eq!((baseline.scroll_width, baseline.scroll_height), (800, 958));
     assert_eq!((changed.scroll_width, changed.scroll_height), (800, 958));
 
