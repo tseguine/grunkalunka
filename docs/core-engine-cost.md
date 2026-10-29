@@ -48,8 +48,9 @@ construction of a **new `Engine::default()`**, then construction of an empty
 `Store::new(&engine, ())` using that engine. Each has its own raw,
 independently bounded sample series and min/median/max under
 `wasmtime.hostSetup.engineCreation` and `storeCreation`. The controls
-run **after** the existing five Wasmtime whole-process memory checkpoints
-and the separate fresh-instance golden checks, but before the Node subprocess.
+run **after** the existing five Wasmtime whole-process memory checkpoints,
+the separate fresh-instance golden checks, and the independent Node subprocess.
+This keeps the original two-engine measurement order intact.
 No guest module is compiled or called in these empty-host samples. Engine
 and Store lifetimes may share process caches; destruction is not timed.
 Node/V8 does not expose an equivalent JavaScript Engine/Store constructor,
