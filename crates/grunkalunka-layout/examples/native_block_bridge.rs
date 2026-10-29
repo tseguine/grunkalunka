@@ -2,8 +2,8 @@
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
-    Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, Length, Rect, Style,
-    Visibility, PointerEvents, WidthBound, layout,
+    Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, Length, PointerEvents,
+    Rect, Style, Visibility, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -1809,7 +1809,9 @@ fn pointer_states_json() -> String {
     ];
     for &(id, index, golden) in &expected {
         assert_eq!(
-            blocked.boxes[index].expect("pointer geometry remains").border,
+            blocked.boxes[index]
+                .expect("pointer geometry remains")
+                .border,
             golden,
             "independent native pointer rectangle for {id}"
         );
@@ -1853,7 +1855,10 @@ fn pointer_states_json() -> String {
 
     for (frame, targets_expected) in [
         (&blocked, expected_none),
-        (&auto, [Some(15), Some(14), Some(16), Some(14), Some(17), None]),
+        (
+            &auto,
+            [Some(15), Some(14), Some(16), Some(14), Some(17), None],
+        ),
         (&restored, expected_none),
     ] {
         for ((name, x, y), expected_target) in probes.iter().copied().zip(targets_expected) {
