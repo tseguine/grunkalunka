@@ -77,6 +77,8 @@ fn statistics_keep_all_samples_without_speed_thresholds() {
         even.json()
             .contains("\"samplesMs\":[5.000000000,3.000000000,1.000000000,7.000000000]")
     );
+    assert_eq!(even.samples_ms.len(), 4);
+    assert_eq!(even.min_ms, 1.0);
 }
 
 #[test]
