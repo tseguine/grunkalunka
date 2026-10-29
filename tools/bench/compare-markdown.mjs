@@ -9,13 +9,16 @@ import { capture, parseCaptureArgs, validateOptionalProcessMemory } from './capt
 const workloads = new Set(['empty', 'unicode', 'dense', 'wide']);
 const osMap = { linux: 'linux', darwin: 'macos', win32: 'windows' };
 const archMap = { x64: 'x86_64', arm64: 'aarch64' };
-const harnessPaths = [
+// Preserve the five-file legacy receipt shape for historical captures.
+const legacyHarnessPaths = [
   'tools/bench/capture-markdown.mjs',
   'crates/grunkalunka-runtime/examples/markdown_cost.rs',
   'crates/grunkalunka-runtime/tests/fixtures/document-outline/embedding.rs',
   'crates/grunkalunka-runtime/tests/fixtures/document-outline/inspector.wat.in',
   'Cargo.lock',
 ];
+const harnessPaths = [...legacyHarnessPaths,
+  'crates/grunkalunka-runtime/examples/core_engine_cost/process_memory.rs'];
 const shaPattern = /^[a-f0-9]{64}$/;
 const isoPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const requireValid = (condition, name) => {
@@ -69,10 +72,13 @@ function validateCapture(receipt) {
   const guestBytes = field(prov, 'guest.bytes');
   requireValid(Number.isSafeInteger(guestBytes) && guestBytes >= 8 && guestBytes <= 1024 * 1024,
     'guest.bytes');
+  const modern = Object.hasOwn(prov, 'harnessVersion');
+  requireValid(!modern || prov.harnessVersion === 2, 'harnessVersion');
+  const paths = modern ? harnessPaths : legacyHarnessPaths;
   const harness = field(prov, 'harnessSha256');
   requireValid(harness && typeof harness === 'object' && !Array.isArray(harness) &&
-    isDeepStrictEqual(Object.keys(harness).sort(), [...harnessPaths].sort()), 'harness keys');
-  for (const name of harnessPaths) requireValid(shaPattern.test(harness[name]), 'harness.' + name);
+    isDeepStrictEqual(Object.keys(harness).sort(), [...paths].sort()), 'harness keys');
+  for (const name of paths) requireValid(shaPattern.test(harness[name]), 'harness.' + name);
   const host = field(prov, 'host');
   requireValid(Object.hasOwn(osMap, field(host, 'os')), 'host.os');
   requireValid(Object.hasOwn(archMap, field(host, 'arch')), 'host.arch');
@@ -85,6 +91,10 @@ function validateCapture(receipt) {
     'host.cpuCount');
   requireValid(typeof field(host, 'nodeOptions') === 'string', 'host.nodeOptions');
   const native = field(receipt, 'report');
+  // New harnesses are known to include the memory collector; losing its
+  // report field must not masquerade as a historic no-memory capture.
+  if (modern) requireValid(Object.hasOwn(native, 'processMemory'),
+    'v2 native process memory');
   requireValid(field(native, 'schemaVersion') === 1, 'native.schemaVersion');
   requireValid(field(native, 'workload') === 'markdown-wit-inspection', 'native.workload');
   const config = field(native, 'configuration');
@@ -158,6 +168,10 @@ export function compareMarkdownPair(pair) {
   requireValid(Array.isArray(captures) && captures.length === 2, 'captures');
   for (const capture of captures) validateCapture(capture);
   const [baseline, candidate] = captures;
+  requireValid(
+    Object.hasOwn(baseline.provenance, 'harnessVersion') ===
+      Object.hasOwn(candidate.provenance, 'harnessVersion'),
+    'matching capture harness versions');
   requireValid(field(binding, 'baselineSha256') === hash(baseline), 'binding.baselineSha256');
   requireValid(field(binding, 'candidateSha256') === hash(candidate), 'binding.candidateSha256');
   for (const path of matching) {

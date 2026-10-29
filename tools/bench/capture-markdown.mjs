@@ -11,12 +11,15 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const nativeOS = { linux: 'linux', darwin: 'macos', win32: 'windows' };
 const nativeArch = { x64: 'x86_64', arm64: 'aarch64' };
 const workloads = new Set(['empty', 'unicode', 'dense', 'wide']);
+// Capture-v1 checked these five files; v2 also identifies the transitive
+// Rust source included by markdown_cost.rs through #[path].
 const harnessPaths = [
   'tools/bench/capture-markdown.mjs',
   'crates/grunkalunka-runtime/examples/markdown_cost.rs',
   'crates/grunkalunka-runtime/tests/fixtures/document-outline/embedding.rs',
   'crates/grunkalunka-runtime/tests/fixtures/document-outline/inspector.wat.in',
   'Cargo.lock',
+  'crates/grunkalunka-runtime/examples/core_engine_cost/process_memory.rs',
 ];
 const requireValue = (condition, label) => {
   if (!condition) throw new TypeError('Invalid ' + label);
@@ -227,6 +230,9 @@ export async function capture(options) {
       buildLabel: options.buildLabel,
       guest: { sha256: guestSha, bytes: guestInfo.size },
       runner: { sha256: runnerSha },
+      // Separate from the unchanged capture-v1 envelope. Older captures
+      // omit this field and used a five-file harness identity.
+      harnessVersion: 2,
       harnessSha256: Object.fromEntries(sources),
       host: { os: platform(), arch: arch(), osRelease: release(),
         cpuModel: cpu[0]?.model ?? null, cpuCount: cpu.length,

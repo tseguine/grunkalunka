@@ -29,7 +29,8 @@ The JSON envelope retains its entire original nested report plus:
 
 - SHA-256 hashes of the actual Wasm guest, native benchmark executable,
   capture wrapper, Markdown benchmark source, fixed WAT adapter/embedding
-  sources and Cargo.lock. The guest and executable are checked again after
+  sources, Cargo.lock, **and the transitive Rust process-memory collector**
+  included by the Markdown benchmark via `#[path]`. The guest and executable are checked again after
   the run to reject observed replacement during measurement.
 - Repository HEAD, a boolean indicating **tracked** working-tree changes,
   a caller-declared build label, and a fresh observation timestamp.
@@ -62,3 +63,23 @@ verified compiler flags or cross-build/cross-host comparisons.
 CI runs a tiny sample to validate the capture path,
 but deliberately does not persist timing reports or compare latency across
 Linux, Windows and macOS.
+
+## Versioned harness identity for memory observations
+
+New captures retain the original capture-v1 JSON envelope but declare
+`provenance.harnessVersion: 2` and include the SHA-256 of
+`crates/grunkalunka-runtime/examples/core_engine_cost/process_memory.rs`
+in the complete six-file harness identity. This shared Rust module now
+affects reported Markdown/WIT process-memory observations and therefore
+belongs to the measurement implementation, even though the guest and
+native runner executable hashes are already recorded independently.
+The new capture runner calculates its source hash outside benchmark timing.
+
+Historical captures that omit `harnessVersion` are read with the original
+five-file set; they are not retroactively assigned an unknown sixth hash.
+A version-2 capture must include all six complete hashes **and** the
+`processMemory` report field. Missing/invalid extra source evidence fails
+instead of being silently treated as a newer compatible receipt.
+Same-process pairs may use either complete generation but cannot mix them.
+Neither generation proves a signed compiler invocation or actual hardware
+memory attribution.

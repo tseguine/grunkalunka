@@ -39,7 +39,9 @@ reader checks both receipts and refuses comparison unless all conditions hold:
   source, and the existing granted/denied backing-read and cleanup counts.
 - Each has clean **tracked** Git state, explicit non-default build label,
   nonempty CPU model and observed rustc, Git revision, actual guest/native
-  executable SHA-256 and byte size, and the complete five-file harness hash set.
+  executable SHA-256 and byte size, and the complete **versioned** harness
+  hash set (five historical files, or six including the Rust memory
+  collector).
 - Both have the same Git revision, binary/harness identities, build label,
   workload and fixture source/outline bytes, component length, native Wasmtime
   declaration, fuel policy, CPU model/count, OS/release/architecture, Node/V8,
@@ -105,3 +107,15 @@ memory attribution, cross-host comparability or performance rankings.
 These are ordinary pure Node regression assertions in the already canonical
 build/capture and comparison suites. No new Actions workflow, runner, Cargo
 dependency or independent status check is introduced.
+
+## Cross-generation capture compatibility
+
+Saved capture-v1 receipts without an explicit `provenance.harnessVersion`
+retain their original five-file identity and remain readable. Newly
+generated receipts use `harnessVersion: 2` and require six complete hashes,
+including the transitive Rust module that collects Markdown host-process
+memory; they also require a claimed, independently validated memory
+envelope. The comparator rejects partial identity sets, unsupported
+versions and mixed legacy/new pairs even when their digest bindings are
+recomputed. Existing single-generation pairs retain the old envelope
+and interpretation without imposing artificial memory-comparison metrics.
