@@ -18,6 +18,16 @@ the native fallback passed. Linux and Windows execute full canonical checks
 on `master` pushes and manual CI runs. PRs fall back to full checks on those
 hosts when dependency selection is unsafe.
 
+Workflow-level concurrency keeps only one running and one pending run per
+workflow/event/ref. On `master` pushes, **already-running full Linux/Windows
+verification is never canceled by newer commits**; the default single pending
+slot is replaced by the latest pending revision. On PR updates, superseded
+running heads are still canceled to preserve runner capacity. Manual CI runs
+retain their own event/ref group and also finish once started. This policy
+ensures completed full checks at a sustained merge cadence without accumulating
+a queue of builds for every intermediate commit; successful older runs must
+not be described as verification of newer master revisions.
+
 The independent [native macOS workflow](../.github/workflows/macos.yml)
 executes full builds and tests on Apple Silicon every four hours, on a manual
 branch dispatch, and once when the workflow first lands on `master`.
