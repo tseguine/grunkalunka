@@ -270,6 +270,7 @@ fn nested_contents_keep_visibility_inheritance_and_do_not_restore_display_none()
 fn contents_root_uses_viewport_for_children_and_never_gets_a_paint_box() {
     let blocks = [
         Block {
+            parent: None,
             style: Style {
                 display: Display::Contents,
                 width: Length::Px(999),
