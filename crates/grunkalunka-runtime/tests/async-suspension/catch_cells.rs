@@ -30,7 +30,7 @@ fn catch_cells_preserve_primitive_snapshots_and_captured_later_writes() {
     ]);
     for primitive in ["undefined", "null", "false", "true", "b", "-0", "0/0"] {
         let source = format!(
-            "export async function run(a,b){{const p=Promise.resolve(a);try{{throw {primitive};}}catch(e){{const old=e;e=p;if(e!==p)return a;return +old;}}}}"
+            "export async function run(a,b){{const p=Promise.resolve(a);try{{throw {primitive};}}catch(e){{const old=e;e=p;if(e!==p||!(old==={primitive}||(old!==old&&{primitive}!=={primitive})))return a;return +old;}}}}"
         );
         compare_catch_cells(&[&source]);
     }
