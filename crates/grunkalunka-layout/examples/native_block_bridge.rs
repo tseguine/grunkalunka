@@ -2,7 +2,8 @@
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
-    Block, BoxSizing, Display, Edges, Frame, HeightBound, Length, Rect, Style, Visibility,
+    Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, Length, Rect, Style,
+    Visibility,
     WidthBound, layout,
 };
 
@@ -982,6 +983,284 @@ fn visibility_states_json() -> String {
     format!(r#"{{"hidden":{first},"visible":{shown},"restored":{final_state}}}"#)
 }
 
+// Separate source-checked descendant-clipping witness. Prefix groups occupy
+// only their previously asserted flow heights, preserving the original 958px
+// document and 350px global-scroll evidence. No HTML/CSS parser is involved.
+fn descendant_clip_states_json() -> String {
+    let mut blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(284),
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(132),
+                height: Length::Px(92),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(120),
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(650),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(400),
+                height: Length::Px(80),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(40),
+                height: Length::Px(25),
+                margin: Edges {
+                    left: 300,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 300,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(12),
+                margin: Edges {
+                    left: 100,
+                    ..Edges::default()
+                },
+                padding: Edges::all(3),
+                border: Edges::all(2),
+                descendant_clip: DescendantClip::PaddingBox,
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(8),
+            style: Style {
+                width: Length::Px(40),
+                height: Length::Px(18),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(10),
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 100,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(80),
+                height: Length::Px(30),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let clipped = layout(&blocks, 800, 600).expect("bounded descendant clip");
+    let goldens = [
+        (
+            "clip-parent",
+            8,
+            Rect {
+                x: 100,
+                y: 388,
+                width: 30,
+                height: 22,
+            },
+        ),
+        (
+            "clip-child",
+            9,
+            Rect {
+                x: 105,
+                y: 393,
+                width: 40,
+                height: 18,
+            },
+        ),
+        (
+            "clip-sibling",
+            10,
+            Rect {
+                x: 100,
+                y: 410,
+                width: 10,
+                height: 5,
+            },
+        ),
+    ];
+    for &(id, index, rect) in &goldens {
+        assert_eq!(
+            clipped.boxes[index].expect("clip witness box exists").border,
+            rect,
+            "native independent clip geometry for {id}"
+        );
+    }
+    assert_eq!(
+        clipped.boxes[8].unwrap().padding,
+        Rect {
+            x: 102,
+            y: 390,
+            width: 26,
+            height: 18,
+        }
+    );
+    assert!(clipped.clip_descendants[8]);
+    assert_eq!((clipped.scroll_width, clipped.scroll_height), (800, 958));
+    assert_eq!(
+        clipped.boxes[11].unwrap().border,
+        Rect {
+            x: 0,
+            y: 928,
+            width: 80,
+            height: 30,
+        }
+    );
+
+    // No compiler or DOM hit-test is consulted to choose the native targets.
+    let targets: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .map(|(index, node)| HitNode {
+            parent: node.parent,
+            targetable: (8..=10).contains(&index),
+        })
+        .collect();
+    let probes = [
+        ("inside", 106, 395),
+        ("padding-edge", 127, 395),
+        ("border-edge", 128, 395),
+        ("outside-parent", 135, 395),
+        ("bottom-border", 106, 409),
+        ("sibling", 105, 412),
+        ("parent-border", 101, 389),
+    ];
+    let expected_clipped = [
+        Some(9),
+        Some(9),
+        Some(8),
+        None,
+        Some(8),
+        Some(10),
+        Some(8),
+    ];
+    blocks[8].style.descendant_clip = DescendantClip::None;
+    let visible = layout(&blocks, 800, 600).expect("unclipped descendant layout");
+    assert_eq!(clipped.boxes, visible.boxes, "clip must not change normal flow");
+    assert_eq!((visible.scroll_width, visible.scroll_height), (800, 958));
+    blocks[8].style.descendant_clip = DescendantClip::PaddingBox;
+    let restored = layout(&blocks, 800, 600).expect("restored descendant clip");
+    assert_eq!(clipped, restored);
+
+    for (frame, expected) in [
+        (&clipped, expected_clipped),
+        (
+            &visible,
+            [Some(9), Some(9), Some(9), Some(9), Some(9), Some(10), Some(8)],
+        ),
+        (&restored, expected_clipped),
+    ] {
+        for ((name, x, y), target) in probes.iter().copied().zip(expected) {
+            assert_eq!(
+                hit_test(frame, &targets, x, y),
+                Ok(target),
+                "independent native clipping probe {name}"
+            );
+        }
+    }
+    let receipt = |frame: &Frame, mode: &str| {
+        let boxes = goldens
+            .iter()
+            .map(|&(id, index, _)| {
+                let rect = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    rect.x, rect.y, rect.width, rect.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let hits = probes
+            .iter()
+            .map(|&(name, x, y)| {
+                let id = match hit_test(frame, &targets, x, y).unwrap() {
+                    Some(8) => r#""clip-parent""#,
+                    Some(9) => r#""clip-child""#,
+                    Some(10) => r#""clip-sibling""#,
+                    None => "null",
+                    _ => panic!("unexpected source-independent clip hit"),
+                };
+                format!(r#""{name}":{id}"#)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(r#"{{"mode":"{mode}","boxes":{{{boxes}}},"hits":{{{hits}}}}}"#)
+    };
+    let initial = receipt(&clipped, "clip");
+    let expanded = receipt(&visible, "visible");
+    let final_state = receipt(&restored, "clip");
+    format!(r#"{{"clipped":{initial},"visible":{expanded},"restored":{final_state}}}"#)
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -1161,6 +1440,8 @@ fn main() {
     output.push_str(&height_bounds);
     output.push_str(r#"},"visibilityStates":"#);
     output.push_str(&visibility_states_json());
+    output.push_str(r#","descendantClipStates":"#);
+    output.push_str(&descendant_clip_states_json());
     output.push('}');
     println!("{output}");
 }

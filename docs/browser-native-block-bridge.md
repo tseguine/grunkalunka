@@ -263,3 +263,13 @@ hidden parent containing an explicitly visible child. The native sample
 uses its own resolved visibility and hit-test policy. Details and
 selection limits are in the
 [visibility comparison guide](browser-native-visibility-bridge.md).
+
+## Real-engine descendant padding-box clipping
+
+A separate source-checked `descendantClipStates` channel measures real DOM
+rectangles, computed overflow mode and seven input targets before, during,
+and after disabling `overflow: clip` on a fixed-height block in the existing
+scroll spacer. The independent native sample uses the caller-resolved
+`DescendantClip::PaddingBox` policy and checks the unchanged original
+geometry, scrolling and hit probes. See
+[the clipping evidence guide](browser-native-padding-clip-bridge.md).

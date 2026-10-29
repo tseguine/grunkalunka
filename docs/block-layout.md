@@ -99,6 +99,9 @@ The independent `crates/grunkalunka-layout/tests/descendant_clip.rs`
 verifies padding-edge clipping and paint/hit agreement, nested and disjoint
 clips, visibility overrides, `display:none`, viewport scrolling,
 geometry and extents preservation, and malformed clip metadata.
+A separate [source-checked browser hit witness](browser-native-padding-clip-bridge.md)
+compares one CSS `overflow: clip` reference shape with the native
+padding-box clipping policy without claiming full CSS overflow handling.
 
 ## What is deliberately NOT implemented
 

@@ -63,6 +63,29 @@ const visibilityStates = () => ({
   visible: visibilityPhase(true),
   restored: visibilityPhase(false),
 });
+const descendantClipBoxes = () => ({
+  "clip-parent": { x: 100, y: 388, width: 30, height: 22 },
+  "clip-child": { x: 105, y: 393, width: 40, height: 18 },
+  "clip-sibling": { x: 100, y: 410, width: 10, height: 5 },
+});
+const descendantClipPhase = clipped => ({
+  mode: clipped ? "clip" : "visible",
+  boxes: descendantClipBoxes(),
+  hits: {
+    inside: "clip-child",
+    "padding-edge": "clip-child",
+    "border-edge": clipped ? "clip-parent" : "clip-child",
+    "outside-parent": clipped ? null : "clip-child",
+    "bottom-border": clipped ? "clip-parent" : "clip-child",
+    sibling: "clip-sibling",
+    "parent-border": "clip-parent",
+  },
+});
+const descendantClipStates = () => ({
+  clipped: descendantClipPhase(true),
+  visible: descendantClipPhase(false),
+  restored: descendantClipPhase(true),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -112,6 +135,7 @@ const native = () => ({
   widthBounds: widthBoundGeometry(),
   heightBounds: heightBoundGeometry(),
   visibilityStates: visibilityStates(),
+  descendantClipStates: descendantClipStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -138,6 +162,7 @@ function browser() {
     widthBounds: widthBoundGeometry(),
     heightBounds: heightBoundGeometry(),
     visibilityStates: visibilityStates(),
+    descendantClipStates: descendantClipStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -172,11 +197,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#visibility-child { width: 14px; height: 6px; visibility: visible; }",
     "#visibility-inherited { width: 12px; height: 5px; }",
     "#visibility-sibling { width: 20px; height: 5px; margin-left: 300px; }",
+    "#clip-parent { width: 20px; height: 12px; margin-left: 100px;",
+    "#clip-child { width: 40px; height: 18px; }",
+    "#clip-sibling { width: 10px; height: 5px; margin-left: 100px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -202,6 +230,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "source must restore the original hidden declaration");
   assert.ok(source.includes("document.elementFromPoint(x, y)"),
     "actual DOM elementFromPoint must supply all visibility hits");
+  assert.ok(source.includes('clipParent.style.overflow = "visible"'),
+    "source must toggle real overflow clipping");
+  assert.ok(source.includes('clipParent.style.removeProperty("overflow")'),
+    "source must restore original clipping");
+  assert.ok(source.includes("getComputedStyle(document.getElementById(\"clip-parent\")).overflowX"),
+    "reference clip mode must come from computed CSS");
+  assert.ok(source.includes("const clipStates = {"),
+    "clip snapshots must be preserved in source-hashed evidence");
   assert.ok(source.includes("const visibilityStates = {"),
     "all three visibility phases must be retained");
   assert.ok(source.includes("const scrollViewport = {"),
@@ -423,6 +459,77 @@ test("missing, malformed and surplus visibility evidence fails closed", () => {
   }
   const left = native();
   delete left.visibilityStates.hidden.hits.host;
+  assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
+});
+
+test("real descendant padding clips distinguish own border and overflowing child hits", () => {
+  const left = native(), right = browser();
+  assert.equal(compareNativeBlockBridge(left, right, fixture).status, "equal");
+  assert.deepEqual(right.descendantClipStates.clipped.hits, {
+    inside: "clip-child",
+    "padding-edge": "clip-child",
+    "border-edge": "clip-parent",
+    "outside-parent": null,
+    "bottom-border": "clip-parent",
+    sibling: "clip-sibling",
+    "parent-border": "clip-parent",
+  });
+  assert.deepEqual(right.descendantClipStates.visible.hits, {
+    inside: "clip-child",
+    "padding-edge": "clip-child",
+    "border-edge": "clip-child",
+    "outside-parent": "clip-child",
+    "bottom-border": "clip-child",
+    sibling: "clip-sibling",
+    "parent-border": "clip-parent",
+  });
+  assert.deepEqual(right.descendantClipStates.restored, right.descendantClipStates.clipped);
+  right.descendantClipStates.clipped.hits["outside-parent"] = "clip-child";
+  const result = compareNativeBlockBridge(left, right, fixture);
+  assert.equal(result.status, "different");
+  assert.deepEqual(result.differences, [{
+    kind: "descendant-clip-hit", phase: "clipped", probe: "outside-parent",
+    left: null, right: "clip-child",
+    path: "$.descendantClipStates.clipped.hits.outside-parent",
+  }]);
+});
+
+test("clip mode and geometry differences are independently reported", () => {
+  const right = browser();
+  right.descendantClipStates.clipped.mode = "visible";
+  right.descendantClipStates.visible.boxes["clip-child"].width = 41;
+  const report = compareNativeBlockBridge(native(), right, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences, [{
+    kind: "descendant-clip-mode", phase: "clipped",
+    left: "clip", right: "visible",
+    path: "$.descendantClipStates.clipped.mode",
+  }, {
+    kind: "descendant-clip-box", phase: "visible", id: "clip-child",
+    field: "width", left: 40, right: 41,
+    path: "$.descendantClipStates.visible.boxes.clip-child.width",
+  }]);
+});
+
+test("missing, partial and malformed descendant clips never count as equality", () => {
+  for (const mutate of [
+    c => { delete c.descendantClipStates; },
+    c => { delete c.descendantClipStates.restored; },
+    c => { delete c.descendantClipStates.clipped.boxes; },
+    c => { delete c.descendantClipStates.visible.hits["parent-border"]; },
+    c => { c.descendantClipStates.visible.hits.inside = "body"; },
+    c => { c.descendantClipStates.clipped.mode = "hidden"; },
+    c => { c.descendantClipStates.visible.boxes["clip-child"].height = NaN; },
+    c => { c.descendantClipStates.clipped.boxes["clip-parent"].width = -1; },
+    c => { c.descendantClipStates.clipped.extra = 0; },
+    c => { c.descendantClipStates.clipped.hits.unknown = null; },
+  ]) {
+    const right = browser();
+    mutate(right);
+    assert.equal(compareNativeBlockBridge(native(), right, fixture).status, "invalid");
+  }
+  const left = native();
+  delete left.descendantClipStates.visible.hits["padding-edge"];
   assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
 });
 
