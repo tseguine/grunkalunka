@@ -57,12 +57,17 @@
   #relative-host { width: 60px; height: 32px; margin-left: 240px; position: relative; left: 12px; top: 9px; }
   #relative-child { width: 18px; height: 8px; position: relative; left: 4px; top: 5px; }
   #relative-sibling { width: 24px; height: 6px; margin-left: 350px; }
+  /* All four percent margins use the 200px containing content WIDTH. */
+  #percent-host { width: 200px; height: 90px; border: 2px solid black; padding: 4px; box-sizing: content-box; }
+  #percent-first { width: 40px; height: 8px; margin: 10% 5% 15% 20%; }
+  #percent-next { width: 24px; height: 6px; }
+  #percent-after { width: 20px; height: 5px; margin-left: 250px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div><div id="percent-host"><div id="percent-first"></div><div id="percent-next"></div></div><div id="percent-after"></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -363,6 +368,50 @@
   const relativeStates = {
     baseline: relativeOriginal, parentMoved: relativeMoved, restored: relativeRestored
   };
+  // The percentage-margin group is below the initial viewport. Scroll to
+  // measure real input targets with elementFromPoint, retain document-space
+  // rectangles using observed scroll position, then restore the viewport.
+  window.scrollTo(0, 200);
+  const percentIds = ["percent-host", "percent-first", "percent-next", "percent-after"];
+  const percentSides = ["top", "right", "bottom", "left"];
+  const percentProbes = [
+    ["baseline-only", 75, 401],
+    ["shifted-only", 27, 401],
+    ["first-center", 50, 402],
+    ["top-margin", 47, 390],
+    ["next-in-flow", 7, 440],
+    ["host-bottom", 180, 450],
+    ["following-sibling", 251, 478],
+    ["outside", 350, 450]
+  ];
+  function percentSample() {
+    return {
+      scrollY: window.scrollY,
+      computed: Object.fromEntries(percentSides.map(side => {
+        const style = getComputedStyle(document.getElementById("percent-first"));
+        return [side, style["margin" + side[0].toUpperCase() + side.slice(1)]];
+      })),
+      boxes: Object.fromEntries(percentIds.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: rect.x + window.scrollX, y: rect.y + window.scrollY,
+          width: rect.width, height: rect.height }];
+      })),
+      hits: Object.fromEntries(percentProbes.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, percentIds.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+  const percentFirst = document.getElementById("percent-first");
+  const percentOriginal = percentSample();
+  percentFirst.style.marginLeft = "10%";
+  const percentChanged = percentSample();
+  percentFirst.style.removeProperty("margin-left");
+  const percentRestored = percentSample();
+  const percentStates = {
+    original: percentOriginal, changed: percentChanged, restored: percentRestored
+  };
+  window.scrollTo(0, 0);
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
   // All earlier geometry/hit channels were captured before changing scrollY.
   function scrollSample() {
@@ -402,6 +451,7 @@
     pointerStates,
     autoMarginStates,
     relativeStates,
+    percentStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {

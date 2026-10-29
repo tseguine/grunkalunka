@@ -3,7 +3,8 @@
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
     Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, HorizontalAutoMargins,
-    Length, PointerEvents, Rect, RelativeOffset, Style, Visibility, WidthBound, layout,
+    Length, PercentageMargins, PointerEvents, Rect, RelativeOffset, Style, Visibility, WidthBound,
+    layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -2394,6 +2395,199 @@ fn relative_states_json() -> String {
     format!(r#"{{"baseline":{first},"parentMoved":{second},"restored":{last}}}"#)
 }
 
+// The original fixed-height spacer's preceding groups occupy 574px.
+// These independent source-resolved nodes include a 200px containing width;
+// percentages on ALL four margins, including vertical margins, use that width.
+// Hit probes use a real +200px document-space scroll translation.
+fn percent_states_json() -> String {
+    let rect = |x, y, width, height| Rect { x, y, width, height };
+    let mut blocks = [
+        Block {
+            style: Style {
+                height: Length::Px(958),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block::child(0, 574),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(200),
+                height: Length::Px(90),
+                border: Edges::all(2),
+                padding: Edges::all(4),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(2),
+            style: Style {
+                width: Length::Px(40),
+                height: Length::Px(8),
+                percentage_margins: PercentageMargins {
+                    top: Some(10),
+                    right: Some(5),
+                    bottom: Some(15),
+                    left: Some(20),
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(2),
+            style: Style {
+                width: Length::Px(24),
+                height: Length::Px(6),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 250,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let baseline = layout(&blocks, 800, 600).expect("native percentage margin baseline");
+    blocks[3].style.percentage_margins.left = Some(10);
+    let changed = layout(&blocks, 800, 600).expect("native percentage margin change");
+    blocks[3].style.percentage_margins.left = Some(20);
+    let restored = layout(&blocks, 800, 600).expect("native percentage margin restore");
+    assert_eq!(restored, baseline, "percentage margin must restore exactly");
+
+    let expected = [
+        ("percent-host", 2, rect(0, 574, 212, 102)),
+        ("percent-first", 3, rect(46, 600, 40, 8)),
+        ("percent-next", 4, rect(6, 638, 24, 6)),
+        ("percent-after", 5, rect(250, 676, 20, 5)),
+    ];
+    for &(id, index, golden) in &expected {
+        assert_eq!(baseline.boxes[index].unwrap().border, golden, "{id} baseline");
+    }
+    assert_eq!(baseline.boxes[3].unwrap().margin, rect(6, 580, 90, 58));
+    assert_eq!(baseline.boxes[3].unwrap().content, rect(46, 600, 40, 8));
+    assert_eq!(changed.boxes[3].unwrap().border, rect(26, 600, 40, 8));
+    assert_eq!(changed.boxes[3].unwrap().margin, rect(6, 580, 70, 58));
+    assert_eq!(changed.boxes[4], baseline.boxes[4], "vertical flow must persist");
+    assert_eq!(changed.boxes[5], baseline.boxes[5], "outer normal flow persists");
+    assert_eq!((baseline.scroll_width, baseline.scroll_height), (800, 958));
+    assert_eq!((changed.scroll_width, changed.scroll_height), (800, 958));
+
+    let probes = [
+        ("baseline-only", 75, 401),
+        ("shifted-only", 27, 401),
+        ("first-center", 50, 402),
+        ("top-margin", 47, 390),
+        ("next-in-flow", 7, 440),
+        ("host-bottom", 180, 450),
+        ("following-sibling", 251, 478),
+        ("outside", 350, 450),
+    ];
+    let nodes = [
+        HitNode::new(None),
+        HitNode::new(Some(0)),
+        HitNode::new(Some(0)),
+        HitNode::new(Some(2)),
+        HitNode::new(Some(2)),
+        HitNode::new(Some(0)),
+    ];
+    let hits_for = |frame: &Frame| -> Vec<Option<&'static str>> {
+        probes
+            .iter()
+            .map(|&(_, x, y)| {
+                match hit_test_scrolled(frame, &nodes, x, y, 0, 200)
+                    .expect("native scrolled percentage margin hit")
+                {
+                    Some(2) => Some("percent-host"),
+                    Some(3) => Some("percent-first"),
+                    Some(4) => Some("percent-next"),
+                    Some(5) => Some("percent-after"),
+                    None | Some(0) | Some(1) => None,
+                    Some(other) => panic!("unexpected percentage-margin hit {other}"),
+                }
+            })
+            .collect()
+    };
+    let before_hits = hits_for(&baseline);
+    let changed_hits = hits_for(&changed);
+    assert_eq!(
+        before_hits,
+        vec![
+            Some("percent-first"),
+            Some("percent-host"),
+            Some("percent-first"),
+            Some("percent-host"),
+            Some("percent-next"),
+            Some("percent-host"),
+            Some("percent-after"),
+            None,
+        ]
+    );
+    assert_eq!(
+        changed_hits,
+        vec![
+            Some("percent-host"),
+            Some("percent-first"),
+            Some("percent-first"),
+            Some("percent-host"),
+            Some("percent-next"),
+            Some("percent-host"),
+            Some("percent-after"),
+            None,
+        ]
+    );
+    assert_eq!(hits_for(&restored), before_hits);
+
+    let receipt = |frame: &Frame, hits: &[Option<&str>]| {
+        let boxes = expected
+            .iter()
+            .map(|&(id, index, _)| {
+                let r = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    r.x, r.y, r.width, r.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let geometry = frame.boxes[3].unwrap();
+        let top = geometry.border.y - geometry.margin.y;
+        let left = geometry.border.x - geometry.margin.x;
+        let right = geometry.margin.width - geometry.border.width - left;
+        let bottom = geometry.margin.height - geometry.border.height - top;
+        let computed = format!(
+            r#""top":"{top}px","right":"{right}px","bottom":"{bottom}px","left":"{left}px""#
+        );
+        let hits = probes
+            .iter()
+            .zip(hits)
+            .map(|(&(name, _, _), target)| match target {
+                Some(id) => format!(r#""{name}":"{id}""#),
+                None => format!(r#""{name}":null"#),
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            r#"{{"scrollY":200,"computed":{{{computed}}},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#
+        )
+    };
+    let before = receipt(&baseline, &before_hits);
+    let during = receipt(&changed, &changed_hits);
+    let after = receipt(&restored, &before_hits);
+    format!(r#"{{"original":{before},"changed":{during},"restored":{after}}}"#)
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -2583,6 +2777,8 @@ fn main() {
     output.push_str(&auto_margin_states_json());
     output.push_str(r#","relativeStates":"#);
     output.push_str(&relative_states_json());
+    output.push_str(r#","percentStates":"#);
+    output.push_str(&percent_states_json());
     output.push('}');
     println!("{output}");
 }

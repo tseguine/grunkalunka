@@ -40,6 +40,11 @@ const relativeIds = ["relative-host", "relative-child", "relative-sibling"];
 const relativeStyled = ["relative-host", "relative-child"];
 const relativeProbes = ["original-parent", "moved-parent", "original-child",
   "moved-child", "host-interior", "sibling", "outside"];
+const percentPhases = ["original", "changed", "restored"];
+const percentIds = ["percent-host", "percent-first", "percent-next", "percent-after"];
+const percentSides = ["top", "right", "bottom", "left"];
+const percentProbes = ["baseline-only", "shifted-only", "first-center",
+  "top-margin", "next-in-flow", "host-bottom", "following-sibling", "outside"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -61,7 +66,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents, pointer-events, auto margins and relative-offset geometry/hits; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents, pointer-events, auto margins and relative offsets and percentage-margin geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -612,6 +617,73 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   validateRelativeStates("native", native?.relativeStates);
   validateRelativeStates("browser", browser?.relativeStates);
 
+  function validatePercentStates(owner, states) {
+    const path = "$." + owner + ".percentStates";
+    if (!record(states) ||
+        Object.keys(states).sort().join(",") !== [...percentPhases].sort().join(",")) {
+      error(path, "original, changed and restored percent-margin phases required");
+      return;
+    }
+    const exactIds = [...percentIds].sort().join(",");
+    const exactSides = [...percentSides].sort().join(",");
+    const exactProbes = [...percentProbes].sort().join(",");
+    const rectKeys = [...rectFields].sort().join(",");
+    for (const phase of percentPhases) {
+      const sample = states[phase], prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,computed,hits,scrollY") {
+        error(prefix, "complete percentage geometry, used margins, scroll and hits required");
+        continue;
+      }
+      if (sample.scrollY !== 200) {
+        error(prefix + ".scrollY", "actual reference viewport scroll must be 200px");
+      }
+      if (!record(sample.boxes) || Object.keys(sample.boxes).sort().join(",") !== exactIds) {
+        error(prefix + ".boxes", "exactly four percentage group rectangles required");
+      } else {
+        for (const id of percentIds) {
+          const box = sample.boxes[id];
+          if (!record(box) || Object.keys(box).sort().join(",") !== rectKeys) {
+            error(prefix + ".boxes." + id, "complete document-space rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(box[field]) ||
+                (["width", "height"].includes(field) && box[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite nonnegative-size CSS-pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.computed) ||
+          Object.keys(sample.computed).sort().join(",") !== exactSides) {
+        error(prefix + ".computed", "all four used percentage margin sides required");
+      } else {
+        for (const side of percentSides) {
+          const value = sample.computed[side];
+          if (typeof value !== "string" || !/^\d+(?:\.\d+)?px$/.test(value)) {
+            error(prefix + ".computed." + side, "nonnegative CSS-pixel used margin required");
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== exactProbes) {
+        error(prefix + ".hits", "exactly eight scrolled percentage hit probes required");
+      } else {
+        for (const probe of percentProbes) {
+          const target = sample.hits[probe];
+          if (target !== null && !percentIds.includes(target)) {
+            error(prefix + ".hits." + probe,
+              "known percent-margin element or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validatePercentStates("native", native?.percentStates);
+  validatePercentStates("browser", browser?.percentStates);
+
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
     const expected = [...scrollPhases, "documentHeight"].sort().join(",");
@@ -985,6 +1057,45 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "relative-hit", phase, probe, left, right,
           path: "$.relativeStates." + phase + ".hits." + probe,
+        });
+      }
+    }
+  }
+
+  for (const phase of percentPhases) {
+    const a = native.percentStates[phase], b = browser.percentStates[phase];
+    if (!Object.is(a.scrollY, b.scrollY)) {
+      differences.push({
+        kind: "percent-margin-scroll", phase, left: a.scrollY, right: b.scrollY,
+        path: "$.percentStates." + phase + ".scrollY",
+      });
+    }
+    for (const id of percentIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "percent-margin-box", phase, id, field, left, right,
+            path: "$.percentStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+    }
+    for (const side of percentSides) {
+      const left = a.computed[side], right = b.computed[side];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "percent-margin-computed", phase, side, left, right,
+          path: "$.percentStates." + phase + ".computed." + side,
+        });
+      }
+    }
+    for (const probe of percentProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "percent-margin-hit", phase, probe, left, right,
+          path: "$.percentStates." + phase + ".hits." + probe,
         });
       }
     }
