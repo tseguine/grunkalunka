@@ -110,13 +110,13 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         }
         assert_eq!(report.samples_ms.len(), options.samples);
         assert_eq!(report.release_ms.len(), options.samples);
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
         {
             let samples = report
                 .process_memory
                 .snapshots
                 .as_ref()
-                .expect("Linux/Windows must observe real compiler host process memory");
+                .expect("Linux/Windows/macOS must observe real compiler host process memory");
             assert!(
                 samples
                     .iter()
@@ -126,7 +126,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
                 assert!(pair[1].peak_rss_bytes >= pair[0].peak_rss_bytes);
             }
         }
-        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
         assert!(report.process_memory.snapshots.is_none());
         assert!(
             report
@@ -159,7 +159,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         }
         assert!(json.contains(&format!("\"case\":\"{}\"", workload.name())));
         assert_eq!(json.matches("\"samplesMs\":").count(), 2);
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
         {
             let label = source_compile_cost::process_memory::source_name();
             assert!(json.contains(&format!("\"source\":\"{label}\"")));
@@ -167,7 +167,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
                 assert!(json.contains(&format!("\"{phase}\":")), "{phase}");
             }
         }
-        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
         assert!(json.contains("\"source\":\"unsupported-on-this-host\""));
     }
 }

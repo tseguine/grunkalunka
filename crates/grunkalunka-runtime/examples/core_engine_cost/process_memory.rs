@@ -1,6 +1,6 @@
 //! Observational whole-process memory for P1 cost probes.
 //! Linux VmRSS/VmHWM and Windows PSAPI working set use distinct accounting.
-//! macOS remains explicitly unavailable instead of inventing zero memory.
+//! macOS uses a third, distinct Mach task resident/peak accounting API.
 pub const PHASES: [&str; 5] = [
     "beforeModule",
     "afterModule",
@@ -130,7 +130,74 @@ pub fn observe() -> Result<Option<Snapshot>, String> {
     windows::observe().map(Some)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+// Whole native macOS task residency/peak, a different accounting scheme from
+// Linux RSS and Windows working sets. An independent direct-rustc witness tests
+// this same ABI in tools/bench/tests/fixtures/macos-mach-memory.rs.
+#[cfg(target_os = "macos")]
+mod macos {
+    use super::Snapshot;
+    use std::mem::{align_of, size_of};
+
+    const MACH_TASK_BASIC_INFO: u32 = 20;
+
+    #[repr(C, packed(4))]
+    #[derive(Default)]
+    struct MachTaskBasicInfo {
+        virtual_size: u64,
+        resident_size: u64,
+        resident_size_max: u64,
+        user_time: [i32; 2],
+        system_time: [i32; 2],
+        policy: i32,
+        suspend_count: i32,
+    }
+
+    unsafe extern "C" {
+        static mut mach_task_self_: u32;
+        fn task_info(task: u32, flavor: u32, info: *mut i32, count: *mut u32) -> i32;
+    }
+
+    pub fn observe() -> Result<Snapshot, String> {
+        if size_of::<MachTaskBasicInfo>() != 48 || align_of::<MachTaskBasicInfo>() != 4 {
+            return Err("unexpected mach_task_basic_info ABI layout".into());
+        }
+        let mut info = MachTaskBasicInfo::default();
+        let mut count = (size_of::<MachTaskBasicInfo>() / size_of::<i32>()) as u32;
+        // SAFETY: libSystem initializes the borrowed self-task port. The
+        // initialized buffer is exactly 12 natural_t slots with the Darwin
+        // 4-byte-aligned mach_task_basic_info layout; do not deallocate port.
+        let status = unsafe {
+            task_info(
+                mach_task_self_,
+                MACH_TASK_BASIC_INFO,
+                (&mut info as *mut MachTaskBasicInfo).cast::<i32>(),
+                &mut count,
+            )
+        };
+        if status != 0 || count != 12 {
+            return Err(format!(
+                "task_info(MACH_TASK_BASIC_INFO) failed: {status}/{count}"
+            ));
+        }
+        // Copy packed members by value, never borrow an unaligned field.
+        let rss_bytes = info.resident_size;
+        let peak_rss_bytes = info.resident_size_max;
+        if rss_bytes == 0 || peak_rss_bytes < rss_bytes {
+            return Err("invalid Mach task resident/peak bytes".into());
+        }
+        Ok(Snapshot {
+            rss_bytes,
+            peak_rss_bytes,
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn observe() -> Result<Option<Snapshot>, String> {
+    macos::observe().map(Some)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 pub fn observe() -> Result<Option<Snapshot>, String> {
     Ok(None)
 }
@@ -144,7 +211,11 @@ pub fn source_name() -> &'static str {
     {
         "windows-psapi-working-set"
     }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    #[cfg(target_os = "macos")]
+    {
+        "macos-mach-task-basic-info"
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
         "unsupported-on-this-host"
     }
