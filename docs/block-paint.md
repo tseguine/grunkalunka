@@ -14,6 +14,8 @@ window display, or a commitment to the final rendering architecture.
 - Parents paint before descendants, siblings in their declared order, using
   explicit tree traversal rather than assuming the flat parent-before-child
   input is itself preorder. Later opaque paint covers earlier pixels.
+- Resolved `pointer-events` eligibility does not affect RGB painting:
+  painted pixels remain identical even when input targets change.
 - `display:none` and descendants stay absent, following the layout
   `Frame`. `Display::Contents` removes the wrapper's paint box but retains
   its descendants in normal depth-first paint order. `visibility:hidden`

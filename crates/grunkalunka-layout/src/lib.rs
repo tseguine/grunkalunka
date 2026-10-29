@@ -73,6 +73,27 @@ impl Visibility {
     }
 }
 
+/// Resolved pointer-target eligibility. This mirrors only HTML auto/none
+/// inheritance for source-independent hit testing, not DOM event dispatch,
+/// pointer capture, SVG-specific values or keyboard focus.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PointerEvents {
+    #[default]
+    Inherit,
+    Auto,
+    None,
+}
+
+impl PointerEvents {
+    fn resolve(self, inherited: bool) -> bool {
+        match self {
+            Self::Inherit => inherited,
+            Self::Auto => true,
+            Self::None => false,
+        }
+    }
+}
+
 /// An explicit clipping policy for a node's descendants. This deliberately
 /// models only padding-box clipping of paint/hits, not CSS scroll containers,
 /// overflow propagation, scrollbars or clipping of the node's own border.
@@ -122,6 +143,7 @@ pub enum HeightBound {
 pub struct Style {
     pub display: Display,
     pub visibility: Visibility,
+    pub pointer_events: PointerEvents,
     pub descendant_clip: DescendantClip,
     pub width: Length,
     pub min_width: Option<WidthBound>,
@@ -207,6 +229,9 @@ pub struct Frame {
     /// Computed inherited visibility per node; independent of layout box
     /// existence. Explicit visible descendants can override hidden ancestors.
     pub visibility: Vec<bool>,
+    /// Resolved inherited pointer-target eligibility, independent of
+    /// caller HitNode::targetable, painted pixels or box visibility.
+    pub pointer_events: Vec<bool>,
     /// Whether a node clips its descendants to its resolved padding box.
     /// An ancestor's clip still affects the node's own painting/hit tests.
     pub clip_descendants: Vec<bool>,
@@ -436,8 +461,9 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// display:none, boxless display:contents, inherited visibility, optional
-/// padding-box descendant clipping, content-box/border-box sizing, min/max
+/// display:none, boxless display:contents, inherited visibility, resolved
+/// pointer-events input policy, optional padding-box descendant clipping,
+/// content-box/border-box sizing, min/max
 /// width/height constraints and whole percentage dimensions with exact
 /// integral results are admitted. Percentage heights need a definite
 /// containing content height;
@@ -471,6 +497,7 @@ pub fn layout(
     let mut children = vec![Vec::new(); blocks.len()];
     let mut depths = vec![0usize; blocks.len()];
     let mut visibility = vec![true; blocks.len()];
+    let mut pointer_events = vec![true; blocks.len()];
     // The boxless bit only marks contents wrappers in active subtrees.
     // Nodes beneath display:none remain absent and cannot revive children.
     let mut active = vec![true; blocks.len()];
@@ -482,6 +509,7 @@ pub fn layout(
         .map(|block| block.style.descendant_clip == DescendantClip::PaddingBox)
         .collect();
     visibility[0] = blocks[0].style.visibility.resolve(true);
+    pointer_events[0] = blocks[0].style.pointer_events.resolve(true);
     for (node, block) in blocks.iter().enumerate().skip(1) {
         let Some(parent) = block.parent else {
             return Err(LayoutError::InvalidParent { node });
@@ -493,6 +521,7 @@ pub fn layout(
         active[node] = active[parent] && block.style.display != Display::None;
         contents[node] = active[node] && block.style.display == Display::Contents;
         visibility[node] = block.style.visibility.resolve(visibility[parent]);
+        pointer_events[node] = block.style.pointer_events.resolve(pointer_events[parent]);
         if depths[node] > MAX_DEPTH {
             return Err(LayoutError::TooDeep { node });
         }
@@ -506,6 +535,7 @@ pub fn layout(
             boxes: vec![None; blocks.len()],
             contents,
             visibility,
+            pointer_events,
             clip_descendants,
             viewport_width,
             viewport_height,

@@ -10,7 +10,8 @@ use crate::{Frame, MAX_BLOCKS, MAX_DEPTH, MAX_VIEWPORT, Rect};
 pub struct HitNode {
     /// Same parent index as the source layout tree.
     pub parent: Option<usize>,
-    /// An independent caller-supplied input policy, not CSS visibility.
+    /// An independent caller-supplied input policy, not CSS visibility or
+    /// inherited pointer-events. All eligibility filters must agree.
     pub targetable: bool,
 }
 
@@ -62,7 +63,9 @@ fn contains_point(border: Rect, x: u32, y: u32) -> Result<bool, HitError> {
 /// Children cover parents and later siblings cover earlier siblings, following
 /// the RGB painter's depth-first tree traversal even if a flat input is not
 /// preorder. A targetable element may be visually transparent. Independent
-/// caller input policy cannot override resolved inherited visibility.
+/// caller input policy cannot override resolved inherited visibility or
+/// pointer-events:none. An explicitly auto descendant of a none ancestor can
+/// receive a hit; the parent does not become a hit target.
 ///
 /// The entire frame/tree is checked before any hit is accepted, including
 /// bad parents, tree depth and nested box rectangles. Point coordinates beyond
@@ -97,6 +100,7 @@ pub fn hit_test_scrolled(
     if nodes.is_empty()
         || nodes.len() != frame.boxes.len()
         || frame.visibility.len() != frame.boxes.len()
+        || frame.pointer_events.len() != frame.boxes.len()
         || frame.clip_descendants.len() != frame.boxes.len()
         || frame.contents.len() != frame.boxes.len()
     {
@@ -189,6 +193,7 @@ pub fn hit_test_scrolled(
     for (index, inherited_clip) in order.into_iter().rev() {
         if nodes[index].targetable
             && frame.visibility[index]
+            && frame.pointer_events[index]
             && let Some(geometry) = frame.boxes[index]
             && contains_point(geometry.border, x, y)?
             && (if let Some(clip) = inherited_clip {
