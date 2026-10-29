@@ -4,9 +4,7 @@
 //! no note source, path, network or guest capability enters this process.
 
 use grunkalunka_layout::paint::{PaintNode, Rgb, paint};
-use grunkalunka_layout::semantic::{
-    Element, ElementKind, default_style, layout_semantic,
-};
+use grunkalunka_layout::semantic::{Element, ElementKind, default_style, layout_semantic};
 use std::fmt::Write as _;
 use std::io::{self, Read, Write};
 
@@ -154,7 +152,12 @@ fn parse(input: &str) -> Result<Note, String> {
             return Err("heading label quota exceeded".into());
         }
         headings.push(Heading {
-            level, start, end, _section_end: section_end, _parent: parent, text,
+            level,
+            start,
+            end,
+            _section_end: section_end,
+            _parent: parent,
+            text,
         });
         ancestors.push(index);
         previous_end = end;
@@ -189,28 +192,28 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Element::new(Some(0), ElementKind::Main, "", 0),
         Element::new(Some(1), ElementKind::Heading(1), "Note preview", 24),
     ];
-    let mut colors = vec![
-        Rgb::WHITE,
-        Rgb::new(245, 245, 240),
-        Rgb::new(54, 107, 178),
-    ];
+    let mut colors = vec![Rgb::WHITE, Rgb::new(245, 245, 240), Rgb::new(54, 107, 178)];
     if note.profile == Profile::Denied {
         elements.push(Element::new(
-            Some(1), ElementKind::Paragraph, "Document access denied.", 18,
+            Some(1),
+            ElementKind::Paragraph,
+            "Document access denied.",
+            18,
         ));
         colors.push(Rgb::new(192, 80, 80));
     } else if note.headings.is_empty() {
         elements.push(Element::new(
-            Some(1), ElementKind::Paragraph, "Outline collapsed.", 18,
+            Some(1),
+            ElementKind::Paragraph,
+            "Outline collapsed.",
+            18,
         ));
         colors.push(Rgb::new(160, 160, 160));
     } else {
         elements.push(Element::new(Some(1), ElementKind::OrderedList, "", 0));
         colors.push(Rgb::WHITE);
         for (index, heading) in note.headings.iter().enumerate() {
-            let mut item = Element::new(
-                Some(3), ElementKind::ListItem, &heading.text, 18,
-            );
+            let mut item = Element::new(Some(3), ElementKind::ListItem, &heading.text, 18);
             let mut style = default_style(ElementKind::ListItem);
             style.padding.left = u32::from(heading.level - 1) * 8;
             item.resolved_style = Some(style);
@@ -250,9 +253,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             semantic.text_boxes.len()
         )?;
         for anchor in &semantic.text_boxes {
-            let heading = anchor.node.checked_sub(4).and_then(|i| note.headings.get(i));
+            let heading = anchor
+                .node
+                .checked_sub(4)
+                .and_then(|i| note.headings.get(i));
             let (start, end, level) = heading.map_or((-1, -1, 0), |value| {
-                (i64::from(value.start), i64::from(value.end), i64::from(value.level))
+                (
+                    i64::from(value.start),
+                    i64::from(value.end),
+                    i64::from(value.level),
+                )
             });
             writeln!(
                 stdout,
