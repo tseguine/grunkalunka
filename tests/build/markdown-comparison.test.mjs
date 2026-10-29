@@ -182,7 +182,7 @@ test('CLI accepts saved Unicode pathname/stdin and emits nothing on invalid inpu
 });
 
 function savedMemory(os) {
-  if (os !== 'linux') {
+  if (os === 'macos') {
     return { scope: 'entire-rust-process', unit: 'bytes',
       source: 'unsupported-on-this-host', snapshots: null };
   }
@@ -190,7 +190,8 @@ function savedMemory(os) {
     'beforeEmbed', 'afterCompile', 'afterInstantiation', 'afterWarmup', 'afterBatches',
   ];
   return {
-    scope: 'entire-rust-process', unit: 'bytes', source: 'linux-proc-status',
+    scope: 'entire-rust-process', unit: 'bytes',
+    source: os === 'linux' ? 'linux-proc-status' : 'windows-psapi-working-set',
     snapshots: Object.fromEntries(names.map((name, index) => [
       name, { rssBytes: 1024 + index * 128, peakRssBytes: 2048 + index * 128 },
     ])),
@@ -261,13 +262,16 @@ test('new harness rejects missing, invalid or unbound transitive source evidence
 test('saved Markdown pairs retain raw signed RSS/peak deltas without ranking processes', () => {
   const before = v2Receipt();
   const after = v2Receipt('2026-10-27T17:00:01.000Z');
-  if (before.report.environment.os === 'linux') {
+  if (before.report.environment.os !== 'macos') {
     after.report.processMemory.snapshots.afterBatches.rssBytes += 64;
     after.report.processMemory.snapshots.afterBatches.peakRssBytes += 128;
     const compared = compareMarkdownPair(bindMarkdownPair(before, after));
     assert.equal(compared.processMemory.availability, 'paired-process-observations');
     assert.equal(compared.processMemory.scope, 'entire-rust-process');
     assert.equal(compared.processMemory.unit, 'bytes');
+    assert.equal(compared.processMemory.source,
+      before.report.environment.os === 'linux' ?
+        'linux-proc-status' : 'windows-psapi-working-set');
     assert.deepEqual(Object.keys(compared.processMemory.phases), [
       'beforeEmbed', 'afterCompile', 'afterInstantiation', 'afterWarmup', 'afterBatches',
     ]);
@@ -311,9 +315,35 @@ test('saved unsupported platform receipts never fabricate process-memory deltas'
     capture.provenance.host.arch = 'x64';
     capture.report.environment.os = 'windows';
     capture.report.environment.arch = 'x86_64';
-    capture.report.processMemory = savedMemory('windows');
+    // Legacy Windows receipts correctly recorded unsupported memory.
+    capture.report.processMemory = {
+      scope: 'entire-rust-process', unit: 'bytes',
+      source: 'unsupported-on-this-host', snapshots: null,
+    };
   }
   const compared = compareMarkdownPair(bindMarkdownPair(before, after));
   assert.equal(compared.processMemory.availability, 'unsupported-on-this-host');
   assert.equal(Object.hasOwn(compared.processMemory, 'phases'), false);
+});
+
+test('paired Windows working-set readings retain the Windows source label on any reader host', () => {
+  const before = v2Receipt();
+  const after = v2Receipt('2026-10-27T17:00:01.000Z');
+  for (const capture of [before, after]) {
+    capture.provenance.host.os = 'win32';
+    capture.provenance.host.arch = 'x64';
+    capture.report.environment.os = 'windows';
+    capture.report.environment.arch = 'x86_64';
+    capture.report.processMemory = savedMemory('windows');
+  }
+  after.report.processMemory.snapshots.afterBatches.rssBytes += 64;
+  const result = compareMarkdownPair(bindMarkdownPair(before, after));
+  assert.equal(result.processMemory.source, 'windows-psapi-working-set');
+  assert.equal(result.processMemory.availability, 'paired-process-observations');
+  assert.equal(result.processMemory.phases.afterBatches.rssBytes.deltaBytes, 64);
+  const mismatched = structuredClone(after);
+  mismatched.report.processMemory.source = 'unsupported-on-this-host';
+  mismatched.report.processMemory.snapshots = null;
+  assert.throws(() => bindMarkdownPair(before, mismatched),
+    /paired process memory source/);
 });
