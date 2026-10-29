@@ -116,8 +116,9 @@ never backfilled with fictional measurements. Historical macOS captures also
 retain their original explicit unavailable/null evidence. The reader now
 accepts a separately labeled complete `macos-mach-task-basic-info` phase
 envelope only when the saved native OS is macOS, with the same phase/peak
-integrity checks. This enables a future native collector but does **not**
-establish that it has run: the shared native collector currently still
-reports macOS unavailable. Mach task residency is not Linux RSS or Windows
+integrity checks. The shared native collector now uses this Mach API; the
+[standalone witness](p1-macos-process-memory-control.md) and the
+integrated three native cost probes require separate real Apple Silicon
+execution evidence. Mach task residency is neither Linux RSS nor Windows
 working set. The versioned harness hashes include the real native sampler
 source, so captures from changed implementations remain distinguishable.

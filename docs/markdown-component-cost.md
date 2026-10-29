@@ -100,10 +100,13 @@ five phases use the separately verified native
 `source: "windows-psapi-working-set"`, containing whole-process
 **working-set** readings in the original `rssBytes`/`peakRssBytes`
 receipt fields. Windows now requires real nonzero native observations,
-not fabricated Linux RSS. The two operating systems have different
-accounting semantics, so their values are not directly comparable.
-macOS explicitly retains `unsupported-on-this-host` and
-`snapshots: null`, not zero memory.
+not fabricated Linux RSS. On macOS, the same phases are sampled with
+`task_info(MACH_TASK_BASIC_INFO)` and separately labeled
+`macos-mach-task-basic-info` as current/peak whole-task resident bytes.
+The [standalone Mach ABI witness](p1-macos-process-memory-control.md)
+preceded native collector integration. These three OS accounting methods
+are not interchangeable, and older unsupported/null macOS captures remain
+readable without fabricated memory measurements.
 
 These observations describe the **entire Rust process**, including the
 Markdown guest, the Wasmtime runtime, JIT caches, host allocations,

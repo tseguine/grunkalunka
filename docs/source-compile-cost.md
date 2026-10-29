@@ -96,8 +96,13 @@ On Windows, the same five phases use
 `rssBytes`/`peakRssBytes` field names remain for receipt compatibility,
 but they do **not** mean Linux RSS on Windows. Neither OS's entire-process
 readings isolate compiler allocations or make the platforms comparable.
-macOS still explicitly reports `unsupported-on-this-host` and
-`snapshots: null`, not zero memory.
+On macOS, all five phases use `task_info(MACH_TASK_BASIC_INFO)`
+and the separately labeled `macos-mach-task-basic-info` native whole-task
+resident/peak counts, following an
+[independent Mach ABI witness](p1-macos-process-memory-control.md).
+All three OS APIs have distinct memory accounting; no portable absolute
+footprint or compiler-only attribution follows. Archived unavailable
+macOS observations remain valid historical receipts.
 
 These numbers include the **entire process** and allocations from Rust's
 compiler, source/output buffers, Wasmtime verification, allocator caches

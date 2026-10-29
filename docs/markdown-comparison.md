@@ -104,10 +104,10 @@ and broader application workloads remain unfinished P1 work.
 ## Recorded Rust-process memory integrity
 
 New Markdown cost reports may include a `processMemory` envelope with five
-validated Linux RSS/peak-RSS or Windows working-set/peak-working-set
-checkpoints. Earlier Windows receipts explicitly recorded unsupported/null,
-and that historical absence remains valid. macOS still records
-unsupported/null observations. The capture and same-process comparator now
+validated Linux RSS/peak-RSS, Windows working-set/peak-working-set or
+macOS Mach whole-task resident/peak checkpoints. Earlier Windows and macOS
+receipts explicitly recorded unsupported/null; that historical absence
+remains valid. The capture and same-process comparator now
 **validate a claimed memory envelope** against the saved native OS and the
 complete ordered lifecycle, including units, snapshot keys, integer bounds,
 RSS no greater than peak and nondecreasing process peak. The comparator uses
@@ -141,12 +141,14 @@ and interpretation without imposing artificial memory-comparison metrics.
 ## Comparing recorded whole-process memory without attribution
 
 The strict paired comparison now emits a separate `processMemory` summary.
-For two validated Linux **or current Windows** receipts containing complete
+For two validated Linux, Windows or macOS receipts containing complete
 five-phase native process-memory observations, it preserves each phase's
 baseline and candidate byte count alongside their **signed
-candidate-minus-baseline difference**, together with the actual
-`linux-proc-status` or `windows-psapi-working-set` source label.
-Windows `rssBytes` means current working-set bytes, not Linux RSS.
+candidate-minus-baseline difference**, and the corresponding
+`linux-proc-status`, `windows-psapi-working-set` or
+`macos-mach-task-basic-info` source label. The `rssBytes` fields refer
+to different OS-specific whole-process/task resident accounting, not
+portable or guest-specific allocations.
 The reader refuses mixed source types even when receipts are rebound.
 Both inputs were collected in **separate native processes** by one Node
 capture session. Even equal binaries and OS metadata cannot isolate guest
@@ -158,7 +160,7 @@ regressions without additional controlled experiments.
 For historical captures where either process-memory envelope was omitted,
 the comparison explicitly reports `availability: not-comparable` and whether
 each side recorded evidence. The absence is **not** zero memory. Old
-Windows captures and all currently unsupported macOS captures remain
+Windows and macOS captures that recorded unavailable remain
 `unsupported-on-this-host`, without any fabricated phase values. Saved host identity, not the OS used
 to read the JSON, determines whether a reported sample is valid. The
 original timings, signed timing deltas, intact receipt bindings and
