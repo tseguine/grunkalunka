@@ -528,7 +528,7 @@ fn jump(output: &mut String, target: usize) {
 }
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
-    ir::verify_module_with_entry_type(module, Type::General)?;
+    ir::verify_async_module(module)?;
     let starters = starters::needed(module);
     let queued = module.functions.iter().any(|function| {
         let mut pending = false;
@@ -971,7 +971,10 @@ fn primitive(output: &mut String, emitter: &Emitter<'_>, value: ValueId) {
             offset + 1
         )
         .unwrap();
-    } else if emitter.function.values[value.0] == Type::General {
+    } else if matches!(
+        emitter.function.values[value.0],
+        Type::General | Type::AsyncValue
+    ) {
         writeln!(output, "global.get {offset}\nglobal.get {}", offset + 1).unwrap();
     } else {
         writeln!(output, "i32.const 3\nglobal.get {offset}").unwrap();

@@ -59,8 +59,9 @@ async function reactionTrace(run,a,b){
     await new Promise(resolve=>{let n=0;function tick(){trace.push('tick'+(++n));if(n<34)queueMicrotask(tick);else resolve();}queueMicrotask(tick);});
     return trace;
 }
-for(const {name,wasm} of cases){
+for(const {name,wasm,source} of cases){
     const compiled=createAsyncFunction(Uint8Array.from(wasm));
+    const native=source?new Function(source.replace('export async function run','async function run')+';return run;')():nativeFor(name);
     if(name.startsWith('invalid:')){
         unhandled=[];
         const {value}=await reason(compiled,4,2);
@@ -82,12 +83,14 @@ for(const {name,wasm} of cases){
         continue;
     }
     for(const [a,b] of [[4,2],[0,-0],[-2,-4],[NaN,Infinity]]){
-        assert.deepEqual(await observe(compiled,name,a,b),await observe(nativeFor(name),name,a,b));
-        if(!['shared','rejected-unhandled'].includes(name))assert.deepEqual(await reactionTrace(compiled,a,b),await reactionTrace(nativeFor(name),a,b),`${name}: root and reason reaction order`);
+        if(name==='choice'&&!a)assert.deepEqual(await compiled(a,b),await native(a,b));
+        else assert.deepEqual(await observe(compiled,name,a,b),await observe(native,name,a,b));
+        if(!['shared','rejected-unhandled'].includes(name))assert.deepEqual(await reactionTrace(compiled,a,b),await reactionTrace(native,a,b),`${name}: root and reason reaction order`);
     }
     if(name==='fulfilled'||name==='pending'){
         const [first,second]=await Promise.all([reason(compiled,4,2),reason(compiled,4,2)]);
         assert.notStrictEqual(first.value,second.value,'separate invocations have separate objects');
-        assert.equal(await first.value,2);assert.equal(await second.value,2);
+        const expected=await (await reason(native,4,2)).value;
+        assert.equal(await first.value,expected);assert.equal(await second.value,expected);
     }
 }

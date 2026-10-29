@@ -73,6 +73,9 @@ mod named_async;
 #[path = "async-suspension/named_promise_inputs.rs"]
 mod named_promise_inputs;
 
+#[path = "async-suspension/promise_throw_reasons.rs"]
+mod promise_throw_reasons;
+
 #[path = "async-suspension/promise_type_arguments.rs"]
 mod promise_type_arguments;
 
@@ -426,7 +429,6 @@ fn suspending_async_closures_keep_pending_and_signature_guards() {
         "const f=a?async x=>{await a;return x;}:async x=>{await b;return x;};return await f();",
         "let f=async x=>{await a;return x;};return await f?.(b);",
         "let f=async x=>{await a;return x;};return await f(...a);",
-        "let f=async()=>{await a;throw Promise.resolve(b);};return await f();",
         "let f=async()=>{await a;return 'x';};return await f();",
         "let f=async()=>{await a;return {};};return await f();",
         "let f=async()=>{await a;return ()=>b;};return await f();",
@@ -557,7 +559,6 @@ fn throwing_async_closures_keep_unobserved_rejections_guarded() {
         "const f=a?async()=>{throw 'x';}:async()=>b;return await f();",
         "const f=a?async()=>{throw {};}:async()=>b;return await f();",
         "const f=a?async()=>{throw ()=>a;}:async()=>b;return await f();",
-        "const f=a?async()=>{throw Promise.resolve(a);}:async()=>b;return await f();",
         "let f=async()=>{throw a;};return await f?.();",
         "let f=async()=>{throw a;};return await f(...a);",
     ] {
@@ -1347,7 +1348,6 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
     }
     for body in [
         "const p=Promise.resolve(a);p=Promise.resolve(b);return await p;",
-        "const p=Promise.resolve(a);throw p;",
         "const p=Promise.resolve(a);return await Promise.reject(p);",
     ] {
         for ts in [false, true] {

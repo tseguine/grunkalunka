@@ -24,6 +24,33 @@ fn node_rejection_reason_is_a_real_promise() {
 }
 
 fn run_node<S: AsRef<str>>(cases: &[(S, Vec<u8>)]) {
+    let cases = cases
+        .iter()
+        .map(|(name, wasm)| {
+            let name = name.as_ref();
+            format!(r#"{{"name":{name:?},"wasm":{wasm:?}}}"#)
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    run_node_json(format!("[{cases}]"));
+}
+
+fn run_source_node(cases: &[(&str, &str)]) {
+    let cases = cases
+        .iter()
+        .map(|(name, source)| {
+            let js = grunkalunka_compiler::compile_async(source, false).unwrap();
+            let ts = grunkalunka_compiler::compile_async(source, true).unwrap();
+            assert_eq!(js.wasm, ts.wasm, "{name}: type erasure");
+            let wasm = js.wasm;
+            format!(r#"{{"name":{name:?},"source":{source:?},"wasm":{wasm:?}}}"#)
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    run_node_json(format!("[{cases}]"));
+}
+
+fn run_node_json(cases: String) {
     let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/promise-objects.mjs");
     let adapter = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("js/async.mjs");
     let mut child = Command::new("node")
@@ -34,19 +61,11 @@ fn run_node<S: AsRef<str>>(cases: &[(S, Vec<u8>)]) {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let cases = cases
-        .iter()
-        .map(|(name, wasm)| {
-            let name = name.as_ref();
-            format!(r#"{{"name":{name:?},"wasm":{wasm:?}}}"#)
-        })
-        .collect::<Vec<_>>()
-        .join(",");
     child
         .stdin
         .take()
         .unwrap()
-        .write_all(format!("[{cases}]").as_bytes())
+        .write_all(cases.as_bytes())
         .unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
     while child.try_wait().unwrap().is_none() {
@@ -63,6 +82,143 @@ fn run_node<S: AsRef<str>>(cases: &[(S, Vec<u8>)]) {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+const THROW_SOURCES: &[(&str, &str)] = &[
+    (
+        "fulfilled-direct",
+        "export async function run(a,b){const p=Promise.resolve(a);throw p;}",
+    ),
+    (
+        "fulfilled",
+        "async function f(p){throw p;}export async function run(a,b){return await f(Promise.resolve(a));}",
+    ),
+    (
+        "pending",
+        "export async function run(a,b){const f=async()=>{await a;await b;return b;};throw f();}",
+    ),
+    (
+        "rejected",
+        "export async function run(a,b){const f=async()=>{throw b;};throw f();}",
+    ),
+    (
+        "rejected-unhandled",
+        "export async function run(a,b){const f=async()=>{throw b;};throw f();}",
+    ),
+    (
+        "self",
+        "export async function run(a,b){let p;const f=async()=>{await a;throw p;};p=f();throw p;}",
+    ),
+    (
+        "shared",
+        "export async function run(a,b){const p=Promise.resolve(a);const f=async()=>{throw p;};f();throw p;}",
+    ),
+    (
+        "nested",
+        "export async function run(a,b){const q=Promise.resolve(a);const f=async()=>{throw q;};throw f();}",
+    ),
+    (
+        "handled",
+        "export async function run(a,b){const f=async()=>{throw b;};const p=f();try{await p;}catch(e){}throw p;}",
+    ),
+    (
+        "fulfilled-finally",
+        "export async function run(a,b){const p=Promise.resolve(a);try{throw p;}finally{await b;}}",
+    ),
+    (
+        "fulfilled-suspended",
+        "export async function run(a,b){let f=async()=>{await a;throw Promise.resolve(b);};return await f();}",
+    ),
+    (
+        "choice",
+        "export async function run(a,b){const f=a?async()=>{throw Promise.resolve(a);}:async()=>b;return await f();}",
+    ),
+];
+
+#[test]
+fn node_source_throws_expose_real_promise_objects_without_adoption() {
+    run_source_node(THROW_SOURCES);
+}
+
+#[test]
+fn wasmtime_source_throws_keep_readonly_nested_and_self_reasons() {
+    use grunkalunka_runtime::{AsyncState, PreparedAsyncModule, PromiseNotification, Value};
+    for (name, source) in THROW_SOURCES {
+        let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();
+        let module = PreparedAsyncModule::new(&artifact.wasm).unwrap();
+        for (a, b) in [
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-2.0, -4.0),
+            (f64::NAN, f64::INFINITY),
+        ] {
+            let mut run = module.instantiate(a, b).unwrap();
+            let mut steps = 0;
+            while run.pending_job_count().unwrap() != 0 {
+                assert!(steps < 32, "{name}: bounded guest jobs");
+                assert!(run.run_one_job().unwrap());
+                steps += 1;
+            }
+            if *name == "choice" && (a == 0.0 || a.is_nan()) {
+                let AsyncState::Fulfilled(Value::Number(actual)) = run.state().unwrap() else {
+                    panic!("choice primitive fulfillment");
+                };
+                assert_eq!(actual.to_bits(), b.to_bits());
+                continue;
+            }
+            let AsyncState::Rejected(Value::Promise { id }) = run.state().unwrap() else {
+                panic!("{name}: root must reject with a raw Promise");
+            };
+            let first = run.promise_state(id).unwrap();
+            let second = run.promise_state(id).unwrap();
+            assert_eq!(
+                format!("{first:?}"),
+                format!("{second:?}"),
+                "{name}: query is read-only"
+            );
+            match first {
+                AsyncState::Fulfilled(Value::Number(actual)) => {
+                    let expected = if matches!(*name, "pending" | "fulfilled-suspended") {
+                        b
+                    } else {
+                        a
+                    };
+                    assert!(
+                        actual.to_bits() == expected.to_bits()
+                            || actual.is_nan() && expected.is_nan(),
+                        "{name}"
+                    );
+                }
+                AsyncState::Rejected(Value::Number(actual)) => {
+                    assert!(matches!(
+                        *name,
+                        "rejected" | "rejected-unhandled" | "handled"
+                    ));
+                    assert_eq!(actual.to_bits(), b.to_bits());
+                }
+                AsyncState::Rejected(Value::Promise { id: nested }) => {
+                    if *name == "self" {
+                        assert_eq!(nested, id, "raw rejection never invokes self-resolution");
+                    } else {
+                        assert_eq!(*name, "nested");
+                        assert_ne!(nested, id);
+                        let AsyncState::Fulfilled(Value::Number(actual)) =
+                            run.promise_state(nested).unwrap()
+                        else {
+                            panic!("nested fulfillment");
+                        };
+                        assert!(actual.to_bits() == a.to_bits() || actual.is_nan() && a.is_nan());
+                    }
+                }
+                state => panic!("{name}: unexpected reason state {state:?}"),
+            }
+            assert_eq!(run.pending_job_count().unwrap(), 0);
+            let notifications = run.take_promise_notifications().unwrap();
+            if *name == "shared" {
+                assert!(notifications.iter().any(|event| matches!(event, PromiseNotification::Rejected { reason: Value::Promise { id: reason }, .. } if *reason == id)));
+            }
+        }
+    }
 }
 
 fn object_peer(name: &str) -> Vec<u8> {

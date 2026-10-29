@@ -45,7 +45,11 @@ impl Lowering<'_, '_> {
         self.bindings.truncate(visible);
         let (body, body_completion, finalizer, finalizer_completion) = parts?;
         let returned = self.value(Type::AsyncValue);
-        let reason = self.value(Type::General);
+        let reason = self.value(if self.promise_parameters.raw_throws {
+            Type::AsyncValue
+        } else {
+            Type::General
+        });
         let mut continuation = self.region(statement);
         let result = if outer_type == Type::AsyncValue {
             returned
@@ -84,7 +88,12 @@ impl Lowering<'_, '_> {
         self.bindings.truncate(visible);
         let mut caught = self.region(handler.body.as_ref());
         self.charge_statement(handler.body.as_ref())?;
-        let reason = self.value(Type::General);
+        let reason_type = if self.promise_parameters.raw_throws {
+            Type::AsyncValue
+        } else {
+            Type::General
+        };
+        let reason = self.value(reason_type);
         if let Some(parameter) = &handler.param {
             let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                 return Err(unsupported(
@@ -103,7 +112,7 @@ impl Lowering<'_, '_> {
             }
             let slot = SlotId(self.slots.len());
             self.slots.push(Slot {
-                ty: Type::General,
+                ty: reason_type,
                 owner: caught.id,
                 mutable: true,
                 parameter: false,

@@ -19,14 +19,16 @@ after the try statement; returns and nearest-loop break/continue retain their
 existing meanings. A rejected await in a handler belongs to an enclosing try, if
 present. With no enclosing handler it rejects the activation as before.
 
-The catch binding is a mutable General cell identified by its original semantic
-symbol. It preserves undefined, null, Boolean and Number reasons without coercion,
+The catch binding is a mutable cell identified by its original semantic symbol.
+It uses General unless the async module may throw a represented Promise, when
+it uses AsyncValue to retain raw identity without adoption or handling. It preserves
+undefined, null, Boolean and Number reasons without coercion,
 including signed zero, finite Number bits, NaN and infinities. Shadows do not alter
 outer bindings. Re-entering a handler initializes a fresh captured cell, so closures
 retaining previous catch bindings continue to see their own lexical instance.
 TypeScript annotations and expression wrappers do not establish runtime kinds.
 
-Lowering emits a structured `TryCatch` operation. Its General reason value is
+Lowering emits a structured `TryCatch` operation. Its typed reason value is
 visible only in the handler, and the verifier rejects reason leaks or references
 to body-private snapshots. The coroutine splitter builds the handler under the
 outer exception target, then installs that handler while splitting the protected
@@ -64,3 +66,9 @@ mutation, skipped suffixes, nested handlers, later awaits, loop control and capt
 binding re-entry. Boundary tests check typed erasure, unsupported syntax, source
 limits, job budgets and terminal Wasmtime fuel failures. Compiler IR tests reject
 four malformed reason visibility/type cases.
+
+Represented Promise reasons now pass through source throw, caught/rethrown async
+rejection and suspended finally cleanup. Conservative module-level inference may
+still reject numeric operations in an unrelated catch in such a module. Precise
+per-handler inference and intrinsic Promise.reject(p) remain follow-up work; see
+[the source and host contract](async-promise-objects.md).

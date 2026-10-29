@@ -1079,9 +1079,11 @@ catch itself. The reason exists only on the handler's lexical entry.
 TryFinally can capture an AsyncValue reason when the enclosing handler accepts
 raw reasons. Cleanup preserves that snapshot on normal completion and replaces
 it on an abrupt completion. The pending return remains a separate AsyncValue.
-Non-suspending settlement bodies, inline async-call rejection boundaries and
-exported root rejection still require General reasons. Their boundaries reset
-the verifier's exception domain even inside an outer raw catch.
+The async emitter verifies settlement bodies, inline async-call rejection
+boundaries and exported root rejection with an AsyncValue rejection profile.
+Those boundaries reset to the profile domain even inside a lexical catch.
+The ordinary numeric/primitive verifier retains General rejection boundaries;
+a lexical General catch still cannot receive raw throw reasons.
 
 Existing two-lane value copies, frame spills and catch routing carry these
 reasons. Rejected-await resumption writes both tag and payload for AsyncValue,
@@ -1090,6 +1092,9 @@ value kind is introduced. Maintained IR tests compare native JS/Node-Wasm values
 identity and reaction ticks through catches, rethrows and suspended finally cleanup.
 Visibility and incompatible exception-boundary cases remain verifier errors.
 
-This is guest exception transport, a prerequisite for general Promise-valued
-throws and rejection reasons. Source admission and host Promise-object transport
-remain required work; the source frontend still selects General catch reasons.
+The async source frontend selects AsyncValue catches and finally reasons when
+its module summary finds a possible Promise-valued throw. Other modules retain
+General cells. Catch provenance follows ordinary aliases, captures and private
+forwarding; erased type syntax does not establish a value kind. The host protocol
+transports exposed Promise reasons without adoption. Intrinsic Promise.reject(p)
+and more precise per-handler source-domain inference remain separate work.
