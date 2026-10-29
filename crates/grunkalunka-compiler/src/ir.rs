@@ -795,6 +795,7 @@ struct Verifier<'a> {
     functions: &'a [&'a Function],
     return_type: Type,
     entry_type: Type,
+    rejection_type: Type,
     defined: BTreeSet<ValueId>,
     regions: BTreeSet<RegionId>,
 }
@@ -1355,7 +1356,7 @@ impl Verifier<'_> {
             allow_loop_control,
             settlement: false,
             raw_completion: false,
-            throw_type: Type::General,
+            throw_type: self.rejection_type,
             inline_async: false,
             return_type: self.return_type,
             entered: false,
@@ -1450,7 +1451,7 @@ impl Verifier<'_> {
                     frame.pending = PendingRegion::Settlement;
                     let mut child = frame.child(body, Contract::Function, false, Type::General);
                     child.settlement = true;
-                    child.throw_type = Type::General;
+                    child.throw_type = self.rejection_type;
                     return Ok(RegionCheck::Child(child));
                 }
                 (Op::SettlePromise { result, .. }, PendingRegion::Settlement) => {
@@ -1490,7 +1491,7 @@ impl Verifier<'_> {
                     let mut child = frame.child(body, Contract::Function, false, ty);
                     child.inline_async |= matches!(operation.kind, Op::AwaitCall { .. });
                     if matches!(operation.kind, Op::AwaitCall { .. }) {
-                        child.throw_type = Type::General;
+                        child.throw_type = self.rejection_type;
                     }
                     return Ok(RegionCheck::Child(child));
                 }
@@ -1859,6 +1860,33 @@ pub(crate) fn verify_module_with_entry_type(
     module: &Module,
     entry_type: Type,
 ) -> Result<(), String> {
+    verify_module_profile(
+        module,
+        VerificationProfile {
+            entry_type,
+            rejection_type: Type::General,
+        },
+    )
+}
+
+pub(crate) fn verify_async_module(module: &Module) -> Result<(), String> {
+    verify_module_profile(
+        module,
+        VerificationProfile {
+            entry_type: Type::General,
+            rejection_type: Type::AsyncValue,
+        },
+    )
+}
+
+#[derive(Clone, Copy)]
+struct VerificationProfile {
+    entry_type: Type,
+    rejection_type: Type,
+}
+
+fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Result<(), String> {
+    let entry_type = profile.entry_type;
     if !matches!(entry_type, Type::Number | Type::General) {
         return Err("internal IR: entry profile must return Number or General".into());
     }
@@ -1960,7 +1988,7 @@ pub(crate) fn verify_module_with_entry_type(
             function,
             &functions,
             result,
-            entry_type,
+            profile,
             &module.closure_signatures,
         )?;
     }
@@ -1973,7 +2001,10 @@ fn verify(function: &Function) -> Result<(), String> {
         function,
         &[function],
         Type::Number,
-        Type::Number,
+        VerificationProfile {
+            entry_type: Type::Number,
+            rejection_type: Type::General,
+        },
         &ClosureSignatures::default(),
     )
 }
@@ -1982,7 +2013,7 @@ fn verify_function(
     function: &Function,
     functions: &[&Function],
     return_type: Type,
-    entry_type: Type,
+    profile: VerificationProfile,
     closure_signatures: &ClosureSignatures,
 ) -> Result<(), String> {
     if function.parameter_count > 1000 {
@@ -2036,7 +2067,8 @@ fn verify_function(
         function,
         functions,
         return_type,
-        entry_type,
+        entry_type: profile.entry_type,
+        rejection_type: profile.rejection_type,
         defined: BTreeSet::new(),
         regions: BTreeSet::new(),
     };

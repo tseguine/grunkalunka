@@ -850,5 +850,15 @@ recursion; erased annotations supply no proof. Native JS/Node-Wasm/Wasmtime
 comparisons cover the former exact exclusion, identity, snapshots, captures,
 rejection consumption and adoption ticks. Notification fixtures preserve unused
 argument rejections and skipped startup on argument failure. No IR, runtime ABI,
-dependency or resource limit change. Promise-valued throws/rejection reasons and
-broader object inputs remain open; see [the contract](async-named-helpers.md).
+dependency or resource limit change. Intrinsic Promise.reject(p) and broader
+object inputs remain open; see [the contract](async-named-helpers.md).
+
+## Source Promise-valued throws (2026-10-29)
+
+Represented Promise and Promise/primitive throw operands now preserve identity
+through catches, aliases, rethrows, recursive async calls and suspended finally
+cleanup. Raw root reasons use the existing opt-in host transport; native Node
+Promise branding, nested/self reasons, notifications and reaction ordering are
+compared with compiled source. Primitive-only modules retain General catch cells.
+Intrinsic Promise.reject(p), precise per-handler reason inference and broader
+object/thenable domains remain open; see [the contract](async-promise-objects.md).

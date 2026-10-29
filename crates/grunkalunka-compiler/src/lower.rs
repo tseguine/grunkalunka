@@ -1036,9 +1036,16 @@ impl Lowering<'_, '_> {
                         "statement is outside the numeric experiment",
                     ));
                 }
+                let mode = if self.promise_parameters.identities
+                    && self.has_promise_choice(&statement.argument, 0)
+                {
+                    evaluate::Mode::AsyncValue
+                } else {
+                    evaluate::Mode::General
+                };
                 let value = self
-                    .evaluate(&statement.argument, region, 0, evaluate::Mode::General)?
-                    .expect("General throw reason");
+                    .evaluate(&statement.argument, region, 0, mode)?
+                    .expect("throw reason");
                 region.exit = Exit::Throw(value);
                 Ok(Completion::THROW)
             }

@@ -12,8 +12,9 @@ and earlier optimizations; their former source escape restrictions are supersede
 
 `grunkalunka_compiler::compile_async(source, typescript)` accepts one exported
 `async function run(a,b)` with Number inputs and undefined/null/Boolean/Number
-fulfillment values or rejection reasons, and up to 32 await
-sites across its structured regions. It preserves the original AST, semantic
+fulfillment values and rejection reasons. Represented Promise identities are also
+admitted as raw rejection reasons. The profile permits up to 32 await sites
+across its structured regions. It preserves the original AST, semantic
 binding identities and shared source limits. TypeScript annotations/wrappers do
 not coerce values. Existing numeric, primitive and heap entry points keep their
 contracts and reject async functions.
@@ -783,5 +784,7 @@ See [the shared contract](function-length.md).
 The opt-in queued protocol now transports Promise identities as raw rejection
 reasons. Node keeps stable native Promise objects; Wasmtime provides typed IDs
 and read-only state queries. Reads preserve guest handling and jobs, and normal
-fulfillment still adopts in the guest. Source Promise-valued throws/reject reasons
-remain separate frontend work. See [the transport contract](async-promise-objects.md).
+fulfillment still adopts in the guest. Source `throw` preserves represented Promise
+identities through catches, rethrows, async calls and finally cleanup. Intrinsic
+`Promise.reject(p)` still requires frontend admission. See
+[the transport and source contract](async-promise-objects.md).

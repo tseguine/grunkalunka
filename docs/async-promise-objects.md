@@ -41,7 +41,21 @@ reaction order and unhandled/handled checkpoints. Wasmtime tests check typed
 queries, terminal failure and actual emitted record validation. Small protocol
 peers isolate malformed roots, snapshots and events from source lowering.
 
-This transport and the typed raw guest catches are prerequisites for general
-Promise-valued source throws and `Promise.reject(p)` reasons. Frontend admission
-of those programs remains required work. General thenables, String/heap values
-and general Promise construction are also separate gaps.
+The async source profile now admits `throw` of represented Promise identities
+and Promise/primitive selections, including named and local async bodies. Throw
+never adopts or handles the reason. Catch bindings and pending finally reasons
+use the existing AsyncValue carrier when a module may throw a Promise; modules
+without such a producer retain General catches. This conservative module summary
+can still reject arithmetic on an unrelated catch binding in the same module.
+Precise per-handler reason analysis remains follow-up work.
+
+Native JS, Node-Wasm and Wasmtime tests cover exact former local/named throw
+exclusions, caught identity, aliases, captures, recursive forwarding, mutable
+reason snapshots, rethrows, suspended cleanup and abrupt cleanup precedence.
+Compiled-source host tests also cover pending, nested and self-rejecting reasons,
+shared notification identities, external handling and reaction order. A separate
+internal continuation-payload check permits caught raw values on a normal routing
+edge; Promise fulfillment validation still forbids raw Promise payloads.
+
+Intrinsic `Promise.reject(p)` admission, general synchronous throw, thenables,
+String/heap values and general Promise construction remain separate gaps.

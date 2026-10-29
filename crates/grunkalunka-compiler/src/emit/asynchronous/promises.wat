@@ -89,6 +89,14 @@
     if unreachable end
   end)
 
+;; A continuation may carry an already-caught raw reason with a normal routing
+;; flag. That is not a Promise fulfillment and must not adopt its reference.
+(func $reaction_payload (param $rejected i32) (param $tag i32) (param $payload f64)
+  local.get $rejected i32.const 1 i32.gt_u if unreachable end
+  local.get $tag i32.const 5 i32.eq
+  if local.get $payload call $promise_reference drop
+  else local.get $rejected local.get $tag local.get $payload call $promise_payload end)
+
 (global $reaction_head (mut i32) (i32.const 0))
 (global $reaction_tail (mut i32) (i32.const 0))
 (global $reaction_count (mut i32) (i32.const 0))
@@ -227,7 +235,7 @@
 ;; Direct primitive awaits use the same queue as Promise reactions.
 (func $reaction_schedule (param $frame i32) (param $continuation i32)
   (param $rejected i32) (param $tag i32) (param $payload f64) (local $p i32)
-  local.get $rejected local.get $tag local.get $payload call $promise_payload
+  local.get $rejected local.get $tag local.get $payload call $reaction_payload
   local.get $frame local.get $continuation call $reaction_new local.set $p
   local.get $p local.get $tag i32.store offset=16
   local.get $p local.get $rejected i32.store offset=20
@@ -260,7 +268,7 @@
   local.get $p i32.load i32.const 0x4a4f4244 i32.ne if unreachable end
   local.get $p i32.load offset=20
   local.get $p i32.load offset=16
-  local.get $p f64.load offset=24 call $promise_payload
+  local.get $p f64.load offset=24 call $reaction_payload
   local.get $p i32.load offset=8
   local.get $p i32.load offset=12
   local.get $p i32.load offset=20

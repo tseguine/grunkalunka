@@ -1,5 +1,36 @@
 use super::*;
 
+#[test]
+fn raw_rejections_require_the_async_profile_and_compatible_lexical_catches() {
+    for source in [
+        "export async function run(a,b){throw Promise.resolve(a);}",
+        "export async function run(a,b){const f=async()=>{throw Promise.resolve(a);};return await f();}",
+        "async function f(p){throw p;}export async function run(a,b){return await f(Promise.resolve(a));}",
+    ] {
+        let module = crate::lower_source_profile(source, false, Type::General, true).unwrap();
+        verify_async_module(&module).unwrap();
+        assert!(
+            verify_module_with_entry_type(&module, Type::General)
+                .unwrap_err()
+                .contains("raw throw requires a raw lexical handler"),
+            "{source}"
+        );
+    }
+    let source =
+        "export async function run(a,b){try{throw Promise.resolve(a);}catch(e){return e===e;}}";
+    let mut module = crate::lower_source_profile(source, false, Type::General, true).unwrap();
+    verify_async_module(&module).unwrap();
+    let (_, reason, _) = catch_regions(&mut module.functions[0].body.operations);
+    let reason = *reason;
+    module.functions[0].values[reason.0] = Type::General;
+    assert!(
+        verify_async_module(&module)
+            .unwrap_err()
+            .contains("raw throw requires a raw lexical handler"),
+        "a primitive handler cannot receive a raw reason"
+    );
+}
+
 fn value(f: &mut Function, ty: Type) -> ValueId {
     let id = ValueId(f.values.len());
     f.values.push(ty);

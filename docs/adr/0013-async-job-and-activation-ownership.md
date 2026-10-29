@@ -325,7 +325,8 @@ This reuses private closure input packing and captured cells; Number-only
 proofs/signatures stay intact. Function, Error and heap input domains remain
 separate. Erased types do not choose kinds. Passing a Promise argument alone
 does not handle or adopt it: body await and return retain their existing ownership.
-Promise-valued throws/rejection reasons remain outside this source profile.
+Promise-valued throws now use the raw rejection path described below; intrinsic
+Promise.reject(p) remains outside the source profile.
 Maintained native/Node-Wasm/Wasmtime and rejection-checkpoint tests exercise this
 bounded extension; see [the contract and limits](../async-named-helpers.md).
 
@@ -339,5 +340,24 @@ and explicit read-only queries. Snapshot reads do not mutate guest handling or
 schedule work. Settled values and notification history remain checked, and host
 protocol failures remain terminal. Primitive-only protocols stay closed. This
 avoids a plain-object stand-in with different Promise behavior or duplicate host
-rejection proxies. Source admission and broader thenable/object domains remain
-required follow-ups; see [the protocol](../async-promise-objects.md).
+rejection proxies. Intrinsic Promise.reject(p) admission and broader thenable/object
+domains remain required follow-ups; see [the protocol](../async-promise-objects.md).
+
+## Source Promise-valued throw (2026-10-29)
+
+Async throw selects the existing AsyncValue carrier for represented Promise or
+Promise/primitive operands. The source provenance fixed point marks catch cells
+conservatively at module scope when such a producer exists. This reuses existing
+alias/capture/private-call inference and preserves primitive-only modules, at the
+cost of rejecting some arithmetic in unrelated catches of newly admitted mixed
+modules. More precise exception-effect inference is deferred until a concrete
+case warrants it. Type annotations do not choose the domain.
+
+Async verification admits raw root and child rejection while lexical primitive
+handlers and ordinary verifiers retain their closed domains. Completion emission
+copies both lanes. Internal reaction data has a separate validator because an
+already-caught reason travels on a normal continuation edge; Promise settlement
+continues to reject raw fulfillment payloads. This avoids a new completion opcode
+or host ABI while preserving rejection identity, cleanup precedence and job order.
+Maintained native/Node-Wasm/Wasmtime tests cover source catches and root objects.
+Intrinsic Promise.reject(p) is deliberately the next independent source producer.

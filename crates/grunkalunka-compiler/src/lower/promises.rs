@@ -8,6 +8,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Default)]
 pub(crate) struct Inputs {
     pub(super) identities: bool,
+    // Conservative module exception domain; primitive-only programs stay General.
+    pub(super) raw_throws: bool,
     named_async: BTreeSet<SymbolId>,
     fulfilled: BTreeSet<SymbolId>,
     pending: BTreeSet<SymbolId>,
@@ -627,7 +629,25 @@ pub(crate) fn parameters(
                         inputs.choices.len(),
                         inputs.mixed_results.len(),
                         inputs.asynchronous.len(),
+                        inputs.raw_throws,
                     );
+                    inputs.raw_throws |= semantic.nodes().iter().any(|node| {
+                        matches!(node.kind(), AstKind::ThrowStatement(statement)
+                            if return_adopts(&statement.argument, semantic, &returns, &inputs))
+                    });
+                    if inputs.raw_throws {
+                        for node in semantic.nodes().iter() {
+                            if let AstKind::CatchClause(handler) = node.kind()
+                                && let Some(parameter) = &handler.param
+                                && let BindingPattern::BindingIdentifier(identifier) =
+                                    &parameter.pattern
+                                && let Some(symbol) = identifier.symbol_id.get()
+                            {
+                                inputs.choices.insert(symbol);
+                                inputs.mixed.insert(symbol);
+                            }
+                        }
+                    }
                     for (symbol, expression) in &definitions {
                         if return_adopts(expression, semantic, &returns, &inputs) {
                             inputs.choices.insert(*symbol);
@@ -696,6 +716,7 @@ pub(crate) fn parameters(
                             inputs.choices.len(),
                             inputs.mixed_results.len(),
                             inputs.asynchronous.len(),
+                            inputs.raw_throws,
                         )
                     {
                         break;
