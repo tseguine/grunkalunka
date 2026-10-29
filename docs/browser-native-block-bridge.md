@@ -293,3 +293,15 @@ its inherited child without altering any rectangles. Independent Rust
 `Frame::pointer_events` and DOM `elementFromPoint` receipts are
 compared exactly. See the
 [pointer-events evidence guide](browser-native-pointer-events-bridge.md).
+
+## Source-checked horizontal auto-margin geometry and input
+
+An independent three-phase `autoMarginStates` channel checks real CSS
+centering and one-sided horizontal auto margins, a max-constrained auto
+width, used margin values, and eight hit targets before, during and
+after changing a real inline margin declaration. The Rust layout example
+independently asserts integer-pixel rectangles and used margins;
+`browser-native-bridge.yml` compares these with source-checked Chromium,
+Firefox and WebKit receipts. See the
+[auto-margin witness guide](browser-native-auto-margin-bridge.md)
+for fixed coordinates, fail-closed schema and scope limits.
