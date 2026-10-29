@@ -5,7 +5,10 @@ observe current and process-lifetime peak working-set sizes through
 Microsoft's documented
 [GetProcessMemoryInfo/K32GetProcessMemoryInfo API](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-getprocessmemoryinfo)
 and [PROCESS_MEMORY_COUNTERS layout](https://learn.microsoft.com/en-us/windows/win32/api/psapi/ns-psapi-process_memory_counters).
-It does **not** replace the existing Linux-only Rust/Wasmtime RSS collector.
+It first established a native Windows ABI control independently of the
+shared Rust/Wasmtime process-memory collector. The sampler now uses the
+same system API in the P1 core-Wasm, compiler and Markdown/WIT cost probes;
+the original standalone control remains an independently executable test.
 
 The checked-in [Rust witness](../tools/bench/tests/fixtures/windows-working-set.rs)
 is compiled directly with the canonical host's `rustc` (Edition 2024, no
@@ -39,6 +42,9 @@ process working-set observation on **that tested Windows x64 runner**,
 not the correctness of the Grunkalunka compiler, guest-attributed
 memory, a general Windows/macOS memory API, or cross-platform
 cost equivalence. Linux/macOS test skips do not establish Windows
-execution. Integrating the API into the shared P1 sampler is a
-separate code-bearing step requiring explicit tests and adaptation
-of saved receipts.
+execution. The integrated P1 sampler separately labels Windows working
+set as `windows-psapi-working-set` and Linux RSS as `linux-proc-status`,
+retaining the original JSON keys `rssBytes`/`peakRssBytes` without
+claiming semantic equivalence. Historical Windows captures with explicit
+unsupported/null values remain valid saved evidence rather than being
+retroactively filled with measurements.

@@ -1,5 +1,6 @@
-//! Observational process memory for the bounded core-Wasm cost replay.
-//! Linux reports whole-Rust-process values. Other hosts report unavailable.
+//! Observational whole-process memory for P1 cost probes.
+//! Linux VmRSS/VmHWM and Windows PSAPI working set use distinct accounting.
+//! macOS remains explicitly unavailable instead of inventing zero memory.
 pub const PHASES: [&str; 5] = [
     "beforeModule",
     "afterModule",
@@ -53,9 +54,100 @@ pub fn observe() -> Result<Option<Snapshot>, String> {
     parse_linux_status(&status).map(Some)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
+mod windows {
+    use super::Snapshot;
+    use std::ffi::c_void;
+    use std::mem::size_of;
+
+    // PROCESS_MEMORY_COUNTERS: two DWORDs followed by eight native SIZE_Ts.
+    #[repr(C)]
+    #[derive(Default)]
+    #[allow(dead_code)]
+    struct ProcessMemoryCounters {
+        cb: u32,
+        page_fault_count: u32,
+        peak_working_set_size: usize,
+        working_set_size: usize,
+        quota_peak_paged_pool_usage: usize,
+        quota_paged_pool_usage: usize,
+        quota_peak_non_paged_pool_usage: usize,
+        quota_non_paged_pool_usage: usize,
+        pagefile_usage: usize,
+        peak_pagefile_usage: usize,
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetCurrentProcess() -> *mut c_void;
+        fn K32GetProcessMemoryInfo(
+            process: *mut c_void,
+            counters: *mut ProcessMemoryCounters,
+            size: u32,
+        ) -> i32;
+    }
+
+    pub fn observe() -> Result<Snapshot, String> {
+        let expected_size = if cfg!(target_pointer_width = "64") {
+            72
+        } else {
+            40
+        };
+        let size = size_of::<ProcessMemoryCounters>();
+        if size != expected_size {
+            return Err("unexpected PROCESS_MEMORY_COUNTERS layout".into());
+        }
+        let cb = u32::try_from(size).map_err(|_| "Windows counter size overflow")?;
+        let mut counters = ProcessMemoryCounters {
+            cb,
+            ..Default::default()
+        };
+        // SAFETY: the pseudo-handle is this process; counters is an initialized
+        // writable #[repr(C)] structure with the exact API size.
+        let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, cb) };
+        if ok == 0 {
+            return Err(format!(
+                "K32GetProcessMemoryInfo: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let rss_bytes = u64::try_from(counters.working_set_size)
+            .map_err(|_| "Windows working set exceeds u64")?;
+        let peak_rss_bytes = u64::try_from(counters.peak_working_set_size)
+            .map_err(|_| "Windows peak working set exceeds u64")?;
+        if peak_rss_bytes < rss_bytes {
+            return Err("Windows peak working set below current working set".into());
+        }
+        Ok(Snapshot {
+            rss_bytes,
+            peak_rss_bytes,
+        })
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub fn observe() -> Result<Option<Snapshot>, String> {
+    windows::observe().map(Some)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 pub fn observe() -> Result<Option<Snapshot>, String> {
     Ok(None)
+}
+
+pub fn source_name() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        "linux-proc-status"
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "windows-psapi-working-set"
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    {
+        "unsupported-on-this-host"
+    }
 }
 
 #[derive(Debug)]
@@ -113,7 +205,8 @@ impl ProcessMemory {
             .collect::<Vec<_>>()
             .join(",");
         format!(
-            r#"{{"scope":"entire-rust-process","unit":"bytes","source":"linux-proc-status","snapshots":{{{phases}}}}}"#
+            r#"{{"scope":"entire-rust-process","unit":"bytes","source":"{}","snapshots":{{{phases}}}}}"#,
+            source_name()
         )
     }
 }

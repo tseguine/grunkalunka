@@ -83,3 +83,19 @@ instead of being silently treated as a newer compatible receipt.
 Same-process pairs may use either complete generation but cannot mix them.
 Neither generation proves a signed compiler invocation or actual hardware
 memory attribution.
+
+## Native Windows working-set provenance
+
+Current Windows Markdown/WIT captures now contain real five-phase
+`processMemory` readings with `source: "windows-psapi-working-set"`.
+The original `rssBytes` and `peakRssBytes` keys represent current and
+process-peak Windows working-set bytes, **not** Linux `VmRSS` and
+`VmHWM`. Validation accepts this source only for saved Windows hosts,
+checks coherent integral phase values and monotonic peak, and does not
+interpret absolute byte counts as a host-comparable performance score.
+
+Archived Windows v1/v2 receipts that explicitly recorded
+`unsupported-on-this-host` with `snapshots: null` remain readable and are
+never backfilled with fictional measurements. On macOS, observations remain
+unavailable. The versioned harness hashes include the real native sampler
+source, so captures from changed implementations remain distinguishable.

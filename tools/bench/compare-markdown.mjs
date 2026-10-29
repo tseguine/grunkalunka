@@ -179,10 +179,11 @@ function compareProcessMemory(baseline, candidate) {
       interpretation: 'one or both receipts lack process memory evidence',
     };
   }
+  requireValid(left.source === right.source, 'paired process memory source');
   if (left.source === 'unsupported-on-this-host') {
     return {
       availability: 'unsupported-on-this-host',
-      scope: left.scope, unit: left.unit,
+      scope: left.scope, unit: left.unit, source: left.source,
       interpretation: 'native Rust process memory was unavailable on this host',
     };
   }
@@ -196,7 +197,7 @@ function compareProcessMemory(baseline, candidate) {
   ]));
   return {
     availability: 'paired-process-observations',
-    scope: left.scope, unit: left.unit, phases,
+    scope: left.scope, unit: left.unit, source: left.source, phases,
     interpretation: 'candidate minus baseline bytes from separate native processes; not guest-attributed memory or a comparable performance ranking',
   };
 }

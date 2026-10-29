@@ -75,20 +75,26 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
             .chain(report.store_creation_ms.iter())
             .all(|duration| duration.is_finite() && *duration >= 0.0)
     );
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
         let memory = report
             .rust_process_memory
             .snapshots
-            .expect("Linux CI must expose whole-process RSS and peak RSS");
+            .expect("Linux/Windows CI must expose real process memory");
         assert!(
             memory
                 .iter()
                 .all(|snapshot| snapshot.peak_rss_bytes >= snapshot.rss_bytes)
         );
         assert!(memory[4].peak_rss_bytes >= memory[0].peak_rss_bytes);
+        let label = if cfg!(target_os = "linux") {
+            "linux-proc-status"
+        } else {
+            "windows-psapi-working-set"
+        };
+        assert!(report.json().contains(&format!("\"source\":\"{label}\"")));
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     assert!(report.rust_process_memory.snapshots.is_none());
     assert!(
         report

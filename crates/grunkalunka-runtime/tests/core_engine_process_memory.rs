@@ -1,4 +1,4 @@
-//! Validate Linux /proc observations without pretending other OSes supply RSS.
+//! Validate native process-memory observations with platform-specific labels.
 #[path = "../examples/core_engine_cost/process_memory.rs"]
 mod process_memory;
 
@@ -61,9 +61,10 @@ fn coherent_sample_sets_preserve_phases_and_reject_partial_or_decreasing_peak() 
     assert!(memory.snapshots.is_some());
     assert_eq!(memory.snapshots.unwrap()[4], second);
     let json = memory.json();
+    let labeled_source = format!("\"source\":\"{}\"", process_memory::source_name());
     for expected in [
         "\"scope\":\"entire-rust-process\"",
-        "\"source\":\"linux-proc-status\"",
+        labeled_source.as_str(),
         "\"unit\":\"bytes\"",
         "\"beforeModule\":{\"rssBytes\":4096,\"peakRssBytes\":8192}",
         "\"afterBatches\":{\"rssBytes\":2048,\"peakRssBytes\":12288}",
@@ -110,12 +111,31 @@ fn absent_host_support_is_explicit_null_not_fabricated_zero() {
 #[test]
 fn observable_host_support_matches_the_actual_platform() {
     let snapshot = process_memory::observe().unwrap();
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
-        let snapshot = snapshot.expect("Linux CI must supply /proc/self/status");
+        let snapshot = snapshot.expect("native Linux/Windows process memory is required");
         assert!(snapshot.peak_rss_bytes >= snapshot.rss_bytes);
+        assert!(snapshot.rss_bytes > 0);
         assert!(snapshot.peak_rss_bytes > 0);
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     assert_eq!(snapshot, None);
+}
+
+#[test]
+fn synthetic_sample_records_actual_platform_source_label() {
+    let memory = ProcessMemory::assemble(
+        [Some(Snapshot {
+            rss_bytes: 4096,
+            peak_rss_bytes: 8192,
+        }); 5],
+    )
+    .unwrap();
+    let source = process_memory::source_name();
+    assert!(memory.json().contains(&format!("\"source\":\"{source}\"")));
+    #[cfg(target_os = "windows")]
+    {
+        assert_eq!(source, "windows-psapi-working-set");
+        assert!(!memory.json().contains("linux-proc-status"));
+    }
 }

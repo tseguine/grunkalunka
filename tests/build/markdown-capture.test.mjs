@@ -133,7 +133,7 @@ test('invalid, missing or fabricated timing series and fixture bytes are rejecte
 });
 
 function memoryEnvelope(os) {
-  if (os !== 'linux') {
+  if (os === 'macos') {
     return {
       scope: 'entire-rust-process', unit: 'bytes',
       source: 'unsupported-on-this-host', snapshots: null,
@@ -144,7 +144,8 @@ function memoryEnvelope(os) {
     'afterWarmup', 'afterBatches',
   ];
   return {
-    scope: 'entire-rust-process', unit: 'bytes', source: 'linux-proc-status',
+    scope: 'entire-rust-process', unit: 'bytes',
+    source: os === 'linux' ? 'linux-proc-status' : 'windows-psapi-working-set',
     snapshots: Object.fromEntries(names.map((name, index) => [
       name, { rssBytes: 1024 + index * 256, peakRssBytes: 2048 + index * 256 },
     ])),
@@ -170,7 +171,7 @@ test('claimed Markdown memory must be complete and platform-specific', () => {
     { ...memoryEnvelope(os), source: 'invented' },
     { ...memoryEnvelope(os), snapshots: {} },
   ];
-  if (os === 'linux') {
+  if (os !== 'macos') {
     for (const mutate of [
       x => { delete x.snapshots.beforeEmbed; },
       x => { x.snapshots.afterCompile.rssBytes = -1; },
@@ -193,4 +194,23 @@ test('claimed Markdown memory must be complete and platform-specific', () => {
     assert.throws(() => validateNativeReport(candidate, config, 100),
       /Invalid/, 'forged or incomplete process memory must fail');
   }
+});
+
+test('historical Windows unsupported data and new measured Windows data both validate', () => {
+  const old = report();
+  old.environment.os = 'windows';
+  old.processMemory = {
+    scope: 'entire-rust-process', unit: 'bytes',
+    source: 'unsupported-on-this-host', snapshots: null,
+  };
+  assert.doesNotThrow(() => validateOptionalProcessMemory(old, 'windows'));
+  const measured = report();
+  measured.environment.os = 'windows';
+  measured.processMemory = memoryEnvelope('windows');
+  assert.doesNotThrow(() => validateOptionalProcessMemory(measured, 'windows'));
+  measured.processMemory.source = 'linux-proc-status';
+  assert.throws(() => validateOptionalProcessMemory(measured, 'windows'), /Invalid/);
+  const fakeMac = report();
+  fakeMac.processMemory = memoryEnvelope('windows');
+  assert.throws(() => validateOptionalProcessMemory(fakeMac, 'macos'), /Invalid/);
 });

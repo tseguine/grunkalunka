@@ -101,15 +101,19 @@ export function validateOptionalProcessMemory(report, nativeOs) {
   'processMemory envelope');
   requireValue(memory.scope === 'entire-rust-process' && memory.unit === 'bytes',
     'processMemory scope/units');
-  if (nativeOs !== 'linux') {
-    requireValue(['macos', 'windows'].includes(nativeOs) &&
-      memory.source === 'unsupported-on-this-host' && memory.snapshots === null,
-    'unsupported native process memory');
+  // Archived Windows captures genuinely reported unavailable; retain their
+  // original evidence rather than inventing readings for those old reports.
+  if (nativeOs === 'macos' ||
+      (nativeOs === 'windows' && memory.source === 'unsupported-on-this-host')) {
+    requireValue(memory.source === 'unsupported-on-this-host' &&
+      memory.snapshots === null, 'unsupported native process memory');
     return;
   }
-  requireValue(memory.source === 'linux-proc-status' &&
+  const expectedSource = nativeOs === 'linux' ? 'linux-proc-status' :
+    nativeOs === 'windows' ? 'windows-psapi-working-set' : null;
+  requireValue(expectedSource !== null && memory.source === expectedSource &&
     memory.snapshots && typeof memory.snapshots === 'object' &&
-    !Array.isArray(memory.snapshots), 'Linux native process memory');
+    !Array.isArray(memory.snapshots), 'native process memory source');
   const phases = [
     'beforeEmbed', 'afterCompile', 'afterInstantiation', 'afterWarmup', 'afterBatches',
   ];
