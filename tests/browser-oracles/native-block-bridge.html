@@ -59,7 +59,7 @@
   #relative-sibling { width: 24px; height: 6px; margin-left: 350px; }
   /* All four percent margins use the 200px containing content WIDTH. */
   #percent-host { width: 200px; height: 90px; border: 2px solid black; padding: 4px; box-sizing: content-box; }
-  #percent-first { width: 40px; height: 8px; margin: 10% 5% 15% 20%; }
+  #percent-first { width: 150px; height: 8px; margin: 10% 5% 15% 20%; }
   #percent-next { width: 24px; height: 6px; }
   #percent-after { width: 20px; height: 5px; margin-left: 250px; }
   #scroll-target { width: 80px; height: 30px; }
@@ -375,11 +375,11 @@
   const percentIds = ["percent-host", "percent-first", "percent-next", "percent-after"];
   const percentSides = ["top", "right", "bottom", "left"];
   const percentProbes = [
-    ["baseline-only", 75, 401],
-    ["shifted-only", 27, 401],
-    ["first-center", 50, 402],
-    ["top-margin", 47, 390],
-    ["next-in-flow", 7, 440],
+    ["baseline-first", 75, 401],
+    ["shifted-first", 75, 392],
+    ["top-margin", 75, 385],
+    ["baseline-next", 7, 440],
+    ["shifted-next", 7, 430],
     ["host-bottom", 180, 450],
     ["following-sibling", 251, 478],
     ["outside", 350, 450]
@@ -404,9 +404,9 @@
   }
   const percentFirst = document.getElementById("percent-first");
   const percentOriginal = percentSample();
-  percentFirst.style.marginLeft = "10%";
+  percentFirst.style.marginTop = "5%";
   const percentChanged = percentSample();
-  percentFirst.style.removeProperty("margin-left");
+  percentFirst.style.removeProperty("margin-top");
   const percentRestored = percentSample();
   const percentStates = {
     original: percentOriginal, changed: percentChanged, restored: percentRestored
