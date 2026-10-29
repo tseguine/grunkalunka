@@ -123,6 +123,23 @@ fn process_memory_rejects_incomplete_and_decreasing_peak_series() {
 }
 
 #[test]
+fn native_control_retains_all_source_spans_and_repeated_output() {
+    for workload in [Workload::Empty, Workload::Unicode, Workload::Dense, Workload::Wide] {
+        let source = workload.source();
+        let entries = grunkalunka_markdown::outline(&source);
+        let raw = markdown_cost::native_rows(&entries);
+        let last = markdown_cost::native_outline_batch(&source, 2);
+        assert_eq!(raw, markdown_cost::native_rows(&last));
+        assert!(entries.iter().all(|entry| {
+            entry.heading.span.start <= entry.heading.span.end
+                && entry.heading.span.end <= source.len()
+                && entry.section_span.end <= source.len()
+        }));
+        assert!(entries.len() <= 64);
+    }
+}
+
+#[test]
 fn sha256_identifies_exact_binary_bytes_not_only_artifact_length() {
     assert_eq!(
         markdown_cost::sha256_hex(b"abc"),

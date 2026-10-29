@@ -4,6 +4,7 @@ mod embedding;
 #[path = "core_engine_cost/process_memory.rs"]
 pub mod process_memory;
 
+use grunkalunka_markdown::{OutlineEntry, outline};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -219,6 +220,40 @@ fn rows(headings: &[Heading]) -> String {
     output
 }
 
+// Independent native library control, with exactly the same source/parser
+// as the embedded guest and no WIT lifting or capability mediation.
+pub fn native_rows(entries: &[OutlineEntry]) -> String {
+    let mut output = String::new();
+    for entry in entries {
+        write!(
+            output,
+            "{} {} {} {} {} {} ",
+            entry.heading.level,
+            entry.heading.span.start,
+            entry.heading.span.end,
+            entry.section_span.end,
+            entry.parent.map_or(-1, |index| index as i64),
+            entry.heading.text.len()
+        )
+        .unwrap();
+        for byte in entry.heading.text.bytes() {
+            write!(output, "{byte:02x}").unwrap();
+        }
+        output.push('\n');
+    }
+    output
+}
+
+// The native parser allocates and drops its result for each iteration.
+// Returning the final result allows correctness validation outside the timer.
+pub fn native_outline_batch(source: &str, iterations: usize) -> Vec<OutlineEntry> {
+    let mut last = Vec::new();
+    for _ in 0..iterations {
+        last = black_box(outline(black_box(source)));
+    }
+    last
+}
+
 fn hex(bytes: &[u8]) -> String {
     let mut output = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -425,6 +460,7 @@ pub struct Report {
     pub denied: Series,
     pub fresh_granted: Series,
     pub fresh_denied: Series,
+    pub native_outline: Series,
     pub granted_reads: usize,
     pub denied_reads: usize,
     pub granted_cleanups: usize,
@@ -465,12 +501,13 @@ impl Report {
         out.push_str("\"timings\":{\"unit\":\"milliseconds\",\"order\":\"alternating\",");
         write!(
             out,
-            "\"embedMs\":{:.9},\"componentCompileMs\":{:.9},\"instantiation\":{},\"granted\":{},\"denied\":{}",
+            "\"embedMs\":{:.9},\"componentCompileMs\":{:.9},\"instantiation\":{},\"granted\":{},\"denied\":{},\"nativeOutline\":{}",
             self.embed_ms,
             self.compile_ms,
             self.instantiation.json(),
             self.granted.json(),
-            self.denied.json()
+            self.denied.json(),
+            self.native_outline.json()
         )
         .unwrap();
         out.push_str("},\"freshLifecycles\":{");
@@ -634,8 +671,30 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         &projection,
     )?;
 
-    // Hashing follows the whole original cost and process-memory series,
-    // and the additional fresh instance lifecycles: never contaminate timers.
+    // Run the native library after all prior WIT timing, process-memory and
+    // fresh lifecycle observations, without perturbing their boundaries.
+    // Check the identical source projection outside timed parse loops.
+    if native_rows(&outline(&source)) != projection {
+        wasmtime::bail!("native Markdown outline differs from WIT projection");
+    }
+    if options.warmup > 0
+        && native_rows(&native_outline_batch(&source, options.warmup)) != projection
+    {
+        wasmtime::bail!("native Markdown warmup projection differs");
+    }
+    let mut native_samples = Vec::with_capacity(options.samples);
+    for _ in 0..options.samples {
+        let started = Instant::now();
+        let last = native_outline_batch(&source, options.iterations);
+        native_samples.push(milliseconds(started));
+        if native_rows(&last) != projection {
+            wasmtime::bail!("native Markdown measured projection differs");
+        }
+    }
+    let native_outline = Series::new(native_samples);
+
+    // Hashing follows original cost, memory and lifecycle observations and
+    // the native control, rather than contaminating any timed interval.
     let guest_sha256 = sha256_hex(&guest);
     let component_sha256 = sha256_hex(&component_bytes);
 
@@ -653,6 +712,7 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         denied: Series::new(denied_samples),
         fresh_granted,
         fresh_denied,
+        native_outline,
         granted_reads: repeated + 1,
         denied_reads: 0,
         granted_cleanups,

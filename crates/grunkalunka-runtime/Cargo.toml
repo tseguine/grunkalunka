@@ -11,6 +11,7 @@ wasmtime.workspace = true
 
 [dev-dependencies]
 grunkalunka-compiler = { path = "../grunkalunka-compiler" }
+grunkalunka-markdown = { path = "../grunkalunka-markdown" }
 grunkalunka-wasm-link = { path = "../grunkalunka-wasm-link" }
 sha2 = "=0.10.9"
 wat.workspace = true
