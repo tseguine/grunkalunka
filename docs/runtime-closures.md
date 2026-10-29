@@ -160,7 +160,7 @@ with finite scalar-result signatures, including captured callback cells after cr
 Concise and complete block runtime factories can return further factories through
 acyclic result signatures with Number, General or finite scalar-result callback parameters.
 Cyclic callback types, unrepresented leaf
-return kinds, function coercions, identity and properties, recursive initialization
+return kinds, function coercions, identity and other properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.
 
@@ -170,7 +170,9 @@ constructors, assignments, known returned values and admitted higher-order pairs
 the existing predicate path. This adds neither numeric coercion nor function transport.
 
 General IR parameters are restricted to this private closure entry protocol;
-ordinary helpers and exported entries retain their Number parameter contracts.
+synchronous helpers and exported entries retain their Number parameter contracts.
+Named async helpers use this same private protocol for inferred primitive inputs;
+see [their contract](async-named-helpers.md).
 Executable IR tests exercise mixed scalar/function/General frames, primitive and
 Number returns, a captured General parameter, and the unchanged 1,000 parameter
 limit. Known scalar-result local source calls such as `(x=>+x)(null)` now specialize
@@ -606,3 +608,11 @@ and native JS, Node-Wasm and Wasmtime behavior. Existing factory cell/snapshot a
 signature checks also pass. Restoring the obsolete type-argument guard is caught
 by the selected-factory witness. No IR, frame layout, ABI, dependency or limit
 change is introduced.
+
+## Function length reads
+
+Represented closures, aliases, selected values, returned factories and named
+module declarations now support static `.length`. The Number result counts
+ordinary parameters while retaining receiver effects and leaving bodies dormant.
+Capture cells and hidden ABI inputs do not count. Other function-object/property
+domains remain separate gaps; see [the contract](function-length.md).

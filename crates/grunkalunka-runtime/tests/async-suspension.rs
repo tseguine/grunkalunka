@@ -76,6 +76,9 @@ mod promise_type_arguments;
 #[path = "async-suspension/math_type_arguments.rs"]
 mod math_type_arguments;
 
+#[path = "async-suspension/function_length.rs"]
+mod function_length;
+
 #[path = "async-suspension/runtime_call_type_arguments.rs"]
 mod runtime_call_type_arguments;
 

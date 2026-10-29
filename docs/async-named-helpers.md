@@ -32,7 +32,12 @@ coerce arguments. Existing callable aliases, same-signature selections and callb
 forwarding can carry these named callables. This does not add general observable
 function identity or properties.
 
-Helper inputs retain the existing module-helper Number contract. Primitive and
+Named async helper inputs now admit represented Undefined, Null, Boolean and
+Number values. Actual calls, aliases and known forwarding choose Number or
+General private parameters; type annotations supply no kind proof. Number-only
+inputs keep their existing signatures, including forwarding to synchronous
+Number helpers. Mixed inputs use the existing private argument layout and retain
+primitive bits, mutable cells and captures across suspension. Primitive and
 intrinsic TypeError results, bare return/fallthrough, rejection, lexical catch,
 finally and represented Promise return adoption use the existing async profile.
 Synchronous Number helpers remain synchronous and can start/discard an async
@@ -49,8 +54,18 @@ witness exhausts the default Wasmtime boundary fuel; it executes under an explic
 limits are unchanged.
 
 Defaults, rest/destructured parameters, generators, `this`, `arguments`, binding
-rebinding, optional calls, module globals and broader helper input domains remain
-outside this unit. Native JS, Node-Wasm and Wasmtime tests cover declaration order,
+rebinding, optional calls, module globals and Promise/Error/function/String/heap
+input domains remain outside this unit. Native JS, Node-Wasm and Wasmtime tests
+cover declaration order,
 values and reactions, forwarding, recursion, concurrent cells, evaluation order,
 erased types and source/resource boundaries. Notification fixtures also compare
 native rejection checkpoints and exact guest job counts.
+
+Actual primitive arguments propagate through named helper recursion and local
+callable forwarding before signatures settle. A widened input does not convert
+its value, change body/caller reaction boundaries or widen synchronous helper
+inputs. Maintained native JS, Node-Wasm and Wasmtime comparisons include the
+exact former null/false exclusions, mixed Number/General frames, concurrent
+cells, alias/conditional selection, callback/factory forwarding, recursive
+activations, argument failures and erased TypeScript. No IR, runtime/frame ABI,
+dependency or resource limit changes are needed.

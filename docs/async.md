@@ -28,10 +28,10 @@ async completion rules; see [their contract](async-named-helpers.md).
 
 Plain module-level synchronous Number helpers can be called before or after
 suspension, inside local closures and from known async bodies. They retain their
-existing exact arity (up to 1,000 parameters), Number results and ordinary local
+existing declared inputs (up to 1,000 parameters), surplus effects, Number results and ordinary local
 activations; calling a helper adds no reaction job. Helpers still require explicit
 Number completion and cannot suspend or throw. Plain named async helpers are
-also admitted with Number inputs and private async activations as described in
+also admitted with represented primitive inputs and private async activations; see
 [the named-helper contract](async-named-helpers.md). The async `run` entry cannot be
 called as an ordinary source helper, including from another helper or closure.
 
@@ -769,3 +769,10 @@ Node-Wasm and Wasmtime outcomes. A synchronous numeric/primitive group checks th
 same shared admission rules. The exact older `f<never>(a)` Promise and Math guards
 now have positive byte-identity and execution tests. No IR, runtime ABI, frame layout,
 dependency, type checker or resource-limit change is introduced.
+
+## Function length reads
+
+Admitted async functions expose their ordinary parameter count through static
+`.length`, without starting their bodies or creating child Promises/reactions.
+Receivers that evaluate factories or await retain those effects and failure.
+See [the shared contract](function-length.md).

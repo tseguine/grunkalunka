@@ -820,3 +820,23 @@ the existing termination-only checks. Its fuel/stack exhaustion is resource
 evidence, not a JS numeric-result comparison. The previous recursive arithmetic
 case retains its fuel-only expectation. The inventory has 841 records; no IR,
 ABI, dependency or limit change. See [the contract](compiler.md#direct-module-call-type-arguments).
+
+## Named async primitive inputs (2026-10-29)
+
+Named async module helpers accept represented primitive inputs through the
+existing private closure protocol. Source actuals, aliases and forwarding choose
+Number/General parameters; Number-only signatures and synchronous helper guards
+remain. Exact former null/false exclusions now execute with JS/TS, native JS,
+Node-Wasm and Wasmtime oracles. Mixed frames, captures, recursive activations,
+argument failures and misleading annotations have maintained coverage. No IR,
+frame ABI, dependency or resource-limit change; broader input domains remain
+open. See [the contract](async-named-helpers.md).
+
+## Function length reads (2026-10-29)
+
+Static `.length` on represented functions and immutable module declarations
+now yields a Number source-parameter count. Number/primitive/async executions
+retain receiver effects, captures and failures without invoking function bodies.
+Tests cover aliases, factories, hidden callback/capture entries, erased types
+and width/depth boundaries. No IR, runtime ABI, dependency or limit change.
+General reflection/property domains remain open; see [the contract](function-length.md).
