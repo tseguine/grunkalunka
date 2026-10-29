@@ -4,7 +4,10 @@ import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { capture, parseCaptureArgs, validateOptionalProcessMemory } from './capture-markdown.mjs';
+import {
+  capture, parseCaptureArgs, validateOptionalFreshLifecycles,
+  validateOptionalProcessMemory,
+} from './capture-markdown.mjs';
 
 const workloads = new Set(['empty', 'unicode', 'dense', 'wide']);
 const osMap = { linux: 'linux', darwin: 'macos', win32: 'windows' };
@@ -109,6 +112,7 @@ function validateCapture(receipt) {
   requireValid(field(native, 'environment.os') === osMap[host.os], 'environment.os');
   requireValid(field(native, 'environment.arch') === archMap[host.arch], 'environment.arch');
   validateOptionalProcessMemory(native, field(native, 'environment.os'));
+  validateOptionalFreshLifecycles(native, config.samples);
   requireValid(field(native, 'environment.fuelEnabled') === false, 'fuel policy');
   requireValid(/^=\d+\.\d+\.\d+$/.test(field(native, 'environment.wasmtimeDependency')),
     'Wasmtime dependency');
@@ -213,6 +217,10 @@ export function compareMarkdownPair(pair) {
   requireValid(Array.isArray(captures) && captures.length === 2, 'captures');
   for (const capture of captures) validateCapture(capture);
   const [baseline, candidate] = captures;
+  requireValid(
+    Object.hasOwn(baseline.report, 'freshLifecycles') ===
+      Object.hasOwn(candidate.report, 'freshLifecycles'),
+    'matching fresh WIT lifecycle evidence');
   requireValid(
     Object.hasOwn(baseline.provenance, 'harnessVersion') ===
       Object.hasOwn(candidate.provenance, 'harnessVersion'),
