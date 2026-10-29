@@ -42,6 +42,10 @@ verification receipts, not saved benchmark performance results.
 | Actual native Cargo metadata replacement control | [#147](https://github.com/tseguine/grunkalunka/pull/147), [native override experiment](p1-native-cargo-metadata-override.md) | Replacing **Cargo-generated** wasm32 `-C metadata` values for four selected crates with fixed crate-specific values increased raw body multiset overlap against Linux from **945 to 1,429** on Windows and **913 to 1,428** on Apple Silicon (out of 1,896 normalized functions). Function and element sections then matched Linux; code, data and diagnostic names still differed. Replacing the native build-script metadata did not change the resulting Wasm. This is a causal, selected-input control, not total build reproducibility or a production configuration |
 | Two additional Wasm dependency metadata controls | [#152](https://github.com/tseguine/grunkalunka/pull/152), [remaining metadata experiment](p1-native-cargo-remaining-wasm-metadata.md) | `bitflags` and `memchr` **already had identical Cargo-generated metadata on all three hosts**. Replacing these two values after the first four changed code bytes within each native host but **did not** improve cross-host raw body overlap (still **1,429** Windows and **1,428** Apple Silicon) or make any complete guest identical. `-C extra-filename`, other native compiler/linker inputs and cross-host semantic behavior remain untested |
 | Canonical P1 regression migration | [#157](https://github.com/tseguine/grunkalunka/pull/157), [#163](https://github.com/tseguine/grunkalunka/pull/163), [normal P1 test coverage](p1-ci-tests.md) | The prior **19 dedicated experimental PR workflows** were retired after the P1 unit/receipt suites and native GCD/affine portability checks became standard dependency-selected tests on each native CI host. The original optional cross-host artifact-transfer and metadata experiments are still reproducible manually, but **are not** ongoing automatic cross-host verification or an extra merge gate |
+| Repeated already-compiled core-Wasm instantiation | [#181](https://github.com/tseguine/grunkalunka/pull/181), [two-engine cost probe](core-engine-cost.md) | In Node/V8 and Wasmtime, the same GCD module now undergoes 2–20 separate **fresh-instance** measurements with independent first-call samples and all eight goldens per instance. Wasmtime constructs an independent Store first; memory snapshots retain their original earlier boundaries. These are warmed, different engine APIs, **not** cold-start costs or cross-host scores |
+| In-process compiler artifact release and exact output identity | [#183](https://github.com/tseguine/grunkalunka/pull/183), [#184](https://github.com/tseguine/grunkalunka/pull/184), [compiler cost probe](source-compile-cost.md) | The existing public JS/TS compile probe separately times retained WAT/Wasm **destruction after byte-identity validation**, and records SHA-256 for actual input source, preflight WAT and Wasm bytes outside timed loops. All fixed goldens and repetitive compile checks remain. Destructor timing is not OS memory reclaim; hashes are neither signed build attestations nor per-stage compiler timings |
+| Direct rustc output-filename intervention | [#185](https://github.com/tseguine/grunkalunka/pull/185), [#186](https://github.com/tseguine/grunkalunka/pull/186), [native Rust controls](p1-rust-standalone-native.md) | Identical Git source, fixed Rust metadata and one native host per paired experiment, varying only requested `-C extra-filename`: **5/5 no-std** and **98/98 std-allocation** function bodies remained identical by ordinal; only the diagnostic `name` section changed within each native host. All seven numeric goldens passed per compiled artifact. Linux/Apple Silicon matched each other's complete bytes per suffix, while Windows emitted different bytes. This does not isolate Cargo-generated per-crate filenames or explain the complete Markdown guest divergence |
+| Markdown/WIT host-process RSS and saved-memory contract | [#187](https://github.com/tseguine/grunkalunka/pull/187), [#188](https://github.com/tseguine/grunkalunka/pull/188), [Markdown costs](markdown-component-cost.md), [saved receipt comparison](markdown-comparison.md) | The real Markdown component probe now records five Linux **whole-Rust-process** RSS/peak checkpoints outside timed phases, with full lifecycle/policy/cleanup checks unchanged. Windows/macOS explicitly report unavailable. New saved captures validate any claimed memory series and reject malformed/rebound data, while remaining readable with older receipts lacking memory. No guest-only memory, cross-host memory equivalence or performance benchmark threshold is established |
 | Repeated complete public compilation | [#77](https://github.com/tseguine/grunkalunka/pull/77), [public compiler API probe](source-compile-cost.md) | First and warmed in-process `grunkalunka_compiler::compile` batches for fixed affine JS/TS and GCD source, byte-identical WAT/Wasm, independently checked runtime goldens. No separate internal parse/semantic/lower/emit samples |
 
 The [canonical CI workflow](ci.md) runs on Linux x64, Windows x64 and
@@ -137,6 +141,15 @@ reports when explicitly run; the build system does not publish them.
   retired the experimental Actions runners after corresponding canonical
   P1 tests were added; historical cross-host findings are not continuous
   CI guarantees.
+  Subsequent [#185](https://github.com/tseguine/grunkalunka/pull/185)
+  and [#186](https://github.com/tseguine/grunkalunka/pull/186) isolate
+  `-C extra-filename` as a controlled **direct-rustc** output-name
+  perturbation: only diagnostic names change within either tiny fixture
+  on each host, with all 5 or 98 raw function bodies unchanged.
+  This excludes a blanket assumption that changing the requested
+  output suffix must alter those executable sections, not a possible
+  contribution from Cargo-generated crate identity, native linker
+  behavior or other unnormalized inputs in the full Markdown graph.
 - **Comparable performance evidence:** capture retained raw samples under
   explicit CPU, toolchain, flags, workload, warmup, cache and build-artifact
   provenance. A passing CI timing observation is not a comparative score.
@@ -145,8 +158,11 @@ reports when explicitly run; the build system does not publish them.
   yet expose separate parse, semantic, feature-admission, lower, IR verify,
   WAT emission and binary encode time distributions.
 - **Portable memory measurements:** Node and Linux Rust memory snapshots
-  describe different processes, APIs and lifecycle phases. Guest-attributable
-  memory and a cross-platform Wasmtime host observation remain open.
+  now cover both numeric core-Wasm and a real Markdown/WIT component
+  process, but describe different processes, APIs and lifecycle phases.
+  On Windows/macOS the Rust measurements remain explicitly unavailable.
+  Guest-attributable memory and genuinely comparable multi-host native
+  process observations remain open.
 - **Broader useful applications:** most experiments use narrow numeric or
   read-only document operations, not a complete app's build/startup,
   capability-mediated calls, end-user interactions or resource footprint.
