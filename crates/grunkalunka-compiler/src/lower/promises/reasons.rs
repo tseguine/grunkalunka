@@ -15,6 +15,7 @@ fn may_reject_raw(
     returns: &callbacks::ReturnOrigins<'_, '_, '_>,
     inputs: &Inputs,
 ) -> bool {
+    let mut calls = BTreeSet::new();
     let mut work = vec![(expression, 0)];
     let mut aliases = BTreeSet::new();
     while let Some((expression, depth)) = work.pop() {
@@ -88,7 +89,32 @@ fn may_reject_raw(
                 }
                 Err(_) => return true,
                 Ok(None) => {
-                    if return_adopts(expression, semantic, returns, inputs) {
+                    if !return_adopts(expression, semantic, returns, inputs) {
+                        continue;
+                    }
+                    if let Some(bodies) = callees(&call.callee, returns) {
+                        for body in bodies {
+                            if !calls.insert((body, depth)) {
+                                continue;
+                            }
+                            let arrow = returns.arrows[&body];
+                            // Async bodies can also reject from their own await/throw sites.
+                            if arrow.r#async {
+                                return true;
+                            }
+                            if let Some(value) = arrow.get_expression() {
+                                work.push((value, depth + 1));
+                            } else {
+                                // Bare returns and fallthrough yield non-rejecting undefined.
+                                work.extend(
+                                    block_results::return_statements(semantic, body)
+                                        .into_iter()
+                                        .filter_map(|statement| statement.argument.as_ref())
+                                        .map(|value| (value, depth + 1)),
+                                );
+                            }
+                        }
+                    } else {
                         return true;
                     }
                 }
