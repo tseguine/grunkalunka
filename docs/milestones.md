@@ -906,3 +906,14 @@ primitive tags and saved aliases survive later writes; captures, private calls,
 logical assignments, suspension/failure and finally cleanup use existing mixed
 carrier semantics. JS/TS native-JS/Node-Wasm/Wasmtime tests compare identity, values
 and complete reaction traces. See [catch storage](async-promise-objects.md).
+
+## Synchronous local call rejection provenance (2026-10-29)
+
+Awaited calls now retain primitive-only rejection domains when every own return
+expression of every source-known synchronous local target proves it.
+Selected callees, captures, factories and forwarding preserve raw Promise reason
+identity and argument/callee snapshots. Primitive-only calls keep their earlier
+classification; bare returns and fallthrough yield non-rejecting Undefined. Async
+bodies and unknown possible-Promise targets remain conservative. Native JS/Node-Wasm/Wasmtime tests compare values and full
+reaction traces, with erased-type, width/await and existing stack/resource guards.
+See [the bounded source contract](async-promise-objects.md#rejection-domains-of-synchronous-local-calls).

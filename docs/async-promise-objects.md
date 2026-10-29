@@ -99,3 +99,27 @@ Maintained JS/TS native-JS/Node-Wasm/Wasmtime tests cover primitive tags, identi
 captures, private helpers, suspension, failure and finally precedence. String, heap
 and function values remain outside this catch-cell profile. No new IR operation,
 host protocol, dependency or resource limit is introduced.
+
+## Rejection domains of synchronous local calls
+
+When a represented call may return a Promise, await-reason inference follows every
+returned expression of its source-known synchronous local targets. This
+keeps primitive intrinsic rejections usable in catch arithmetic through aliases,
+selected callees, captures, factories and short forwarding chains. All targets
+contribute: one raw Promise reason still requires the existing mixed carrier.
+
+Calls already proved to return only primitives retain their earlier classification,
+including implicit undefined completion. Bare returns and fallthrough contribute non-rejecting Undefined. Unknown
+possible-Promise targets remain conservative, as do async bodies, whose own
+awaits and throws can reject independently of their return expressions. Source
+argument failures retain their own lexical routes. This query executes no call or
+initializer. Current admission still forbids synchronous source throw and validates
+unsupported bodies; the query adds no runtime inlining, reaction, handling or adoption. Repeated
+body/depth states are visited once under the existing depth bound. Existing source,
+signature, value-domain and resource guards remain in force.
+
+Maintained JS/TS native-JS/Node-Wasm/Wasmtime tests compare primitive tags, raw
+identity, argument/callee snapshots, cleanup and full reaction traces. Typed erasure
+has an explicit byte-identical twin. Deliberately ignoring a selected target or an
+async body's effects is caught by valid guest identity results. This is bounded
+source-known provenance, not general flow-sensitive/interprocedural inference.

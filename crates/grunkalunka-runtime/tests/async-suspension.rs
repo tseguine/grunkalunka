@@ -85,6 +85,9 @@ mod catch_cells;
 #[path = "async-suspension/catch_reasons.rs"]
 mod catch_reasons;
 
+#[path = "async-suspension/sync_call_reasons.rs"]
+mod sync_call_reasons;
+
 #[path = "async-suspension/promise_reject_reasons.rs"]
 mod promise_reject_reasons;
 

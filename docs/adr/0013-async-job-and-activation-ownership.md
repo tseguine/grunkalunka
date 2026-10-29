@@ -427,3 +427,23 @@ adopts a selected Promise; writing a cell neither adopts nor handles it.
 Maintained source differentials cover initial primitive snapshots, captured later
 writes, logical selection, argument failure and cleanup. Broader value domains and
 precise rejection effects remain separate from this storage rule.
+
+## Source-known synchronous call rejection provenance (2026-10-29)
+
+Extend the read-only lexical reason query through all own return expressions of
+source-known synchronous local call targets. Union every selected target's possible
+rejection domain, preserving raw reject arguments and the earlier proof for calls
+that cannot return a Promise. An async body can reject from its own awaits/throws
+before returning, so return-expression inspection alone cannot narrow it. Bare
+returns and normal completion are primitive Undefined and cannot reject; a complete
+RETURN proof is unnecessary. The existing own-return collector excludes nested
+function bodies. Synchronous source throw remains unsupported, and unknown
+possible-Promise targets retain the conservative carrier.
+
+This reuses the existing original-symbol target and complete-return queries rather
+than cloning/inlining calls or adding runtime checks. Deduplicating body/depth
+states bounds shared return graphs; existing depth and source guards remain.
+Argument failures route independently, and runtime evaluation order, captures,
+identity, reaction jobs and handling remain on their existing paths. Differential
+source tests and two valid-execution mutations exercise the target-union and async
+body boundaries. General mutable-cell and interprocedural precision remain open.
