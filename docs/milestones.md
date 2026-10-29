@@ -878,8 +878,10 @@ See [the contract](async-promise-objects.md).
 Unrelated primitive catches retain General values even in modules with raw Promise
 throw/reject producers. Source provenance marks receiving handlers and finally
 buffers, preserving nested scopes, rethrows, cleanup and later captured Promise
-writes. Direct primitive and pristine-intrinsic awaits retain primitive reason
-domains. Maintained JS/TS native-JS/Node-Wasm/Wasmtime regressions compare values,
+writes. Direct and closed composed pristine-intrinsic awaits retain primitive
+reason domains, distinguishing raw reject arguments from resolve input tracking and
+preserving nested argument failures. Maintained JS/TS native-JS/Node-Wasm/Wasmtime
+regressions compare values,
 identity and complete reaction traces. Stored/opaque Promise reason provenance
 remains conservative; [broader source/host limits](async-promise-objects.md) remain.
 

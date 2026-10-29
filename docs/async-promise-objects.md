@@ -51,8 +51,13 @@ unrelated primitive catches. The fixed-point
 query routes throws and awaited reasons to the nearest protected lexical catch,
 through intervening finally buffers. Exceptions from a handler or cleanup bypass
 that scope's own catch; nested function bodies reach callers through their Promise.
-Direct primitive awaits and recognized pristine Promise intrinsics retain General
-reasons when their first argument cannot be a Promise. Later Promise writes still
+Direct and closed composed awaits retain General reasons when input provenance
+proves no raw rejection. Promise.reject uses its argument value domain, while
+Promise.resolve follows the rejection domain of its input. The query follows
+conditional/logical value arms, final sequence expressions and simple-assignment
+right-hand sides through erased wrappers. Nested argument failures still route
+from their own throw/await nodes; source validation and limits are unchanged.
+Later Promise writes still
 widen catch cells, including captured cells, without losing initial primitive tags.
 Stored and opaque Promise provenance remains conservative; full interprocedural
 reason precision is follow-up work.
