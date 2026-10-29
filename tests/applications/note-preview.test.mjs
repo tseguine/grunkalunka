@@ -9,6 +9,7 @@ import { compileSource } from '../../tools/build/compile.mjs';
 import { escapeHtml, renderNotePreview, renderWithCompiledToggle } from '../../examples/note-preview/render.mjs';
 import { parseArguments, runPreview } from '../../examples/note-preview/run.mjs';
 import { buildCommands } from '../../examples/note-preview/build.mjs';
+import { packageNotePreview, parsePackageArguments } from '../../examples/note-preview/package.mjs';
 import { prepareNoteScene } from '../../examples/note-preview/scene.mjs';
 
 const bytes = Buffer.from('# Root\r\n## 子😀\n', 'utf8');
@@ -466,3 +467,104 @@ test('A1 development build covers exactly the required existing guest, hosts and
     'build -p grunkalunka-layout --example a1_note_scene --locked --offline',
   ]);
 });
+
+
+test('A1 host bundle retains portable Wasm and runs independently of the source checkout',
+  { timeout: 180_000 }, async t => {
+    const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-bundle-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const bundle = join(cwd, 'package é & spaces');
+    const note = join(cwd, 'source.md');
+    await writeFile(note, '# Bundled heading\r\n## 子😀\n[relative](../hidden.md)\n');
+
+    assert.deepEqual(parsePackageArguments(['--out', bundle]), { out: bundle });
+    for (const args of [[], ['--out'], ['--out', bundle, '--debug'], ['--out', '']]) {
+      assert.throws(() => parsePackageArguments(args), /usage/);
+    }
+    const packaged = await packageNotePreview({ out: bundle });
+    assert.equal(packaged.destination, bundle);
+    assert.equal(packaged.manifest.schemaVersion, 1);
+    assert.equal(packaged.manifest.kind, 'a1-note-preview-host-bundle');
+    assert.deepEqual(packaged.manifest.host, {
+      platform: process.platform, arch: process.arch,
+      nodeMajor: Number(process.versions.node.split('.')[0]),
+    });
+    const entries = packaged.manifest.files;
+    assert.equal(entries.length, 12);
+    assert.deepEqual(entries.filter(item => item.role === 'portable-wasm')
+      .map(item => item.path).sort(), [
+      'artifacts/toggle.wasm',
+      'target/wasm32-unknown-unknown/debug/examples/outline_guest.wasm',
+    ]);
+    assert.deepEqual(await readFile(join(bundle, 'target',
+      'wasm32-unknown-unknown/debug/examples/outline_guest.wasm')),
+    await readFile(join(targetRoot, 'wasm32-unknown-unknown/debug/examples/outline_guest.wasm')));
+    const selector = await readFile(join(bundle, 'artifacts/toggle.wasm'));
+    assert.ok(WebAssembly.validate(selector));
+    assert.deepEqual(WebAssembly.Module.imports(new WebAssembly.Module(selector)), []);
+
+    // Neither compiler binary, build API nor JS toggle source is required
+    // to invoke the packaged result. All source imports resolve within bundle.
+    await assert.rejects(access(join(bundle, 'target/debug',
+      'grunkalunka' + (process.platform === 'win32' ? '.exe' : ''))),
+    { code: 'ENOENT' });
+    await assert.rejects(access(join(bundle, 'tools/build/compile.mjs')), { code: 'ENOENT' });
+    await assert.rejects(access(join(bundle, 'examples/note-preview/toggle.js')), { code: 'ENOENT' });
+    const entry = join(bundle, 'examples/note-preview/bundle-entry.mjs');
+    function packagedRun(args) {
+      const result = spawnSync(process.execPath, [entry, ...args], {
+        cwd, shell: false, encoding: 'utf8', timeout: 120_000,
+        maxBuffer: 1024 * 1024,
+        env: { ...process.env, CARGO_TARGET_DIR: join(cwd, 'nonexistent-target') },
+      });
+      if (result.error) throw result.error;
+      assert.equal(result.signal, null);
+      return result;
+    }
+
+    const granted = join(cwd, 'installed-grant');
+    const invocation = packagedRun([
+      '--profile', 'granted', '--note', note, '--out', granted, '--debug',
+    ]);
+    assert.equal(invocation.status, 0, invocation.stderr);
+    assert.equal(JSON.parse(invocation.stdout).visible, 2);
+    const html = await readFile(join(granted, 'index.html'), 'utf8');
+    assert.match(html, /Bundled heading/);
+    assert.match(html, /子😀/);
+    assert.doesNotMatch(html, /href=|src=/);
+    const ppm = await readFile(join(granted, 'preview.ppm'));
+    assert.deepEqual(ppmRgb(ppm, 24, 40), [87, 164, 118]);
+    const info = JSON.parse(await readFile(join(granted, 'debug.json'), 'utf8'));
+    assert.deepEqual([info.attemptedReads, info.backingReads, info.cleanups], [1, 1, 1]);
+    assert.ok(!JSON.stringify(info).includes(note));
+
+    const denied = join(cwd, 'installed-denied');
+    const denial = packagedRun([
+      '--profile', 'denied', '--note', join(cwd, 'missing-secret.md'),
+      '--out', denied, '--debug',
+    ]);
+    assert.equal(denial.status, 0, denial.stderr);
+    assert.match(await readFile(join(denied, 'index.html'), 'utf8'), /Document access denied/);
+    assert.deepEqual(ppmRgb(await readFile(join(denied, 'preview.ppm')), 24, 40),
+      [192, 80, 80]);
+    const deniedInfo = JSON.parse(await readFile(join(denied, 'debug.json'), 'utf8'));
+    assert.deepEqual([deniedInfo.attemptedReads, deniedInfo.backingReads, deniedInfo.cleanups],
+      [1, 0, 1]);
+    assert.ok(!JSON.stringify(deniedInfo).includes('missing-secret'));
+
+    // Packaging refuses an existing destination and cannot damage it.
+    await assert.rejects(packageNotePreview({ out: bundle }), /already exists/);
+    assert.deepEqual(await readFile(join(granted, 'preview.ppm')), ppm);
+
+    // Corrupted Wasm must be rejected *before* loading app runtime modules or
+    // touching a note/output path. This is accidental corruption detection,
+    // not authenticated publisher identity.
+    await writeFile(join(bundle, 'artifacts/toggle.wasm'), Buffer.from([0, 97]));
+    const afterCorruption = join(cwd, 'should-not-exist');
+    const failure = packagedRun([
+      '--profile', 'granted', '--note', note, '--out', afterCorruption,
+    ]);
+    assert.notEqual(failure.status, 0);
+    assert.match(failure.stderr, /checksum mismatch/);
+    await assert.rejects(access(afterCorruption), { code: 'ENOENT' });
+  });

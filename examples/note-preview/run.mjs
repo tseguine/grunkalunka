@@ -4,12 +4,11 @@ import { spawnSync } from 'node:child_process';
 import { open, lstat, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compileSource } from '../../tools/build/compile.mjs';
 import { prepareNoteScene } from './scene.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const target = resolve(root, process.env.CARGO_TARGET_DIR ?? 'target');
-const native = name => join(target, 'debug', 'examples',
+const native = (name, binaryTarget = target) => join(binaryTarget, 'debug', 'examples',
   name + (process.platform === 'win32' ? '.exe' : ''));
 const compiler = join(target, 'debug',
   'grunkalunka' + (process.platform === 'win32' ? '.exe' : ''));
@@ -121,7 +120,9 @@ function checkedPpm(bytes) {
   return bytes;
 }
 
-export async function runPreview({ profile, out, note, expanded = 1, debug = false }) {
+export async function runPreview({
+  profile, out, note, expanded = 1, debug = false, selectorWasm,
+}) {
   if (!['granted', 'denied'].includes(profile) || typeof out !== 'string' || !out ||
     (profile === 'granted' && (typeof note !== 'string' || !note))) {
     throw new TypeError('Invalid note-preview application arguments');
@@ -129,6 +130,13 @@ export async function runPreview({ profile, out, note, expanded = 1, debug = fal
   if (![0, 1].includes(expanded) || typeof debug !== 'boolean') {
     throw new TypeError('Invalid note-preview visibility/debug setting');
   }
+  if (selectorWasm !== undefined && !(selectorWasm instanceof Uint8Array)) {
+    throw new TypeError('Packaged selector must be an owned Wasm byte array');
+  }
+  // A packaged runner uses its own copied target tree regardless of the
+  // developer machine's CARGO_TARGET_DIR. The normal source workflow keeps
+  // its existing explicit target-directory override.
+  const binaryTarget = selectorWasm === undefined ? target : resolve(root, 'target');
   const destination = resolve(out);
   // No overwrite of a previous successful app output.
   try {
@@ -138,17 +146,25 @@ export async function runPreview({ profile, out, note, expanded = 1, debug = fal
     if (error.code !== 'ENOENT') throw error;
   }
   const bytes = await boundedNote(note, profile);
-  const raw = nativeCall(native('a1_note_preview'), [guest, '--profile', profile], bytes);
+  const selectedGuest = selectorWasm === undefined ? guest : join(
+    binaryTarget, 'wasm32-unknown-unknown', 'debug', 'examples', 'outline_guest.wasm');
+  const raw = nativeCall(native('a1_note_preview', binaryTarget),
+    [selectedGuest, '--profile', profile], bytes);
   const lifted = liftedResult(JSON.parse(raw.toString('utf8')), profile, bytes);
-  const toggle = await readFile(new URL('./toggle.js', import.meta.url), 'utf8');
-  const { wasm } = await compileSource({ compiler, source: toggle, language: 'js', cwd: root });
+  let wasm = selectorWasm;
+  if (wasm === undefined) {
+    const toggle = await readFile(new URL('./toggle.js', import.meta.url), 'utf8');
+    const { compileSource } = await import('../../tools/build/compile.mjs');
+    ({ wasm } = await compileSource({ compiler, source: toggle, language: 'js', cwd: root }));
+  }
   if (!WebAssembly.validate(wasm)) throw new Error('Compiler did not emit valid selector Wasm');
   const scene = await prepareNoteScene({ wasm, expanded, ...lifted });
-  const frame = nativeCall(native('a1_note_scene'), ['--report'], scene.input).toString('utf8');
+  const frame = nativeCall(native('a1_note_scene', binaryTarget),
+    ['--report'], scene.input).toString('utf8');
   if (!frame.startsWith('A1FRAME1\t' + profile + '\t')) {
     throw new Error('Native frame profile differs from authorized note');
   }
-  const ppm = checkedPpm(nativeCall(native('a1_note_scene'),
+  const ppm = checkedPpm(nativeCall(native('a1_note_scene', binaryTarget),
     ['--ppm'], scene.input, 512 * 1024));
 
   // Only publish complete, checked outputs; failures leave the requested
