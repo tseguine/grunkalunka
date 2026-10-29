@@ -18,12 +18,17 @@
   #border-second { width: 25%; height: 25%; margin: 0; box-sizing: content-box; }
   /* A document-level scroll witness; no nested overflow contexts. */
   #scroll-spacer { height: 650px; }
+  /* Within fixed-height spacer: min > max, border-box, nested percentages. */
+  #bounds-containing { width: 400px; height: 80px; }
+  #bounds-host { width: 400px; min-width: 45%; max-width: 30%; height: 60px; padding: 4px; border: 2px solid black; box-sizing: border-box; }
+  #bounds-first { width: 50%; height: 10px; }
+  #bounds-second { width: 250px; max-width: 100px; height: 8px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -50,6 +55,13 @@
   // A third independent rectangle channel covers resolved border-box sizing.
   const borderIds = ["border-host", "border-first", "border-second"];
   const borderBoxes = Object.fromEntries(borderIds.map(id => {
+    const rect = document.getElementById(id).getBoundingClientRect();
+    return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+  }));
+  // A width-bound witness lives INSIDE the already fixed-height scroll spacer
+  // so it cannot change the existing document-height/scroll target evidence.
+  const boundsIds = ["bounds-host", "bounds-first", "bounds-second"];
+  const widthBounds = Object.fromEntries(boundsIds.map(id => {
     const rect = document.getElementById(id).getBoundingClientRect();
     return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
   }));
@@ -121,6 +133,7 @@
     observations,
     percentageHeights,
     borderBoxes,
+    widthBounds,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {
