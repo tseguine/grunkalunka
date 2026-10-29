@@ -97,7 +97,7 @@ test executes the actual Node subprocess and checks that these fields are presen
 The Node benchmark tests exercise well-formed observations and rejection of
 missing, negative, nonintegral or inconsistent byte values.
 
-## Rust/Wasmtime process memory observation (Linux)
+## Rust/Wasmtime process memory observations (Linux and Windows)
 
 On Linux, the Rust-side replay also records process-wide resident memory at
 five phase boundaries: after the original JS source has been compiled and the
@@ -119,20 +119,24 @@ accounting, allocator behavior, concurrent threads and previous compilation are
 uncontrolled. The five reported `VmHWM` readings must be nondecreasing, while
 `VmRSS` may rise or fall.
 
-On Windows and macOS, where this narrow implementation does not support
-equivalent measurements, the `wasmtime.processMemory` envelope explicitly
-reports `source: "unsupported-on-this-host"` and `snapshots: null`; zero is
-**never** substituted for unavailable data. The cross-platform checks confirm
-the explicit unsupported result rather than claiming cross-host RSS
-comparability. The existing Node subprocess snapshots use different APIs,
-lifecycle phases and process workloads; they are **not directly comparable**
-to these Rust process observations.
+On Windows, the same five native checkpoints now use the operating system's
+`Kernel32!K32GetProcessMemoryInfo` working-set API, with a validated
+`PROCESS_MEMORY_COUNTERS` layout and explicit
+`source: "windows-psapi-working-set"`. The existing JSON field names
+`rssBytes` and `peakRssBytes` hold **current and process-peak working-set
+bytes on Windows**, rather than Linux `VmRSS`/`VmHWM`. This preserves the
+phase schema without claiming the different OS accounting rules are equivalent.
+The [real Windows control](p1-windows-process-memory-control.md) independently
+established the FFI ABI before integration.
 
-No OS-monitoring package, syscall binding, Wasm memory tracker or benchmark
-performance gate is added. Native tests validate Linux status parsing, units,
-missing/duplicate/overflow values, complete phase sets and peak ordering.
-Actual Linux CI executes the same Wasmtime replay and requires non-null
-Rust-process samples; Windows and macOS require explicit absence.
+macOS still reports `source: "unsupported-on-this-host"` and
+`snapshots: null`; no zero measurements are invented. Both Linux and
+Windows native tests now require real nonzero process observations, coherent
+current/peak values and a nondecreasing process-lifetime peak. No third-party
+OS-monitoring dependency, Wasm memory tracker or performance gate was added.
+The Node subprocess observes a different process through a different API
+at different lifecycle points; **no cross-engine or cross-OS RSS comparison**
+is established.
 
 ## Provenance and limits
 
