@@ -928,3 +928,14 @@ retain its existing exception boundary during IR verification. Native
 JS/Node-Wasm/Wasmtime differentials cover values, reaction traces, snapshots,
 cleanup, typed erasure and source limits. Opaque targets and broader flow-sensitive
 precision remain conservative. See [the async source contract](async-promise-objects.md#rejection-domains-of-asynchronous-local-calls).
+
+## Primitive call-argument rejection provenance (2026-10-29)
+
+An awaited source-known synchronous helper can retain primitive-only rejection
+reasons for one call even when another call passes it a Promise. Unwritten
+formals, aliases, forwarding and captures use per-call primitive proofs while
+keeping the shared runtime signature. Written or uncertain inputs stay
+conservative. Context-sensitive memoization preserves raw alternatives; proof
+budget exhaustion reuses the original global facts. Maintained JS/TS
+native-JS/Node-Wasm/Wasmtime tests compare values, full reaction traces, argument
+snapshots, typed erasure and resource boundaries. See [the source contract](async-promise-objects.md#primitive-arguments-of-synchronous-local-calls).

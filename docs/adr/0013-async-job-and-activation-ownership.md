@@ -466,3 +466,31 @@ checks and rejecting numeric throws without the boundary. A compiler regression
 removes the boundary to verify that guard. Source differential tests cover raw
 identity and primitive arithmetic together with full reaction traces. General
 argument specialization and finally-sensitive effect elimination remain separate.
+
+## Call-site primitive rejection provenance (2026-10-29)
+
+Refine the existing source-known synchronous call rejection query with primitive
+actual-argument proofs for unwritten formals. Keep the shared physical signature
+and global parameter facts: the refinement affects only the caller's possible
+rejection domain. Propagate those proofs through unwritten aliases, forwarding
+and captures, and include the context in both body and alias query caches.
+
+Written formals and uncertain or Promise-valued actuals retain global facts.
+Arguments are classified against the incoming context before any callee formal
+is shadowed; the query executes no argument or body. Each query interns at most
+128 primitive-formal sets, then uses the original module-wide context. This
+preserves existing successful proofs when the new precision budget is exhausted.
+Depth, source, frame, signature and runtime limits remain unchanged. Source
+differentials and deliberate cache/write-guard mutations check raw identity and
+primitive arithmetic together; broader Promise-domain and mutable-flow
+specialization remain separate work.
+
+Capture proofs require a stable constructor/alias chain for the called value.
+Mutable storage, factory results and callback formals can select a closure from
+an earlier activation of the same source body; those calls clear inherited
+capture proofs before adding fresh actual-parameter proofs. A maintained
+counterexample first stores a closure capturing a Promise, then invokes it while
+the same outer source parameter holds a primitive in another activation. Direct,
+aliased, selected, factory and callback cases preserve the earlier Promise's
+identity. The initial blanket propagation failed that native-JS differential;
+the activation guard and its deliberate removal test establish this boundary.

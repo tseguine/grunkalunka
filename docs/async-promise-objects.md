@@ -145,3 +145,33 @@ boundary in IR validation. Ordinary numeric calls still cannot throw. Maintained
 JS/TS native-JS/Node-Wasm/Wasmtime tests exercise local handling, own and nested
 effects, raw identity, snapshots, cleanup, primitive tags, typed byte identity and
 existing argument/await limits.
+
+## Primitive arguments of synchronous local calls
+
+Await-reason inference can refine an unwritten formal parameter from the actual
+argument of each source-known synchronous call. Calling `x => Promise.reject(x)`
+with a Promise still preserves that Promise as a raw reason; a later call with a
+primitive can use primitive catch arithmetic. The shared runtime signature and
+parameter cell remain unchanged. Unwritten aliases, forwarding calls, selected
+targets and captured formals carry the same read-only proof.
+
+Captured-formal proofs cross stable binding chains to local arrow constructors.
+A mutable, factory-produced or callback callee may instead close over an older
+activation of the same source parameter. Those calls discard inherited capture
+proofs while still classifying their fresh actual arguments. Original symbol
+identity alone does not establish activation identity.
+
+Every source target and call context contributes. A write to a formal, including
+one in a nested closure, prevents specialization. Mutable actuals retain their
+module-wide possibilities, so later argument effects cannot create a false
+snapshot proof. A Promise argument is not classified as primitive merely because
+that Promise is fulfilled or has only primitive rejection reasons. Argument
+failures still follow their own lexical routes.
+
+The existing depth bound remains. Up to 128 distinct primitive-formal proof sets
+are retained per query; exhaustion uses the original module-wide facts instead
+of rejecting source. Context-sensitive body and alias memoization prevents a
+primitive call from hiding another call's raw reason. This is not general
+per-call Promise-rejection inference or mutable-cell flow analysis. Maintained
+JS/TS native-JS/Node-Wasm/Wasmtime tests compare values and full reaction traces,
+with explicit typed byte identity, written-parameter and inference/source guards.
