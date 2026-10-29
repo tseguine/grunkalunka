@@ -17,10 +17,14 @@ window display, or a commitment to the final rendering architecture.
 - `display:none` and descendants stay absent, following the layout
   `Frame`. `visibility:hidden` instead preserves layout: the painter
   skips that node's own paints, but still visits descendants so an explicitly
-  visible child can paint. Children with overflow visible can paint beyond
-  parent borders, but coordinates are clipped to the output viewport.
+  visible child can paint.
+- Caller-resolved `DescendantClip::PaddingBox` clips descendants'
+  rectangles against all clipping ancestors; the parent still paints its
+  own border/background normally. Nested and disjoint intersections are
+  checked before applying the existing viewport clip.
 - Invalid root/parent indices, excessive depth, malformed nested box
-  rectangles and mismatched `Frame`/paint-list/visibility lengths fail closed.
+  rectangles and mismatched `Frame`/paint-list/visibility/clip lengths fail
+  closed.
   Integer arithmetic is checked. Pixel allocation is limited to **4 million
   RGB pixels** and viewport dimensions are already bounded by the core.
 - `Canvas.pixel(x,y)` permits diagnostic sampling. `Canvas.ppm()` returns
@@ -44,6 +48,17 @@ paint ordering for non-preorder input, hidden subtree exclusion, viewport
 clipping, PPM bytes, invalid geometry and memory quotas. The raw `Frame`
 and box invariants come from the separate layout implementation. No browser
 engine generates the expected pixel colors or paints.
+
+## Clipping limitation
+
+The optional native `descendant_clip` controls only block background and
+border paint. `Canvas::blit_mono` remains an explicit caller-owned
+operation on document-space coordinates and does not automatically inherit
+the element's clips. Layout and document scroll extents also remain
+unchanged. The integration test `tests/descendant_clip.rs` verifies
+exact output pixels for a clipped child and nested/disjoint clips alongside
+the headless hit tester. This is not CSS overflow, compositing or a
+general glyph clipping implementation.
 
 ## Deliberate omissions
 

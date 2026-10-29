@@ -2,7 +2,7 @@
 //!
 //! Parent-first, child-over-parent hit order mirrors the toy RGB painter's
 //! depth-first traversal. This does NOT implement CSS pointer-events,
-//! stacking contexts, clipping paths, transforms, or browser event dispatch.
+//! stacking contexts, arbitrary clipping paths, transforms, or browser event dispatch.
 
 use crate::{Frame, MAX_BLOCKS, MAX_DEPTH, MAX_VIEWPORT, Rect};
 
@@ -55,7 +55,8 @@ fn contains_point(border: Rect, x: u32, y: u32) -> Result<bool, HitError> {
 /// The selected toy hit region is each visible element's border rectangle:
 /// margins are excluded; overflow children can receive hits beyond parents.
 /// Hidden elements are skipped without changing layout; descendants explicitly
-/// overridden to visible can still be targeted.
+/// overridden to visible can still be targeted. Descendant padding-box clips
+/// restrict each target through every clipping ancestor.
 /// Children cover parents and later siblings cover earlier siblings, following
 /// the RGB painter's depth-first tree traversal even if a flat input is not
 /// preorder. A targetable element may be visually transparent. Independent
@@ -94,6 +95,7 @@ pub fn hit_test_scrolled(
     if nodes.is_empty()
         || nodes.len() != frame.boxes.len()
         || frame.visibility.len() != frame.boxes.len()
+        || frame.clip_descendants.len() != frame.boxes.len()
     {
         return Err(HitError::NodeCountMismatch);
     }
@@ -150,21 +152,43 @@ pub fn hit_test_scrolled(
     let x = x.checked_add(scroll_x).ok_or(HitError::Overflow)?;
     let y = y.checked_add(scroll_y).ok_or(HitError::Overflow)?;
 
-    // Compute the painter's depth-first order explicitly. Reverse it to check
-    // children/later siblings before parents, independently of flat node indices.
+    // Compute the painter's depth-first order and effective *ancestor* clip.
+    // The node's own padding-box rule clips its children, not its own border.
+    // Preserve a zero-sized intersection as an active clip so later descendants
+    // cannot escape an earlier clipping ancestor.
     let mut order = Vec::with_capacity(nodes.len());
-    let mut stack = vec![0usize];
-    while let Some(index) = stack.pop() {
-        order.push(index);
+    let mut stack = vec![(0usize, None::<Rect>)];
+    while let Some((index, inherited_clip)) = stack.pop() {
+        order.push((index, inherited_clip));
+        let child_clip = if frame.clip_descendants[index] {
+            if let Some(geometry) = frame.boxes[index] {
+                Some(if let Some(ancestor) = inherited_clip {
+                    ancestor
+                        .intersection(geometry.padding)
+                        .ok_or(HitError::Overflow)?
+                } else {
+                    geometry.padding
+                })
+            } else {
+                inherited_clip
+            }
+        } else {
+            inherited_clip
+        };
         for &child in children[index].iter().rev() {
-            stack.push(child);
+            stack.push((child, child_clip));
         }
     }
-    for index in order.into_iter().rev() {
+    for (index, inherited_clip) in order.into_iter().rev() {
         if nodes[index].targetable
             && frame.visibility[index]
             && let Some(geometry) = frame.boxes[index]
             && contains_point(geometry.border, x, y)?
+            && (if let Some(clip) = inherited_clip {
+                contains_point(clip, x, y)?
+            } else {
+                true
+            })
         {
             return Ok(Some(index));
         }

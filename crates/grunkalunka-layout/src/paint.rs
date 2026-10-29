@@ -104,7 +104,20 @@ impl Canvas {
         bytes
     }
 
-    fn fill(&mut self, rect: Rect, color: Rgb) -> Result<(), PaintError> {
+    fn fill(
+        &mut self,
+        rect: Rect,
+        color: Rgb,
+        ancestor_clip: Option<Rect>,
+    ) -> Result<(), PaintError> {
+        // The caller's nested ancestor clip applies before viewport clipping.
+        // None means no clip; a zero-sized intersection remains explicitly
+        // empty and can never allow descendant paint back through.
+        let rect = if let Some(clip) = ancestor_clip {
+            rect.intersection(clip).ok_or(PaintError::Overflow)?
+        } else {
+            rect
+        };
         // Clip document-space boxes to the scrolled viewport before indexing.
         // Subtract only after intersection; offscreen origins stay unsigned.
         let view_right = self
@@ -147,6 +160,7 @@ fn paint_node(
     frame: &Frame,
     nodes: &[PaintNode],
     canvas: &mut Canvas,
+    ancestor_clip: Option<Rect>,
 ) -> Result<(), PaintError> {
     let Some(geometry) = frame.boxes[index] else {
         return Ok(());
@@ -168,7 +182,7 @@ fn paint_node(
     if frame.visibility[index]
         && let Some(color) = nodes[index].background
     {
-        canvas.fill(padding, color)?;
+        canvas.fill(padding, color, ancestor_clip)?;
     }
     if frame.visibility[index]
         && let Some(color) = nodes[index].border
@@ -181,6 +195,7 @@ fn paint_node(
                 height: padding.y - border.y,
             },
             color,
+            ancestor_clip,
         )?;
         canvas.fill(
             Rect {
@@ -190,6 +205,7 @@ fn paint_node(
                 height: border_bottom - padding_bottom,
             },
             color,
+            ancestor_clip,
         )?;
         canvas.fill(
             Rect {
@@ -199,6 +215,7 @@ fn paint_node(
                 height: padding.height,
             },
             color,
+            ancestor_clip,
         )?;
         canvas.fill(
             Rect {
@@ -208,12 +225,28 @@ fn paint_node(
                 height: padding.height,
             },
             color,
+            ancestor_clip,
         )?;
     }
+    // The box's own background and border are not affected by its *own*
+    // descendant clip; only its children inherit the clip at its padding edge.
+    // Intersecting with a prior ancestor clip never permits a grandchild to
+    // escape an older clipping boundary.
+    let child_clip = if frame.clip_descendants[index] {
+        Some(if let Some(previous) = ancestor_clip {
+            previous
+                .intersection(geometry.padding)
+                .ok_or(PaintError::Overflow)?
+        } else {
+            geometry.padding
+        })
+    } else {
+        ancestor_clip
+    };
     // Explicit depth-first sibling order, even if the flat input is not preorder.
     // This is a toy painter's order, not an implementation of CSS stacking contexts.
     for &child in &children[index] {
-        paint_node(child, children, frame, nodes, canvas)?;
+        paint_node(child, children, frame, nodes, canvas, child_clip)?;
     }
     Ok(())
 }
@@ -223,8 +256,9 @@ fn paint_node(
 /// Transparent/absent paints leave earlier pixels intact. Resolved hidden
 /// elements suppress their own paint, not the paint of an explicitly visible
 /// descendant; sibling flow and box geometry are unaffected.
-/// Overflowing children can draw beyond a parent's border, but are clipped
-/// to the output viewport.
+/// Overflowing children can draw beyond their parents' borders unless the
+/// caller enabled padding-box descendant clipping; ancestor clips intersect
+/// and are also clipped to the output viewport.
 /// No glyphs, images, alpha compositing, positioning or CSS stacking contexts.
 pub fn paint(frame: &Frame, nodes: &[PaintNode], clear: Rgb) -> Result<Canvas, PaintError> {
     paint_scrolled(frame, nodes, clear, 0, 0)
@@ -268,6 +302,7 @@ pub fn paint_scrolled(
         || nodes.len() > MAX_BLOCKS
         || nodes.len() != frame.boxes.len()
         || frame.visibility.len() != frame.boxes.len()
+        || frame.clip_descendants.len() != frame.boxes.len()
     {
         return Err(PaintError::NodeCountMismatch);
     }
@@ -301,7 +336,7 @@ pub fn paint_scrolled(
         scroll_y,
         pixels: vec![clear; pixel_count],
     };
-    paint_node(0, &children, frame, nodes, &mut canvas)?;
+    paint_node(0, &children, frame, nodes, &mut canvas, None)?;
     Ok(canvas)
 }
 

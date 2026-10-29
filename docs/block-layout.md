@@ -32,6 +32,8 @@ of visible blocks, plus scroll extents.
 - Resolved inherited visibility controls painting and input separately:
   hidden boxes remain in geometry and flow, while an explicitly visible
   descendant can override a hidden ancestor without reflow.
+- Optional caller-resolved padding-box descendant clipping restricts paint
+  and hit tests through nested ancestor clips without moving or hiding boxes.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
   1–16,384 CSS pixels per viewport dimension. Malformed parent indices
   and overflowing dimensions fail instead of wrapping or silently truncating.
@@ -66,6 +68,37 @@ nested inheritance and explicit overrides, RGB pixels, input hits,
 A separate [source-checked visibility bridge](browser-native-visibility-bridge.md)
 compares the selected geometry, inherited computed visibility and DOM hit
 targets with real Chromium, Firefox and WebKit evidence.
+
+## Padding-box descendant clipping (native renderer)
+
+`Style::descendant_clip` accepts `DescendantClip::None` (default)
+or `DescendantClip::PaddingBox`. The latter clips **descendants'** own
+painting and hit regions to the node's resolved padding rectangle.
+The clipping node's own border/background remain unaffected by its
+own rule, but are still subject to any earlier ancestor clips.
+Nested clips intersect; an empty intersection never resets to unrestricted
+painting. An explicitly visible child of a hidden ancestor is still
+subject to their shared geometry clipping, independently of hit-target policy.
+
+`Frame::clip_descendants` retains the explicit per-node choice after
+layout. Both the optional RGB painter and hit tester consume that same
+metadata and reject missing or mismatched entries. They account for
+global viewport scrolling using the original document-space coordinates.
+Clipping does **not** alter the layout boxes or normal-flow sibling positions.
+
+This intentionally only clips **paint and hits**. The current document
+`scroll_width`/`scroll_height` still measure the entire child overflow,
+including visually clipped descendants, and external `Canvas::blit_mono`
+calls remain caller-controlled; they do not automatically inherit a clip.
+This is therefore **not a CSS `overflow: clip` or `overflow: hidden`
+implementation** with all their scroll-container, clip-edge,
+scroll-extent and text effects. It has no border radii, transforms, nested
+scrollers or CSS parsing.
+
+The independent `crates/grunkalunka-layout/tests/descendant_clip.rs`
+verifies padding-edge clipping and paint/hit agreement, nested and disjoint
+clips, visibility overrides, `display:none`, viewport scrolling,
+geometry and extents preservation, and malformed clip metadata.
 
 ## What is deliberately NOT implemented
 
