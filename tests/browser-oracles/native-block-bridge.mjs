@@ -8,6 +8,7 @@ import { validateCapture } from "./compare.mjs";
 
 const ids = ["outer", "first", "second"];
 const heightIds = ["height-host", "height-first", "height-second"];
+const borderIds = ["border-host", "border-first", "border-second"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
 const rectFields = ["x", "y", "width", "height"];
@@ -28,7 +29,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "three original and three definite-percentage-height border rectangles from caller-resolved trees; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "three original, three percentage-height and three border-box rectangles from caller-resolved trees; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -119,6 +120,30 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   }
   validateHeightBoxes("native", native?.percentageHeights);
   validateHeightBoxes("browser", browser?.percentageHeights);
+
+  function validateBorderBoxes(owner, value) {
+    const path = "$." + owner + ".borderBoxes";
+    if (!record(value) ||
+        Object.keys(value).sort().join(",") !== [...borderIds].sort().join(",")) {
+      error(path, "exactly the three named border-box rectangles required");
+      return;
+    }
+    for (const id of borderIds) {
+      const box = value[id];
+      if (!record(box) || Object.keys(box).sort().join(",") !== [...rectFields].sort().join(",")) {
+        error(path + "." + id, "complete border-box rectangle required");
+        continue;
+      }
+      for (const field of rectFields) {
+        if (!Number.isFinite(box[field]) ||
+            (["width", "height"].includes(field) && box[field] < 0)) {
+          error(path + "." + id + "." + field, "finite CSS-pixel rectangle required");
+        }
+      }
+    }
+  }
+  validateBorderBoxes("native", native?.borderBoxes);
+  validateBorderBoxes("browser", browser?.borderBoxes);
 
   const targetPhases = ["original", "hidden", "restored"];
   function validateTargets(owner, value) {
@@ -223,6 +248,18 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "percentage-height", id, field, left, right,
           path: "$.percentageHeights." + id + "." + field,
+        });
+      }
+    }
+  }
+  for (const id of borderIds) {
+    for (const field of rectFields) {
+      const left = native.borderBoxes[id][field];
+      const right = browser.borderBoxes[id][field];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "border-box", id, field, left, right,
+          path: "$.borderBoxes." + id + "." + field,
         });
       }
     }

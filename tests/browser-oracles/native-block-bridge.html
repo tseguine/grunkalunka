@@ -12,9 +12,14 @@
   #height-host { width: 120px; height: 80px; margin: 10px 0 0 0; padding: 4px; border: 2px solid black; box-sizing: content-box; }
   #height-first { width: 30px; height: 50%; margin: 3px 0 5px 0; padding: 2px; border: 1px solid black; box-sizing: content-box; }
   #height-second { width: 20px; height: 25%; margin: 0; box-sizing: content-box; }
+  /* Separate border-box sizing witness; original hit probes do not overlap. */
+  #border-host { width: 120px; height: 80px; margin: 10px 0 0 0; padding: 4px; border: 2px solid black; box-sizing: border-box; }
+  #border-first { width: 50%; height: 50%; margin: 3px 0 5px 0; padding: 2px; border: 1px solid black; box-sizing: border-box; }
+  #border-second { width: 25%; height: 25%; margin: 0; box-sizing: content-box; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
+<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -35,6 +40,12 @@
   // DOM rectangles, never computed from the independent Rust sample.
   const heightIds = ["height-host", "height-first", "height-second"];
   const percentageHeights = Object.fromEntries(heightIds.map(id => {
+    const rect = document.getElementById(id).getBoundingClientRect();
+    return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+  }));
+  // A third independent rectangle channel covers resolved border-box sizing.
+  const borderIds = ["border-host", "border-first", "border-second"];
+  const borderBoxes = Object.fromEntries(borderIds.map(id => {
     const rect = document.getElementById(id).getBoundingClientRect();
     return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
   }));
@@ -85,6 +96,7 @@
     },
     observations,
     percentageHeights,
+    borderBoxes,
     reflow: { hidden, restored },
     hitTargets: {
       original: originalTargets, hidden: hiddenTargets, restored: restoredTargets
