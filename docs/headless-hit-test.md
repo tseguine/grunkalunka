@@ -83,3 +83,12 @@ second test disables hit targets while checking that painting remains unchanged.
 Expected values are specified outside the implementations; no reference-browser
 results are imported. This is a **toy host interaction** rather than DOM dispatch,
 script-lowered source behavior, or an accepted A1 application.
+
+## Selected independent visibility reference
+
+The [visibility comparison guide](browser-native-visibility-bridge.md)
+records fresh Chromium, Firefox and WebKit hit targets with an inherited
+hidden parent, explicitly visible child, and visible sibling. The
+bounded native test uses caller-targetable nodes and the resolved
+`Frame::visibility` flags independently. This is not DOM event
+dispatch or general CSS pointer-events conformance.

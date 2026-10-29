@@ -27,12 +27,17 @@
   #height-limited { width: 80px; height: 90px; min-height: 75%; max-height: 50%; padding: 4px; border: 2px solid black; box-sizing: border-box; }
   #height-limited-first { width: 30px; height: 50%; }
   #height-limited-second { width: 20px; height: 12px; }
+  /* Separate inherited visibility: geometry persists, hit targets change. */
+  #visibility-host { width: 40px; height: 25px; margin-left: 300px; visibility: hidden; }
+  #visibility-child { width: 14px; height: 6px; visibility: visible; }
+  #visibility-inherited { width: 12px; height: 5px; }
+  #visibility-sibling { width: 20px; height: 5px; margin-left: 300px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -113,6 +118,40 @@
   first.style.removeProperty("display");
   const restored = boxes();
   const restoredTargets = hitTargets();
+  // A real visibility toggle must not change boxes or document flow. These
+  // source-side computed values and elementFromPoint observations are measured,
+  // not inferred from the separate Rust model.
+  const visibilityIds = ["visibility-host", "visibility-child",
+    "visibility-inherited", "visibility-sibling"];
+  const visibilityPoints = [
+    ["child", 301, 359],
+    ["host", 318, 360],
+    ["inherited", 301, 366],
+    ["sibling", 301, 385]
+  ];
+  function visibilitySample() {
+    return {
+      boxes: Object.fromEntries(visibilityIds.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+      })),
+      computed: Object.fromEntries(visibilityIds.map(id =>
+        [id, getComputedStyle(document.getElementById(id)).visibility === "visible"])),
+      hits: Object.fromEntries(visibilityPoints.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, visibilityIds.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+  const visibilityHost = document.getElementById("visibility-host");
+  const visibilityHidden = visibilitySample();
+  visibilityHost.style.visibility = "visible";
+  const visibilityVisible = visibilitySample();
+  visibilityHost.style.removeProperty("visibility");
+  const visibilityRestored = visibilitySample();
+  const visibilityStates = {
+    hidden: visibilityHidden, visible: visibilityVisible, restored: visibilityRestored
+  };
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
   // All earlier geometry/hit channels were captured before changing scrollY.
   function scrollSample() {
@@ -146,6 +185,7 @@
     borderBoxes,
     widthBounds,
     heightBounds,
+    visibilityStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {

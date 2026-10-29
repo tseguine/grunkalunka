@@ -254,3 +254,12 @@ percentage heights without modifying prior scroll or width observations.
 The [bounded height evidence guide](browser-height-bounds-bridge.md)
 records reviewed source declarations, native rectangle goldens and
 the exact limits of this one browser-model comparison.
+
+## Source-checked inherited visibility
+
+A separate three-phase witness records normal-flow geometry, actual
+computed `visibility` values and real DOM hit targets while toggling a
+hidden parent containing an explicitly visible child. The native sample
+uses its own resolved visibility and hit-test policy. Details and
+selection limits are in the
+[visibility comparison guide](browser-native-visibility-bridge.md).
