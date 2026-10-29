@@ -9,6 +9,7 @@ import { validateCapture } from "./compare.mjs";
 const ids = ["outer", "first", "second"];
 const heightIds = ["height-host", "height-first", "height-second"];
 const borderIds = ["border-host", "border-first", "border-second"];
+const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
 const rectFields = ["x", "y", "width", "height"];
@@ -29,7 +30,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "three original, three percentage-height and three border-box rectangles from caller-resolved trees; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, percentage-height, border-box and page-scroll rectangle/hit observations; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -144,6 +145,49 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   }
   validateBorderBoxes("native", native?.borderBoxes);
   validateBorderBoxes("browser", browser?.borderBoxes);
+
+  function validateScrollViewport(owner, value) {
+    const path = "$." + owner + ".scrollViewport";
+    const expected = [...scrollPhases, "documentHeight"].sort().join(",");
+    if (!record(value) || Object.keys(value).sort().join(",") !== expected) {
+      error(path, "document height and exactly three scroll phases required");
+      return;
+    }
+    if (!Number.isSafeInteger(value.documentHeight) || value.documentHeight < 600) {
+      error(path + ".documentHeight", "valid document extent required");
+    }
+    for (const phase of scrollPhases) {
+      const sample = value[phase];
+      const point = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !==
+            ["scrollX", "scrollY", "targetRect", "hitTarget"].sort().join(",")) {
+        error(point, "complete document-scroll sample required");
+        continue;
+      }
+      for (const key of ["scrollX", "scrollY"]) {
+        if (!Number.isSafeInteger(sample[key]) || sample[key] < 0) {
+          error(point + "." + key, "finite nonnegative scroll position required");
+        }
+      }
+      if (sample.hitTarget !== null && sample.hitTarget !== "scroll-target") {
+        error(point + ".hitTarget", "known scroll target or explicit null required");
+      }
+      const rect = sample.targetRect;
+      if (!record(rect) || Object.keys(rect).sort().join(",") !== [...rectFields].sort().join(",")) {
+        error(point + ".targetRect", "complete target rectangle required");
+        continue;
+      }
+      for (const field of rectFields) {
+        if (!Number.isFinite(rect[field]) ||
+            (["width", "height"].includes(field) && rect[field] < 0)) {
+          error(point + ".targetRect." + field, "finite CSS-pixel rectangle required");
+        }
+      }
+    }
+  }
+  validateScrollViewport("native", native?.scrollViewport);
+  validateScrollViewport("browser", browser?.scrollViewport);
 
   const targetPhases = ["original", "hidden", "restored"];
   function validateTargets(owner, value) {
@@ -260,6 +304,34 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "border-box", id, field, left, right,
           path: "$.borderBoxes." + id + "." + field,
+        });
+      }
+    }
+  }
+  const nativeScroll = native.scrollViewport, browserScroll = browser.scrollViewport;
+  if (!Object.is(nativeScroll.documentHeight, browserScroll.documentHeight)) {
+    differences.push({
+      kind: "viewport-scroll", field: "documentHeight",
+      left: nativeScroll.documentHeight, right: browserScroll.documentHeight,
+      path: "$.scrollViewport.documentHeight",
+    });
+  }
+  for (const phase of scrollPhases) {
+    const left = nativeScroll[phase], right = browserScroll[phase];
+    for (const field of ["scrollX", "scrollY", "hitTarget"]) {
+      if (!Object.is(left[field], right[field])) {
+        differences.push({
+          kind: "viewport-scroll", phase, field, left: left[field], right: right[field],
+          path: "$.scrollViewport." + phase + "." + field,
+        });
+      }
+    }
+    for (const field of rectFields) {
+      if (!Object.is(left.targetRect[field], right.targetRect[field])) {
+        differences.push({
+          kind: "viewport-scroll", phase, field: "targetRect." + field,
+          left: left.targetRect[field], right: right.targetRect[field],
+          path: "$.scrollViewport." + phase + ".targetRect." + field,
         });
       }
     }

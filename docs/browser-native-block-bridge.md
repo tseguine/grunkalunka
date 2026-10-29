@@ -222,3 +222,14 @@ and the same three-engine matrix. Offline regression tests verify exact mutation
 bytes and discrepancy shape but do not substitute for the live browser
 observations. This is an intentionally wrong reference-source experiment,
 not new CSS parsing or general percentage-height conformance.
+
+## Source-checked global viewport scrolling
+
+The bridge also includes one independent document-level scroll and hit-target
+comparison. An offscreen target is measured using real browser
+`window.scrollTo`, `getBoundingClientRect` and `elementFromPoint` before,
+during and after restoring a 350px viewport scroll. The native sample
+separately calls `hit_test_scrolled` on reviewed caller-resolved geometry;
+the comparator requires exact offset, document extent, rectangle and target
+observations. See the [viewport-scroll evidence guide](browser-native-viewport-scroll-bridge.md)
+for goldens, source receipts and deliberately excluded browser behavior.

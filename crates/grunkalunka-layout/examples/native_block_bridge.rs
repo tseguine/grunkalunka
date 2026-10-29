@@ -1,6 +1,6 @@
 //! Hand-projected browser oracle slice: resolved boxes, not an HTML/CSS parser.
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
-use grunkalunka_layout::hit_test::{HitNode, hit_test};
+use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{Block, BoxSizing, Display, Edges, Frame, Length, Rect, Style, layout};
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -321,6 +321,132 @@ fn border_boxes_json() -> String {
         .join(",")
 }
 
+// A document-level viewport-scroll witness. Its leading fixed boxes reproduce
+// the *reviewed* occupied heights of the other fixture groups; the scroll
+// target itself is laid out independently, not derived from browser evidence.
+fn scroll_viewport_json() -> String {
+    let blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(284),
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(132),
+                height: Length::Px(92),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(120),
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(650),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(80),
+                height: Length::Px(30),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let frame = layout(&blocks, 800, 600).expect("scroll witness must lay out");
+    let border = frame.boxes[5].expect("visible offscreen target").border;
+    assert_eq!(
+        border,
+        Rect {
+            x: 0,
+            y: 928,
+            width: 80,
+            height: 30,
+        }
+    );
+    assert_eq!((frame.scroll_width, frame.scroll_height), (800, 958));
+
+    // Caller-supplied targetability deliberately excludes unrelated boxes.
+    // Hit selection translates the same viewport point into document space.
+    let nodes = [
+        HitNode {
+            parent: None,
+            targetable: false,
+        },
+        HitNode {
+            parent: Some(0),
+            targetable: false,
+        },
+        HitNode {
+            parent: Some(0),
+            targetable: false,
+        },
+        HitNode {
+            parent: Some(0),
+            targetable: false,
+        },
+        HitNode {
+            parent: Some(0),
+            targetable: false,
+        },
+        HitNode::new(Some(0)),
+    ];
+    let sample = |scroll_y: u32, expected: Option<usize>| {
+        let actual = hit_test_scrolled(&frame, &nodes, 10, 590, 0, scroll_y)
+            .expect("valid document-space target");
+        assert_eq!(actual, expected, "independent viewport-scroll hit golden");
+        let rect = format!(
+            r#"{{"x":{},"y":{},"width":{},"height":{}}}"#,
+            border.x,
+            border.y - scroll_y,
+            border.width,
+            border.height
+        );
+        let hit_json = if actual == Some(5) {
+            r#""scroll-target""#
+        } else {
+            "null"
+        };
+        format!(
+            r#"{{"scrollX":0,"scrollY":{scroll_y},"targetRect":{rect},"hitTarget":{hit_json}}}"#
+        )
+    };
+    let before = sample(0, None);
+    let scrolled = sample(350, Some(5));
+    let restored = sample(0, None);
+    format!(
+        r#"{{"documentHeight":{},"before":{before},"scrolled":{scrolled},"restored":{restored}}}"#,
+        frame.scroll_height
+    )
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -491,6 +617,8 @@ fn main() {
     output.push_str(&percentage_heights_json());
     output.push_str(r#"},"borderBoxes":{"#);
     output.push_str(&border_boxes_json());
-    output.push_str(r#"}}"#);
+    output.push_str(r#"},"scrollViewport":"#);
+    output.push_str(&scroll_viewport_json());
+    output.push('}');
     println!("{output}");
 }

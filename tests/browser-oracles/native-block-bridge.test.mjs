@@ -27,6 +27,17 @@ const borderBoxGeometry = () => ({
   "border-first": { x: 6, y: 207, width: 54, height: 34 },
   "border-second": { x: 6, y: 246, width: 27, height: 17 },
 });
+const scrollSample = scrollY => ({
+  scrollX: 0, scrollY,
+  targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
+  hitTarget: scrollY === 350 ? "scroll-target" : null,
+});
+const scrollViewport = () => ({
+  documentHeight: 958,
+  before: scrollSample(0),
+  scrolled: scrollSample(350),
+  restored: scrollSample(0),
+});
 const hidden = () => ({
   outer: { x: 0, y: 0, width: 284, height: 40 },
   first: null,
@@ -62,6 +73,7 @@ const native = () => ({
   geometry: geometryMap(),
   percentageHeights: percentageHeightGeometry(),
   borderBoxes: borderBoxGeometry(),
+  scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
 });
@@ -84,6 +96,7 @@ function browser() {
     hitTargets: hitTargets(),
     percentageHeights: percentageHeightGeometry(),
     borderBoxes: borderBoxGeometry(),
+    scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
       browserVersion: "1.2", playwrightVersion: "1.64.1",
@@ -105,9 +118,12 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#border-host { width: 120px; height: 80px; margin: 10px 0 0 0;",
     "#border-first { width: 50%; height: 50%; margin: 3px 0 5px 0;",
     "#border-second { width: 25%; height: 25%; margin: 0;",
+    "#scroll-spacer { height: 650px; }",
+    "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
+    '<div id="scroll-spacer"></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -119,6 +135,12 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "percentage boxes must be independently measured from DOM rectangles");
   assert.ok(source.includes("const borderBoxes = Object.fromEntries(borderIds.map("),
     "border-box observations must come from independent DOM rectangles");
+  assert.ok(source.includes("document.elementFromPoint(10, 590)"),
+    "offscreen target must be selected by actual viewport DOM hit testing");
+  assert.ok(source.includes("window.scrollTo(0, 350)"),
+    "source must perform an actual page-level scroll");
+  assert.ok(source.includes("const scrollViewport = {"),
+    "all scroll phases must be retained in the original source receipt");
   assert.ok(source.includes("document.elementFromPoint(x, y)"),
     "browser input targets must come from the DOM hit test");
   assert.ok(source.includes("const hiddenTargets = hitTargets()"));
@@ -201,6 +223,51 @@ test("missing or malformed border-box records fail before any comparison", () =>
   }
   const left = native();
   delete left.borderBoxes["border-second"];
+  assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
+});
+
+test("page scroll translates independent viewport hits and restores positions", () => {
+  const left = native(), right = browser();
+  assert.equal(compareNativeBlockBridge(left, right, fixture).status, "equal");
+  assert.deepEqual(right.scrollViewport, {
+    documentHeight: 958,
+    before: scrollSample(0), scrolled: scrollSample(350), restored: scrollSample(0),
+  });
+  right.scrollViewport.scrolled.targetRect.y = 579;
+  const difference = compareNativeBlockBridge(left, right, fixture);
+  assert.equal(difference.status, "different");
+  assert.deepEqual(difference.differences, [{
+    kind: "viewport-scroll", phase: "scrolled", field: "targetRect.y",
+    left: 578, right: 579, path: "$.scrollViewport.scrolled.targetRect.y",
+  }]);
+
+  const hit = browser();
+  hit.scrollViewport.scrolled.hitTarget = null;
+  const hitDifference = compareNativeBlockBridge(native(), hit, fixture);
+  assert.deepEqual(hitDifference.differences, [{
+    kind: "viewport-scroll", phase: "scrolled", field: "hitTarget",
+    left: "scroll-target", right: null, path: "$.scrollViewport.scrolled.hitTarget",
+  }]);
+});
+
+test("missing, partial and impossible scroll receipts fail closed", () => {
+  for (const change of [
+    c => { delete c.scrollViewport; },
+    c => { delete c.scrollViewport.scrolled; },
+    c => { c.scrollViewport.documentHeight = NaN; },
+    c => { c.scrollViewport.scrolled.scrollY = -1; },
+    c => { c.scrollViewport.scrolled.scrollY = 350.5; },
+    c => { c.scrollViewport.before.hitTarget = "scroll-spacer"; },
+    c => { delete c.scrollViewport.restored.targetRect.width; },
+    c => { c.scrollViewport.scrolled.targetRect.height = Infinity; },
+    c => { c.scrollViewport.other = {}; },
+  ]) {
+    const right = browser();
+    change(right);
+    assert.equal(compareNativeBlockBridge(native(), right, fixture).status, "invalid");
+  }
+  const left = native();
+  delete left.scrollViewport.scrolled;
   assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
 });
 
