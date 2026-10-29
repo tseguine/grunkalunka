@@ -35,6 +35,11 @@ const autoMarginIds = ["auto-host", "auto-centered", "auto-left", "auto-right",
 const autoMarginChildren = ["auto-centered", "auto-left", "auto-right", "auto-limited"];
 const autoMarginProbes = ["center-original", "center-shifted", "left-auto",
   "right-auto", "limited", "host", "sibling", "outside"];
+const relativePhases = ["baseline", "parentMoved", "restored"];
+const relativeIds = ["relative-host", "relative-child", "relative-sibling"];
+const relativeStyled = ["relative-host", "relative-child"];
+const relativeProbes = ["original-parent", "moved-parent", "original-child",
+  "moved-child", "host-interior", "sibling", "outside"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -56,7 +61,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents, pointer-events and horizontal auto-margin geometry/hits; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents, pointer-events, auto margins and relative-offset geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -531,6 +536,82 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   validateAutoMarginStates("native", native?.autoMarginStates);
   validateAutoMarginStates("browser", browser?.autoMarginStates);
 
+  function validateRelativeStates(owner, states) {
+    const path = "$." + owner + ".relativeStates";
+    if (!record(states) ||
+        Object.keys(states).sort().join(",") !== [...relativePhases].sort().join(",")) {
+      error(path, "baseline, parentMoved and restored relative phases required");
+      return;
+    }
+    const exactIds = [...relativeIds].sort().join(",");
+    const exactStyled = [...relativeStyled].sort().join(",");
+    const exactProbes = [...relativeProbes].sort().join(",");
+    const exactFields = [...rectFields].sort().join(",");
+    for (const phase of relativePhases) {
+      const sample = states[phase], prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,computed,hits") {
+        error(prefix, "complete relative geometry, computed offsets and hits required");
+        continue;
+      }
+      if (!record(sample.boxes) || Object.keys(sample.boxes).sort().join(",") !== exactIds) {
+        error(prefix + ".boxes", "exactly three relative boxes required");
+      } else {
+        for (const id of relativeIds) {
+          const box = sample.boxes[id];
+          if (!record(box) || Object.keys(box).sort().join(",") !== exactFields) {
+            error(prefix + ".boxes." + id, "complete relative border rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(box[field]) ||
+                (["width", "height"].includes(field) && box[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite nonnegative-size CSS pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.computed) ||
+          Object.keys(sample.computed).sort().join(",") !== exactStyled) {
+        error(prefix + ".computed", "exactly two positioned computed styles required");
+      } else {
+        for (const id of relativeStyled) {
+          const style = sample.computed[id];
+          if (!record(style) ||
+              Object.keys(style).sort().join(",") !== "left,position,top") {
+            error(prefix + ".computed." + id, "position, left and top required");
+            continue;
+          }
+          if (style.position !== "relative") {
+            error(prefix + ".computed." + id + ".position", "source-observed relative required");
+          }
+          for (const side of ["left", "top"]) {
+            if (typeof style[side] !== "string" ||
+                !/^\d+(?:\.\d+)?px$/.test(style[side])) {
+              error(prefix + ".computed." + id + "." + side,
+                "nonnegative resolved CSS-pixel offset required");
+            }
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== exactProbes) {
+        error(prefix + ".hits", "exactly seven independent relative hit probes required");
+      } else {
+        for (const probe of relativeProbes) {
+          const id = sample.hits[probe];
+          if (id !== null && !relativeIds.includes(id)) {
+            error(prefix + ".hits." + probe,
+              "known relative element or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validateRelativeStates("native", native?.relativeStates);
+  validateRelativeStates("browser", browser?.relativeStates);
+
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
     const expected = [...scrollPhases, "documentHeight"].sort().join(",");
@@ -870,6 +951,40 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "auto-margin-hit", phase, probe, left, right,
           path: "$.autoMarginStates." + phase + ".hits." + probe,
+        });
+      }
+    }
+  }
+  for (const phase of relativePhases) {
+    const a = native.relativeStates[phase], b = browser.relativeStates[phase];
+    for (const id of relativeIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "relative-box", phase, id, field, left, right,
+            path: "$.relativeStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+    }
+    for (const id of relativeStyled) {
+      for (const field of ["position", "left", "top"]) {
+        const left = a.computed[id][field], right = b.computed[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "relative-computed", phase, id, field, left, right,
+            path: "$.relativeStates." + phase + ".computed." + id + "." + field,
+          });
+        }
+      }
+    }
+    for (const probe of relativeProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "relative-hit", phase, probe, left, right,
+          path: "$.relativeStates." + phase + ".hits." + probe,
         });
       }
     }

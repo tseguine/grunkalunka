@@ -3,7 +3,7 @@
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
     Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, HorizontalAutoMargins,
-    Length, PointerEvents, Rect, Style, Visibility, WidthBound, layout,
+    Length, PointerEvents, Rect, RelativeOffset, Style, Visibility, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -2191,6 +2191,172 @@ fn auto_margin_states_json() -> String {
     format!(r#"{{"centered":{centered},"leftFixed":{left_fixed},"restored":{restored}}}"#)
 }
 
+// A caller-resolved normal-flow witness, independent of the CSS fixture.
+// All earlier fixed-height groups occupy 536px; relative positioning shifts
+// only the visual parent/descendants, not the following sibling's flow y.
+fn relative_states_json() -> String {
+    let mut blocks = [
+        Block::default(),
+        Block::child(0, 536),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(60),
+                height: Length::Px(32),
+                margin: Edges {
+                    left: 240,
+                    ..Edges::default()
+                },
+                relative_offset: RelativeOffset { x: 12, y: 9 },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(2),
+            style: Style {
+                width: Length::Px(18),
+                height: Length::Px(8),
+                relative_offset: RelativeOffset { x: 4, y: 5 },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(24),
+                height: Length::Px(6),
+                margin: Edges {
+                    left: 350,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let baseline = layout(&blocks, 800, 600).expect("native relative baseline");
+    blocks[2].style.relative_offset.x = 20;
+    let moved = layout(&blocks, 800, 600).expect("native relative parent moved");
+    blocks[2].style.relative_offset.x = 12;
+    let restored = layout(&blocks, 800, 600).expect("native relative restored");
+    assert_eq!(restored, baseline, "relative position must restore exactly");
+    assert_eq!((baseline.scroll_width, baseline.scroll_height), (800, 600));
+
+    let expected = [
+        ("relative-host", 2, Rect { x: 252, y: 545, width: 60, height: 32 }),
+        ("relative-child", 3, Rect { x: 256, y: 550, width: 18, height: 8 }),
+        ("relative-sibling", 4, Rect { x: 350, y: 568, width: 24, height: 6 }),
+    ];
+    for &(id, index, golden) in &expected {
+        assert_eq!(
+            baseline.boxes[index].expect("visible relative box").border,
+            golden,
+            "independent relative CSS geometry for {id}"
+        );
+    }
+    assert_eq!(
+        moved.boxes[2].unwrap().border,
+        Rect { x: 260, y: 545, width: 60, height: 32 }
+    );
+    assert_eq!(
+        moved.boxes[3].unwrap().border,
+        Rect { x: 264, y: 550, width: 18, height: 8 }
+    );
+    assert_eq!(moved.boxes[4], baseline.boxes[4], "sibling does not reflow");
+    assert_eq!((moved.scroll_width, moved.scroll_height), (800, 600));
+
+    let probes = [
+        ("original-parent", 253, 547),
+        ("moved-parent", 314, 547),
+        ("original-child", 257, 552),
+        ("moved-child", 280, 552),
+        ("host-interior", 294, 565),
+        ("sibling", 351, 570),
+        ("outside", 325, 548),
+    ];
+    let nodes = [
+        HitNode::new(None),
+        HitNode::new(Some(0)),
+        HitNode::new(Some(0)),
+        HitNode::new(Some(2)),
+        HitNode::new(Some(0)),
+    ];
+    let targets = |frame: &Frame| -> Vec<Option<&'static str>> {
+        probes
+            .iter()
+            .map(|&(_, x, y)| {
+                match hit_test(frame, &nodes, x, y).expect("native relative hit") {
+                    Some(2) => Some("relative-host"),
+                    Some(3) => Some("relative-child"),
+                    Some(4) => Some("relative-sibling"),
+                    None | Some(0) | Some(1) => None,
+                    Some(other) => panic!("unexpected native relative hit {other}"),
+                }
+            })
+            .collect()
+    };
+    let initial_hits = targets(&baseline);
+    let moved_hits = targets(&moved);
+    assert_eq!(
+        initial_hits,
+        vec![
+            Some("relative-host"),
+            None,
+            Some("relative-child"),
+            Some("relative-host"),
+            Some("relative-host"),
+            Some("relative-sibling"),
+            None,
+        ]
+    );
+    assert_eq!(
+        moved_hits,
+        vec![
+            None,
+            Some("relative-host"),
+            None,
+            Some("relative-child"),
+            Some("relative-host"),
+            Some("relative-sibling"),
+            None,
+        ]
+    );
+    assert_eq!(targets(&restored), initial_hits);
+
+    let receipt = |frame: &Frame, hits: &[Option<&str>], parent_left: u32| {
+        let boxes = expected
+            .iter()
+            .map(|&(id, index, _)| {
+                let rect = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    rect.x, rect.y, rect.width, rect.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let computed = format!(
+            r#""relative-host":{{"position":"relative","left":"{parent_left}px","top":"9px"}},"relative-child":{{"position":"relative","left":"4px","top":"5px"}}"#
+        );
+        let hits = probes
+            .iter()
+            .zip(hits)
+            .map(|(&(name, _, _), target)| match target {
+                Some(id) => format!(r#""{name}":"{id}""#),
+                None => format!(r#""{name}":null"#),
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(r#"{{"computed":{{{computed}}},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#)
+    };
+    let first = receipt(&baseline, &initial_hits, 12);
+    let second = receipt(&moved, &moved_hits, 20);
+    let last = receipt(&restored, &initial_hits, 12);
+    format!(r#"{{"baseline":{first},"parentMoved":{second},"restored":{last}}}"#)
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -2378,6 +2544,8 @@ fn main() {
     output.push_str(&pointer_states_json());
     output.push_str(r#","autoMarginStates":"#);
     output.push_str(&auto_margin_states_json());
+    output.push_str(r#","relativeStates":"#);
+    output.push_str(&relative_states_json());
     output.push('}');
     println!("{output}");
 }

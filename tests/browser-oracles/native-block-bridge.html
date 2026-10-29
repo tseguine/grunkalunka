@@ -53,12 +53,16 @@
   #auto-right { width: 30px; height: 6px; margin-left: 12px; margin-right: auto; }
   #auto-limited { width: auto; max-width: 80px; height: 6px; margin: 0 auto; }
   #auto-sibling { width: 20px; height: 5px; }
+  /* Positive-only relative offsets; following normal-flow sibling is unchanged. */
+  #relative-host { width: 60px; height: 32px; margin-left: 240px; position: relative; left: 12px; top: 9px; }
+  #relative-child { width: 18px; height: 8px; position: relative; left: 4px; top: 5px; }
+  #relative-sibling { width: 24px; height: 6px; margin-left: 350px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -321,6 +325,44 @@
   const autoMarginStates = {
     centered: autoOriginal, leftFixed: autoShifted, restored: autoRestored
   };
+  // Real CSS relative offsets visually translate parent and descendant but
+  // preserve the following sibling's original normal-flow coordinates.
+  const relativeIds = ["relative-host", "relative-child", "relative-sibling"];
+  const relativeStyled = ["relative-host", "relative-child"];
+  const relativeProbes = [
+    ["original-parent", 253, 547],
+    ["moved-parent", 314, 547],
+    ["original-child", 257, 552],
+    ["moved-child", 280, 552],
+    ["host-interior", 294, 565],
+    ["sibling", 351, 570],
+    ["outside", 325, 548]
+  ];
+  function relativeSample() {
+    return {
+      computed: Object.fromEntries(relativeStyled.map(id => {
+        const style = getComputedStyle(document.getElementById(id));
+        return [id, { position: style.position, left: style.left, top: style.top }];
+      })),
+      boxes: Object.fromEntries(relativeIds.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+      })),
+      hits: Object.fromEntries(relativeProbes.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, relativeIds.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+  const relativeHost = document.getElementById("relative-host");
+  const relativeOriginal = relativeSample();
+  relativeHost.style.left = "20px";
+  const relativeMoved = relativeSample();
+  relativeHost.style.removeProperty("left");
+  const relativeRestored = relativeSample();
+  const relativeStates = {
+    baseline: relativeOriginal, parentMoved: relativeMoved, restored: relativeRestored
+  };
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
   // All earlier geometry/hit channels were captured before changing scrollY.
   function scrollSample() {
@@ -359,6 +401,7 @@
     boxlessStates,
     pointerStates,
     autoMarginStates,
+    relativeStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {
