@@ -323,11 +323,11 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     // The existing whole-process memory series ends before these repetitions.
     let (fresh_instantiation_ms, fresh_first_call_ms) =
         measure_fresh_instances(&engine, &module, options.samples)?;
-    // Run empty-host setup separately, after the original five memory phases
-    // and independent fresh instance goldens, never in the timed guest loop.
-    let (engine_creation_ms, store_creation_ms) = measure_host_setup(options.samples);
     // The Node subprocess receives these same compiled bytes through stdin.
     let node_json = measure_node(&artifact.wasm, options)?;
+    // Isolated host setup follows the entire original two-engine replay,
+    // so it cannot preheat or otherwise change earlier Node timing samples.
+    let (engine_creation_ms, store_creation_ms) = measure_host_setup(options.samples);
     Ok(Report {
         options,
         wasm_bytes: artifact.wasm.len(),
