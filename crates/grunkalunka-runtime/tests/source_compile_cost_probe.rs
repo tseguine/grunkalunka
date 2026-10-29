@@ -192,14 +192,18 @@ fn callers_cannot_bypass_validation_by_constructing_options_directly() {
 
 #[test]
 fn observed_rustc_header_is_strict_and_cannot_inject_report_json() {
-    let valid = "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nrelease: 1.99.1\nhost: x86_64-unknown-linux-gnu\n";
+    let valid =
+        "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nrelease: 1.99.1\nhost: x86_64-unknown-linux-gnu\n";
     assert_eq!(
         source_compile_cost::parse_observed_rustc(valid).as_deref(),
         Some("rustc 1.99.1 (58cf8f9c3 2026-10-13)")
     );
     for invalid in [
-        "", "not-rustc 1.99.1", "rustc \"fabricated\"",
-        "rustc {json}", "rustc 1.0.0\tbad",
+        "",
+        "not-rustc 1.99.1",
+        "rustc \"fabricated\"",
+        "rustc {json}",
+        "rustc 1.0.0\tbad",
         "rustc 1.99.1 😀",
     ] {
         assert!(
@@ -207,7 +211,5 @@ fn observed_rustc_header_is_strict_and_cannot_inject_report_json() {
             "{invalid:?}"
         );
     }
-    assert!(
-        source_compile_cost::parse_observed_rustc(&"rustc 1.0.0 ".repeat(20)).is_none()
-    );
+    assert!(source_compile_cost::parse_observed_rustc(&"rustc 1.0.0 ".repeat(20)).is_none());
 }
