@@ -79,6 +79,9 @@ mod named_promise_inputs;
 #[path = "async-suspension/promise_throw_reasons.rs"]
 mod promise_throw_reasons;
 
+#[path = "async-suspension/catch_reasons.rs"]
+mod catch_reasons;
+
 #[path = "async-suspension/promise_reject_reasons.rs"]
 mod promise_reject_reasons;
 
