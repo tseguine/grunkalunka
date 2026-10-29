@@ -10,6 +10,9 @@ const ORIGINAL: &str = "export async function run(a,b) { return a + await Promis
 #[path = "async-suspension/pending.rs"]
 mod pending;
 
+#[path = "async-suspension/promise_resolve_mixed.rs"]
+mod promise_resolve_mixed;
+
 #[path = "async-suspension/pending_inputs.rs"]
 mod pending_inputs;
 
@@ -229,7 +232,6 @@ fn selected_async_await_operands_keep_pending_and_domain_guards() {
         &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
     );
     for body in [
-        "let f=async()=>{await a;return b;};return await Promise.resolve(a?f():b,await a);",
         "let f=async()=>{await a;return b;};return await(a?f():{});",
         "let f=async()=>{await a;return b;};return await(a?f():'x');",
         "let f=async()=>{await a;return b;};return await(a?f():(()=>b));",

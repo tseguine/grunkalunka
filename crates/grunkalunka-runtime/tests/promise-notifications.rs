@@ -21,6 +21,9 @@ mod promise_type_arguments_notifications;
 #[path = "async-suspension/promise_relational_notifications.rs"]
 mod promise_relational_notifications;
 
+#[path = "async-suspension/promise_resolve_notifications.rs"]
+mod promise_resolve_notifications;
+
 fn promoted_identity_case(source: &str, typescript: bool) -> String {
     fn bits(value: Value) -> String {
         match value {
@@ -292,6 +295,7 @@ fn node_reports_detached_child_rejections_like_native_promises() {
         .chain(named_async_notifications::SOURCES)
         .chain(named_promise_notifications::SOURCES)
         .chain(promise_type_arguments_notifications::SOURCES)
+        .chain(promise_resolve_notifications::SOURCES)
     {
         for typescript in [false, true] {
             cases.push(promoted_identity_case(source, typescript));

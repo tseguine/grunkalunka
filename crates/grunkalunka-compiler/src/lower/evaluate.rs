@@ -748,6 +748,11 @@ impl Lowering<'_, '_> {
                         && (operand.extras.is_empty()
                             || !self.pending_promise_shape(argument, operand.depth))
                     {
+                        if self.schedule_mixed_resolve_await(
+                            node, depth, mode, &operand, site, &mut work,
+                        )? {
+                            continue;
+                        }
                         if operand.rejected || !operand.extras.is_empty() {
                             return Err(unsupported(
                                 node,
@@ -1019,32 +1024,7 @@ impl Lowering<'_, '_> {
                     values.push(Value::Promise(result));
                 }
                 Work::CreatePromise(node, rejected) => {
-                    let payload = values.pop().expect("Promise constructor payload");
-                    let input = if rejected {
-                        let mut body = self.region(node);
-                        body.exit = Exit::Throw(payload.id());
-                        let result = self.value(Type::SettledPromise);
-                        Self::push(regions.current(), node, Op::SettlePromise { result, body });
-                        result
-                    } else {
-                        let result = self.value(Type::FulfilledPromise);
-                        Self::push(
-                            regions.current(),
-                            node,
-                            Op::FulfillPromise {
-                                result,
-                                input: payload.general(),
-                            },
-                        );
-                        result
-                    };
-                    let result = self.value(Type::Promise);
-                    Self::push(
-                        regions.current(),
-                        node,
-                        Op::MaterializePromise { result, input },
-                    );
-                    values.push(Value::Pending(result));
+                    self.create_promise_value(node, rejected, &mut values, regions.current());
                 }
                 Work::PromiseValue(node) => {
                     let input = values.pop().expect("awaited Promise").promise();
@@ -2499,6 +2479,11 @@ impl Lowering<'_, '_> {
                             continue;
                         }
                         if let Expression::CallExpression(call) = node {
+                            if self
+                                .schedule_mixed_resolve_constructor(node, call, depth, &mut work)?
+                            {
+                                continue;
+                            }
                             if self.promise_parameters.identities
                                 && let Some(intrinsic) = awaited::intrinsic(call, self.semantic)
                                     .map_err(|message| unsupported(node, message))?
@@ -3713,6 +3698,120 @@ impl Lowering<'_, '_> {
         };
         assert!(values.is_empty(), "all intermediate values consumed");
         Ok(result)
+    }
+
+    fn create_promise_value(
+        &mut self,
+        node: &Expression<'_>,
+        rejected: bool,
+        values: &mut Vec<Value>,
+        region: &mut Region,
+    ) {
+        let payload = values.pop().expect("Promise constructor payload");
+        if !rejected && let Value::Selection(input) = payload {
+            let result = self.resolve_promise_value(node, input, region);
+            values.push(Value::Pending(result));
+            return;
+        }
+        let input = if rejected {
+            let mut body = self.region(node);
+            body.exit = Exit::Throw(payload.id());
+            let result = self.value(Type::SettledPromise);
+            Self::push(region, node, Op::SettlePromise { result, body });
+            result
+        } else {
+            let result = self.value(Type::FulfilledPromise);
+            Self::push(
+                region,
+                node,
+                Op::FulfillPromise {
+                    result,
+                    input: payload.general(),
+                },
+            );
+            result
+        };
+        let result = self.value(Type::Promise);
+        Self::push(region, node, Op::MaterializePromise { result, input });
+        values.push(Value::Pending(result));
+    }
+
+    // Keep scheduling out of the main cursor frame so even source paths that
+    // do not use Promise resolution preserve the existing 2 MiB stack budget.
+    fn schedule_mixed_resolve_await<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        depth: usize,
+        mode: Mode,
+        operand: &awaited::Operand<'e, 'a>,
+        site: Option<usize>,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<bool, String> {
+        if !self.promise_parameters.identities || operand.rejected || operand.extras.is_empty() {
+            return Ok(false);
+        }
+        let Some(argument) = operand.argument else {
+            return Ok(false);
+        };
+        if !self.has_promise_choice(argument, operand.depth) {
+            return Ok(false);
+        }
+        call_result(
+            work,
+            node,
+            mode,
+            Type::General,
+            self.numeric_result_shape(node, depth),
+        )?;
+        work.push(Work::AwaitAsyncValue(
+            node,
+            site.unwrap_or(node.span().start as usize),
+        ));
+        for extra in operand.extras.iter().rev() {
+            work.push(Work::Eval(
+                extra.as_expression().expect("validated intrinsic argument"),
+                operand.depth,
+                Mode::Discard,
+            ));
+        }
+        work.push(Work::Eval(argument, operand.depth, Mode::AsyncValue));
+        Ok(true)
+    }
+
+    fn schedule_mixed_resolve_constructor<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        depth: usize,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<bool, String> {
+        if !self.promise_parameters.identities {
+            return Ok(false);
+        }
+        let Some(intrinsic) = awaited::intrinsic(call, self.semantic)
+            .map_err(|message| unsupported(node, message))?
+        else {
+            return Ok(false);
+        };
+        let Some(argument) = intrinsic.argument else {
+            return Ok(false);
+        };
+        if intrinsic.rejected
+            || !self.has_promise_choice(argument, depth + 1)
+            || self.pending_promise_shape(argument, depth + 1)
+        {
+            return Ok(false);
+        }
+        work.push(Work::CreatePromise(node, false));
+        for extra in intrinsic.extras.iter().rev() {
+            work.push(Work::Eval(
+                extra.as_expression().expect("validated intrinsic argument"),
+                depth + 1,
+                Mode::Discard,
+            ));
+        }
+        work.push(Work::Eval(argument, depth + 1, Mode::AsyncValue));
+        Ok(true)
     }
 
     // Both call effects share source validation and callee-before-arguments evaluation.
