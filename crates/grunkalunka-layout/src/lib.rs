@@ -135,6 +135,18 @@ pub struct PercentageMargins {
     pub left: Option<u32>,
 }
 
+/// Caller-resolved percentage padding for a horizontal writing-mode
+/// normal-flow block. As in CSS, ALL sides (including top/bottom) use
+/// the containing block's original CONTENT width, not its height.
+/// Unspecified sides retain `Style::padding` integer pixel values.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PercentagePadding {
+    pub top: Option<u32>,
+    pub right: Option<u32>,
+    pub bottom: Option<u32>,
+    pub left: Option<u32>,
+}
+
 /// Which horizontal margins use the CSS-inspired `auto` policy.
 /// An auto side ignores the corresponding numerical side of `Style::margin`.
 /// The default preserves both explicit integer margins. This is a selected
@@ -207,6 +219,8 @@ pub struct Style {
     pub relative_offset: RelativeOffset,
     pub border: Edges,
     pub padding: Edges,
+    /// Optional per-side percentages overriding fixed padding edges.
+    pub percentage_padding: PercentagePadding,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -312,6 +326,9 @@ pub enum LayoutError {
         node: usize,
     },
     FractionalPercentageMargin {
+        node: usize,
+    },
+    FractionalPercentagePadding {
         node: usize,
     },
     /// Two auto margins would each need half an integer CSS pixel; this
@@ -431,8 +448,27 @@ impl Engine<'_> {
         let fixed_left = margin.left;
         let fixed_right = margin.right;
         let fixed_margins = add(fixed_left, fixed_right)?;
+        // Resolve each used padding edge against the ORIGINAL containing
+        // content width, even for top/bottom. Padding cannot be auto or
+        // negative in this model. Exact-integer percentages fail closed.
+        let resolve_padding = |percent: Option<u32>, fixed: u32| -> Result<u32, LayoutError> {
+            match percent {
+                Some(value) => whole_percent(
+                    available_width,
+                    value,
+                    LayoutError::FractionalPercentagePadding { node },
+                ),
+                None => Ok(fixed),
+            }
+        };
+        let padding = Edges {
+            top: resolve_padding(style.percentage_padding.top, style.padding.top)?,
+            right: resolve_padding(style.percentage_padding.right, style.padding.right)?,
+            bottom: resolve_padding(style.percentage_padding.bottom, style.padding.bottom)?,
+            left: resolve_padding(style.percentage_padding.left, style.padding.left)?,
+        };
         let (border_x, border_y) = insets(style.border)?;
-        let (padding_x, padding_y) = insets(style.padding)?;
+        let (padding_x, padding_y) = insets(padding)?;
         let width_edges = add(border_x, padding_x)?;
         let height_edges = add(border_y, padding_y)?;
         let horizontal = add(fixed_margins, width_edges)?;
@@ -487,10 +523,10 @@ impl Engine<'_> {
 
         let border_left = add(visual_x, margin_left)?;
         let padding_left = add(border_left, style.border.left)?;
-        let content_x = add(padding_left, style.padding.left)?;
+        let content_x = add(padding_left, padding.left)?;
         let border_top = add(visual_y, margin.top)?;
         let padding_top = add(border_top, style.border.top)?;
-        let content_y = add(padding_top, style.padding.top)?;
+        let content_y = add(padding_top, padding.top)?;
 
         // Resolve both height limits independently against the parent's
         // definite content height. No percentage fallback is invented for an
@@ -590,7 +626,8 @@ impl Engine<'_> {
 /// pointer-events input policy, optional padding-box descendant clipping,
 /// content-box/border-box sizing, min/max width/height constraints,
 /// nonnegative horizontal auto margins, containing-width-relative percentage
-/// margins on all four sides, positive post-flow relative offsets, and whole
+/// margins and padding on all four sides, positive post-flow relative offsets,
+/// and whole
 /// percentage dimensions with exact integral results are admitted.
 /// Relative displacements move an element and descendants for geometry,
 /// painting, hit testing and scroll extent but do not advance sibling flow
