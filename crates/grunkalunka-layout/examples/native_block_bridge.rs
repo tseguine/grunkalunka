@@ -2,8 +2,8 @@
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
-    Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, Length, PointerEvents,
-    HorizontalAutoMargins, Rect, Style, Visibility, WidthBound, layout,
+    Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, HorizontalAutoMargins,
+    Length, PointerEvents, Rect, Style, Visibility, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -1991,30 +1991,96 @@ fn auto_margin_states_json() -> String {
     blocks[3].style.margin.left = 0;
     blocks[3].style.horizontal_auto_margins = HorizontalAutoMargins::Both;
     let restored = layout(&blocks, 800, 600).expect("native auto-margin restored");
-    assert_eq!(restored, original, "auto-margin style restoration must be exact");
+    assert_eq!(
+        restored, original,
+        "auto-margin style restoration must be exact"
+    );
 
     let expected = [
-        ("auto-host", 2, Rect { x: 0, y: 467, width: 200, height: 64 }),
-        ("auto-centered", 3, Rect { x: 80, y: 467, width: 40, height: 8 }),
-        ("auto-left", 4, Rect { x: 140, y: 475, width: 50, height: 7 }),
-        ("auto-right", 5, Rect { x: 12, y: 482, width: 30, height: 6 }),
-        ("auto-limited", 6, Rect { x: 60, y: 488, width: 80, height: 6 }),
-        ("auto-sibling", 7, Rect { x: 0, y: 531, width: 20, height: 5 }),
+        (
+            "auto-host",
+            2,
+            Rect {
+                x: 0,
+                y: 467,
+                width: 200,
+                height: 64,
+            },
+        ),
+        (
+            "auto-centered",
+            3,
+            Rect {
+                x: 80,
+                y: 467,
+                width: 40,
+                height: 8,
+            },
+        ),
+        (
+            "auto-left",
+            4,
+            Rect {
+                x: 140,
+                y: 475,
+                width: 50,
+                height: 7,
+            },
+        ),
+        (
+            "auto-right",
+            5,
+            Rect {
+                x: 12,
+                y: 482,
+                width: 30,
+                height: 6,
+            },
+        ),
+        (
+            "auto-limited",
+            6,
+            Rect {
+                x: 60,
+                y: 488,
+                width: 80,
+                height: 6,
+            },
+        ),
+        (
+            "auto-sibling",
+            7,
+            Rect {
+                x: 0,
+                y: 531,
+                width: 20,
+                height: 5,
+            },
+        ),
     ];
     for &(id, index, golden) in &expected {
         assert_eq!(
-            original.boxes[index].expect("native auto-margin box").border,
+            original.boxes[index]
+                .expect("native auto-margin box")
+                .border,
             golden,
             "independent native auto-margin rectangle for {id}"
         );
     }
     assert_eq!(
         shifted.boxes[3].expect("shifted center box").border,
-        Rect { x: 20, y: 467, width: 40, height: 8 }
+        Rect {
+            x: 20,
+            y: 467,
+            width: 40,
+            height: 8
+        }
     );
     for &(_, index, golden) in expected.iter().filter(|(_, index, _)| *index != 3) {
         assert_eq!(
-            shifted.boxes[index].expect("unaffected auto-margin box").border,
+            shifted.boxes[index]
+                .expect("unaffected auto-margin box")
+                .border,
             golden
         );
     }
@@ -2039,54 +2105,84 @@ fn auto_margin_states_json() -> String {
         HitNode::new(Some(0)),
     ];
     let hit_names = |frame: &Frame| -> Vec<Option<&'static str>> {
-        probes.iter().map(|&(_, x, y)| {
-            match hit_test(frame, &hit_nodes, x, y).expect("native auto-margin hit") {
-                Some(2) => Some("auto-host"),
-                Some(3) => Some("auto-centered"),
-                Some(4) => Some("auto-left"),
-                Some(5) => Some("auto-right"),
-                Some(6) => Some("auto-limited"),
-                Some(7) => Some("auto-sibling"),
-                None | Some(0) | Some(1) => None,
-                Some(other) => panic!("unexpected native auto-margin target {other}"),
-            }
-        }).collect()
+        probes
+            .iter()
+            .map(|&(_, x, y)| {
+                match hit_test(frame, &hit_nodes, x, y).expect("native auto-margin hit") {
+                    Some(2) => Some("auto-host"),
+                    Some(3) => Some("auto-centered"),
+                    Some(4) => Some("auto-left"),
+                    Some(5) => Some("auto-right"),
+                    Some(6) => Some("auto-limited"),
+                    Some(7) => Some("auto-sibling"),
+                    None | Some(0) | Some(1) => None,
+                    Some(other) => panic!("unexpected native auto-margin target {other}"),
+                }
+            })
+            .collect()
     };
     let before_hits = hit_names(&original);
     let shifted_hits = hit_names(&shifted);
-    assert_eq!(before_hits, vec![
-        Some("auto-centered"), Some("auto-host"), Some("auto-left"),
-        Some("auto-right"), Some("auto-limited"), Some("auto-host"),
-        Some("auto-sibling"), None,
-    ]);
-    assert_eq!(shifted_hits, vec![
-        Some("auto-host"), Some("auto-centered"), Some("auto-left"),
-        Some("auto-right"), Some("auto-limited"), Some("auto-host"),
-        Some("auto-sibling"), None,
-    ]);
+    assert_eq!(
+        before_hits,
+        vec![
+            Some("auto-centered"),
+            Some("auto-host"),
+            Some("auto-left"),
+            Some("auto-right"),
+            Some("auto-limited"),
+            Some("auto-host"),
+            Some("auto-sibling"),
+            None,
+        ]
+    );
+    assert_eq!(
+        shifted_hits,
+        vec![
+            Some("auto-host"),
+            Some("auto-centered"),
+            Some("auto-left"),
+            Some("auto-right"),
+            Some("auto-limited"),
+            Some("auto-host"),
+            Some("auto-sibling"),
+            None,
+        ]
+    );
     assert_eq!(hit_names(&restored), before_hits);
 
     let receipt = |frame: &Frame, hits: &[Option<&str>]| {
-        let boxes = expected.iter().map(|&(id, index, _)| {
-            let r = frame.boxes[index].unwrap().border;
-            format!(
-                r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
-                r.x, r.y, r.width, r.height
-            )
-        }).collect::<Vec<_>>().join(",");
-        let computed = expected.iter().filter(|(_, index, _)| (3..=6).contains(index))
+        let boxes = expected
+            .iter()
+            .map(|&(id, index, _)| {
+                let r = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    r.x, r.y, r.width, r.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let computed = expected
+            .iter()
+            .filter(|(_, index, _)| (3..=6).contains(index))
             .map(|&(id, index, _)| {
                 let box_geometry = frame.boxes[index].unwrap();
                 let left = box_geometry.border.x - box_geometry.margin.x;
                 let right = box_geometry.margin.width - left - box_geometry.border.width;
                 format!(r#""{id}":{{"left":"{left}px","right":"{right}px"}}"#)
-            }).collect::<Vec<_>>().join(",");
-        let hits = probes.iter().zip(hits).map(|(&(name, _, _), target)| {
-            match target {
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let hits = probes
+            .iter()
+            .zip(hits)
+            .map(|(&(name, _, _), target)| match target {
                 Some(id) => format!(r#""{name}":"{id}""#),
                 None => format!(r#""{name}":null"#),
-            }
-        }).collect::<Vec<_>>().join(",");
+            })
+            .collect::<Vec<_>>()
+            .join(",");
         format!(r#"{{"computed":{{{computed}}},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#)
     };
     let centered = receipt(&original, &before_hits);
