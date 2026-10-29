@@ -265,7 +265,10 @@ test('native Markdown outline control validates raw samples, preserving absent l
   ]) {
     const corrupted = report();
     corrupted.timings.nativeOutline = invalid;
-    assert.throws(() => validateNativeReport(corrupted, config, 100), /Invalid/);
+    assert.throws(() => validateNativeReport(corrupted, config, 100), {
+      name: 'TypeError',
+      message: /^(?:Missing|Invalid) /,
+    });
   }
 });
 
