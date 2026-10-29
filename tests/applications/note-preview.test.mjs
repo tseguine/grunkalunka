@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { access, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { compileSource } from '../../tools/build/compile.mjs';
 import { escapeHtml, renderNotePreview, renderWithCompiledToggle } from '../../examples/note-preview/render.mjs';
+import { parseArguments, runPreview } from '../../examples/note-preview/run.mjs';
+import { buildCommands } from '../../examples/note-preview/build.mjs';
 import { prepareNoteScene } from '../../examples/note-preview/scene.mjs';
 
 const bytes = Buffer.from('# Root\r\n## 子😀\n', 'utf8');
@@ -354,3 +357,112 @@ test('native A1 scene rejects forged denial and malformed WIT rows before painti
       assert.equal(result.stdout.length, 0, 'failed scene must not paint pixels');
     }
   });
+
+
+test('single-profile runnable A1 host emits HTML, native PPM and bounded debug receipts',
+  { timeout: 180_000 }, async t => {
+    const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-run-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const note = join(cwd, 'unicode.md');
+    const output = join(cwd, 'granted-result');
+    await writeFile(note, '# Shared docs\r\n## 子😀\n[private](../secret.md)\n');
+    const result = await runPreview({ profile: 'granted', note, out: output,
+      expanded: 1, debug: true });
+    assert.equal(result.profile, 'granted');
+    assert.equal(result.headings, 2);
+    assert.equal(result.visible, 2);
+    const html = await readFile(join(output, 'index.html'), 'utf8');
+    assert.match(html, /Shared docs/);
+    assert.match(html, /子😀/);
+    assert.doesNotMatch(html, /href=|src=|<script>/);
+    const ppm = await readFile(join(output, 'preview.ppm'));
+    assert.deepEqual(ppmRgb(ppm, 24, 40), [87, 164, 118]);
+    const debug = JSON.parse(await readFile(join(output, 'debug.json'), 'utf8'));
+    assert.equal(debug.schemaVersion, 1);
+    assert.equal(debug.profile, 'granted');
+    assert.deepEqual([debug.attemptedReads, debug.backingReads], [1, 1]);
+    assert.deepEqual([debug.headingCount, debug.visibleHeadingCount], [2, 2]);
+    assert.match(debug.nativeFrame, /^A1FRAME1\tgranted\t/);
+    assert.ok(!JSON.stringify(debug).includes(note),
+      'debug receipt does not contain the source filesystem path');
+    assert.deepEqual((await readdir(output)).sort(),
+      ['debug.json', 'index.html', 'preview.ppm']);
+
+    // Do not let another run overwrite previously published results.
+    await assert.rejects(
+      runPreview({ profile: 'granted', note, out: output }), /already exists/);
+    assert.equal(await readFile(join(output, 'index.html'), 'utf8'), html);
+  });
+
+test('CLI from unrelated cwd selects only denied WIT profile without reading note path',
+  { timeout: 180_000 }, async t => {
+    const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-denial-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const sourceThatMustNotBeOpened = join(cwd, 'missing-secret.md');
+    const runner = fileURLToPath(new URL('../../examples/note-preview/run.mjs', import.meta.url));
+    const output = join(cwd, 'denied-result');
+    const result = spawnSync(process.execPath, [
+      runner, '--profile', 'denied', '--note', sourceThatMustNotBeOpened,
+      '--out', output, '--debug',
+    ], { cwd, encoding: 'utf8', shell: false,
+      timeout: 120_000, maxBuffer: 1024 * 1024 });
+    if (result.error) throw result.error;
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).profile, 'denied');
+    const html = await readFile(join(output, 'index.html'), 'utf8');
+    assert.match(html, /Document access denied/);
+    assert.doesNotMatch(html, /Shared docs|secret|<ol/);
+    const debug = JSON.parse(await readFile(join(output, 'debug.json'), 'utf8'));
+    assert.equal(debug.profile, 'denied');
+    assert.deepEqual([debug.attemptedReads, debug.backingReads,
+      debug.headingCount, debug.visibleHeadingCount], [1, 0, 0, 0]);
+    assert.doesNotMatch(debug.nativeFrame, /Shared docs|secret|子😀/);
+    assert.deepEqual(ppmRgb(await readFile(join(output, 'preview.ppm')), 24, 40),
+      [192, 80, 80]);
+    assert.ok(!JSON.stringify(debug).includes(sourceThatMustNotBeOpened));
+
+    const collapsedPath = join(cwd, 'collapsed-result');
+    await assert.rejects(
+      runPreview({ profile: 'granted', note: null, out: collapsedPath }),
+      /Invalid note-preview/);
+    await assert.rejects(access(collapsedPath), { code: 'ENOENT' });
+  });
+
+test('A1 runner rejects malformed args and oversized or invalid UTF-8 notes without publishing',
+  { timeout: 120_000 }, async t => {
+    const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-invalid-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    for (const args of [
+      [], ['--profile', 'granted'], ['--profile', 'other', '--out', 'out'],
+      ['--profile', 'denied', '--profile', 'granted', '--out', 'out'],
+      ['--profile', 'granted', '--note', 'source.md', '--out'],
+      ['--profile', 'denied', '--out', 'out', '--unknown'],
+    ]) {
+      assert.throws(() => parseArguments(args), /usage/);
+    }
+    const large = join(cwd, 'large.md');
+    const invalid = join(cwd, 'invalid.md');
+    await writeFile(large, Buffer.alloc(4097, 0x41));
+    await writeFile(invalid, Buffer.from([0xff]));
+    for (const [note, label] of [[large, 'oversized'], [invalid, 'invalid']]) {
+      const out = join(cwd, label);
+      await assert.rejects(runPreview({ profile: 'granted', note, out }));
+      await assert.rejects(access(out), { code: 'ENOENT' });
+    }
+    const denied = join(cwd, 'denied-minimal');
+    const receipt = await runPreview({ profile: 'denied', out: denied });
+    assert.equal(receipt.profile, 'denied');
+    assert.deepEqual((await readdir(denied)).sort(), ['index.html', 'preview.ppm']);
+  });
+
+
+test('A1 development build covers exactly the required existing guest, hosts and compiler', () => {
+  assert.deepEqual(buildCommands.map(args => args.join(' ')), [
+    'build -p grunkalunka-cli --locked --offline',
+    'build -p grunkalunka-markdown --example outline_guest --locked --offline',
+    'build -p grunkalunka-markdown --example outline_guest --target wasm32-unknown-unknown --locked --offline',
+    'build -p grunkalunka-runtime --example a1_note_preview --locked --offline',
+    'build -p grunkalunka-layout --example a1_note_scene --locked --offline',
+  ]);
+});

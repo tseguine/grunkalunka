@@ -128,17 +128,33 @@ fn inspect_profile(
 
 fn run() -> wasmtime::Result<()> {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
-    if args.len() != 1 {
-        wasmtime::bail!("expected path to the compiled outline_guest.wasm");
+    if !matches!(args.len(), 1 | 3) {
+        wasmtime::bail!("usage: a1_note_preview GUEST.wasm [--profile granted|denied]");
     }
-    // The host is explicitly given bytes on stdin. This is not an ambient
-    // filesystem grant for the guest or a general document-path service.
+    let selected = if args.len() == 3 {
+        if args[1] != "--profile" {
+            wasmtime::bail!("expected --profile granted|denied");
+        }
+        match args[2].to_str() {
+            Some("granted") => Some(true),
+            Some("denied") => Some(false),
+            _ => wasmtime::bail!("unknown document profile"),
+        }
+    } else {
+        None
+    };
+
+    // In a single-profile denied run, do not even read stdin. This property
+    // is stronger than just recording zero protected host backing reads.
+    // The original dual-profile test-only invocation remains supported.
     let mut input = Vec::new();
-    std::io::stdin()
-        .take((MAX_INPUT_BYTES + 1) as u64)
-        .read_to_end(&mut input)?;
-    if input.len() > MAX_INPUT_BYTES {
-        wasmtime::bail!("note input exceeds Markdown guest quota");
+    if selected != Some(false) {
+        std::io::stdin()
+            .take((MAX_INPUT_BYTES + 1) as u64)
+            .read_to_end(&mut input)?;
+        if input.len() > MAX_INPUT_BYTES {
+            wasmtime::bail!("note input exceeds Markdown guest quota");
+        }
     }
     let text = String::from_utf8(input)?;
 
@@ -150,11 +166,20 @@ fn run() -> wasmtime::Result<()> {
     let engine = Engine::new(&config)?;
     let component = Component::from_binary(&engine, &component_bytes)?;
 
-    // Same compiled guest/component and identical note bytes in each profile.
-    // Separate fresh Stores prove one profile cannot reuse the other's grant.
-    let denied = inspect_profile(&engine, &component, &text, false)?;
-    let granted = inspect_profile(&engine, &component, &text, true)?;
-    println!(r#"{{"schemaVersion":1,"profiles":[{denied},{granted}]}}"#);
+    // The original integration test compares the *same* component and note
+    // under two separate Stores. A selected application invocation creates
+    // only its authorized profile, never an extra granted Store for denial.
+    let mut profiles = Vec::new();
+    if selected != Some(true) {
+        profiles.push(inspect_profile(&engine, &component, &text, false)?);
+    }
+    if selected != Some(false) {
+        profiles.push(inspect_profile(&engine, &component, &text, true)?);
+    }
+    println!(
+        r#"{{"schemaVersion":1,"profiles":[{}]}}"#,
+        profiles.join(",")
+    );
     Ok(())
 }
 
