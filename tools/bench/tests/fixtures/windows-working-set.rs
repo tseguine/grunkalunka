@@ -38,8 +38,9 @@ fn observe() -> Result<(usize, usize), &'static str> {
     };
     // SAFETY: GetCurrentProcess returns a pseudo-handle for this process;
     // counters is a live, writable, correctly sized C-compatible structure.
+    let bytes = counters.cb;
     let ok = unsafe {
-        K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb)
+        K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, bytes)
     };
     if ok == 0 {
         return Err("K32GetProcessMemoryInfo failed");
