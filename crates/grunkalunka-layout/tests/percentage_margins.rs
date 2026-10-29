@@ -295,10 +295,18 @@ fn fractional_and_oversized_percentage_margins_fail_without_wraparound() {
         Err(LayoutError::FractionalPercentageMargin { node: 0 })
     );
 
-    blocks[0].style.percentage_margins.left = Some(u32::MAX);
+    // Exact but too large for u32 geometry: reject overflow, not wrap.
+    blocks[0].style.percentage_margins.left = Some(100_000_000);
     assert_eq!(
         layout(&blocks, MAX_VIEWPORT, 30),
         Err(LayoutError::Overflow)
+    );
+    // A different oversized declaration is non-integral, which is also
+    // rejected before the engine can truncate the percentage result.
+    blocks[0].style.percentage_margins.left = Some(u32::MAX);
+    assert_eq!(
+        layout(&blocks, MAX_VIEWPORT, 30),
+        Err(LayoutError::FractionalPercentageMargin { node: 0 })
     );
 
     blocks[0].style.percentage_margins.left = Some(200);
