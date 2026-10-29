@@ -123,6 +123,28 @@ impl BoxSizing {
     }
 }
 
+/// Which horizontal margins use the CSS-inspired `auto` policy.
+/// An auto side ignores the corresponding numerical side of `Style::margin`.
+/// The default preserves both explicit integer margins. This is a selected
+/// normal-flow block policy, not a CSS parser/cascade or direction model.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum HorizontalAutoMargins {
+    #[default]
+    None,
+    Left,
+    Right,
+    Both,
+}
+
+impl HorizontalAutoMargins {
+    fn sides(self) -> (bool, bool) {
+        (
+            matches!(self, Self::Left | Self::Both),
+            matches!(self, Self::Right | Self::Both),
+        )
+    }
+}
+
 /// Caller-resolved minimum/maximum width bound, with no `auto` value.
 /// A percent is relative to the containing block's content width.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -153,6 +175,7 @@ pub struct Style {
     pub max_height: Option<HeightBound>,
     pub box_sizing: BoxSizing,
     pub margin: Edges,
+    pub horizontal_auto_margins: HorizontalAutoMargins,
     pub border: Edges,
     pub padding: Edges,
 }
@@ -251,6 +274,9 @@ pub enum LayoutError {
     TooDeep { node: usize },
     FractionalPercentageWidth { node: usize },
     FractionalPercentageHeight { node: usize },
+    /// Two auto margins would each need half an integer CSS pixel; this
+    /// engine deliberately refuses fractional geometry instead of rounding.
+    FractionalAutoMargin { node: usize },
     UnsupportedPercentageHeight { node: usize },
     Overflow,
 }
@@ -320,12 +346,18 @@ impl Engine<'_> {
             return Ok(next_y - cursor_y);
         }
 
-        let (margin_x, _) = insets(style.margin)?;
+        let (auto_left, auto_right) = style.horizontal_auto_margins.sides();
+        // Auto sides do not participate in the tentative width calculation.
+        // A width:auto block therefore fills the remaining space and uses
+        // zero auto margins unless a width bound later makes room for them.
+        let fixed_left = if auto_left { 0 } else { style.margin.left };
+        let fixed_right = if auto_right { 0 } else { style.margin.right };
+        let fixed_margins = add(fixed_left, fixed_right)?;
         let (border_x, border_y) = insets(style.border)?;
         let (padding_x, padding_y) = insets(style.padding)?;
         let width_edges = add(border_x, padding_x)?;
         let height_edges = add(border_y, padding_y)?;
-        let horizontal = add(margin_x, width_edges)?;
+        let horizontal = add(fixed_margins, width_edges)?;
         let tentative_width = match style.width {
             Length::Auto => available_width.saturating_sub(horizontal),
             Length::Px(value) => style.box_sizing.content_size(value, width_edges),
@@ -358,8 +390,25 @@ impl Engine<'_> {
         let content_width = tentative_width
             .min(max_content.unwrap_or(u32::MAX))
             .max(min_content.unwrap_or(0));
+        let border_width = add(content_width, width_edges)?;
+        // Resolve used auto margins AFTER min/max width and box-sizing.
+        // In the nonnegative integer model, oversize boxes consume all
+        // remaining space; negative CSS margins are not representable.
+        let remaining_width = available_width
+            .saturating_sub(add(border_width, fixed_margins)?);
+        let (margin_left, margin_right) = match style.horizontal_auto_margins {
+            HorizontalAutoMargins::None => (fixed_left, fixed_right),
+            HorizontalAutoMargins::Left => (remaining_width, fixed_right),
+            HorizontalAutoMargins::Right => (fixed_left, remaining_width),
+            HorizontalAutoMargins::Both => {
+                if remaining_width % 2 != 0 {
+                    return Err(LayoutError::FractionalAutoMargin { node });
+                }
+                (remaining_width / 2, remaining_width / 2)
+            }
+        };
 
-        let border_left = add(containing_x, style.margin.left)?;
+        let border_left = add(containing_x, margin_left)?;
         let padding_left = add(border_left, style.border.left)?;
         let content_x = add(padding_left, style.padding.left)?;
         let border_top = add(cursor_y, style.margin.top)?;
@@ -414,9 +463,8 @@ impl Engine<'_> {
         let content_height = definite_height.unwrap_or_else(|| apply_bounds(natural_height));
         let padding_width = add(content_width, padding_x)?;
         let padding_height = add(content_height, padding_y)?;
-        let border_width = add(padding_width, border_x)?;
         let border_height = add(padding_height, border_y)?;
-        let margin_width = add(border_width, margin_x)?;
+        let margin_width = add(border_width, add(margin_left, margin_right)?)?;
         let margin_height = add(add(style.margin.top, border_height)?, style.margin.bottom)?;
 
         let geometry = BoxGeometry {
@@ -463,12 +511,15 @@ impl Engine<'_> {
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
 /// display:none, boxless display:contents, inherited visibility, resolved
 /// pointer-events input policy, optional padding-box descendant clipping,
-/// content-box/border-box sizing, min/max
-/// width/height constraints and whole percentage dimensions with exact
-/// integral results are admitted. Percentage heights need a definite
-/// containing content height;
+/// content-box/border-box sizing, min/max width/height constraints,
+/// nonnegative horizontal auto margins and whole percentage dimensions
+/// with exact integral results are admitted. Auto margins consume remaining
+/// width after min/max constraints; both auto sides share it equally.
+/// Fractional halves are rejected, and overconstrained auto margins become
+/// zero (negative CSS margins are outside this nonnegative model).
+/// Percentage heights need a definite containing content height;
 /// unresolved heights and fractional pixel results are rejected.
-/// Positive margins do not collapse; inline layout, text shaping, floats,
+/// Positive vertical margins do not collapse; inline layout, text shaping, floats,
 /// CSS selectors and painting are not provided. Fixed heights may
 /// overflow, and all descendants contribute to scroll extents even when
 /// clipped for painting and input. Document overflow accounting is unchanged.
