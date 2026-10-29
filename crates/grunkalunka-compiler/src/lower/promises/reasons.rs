@@ -16,11 +16,45 @@ fn may_reject_raw(
     inputs: &Inputs,
 ) -> bool {
     let mut work = vec![(expression, 0)];
+    let mut aliases = BTreeSet::new();
     while let Some((expression, depth)) = work.pop() {
         let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
             return true;
         };
         match expression {
+            Expression::Identifier(identifier) => {
+                let initializer = identifier
+                    .reference_id
+                    .get()
+                    .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
+                    .filter(|symbol| {
+                        !semantic
+                            .scoping()
+                            .get_resolved_references(*symbol)
+                            .any(|reference| reference.is_write())
+                    })
+                    .and_then(|symbol| {
+                        semantic
+                            .scoping()
+                            .symbol_declarations(symbol)
+                            .find_map(|node| match semantic.nodes().kind(node) {
+                                AstKind::VariableDeclarator(declaration) => declaration
+                                    .init
+                                    .as_ref()
+                                    .map(|initializer| (symbol, initializer)),
+                                _ => None,
+                            })
+                    });
+                if let Some((symbol, initializer)) = initializer {
+                    // Same source/depth is the same query state; shared aliases
+                    // must not expand exponentially. Depth still bounds cycles.
+                    if aliases.insert((symbol, depth)) {
+                        work.push((initializer, depth + 1));
+                    }
+                } else if return_adopts(expression, semantic, returns, inputs) {
+                    return true;
+                }
+            }
             Expression::ConditionalExpression(conditional) => {
                 work.push((&conditional.consequent, depth + 1));
                 work.push((&conditional.alternate, depth + 1));
