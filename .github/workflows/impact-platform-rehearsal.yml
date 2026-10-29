@@ -14,6 +14,7 @@ on:
       - 'ci/impact/platform-rehearsal.mjs'
       - 'ci/impact/plan.mjs'
       - 'ci/impact/added-checks.mjs'
+      - 'ci/impact/source-dependency-audit.mjs'
       - 'ci/impact/cargo-test-nodes.mjs'
       - 'ci/impact/collect-checks.mjs'
       - 'ci/impact/external-workflows.mjs'
