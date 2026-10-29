@@ -5,8 +5,8 @@ const js = /\.(?:[cm]?js|[cm]?ts)$/;
 const rust = /\.rs$/;
 const imports = /\bimport\s+(?:[\s\S]{0,150}?\s+from\s*)?(['"])([^'"]+)\1/g;
 const importCalls = /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
-const urls = /\bnew\s+URL\s*\(\s*(['"])([^'"]+)\1\s*,\s*import\.meta\.url\s*\)/g;
-const urlTemplates = /\bnew\s+URL\s*\(\s*\x60([^\x60]*)\x60\s*,\s*import\.meta\.url\s*\)/g;
+const urls = /\bnew\s+URL\s*\(\s*(['"])([^'"]+)\1\s*,\s*import\.meta\.url\s*,?\s*\)/g;
+const urlTemplates = /\bnew\s+URL\s*\(\s*\x60([^\x60]*)\x60\s*,\s*import\.meta\.url\s*,?\s*\)/g;
 const includes = /\binclude_(?:str|bytes)!\s*\(\s*"([^"]+)"\s*\)/g;
 const rustPaths = /#\[\s*path\s*=\s*"([^"]+)"\s*\]/g;
 
@@ -48,8 +48,9 @@ export function discoverLiteralSourceInputs(source, text) {
     if (/\bimport\s*\(\s*(?!['"])/.test(text)) {
       unresolved.push('computed import expression: ' + source);
     }
-    for (const match of text.matchAll(/\bnew\s+URL\s*\(\s*(?!['"\x60])/g)) {
-      if (!/^new\s+URL\s*\(\s*import\.meta\.url\s*\)/.test(text.slice(match.index))) {
+    for (const match of text.matchAll(/\bnew\s+URL\s*\(\s*([^\s])/g)) {
+      if (['\'', '"', String.fromCharCode(96)].includes(match[1])) continue;
+      if (!/^new\s+URL\s*\(\s*import\.meta\.url\s*,?\s*\)/.test(text.slice(match.index))) {
         unresolved.push('computed URL input: ' + source);
       }
     }
