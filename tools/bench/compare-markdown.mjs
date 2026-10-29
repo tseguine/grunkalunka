@@ -157,6 +157,50 @@ export function bindMarkdownPair(baseline, candidate) {
 
 const delta = (a, b) => Number.isFinite(b - a) ? b - a : null;
 const one = (a, b) => ({ baselineMs: a, candidateMs: b, deltaMs: delta(a, b) });
+const memoryPhases = [
+  'beforeEmbed', 'afterCompile', 'afterInstantiation',
+  'afterWarmup', 'afterBatches',
+];
+const byteDelta = (a, b) => ({
+  baselineBytes: a, candidateBytes: b, deltaBytes: b - a,
+});
+
+// A bound pair runs two *separate* native processes sequentially. Preserve
+// observed memory as raw process-wide evidence, never a guest-only metric,
+// peak-regression classification, machine comparison or timing ratio.
+function compareProcessMemory(baseline, candidate) {
+  const left = baseline.report.processMemory;
+  const right = candidate.report.processMemory;
+  if (!left || !right) {
+    return {
+      availability: 'not-comparable',
+      baselinePresent: left !== undefined,
+      candidatePresent: right !== undefined,
+      interpretation: 'one or both receipts lack process memory evidence',
+    };
+  }
+  if (left.source === 'unsupported-on-this-host') {
+    return {
+      availability: 'unsupported-on-this-host',
+      scope: left.scope, unit: left.unit,
+      interpretation: 'native Rust process memory was unavailable on this host',
+    };
+  }
+  const phases = Object.fromEntries(memoryPhases.map(phase => [
+    phase, {
+      rssBytes: byteDelta(left.snapshots[phase].rssBytes, right.snapshots[phase].rssBytes),
+      peakRssBytes: byteDelta(
+        left.snapshots[phase].peakRssBytes,
+        right.snapshots[phase].peakRssBytes),
+    },
+  ]));
+  return {
+    availability: 'paired-process-observations',
+    scope: left.scope, unit: left.unit, phases,
+    interpretation: 'candidate minus baseline bytes from separate native processes; not guest-attributed memory or a comparable performance ranking',
+  };
+}
+
 export function compareMarkdownPair(pair) {
   requireValid(field(pair, 'schemaVersion') === 1, 'pair.schemaVersion');
   requireValid(field(pair, 'workload') === 'markdown-wit-same-process-pair', 'pair.workload');
@@ -201,6 +245,7 @@ export function compareMarkdownPair(pair) {
     embed: one(first.embedMs, second.embedMs),
     componentCompile: one(first.componentCompileMs, second.componentCompileMs),
     series,
+    processMemory: compareProcessMemory(baseline, candidate),
   };
 }
 
