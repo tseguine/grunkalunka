@@ -270,14 +270,26 @@ pub enum LayoutError {
     EmptyDocument,
     TooManyBlocks,
     InvalidRoot,
-    InvalidParent { node: usize },
-    TooDeep { node: usize },
-    FractionalPercentageWidth { node: usize },
-    FractionalPercentageHeight { node: usize },
+    InvalidParent {
+        node: usize,
+    },
+    TooDeep {
+        node: usize,
+    },
+    FractionalPercentageWidth {
+        node: usize,
+    },
+    FractionalPercentageHeight {
+        node: usize,
+    },
     /// Two auto margins would each need half an integer CSS pixel; this
     /// engine deliberately refuses fractional geometry instead of rounding.
-    FractionalAutoMargin { node: usize },
-    UnsupportedPercentageHeight { node: usize },
+    FractionalAutoMargin {
+        node: usize,
+    },
+    UnsupportedPercentageHeight {
+        node: usize,
+    },
     Overflow,
 }
 
@@ -394,8 +406,7 @@ impl Engine<'_> {
         // Resolve used auto margins AFTER min/max width and box-sizing.
         // In the nonnegative integer model, oversize boxes consume all
         // remaining space; negative CSS margins are not representable.
-        let remaining_width = available_width
-            .saturating_sub(add(border_width, fixed_margins)?);
+        let remaining_width = available_width.saturating_sub(add(border_width, fixed_margins)?);
         let (margin_left, margin_right) = match style.horizontal_auto_margins {
             HorizontalAutoMargins::None => (fixed_left, fixed_right),
             HorizontalAutoMargins::Left => (remaining_width, fixed_right),
