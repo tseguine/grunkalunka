@@ -214,3 +214,25 @@ test('historical Windows unsupported data and new measured Windows data both val
   fakeMac.processMemory = memoryEnvelope('windows');
   assert.throws(() => validateOptionalProcessMemory(fakeMac, 'macos'), /Invalid/);
 });
+
+test('fresh WIT lifecycle observations preserve legacy receipts and reject forged series', () => {
+  const native = report();
+  assert.doesNotThrow(() => validateNativeReport(native, config, 100));
+  const lifecycle = {
+    count: config.samples, unit: 'milliseconds per fresh component lifecycle',
+    granted: series([1, 2, 3]), denied: series([4, 5, 6]),
+  };
+  native.freshLifecycles = lifecycle;
+  assert.doesNotThrow(() => validateNativeReport(native, config, 100));
+  for (const bad of [
+    { ...lifecycle, count: 4 },
+    { ...lifecycle, unit: 'microseconds' },
+    { ...lifecycle, granted: series([1, 2]) },
+    { ...lifecycle, denied: { ...series([4, 5, 6]), medianMs: 99 } },
+    { ...lifecycle, invented: 42 },
+    { ...lifecycle, granted: { ...series([1, 2, 3]), samplesMs: [-1, 2, 3] } },
+  ]) {
+    native.freshLifecycles = bad;
+    assert.throws(() => validateNativeReport(native, config, 100), /Invalid/);
+  }
+});
