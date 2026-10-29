@@ -5,8 +5,8 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import {
-  capture, parseCaptureArgs, validateOptionalFreshLifecycles,
-  validateOptionalProcessMemory,
+  capture, parseCaptureArgs, validateOptionalArtifactHashes,
+  validateOptionalFreshLifecycles, validateOptionalProcessMemory,
 } from './capture-markdown.mjs';
 
 const workloads = new Set(['empty', 'unicode', 'dense', 'wide']);
@@ -117,6 +117,10 @@ function validateCapture(receipt) {
   requireValid(/^=\d+\.\d+\.\d+$/.test(field(native, 'environment.wasmtimeDependency')),
     'Wasmtime dependency');
   requireValid(field(native, 'artifact.guestBytes') === guestBytes, 'artifact.guestBytes');
+  // Saved legacy receipts predate embedded digests. When present, bind the
+  // native report's guest identity to the separately saved capture provenance.
+  validateOptionalArtifactHashes(native,
+    Object.hasOwn(native.artifact, 'guestSha256') ? prov.guest.sha256 : null);
   requireValid(Number.isSafeInteger(field(native, 'artifact.componentBytes')) &&
     native.artifact.componentBytes > guestBytes, 'artifact.componentBytes');
   requireValid(field(native, 'timings.unit') === 'milliseconds', 'timings.unit');
