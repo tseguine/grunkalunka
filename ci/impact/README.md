@@ -1,11 +1,15 @@
-# PR impact selection on native Linux, Windows and macOS pull requests
+# PR impact selection on native Linux and Windows pull requests
 
 The impact planner still emits a shadow/advisory result. The maintainer has
-authorized **all three native PR runners** to translate independently validated
+authorized **Linux and Windows PR runners** to translate independently validated
 selections into canonical and package-scoped Cargo checks via `pr-gate.mjs`.
-Unsafe or unknown plans fall back to the original full build/check commands
-**on that same host**. Every `master` push and manual workflow dispatch stays
-full on Linux, Windows and macOS. The former standalone `impact-shadow.yml` PR advisory workflow is retired to
+Unsafe or unknown plans fall back to full checks **on that same host**.
+Every `master` push gets full Linux/Windows verification; native macOS runs
+separately on a four-hour schedule or explicit dispatch. The lightweight PR
+macOS reference probes a recent completed native result on `master` (or a
+manual exact-head PR result); if stale, failed or absent, a native macOS full
+build of the PR merge revision is triggered automatically. An ordinary green
+reference does not claim PR-native verification. The former standalone `impact-shadow.yml` PR advisory workflow is retired to
 avoid allocating a fourth runner on every PR. The production PR gate runs the
 same planner independently on each native host. Planner regression tests now
 run via the canonical `scripts/check.mjs` runner (since #166), with partial
@@ -38,8 +42,8 @@ selection/fail-closed full fallback; a plan never replaces executable checks.
   but have empty build dependencies because the preview lowers them to package-
   scoped invocations. Actual affected Cargo tests and integration groups supply
   the necessary build closure. Merely entering the build closure never selects
-  a dependency's own tests. Linux, Windows and macOS PR runners can act on a
-  validated selection; all `master` runs retain the full checks.
+  a dependency's own tests. Linux and Windows PR runners can act on a validated selection; native
+macOS full checks are independent of the PR selector.
 
 `plan.mjs` diffs the merge base of `HEAD` against an explicit base ref. It uses
 `git diff --name-only --no-renames -z`, so both old and new paths of a rename
@@ -65,7 +69,7 @@ node ci/impact/plan.mjs origin/master
 ```
 
 The output explicitly says `mode: shadow` and `advisoryOnly: true`. Only the
-three native PR runners may act on a validated subset; a plan does not verify
+two native PR runners may act on a validated subset; a plan does not verify
 independent GitHub workflow conclusions.
 
 ## Canonical check inventory (also advisory)
@@ -88,7 +92,7 @@ Directory ownership is deliberately coarse but more specific file owners
 override it, provided the most specific match is unambiguous. This lets changing
 one test source select its check without selecting an entire `tests/build/`
 directory. Workspace-wide Cargo formatting, Clippy and tests dynamically depend
-on every current Cargo package rather than a hardcoded crate list. All native
+on every current Cargo package rather than a hardcoded crate list. Linux/Windows
 PR CI jobs may translate these workspace checks into package-scoped invocations;
 full `master` CI retains the original commands.
 
@@ -114,11 +118,11 @@ run the original `cargo build --workspace` and `node scripts/check.mjs` on
 that host. A selected check failure **fails immediately**, not via full retry.
 
 The `PARTIAL_PR_CI` environment variable in `ci.yml` is the one-line rollback
-switch for all three PR jobs. `pull_request` check names, independent
-browser workflows and full `master`/manual verification are unchanged.
+switch for both Linux/Windows PR jobs. Browser checks remain independent;
+a clearly named macOS reference replaces the native PR job.
 P1 regression and native artifact tests are ordinary canonical checks;
 retired cross-host experiment workflows do not create per-PR jobs.
-A real [three-platform scoped rehearsal](../../.github/workflows/impact-platform-rehearsal.yml)
+A real [two-platform scoped rehearsal](../../.github/workflows/impact-platform-rehearsal.yml)
 runs a selected historical layout path set against current native code, without
 claiming a partial gate covers unspecified inputs or optional workflow results.
 
@@ -131,5 +135,5 @@ an unrecognized/ambiguous input must force full verification.
 ## Merge-conflict isolation
 
 Owners, checks, and additional Cargo-test inputs use independent descriptors.
-The selected executor is shared across runners, avoiding three divergent CI
+The selected executor is shared across Linux/Windows runners, avoiding divergent CI
 implementations. `scripts/check.mjs` and other workstreams' source are unchanged.

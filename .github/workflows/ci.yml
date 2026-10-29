@@ -36,12 +36,6 @@ jobs:
             runner: ubuntu-24.04
           - platform: Windows
             runner: windows-2025
-          # Primary macOS CI runs natively on Apple Silicon; preserve status-check name.
-          - platform: macOS
-            runner: macos-15
-            node_arch: arm64
-            rust_host: aarch64-apple-darwin
-            uname_arch: arm64
     steps:
       - name: Check out the tested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,32 +60,6 @@ jobs:
           node --version
           node -e 'require("node:assert/strict").equal(process.version, "v24.21.0")'
 
-      # Reject accidental Rosetta/x86_64 execution on the Apple Silicon runner.
-      - name: Verify native macOS architecture and record host details
-        if: runner.os == 'macOS'
-        env:
-          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
-          EXPECTED_RUST_HOST: ${{ matrix.rust_host }}
-          EXPECTED_UNAME_ARCH: ${{ matrix.uname_arch }}
-        run: |
-          set -euo pipefail
-          echo "Runner: $RUNNER_NAME ($RUNNER_OS/$RUNNER_ARCH)"
-          echo "macOS: $(sw_vers -productVersion), hardware $(sysctl -n hw.model)"
-          echo "CPUs: $(sysctl -n hw.ncpu); RAM bytes: $(sysctl -n hw.memsize)"
-          echo "Node: $(node --version), architecture: $(node -p 'process.arch')"
-          echo "Rust: $(rustc --version); toolchain: $(rustup show active-toolchain)"
-          actual_node_arch="$(node -p 'process.arch')"
-          actual_rust_host="$(rustc -vV | sed -n 's/^host: //p')"
-          actual_machine="$(uname -m)"
-          test "$actual_node_arch" = "$EXPECTED_NODE_ARCH"
-          test "$actual_rust_host" = "$EXPECTED_RUST_HOST"
-          test "$actual_machine" = "$EXPECTED_UNAME_ARCH"
-          test "$RUNNER_ARCH" = ARM64
-          # 1 means this process is running through Rosetta translation.
-          translated="$(sysctl -n sysctl.proc_translated 2>/dev/null || printf '0')"
-          echo "Rosetta translation flag: $translated"
-          test "$translated" = 0
-
       - name: Check formatting before expensive builds
         run: |
           cargo fmt --all --check
@@ -113,8 +81,8 @@ jobs:
           cargo fetch --locked
           cargo fetch --locked --manifest-path spikes/001-frontend-semantics/Cargo.toml
 
-      # Every master push and manual workflow run still verifies the
-      # entire workspace on all three hosts. Only PRs can select checks.
+      # Linux/Windows verify all checks on master and manually dispatched CI.
+      # PRs use validated dependency-selected checks.
       - name: Build the workspace offline (full verification)
         if: github.event_name != 'pull_request'
         run: cargo build --workspace --locked --offline -j 4
@@ -123,7 +91,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: node scripts/check.mjs
 
-      # All three native PR hosts use the same dependency graph, not a path allowlist.
+      # Linux/Windows PRs use the same dependency graph, not a path allowlist.
       # Unknown/unsafe plans revert to the exact full build + check pair.
       # Disable all-platform selective PR verification with PARTIAL_PR_CI='false'.
       - name: Verify PR (dependency-selected or full fallback)
@@ -131,3 +99,60 @@ jobs:
         env:
           PARTIAL_PR_CI: 'true'
         run: node ci/impact/pr-gate.mjs
+
+  macos-probe:
+    name: macOS baseline lookup (Linux)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      fresh: ${{ steps.lookup.outputs.fresh }}
+    steps:
+      - name: Check out reference-check script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Decide whether native macOS fallback is required
+        id: lookup
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node ci/macos-baseline.mjs
+
+  macos-fallback:
+    name: Native macOS fallback (only if baseline unhealthy)
+    needs: macos-probe
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.macos-probe.result != 'success' || needs.macos-probe.outputs.fresh != 'true') }}
+    uses: ./.github/workflows/macos.yml
+    permissions:
+      contents: read
+
+  macos-verification:
+    name: macOS verification (baseline or native fallback)
+    needs: [macos-probe, macos-fallback]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify healthy baseline or successful native fallback
+        env:
+          PROBE_RESULT: ${{ needs.macos-probe.result }}
+          BASELINE_FRESH: ${{ needs.macos-probe.outputs.fresh }}
+          FALLBACK_RESULT: ${{ needs.macos-fallback.result }}
+        run: |
+          if [[ "$PROBE_RESULT" == success && "$BASELINE_FRESH" == true ]]; then
+            echo 'PASS: recent completed native macOS baseline; this PR was not run on macOS' | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [[ "$FALLBACK_RESULT" == success ]]; then
+            echo 'PASS: real native macOS fallback completed for this PR merge revision' | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "FAIL: macOS baseline unhealthy and native fallback was not successful ($FALLBACK_RESULT)" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

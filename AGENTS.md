@@ -100,17 +100,21 @@ another agent's branch or merge its implementation PR without delegated authorit
 Re-read branch heads before writes; use expected-head safeguards where available.
 Use independent useful work during CI waits instead of manufacturing extra churn.
 
-## Partial-PR CI coordination (Linux, Windows and macOS PRs)
+## Partial-PR CI coordination (Linux/Windows PRs and macOS baseline)
 
 Read [impact planning](ci/impact/README.md) and [Cargo scoping](ci/impact/CARGO-SCOPE.md)
 when changing modules, tests, fixtures, build inputs, or workflows. The
 independent `impact-shadow.yml` advisory workflow is retired after its regression
 checks moved to the canonical runner. The maintainer
-authorized **dependency-selected verification on all three native PR runners**
-through `ci/impact/pr-gate.mjs`, using the same general dependency graph
-(no hand-maintained path whitelist). Unknown or unsafe selections run the
-**original full** checks on that PR host. **Every `master` push and manual
-workflow run retains full three-platform CI.** Independent browser workflows
+authorized **dependency-selected verification on Linux and Windows PR runners**
+through `ci/impact/pr-gate.mjs`. Unknown or unsafe selections run the **original
+full** checks on that host. Every `master` push gets full Linux/Windows checks.
+Native Apple Silicon is verified by a scheduled four-hour full run or an explicitly
+dispatched run. A Linux PR probe checks the latest completed, non-cancelled macOS result on
+`master` (or a completed exact-head manual PR run). If missing, stale or
+failed, it triggers actual full native macOS checks on the PR merge revision.
+The final macOS gate passes only with a healthy reference or successful real
+fallback; a master baseline does not imply PR-native verification. Independent browser workflows
 retain their own triggers and gates. P1 regressions and native-host integration
 checks are canonical selectable tests; historical P1 multi-host experiments
 are not automatic PR merge gates.
@@ -145,7 +149,7 @@ are not automatic PR merge gates.
   review `node ci/impact/plan.mjs origin/master` from a full-history checkout,
   and use `ci/impact/platform-rehearsal.mjs` for a bounded native-host
   execution control. These checks **do not replace** the actual exact-head
-  Linux, Windows, macOS or independent-workflow results. Audit actual
+  Linux/Windows, scheduled/manual macOS or independent-workflow results. Audit actual
   source/test dependencies before further reducing selected checks.
 
 ## CI runner budget and test placement policy
@@ -153,7 +157,8 @@ are not automatic PR merge gates.
 Tests and experiments should be implemented as **ordinary repository tests** and
 registered with the existing canonical check runner by default. Provide accurate
 ownership, source/fixture dependencies and per-command check descriptors so the
-same tests participate in dependency-selected PR CI on Linux, Windows and macOS.
+same tests participate in dependency-selected PR CI on Linux and Windows, and in
+full scheduled/manual native macOS checks.
 A regression test must not require its own Actions workflow merely because it
 originated in a research or implementation workstream.
 
