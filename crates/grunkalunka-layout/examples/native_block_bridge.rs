@@ -878,7 +878,9 @@ fn visibility_states_json() -> String {
     ];
     for &(id, index, golden) in &expected {
         assert_eq!(
-            hidden.boxes[index].expect("visible geometry despite style").border,
+            hidden.boxes[index]
+                .expect("visible geometry despite style")
+                .border,
             golden,
             "independently resolved visibility geometry for {id}"
         );
