@@ -770,10 +770,10 @@ exact JS/TS guest bytes and compare native JS, Node-Wasm and Wasmtime outcomes,
 including primitive conversion, signed zero/fractions, surplus effects, await
 snapshots and failure. Five original TS corpus exclusions are now executable
 pairs with frozen source hashes and explicit JS oracles; the remaining rejection
-inventory has 844 records. Direct numeric module call-site type arguments remain
-a gap; heap JSON, local/runtime closures and runtime factory-result calls erase
-them under their separate contracts. The Math
-implementation removes only one shared source-admission guard.
+inventory at that step has 844 records. Direct numeric module, heap JSON,
+local/runtime closure and runtime factory-result calls now erase call-site types
+under their separate contracts. The Math implementation removes only one shared
+source-admission guard.
 
 ## Heap JSON call-site type erasure (2026-10-28)
 
@@ -808,3 +808,15 @@ guest-byte identity and native JS/Node-Wasm/Wasmtime outcomes; nearby factory
 cell/snapshot and signature checks pass. This removes one admission guard without
 IR, runtime ABI, dependency or limit changes. Other call-site validators remain
 separate; see [the contract](runtime-closures.md#runtime-factory-call-site-type-arguments).
+
+## Direct module-call type erasure (2026-10-29)
+
+Direct numeric helper and recursive entry calls erase call-site TypeScript
+metadata, including synchronous helpers called from async source. One admission
+guard changes; existing Number inputs, ordered snapshots/effects, source/argument
+limits and host/resource contracts remain. Three exact frozen TS exclusions are
+promoted: two full JS/TS result pairs and one unconditional recursive source in
+the existing termination-only checks. Its fuel/stack exhaustion is resource
+evidence, not a JS numeric-result comparison. The previous recursive arithmetic
+case retains its fuel-only expectation. The inventory has 841 records; no IR,
+ABI, dependency or limit change. See [the contract](compiler.md#direct-module-call-type-arguments).

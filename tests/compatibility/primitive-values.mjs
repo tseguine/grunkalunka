@@ -224,11 +224,17 @@ export const valueRejected = [
   standards: [returns, types, conditional],
 }));
 
-// Exact former admission rejection; unconditional recursion has no JS-result oracle.
-// Its generated module is checked separately for bounded fuel exhaustion.
+// Exact former admission rejections; unconditional recursion has no JS-result oracle.
+// Generated modules are checked separately for bounded guest resource exhaustion.
 export const valueFuelCases = [{
   id: 'general-number-call',
   sourceJS: wrap('return run(0,b)+1;', false),
   sourceTS: wrap('return run(0,b)+1;', true),
   standards: [returns, types, conditional, spec + 'abstract-operations.html#sec-tonumber'],
+}, {
+  id: "generic-declaration-reject-entry-call",
+  sourceJS: "export function run(a,b) { return run(a,b); }",
+  sourceTS: "export function run<T>(a:T,b:T):T { return run<T>(a,b); }",
+  resourceOutcomes: ['fuel-exhausted','stack-exhausted'],
+  standards: [returns, types, spec + 'ecmascript-language-expressions.html#sec-evaluatecall'],
 }];

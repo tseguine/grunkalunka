@@ -40,6 +40,27 @@ const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
 const validate = data => validateRejectionInventory(rejected, data);
 
+test('direct call types promote three exact sources with separate recursive resource evidence',()=>{
+  for(const [id,programs,sha,plain] of [
+    ['direct-call-generic-call',numericCalls,'e442d761d7585e94a9d4d84abad2151ac2a2a7e02e91e5748ad2d1ff864308f1','function identity(x) { return x; } export function run(a,b) { return identity(a); }'],
+    ['generic-declaration-reject-helper-call',genericDeclarations,'649b59120cb27cae425677b907cd64b073163fc06b7bae008d054513ea3a032e','function id(x) { return x; }export function run(a,b) { return id(a); }'],
+  ]){
+    const source=programSources(programs.find(row=>row[0]===id));
+    assert.equal(createHash('sha256').update(source.sourceTS).digest('hex'),sha);
+    assert.equal(source.sourceJS,plain);assert.equal(source.oracleSource,plain);
+    assert.ok(!rejected.some(row=>row[0]===id));assert.ok(!catalog.records.some(row=>row.id===id));
+    const run=Function('"use strict";'+plain.replace('export function','function')+';return run;')();
+    assert.equal(run(4,2),4);assert.ok(Object.is(run(-0,0),-0));
+  }
+  const id='generic-declaration-reject-entry-call';
+  const recursive=valueFuelCases.find(row=>row.id===id);
+  assert.equal(createHash('sha256').update(recursive.sourceTS).digest('hex'),'89b7388026f2ea042682a0e41aa9fd90c16c1b447ab166992091ae3522cf24f3');
+  assert.equal(recursive.sourceJS,'export function run(a,b) { return run(a,b); }');
+  assert.deepEqual(recursive.resourceOutcomes,['fuel-exhausted','stack-exhausted']);
+  assert.equal(valueFuelCases.find(row=>row.id==='general-number-call').resourceOutcomes,undefined);
+  assert.ok(!rejected.some(row=>row[0]===id));assert.ok(!catalog.records.some(row=>row.id===id));
+});
+
 test('nullish assignment promotes its original Number source and golden',()=>{
   const source=programSources(nullishAssignment.find(row=>row[0]==='unsupported-compound-10'));
   assert.equal(source.sourceJS,promotedNullishAssignment.sourceJS);
@@ -213,7 +234,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 844);
+  assert.equal(inventory.records.size, 841);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

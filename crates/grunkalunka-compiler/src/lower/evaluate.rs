@@ -3274,10 +3274,10 @@ impl Lowering<'_, '_> {
                                             "expression is outside the numeric experiment",
                                         )
                                     })?;
-                                if call.optional || call.type_arguments.is_some() {
+                                if call.optional {
                                     return Err(unsupported(
                                         node,
-                                        "optional and generic calls are not admitted",
+                                        "optional calls are not admitted",
                                     ));
                                 }
                                 if call.arguments.len() > 1000 {

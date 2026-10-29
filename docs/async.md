@@ -736,7 +736,8 @@ compare native rejection checkpoints. Four exact former TS guards now execute.
 Source bytes, await sites, argument limits, optional/spread calls, value shadowing,
 custom/unknown intrinsics and payload domains retain their guards. Source binding
 checks still distinguish type-only names from actual value references. Generic
-calls through the separate direct numeric module-call validator remain open.
+calls on synchronous Number module helpers invoked by async callers erase
+call-site types under [their contract](compiler.md#direct-module-call-type-arguments).
 Known local and runtime closure calls use
 [the contract below](#closure-call-site-type-arguments); runtime factory-result
 calls follow [their contract](runtime-closures.md#runtime-factory-call-site-type-arguments).
@@ -759,8 +760,9 @@ The existing callee is evaluated and saved before ordinary arguments. Declared
 inputs and surplus effects retain their order, snapshots, failures and async jobs;
 replacing the callable during argument evaluation cannot change the saved callee.
 Optional/spread calls, missing inputs, unsupported values and source/argument
-limits keep their guards. The separate direct numeric module-call validator
-still rejects explicit call-site types; runtime factories follow their contract.
+limits keep their guards. Direct numeric module calls erase the same metadata
+under [their contract](compiler.md#direct-module-call-type-arguments); runtime
+factories follow their contract.
 
 Four maintained async groups compare exact JS/TS Wasm bytes and native JS,
 Node-Wasm and Wasmtime outcomes. A synchronous numeric/primitive group checks the

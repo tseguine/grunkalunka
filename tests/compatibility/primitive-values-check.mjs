@@ -156,19 +156,26 @@ const fuel = invoke(['eval-value', fuelWasm], '3ff0000000000000 0000000000000000
 assert.equal(fuel.stdout, ''); assert.match(fuel.stderr, /fuel/);
 report.controls.push('fuel exhaustion');
 report.terminationCases=[];
-for (const {id,sourceJS,sourceTS,standards} of valueFuelCases) {
+for (const {id,sourceJS,sourceTS,standards,resourceOutcomes=['fuel-exhausted']} of valueFuelCases) {
+  const pairedWasm=[];
   for (const [extension,source] of [['js',sourceJS],['ts',sourceTS]]) {
     const name='reject-'+id+'.'+extension, output=name+'.wasm';
     const artifact=save(name,source), wasmPath=path.join(run,output);
     invoke(['compile-value',path.join(run,name),wasmPath]);
     const wasm=fs.readFileSync(wasmPath);
+    pairedWasm.push(wasm);
     const result=invoke(['eval-value',wasmPath],zero,false);
-    assert.equal(result.stdout,'');assert.match(result.stderr,/fuel/);
-    report.terminationCases.push({id,extension,standards,source:artifact,wasm:{path:output,sha256:sha(wasm)},admitted:true,executed:true,outcome:'fuel-exhausted',resultComparison:false});
+    assert.equal(result.stdout,'');
+    const outcome=/fuel/.test(result.stderr)?'fuel-exhausted':
+      /call stack exhausted|stack overflow|maximum call stack/i.test(result.stderr)?'stack-exhausted':null;
+    assert.ok(resourceOutcomes.includes(outcome),result.stderr);
+    report.terminationCases.push({id,extension,standards,source:artifact,wasm:{path:output,sha256:sha(wasm)},admitted:true,executed:true,outcome,resultComparison:false});
   }
+  assert.deepEqual(pairedWasm[0],pairedWasm[1],id+' JS/TS resource-case bytes');
 }
-assert.equal(report.terminationCases.length,2);
+assert.equal(report.terminationCases.length,4);
 report.controls.push('admitted recursive General numeric result exhausts fuel');
+report.controls.push('generic entry recursion remains termination-only evidence');
 assert.equal(report.pairedPrograms, 175); assert.equal(report.numericOriginCases,16); assert.equal(report.rejections.length, 6);
 assert.equal(report.comparisons, 9800);
 report.artifacts = fs.readdirSync(run).sort().map(name => {const bytes=fs.readFileSync(path.join(run,name)); return {path:name,bytes:bytes.length,sha256:sha(bytes)};});

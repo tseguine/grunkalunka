@@ -13,6 +13,166 @@ fn direct_calls_preserve_argument_snapshots_and_parameter_isolation() {
 }
 
 #[test]
+fn direct_call_type_arguments_erase_without_changing_execution() {
+    let plain =
+        "function identity(x) { return x; } export function run(a,b) { return identity(a); }";
+    let typed = "function identity(x) { return x; } export function run(a,b) { return identity<number>(a); }";
+    for compiler in [compile, compile_value] {
+        assert_eq!(
+            compiler(plain, false).unwrap().wasm,
+            compiler(typed, true).unwrap().wasm
+        );
+    }
+    compare_helper_sources(&[plain]);
+    for body in [
+        "return identity(a);",
+        "let x=a;return identity(x,x=b)+x;",
+        "identity(a=b);return a;",
+        "return a?identity(a):identity(b);",
+        "return identity(a)+(a=b);",
+    ] {
+        let plain = format!("function identity(x){{return x;}}export function run(a,b){{{body}}}");
+        let typed = format!(
+            "function identity(x){{return x;}}export function run(a,b){{{}}}",
+            body.replace("identity(", "identity<Missing,Other>(")
+        );
+        for compiler in [compile, compile_value] {
+            assert_eq!(
+                compiler(&plain, false).unwrap().wasm,
+                compiler(&typed, true).unwrap().wasm,
+                "{typed}"
+            );
+        }
+        compare_helper_sources(&[&plain]);
+    }
+    for (plain, typed) in [
+        (
+            "function helper(x) { return x; } export function run(a,b) { return helper(a); }",
+            "function helper<T>(x:T):T { return x; } export function run(a,b) { return helper<number>(a); }",
+        ),
+        (
+            "function id(x) { return x; }export function run(a,b) { return id(a); }",
+            "function id<T>(x:T):T { return x; }export function run(a,b) { return id<number>(a); }",
+        ),
+        (
+            "export function run(a,b){if(b===12345)return a;return run(a,12345,a=b);}",
+            "export function run(a,b){if(b===12345)return a;return run<never>(a,12345,a=b);}",
+        ),
+        (
+            "function fold(n,x){if(n<=0)return x;return fold(n-1,x+1);}export function run(a,b){return fold(3,a)+b;}",
+            "function fold(n,x){if(n<=0)return x;return fold<never>(n-1,x+1);}export function run(a,b){return fold<Missing>(3,a)+b;}",
+        ),
+        (
+            "function id(x){return x;}export function run(a,b){return id(a);}",
+            "type id=never;function id<T>(x:T):T{return x;}export function run(a,b){return id<id>(a);}",
+        ),
+    ] {
+        for compiler in [compile, compile_value] {
+            assert_eq!(
+                compiler(plain, false).unwrap().wasm,
+                compiler(typed, true).unwrap().wasm,
+                "{typed}"
+            );
+        }
+        compare_helper_sources(&[plain]);
+    }
+}
+
+#[test]
+fn direct_call_type_arguments_do_not_prove_values_or_relax_limits() {
+    for body in [
+        "return id<never>();",
+        "return id<never>(...a);",
+        "return id?.<never>(a);",
+        "return id<number>(null);",
+        "return id<number>(true);",
+        "return id<number>('x');",
+        "return id<never>(missing);",
+        "const id=a;return id<never>(b);",
+        "id=a;return id<never>(b);",
+        "return (id)<never>(a);",
+        "return id<never>(a,missing);",
+    ] {
+        let source = format!("function id(x){{return x;}}export function run(a,b){{{body}}}");
+        for compiler in [compile, compile_value] {
+            assert!(compiler(&source, true).is_err(), "{source}");
+        }
+    }
+    let plain = "function id(x){return x;}export function run(a,b){return id(a);}";
+    for metadata in ["never", "Missing", "typeof absent", "{call:()=>void}"] {
+        let typed = plain.replace("return id(", &format!("return id<{metadata}>("));
+        for compiler in [compile, compile_value] {
+            assert_eq!(
+                compiler(plain, false).unwrap().wasm,
+                compiler(&typed, true).unwrap().wasm
+            );
+        }
+    }
+    let types = vec!["never"; 1001].join(",");
+    let typed = plain.replace("return id(", &format!("return id<{types}>("));
+    assert_eq!(
+        compile(plain, false).unwrap().wasm,
+        compile(&typed, true).unwrap().wasm
+    );
+    for count in [1000, 1001] {
+        let args = vec!["a"; count].join(",");
+        let plain =
+            format!("function id(x){{return x;}}export function run(a,b){{return id({args});}}");
+        let typed = plain.replace("return id(", "return id<never>(");
+        if count == 1000 {
+            assert_eq!(
+                compile(&plain, false).unwrap().wasm,
+                compile(&typed, true).unwrap().wasm
+            );
+        } else {
+            assert!(compile(&typed, true).err().unwrap().contains("1000"));
+        }
+    }
+    let prefix = "function id(x){return x;}export function run(a,b){return id<\"λ";
+    let suffix = "\">(a);}";
+    let exact = format!(
+        "{prefix}{}{suffix}",
+        "x".repeat(16_384 - prefix.len() - suffix.len())
+    );
+    assert_eq!(
+        compile(plain, false).unwrap().wasm,
+        compile(&exact, true).unwrap().wasm
+    );
+    assert!(
+        compile(&(exact + " "), true)
+            .err()
+            .unwrap()
+            .contains("16 KiB")
+    );
+}
+
+#[test]
+fn direct_call_type_arguments_keep_unconditional_recursion_as_resource_evidence() {
+    let plain = "export function run(a,b) { return run(a,b); }";
+    let typed = "export function run<T>(a:T,b:T):T { return run<T>(a,b); }";
+    let wasm = compile(typed, true).unwrap().wasm;
+    assert_eq!(wasm, compile(plain, false).unwrap().wasm);
+    let error = NumericInstance::new(&wasm)
+        .unwrap()
+        .run(0.0, 0.0)
+        .unwrap_err();
+    assert!(matches!(
+        error.downcast_ref::<Trap>().unwrap(),
+        Trap::OutOfFuel | Trap::StackOverflow
+    ));
+    let wasm = compile_value(typed, true).unwrap().wasm;
+    assert_eq!(wasm, compile_value(plain, false).unwrap().wasm);
+    let error = ValueInstance::new(&wasm)
+        .unwrap()
+        .run(0.0, 0.0)
+        .unwrap_err();
+    assert!(matches!(
+        error.downcast_ref::<Trap>().unwrap(),
+        Trap::OutOfFuel | Trap::StackOverflow
+    ));
+}
+
+#[test]
 fn helpers_evaluate_and_ignore_surplus_arguments() {
     compare_helper_sources(&[
         "function identity(x) { return x; } export function run(a,b) { return identity(a,b); }",

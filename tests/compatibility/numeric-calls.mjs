@@ -78,7 +78,7 @@ bad('spread', identity, 'return identity(...a);', 'spread call arguments');
 bad('optional', identity, 'return identity?.(a);', expression);
 bad('property', identity, 'return identity.call(a);', expression);
 bad('wrapped-callee', identity, 'return (identity)(a);', expression);
-bad('generic-call', identity, 'return identity<number>(a);', 'generic calls', 'ts');
+full('generic-call',"function identity(x) { return x; } export function run(a,b) { return identity(a); }","function identity(x) { return x; } export function run(a,b) { return identity<number>(a); }");
 bad('numeric-shadow-call', identity, 'let identity=a; return identity(b);', expression);
 bad('parameter-shadow-call', 'function other(identity) { return identity(1); }', 'return other(a);', expression);
 bad('tdz-shadow-call', identity, 'const x=identity(a); let identity=b; return x;', expression);

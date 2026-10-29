@@ -20,6 +20,7 @@ export const genericDeclarationPromotions = [
   ]
 ];
 export const genericDeclarations = genericDeclarationPromotions.map(([id,sourceJS,sourceTS]) => [id,'','',undefined,undefined,{sourceJS,sourceTS}]);
+genericDeclarations.push(["generic-declaration-reject-helper-call",'', '',undefined,undefined,{sourceJS:"function id(x) { return x; }export function run(a,b) { return id(a); }",sourceTS:"function id<T>(x:T):T { return x; }export function run(a,b) { return id<number>(a); }"}]);
 function add(id,js,ts){genericDeclarations.push([`generic-declaration-${id}`,'','',undefined,undefined,{sourceJS:js,sourceTS:ts}]);}
 const identity='export function run(a,b) { return a; }';
 const parameters=['<T>','<T,U>','<T extends number>','<T=number>','<const T>','<T extends number=number,U=T>'];
@@ -51,8 +52,6 @@ for(const [id,source,diagnostic,group] of [
  ['default','export function run<T>(a:T,b:T=1):T { return a; }','default','parameters'],
  ['optional','export function run<T>(a?:T,b?:T):T { return a; }','parameter modifiers','parameters'],
  ['rest','export function run<T>(a:T,...b:T[]):T { return a; }','exactly two ordinary','parameters'],
- ['helper-call','function id<T>(x:T):T { return x; }export function run(a,b) { return id<number>(a); }','generic calls','function-calls'],
- ['entry-call','export function run<T>(a:T,b:T):T { return run<T>(a,b); }','generic calls','function-calls'],
  ['type-value','export function run<T>(a:T,b:T):T { return T; }','reference is not an initialized','binding-errors'],
  ['type-tdz','export function run<T>(a:T,b:T):T { const T=T;return T; }','reference is not an initialized','binding-errors'],
  ['const-write','export function run<T>(a:T,b:T):T { const x=a;x=b;return x; }','assignment to a const binding is not admitted','const-errors'],
