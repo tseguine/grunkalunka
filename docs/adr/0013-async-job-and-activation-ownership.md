@@ -387,7 +387,11 @@ preserving rethrows, cleanup precedence, captured catch cells and raw identity.
 The alternative of dynamically narrowing every mixed value would leave primitive
 addition ambiguous with Promise string conversion; retaining the module summary
 would preserve a known source admission gap. No new IR or runtime mechanism is
-needed. Stored/opaque Promise rejection provenance remains conservative.
+needed. Closed compositions of pristine resolve/reject calls now distinguish the
+raw argument domain of reject from the input rejection domain followed by resolve.
+Following produced-value paths avoids confusing an intermediate Promise with its
+reason; nested argument failures retain their own lexical routes. Stored/opaque
+Promise rejection provenance remains conservative.
 Maintained JS/TS native-JS/Node-Wasm/Wasmtime tests cover these boundaries; existing
 raw-reason and small-stack tests remain unchanged.
 
