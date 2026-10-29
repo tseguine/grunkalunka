@@ -49,7 +49,6 @@ pub enum Display {
     None,
 }
 
-/// Explicitly resolved box sizing, not a CSS declaration parser.
 /// Already-resolved visibility declaration. Children inherit unless explicitly
 /// overridden; unlike display:none, a hidden ancestor retains its boxes and
 /// an explicitly visible descendant can be painted and hit.
@@ -71,6 +70,17 @@ impl Visibility {
     }
 }
 
+/// An explicit clipping policy for a node's descendants. This deliberately
+/// models only padding-box clipping of paint/hits, not CSS scroll containers,
+/// overflow propagation, scrollbars or clipping of the node's own border.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum DescendantClip {
+    #[default]
+    None,
+    PaddingBox,
+}
+
+/// Explicitly resolved box sizing, not a CSS declaration parser.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum BoxSizing {
     #[default]
@@ -109,6 +119,7 @@ pub enum HeightBound {
 pub struct Style {
     pub display: Display,
     pub visibility: Visibility,
+    pub descendant_clip: DescendantClip,
     pub width: Length,
     pub min_width: Option<WidthBound>,
     pub max_width: Option<WidthBound>,
@@ -156,6 +167,22 @@ impl Rect {
     pub fn bottom(self) -> Option<u32> {
         self.y.checked_add(self.height)
     }
+
+    /// Intersection of already-resolved, nonnegative rectangle coordinates.
+    /// A disjoint intersection is an empty rectangle, NOT an absent clip.
+    /// None means the caller's geometry overflowed its coordinate domain.
+    pub fn intersection(self, other: Self) -> Option<Self> {
+        let x = self.x.max(other.x);
+        let y = self.y.max(other.y);
+        let right = self.right()?.min(other.right()?);
+        let bottom = self.bottom()?.min(other.bottom()?);
+        Some(Self {
+            x,
+            y,
+            width: right.saturating_sub(x),
+            height: bottom.saturating_sub(y),
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -173,6 +200,9 @@ pub struct Frame {
     /// Computed inherited visibility per node; independent of layout box
     /// existence. Explicit visible descendants can override hidden ancestors.
     pub visibility: Vec<bool>,
+    /// Whether a node clips its descendants to its resolved padding box.
+    /// An ancestor's clip still affects the node's own painting/hit tests.
+    pub clip_descendants: Vec<bool>,
     pub viewport_width: u32,
     pub viewport_height: u32,
     pub scroll_width: u32,
@@ -380,15 +410,15 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// display:none, inherited visibility, explicit content-box/border-box
-/// sizing, optional min/max width/height constraints and whole percentage
-/// dimensions with exact
-/// integral results are admitted. Percentage heights
-/// require a definite containing content
-/// height; unresolved heights and fractional pixel results are rejected.
+/// display:none, inherited visibility, optional padding-box descendant
+/// clipping, explicit content-box/border-box sizing, min/max width/height
+/// constraints and whole percentage dimensions with exact integral results
+/// are admitted. Percentage heights need a definite containing content height;
+/// unresolved heights and fractional pixel results are rejected.
 /// Positive margins do not collapse; inline layout, text shaping, floats,
 /// CSS selectors and painting are not provided. Fixed heights may
-/// overflow, and all descendants contribute to the resulting scroll extents.
+/// overflow, and all descendants contribute to scroll extents even when
+/// clipped for painting and input. Document overflow accounting is unchanged.
 pub fn layout(
     blocks: &[Block],
     viewport_width: u32,
@@ -414,6 +444,10 @@ pub fn layout(
     let mut children = vec![Vec::new(); blocks.len()];
     let mut depths = vec![0usize; blocks.len()];
     let mut visibility = vec![true; blocks.len()];
+    let clip_descendants: Vec<bool> = blocks
+        .iter()
+        .map(|block| block.style.descendant_clip == DescendantClip::PaddingBox)
+        .collect();
     visibility[0] = blocks[0].style.visibility.resolve(true);
     for (node, block) in blocks.iter().enumerate().skip(1) {
         let Some(parent) = block.parent else {
@@ -436,6 +470,7 @@ pub fn layout(
         frame: Frame {
             boxes: vec![None; blocks.len()],
             visibility,
+            clip_descendants,
             viewport_width,
             viewport_height,
             scroll_width: viewport_width,

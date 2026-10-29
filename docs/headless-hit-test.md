@@ -18,14 +18,17 @@ fonts, images or external dependencies.
   earlier siblings. The flat parent-before-child representation need not
   itself be preorder.
 - Only visible **border rectangles** are hit regions; margins are excluded.
-  Descendants can be hit outside their parent's border because the selected
-  toy renderer currently leaves overflow visible.
+  Descendants can be hit outside their parent's border when not clipped.
+  `DescendantClip::PaddingBox` restricts hits by every clipping ancestor's
+  resolved padding rectangle, including when a child explicitly overrides
+  `visibility:hidden`.
 - Points beyond the viewport return no target, even if document scroll
   extents contain visible boxes there. The separately implemented
   `hit_test_scrolled` translates viewport points by a checked global
   document-space offset; nested scroll containers are not represented.
 - The function validates all tree and box inputs before accepting any hit:
-  viewport dimensions, exact frame/node/visibility count, at most 4,096 nodes, depth
+  viewport dimensions, exact frame/node/visibility/clip count, at most 4,096
+  nodes, depth
   at most 64, ordered valid parents, no visible descendants of hidden parents,
   checked rectangle arithmetic and content-within-padding-within-border-
   within-margin geometry. Malformed input returns a typed error.
@@ -49,6 +52,16 @@ extends beyond its fixed-height parent. Six independent native tests specify
 exact topmost targets, disabled-input fallthrough, margin exclusion, hidden
 subtree omission, overflow hits, and malformed tree/frame failure behavior.
 No reference browser supplies the expected node indices.
+
+## Selected padding-box clipping
+
+The independently authored `tests/descendant_clip.rs` checks that nested
+clipping ancestors intersect before hit selection and that their result
+agrees with the headless RGB painter. Disjoint clip intersections never
+restore targetability, and a targetable child cannot escape its ancestor's
+clip (including under viewport scrolling). Geometry and current document
+scroll extents still include clipped overflow, so the feature does not
+implement CSS scroll containers or full `overflow` semantics.
 
 ## Intentional limitations
 
