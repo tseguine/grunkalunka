@@ -86,6 +86,40 @@ test('only a same-process bound, same-binary pair exposes samples and unranked d
   assert.deepEqual(bound, original, 'comparison cannot mutate or alias saved receipts');
 });
 
+test('fresh component lifecycle pair summary preserves both raw series and medians', () => {
+  const before = receipt();
+  const after = receipt('2026-10-27T17:00:01.000Z');
+  const unit = 'milliseconds per fresh component lifecycle';
+  before.report.freshLifecycles = {
+    count: 2, unit, granted: summary([1, 3]), denied: summary([4, 6]),
+  };
+  after.report.freshLifecycles = {
+    count: 2, unit, granted: summary([9, 5]), denied: summary([2, 4]),
+  };
+  const bound = bindMarkdownPair(before, after);
+  const original = structuredClone(bound);
+  const result = compareMarkdownPair(bound);
+  assert.equal(result.freshLifecycles.count, 2);
+  assert.equal(result.freshLifecycles.unit, unit);
+  assert.deepEqual(result.freshLifecycles.granted, {
+    baselineSamplesMs: [1, 3],
+    candidateSamplesMs: [9, 5],
+    median: { baselineMs: 2, candidateMs: 7, deltaMs: 5 },
+  });
+  assert.deepEqual(result.freshLifecycles.denied, {
+    baselineSamplesMs: [4, 6],
+    candidateSamplesMs: [2, 4],
+    median: { baselineMs: 5, candidateMs: 3, deltaMs: -2 },
+  });
+  assert.equal(Object.hasOwn(result.freshLifecycles.granted, 'ratio'), false);
+  result.freshLifecycles.granted.baselineSamplesMs[0] = 999;
+  assert.deepEqual(bound, original, 'summaries must not mutate original receipts');
+
+  const historical = compareMarkdownPair(validPair());
+  assert.equal(Object.hasOwn(historical, 'freshLifecycles'), false,
+    'historical valid receipts do not invent one-shot lifecycle timings');
+});
+
 test('changed binary, harness, workload, fixtures or actual host conditions reject', () => {
   for (const [path, value] of [
     ['provenance.guest.sha256', 'a'.repeat(64)],
