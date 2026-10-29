@@ -1,7 +1,7 @@
 //! Hand-projected browser oracle slice: resolved boxes, not an HTML/CSS parser.
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test};
-use grunkalunka_layout::{Block, Display, Edges, Frame, Length, Rect, Style, layout};
+use grunkalunka_layout::{Block, BoxSizing, Display, Edges, Frame, Length, Rect, Style, layout};
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
 fn boxes_json(frame: &Frame) -> String {
@@ -177,9 +177,154 @@ fn percentage_heights_json() -> String {
         .join(",")
 }
 
+// Independently resolved boxes for the appended CSS border-box group. The
+// preceding fixture groups are represented only by their reviewed fixed border
+// heights; no browser boxes or parsed CSS become Rust layout inputs.
+fn border_boxes_json() -> String {
+    let blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(284),
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(132),
+                height: Length::Px(92),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                box_sizing: BoxSizing::BorderBox,
+                width: Length::Px(120),
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                border: Edges::all(2),
+                padding: Edges::all(4),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(3),
+            style: Style {
+                box_sizing: BoxSizing::BorderBox,
+                width: Length::Percent(50),
+                height: Length::Percent(50),
+                margin: Edges {
+                    top: 3,
+                    bottom: 5,
+                    ..Edges::default()
+                },
+                border: Edges::all(1),
+                padding: Edges::all(2),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(3),
+            style: Style {
+                width: Length::Percent(25),
+                height: Length::Percent(25),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let frame = layout(&blocks, 800, 600).expect("border-box geometry must resolve");
+    assert_eq!(
+        frame.boxes[3].unwrap().content,
+        Rect {
+            x: 6,
+            y: 204,
+            width: 108,
+            height: 68,
+        }
+    );
+    assert_eq!(
+        frame.boxes[4].unwrap().content,
+        Rect {
+            x: 9,
+            y: 210,
+            width: 48,
+            height: 28,
+        }
+    );
+    let expected = [
+        (
+            "border-host",
+            3,
+            Rect {
+                x: 0,
+                y: 198,
+                width: 120,
+                height: 80,
+            },
+        ),
+        (
+            "border-first",
+            4,
+            Rect {
+                x: 6,
+                y: 207,
+                width: 54,
+                height: 34,
+            },
+        ),
+        (
+            "border-second",
+            5,
+            Rect {
+                x: 6,
+                y: 246,
+                width: 27,
+                height: 17,
+            },
+        ),
+    ];
+    for &(id, index, golden) in &expected {
+        assert_eq!(
+            frame.boxes[index]
+                .expect("visible border-box sample")
+                .border,
+            golden,
+            "independent native box-sizing geometry for {id}"
+        );
+    }
+    expected
+        .into_iter()
+        .map(|(id, index, _)| {
+            let rect = frame.boxes[index].unwrap().border;
+            format!(
+                r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                rect.x, rect.y, rect.width, rect.height
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn main() {
-    // Synthetic html/body ancestors have zero margins and padding. The fixture
-    // deliberately avoids text shaping, percentage lengths and margin collapse.
+    // Synthetic html/body ancestors have zero margins and padding. The first
+    // group avoids text shaping and percentage lengths; appended groups use
+    // separate, explicitly caller-resolved dimensions.
     let mut blocks = [
         Block::default(),
         Block::child(0, 0),
@@ -344,6 +489,8 @@ fn main() {
     output.push_str(&hits_json(&restored_hits));
     output.push_str(r#"}},"percentageHeights":{"#);
     output.push_str(&percentage_heights_json());
+    output.push_str(r#"},"borderBoxes":{"#);
+    output.push_str(&border_boxes_json());
     output.push_str(r#"}}"#);
     println!("{output}");
 }

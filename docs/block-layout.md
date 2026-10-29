@@ -179,6 +179,6 @@ sibling flow, overconstrained border boxes, whole-viewport percentages,
 fractional-input rejections, default behavior, and hidden descendants.
 The existing Rust layout tests remain unchanged to guard content-box output.
 No subpixel rounding, min/max sizing, overflow clipping, layout containment,
-margin collapse or general CSS box-model conformance is claimed. A separate
-real-engine source-hashed comparison would be needed for selected browser
-parity evidence.
+margin collapse or general CSS box-model conformance is claimed. The separate
+[source-checked native border-box bridge](browser-native-box-sizing-bridge.md)
+supplies selected real-engine geometry evidence, not a general CSS compliance claim.
