@@ -10,7 +10,7 @@ pub enum PromiseNotification {
     Handled { id: u32 },
 }
 
-/// Observable settlement of the experimental primitive Promise profile.
+/// Observable settlement of the experimental Promise profile and opt-in objects.
 #[derive(Clone, Debug)]
 pub enum AsyncState {
     Pending,
@@ -60,7 +60,10 @@ pub struct AsyncInstance {
     take_promise_event: Option<TypedFunc<(), (i32, i32, i32, f64)>>,
     notifications: Vec<PromiseNotification>,
     rejections: std::collections::BTreeSet<u32>,
+    rejection_ids: std::collections::BTreeSet<u32>,
     error_kind: Option<TypedFunc<f64, i32>>,
+    promise_snapshot: Option<TypedFunc<f64, (i32, i32, i32, f64)>>,
+    promise_states: std::collections::BTreeMap<u32, (i32, i32, i32, f64)>,
     ready_jobs: u8,
     state: AsyncState,
     pending: Option<(i32, i32, f64)>,
@@ -101,6 +104,13 @@ impl AsyncInstance {
         if error_kind.is_some() && take_jobs.is_none() {
             wasmtime::bail!("error objects require queued async protocol");
         }
+        let promise_snapshot = instance
+            .get_func(&mut store, "promise_state")
+            .map(|f| f.typed(&store))
+            .transpose()?;
+        if promise_snapshot.is_some() && take_jobs.is_none() {
+            wasmtime::bail!("Promise objects require queued async protocol");
+        }
         store.set_fuel(super::FUEL_PER_CALL)?;
         let result = start.call(&mut store, (a, b))?;
         let mut activation = Self {
@@ -110,7 +120,10 @@ impl AsyncInstance {
             take_promise_event,
             notifications: Vec::new(),
             rejections: std::collections::BTreeSet::new(),
+            rejection_ids: std::collections::BTreeSet::new(),
             error_kind,
+            promise_snapshot,
+            promise_states: std::collections::BTreeMap::new(),
             ready_jobs: 0,
             state: AsyncState::Pending,
             pending: None,
@@ -126,6 +139,23 @@ impl AsyncInstance {
             wasmtime::bail!("async activation is unusable after an earlier error");
         }
         Ok(self.state.clone())
+    }
+
+    /// Read a Promise from this invocation without handling it or running a job.
+    /// IDs are invocation-local. Query errors, traps and fuel failure terminate
+    /// the activation, just as errors at ordinary invocation boundaries do.
+    pub fn promise_state(&mut self, id: u32) -> wasmtime::Result<AsyncState> {
+        self.state()?;
+        self.usable = false;
+        self.store.set_fuel(super::FUEL_PER_CALL)?;
+        let (state, _, tag, payload) = self.read_promise(id)?;
+        let result = match state {
+            0 => AsyncState::Pending,
+            1 => AsyncState::Fulfilled(self.decode(tag, payload, false)?),
+            _ => AsyncState::Rejected(self.decode(tag, payload, true)?),
+        };
+        self.usable = true;
+        Ok(result)
     }
 
     /// Consume tracking events after construction and every job, including jobs
@@ -179,7 +209,7 @@ impl AsyncInstance {
     }
 
     fn accept(&mut self, (kind, tag, payload): (i32, i32, f64)) -> wasmtime::Result<()> {
-        let value = self.decode(tag, payload)?;
+        let value = self.decode(tag, payload, kind == 3)?;
         if let Some(take_jobs) = &self.take_jobs {
             if !matches!(kind, 0 | 1 | 3) {
                 wasmtime::bail!("invalid queued async protocol status {kind}");
@@ -236,12 +266,32 @@ impl AsyncInstance {
             }
             let id = id as u32;
             let event = match kind {
-                1 if !self.rejections.contains(&id) => {
-                    let reason = self.decode(tag, payload)?;
+                1 if !self.rejections.contains(&id)
+                    && !(self.promise_snapshot.is_some() && self.rejection_ids.contains(&id)) =>
+                {
+                    if self.promise_snapshot.is_some() {
+                        let (state, _, record_tag, record_payload) = self.read_promise(id)?;
+                        if state != 2
+                            || record_tag != tag
+                            || !Self::same_payload(record_payload, payload)
+                        {
+                            wasmtime::bail!("Promise rejection event disagrees with its record");
+                        }
+                    }
+                    let reason = self.decode(tag, payload, true)?;
+                    if self.promise_snapshot.is_some() {
+                        self.rejection_ids.insert(id);
+                    }
                     self.rejections.insert(id);
                     PromiseNotification::Rejected { id, reason }
                 }
                 2 if tag == 0 && payload.to_bits() == 0 && self.rejections.remove(&id) => {
+                    if self.promise_snapshot.is_some() {
+                        let (state, handled, _, _) = self.read_promise(id)?;
+                        if state != 2 || handled != 1 {
+                            wasmtime::bail!("Promise handling event disagrees with its record");
+                        }
+                    }
                     PromiseNotification::Handled { id }
                 }
                 _ => wasmtime::bail!("invalid Promise event transition"),
@@ -251,7 +301,62 @@ impl AsyncInstance {
         wasmtime::bail!("too many Promise events")
     }
 
-    fn decode(&mut self, tag: i32, payload: f64) -> wasmtime::Result<super::Value> {
+    fn same_payload(left: f64, right: f64) -> bool {
+        left.to_bits() == right.to_bits() || left.is_nan() && right.is_nan()
+    }
+
+    fn promise_id(payload: f64) -> wasmtime::Result<u32> {
+        if !payload.is_finite() || payload < 16.0 || payload > 1_048_544.0 || payload % 16.0 != 0.0
+        {
+            wasmtime::bail!("invalid Promise object identity");
+        }
+        Ok(payload as u32)
+    }
+
+    fn read_promise(&mut self, id: u32) -> wasmtime::Result<(i32, i32, i32, f64)> {
+        Self::promise_id(f64::from(id))?;
+        let query = self.promise_snapshot.clone().ok_or_else(|| {
+            wasmtime::format_err!("Promise objects require a promise_state export")
+        })?;
+        let row @ (state, handled, tag, payload) = query.call(&mut self.store, f64::from(id))?;
+        if !matches!(state, 0..=2) || !matches!(handled, 0 | 1) {
+            wasmtime::bail!("invalid Promise snapshot state");
+        }
+        if state == 0 {
+            if tag != 0 || payload.to_bits() != 0 {
+                wasmtime::bail!("invalid pending Promise snapshot");
+            }
+        } else if state == 2 && tag == 5 {
+            Self::promise_id(payload)?;
+        } else {
+            self.decode(tag, payload, false)?;
+        }
+        if let Some(previous) = self.promise_states.get(&id) {
+            let same_payload = Self::same_payload(previous.3, payload);
+            if previous.0 != 0 && (state != previous.0 || tag != previous.2 || !same_payload) {
+                wasmtime::bail!("Promise settlement changed");
+            }
+            if previous.1 == 1 && handled == 0 {
+                wasmtime::bail!("Promise handling changed");
+            }
+        } else if self.promise_states.len() >= 32768 {
+            wasmtime::bail!("too many Promise objects");
+        }
+        self.promise_states.insert(id, row);
+        Ok(row)
+    }
+
+    fn decode(
+        &mut self,
+        tag: i32,
+        payload: f64,
+        allow_promise: bool,
+    ) -> wasmtime::Result<super::Value> {
+        if tag == 5 && allow_promise {
+            let id = Self::promise_id(payload)?;
+            self.read_promise(id)?;
+            return Ok(super::Value::Promise { id });
+        }
         if tag == 4
             && let Some(kind) = &self.error_kind
         {

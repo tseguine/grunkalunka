@@ -48,7 +48,7 @@ impl NumericInstance {
 }
 
 /// Runtime values. The primitive protocol admits the first four cases;
-/// the opt-in async object extension also transports intrinsic TypeError IDs.
+/// opt-in async extensions also transport intrinsic TypeError and Promise IDs.
 #[derive(Clone, Debug)]
 pub enum Value {
     Undefined,
@@ -58,6 +58,11 @@ pub enum Value {
     /// An intrinsic error object. IDs are stable only within one AsyncInstance;
     /// the primitive ValueInstance protocol does not admit this extension.
     TypeError {
+        id: u32,
+    },
+    /// A guest Promise identity, scoped to one AsyncInstance. Its state is read
+    /// through that invocation; primitive ValueInstance never admits this kind.
+    Promise {
         id: u32,
     },
 }

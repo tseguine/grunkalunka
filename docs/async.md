@@ -777,3 +777,11 @@ Admitted async functions expose their ordinary parameter count through static
 `.length`, without starting their bodies or creating child Promises/reactions.
 Receivers that evaluate factories or await retain those effects and failure.
 See [the shared contract](function-length.md).
+
+## Host Promise object transport
+
+The opt-in queued protocol now transports Promise identities as raw rejection
+reasons. Node keeps stable native Promise objects; Wasmtime provides typed IDs
+and read-only state queries. Reads preserve guest handling and jobs, and normal
+fulfillment still adopts in the guest. Source Promise-valued throws/reject reasons
+remain separate frontend work. See [the transport contract](async-promise-objects.md).

@@ -13,8 +13,9 @@ fn logical_and_returns_the_selected_kind_and_payload() {
 
 fn encode(value: &Value) -> String {
     match value {
-        grunkalunka_runtime::Value::TypeError { .. } => {
-            panic!("primitive-only fixture received an Error object")
+        grunkalunka_runtime::Value::TypeError { .. }
+        | grunkalunka_runtime::Value::Promise { .. } => {
+            panic!("primitive-only fixture received an async object")
         }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
@@ -31,8 +32,9 @@ fn encode(value: &Value) -> String {
 }
 fn truthy(value: &Value) -> bool {
     match value {
-        grunkalunka_runtime::Value::TypeError { .. } => {
-            panic!("primitive-only fixture received an Error object")
+        grunkalunka_runtime::Value::TypeError { .. }
+        | grunkalunka_runtime::Value::Promise { .. } => {
+            panic!("primitive-only fixture received an async object")
         }
         Value::Undefined | Value::Null => false,
         Value::Boolean(b) => *b,

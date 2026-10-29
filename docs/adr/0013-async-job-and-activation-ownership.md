@@ -328,3 +328,16 @@ does not handle or adopt it: body await and return retain their existing ownersh
 Promise-valued throws/rejection reasons remain outside this source profile.
 Maintained native/Node-Wasm/Wasmtime and rejection-checkpoint tests exercise this
 bounded extension; see [the contract and limits](../async-named-helpers.md).
+
+## Host Promise identity transport (2026-10-29)
+
+Queued modules expose a read-only promise_state snapshot for canonical guest
+records. A raw Promise reference is permitted as a rejected value, preserving
+identity without adoption. Node uses one real native Promise per invocation-local
+ID for exposed reasons and rejection tracking; Wasmtime uses a typed descriptor
+and explicit read-only queries. Snapshot reads do not mutate guest handling or
+schedule work. Settled values and notification history remain checked, and host
+protocol failures remain terminal. Primitive-only protocols stay closed. This
+avoids a plain-object stand-in with different Promise behavior or duplicate host
+rejection proxies. Source admission and broader thenable/object domains remain
+required follow-ups; see [the protocol](../async-promise-objects.md).
