@@ -109,8 +109,9 @@ checks moved to the canonical runner. The maintainer
 authorized **dependency-selected verification on Linux and Windows PR runners**
 through `ci/impact/pr-gate.mjs`. Unknown or unsafe selections run the **original
 full** checks on that host. Every `master` push gets full Linux/Windows checks.
-Native Apple Silicon is verified by a scheduled four-hour full run or an explicitly
-dispatched run. A Linux PR probe checks the latest completed, non-cancelled macOS result on
+Native Apple Silicon full verification is requested on every `master` push
+(with running builds preserved and superseded pending revisions replaced), or
+by explicit manual dispatch. A Linux PR probe checks the latest completed, non-cancelled macOS result on
 `master` (or a completed exact-head manual PR run). If missing, stale or
 failed, it triggers actual full native macOS checks on the PR merge revision.
 The final macOS gate passes only with a healthy reference or successful real
@@ -149,7 +150,7 @@ are not automatic PR merge gates.
   review `node ci/impact/plan.mjs origin/master` from a full-history checkout,
   and use `ci/impact/platform-rehearsal.mjs` for a bounded native-host
   execution control. These checks **do not replace** the actual exact-head
-  Linux/Windows, scheduled/manual macOS or independent-workflow results. Audit actual
+  Linux/Windows, master-push/manual native macOS or independent-workflow results. Audit actual
   source/test dependencies before further reducing selected checks.
 
 ## CI runner budget and test placement policy
@@ -158,7 +159,7 @@ Tests and experiments should be implemented as **ordinary repository tests** and
 registered with the existing canonical check runner by default. Provide accurate
 ownership, source/fixture dependencies and per-command check descriptors so the
 same tests participate in dependency-selected PR CI on Linux and Windows, and in
-full scheduled/manual native macOS checks.
+full master-push/manual native macOS checks.
 A regression test must not require its own Actions workflow merely because it
 originated in a research or implementation workstream.
 

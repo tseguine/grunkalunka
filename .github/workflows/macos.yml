@@ -1,20 +1,17 @@
 name: Native macOS verification
 
 on:
-  schedule:
-    - cron: '27 */4 * * *'
-  workflow_dispatch:
-  workflow_call:
-  # Bootstrap the first baseline when this workflow is introduced on master.
+  # Every master push requests native verification. Keep active runs; GitHub's
+  # single pending slot supersedes older queued revisions under rapid merges.
   push:
     branches: [master]
-    paths:
-      - '.github/workflows/macos.yml'
+  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
-# Do not cancel a running baseline when master advances.
+# Never cancel a running master baseline when new commits land.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -34,7 +31,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 65
     steps:
-      - name: Check out exact scheduled or manually selected revision
+      - name: Check out exact master-push or manually selected revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

@@ -5,7 +5,8 @@ authorized **Linux and Windows PR runners** to translate independently validated
 selections into canonical and package-scoped Cargo checks via `pr-gate.mjs`.
 Unsafe or unknown plans fall back to full checks **on that same host**.
 Every `master` push gets full Linux/Windows verification; native macOS runs
-separately on a four-hour schedule or explicit dispatch. The lightweight PR
+separately on each `master` push (preserving running and superseding stale
+pending requests), or by explicit dispatch. The lightweight PR
 macOS reference probes a recent completed native result on `master` (or a
 manual exact-head PR result); if stale, failed or absent, a native macOS full
 build of the PR merge revision is triggered automatically. An ordinary green

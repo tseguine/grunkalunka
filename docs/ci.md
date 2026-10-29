@@ -29,10 +29,13 @@ a queue of builds for every intermediate commit; successful older runs must
 not be described as verification of newer master revisions.
 
 The independent [native macOS workflow](../.github/workflows/macos.yml)
-executes full builds and tests on Apple Silicon every four hours, on a manual
-branch dispatch, and once when the workflow first lands on `master`.
-Running native macOS jobs are not canceled by subsequent merges. Scheduled
-work may be delayed by runner contention.
+requests a full Apple Silicon build and canonical test suite on **every `master`
+push**, or on manual branch dispatch. Under rapid merges, GitHub keeps a running
+build and one pending revision; newer pending requests replace older ones.
+Running native macOS builds are never canceled by subsequent merges, and the
+latest completed, non-cancelled native result is consulted for the PR baseline.
+A passing result can be reused while within the 24-hour recency limit;
+runner contention can still delay the next build.
 
 | Check name | Standard hosted runner | Architecture |
 | --- | --- | --- |
@@ -40,7 +43,7 @@ work may be delayed by runner contention.
 | `Checks (Windows)` | `windows-2025` | x64 |
 | `macOS baseline lookup (Linux)` | `ubuntu-24.04` | checks reference; decides whether fallback is needed |
 | `macOS verification (baseline or native fallback)` | `ubuntu-24.04` | final PR gate |
-| `Native macOS fallback` (conditional), scheduled/manual native macOS | `macos-15` | arm64, native Apple Silicon |
+| `Native macOS fallback` (conditional), master-push/manual native macOS | `macos-15` | arm64, native Apple Silicon |
 
 The standard `macos-15` runner uses an Apple M1 (3 CPUs, 7 GiB RAM). macOS ARM64 remains the native platform; it runs on PRs only when a full native fallback is needed.
 The legacy `Checks (macOS)` check is used only for baseline bootstrapping.
@@ -118,7 +121,7 @@ verifies the live canonical command inventory, includes separately declared
 Rust test-time fixture inputs, and audits independent browser workflow
 triggers. Unknown paths, missing or ambiguous dependencies, unsafe Cargo
 translations or stale command mapping fall back to original full commands
-**on that host**. Full native macOS checks are scheduled or manually dispatched.
+**on that host**. Full native macOS checks are requested on every `master` push (with only the latest queued revision retained), or by manual dispatch.
 
 Set `PARTIAL_PR_CI` to `'false'` on the PR CI step to disable partial execution
 on both PR platforms. `Checks (Linux)` and `Checks (Windows)` retain their
@@ -164,7 +167,7 @@ Automatic fallback checks the current PR **merge revision** rather than the
 unmerged branch head.
 
 If the baseline remains unhealthy for many PRs, multiple fallbacks may
-increase macOS demand until the scheduled four-hour master baseline is green.
+increase macOS demand until a newer completed `master` build restores a green baseline.
 
 ## Locating slow or interrupted checks
 
