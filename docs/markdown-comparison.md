@@ -54,6 +54,15 @@ reader checks both receipts and refuses comparison unless all conditions hold:
 The comparison retains input-order samples for instantiation, granted and denied
 WIT calls; it presents median differences and the separate single-observation
 embedding/compilation differences as **candidate minus baseline milliseconds**.
+If both saved reports contain the newer bounded **fresh Store + Component
+instance + one WIT call** measurements, the reader additionally returns
+`freshLifecycles` with its sample count, exact timing units and both granted
+and denied input-order sample arrays and signed median deltas. The underlying
+capture parser validates complete series, units and sample counts; a mixed pair
+with only one such series is rejected. Older valid pairs omit the optional
+summary entirely—absence is never treated as zero time. The generated component
+was already compiled and the Linker existed before these fresh observations;
+the figures are not cold process launch costs or guest-only execution time.
 There are no ratios, winner selections, noise significance tests, performance
 thresholds or benchmark rankings. Zero timings are valid.
 
