@@ -112,3 +112,64 @@ No browser-oracle artifacts, current P1 measurement code or compiler-lowering
 paths are changed by this preparatory A1 unit. The proposed note viewer remains
 a small integration target; a richer Obshittian-style application, writable
 vault, persistence and a public source-language DOM API remain unselected.
+
+
+## A1 runnable local note preview (build/run/debug experiment)
+
+The first application entry point is `examples/note-preview/run.mjs`.
+It combines the previously separate real WIT host, source-compiled JS selector,
+HTML projection, native semantic layout, and RGB PPM painter into a **single
+explicitly invoked local command**. Node is the trusted development host; the
+Wasm Markdown guest receives no filesystem or network interfaces. The selected
+document path belongs to the host, not to WIT or source-compiled JS.
+
+After installing the Rust/Wasm target and fetching locked dependencies,
+build all required components using **one** explicit development command.
+It invokes five checked-in locked/offline Cargo builds for the CLI, native and
+Wasm Markdown guest, WIT host and native scene painter:
+
+```sh
+rustup target add wasm32-unknown-unknown
+node examples/note-preview/build.mjs
+```
+
+Then choose an explicit Markdown source and a **new, nonexistent** output
+directory, e.g.:
+
+```sh
+node examples/note-preview/run.mjs --profile granted --note ./notes.md --out ./note-result --debug
+node examples/note-preview/run.mjs --profile granted --note ./notes.md --out ./collapsed-result --collapsed
+node examples/note-preview/run.mjs --profile denied --note ./notes.md --out ./denied-result --debug
+```
+
+Outputs: `index.html` (escaped semantic outline), `preview.ppm` (actual native
+RGB block painting; text labels are not rasterized), and optional `debug.json`
+with real read/cleanup receipts, selected heading count and native text-anchor
+geometry. The CLI compiles the checked-in `toggle.js` through the **existing
+native compiler** for every invocation and executes the emitted Wasm in the
+existing bounded worker; the host does not reimplement the selector.
+
+The real private WIT driver now accepts a single `--profile granted|denied`
+mode in addition to its original two-profile regression mode. In denied mode
+the Node host does not inspect even filesystem metadata for `--note`, and the
+native WIT driver does not read stdin or instantiate a granted document Store;
+it returns a typed denial with zero protected backing reads. Denied artifacts
+contain no protected source bytes or headings. In granted mode, the host reads
+at most 4,097 bytes, rejects over-quota or invalid UTF-8 input, and supplies
+only bounded in-memory bytes to the component. The runner checks the selected
+WIT profile, actual backing reads, post-return cleanup, and returned source
+identity before producing any visible output.
+
+An output directory is staged only after every native step succeeds, with
+an explicit existing-output refusal; the original Markdown file is never
+rewritten or copied. The developer-oriented debug receipt deliberately does
+not record the input filesystem path. It does contain granted heading labels
+and their byte offsets, so it is **not** a redacted diagnostic.
+
+These are application-level run/debug observations, **not** a published or
+portable distribution format. The current runner still needs Rust-built host
+executables, an installed Node runtime and the source checkout to compile
+the toggle. A separate bounded packaging exercise must preserve the portable
+Wasm artifacts and make the host/platform requirements explicit. Real glyph
+painting, HTML parsing, DOM/input behavior, persistence, installation and
+ship-ready packaging remain absent. **A1 remains Planned.**
