@@ -2245,9 +2245,36 @@ fn relative_states_json() -> String {
     assert_eq!((baseline.scroll_width, baseline.scroll_height), (800, 600));
 
     let expected = [
-        ("relative-host", 2, Rect { x: 252, y: 545, width: 60, height: 32 }),
-        ("relative-child", 3, Rect { x: 256, y: 550, width: 18, height: 8 }),
-        ("relative-sibling", 4, Rect { x: 350, y: 568, width: 24, height: 6 }),
+        (
+            "relative-host",
+            2,
+            Rect {
+                x: 252,
+                y: 545,
+                width: 60,
+                height: 32,
+            },
+        ),
+        (
+            "relative-child",
+            3,
+            Rect {
+                x: 256,
+                y: 550,
+                width: 18,
+                height: 8,
+            },
+        ),
+        (
+            "relative-sibling",
+            4,
+            Rect {
+                x: 350,
+                y: 568,
+                width: 24,
+                height: 6,
+            },
+        ),
     ];
     for &(id, index, golden) in &expected {
         assert_eq!(
@@ -2258,11 +2285,21 @@ fn relative_states_json() -> String {
     }
     assert_eq!(
         moved.boxes[2].unwrap().border,
-        Rect { x: 260, y: 545, width: 60, height: 32 }
+        Rect {
+            x: 260,
+            y: 545,
+            width: 60,
+            height: 32
+        }
     );
     assert_eq!(
         moved.boxes[3].unwrap().border,
-        Rect { x: 264, y: 550, width: 18, height: 8 }
+        Rect {
+            x: 264,
+            y: 550,
+            width: 18,
+            height: 8
+        }
     );
     assert_eq!(moved.boxes[4], baseline.boxes[4], "sibling does not reflow");
     assert_eq!((moved.scroll_width, moved.scroll_height), (800, 600));
@@ -2286,15 +2323,15 @@ fn relative_states_json() -> String {
     let targets = |frame: &Frame| -> Vec<Option<&'static str>> {
         probes
             .iter()
-            .map(|&(_, x, y)| {
-                match hit_test(frame, &nodes, x, y).expect("native relative hit") {
+            .map(
+                |&(_, x, y)| match hit_test(frame, &nodes, x, y).expect("native relative hit") {
                     Some(2) => Some("relative-host"),
                     Some(3) => Some("relative-child"),
                     Some(4) => Some("relative-sibling"),
                     None | Some(0) | Some(1) => None,
                     Some(other) => panic!("unexpected native relative hit {other}"),
-                }
-            })
+                },
+            )
             .collect()
     };
     let initial_hits = targets(&baseline);
