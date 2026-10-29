@@ -17,6 +17,9 @@ of visible blocks, plus scroll extents.
   margin collapse. Each side can optionally be a whole percentage of the
   containing **content width**, including vertical margins. Selected
   horizontal `auto` margins can center a fixed or width-constrained block.
+- Each padding side can independently be a whole percentage of the original
+  containing CONTENT width, **including top/bottom**; existing fixed padding
+  remains the default and no CSS pixel fractions are rounded.
 - Explicit `BoxSizing::ContentBox` (default) or `BoxSizing::BorderBox`
   for caller-resolved fixed and percentage widths/heights. Auto sizes keep
   their existing natural sizing behavior.
@@ -129,6 +132,51 @@ This is **not** complete CSS margin layout. Negative margins, margin
 collapsing, arbitrary writing modes, mixed calc expressions and fractional
 subpixels remain outside this selected geometry model.
 
+## Containing-width-relative percentage padding
+
+`Style::percentage_padding: PercentagePadding` offers optional whole
+percentage `top`, `right`, `bottom` and `left` fields. All default to
+`None`, retaining the existing integer `Style::padding: Edges` values.
+A selected percentage overrides that side's fixed padding. All four
+values—including **top and bottom**—resolve against the immediate containing
+block's original **content width**, not its content height, the node's own
+used width, or its border/padding width. For example, `padding-top:10%`
+under a 160px content-width host resolves to 16 CSS pixels even when the
+host's height differs.
+
+Each used edge is resolved **before** automatic/fixed/percentage width
+calculation, `BoxSizing::BorderBox` adjustment, min/max width/height
+constraints, the placement of descendants and any relative visual
+translation. The actual padding values contribute to the content inset,
+the outer padding/border rectangles, natural/explicit height geometry,
+child placement and normal-flow placement of following siblings. Paint
+and hit-test clipping consume these same rectangles. There is no auto
+padding value and no invented negative-padding behavior.
+
+As in other selected geometry experiments, the result must be an
+**exact, nonnegative integer CSS pixel**. Fractional results return
+`LayoutError::FractionalPercentagePadding { node }`; an exact value
+too large for `u32` or checked box arithmetic returns `Overflow`.
+Percentages above 100% are admitted when representable; the used
+border box can overflow its containing width without truncation.
+An inactive `display:none` subtree or `display:contents` wrapper
+ignores its own percentage padding without evaluating invalid values.
+Visible descendants of a boxless wrapper still resolve normally.
+
+`crates/grunkalunka-layout/tests/percentage_padding.rs` exercises
+four-sided and nested width-relative padding, literal content/padding/
+border rectangles, `width:auto` and `box-sizing:border-box`,
+width bounds, relative translations, flow/pixels/hits, descendant
+padding-box clips and scroll translation, boxless/hidden isolation,
+fractional results and overflow. A separate
+[source-checked three-engine percentage-padding witness](browser-native-percentage-padding-bridge.md)
+compares real CSS computed used padding, geometry and input targets
+in Chromium, Firefox and WebKit.
+
+This does not implement fractional CSS-pixel rounding, arbitrary
+writing modes, `calc()`, logical properties, general CSS parsing
+or text layout.
+
 ## Horizontal auto margins for normal-flow blocks
 
 `Style::horizontal_auto_margins` admits
@@ -156,7 +204,7 @@ width limits, overconstraints, overflow, hidden/boxless wrappers and hits.
 
 This is **not** complete CSS 2.1 width/margin equation solving: signed
 overconstraint, direction-dependent surplus allocation, negative
-margins, percentage margins and fractional subpixel rounding are not
+margins and fractional subpixel rounding are not
 modeled. The [source-checked three-engine auto-margin witness](browser-native-auto-margin-bridge.md)
 compares selected integral cases against actual Chromium, Firefox and
 WebKit CSS computed margins, rectangles and input hit targets.
@@ -303,7 +351,7 @@ padding-box clipping policy without claiming full CSS overflow handling.
 
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
 tokenizer, selectors/cascade, text shaping, inline formatting, negative margins,
-fractional percentage margins, collapsed vertical margins,
+fractional percentage margins or padding, collapsed vertical margins,
 floats, general CSS positioned layout (negative relative offsets,
 absolute/fixed/sticky, stacking contexts), fractional percent widths,
 percentage heights under indefinite auto-height parents, scrollbars,
