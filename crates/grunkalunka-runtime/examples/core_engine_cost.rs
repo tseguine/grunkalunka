@@ -107,6 +107,7 @@ fn batch(
 pub struct Report {
     pub options: Options,
     pub wasm_bytes: usize,
+    pub wasm_sha256: String,
     pub source_compile_ms: f64,
     pub module_compile_ms: f64,
     pub instantiation_ms: f64,
@@ -153,8 +154,12 @@ impl Report {
         .unwrap();
         write!(
             out,
-            r#""artifact":{{"wasmBytes":{}}},"environment":{{"rustHostOs":"{}","rustHostArch":"{}","wasmtimeDependency":"=50.0.0"}},"sourceCompileMs":{:.9},"#,
-            self.wasm_bytes, std::env::consts::OS, std::env::consts::ARCH, self.source_compile_ms
+            r#""artifact":{{"wasmBytes":{},"sha256":"{}"}},"environment":{{"rustHostOs":"{}","rustHostArch":"{}","wasmtimeDependency":"=50.0.0"}},"sourceCompileMs":{:.9},"#,
+            self.wasm_bytes,
+            self.wasm_sha256,
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+            self.source_compile_ms
         )
         .unwrap();
         write!(
@@ -266,6 +271,16 @@ fn measure_node(bytes: &[u8], options: Options) -> wasmtime::Result<String> {
     let json = String::from_utf8(output.stdout)?.trim().to_string();
     if !json.starts_with('{') || !json.ends_with('}') || !json.contains("\"engine\":\"node-v8\"") {
         wasmtime::bail!("Node core replay returned an invalid report");
+    }
+    // Verify that the Node subprocess identifies the same actual compiled
+    // bytes delivered on stdin, rather than relying on a size-only claim.
+    let expected_hash = format!("{:x}", Sha256::digest(bytes));
+    let expected_artifact = format!(
+        r#""artifact":{{"bytes":{},"sha256":"{expected_hash}","imports":0}}"#,
+        bytes.len()
+    );
+    if !json.contains(&expected_artifact) {
+        wasmtime::bail!("Node core replay artifact hash/byte count mismatch");
     }
     Ok(json)
 }
@@ -388,6 +403,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     Ok(Report {
         options,
         wasm_bytes: artifact.wasm.len(),
+        wasm_sha256: format!("{:x}", Sha256::digest(&artifact.wasm)),
         source_compile_ms,
         module_compile_ms,
         instantiation_ms,
