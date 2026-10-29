@@ -111,7 +111,9 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
                 .as_ref()
                 .expect("Linux must observe real compiler host RSS checkpoints");
             assert!(
-                samples.iter().all(|sample| sample.peak_rss_bytes >= sample.rss_bytes)
+                samples
+                    .iter()
+                    .all(|sample| sample.peak_rss_bytes >= sample.rss_bytes)
             );
             for pair in samples.windows(2) {
                 assert!(pair[1].peak_rss_bytes >= pair[0].peak_rss_bytes);
