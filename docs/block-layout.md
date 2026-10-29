@@ -13,7 +13,9 @@ of visible blocks, plus scroll extents.
 - Auto widths fill the available content width after edges; explicitly fixed
   content widths may overflow. Auto heights contain laid-out children and
   an optional caller-supplied intrinsic content height.
-- Nonnegative integer CSS-pixel margins, borders and padding; no margin collapse.
+- Nonnegative integer CSS-pixel margins, borders and padding; no vertical
+  margin collapse. Selected horizontal `auto` margins can center a fixed or
+  width-constrained block in its containing content width.
 - Explicit `BoxSizing::ContentBox` (default) or `BoxSizing::BorderBox`
   for caller-resolved fixed and percentage widths/heights. Auto sizes keep
   their existing natural sizing behavior.
@@ -43,6 +45,38 @@ of visible blocks, plus scroll extents.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
   1–16,384 CSS pixels per viewport dimension. Malformed parent indices
   and overflowing dimensions fail instead of wrapping or silently truncating.
+
+## Horizontal auto margins for normal-flow blocks
+
+`Style::horizontal_auto_margins` admits
+`HorizontalAutoMargins::{None, Left, Right, Both}`. The default `None`
+preserves both explicit nonnegative `Style::margin.left/right` values.
+An auto side overrides its corresponding numerical margin edge, without
+changing vertical margins or box sizing. The used horizontal auto margins
+resolve **after** width, `min_width`, `max_width` and padding/border
+edges, against the original containing **content width**. A single auto
+side consumes all nonnegative remaining space; two auto sides divide it
+equally. A `width: auto` box fills first, so its auto margins generally
+resolve to zero unless a width bound leaves free space.
+
+The coordinate domain remains deliberately exact integer CSS pixels and
+nonnegative. If two auto sides would need half an integer pixel,
+`LayoutError::FractionalAutoMargin` rejects the layout; an overwide border
+box gives its auto sides zero remaining width rather than generating
+negative margins. Resolved auto margins participate in the emitted margin
+rectangle and scroll extents, but are not part of the hit-test border
+region. `display: none` suppresses them, while a `display: contents`
+wrapper does not create margins of its own. Descendant percentage widths
+still use the laid-out parent's content width. The independent
+`tests/horizontal_auto_margins.rs` covers centered and one-sided boxes,
+width limits, overconstraints, overflow, hidden/boxless wrappers and hits.
+
+This is **not** complete CSS 2.1 width/margin equation solving: signed
+overconstraint, direction-dependent surplus allocation, negative
+margins, percentage margins and fractional subpixel rounding are not
+modeled. The [source-checked three-engine auto-margin witness](browser-native-auto-margin-bridge.md)
+compares selected integral cases against actual Chromium, Firefox and
+WebKit CSS computed margins, rectangles and input hit targets.
 
 ## Boxless display:contents (headless normal-flow feature)
 
@@ -185,8 +219,9 @@ padding-box clipping policy without claiming full CSS overflow handling.
 ## What is deliberately NOT implemented
 
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
-tokenizer, selectors/cascade, text shaping, inline formatting, negative or auto
-margins, collapsed margins, floats, positioning, fractional percent widths,
+tokenizer, selectors/cascade, text shaping, inline formatting, negative margins,
+fractional/percentage horizontal margins, collapsed vertical margins,
+floats, positioning, fractional percent widths,
 percentage heights under indefinite auto-height parents, scrollbars,
 CSS painting, hit testing, event loop or native window. Input text heights are
 provided by a separate caller, not guessed. All coordinates are unsigned
