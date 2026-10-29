@@ -89,7 +89,10 @@ fn blocks() -> [Block; 7] {
 
 fn inputs(blocks: &[Block]) -> (Vec<HitNode>, Vec<PaintNode>) {
     let paints = [ROOT, HIDDEN, CHILD, RESTORED, SIBLING, HIDDEN, GRANDCHILD];
-    let hits = blocks.iter().map(|block| HitNode::new(block.parent)).collect();
+    let hits = blocks
+        .iter()
+        .map(|block| HitNode::new(block.parent))
+        .collect();
     let paints = blocks
         .iter()
         .zip(paints)
@@ -144,10 +147,10 @@ fn paint_and_hit_respect_inherited_visibility_even_with_targetable_nodes() {
 
     let canvas = paint(&frame, &paints, CLEAR).unwrap();
     for ((x, y), expected) in [
-        ((1, 3), ROOT), // Hidden ancestor border/background suppressed.
-        ((4, 6), ROOT), // Inherited-hidden child retains geometry, not paint.
-        ((4, 14), RESTORED), // Explicit visible descendant overrides parent.
-        ((1, 27), SIBLING), // Following sibling has not reflowed.
+        ((1, 3), ROOT),        // Hidden ancestor border/background suppressed.
+        ((4, 6), ROOT),        // Inherited-hidden child retains geometry, not paint.
+        ((4, 14), RESTORED),   // Explicit visible descendant overrides parent.
+        ((1, 27), SIBLING),    // Following sibling has not reflowed.
         ((1, 34), GRANDCHILD), // Another visible override under hidden parent.
         ((4, 20), ROOT),
         ((50, 40), CLEAR),
@@ -181,7 +184,10 @@ fn missing_visibility_metadata_fails_closed_for_paint_and_hit_test() {
     let mut frame = layout(&blocks, 60, 45).unwrap();
     let (hits, paints) = inputs(&blocks);
     frame.visibility.pop();
-    assert_eq!(hit_test(&frame, &hits, 4, 6), Err(HitError::NodeCountMismatch));
+    assert_eq!(
+        hit_test(&frame, &hits, 4, 6),
+        Err(HitError::NodeCountMismatch)
+    );
     assert_eq!(
         paint(&frame, &paints, CLEAR),
         Err(PaintError::NodeCountMismatch)
@@ -208,7 +214,11 @@ fn semantic_text_anchors_hide_inherited_text_but_allow_visible_override() {
     let hidden = layout_semantic(&elements, 100, 60).unwrap();
     assert_eq!(hidden.frame.visibility, [true, false, false, true, true]);
     assert_eq!(
-        hidden.text_boxes.iter().map(|box_| box_.node).collect::<Vec<_>>(),
+        hidden
+            .text_boxes
+            .iter()
+            .map(|box_| box_.node)
+            .collect::<Vec<_>>(),
         vec![3, 4]
     );
     assert!(hidden.frame.boxes[2].is_some());
@@ -217,7 +227,11 @@ fn semantic_text_anchors_hide_inherited_text_but_allow_visible_override() {
     let visible = layout_semantic(&elements, 100, 60).unwrap();
     assert_eq!(hidden.frame.boxes, visible.frame.boxes);
     assert_eq!(
-        visible.text_boxes.iter().map(|box_| box_.node).collect::<Vec<_>>(),
+        visible
+            .text_boxes
+            .iter()
+            .map(|box_| box_.node)
+            .collect::<Vec<_>>(),
         vec![2, 3, 4]
     );
 }
