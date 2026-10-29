@@ -122,9 +122,7 @@ pub fn hit_test_scrolled(
         if depths[index] > MAX_DEPTH {
             return Err(HitError::TooDeep { node: index });
         }
-        if frame.boxes[index].is_some()
-            && frame.boxes[parent].is_none()
-            && !frame.contents[parent]
+        if frame.boxes[index].is_some() && frame.boxes[parent].is_none() && !frame.contents[parent]
         {
             return Err(HitError::VisibleChildOfHiddenParent { node: index });
         }
