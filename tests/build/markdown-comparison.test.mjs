@@ -86,6 +86,28 @@ test('only a same-process bound, same-binary pair exposes samples and unranked d
   assert.deepEqual(bound, original, 'comparison cannot mutate or alias saved receipts');
 });
 
+test('native Markdown outline control is bound, optional and keeps signed raw deltas', () => {
+  const before = receipt();
+  const after = receipt('2026-10-27T17:00:01.000Z');
+  before.report.timings.nativeOutline = summary([7, 3]);
+  after.report.timings.nativeOutline = summary([5, 1]);
+  const pair = bindMarkdownPair(before, after);
+  const compared = compareMarkdownPair(pair);
+  assert.deepEqual(compared.series.nativeOutline, {
+    baselineSamplesMs: [7, 3], candidateSamplesMs: [5, 1],
+    median: { baselineMs: 5, candidateMs: 3, deltaMs: -2 },
+  });
+  assert.equal(Object.hasOwn(compared.series.nativeOutline.median, 'ratio'), false);
+  assert.equal(Object.hasOwn(compareMarkdownPair(validPair()).series, 'nativeOutline'), false);
+  assert.throws(() => bindMarkdownPair(before, receipt('2026-10-27T17:00:01.000Z')),
+    /matching native Markdown outline control evidence/);
+  const corrupted = receipt('2026-10-27T17:00:01.000Z');
+  corrupted.report.timings.nativeOutline = { ...summary([1, 2]), medianMs: 100 };
+  assert.throws(() => bindMarkdownPair(before, corrupted), /Invalid/);
+  compared.series.nativeOutline.baselineSamplesMs[0] = 99;
+  assert.equal(pair.captures[0].report.timings.nativeOutline.samplesMs[0], 7);
+});
+
 test('fresh component lifecycle pair summary preserves both raw series and medians', () => {
   const before = receipt();
   const after = receipt('2026-10-27T17:00:01.000Z');

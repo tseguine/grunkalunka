@@ -70,6 +70,13 @@ creation, native Wasmtime fixture execution and subprocess completion; it
 excludes the separate Node wrapper setup/validation. It is **not** a cold
 startup benchmark or isolated host overhead. Earlier historical receipts
 omit the optional field entirely, while malformed or one-sided claims fail.
+If both captures include the newer native in-process Markdown outline
+control, the `series.nativeOutline` summary retains both raw input-order
+parse-batch series and a signed median difference. Historical receipts
+without it preserve their old shape, and one-sided or malformed claims
+fail. The native parser and WIT component handle the same fixture but do
+not perform identical operations; the comparison never subtracts their
+values to claim an isolated WIT boundary or recommends a faster engine.
 There are no ratios, winner selections, noise significance tests, performance
 thresholds or benchmark rankings. Zero timings are valid.
 

@@ -106,6 +106,7 @@ function runAndValidateCost(selected) {
   assert.equal(report.freshLifecycles.unit, 'milliseconds per fresh component lifecycle');
   for (const series of [
     report.timings.instantiation, report.timings.granted, report.timings.denied,
+    report.timings.nativeOutline,
     report.freshLifecycles.granted, report.freshLifecycles.denied,
   ]) {
     assert.equal(series.samplesMs.length, 2);
@@ -193,7 +194,7 @@ for (const name of ['granted', 'denied']) {
     paired.captures[1].report.freshLifecycles[name].samplesMs);
   assert.ok(Number.isFinite(compared.freshLifecycles[name].median.deltaMs));
 }
-for (const name of ['instantiation', 'granted', 'denied']) {
+for (const name of ['instantiation', 'granted', 'denied', 'nativeOutline']) {
   assert.equal(compared.series[name].baselineSamplesMs.length, 2);
   assert.equal(compared.series[name].candidateSamplesMs.length, 2);
   assert.ok(Number.isFinite(compared.series[name].median.deltaMs));

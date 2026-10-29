@@ -136,6 +136,9 @@ function validateCapture(receipt) {
   for (const name of ['instantiation', 'granted', 'denied']) {
     validateSeries(field(native, 'timings.' + name), config.samples, 'timings.' + name);
   }
+  if (Object.hasOwn(native.timings, 'nativeOutline')) {
+    validateSeries(native.timings.nativeOutline, config.samples, 'timings.nativeOutline');
+  }
   const repetitions = config.warmup + config.samples * config.iterations;
   for (const [name, expected] of [
     ['grantedBackingReads', repetitions + 1], ['deniedBackingReads', 0],
@@ -235,6 +238,10 @@ export function compareMarkdownPair(pair) {
       Object.hasOwn(candidate.report, 'freshLifecycles'),
     'matching fresh WIT lifecycle evidence');
   requireValid(
+    Object.hasOwn(baseline.report.timings, 'nativeOutline') ===
+      Object.hasOwn(candidate.report.timings, 'nativeOutline'),
+    'matching native Markdown outline control evidence');
+  requireValid(
     Object.hasOwn(baseline.provenance, 'harnessVersion') ===
       Object.hasOwn(candidate.provenance, 'harnessVersion'),
     'matching capture harness versions');
@@ -249,7 +256,9 @@ export function compareMarkdownPair(pair) {
   const first = baseline.report.timings;
   const second = candidate.report.timings;
   const series = {};
-  for (const name of ['instantiation', 'granted', 'denied']) {
+  const presentSeries = ['instantiation', 'granted', 'denied'];
+  if (Object.hasOwn(first, 'nativeOutline')) presentSeries.push('nativeOutline');
+  for (const name of presentSeries) {
     series[name] = {
       baselineSamplesMs: [...first[name].samplesMs],
       candidateSamplesMs: [...second[name].samplesMs],

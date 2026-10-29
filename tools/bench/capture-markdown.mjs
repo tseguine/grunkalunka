@@ -201,6 +201,11 @@ export function validateNativeReport(report, config, guestBytes, expectedGuestSh
   for (const name of ['instantiation', 'granted', 'denied']) {
     checkSeries(valueAt(report, 'timings.' + name), config.samples, name);
   }
+  // Archived native reports predate this in-process native outline control.
+  // Validate any claimed raw series but never invent it for old receipts.
+  if (Object.hasOwn(report.timings, 'nativeOutline')) {
+    checkSeries(report.timings.nativeOutline, config.samples, 'nativeOutline');
+  }
   const repeated = config.warmup + config.samples * config.iterations;
   for (const [key, expected] of [
     ['grantedBackingReads', repeated + 1], ['deniedBackingReads', 0],
