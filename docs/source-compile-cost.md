@@ -86,10 +86,16 @@ On Linux, the existing P1 `/proc/self/status` reader reports current
 `VmRSS` and high-water `VmHWM` converted from KiB to bytes. Its
 well-formedness and monotonic-peak validation are shared with the core-Wasm
 and Markdown component probes. The normal Rust integration tests require
-actual Linux observations for each of `affine-js`, `affine-ts` and
+actual Linux/Windows observations for each of `affine-js`, `affine-ts` and
 `gcd-js`, preserving exact phase labels and numeric golden checks.
-Windows and macOS explicitly report `unsupported-on-this-host` and
-`snapshots: null`, rather than inventing zero memory.
+On Windows, the same five phases use
+`Kernel32!K32GetProcessMemoryInfo` to record current and process-peak
+**working-set bytes**, labeled `windows-psapi-working-set`. The existing
+`rssBytes`/`peakRssBytes` field names remain for receipt compatibility,
+but they do **not** mean Linux RSS on Windows. Neither OS's entire-process
+readings isolate compiler allocations or make the platforms comparable.
+macOS still explicitly reports `unsupported-on-this-host` and
+`snapshots: null`, not zero memory.
 
 These numbers include the **entire process** and allocations from Rust's
 compiler, source/output buffers, Wasmtime verification, allocator caches
