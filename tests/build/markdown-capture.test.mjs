@@ -215,6 +215,43 @@ test('historical Windows unsupported data and new measured Windows data both val
   assert.throws(() => validateOptionalProcessMemory(fakeMac, 'macos'), /Invalid/);
 });
 
+test('macOS Mach memory receipts accept complete native readings and historic absence', () => {
+  const legacy = report();
+  legacy.environment.os = 'macos';
+  legacy.processMemory = memoryEnvelope('macos');
+  assert.doesNotThrow(() => validateOptionalProcessMemory(legacy, 'macos'));
+  const measured = report();
+  measured.environment.os = 'macos';
+  measured.processMemory = memoryEnvelope('linux');
+  measured.processMemory.source = 'macos-mach-task-basic-info';
+  assert.doesNotThrow(() => validateOptionalProcessMemory(measured, 'macos'));
+  // The full runner validator intentionally binds to the executing host.
+  // Cross-host archived receipt checks must use the OS-aware saved parser.
+  if (platform() === 'darwin') {
+    assert.doesNotThrow(() => validateNativeReport(measured, config, 100));
+  }
+
+  for (const corrupt of [
+    x => { x.source = 'linux-proc-status'; },
+    x => { x.source = 'windows-psapi-working-set'; },
+    x => { x.source = 'unsupported-on-this-host'; },
+    x => { x.snapshots.beforeEmbed.rssBytes = -1; },
+    x => { x.snapshots.afterWarmup.peakRssBytes = 1; },
+    x => { delete x.snapshots.afterCompile; },
+    x => { x.snapshots.afterBatches.peakRssBytes = 2 ** 54; },
+    x => { x.snapshots.beforeEmbed.unverified = true; },
+  ]) {
+    const candidate = report();
+    candidate.environment.os = 'macos';
+    candidate.processMemory = structuredClone(measured.processMemory);
+    corrupt(candidate.processMemory);
+    assert.throws(() => validateOptionalProcessMemory(candidate, 'macos'), /Invalid/);
+  }
+  // Neither Linux nor Windows can relabel a captured Mach task observation.
+  assert.throws(() => validateOptionalProcessMemory(measured, 'linux'), /Invalid/);
+  assert.throws(() => validateOptionalProcessMemory(measured, 'windows'), /Invalid/);
+});
+
 test('fresh WIT lifecycle observations preserve legacy receipts and reject forged series', () => {
   const native = report();
   assert.doesNotThrow(() => validateNativeReport(native, config, 100));
