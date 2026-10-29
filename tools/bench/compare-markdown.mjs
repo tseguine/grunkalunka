@@ -65,6 +65,11 @@ function validateCapture(receipt) {
     new Date(date).toISOString() === date, 'observedAt');
   requireValid(field(receipt, 'cachePolicy') ===
     'OS and Wasmtime caches uncontrolled; one compilation, then warm samples', 'cachePolicy');
+  // The original v1 and some v2 captures predate this *outer* wall clock.
+  // Validate a claim but never invent zero or reject historic absence.
+  if (Object.hasOwn(receipt, 'nativeProcessElapsedMs')) {
+    milliseconds(receipt.nativeProcessElapsedMs, 'nativeProcessElapsedMs');
+  }
   const prov = field(receipt, 'provenance');
   requireValid(/^[a-f0-9]{40}$/.test(field(prov, 'gitCommit')), 'gitCommit');
   requireValid(field(prov, 'trackedChangesPresent') === false, 'clean tracked worktree');
@@ -222,6 +227,10 @@ export function compareMarkdownPair(pair) {
   for (const capture of captures) validateCapture(capture);
   const [baseline, candidate] = captures;
   requireValid(
+    Object.hasOwn(baseline, 'nativeProcessElapsedMs') ===
+      Object.hasOwn(candidate, 'nativeProcessElapsedMs'),
+    'matching native subprocess wall-time evidence');
+  requireValid(
     Object.hasOwn(baseline.report, 'freshLifecycles') ===
       Object.hasOwn(candidate.report, 'freshLifecycles'),
     'matching fresh WIT lifecycle evidence');
@@ -273,6 +282,10 @@ export function compareMarkdownPair(pair) {
     runnerSha256: baseline.provenance.runner.sha256,
     embed: one(first.embedMs, second.embedMs),
     componentCompile: one(first.componentCompileMs, second.componentCompileMs),
+    ...(Object.hasOwn(baseline, 'nativeProcessElapsedMs') ? {
+      nativeProcessElapsedMs: one(
+        baseline.nativeProcessElapsedMs, candidate.nativeProcessElapsedMs),
+    } : {}),
     series,
     ...(fresh ? { freshLifecycles } : {}),
     processMemory: compareProcessMemory(baseline, candidate),
