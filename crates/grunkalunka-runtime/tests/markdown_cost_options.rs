@@ -124,7 +124,12 @@ fn process_memory_rejects_incomplete_and_decreasing_peak_series() {
 
 #[test]
 fn native_control_retains_all_source_spans_and_repeated_output() {
-    for workload in [Workload::Empty, Workload::Unicode, Workload::Dense, Workload::Wide] {
+    for workload in [
+        Workload::Empty,
+        Workload::Unicode,
+        Workload::Dense,
+        Workload::Wide,
+    ] {
         let source = workload.source();
         let entries = grunkalunka_markdown::outline(&source);
         let raw = markdown_cost::native_rows(&entries);
