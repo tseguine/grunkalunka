@@ -43,8 +43,8 @@ const relativeProbes = ["original-parent", "moved-parent", "original-child",
 const percentPhases = ["original", "changed", "restored"];
 const percentIds = ["percent-host", "percent-first", "percent-next", "percent-after"];
 const percentSides = ["top", "right", "bottom", "left"];
-const percentProbes = ["baseline-only", "shifted-only", "first-center",
-  "top-margin", "next-in-flow", "host-bottom", "following-sibling", "outside"];
+const percentProbes = ["baseline-first", "shifted-first", "top-margin",
+  "baseline-next", "shifted-next", "host-bottom", "following-sibling", "outside"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
