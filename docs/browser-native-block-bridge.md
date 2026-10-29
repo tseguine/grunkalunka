@@ -4,11 +4,12 @@ This is the **first native-output observation bridge**, not an HTML/CSS
 implementation or an application pilot. It joins a deliberately hand-resolved
 tree in `grunkalunka-layout` to the separate Playwright reference collector.
 
-The self-contained `native-block-bridge.html` fixture has no text, percentages,
-margin collapse, fonts, external assets or scripts that change layout. The
-reference browser measures three block border rectangles. The independent
-Rust example builds the same tree using caller-resolved integer CSS-pixel
-dimensions, asserts explicit rectangle goldens, then emits a JSON receipt.
+The original block group in `native-block-bridge.html` avoids text,
+percentage lengths, margin collapse, fonts and external assets. It measures
+three block border rectangles. A second group now measures exact
+definite percentage heights (described below). The independent Rust
+example builds caller-resolved trees, asserts explicit rectangle goldens,
+then emits a JSON receipt without parsing the HTML or CSS.
 
 ## Reproduce with a real browser
 
@@ -69,7 +70,7 @@ shared file, `tools/browser-oracles/collect.mjs`, the pinned Playwright
 package, its own fixture/tests/CLI, or its Rust layout inputs change.
 Both PR and push filters use exact file paths and an audited layout subtree.
 
-The fourth `ci/impact/workflows/browser-native-bridge.json` descriptor
+The `ci/impact/workflows/browser-native-bridge.json` descriptor
 checks those source filters and key native/browser commands. It reports
 **expected triggers only**, not verified hosted execution or success.
 The Windows selective-CI gate still requires a complete canonical plan;
@@ -163,7 +164,7 @@ The browser jobs now run
 `node --test tools/browser-oracles/hosted/native-bridge.test.mjs`
 with the selected engine, original Rust receipt and new evidence directory
 supplied explicitly by the host. The test itself checks real browser/native
-parity, then executes the independent width and hit-target sensitivity tools
+parity, then executes the independent width, hit-target and percentage-height sensitivity tools
 and retains all their reports. GitHub Actions remains responsible only for
 the pinned browser environment, layout-only Rust artifact, and evidence upload.
 The independent Node regression contracts run in the canonical offline suite,
@@ -196,3 +197,28 @@ The native implementation supports **integral, definite height inputs only**.
 This selected parity witness does not exercise CSS subpixel sizing,
 height-percentages under indefinite parents, margin-collapsing edge cases,
 general CSS formatting, or a native DOM/HTML parser.
+
+## Real-engine negative control for percentage-height sensitivity
+
+The hosted native bridge now includes a third independent mutation tool,
+`tools/browser-oracles/native-height-sensitivity.mjs`. It copies the original
+HTML fixture and changes exactly one reviewed CSS declaration on the
+definite-height child: `#height-first` goes from `height: 50%` to
+`height: 60%` under its unchanged 80 CSS-pixel containing content box.
+The tool collects a **fresh** Chromium/Firefox/WebKit observation from those
+modified bytes while retaining the original Rust receipt.
+
+The comparator validates the mutated fixture's own SHA-256 provenance before
+expecting exactly two differences. `height-first`'s border-box height changes
+from 46 to 54 CSS pixels, and `height-second`'s border-box y position
+changes from 156 to 164. The parent box, original three-box geometry,
+hide/restore measurements, hit targets, and every other percentage-height
+coordinate must remain unchanged. Missing or extra differences, incompatible
+source hashes, invalid receipts or a changed mutation site fail the test.
+
+The existing hosted `node:test` suite owns all three real-engine sensitivity
+controls; the GitHub workflow still handles only environment, artifact transport
+and the same three-engine matrix. Offline regression tests verify exact mutation
+bytes and discrepancy shape but do not substitute for the live browser
+observations. This is an intentionally wrong reference-source experiment,
+not new CSS parsing or general percentage-height conformance.
