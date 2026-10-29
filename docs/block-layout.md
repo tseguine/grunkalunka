@@ -258,4 +258,7 @@ containing boxes, nested descendant heights, contradictory constraints,
 border-box edges, fractional/overflow rejection, visible overflow and
 hidden-subtree isolation. No CSS margin collapse, viewport fitting,
 intrinsic text sizing, auto-percentage fallback or real-engine parity
-is claimed by these native tests alone.
+is claimed by these native tests alone. The separate
+[source-checked height-bounds witness](browser-height-bounds-bridge.md)
+compares a reviewed definite percentage-bound case with real browser
+geometry without widening that claim.

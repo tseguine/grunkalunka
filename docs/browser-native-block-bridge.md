@@ -244,3 +244,13 @@ content/rectangle goldens. The existing comparator requires exact
 `widthBounds` evidence without changing the original scrolling or
 height/geometry/hit mutation channels. See
 [the bounded width evidence guide](browser-width-bounds-bridge.md).
+
+## Native minimum/maximum height comparison
+
+The same fixed-height scroll-spacer containing box can now retain a
+second, independent `heightBounds` measurement group. It compares
+contradictory definite percentage-height bounds and dependent child
+percentage heights without modifying prior scroll or width observations.
+The [bounded height evidence guide](browser-height-bounds-bridge.md)
+records reviewed source declarations, native rectangle goldens and
+the exact limits of this one browser-model comparison.

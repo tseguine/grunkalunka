@@ -2,7 +2,7 @@
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
-    Block, BoxSizing, Display, Edges, Frame, Length, Rect, Style, WidthBound, layout,
+    Block, BoxSizing, Display, Edges, Frame, HeightBound, Length, Rect, Style, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -452,7 +452,7 @@ fn scroll_viewport_json() -> String {
 // This additional group lives inside the fixture's pre-existing 650px fixed
 // scroll spacer. The preceding fixed-height placeholders preserve its original
 // y position, document scroll extent and unrelated real-engine observations.
-fn width_bounds_json() -> String {
+fn width_and_height_bounds_json() -> (String, String) {
     let blocks = [
         Block::default(),
         Block {
@@ -549,6 +549,38 @@ fn width_bounds_json() -> String {
             },
             ..Block::default()
         },
+        Block {
+            parent: Some(5),
+            style: Style {
+                box_sizing: BoxSizing::BorderBox,
+                width: Length::Px(80),
+                height: Length::Px(90),
+                min_height: Some(HeightBound::Percent(75)),
+                max_height: Some(HeightBound::Percent(50)),
+                padding: Edges::all(4),
+                border: Edges::all(2),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(10),
+            style: Style {
+                width: Length::Px(30),
+                height: Length::Percent(50),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(10),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(12),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
     ];
     let frame = layout(&blocks, 800, 600).expect("native width limits must lay out");
     assert_eq!(
@@ -566,6 +598,15 @@ fn width_bounds_json() -> String {
             x: 6,
             y: 284,
             width: 168,
+            height: 48,
+        }
+    );
+    assert_eq!(
+        frame.boxes[10].unwrap().content,
+        Rect {
+            x: 6,
+            y: 344,
+            width: 68,
             height: 48,
         }
     );
@@ -620,17 +661,61 @@ fn width_bounds_json() -> String {
             "independent native constrained-width rectangle for {id}"
         );
     }
-    expected
-        .into_iter()
-        .map(|(id, index, _)| {
-            let rect = frame.boxes[index].unwrap().border;
-            format!(
-                r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
-                rect.x, rect.y, rect.width, rect.height
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(",")
+    let expected_height = [
+        (
+            "height-limited",
+            10,
+            Rect {
+                x: 0,
+                y: 338,
+                width: 80,
+                height: 60,
+            },
+        ),
+        (
+            "height-limited-first",
+            11,
+            Rect {
+                x: 6,
+                y: 344,
+                width: 30,
+                height: 24,
+            },
+        ),
+        (
+            "height-limited-second",
+            12,
+            Rect {
+                x: 6,
+                y: 368,
+                width: 20,
+                height: 12,
+            },
+        ),
+    ];
+    for &(id, index, golden) in &expected_height {
+        assert_eq!(
+            frame.boxes[index]
+                .expect("visible min/max-height witness")
+                .border,
+            golden,
+            "independent native constrained-height rectangle for {id}"
+        );
+    }
+    let serialize = |entries: &[(&str, usize, Rect)]| {
+        entries
+            .iter()
+            .map(|&(id, index, _)| {
+                let rect = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    rect.x, rect.y, rect.width, rect.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    (serialize(&expected), serialize(&expected_height))
 }
 
 fn main() {
@@ -806,7 +891,10 @@ fn main() {
     output.push_str(r#"},"scrollViewport":"#);
     output.push_str(&scroll_viewport_json());
     output.push_str(r#","widthBounds":{"#);
-    output.push_str(&width_bounds_json());
+    let (width_bounds, height_bounds) = width_and_height_bounds_json();
+    output.push_str(&width_bounds);
+    output.push_str(r#"},"heightBounds":{"#);
+    output.push_str(&height_bounds);
     output.push_str(r#"}}"#);
     println!("{output}");
 }
