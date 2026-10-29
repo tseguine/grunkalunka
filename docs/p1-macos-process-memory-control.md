@@ -1,9 +1,10 @@
 # Native macOS whole-task resident memory control (P1)
 
-This is a **standalone API/ABI witness** to evaluate a previously unsupported
-native macOS memory-observation path. It does not change the shared P1
-`process_memory.rs` collector, existing core-GCD/source-compile/Markdown
-measurements, or historical receipt validity.
+The original **standalone API/ABI witness** evaluates macOS whole-task
+resident/peak observations independently of the shared native collector.
+The same API has now been integrated separately into the shared P1
+`process_memory.rs` used by core-GCD, source-compile and Markdown/WIT
+cost probes. Historical unsupported/null receipt validity is preserved.
 
 Apple's [XNU task_info.h](https://github.com/apple/darwin-xnu/blob/main/osfmk/mach/task_info.h)
 defines `MACH_TASK_BASIC_INFO` (flavor 20), with
@@ -29,8 +30,11 @@ The synthetic receipt corruption test runs on Linux/Windows as ordinary
 native FFI observation. Under the current healthy-master-reference policy,
 a green macOS PR gate may only reuse an earlier master run and therefore
 **does not prove that this branch's new native witness executed on macOS**.
-Consult the native test output after a full macOS master/manual run before
-promoting the API to the shared process-memory collector.
+The standalone ABI witness needs a verified full native macOS run, and
+the integrated collector itself requires a subsequent real native Apple
+Silicon execution of the existing three cost probes. Baseline-only PR
+gates do **not** prove either execution. The integration does not add
+workflow jobs, benchmark thresholds or a new performance ranking.
 
 These figures describe one **entire native task**. Mach resident size,
 Linux `VmRSS`, and Windows working set are platform-specific quantities,

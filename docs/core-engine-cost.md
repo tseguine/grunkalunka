@@ -161,11 +161,14 @@ phase schema without claiming the different OS accounting rules are equivalent.
 The [real Windows control](p1-windows-process-memory-control.md) independently
 established the FFI ABI before integration.
 
-macOS still reports `source: "unsupported-on-this-host"` and
-`snapshots: null`; no zero measurements are invented. Both Linux and
-Windows native tests now require real nonzero process observations, coherent
-current/peak values and a nondecreasing process-lifetime peak. No third-party
-OS-monitoring dependency, Wasm memory tracker or performance gate was added.
+On macOS, the same five phases use `task_info(MACH_TASK_BASIC_INFO)`
+with `source: "macos-mach-task-basic-info"`, using the
+[independently isolated Mach ABI](p1-macos-process-memory-control.md).
+Values are current and process-peak **whole-task resident bytes**, not
+equivalent to Linux RSS or Windows working-set accounting. Native Linux,
+Windows and macOS checks require nonzero coherent current/peak values and
+monotonic lifetime peak. No cross-host memory equivalence, third-party
+OS-monitoring dependency, Wasm tracker or performance gate is claimed.
 The Node subprocess observes a different process through a different API
 at different lifecycle points; **no cross-engine or cross-OS RSS comparison**
 is established.

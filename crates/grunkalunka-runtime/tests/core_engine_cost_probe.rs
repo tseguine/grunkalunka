@@ -87,12 +87,12 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
             .chain(report.node_empty_process_ms.iter())
             .all(|duration| duration.is_finite() && *duration >= 0.0)
     );
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     {
         let memory = report
             .rust_process_memory
             .snapshots
-            .expect("Linux/Windows CI must expose real process memory");
+            .expect("native Linux/Windows/macOS must expose real process memory");
         assert!(
             memory
                 .iter()
@@ -101,12 +101,14 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
         assert!(memory[4].peak_rss_bytes >= memory[0].peak_rss_bytes);
         let label = if cfg!(target_os = "linux") {
             "linux-proc-status"
-        } else {
+        } else if cfg!(target_os = "windows") {
             "windows-psapi-working-set"
+        } else {
+            "macos-mach-task-basic-info"
         };
         assert!(report.json().contains(&format!("\"source\":\"{label}\"")));
     }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     assert!(report.rust_process_memory.snapshots.is_none());
     assert!(
         report

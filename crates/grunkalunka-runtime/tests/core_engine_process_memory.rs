@@ -111,14 +111,14 @@ fn absent_host_support_is_explicit_null_not_fabricated_zero() {
 #[test]
 fn observable_host_support_matches_the_actual_platform() {
     let snapshot = process_memory::observe().unwrap();
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     {
-        let snapshot = snapshot.expect("native Linux/Windows process memory is required");
+        let snapshot = snapshot.expect("supported native host must expose process memory");
         assert!(snapshot.peak_rss_bytes >= snapshot.rss_bytes);
         assert!(snapshot.rss_bytes > 0);
         assert!(snapshot.peak_rss_bytes > 0);
     }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     assert_eq!(snapshot, None);
 }
 
@@ -138,4 +138,6 @@ fn synthetic_sample_records_actual_platform_source_label() {
         assert_eq!(source, "windows-psapi-working-set");
         assert!(!memory.json().contains("linux-proc-status"));
     }
+    #[cfg(target_os = "macos")]
+    assert_eq!(source, "macos-mach-task-basic-info");
 }

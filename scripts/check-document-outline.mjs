@@ -64,9 +64,13 @@ function runAndValidateCost(selected) {
   const memory = report.processMemory;
   assert.equal(memory.scope, 'entire-rust-process');
   assert.equal(memory.unit, 'bytes');
-  if (process.platform === 'linux' || process.platform === 'win32') {
-    assert.equal(memory.source, process.platform === 'linux' ?
-      'linux-proc-status' : 'windows-psapi-working-set');
+  if (['linux', 'win32', 'darwin'].includes(process.platform)) {
+    const source = {
+      linux: 'linux-proc-status',
+      win32: 'windows-psapi-working-set',
+      darwin: 'macos-mach-task-basic-info',
+    }[process.platform];
+    assert.equal(memory.source, source);
     const phases = [
       'beforeEmbed', 'afterCompile', 'afterInstantiation',
       'afterWarmup', 'afterBatches',
