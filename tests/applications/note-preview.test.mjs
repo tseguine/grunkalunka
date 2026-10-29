@@ -380,7 +380,7 @@ test('single-profile runnable A1 host emits HTML, native PPM and bounded debug r
     const debug = JSON.parse(await readFile(join(output, 'debug.json'), 'utf8'));
     assert.equal(debug.schemaVersion, 1);
     assert.equal(debug.profile, 'granted');
-    assert.deepEqual([debug.attemptedReads, debug.backingReads], [1, 1]);
+    assert.deepEqual([debug.attemptedReads, debug.backingReads, debug.cleanups], [1, 1, 1]);
     assert.deepEqual([debug.headingCount, debug.visibleHeadingCount], [2, 2]);
     assert.match(debug.nativeFrame, /^A1FRAME1\tgranted\t/);
     assert.ok(!JSON.stringify(debug).includes(note),
@@ -415,8 +415,8 @@ test('CLI from unrelated cwd selects only denied WIT profile without reading not
     assert.doesNotMatch(html, /Shared docs|secret|<ol/);
     const debug = JSON.parse(await readFile(join(output, 'debug.json'), 'utf8'));
     assert.equal(debug.profile, 'denied');
-    assert.deepEqual([debug.attemptedReads, debug.backingReads,
-      debug.headingCount, debug.visibleHeadingCount], [1, 0, 0, 0]);
+    assert.deepEqual([debug.attemptedReads, debug.backingReads, debug.cleanups,
+      debug.headingCount, debug.visibleHeadingCount], [1, 0, 1, 0, 0]);
     assert.doesNotMatch(debug.nativeFrame, /Shared docs|secret|子😀/);
     assert.deepEqual(ppmRgb(await readFile(join(output, 'preview.ppm')), 24, 40),
       [192, 80, 80]);
