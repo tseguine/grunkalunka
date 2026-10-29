@@ -217,3 +217,43 @@ test('saved native memory is checked independently of the same-process digest bi
   }
   assert.throws(() => bindMarkdownPair(before, after), /Invalid/);
 });
+
+const memoryCollector = 'crates/grunkalunka-runtime/examples/core_engine_cost/process_memory.rs';
+function v2Receipt(at = '2026-10-27T17:00:00.000Z') {
+  const sample = receipt(at);
+  sample.provenance.harnessVersion = 2;
+  sample.provenance.harnessSha256[memoryCollector] = 'b'.repeat(64);
+  sample.report.processMemory = savedMemory(sample.report.environment.os);
+  return sample;
+}
+
+test('versioned harness binds the transitive Rust memory module, retaining legacy pairs', () => {
+  const legacy = validPair();
+  assert.equal(compareMarkdownPair(legacy).workload, 'markdown-wit-repeat-comparison');
+  const modern = bindMarkdownPair(v2Receipt(), v2Receipt('2026-10-27T17:00:01.000Z'));
+  assert.equal(compareMarkdownPair(modern).workload, 'markdown-wit-repeat-comparison');
+  const hashes = modern.captures[0].provenance.harnessSha256;
+  assert.equal(hashes[memoryCollector], 'b'.repeat(64));
+  assert.equal(Object.keys(hashes).length, harnessPaths.length + 1);
+});
+
+test('new harness rejects missing, invalid or unbound transitive source evidence', () => {
+  const before = v2Receipt();
+  const after = v2Receipt('2026-10-27T17:00:01.000Z');
+  for (const mutate of [
+    r => { delete r.provenance.harnessSha256[memoryCollector]; },
+    r => { r.provenance.harnessSha256[memoryCollector] = 'invalid'; },
+    r => { r.provenance.harnessVersion = 3; },
+    r => { delete r.report.processMemory; },
+  ]) {
+    const bad = structuredClone(after);
+    mutate(bad);
+    assert.throws(() => bindMarkdownPair(before, bad), /Invalid/);
+  }
+  const badOld = receipt();
+  badOld.provenance.harnessSha256[memoryCollector] = 'b'.repeat(64);
+  assert.throws(() => bindMarkdownPair(badOld, receipt('2026-10-27T17:00:01.000Z')),
+    /harness keys/);
+  assert.throws(() => bindMarkdownPair(receipt(), after),
+    /matching capture harness versions/);
+});
