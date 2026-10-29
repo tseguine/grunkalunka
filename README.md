@@ -33,8 +33,8 @@ node scripts/check.mjs
 
 The complete check includes formatting, Clippy, workspace tests, dependency
 screening, the historical frontend observations, the JSON guest on Node and
-Wasmtime, and the differential regression corpus. [CI](docs/ci.md) runs the
-canonical check on Linux, Windows and macOS. This is coverage of those runner
+Wasmtime, and the differential regression corpus. [CI](docs/ci.md) runs the canonical check on Linux and Windows for `master`
+pushes and on native macOS through its separate `master`-triggered workflow. This is coverage of those runner
 configurations, not every host/runtime combination.
 
 String and JSON source experiments have a separate, narrower
