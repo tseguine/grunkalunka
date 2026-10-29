@@ -2429,7 +2429,7 @@ fn percent_states_json() -> String {
         Block {
             parent: Some(2),
             style: Style {
-                width: Length::Px(40),
+                width: Length::Px(150),
                 height: Length::Px(8),
                 percentage_margins: PercentageMargins {
                     top: Some(10),
@@ -2465,15 +2465,15 @@ fn percent_states_json() -> String {
         },
     ];
     let baseline = layout(&blocks, 800, 600).expect("native percentage margin baseline");
-    blocks[3].style.percentage_margins.left = Some(10);
+    blocks[3].style.percentage_margins.top = Some(5);
     let changed = layout(&blocks, 800, 600).expect("native percentage margin change");
-    blocks[3].style.percentage_margins.left = Some(20);
+    blocks[3].style.percentage_margins.top = Some(10);
     let restored = layout(&blocks, 800, 600).expect("native percentage margin restore");
     assert_eq!(restored, baseline, "percentage margin must restore exactly");
 
     let expected = [
         ("percent-host", 2, rect(0, 574, 212, 102)),
-        ("percent-first", 3, rect(46, 600, 40, 8)),
+        ("percent-first", 3, rect(46, 600, 150, 8)),
         ("percent-next", 4, rect(6, 638, 24, 6)),
         ("percent-after", 5, rect(250, 676, 20, 5)),
     ];
@@ -2484,14 +2484,11 @@ fn percent_states_json() -> String {
             "{id} baseline"
         );
     }
-    assert_eq!(baseline.boxes[3].unwrap().margin, rect(6, 580, 90, 58));
-    assert_eq!(baseline.boxes[3].unwrap().content, rect(46, 600, 40, 8));
-    assert_eq!(changed.boxes[3].unwrap().border, rect(26, 600, 40, 8));
-    assert_eq!(changed.boxes[3].unwrap().margin, rect(6, 580, 70, 58));
-    assert_eq!(
-        changed.boxes[4], baseline.boxes[4],
-        "vertical flow must persist"
-    );
+    assert_eq!(baseline.boxes[3].unwrap().margin, rect(6, 580, 200, 58));
+    assert_eq!(baseline.boxes[3].unwrap().content, rect(46, 600, 150, 8));
+    assert_eq!(changed.boxes[3].unwrap().border, rect(46, 590, 150, 8));
+    assert_eq!(changed.boxes[3].unwrap().margin, rect(6, 580, 200, 48));
+    assert_eq!(changed.boxes[4].unwrap().border, rect(6, 628, 24, 6));
     assert_eq!(
         changed.boxes[5], baseline.boxes[5],
         "outer normal flow persists"
@@ -2500,11 +2497,11 @@ fn percent_states_json() -> String {
     assert_eq!((changed.scroll_width, changed.scroll_height), (800, 958));
 
     let probes = [
-        ("baseline-only", 75, 401),
-        ("shifted-only", 27, 401),
-        ("first-center", 50, 402),
-        ("top-margin", 47, 390),
-        ("next-in-flow", 7, 440),
+        ("baseline-first", 75, 401),
+        ("shifted-first", 75, 392),
+        ("top-margin", 75, 385),
+        ("baseline-next", 7, 440),
+        ("shifted-next", 7, 430),
         ("host-bottom", 180, 450),
         ("following-sibling", 251, 478),
         ("outside", 350, 450),
@@ -2541,9 +2538,9 @@ fn percent_states_json() -> String {
         vec![
             Some("percent-first"),
             Some("percent-host"),
-            Some("percent-first"),
             Some("percent-host"),
             Some("percent-next"),
+            Some("percent-host"),
             Some("percent-host"),
             Some("percent-after"),
             None,
@@ -2554,7 +2551,7 @@ fn percent_states_json() -> String {
         vec![
             Some("percent-host"),
             Some("percent-first"),
-            Some("percent-first"),
+            Some("percent-host"),
             Some("percent-host"),
             Some("percent-next"),
             Some("percent-host"),
