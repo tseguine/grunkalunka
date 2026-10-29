@@ -68,9 +68,16 @@ the named `processMemory.snapshots` phases. The existing bounded parser
 and monotonic-high-water validation from the core-Wasm cost probe are reused,
 not silently reimplemented. Linux canonical integration checks require all
 five real observations, nonnegative integral byte values, current RSS no
-greater than peak, and nondecreasing peak measurements. Windows and macOS
-explicitly report `unsupported-on-this-host` with `snapshots: null`;
-they do **not** fabricate zero-memory or comparable Linux measurements.
+greater than peak, and nondecreasing peak measurements. On Windows the same
+five phases use the separately verified native
+`Kernel32!K32GetProcessMemoryInfo` API and report
+`source: "windows-psapi-working-set"`, containing whole-process
+**working-set** readings in the original `rssBytes`/`peakRssBytes`
+receipt fields. Windows now requires real nonzero native observations,
+not fabricated Linux RSS. The two operating systems have different
+accounting semantics, so their values are not directly comparable.
+macOS explicitly retains `unsupported-on-this-host` and
+`snapshots: null`, not zero memory.
 
 These observations describe the **entire Rust process**, including the
 Markdown guest, the Wasmtime runtime, JIT caches, host allocations,
