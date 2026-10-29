@@ -940,3 +940,14 @@ budget exhaustion reuses the original global facts. Async own returns, throws an
 awaits use the same context and existing lexical exception routes. Maintained JS/TS
 native-JS/Node-Wasm/Wasmtime tests compare values, full reaction traces, argument
 snapshots, typed erasure and resource boundaries. See [the source contract](async-promise-objects.md#primitive-arguments-of-local-calls).
+
+## Primitive catch/rethrow provenance at local calls (2026-10-29)
+
+Local async helpers can catch and rethrow a primitive input without losing the
+existing per-call primitive proof when the same helper also receives Promise
+values elsewhere. The query follows unwritten catch bindings through lexical
+throw and intrinsic-await sources, preserving raw identity and exception routes.
+Writes, unknown inputs and older-activation captures retain conservative checks.
+Maintained JS/TS differentials cover nested handlers, aliases, forwarding, async
+cleanup, primitive tags, typed bytes and original argument/await limits.
+See [the contract and remaining precision limits](async-promise-objects.md#primitive-catch-bindings-at-local-calls).

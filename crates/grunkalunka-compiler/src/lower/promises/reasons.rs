@@ -98,6 +98,62 @@ fn current_capture_callee(expression: &Expression<'_>, semantic: &Semantic<'_>) 
     true
 }
 
+fn destination(node: NodeId, semantic: &Semantic<'_>) -> Option<u32> {
+    let span = semantic.nodes().kind(node).span();
+    for ancestor in semantic.nodes().ancestor_kinds(node) {
+        match ancestor {
+            AstKind::Function(_) | AstKind::ArrowFunctionExpression(_) => return None,
+            AstKind::TryStatement(statement)
+                if statement.block.span.start <= span.start
+                    && span.end <= statement.block.span.end =>
+            {
+                if let Some(handler) = &statement.handler {
+                    return Some(handler.span.start);
+                }
+            }
+            _ => (),
+        }
+    }
+    None
+}
+
+// A catch receives its protected sources, not every throw in its enclosing body.
+// Keep source values and awaited rejections distinct: throw never adopts a Promise.
+fn catch_sources<'a>(
+    symbol: SymbolId,
+    semantic: &Semantic<'a>,
+) -> Option<Vec<(&'a Expression<'a>, bool)>> {
+    if semantic
+        .scoping()
+        .get_resolved_references(symbol)
+        .any(|reference| reference.is_write())
+    {
+        return None;
+    }
+    let handler = semantic.nodes().iter().find_map(|node| {
+        let AstKind::CatchClause(handler) = node.kind() else {
+            return None;
+        };
+        let BindingPattern::BindingIdentifier(binding) = &handler.param.as_ref()?.pattern else {
+            return None;
+        };
+        (binding.symbol_id.get() == Some(symbol)).then_some(handler.span.start)
+    })?;
+    let sources: Vec<_> = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let source = match node.kind() {
+                AstKind::ThrowStatement(statement) => (&statement.argument, false),
+                AstKind::AwaitExpression(expression) => (&expression.argument, true),
+                _ => return None,
+            };
+            (destination(node.id(), semantic) == Some(handler)).then_some(source)
+        })
+        .collect();
+    (!sources.is_empty()).then_some(sources)
+}
+
 // Call-site proofs refine provenance, never the callee's physical signature.
 fn value_may_be_promise(
     expression: &Expression<'_>,
@@ -109,9 +165,9 @@ fn value_may_be_promise(
     if !return_adopts(expression, semantic, returns, inputs) {
         return false;
     }
-    let mut work = vec![(expression, 0)];
+    let mut work = vec![(expression, 0, false)];
     let mut aliases = BTreeSet::new();
-    while let Some((expression, depth)) = work.pop() {
+    while let Some((expression, depth, rejected)) = work.pop() {
         let Some((expression, depth)) = closures::unwrapped_at(expression, depth) else {
             return true;
         };
@@ -126,8 +182,18 @@ fn value_may_be_promise(
                         continue;
                     }
                     if let Some(initializer) = unwritten_initializer(symbol, semantic) {
-                        if aliases.insert((symbol, depth)) {
-                            work.push((initializer, depth + 1));
+                        if aliases.insert((symbol, depth, rejected)) {
+                            work.push((initializer, depth + 1, rejected));
+                        }
+                        continue;
+                    }
+                    if !rejected && let Some(sources) = catch_sources(symbol, semantic) {
+                        if aliases.insert((symbol, depth, rejected)) {
+                            work.extend(
+                                sources
+                                    .into_iter()
+                                    .map(|(value, rejected)| (value, depth + 1, rejected)),
+                            );
                         }
                         continue;
                     }
@@ -137,18 +203,29 @@ fn value_may_be_promise(
                 }
             }
             Expression::ConditionalExpression(choice) => {
-                work.push((&choice.consequent, depth + 1));
-                work.push((&choice.alternate, depth + 1));
+                work.push((&choice.consequent, depth + 1, rejected));
+                work.push((&choice.alternate, depth + 1, rejected));
             }
             Expression::LogicalExpression(choice) => {
-                work.push((&choice.left, depth + 1));
-                work.push((&choice.right, depth + 1));
+                work.push((&choice.left, depth + 1, rejected));
+                work.push((&choice.right, depth + 1, rejected));
             }
             Expression::SequenceExpression(sequence) => {
                 let Some(last) = sequence.expressions.last() else {
                     return true;
                 };
-                work.push((last, depth + 1));
+                work.push((last, depth + 1, rejected));
+            }
+            Expression::CallExpression(call) if rejected => {
+                match awaited::intrinsic(call, semantic) {
+                    Ok(Some(intrinsic)) => {
+                        if let Some(argument) = intrinsic.argument {
+                            work.push((argument, depth + 1, !intrinsic.rejected));
+                        }
+                    }
+                    _ if return_adopts(expression, semantic, returns, inputs) => return true,
+                    _ => (),
+                }
             }
             _ if return_adopts(expression, semantic, returns, inputs) => return true,
             _ => (),

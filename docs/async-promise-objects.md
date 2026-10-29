@@ -181,3 +181,22 @@ primitive call from hiding another call's raw reason. This is not general
 per-call Promise-rejection inference or mutable-cell flow analysis. Maintained
 JS/TS native-JS/Node-Wasm/Wasmtime tests compare values and full reaction traces,
 with explicit typed byte identity, written-parameter and inference/source guards.
+
+## Primitive catch bindings at local calls
+
+The existing call-site primitive proofs also follow unwritten catch bindings back
+to the explicit throws and awaits routed to that handler. For example, a helper
+that catches and rethrows its argument can be called first with a represented
+Promise and later with a primitive; the second caller can use the reason as a
+primitive while the first still observes the original Promise identity.
+
+The query distinguishes a thrown value from an awaited rejection, follows
+Promise.reject/resolve inputs and stable local aliases, and keeps each handler's
+lexical sources separate from nested catches and dormant function bodies. It
+uses the existing iterative query and depth fallback. It executes no source code
+and changes no physical function signature, catch cell or runtime ABI.
+
+Written catch bindings and unknown incoming domains retain conservative facts.
+An awaited arbitrary helper in a catch input is not specialized by this value
+query; broader interprocedural catch-flow precision remains separate. Captures
+from prior activations keep the existing call-context safeguards.
