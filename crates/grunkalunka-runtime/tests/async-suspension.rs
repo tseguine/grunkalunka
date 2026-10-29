@@ -88,6 +88,9 @@ mod catch_reasons;
 #[path = "async-suspension/sync_call_reasons.rs"]
 mod sync_call_reasons;
 
+#[path = "async-suspension/async_body_reasons.rs"]
+mod async_body_reasons;
+
 #[path = "async-suspension/promise_reject_reasons.rs"]
 mod promise_reject_reasons;
 

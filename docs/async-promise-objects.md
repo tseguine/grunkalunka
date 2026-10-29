@@ -110,8 +110,8 @@ contribute: one raw Promise reason still requires the existing mixed carrier.
 
 Calls already proved to return only primitives retain their earlier classification,
 including implicit undefined completion. Bare returns and fallthrough contribute non-rejecting Undefined. Unknown
-possible-Promise targets remain conservative, as do async bodies, whose own
-awaits and throws can reject independently of their return expressions. Source
+possible-Promise targets remain conservative. Async bodies additionally require
+the escaping effects described below. Source
 argument failures retain their own lexical routes. This query executes no call or
 initializer. Current admission still forbids synchronous source throw and validates
 unsupported bodies; the query adds no runtime inlining, reaction, handling or adoption. Repeated
@@ -123,3 +123,25 @@ identity, argument/callee snapshots, cleanup and full reaction traces. Typed era
 has an explicit byte-identical twin. Deliberately ignoring a selected target or an
 async body's effects is caught by valid guest identity results. This is bounded
 source-known provenance, not general flow-sensitive/interprocedural inference.
+
+## Rejection domains of asynchronous local calls
+
+Source-known async targets contribute their own escaping throws and awaits as well
+as returned expressions. An explicit throw preserves its argument as a value;
+await and async return follow a Promise's rejection domain. A fulfilled Promise
+thrown as a reason therefore remains raw, while returning it cannot reject.
+Every possible source target contributes, including a nested function that is
+actually awaited. Merely defining a nested function contributes no escaping effect.
+
+A catch protects only its try block. Its handler and cleanup may still throw to an
+outer scope. Locally handled sources do not widen the caller's catch, while a
+returned rejected Promise is adopted outside the local catch. This is conservative
+source provenance: unknown targets, argument-wide facts and paths overridden by
+finally may still widen the domain. It does not execute source code or change jobs,
+handling, evaluation order, values or identity.
+
+Numeric inline results within an awaited async call retain that call's exception
+boundary in IR validation. Ordinary numeric calls still cannot throw. Maintained
+JS/TS native-JS/Node-Wasm/Wasmtime tests exercise local handling, own and nested
+effects, raw identity, snapshots, cleanup, primitive tags, typed byte identity and
+existing argument/await limits.
