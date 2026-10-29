@@ -364,3 +364,29 @@ test('saved WIT lifecycle receipts require bounded samples and same-pair presenc
   second.report.freshLifecycles.granted.minMs = -1;
   assert.throws(() => bindMarkdownPair(first, second), /Invalid/);
 });
+
+test('saved native digests must match independently recorded guest provenance', () => {
+  const first = receipt();
+  const second = receipt('2026-10-27T17:00:01.000Z');
+  for (const sample of [first, second]) {
+    sample.report.artifact.guestSha256 = sample.provenance.guest.sha256;
+    sample.report.artifact.componentSha256 = 'a'.repeat(64);
+  }
+  const pair = bindMarkdownPair(first, second);
+  assert.equal(compareMarkdownPair(pair).guestSha256, first.provenance.guest.sha256);
+  const wrongGuest = structuredClone(second);
+  wrongGuest.report.artifact.guestSha256 = 'b'.repeat(64);
+  assert.throws(() => bindMarkdownPair(first, wrongGuest),
+    /Invalid artifact guest digest identity/);
+  const wrongComponent = structuredClone(second);
+  wrongComponent.report.artifact.componentSha256 = 'b'.repeat(64);
+  assert.throws(() => bindMarkdownPair(first, wrongComponent),
+    /Incompatible captures: report.artifact/);
+  const incomplete = structuredClone(second);
+  delete incomplete.report.artifact.componentSha256;
+  assert.throws(() => bindMarkdownPair(first, incomplete),
+    /Invalid complete artifact digest pair/);
+  // Historical receipts remain valid only without a forged new digest claim.
+  assert.doesNotThrow(() => bindMarkdownPair(receipt(),
+    receipt('2026-10-27T17:00:01.000Z')));
+});
