@@ -337,9 +337,7 @@ pub fn paint_scrolled(
         if depths[index] > MAX_DEPTH {
             return Err(PaintError::TooDeep { node: index });
         }
-        if frame.boxes[index].is_some()
-            && frame.boxes[parent].is_none()
-            && !frame.contents[parent]
+        if frame.boxes[index].is_some() && frame.boxes[parent].is_none() && !frame.contents[parent]
         {
             return Err(PaintError::VisibleChildOfHiddenParent { node: index });
         }
