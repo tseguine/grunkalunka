@@ -105,3 +105,12 @@ hidden parent, explicitly visible child, and visible sibling. The
 bounded native test uses caller-targetable nodes and the resolved
 `Frame::visibility` flags independently. This is not DOM event
 dispatch or general CSS pointer-events conformance.
+
+## Selected real-engine padding-clip witness
+
+The [native/browser padding-clip guide](browser-native-padding-clip-bridge.md)
+records independent Chromium, Firefox and WebKit `elementFromPoint`
+observations around a padding edge, the parent's own border, an overflowing
+child and the following sibling. The headless native input policy and
+geometry are constructed separately; this is not full CSS overflow or
+DOM event dispatch conformance.

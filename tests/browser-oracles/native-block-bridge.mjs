@@ -15,6 +15,10 @@ const visibilityIds = ["visibility-host", "visibility-child",
   "visibility-inherited", "visibility-sibling"];
 const visibilityProbes = ["child", "host", "inherited", "sibling"];
 const visibilityPhases = ["hidden", "visible", "restored"];
+const clipPhases = ["clipped", "visible", "restored"];
+const clipIds = ["clip-parent", "clip-child", "clip-sibling"];
+const clipProbes = ["inside", "padding-edge", "border-edge", "outside-parent",
+  "bottom-border", "sibling", "parent-border"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -36,7 +40,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, dimension bounds, scroll and inherited visibility geometry/hits; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimension bounds, scroll, visibility and descendant padding-clip geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -265,6 +269,61 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   validateVisibilityStates("native", native?.visibilityStates);
   validateVisibilityStates("browser", browser?.visibilityStates);
 
+  function validateDescendantClipStates(owner, value) {
+    const path = "$." + owner + ".descendantClipStates";
+    if (!record(value) ||
+        Object.keys(value).sort().join(",") !== [...clipPhases].sort().join(",")) {
+      error(path, "clipped, visible and restored descendant-clip phases required");
+      return;
+    }
+    const expectedIds = [...clipIds].sort().join(",");
+    const expectedProbes = [...clipProbes].sort().join(",");
+    const expectedFields = [...rectFields].sort().join(",");
+    for (const phase of clipPhases) {
+      const sample = value[phase], prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,hits,mode") {
+        error(prefix, "exact clip mode, boxes and hit probes required");
+        continue;
+      }
+      if (!["clip", "visible"].includes(sample.mode)) {
+        error(prefix + ".mode", "source-observed clip/visible mode required");
+      }
+      if (!record(sample.boxes) ||
+          Object.keys(sample.boxes).sort().join(",") !== expectedIds) {
+        error(prefix + ".boxes", "exactly the three known clip boxes required");
+      } else {
+        for (const id of clipIds) {
+          const rect = sample.boxes[id];
+          if (!record(rect) || Object.keys(rect).sort().join(",") !== expectedFields) {
+            error(prefix + ".boxes." + id, "complete clip rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(rect[field]) ||
+                (["width", "height"].includes(field) && rect[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite CSS-pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== expectedProbes) {
+        error(prefix + ".hits", "exactly seven clip hit probes required");
+      } else {
+        for (const probe of clipProbes) {
+          const target = sample.hits[probe];
+          if (target !== null && !clipIds.includes(target)) {
+            error(prefix + ".hits." + probe, "known clip target or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validateDescendantClipStates("native", native?.descendantClipStates);
+  validateDescendantClipStates("browser", browser?.descendantClipStates);
+
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
     const expected = [...scrollPhases, "documentHeight"].sort().join(",");
@@ -477,6 +536,36 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "visibility-hit", phase, probe, left, right,
           path: "$.visibilityStates." + phase + ".hits." + probe,
+        });
+      }
+    }
+  }
+  for (const phase of clipPhases) {
+    const a = native.descendantClipStates[phase];
+    const b = browser.descendantClipStates[phase];
+    if (a.mode !== b.mode) {
+      differences.push({
+        kind: "descendant-clip-mode", phase, left: a.mode, right: b.mode,
+        path: "$.descendantClipStates." + phase + ".mode",
+      });
+    }
+    for (const id of clipIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "descendant-clip-box", phase, id, field, left, right,
+            path: "$.descendantClipStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+    }
+    for (const probe of clipProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "descendant-clip-hit", phase, probe, left, right,
+          path: "$.descendantClipStates." + phase + ".hits." + probe,
         });
       }
     }

@@ -32,12 +32,16 @@
   #visibility-child { width: 14px; height: 6px; visibility: visible; }
   #visibility-inherited { width: 12px; height: 5px; }
   #visibility-sibling { width: 20px; height: 5px; margin-left: 300px; }
+  /* A padding-edge paint/hit clip: fixed spacer preserves earlier extents. */
+  #clip-parent { width: 20px; height: 12px; margin-left: 100px; border: 2px solid black; padding: 3px; overflow: clip; }
+  #clip-child { width: 40px; height: 18px; }
+  #clip-sibling { width: 10px; height: 5px; margin-left: 100px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -152,6 +156,40 @@
   const visibilityStates = {
     hidden: visibilityHidden, visible: visibilityVisible, restored: visibilityRestored
   };
+  // A separate source-measured padding-box clipping channel. Keep
+  // all earlier geometry, visibility and hit probes independent of this group.
+  const clipIds = ["clip-parent", "clip-child", "clip-sibling"];
+  const clipProbes = [
+    ["inside", 106, 395],
+    ["padding-edge", 127, 395],
+    ["border-edge", 128, 395],
+    ["outside-parent", 135, 395],
+    ["bottom-border", 106, 409],
+    ["sibling", 105, 412],
+    ["parent-border", 101, 389]
+  ];
+  function clipSample() {
+    return {
+      mode: getComputedStyle(document.getElementById("clip-parent")).overflowX,
+      boxes: Object.fromEntries(clipIds.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+      })),
+      hits: Object.fromEntries(clipProbes.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, clipIds.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+  const clipParent = document.getElementById("clip-parent");
+  const clipOriginal = clipSample();
+  clipParent.style.overflow = "visible";
+  const clipVisible = clipSample();
+  clipParent.style.removeProperty("overflow");
+  const clipRestored = clipSample();
+  const descendantClipStates = {
+    clipped: clipOriginal, visible: clipVisible, restored: clipRestored
+  };
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
   // All earlier geometry/hit channels were captured before changing scrollY.
   function scrollSample() {
@@ -186,6 +224,7 @@
     widthBounds,
     heightBounds,
     visibilityStates,
+    descendantClipStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {
