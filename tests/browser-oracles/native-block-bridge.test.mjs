@@ -236,7 +236,7 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "source must restore original clipping");
   assert.ok(source.includes("getComputedStyle(document.getElementById(\"clip-parent\")).overflowX"),
     "reference clip mode must come from computed CSS");
-  assert.ok(source.includes("const clipStates = {"),
+  assert.ok(source.includes("const descendantClipStates = {"),
     "clip snapshots must be preserved in source-hashed evidence");
   assert.ok(source.includes("const visibilityStates = {"),
     "all three visibility phases must be retained");
