@@ -4,8 +4,7 @@ use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
     Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, HorizontalAutoMargins,
     Length, PercentageMargins, PercentagePadding, PointerEvents, Rect, RelativeOffset, Style,
-    Visibility, WidthBound,
-    layout,
+    Visibility, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -2679,7 +2678,10 @@ fn padding_percent_states_json() -> String {
     let reduced = layout(&blocks, 800, 600).expect("native percentage padding top reduced");
     blocks[3].style.percentage_padding.top = Some(10);
     let restored = layout(&blocks, 800, 600).expect("native percentage padding restored");
-    assert_eq!(restored, original, "percentage padding restoration is exact");
+    assert_eq!(
+        restored, original,
+        "percentage padding restoration is exact"
+    );
     assert_eq!((original.scroll_width, original.scroll_height), (800, 958));
     assert_eq!((reduced.scroll_width, reduced.scroll_height), (800, 958));
 
@@ -2693,33 +2695,68 @@ fn padding_percent_states_json() -> String {
     for &(id, index, (x, y, width, height)) in &expected {
         assert_eq!(
             original.boxes[index].unwrap().border,
-            Rect { x, y, width, height },
+            Rect {
+                x,
+                y,
+                width,
+                height
+            },
             "native border box for {id}"
         );
     }
     assert_eq!(
         original.boxes[3].unwrap().padding,
-        Rect { x: 7, y: 688, width: 80, height: 50 }
+        Rect {
+            x: 7,
+            y: 688,
+            width: 80,
+            height: 50
+        }
     );
     assert_eq!(
         original.boxes[3].unwrap().content,
-        Rect { x: 39, y: 704, width: 40, height: 10 }
+        Rect {
+            x: 39,
+            y: 704,
+            width: 40,
+            height: 10
+        }
     );
     assert_eq!(
         reduced.boxes[3].unwrap().border,
-        Rect { x: 6, y: 687, width: 82, height: 44 }
+        Rect {
+            x: 6,
+            y: 687,
+            width: 82,
+            height: 44
+        }
     );
     assert_eq!(
         reduced.boxes[3].unwrap().content,
-        Rect { x: 39, y: 696, width: 40, height: 10 }
+        Rect {
+            x: 39,
+            y: 696,
+            width: 40,
+            height: 10
+        }
     );
     assert_eq!(
         reduced.boxes[4].unwrap().border,
-        Rect { x: 39, y: 696, width: 12, height: 5 }
+        Rect {
+            x: 39,
+            y: 696,
+            width: 12,
+            height: 5
+        }
     );
     assert_eq!(
         reduced.boxes[5].unwrap().border,
-        Rect { x: 6, y: 731, width: 24, height: 6 }
+        Rect {
+            x: 6,
+            y: 731,
+            width: 24,
+            height: 6
+        }
     );
     assert_eq!(reduced.boxes[2], original.boxes[2], "host fixed geometry");
     assert_eq!(reduced.boxes[6], original.boxes[6], "outside normal flow");
