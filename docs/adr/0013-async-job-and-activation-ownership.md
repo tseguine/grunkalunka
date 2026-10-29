@@ -325,8 +325,8 @@ This reuses private closure input packing and captured cells; Number-only
 proofs/signatures stay intact. Function, Error and heap input domains remain
 separate. Erased types do not choose kinds. Passing a Promise argument alone
 does not handle or adopt it: body await and return retain their existing ownership.
-Promise-valued throws now use the raw rejection path described below; intrinsic
-Promise.reject(p) remains outside the source profile.
+Promise-valued throws and intrinsic Promise.reject(p) now use the raw rejection
+path described below.
 Maintained native/Node-Wasm/Wasmtime and rejection-checkpoint tests exercise this
 bounded extension; see [the contract and limits](../async-named-helpers.md).
 
@@ -340,8 +340,8 @@ and explicit read-only queries. Snapshot reads do not mutate guest handling or
 schedule work. Settled values and notification history remain checked, and host
 protocol failures remain terminal. Primitive-only protocols stay closed. This
 avoids a plain-object stand-in with different Promise behavior or duplicate host
-rejection proxies. Intrinsic Promise.reject(p) admission and broader thenable/object
-domains remain required follow-ups; see [the protocol](../async-promise-objects.md).
+rejection proxies. Broader thenable/object domains remain required follow-ups; see
+[the protocol](../async-promise-objects.md).
 
 ## Source Promise-valued throw (2026-10-29)
 
@@ -360,4 +360,20 @@ already-caught reason travels on a normal continuation edge; Promise settlement
 continues to reject raw fulfillment payloads. This avoids a new completion opcode
 or host ABI while preserving rejection identity, cleanup precedence and job order.
 Maintained native/Node-Wasm/Wasmtime tests cover source catches and root objects.
-Intrinsic Promise.reject(p) is deliberately the next independent source producer.
+Intrinsic Promise.reject(p) now uses the same carrier as described below.
+
+## Intrinsic Promise-valued rejection (2026-10-29)
+
+Promise.reject uses the existing raw Throw in a SettlePromise body and materializes
+the resulting rejected wrapper. Its payload may be a represented Promise or mixed
+AsyncValue; fulfillment construction remains General-only. The module exception
+summary includes these producers so catches retain their original raw reasons.
+Direct awaited intrinsics materialize and await the rejected wrapper rather than
+awaiting the reason. This reuses the identity queue and handling protocol and avoids
+a new raw-await opcode or accidental reason adoption. Surplus argument evaluation
+finishes before construction, using the earlier first-argument snapshot.
+
+Native JS, Node-Wasm and Wasmtime tests cover the former exact exclusions, nested
+and self-reasons, pending objects, alias/private forwarding, mixed tags, cleanup,
+argument failure, notifications, erased types and full reaction traces. The same
+conservative per-module catch inference limit remains; no host ABI or limit changes.

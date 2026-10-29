@@ -76,6 +76,9 @@ mod named_promise_inputs;
 #[path = "async-suspension/promise_throw_reasons.rs"]
 mod promise_throw_reasons;
 
+#[path = "async-suspension/promise_reject_reasons.rs"]
+mod promise_reject_reasons;
+
 #[path = "async-suspension/promise_type_arguments.rs"]
 mod promise_type_arguments;
 
@@ -226,7 +229,6 @@ fn selected_async_await_operands_keep_pending_and_domain_guards() {
         &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
     );
     for body in [
-        "let f=async()=>{await a;return b;};return await Promise.reject(a?f():b);",
         "let f=async()=>{await a;return b;};return await Promise.resolve(a?f():b,await a);",
         "let f=async()=>{await a;return b;};return await(a?f():{});",
         "let f=async()=>{await a;return b;};return await(a?f():'x');",
@@ -423,7 +425,6 @@ for(const [a,b] of [[4,2],[0,-0],[NaN,Infinity]])assert.deepEqual(await observe(
 #[test]
 fn suspending_async_closures_keep_pending_and_signature_guards() {
     for body in [
-        "let f=async()=>{await a;return b;};return await Promise.reject(f());",
         "const f=a?async()=>{await a;return b;}:()=>b;return await f();",
         "const f=a?async x=>{await a;return x;}:async(x,y)=>{await b;return x+y;};return await f(a,b);",
         "const f=a?async x=>{await a;return x;}:async x=>{await b;return x;};return await f();",
@@ -555,7 +556,6 @@ fn throwing_async_closures_forward_through_private_callbacks() {
 #[test]
 fn throwing_async_closures_keep_unobserved_rejections_guarded() {
     for body in [
-        "let f=async()=>{throw a;};return await Promise.reject(f());",
         "const f=a?async()=>{throw 'x';}:async()=>b;return await f();",
         "const f=a?async()=>{throw {};}:async()=>b;return await f();",
         "const f=a?async()=>{throw ()=>a;}:async()=>b;return await f();",
@@ -1346,10 +1346,7 @@ fn fulfilled_promise_expressions_keep_erasure_and_source_boundaries() {
             compare_promises(&[&body], &[(4.0, 2.0)]);
         }
     }
-    for body in [
-        "const p=Promise.resolve(a);p=Promise.resolve(b);return await p;",
-        "const p=Promise.resolve(a);return await Promise.reject(p);",
-    ] {
+    for body in ["const p=Promise.resolve(a);p=Promise.resolve(b);return await p;"] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }
@@ -1478,7 +1475,6 @@ fn promise_intrinsic_arguments_keep_erasure_and_resource_boundaries() {
 #[test]
 fn stored_fulfilled_promises_keep_object_and_intrinsic_boundaries() {
     for body in [
-        "const p=Promise.resolve(a);return await Promise.reject(p);",
         "const Promise=a;const p=Promise.resolve(b);return await p;",
         "const p=Promise.resolve(...a);return await p;",
         "const p=Promise.resolve?.(a);return await p;",
@@ -3532,14 +3528,11 @@ fn known_async_arrows_keep_promise_object_and_body_boundaries() {
         let source = source_for(body);
         assert!(compile_async(&source, false).is_err(), "{source}");
     }
-    let source = source_for(
-        "const f=async()=>a;try{await Promise.reject(f());}catch(reason){return reason;}return b;",
-    );
-    assert!(
-        compile_async(&source, false)
-            .err()
-            .unwrap()
-            .contains("Promise-valued reason")
+    compare_promises(
+        &[
+            "const f=async()=>a;try{await Promise.reject(f());}catch(reason){return reason;}return b;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
     );
 }
 

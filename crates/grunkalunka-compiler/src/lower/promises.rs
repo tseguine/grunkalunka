@@ -631,9 +631,20 @@ pub(crate) fn parameters(
                         inputs.asynchronous.len(),
                         inputs.raw_throws,
                     );
-                    inputs.raw_throws |= semantic.nodes().iter().any(|node| {
-                        matches!(node.kind(), AstKind::ThrowStatement(statement)
-                            if return_adopts(&statement.argument, semantic, &returns, &inputs))
+                    inputs.raw_throws |= semantic.nodes().iter().any(|node| match node.kind() {
+                        AstKind::ThrowStatement(statement) => {
+                            return_adopts(&statement.argument, semantic, &returns, &inputs)
+                        }
+                        AstKind::CallExpression(call) => awaited::intrinsic(call, semantic)
+                            .ok()
+                            .flatten()
+                            .is_some_and(|intrinsic| {
+                                intrinsic.rejected
+                                    && intrinsic.argument.is_some_and(|argument| {
+                                        return_adopts(argument, semantic, &returns, &inputs)
+                                    })
+                            }),
+                        _ => false,
                     });
                     if inputs.raw_throws {
                         for node in semantic.nodes().iter() {

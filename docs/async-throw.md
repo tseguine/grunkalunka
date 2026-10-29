@@ -45,8 +45,8 @@ exhaustion or Wasm trap stays a terminal host failure and cannot enter a source 
 Source-size, statement, local, nesting, graph and fuel limits remain in force.
 
 Synchronous/lifted throw, Strings, heap objects, function reasons and general
-thenable values remain outside this unit. Intrinsic Promise.reject(p) remains
-a separate source producer. This is a primitive exception
+thenable values remain outside this unit. Intrinsic Promise.reject(p) also
+preserves the raw reason without adoption or handling. This is a bounded exception
 slice, not general JS exception or async conformance.
 
 The maintained async suite compares native JS with Wasmtime and the JS adapter for

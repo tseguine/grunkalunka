@@ -41,10 +41,11 @@ reaction order and unhandled/handled checkpoints. Wasmtime tests check typed
 queries, terminal failure and actual emitted record validation. Small protocol
 peers isolate malformed roots, snapshots and events from source lowering.
 
-The async source profile now admits `throw` of represented Promise identities
-and Promise/primitive selections, including named and local async bodies. Throw
-never adopts or handles the reason. Catch bindings and pending finally reasons
-use the existing AsyncValue carrier when a module may throw a Promise; modules
+The async source profile admits `throw` and intrinsic `Promise.reject` of
+represented Promise identities and Promise/primitive selections, including named
+and local async bodies. Neither operation adopts or handles the reason. Catch
+bindings and pending finally reasons use the existing AsyncValue carrier when a
+module may reject with a Promise; modules
 without such a producer retain General catches. This conservative module summary
 can still reject arithmetic on an unrelated catch binding in the same module.
 Precise per-handler reason analysis remains follow-up work.
@@ -57,5 +58,13 @@ shared notification identities, external handling and reaction order. A separate
 internal continuation-payload check permits caught raw values on a normal routing
 edge; Promise fulfillment validation still forbids raw Promise payloads.
 
-Intrinsic `Promise.reject(p)` admission, general synchronous throw, thenables,
-String/heap values and general Promise construction remain separate gaps.
+Intrinsic rejection snapshots its first argument before evaluating surplus
+arguments. A failure while evaluating any argument prevents the outer rejection
+constructor. Direct await of a raw rejection materializes and awaits its wrapper,
+preserving the ordinary single rejection reaction without awaiting the reason.
+Returning the wrapper from an async body adopts the wrapper, leaving its reason
+unchanged. A pristine reject has no normal completion; numeric projections of
+its directly awaited result are unreachable and never coerce the reason.
+
+General synchronous throw, precise per-handler inference, thenables, String/heap
+values and general Promise construction remain separate gaps.

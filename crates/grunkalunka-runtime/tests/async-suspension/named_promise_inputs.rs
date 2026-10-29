@@ -91,8 +91,6 @@ fn named_async_promise_inputs_keep_erasure_and_source_domain_guards() {
     compare_named_inputs(&[plain]);
     for source in [
         "async function f(p){return p+1;}export async function run(a,b){return await f(Promise.resolve(a));}",
-        "export async function run(a,b){const p=Promise.resolve(a);return Promise.reject(p);}",
-        "async function f(p){return Promise.reject(p);}export async function run(a,b){return await f(Promise.resolve(a));}",
         "function f(p){return p;}export async function run(a,b){return await f(Promise.resolve(a));}",
         "async function f(p,q){return await p;}export async function run(a,b){return await f(Promise.resolve(a));}",
         "async function f(p){return await p;}export async function run(a,b){return await f?.(Promise.resolve(a));}",
