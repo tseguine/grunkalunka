@@ -80,7 +80,10 @@ export function auditSourceSelection({ specs, readSource, exists, planForPath })
   const errors = [], edges = [], seen = new Set();
   for (const spec of specs) {
     if (!spec || Object.keys(spec).sort().join(',') !== 'requiredChecks,source' ||
-        typeof spec.source !== 'string' || !spec.source || seen.has(spec.source) ||
+        typeof spec.source !== 'string' || !spec.source || 
+        path.isAbsolute(spec.source) || spec.source.includes('\\') ||
+        path.normalize(spec.source).startsWith('../') ||
+        path.normalize(spec.source) === '..' || seen.has(spec.source) ||
         !Array.isArray(spec.requiredChecks) || !spec.requiredChecks.length ||
         spec.requiredChecks.some(id => typeof id !== 'string' ||
           !/^(?:check:|cargo-test:)[a-z0-9-]+$/.test(id)) ||
