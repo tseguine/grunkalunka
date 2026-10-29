@@ -243,6 +243,22 @@ export function compareMarkdownPair(pair) {
       median: one(first[name].medianMs, second[name].medianMs),
     };
   }
+  // Preserve the historical comparison output verbatim when a saved pair
+  // predates fresh lifecycle sampling. Never infer absent data as zero.
+  const fresh = baseline.report.freshLifecycles;
+  const freshLifecycles = {};
+  if (fresh) {
+    const newer = candidate.report.freshLifecycles;
+    freshLifecycles.count = fresh.count;
+    freshLifecycles.unit = fresh.unit;
+    for (const name of ['granted', 'denied']) {
+      freshLifecycles[name] = {
+        baselineSamplesMs: [...fresh[name].samplesMs],
+        candidateSamplesMs: [...newer[name].samplesMs],
+        median: one(fresh[name].medianMs, newer[name].medianMs),
+      };
+    }
+  }
   return {
     schemaVersion: 1, workload: 'markdown-wit-repeat-comparison',
     scope: 'same-process and identical binaries only; diagnostic observations, not speed rankings',
@@ -254,6 +270,7 @@ export function compareMarkdownPair(pair) {
     embed: one(first.embedMs, second.embedMs),
     componentCompile: one(first.componentCompileMs, second.componentCompileMs),
     series,
+    ...(fresh ? { freshLifecycles } : {}),
     processMemory: compareProcessMemory(baseline, candidate),
   };
 }

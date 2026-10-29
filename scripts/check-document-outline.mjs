@@ -161,6 +161,15 @@ assert.equal(compared.workload, 'markdown-wit-repeat-comparison');
 assert.equal(compared.guestSha256, initialGuestHash);
 assert.equal(compared.runnerSha256, captured.provenance.runner.sha256);
 assert.deepEqual(compared.configuration, captured.report.configuration);
+assert.equal(compared.freshLifecycles.count, 2);
+assert.equal(compared.freshLifecycles.unit, 'milliseconds per fresh component lifecycle');
+for (const name of ['granted', 'denied']) {
+  assert.deepEqual(compared.freshLifecycles[name].baselineSamplesMs,
+    paired.captures[0].report.freshLifecycles[name].samplesMs);
+  assert.deepEqual(compared.freshLifecycles[name].candidateSamplesMs,
+    paired.captures[1].report.freshLifecycles[name].samplesMs);
+  assert.ok(Number.isFinite(compared.freshLifecycles[name].median.deltaMs));
+}
 for (const name of ['instantiation', 'granted', 'denied']) {
   assert.equal(compared.series[name].baselineSamplesMs.length, 2);
   assert.equal(compared.series[name].candidateSamplesMs.length, 2);
