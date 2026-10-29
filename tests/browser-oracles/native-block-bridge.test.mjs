@@ -86,6 +86,43 @@ const descendantClipStates = () => ({
   visible: descendantClipPhase(false),
   restored: descendantClipPhase(true),
 });
+const boxlessPhase = mode => {
+  const contents = mode === "contents";
+  return {
+    display: mode, hasBox: !contents,
+    boxes: contents ? {
+      "contents-first": { x: 0, y: 415, width: 24, height: 10 },
+      "contents-second": { x: 0, y: 425, width: 12, height: 6 },
+      "contents-sibling": { x: 200, y: 431, width: 20, height: 5 },
+    } : {
+      "contents-first": { x: 205, y: 422, width: 24, height: 10 },
+      "contents-second": { x: 205, y: 432, width: 12, height: 6 },
+      "contents-sibling": { x: 200, y: 451, width: 20, height: 5 },
+    },
+    hits: contents ? {
+      "first-contents": "contents-first",
+      "second-contents": "contents-second",
+      "wrapper-border": null,
+      "first-block": null,
+      "sibling-contents": "contents-sibling",
+      "sibling-block": null,
+      outside: null,
+    } : {
+      "first-contents": null,
+      "second-contents": null,
+      "wrapper-border": "contents-wrapper",
+      "first-block": "contents-first",
+      "sibling-contents": "contents-wrapper",
+      "sibling-block": "contents-sibling",
+      outside: null,
+    },
+  };
+};
+const boxlessStates = () => ({
+  contents: boxlessPhase("contents"),
+  block: boxlessPhase("block"),
+  restored: boxlessPhase("contents"),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -136,6 +173,7 @@ const native = () => ({
   heightBounds: heightBoundGeometry(),
   visibilityStates: visibilityStates(),
   descendantClipStates: descendantClipStates(),
+  boxlessStates: boxlessStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -163,6 +201,7 @@ function browser() {
     heightBounds: heightBoundGeometry(),
     visibilityStates: visibilityStates(),
     descendantClipStates: descendantClipStates(),
+    boxlessStates: boxlessStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -200,11 +239,15 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#clip-parent { width: 20px; height: 12px; margin-left: 100px;",
     "#clip-child { width: 40px; height: 18px; }",
     "#clip-sibling { width: 10px; height: 5px; margin-left: 100px; }",
+    "#contents-wrapper { display: contents; width: 40px; height: 24px; margin: 2px 0 0 200px;",
+    "#contents-first { width: 24px; height: 10px; }",
+    "#contents-second { width: 12px; height: 6px; }",
+    "#contents-sibling { width: 20px; height: 5px; margin-left: 200px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -236,6 +279,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "source must restore original clipping");
   assert.ok(source.includes("getComputedStyle(document.getElementById(\"clip-parent\")).overflowX"),
     "reference clip mode must come from computed CSS");
+  assert.ok(source.includes('contentsWrapper.style.display = "block"'),
+    "source must give the boxless wrapper a real principal box");
+  assert.ok(source.includes('contentsWrapper.style.removeProperty("display")'),
+    "source must restore the original boxless declaration");
+  assert.ok(source.includes('wrapper.getClientRects().length !== 0'),
+    "principal box presence must come from real DOM measurement");
+  assert.ok(source.includes("const boxlessStates = {"),
+    "all three boxless phases must be included in source-hashed evidence");
   assert.ok(source.includes("const descendantClipStates = {"),
     "clip snapshots must be preserved in source-hashed evidence");
   assert.ok(source.includes("const visibilityStates = {"),
@@ -530,6 +581,82 @@ test("missing, partial and malformed descendant clips never count as equality", 
   }
   const left = native();
   delete left.descendantClipStates.visible.hits["padding-edge"];
+  assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
+});
+
+test("boxless wrappers flatten children, then restore normal block box geometry", () => {
+  const left = native(), right = browser();
+  assert.equal(compareNativeBlockBridge(left, right, fixture).status, "equal");
+  assert.deepEqual(right.boxlessStates.contents, right.boxlessStates.restored);
+  assert.equal(right.boxlessStates.contents.hasBox, false);
+  assert.equal(right.boxlessStates.block.hasBox, true);
+  assert.deepEqual(right.boxlessStates.contents.hits, {
+    "first-contents": "contents-first",
+    "second-contents": "contents-second",
+    "wrapper-border": null,
+    "first-block": null,
+    "sibling-contents": "contents-sibling",
+    "sibling-block": null,
+    outside: null,
+  });
+  assert.deepEqual(right.boxlessStates.block.hits, {
+    "first-contents": null,
+    "second-contents": null,
+    "wrapper-border": "contents-wrapper",
+    "first-block": "contents-first",
+    "sibling-contents": "contents-wrapper",
+    "sibling-block": "contents-sibling",
+    outside: null,
+  });
+  right.boxlessStates.contents.hits["wrapper-border"] = "contents-wrapper";
+  const report = compareNativeBlockBridge(left, right, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences, [{
+    kind: "boxless-hit", phase: "contents", probe: "wrapper-border",
+    left: null, right: "contents-wrapper",
+    path: "$.boxlessStates.contents.hits.wrapper-border",
+  }]);
+});
+
+test("boxless display, principal box and sibling geometry are independent comparisons", () => {
+  const right = browser();
+  right.boxlessStates.contents.hasBox = true;
+  right.boxlessStates.block.display = "contents";
+  right.boxlessStates.block.boxes["contents-sibling"].y++;
+  const report = compareNativeBlockBridge(native(), right, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences, [{
+    kind: "boxless-mode", phase: "contents", field: "hasBox",
+    left: false, right: true, path: "$.boxlessStates.contents.hasBox",
+  }, {
+    kind: "boxless-mode", phase: "block", field: "display",
+    left: "block", right: "contents", path: "$.boxlessStates.block.display",
+  }, {
+    kind: "boxless-box", phase: "block", id: "contents-sibling", field: "y",
+    left: 451, right: 452, path: "$.boxlessStates.block.boxes.contents-sibling.y",
+  }]);
+});
+
+test("invalid and incomplete boxless receipts fail closed", () => {
+  for (const mutate of [
+    r => { delete r.boxlessStates; },
+    r => { delete r.boxlessStates.restored; },
+    r => { delete r.boxlessStates.contents.boxes; },
+    r => { delete r.boxlessStates.block.boxes["contents-first"]; },
+    r => { r.boxlessStates.block.display = "none"; },
+    r => { r.boxlessStates.restored.hasBox = 0; },
+    r => { r.boxlessStates.contents.hits.outside = "body"; },
+    r => { delete r.boxlessStates.contents.hits["first-contents"]; },
+    r => { r.boxlessStates.contents.boxes["contents-second"].y = Infinity; },
+    r => { r.boxlessStates.block.boxes["contents-sibling"].width = -1; },
+    r => { r.boxlessStates.unknown = {}; },
+  ]) {
+    const right = browser();
+    mutate(right);
+    assert.equal(compareNativeBlockBridge(native(), right, fixture).status, "invalid");
+  }
+  const left = native();
+  delete left.boxlessStates.block.hits["first-block"];
   assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
 });
 

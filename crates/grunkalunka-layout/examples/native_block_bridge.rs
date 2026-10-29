@@ -1265,6 +1265,331 @@ fn descendant_clip_states_json() -> String {
     format!(r#"{{"clipped":{initial},"visible":{expanded},"restored":{final_state}}}"#)
 }
 
+// Independent block-flow witness for CSS display:contents. Preceding nodes
+// reproduce only their reviewed fixed occupied heights, not DOM measurements.
+// The wrapper may have no principal box while its descendants still hit/paint.
+fn boxless_states_json() -> String {
+    let mut blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(284),
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(92),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(650),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(400),
+                height: Length::Px(80),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(25),
+                margin: Edges {
+                    left: 300,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 300,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(22),
+                margin: Edges {
+                    left: 100,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 100,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                display: Display::Contents,
+                width: Length::Px(40),
+                height: Length::Px(24),
+                margin: Edges {
+                    top: 2,
+                    left: 200,
+                    ..Edges::default()
+                },
+                padding: Edges::all(3),
+                border: Edges::all(2),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(10),
+            style: Style {
+                width: Length::Px(24),
+                height: Length::Px(10),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(10),
+            style: Style {
+                width: Length::Px(12),
+                height: Length::Px(6),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 200,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(80),
+                height: Length::Px(30),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let contents = layout(&blocks, 800, 600).expect("flattened boxless flow");
+    assert!(contents.contents[10]);
+    assert_eq!(contents.boxes[10], None);
+    assert_eq!((contents.scroll_width, contents.scroll_height), (800, 958));
+    assert_eq!(
+        contents.boxes[14].unwrap().border,
+        Rect {
+            x: 0,
+            y: 928,
+            width: 80,
+            height: 30,
+        }
+    );
+    let box_ids = [
+        ("contents-first", 11),
+        ("contents-second", 12),
+        ("contents-sibling", 13),
+    ];
+    let contents_goldens = [
+        Rect {
+            x: 0,
+            y: 415,
+            width: 24,
+            height: 10,
+        },
+        Rect {
+            x: 0,
+            y: 425,
+            width: 12,
+            height: 6,
+        },
+        Rect {
+            x: 200,
+            y: 431,
+            width: 20,
+            height: 5,
+        },
+    ];
+    for ((id, index), golden) in box_ids.into_iter().zip(contents_goldens) {
+        assert_eq!(
+            contents.boxes[index].unwrap().border,
+            golden,
+            "flattened native box for {id}"
+        );
+    }
+    let hit_nodes: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| HitNode {
+            parent: block.parent,
+            targetable: (10..=13).contains(&index),
+        })
+        .collect();
+    let probes = [
+        ("first-contents", 1, 416),
+        ("second-contents", 1, 427),
+        ("wrapper-border", 201, 418),
+        ("first-block", 206, 424),
+        ("sibling-contents", 202, 432),
+        ("sibling-block", 202, 452),
+        ("outside", 251, 431),
+    ];
+    let expected_contents = [Some(11), Some(12), None, None, Some(13), None, None];
+
+    blocks[10].style.display = Display::Block;
+    let block = layout(&blocks, 800, 600).expect("normal box wrapper layout");
+    assert!(!block.contents[10]);
+    assert_eq!(
+        block.boxes[10].unwrap().border,
+        Rect {
+            x: 200,
+            y: 417,
+            width: 50,
+            height: 34,
+        }
+    );
+    let block_goldens = [
+        Rect {
+            x: 205,
+            y: 422,
+            width: 24,
+            height: 10,
+        },
+        Rect {
+            x: 205,
+            y: 432,
+            width: 12,
+            height: 6,
+        },
+        Rect {
+            x: 200,
+            y: 451,
+            width: 20,
+            height: 5,
+        },
+    ];
+    for ((id, index), golden) in box_ids.into_iter().zip(block_goldens) {
+        assert_eq!(
+            block.boxes[index].unwrap().border,
+            golden,
+            "box-bearing native block for {id}"
+        );
+    }
+    assert_eq!((block.scroll_width, block.scroll_height), (800, 958));
+    assert_eq!(block.boxes[14], contents.boxes[14]);
+
+    blocks[10].style.display = Display::Contents;
+    let restored = layout(&blocks, 800, 600).expect("restored boxless flow");
+    assert_eq!(restored, contents);
+    let expected_block = [None, None, Some(10), Some(11), Some(10), Some(13), None];
+    for (frame, expected) in [
+        (&contents, expected_contents),
+        (&block, expected_block),
+        (&restored, expected_contents),
+    ] {
+        for ((name, x, y), target) in probes.iter().copied().zip(expected) {
+            assert_eq!(
+                hit_test(frame, &hit_nodes, x, y),
+                Ok(target),
+                "independent native boxless probe {name}"
+            );
+        }
+    }
+
+    let receipt = |frame: &Frame, display: &str| {
+        let boxes = box_ids
+            .iter()
+            .map(|&(id, index)| {
+                let rect = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    rect.x, rect.y, rect.width, rect.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let hits = probes
+            .iter()
+            .map(|&(name, x, y)| {
+                let target = hit_test(frame, &hit_nodes, x, y).unwrap();
+                let id = match target {
+                    Some(10) => r#""contents-wrapper""#,
+                    Some(11) => r#""contents-first""#,
+                    Some(12) => r#""contents-second""#,
+                    Some(13) => r#""contents-sibling""#,
+                    None => "null",
+                    _ => panic!("unexpected native boxless hit"),
+                };
+                format!(r#""{name}":{id}"#)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let has_box = frame.boxes[10].is_some();
+        format!(
+            r#"{{"display":"{display}","hasBox":{has_box},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#
+        )
+    };
+    let first = receipt(&contents, "contents");
+    let shown = receipt(&block, "block");
+    let final_state = receipt(&restored, "contents");
+    format!(r#"{{"contents":{first},"block":{shown},"restored":{final_state}}}"#)
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -1446,6 +1771,8 @@ fn main() {
     output.push_str(&visibility_states_json());
     output.push_str(r#","descendantClipStates":"#);
     output.push_str(&descendant_clip_states_json());
+    output.push_str(r#","boxlessStates":"#);
+    output.push_str(&boxless_states_json());
     output.push('}');
     println!("{output}");
 }

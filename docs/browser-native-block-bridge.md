@@ -273,3 +273,12 @@ scroll spacer. The independent native sample uses the caller-resolved
 `DescendantClip::PaddingBox` policy and checks the unchanged original
 geometry, scrolling and hit probes. See
 [the clipping evidence guide](browser-native-padding-clip-bridge.md).
+
+## Boxless display:contents geometry and input
+
+A separate three-phase source-checked witness measures real DOM
+`display: contents` and `display: block` toggles, including wrapper
+principal-box presence, child/sibling rectangles and actual input targets.
+The Rust sample independently lays out the same caller-resolved tree,
+without parsing CSS. The [boxless reference guide](browser-native-boxless-bridge.md)
+records literal goldens, provenance and the limits of this selected fixture.

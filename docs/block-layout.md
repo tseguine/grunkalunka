@@ -74,6 +74,9 @@ The independently authored `tests/display_contents.rs` checks exact
 flattened coordinates, nested contents, paint and hit order, visibility
 inheritance, `display:none` isolation, a boxless root, semantic text
 rejection and corrupt frame metadata.
+A separate [source-checked display:contents bridge](browser-native-boxless-bridge.md)
+compares the resulting child/sibling geometry and input hits against real
+Chromium, Firefox and WebKit observations under a DOM style toggle.
 
 ## Inherited visibility without reflow
 
