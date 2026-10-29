@@ -6,6 +6,7 @@ use grunkalunka_compiler::{Artifact, compile};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::hint::black_box;
+use std::process::Command;
 use std::time::Instant;
 use wasmtime::{Engine, Instance, Module, Store};
 
@@ -186,6 +187,30 @@ fn verify_identical(artifacts: &[Artifact], golden: &Artifact) -> wasmtime::Resu
     Ok(())
 }
 
+// The compiler currently available on PATH is an observed environment input,
+// not an attestation that it built this executable. It is sampled only after
+// all timed work, so subprocess startup is excluded from compilation costs.
+pub fn parse_observed_rustc(output: &str) -> Option<String> {
+    let line = output.lines().next()?.trim();
+    if !line.starts_with("rustc ")
+        || line.len() > 128
+        || !line
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b" ._()+-".contains(&byte))
+    {
+        return None;
+    }
+    Some(line.to_owned())
+}
+
+fn observed_rustc() -> Option<String> {
+    let output = Command::new("rustc").arg("-vV").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_observed_rustc(std::str::from_utf8(&output.stdout).ok()?)
+}
+
 #[derive(Debug)]
 pub struct Report {
     pub options: Options,
@@ -199,6 +224,7 @@ pub struct Report {
     pub samples_ms: Vec<f64>,
     pub release_ms: Vec<f64>,
     pub process_memory: process_memory::ProcessMemory,
+    pub observed_rustc: Option<String>,
     pub golden_cases: usize,
 }
 
@@ -236,8 +262,12 @@ impl Report {
         } else {
             "release"
         };
+        let observed_rustc = match &self.observed_rustc {
+            Some(value) => format!(r#""{value}""#),
+            None => "null".to_owned(),
+        };
         format!(
-            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"sourceSha256":"{source_sha256}","watBytes":{wat_bytes},"watSha256":"{wat_sha256}","wasmBytes":{wasm_bytes},"wasmSha256":"{wasm_sha256}"}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"artifactRelease":{{"unit":"milliseconds per batch","samplesMs":[{release_samples}],"minMs":{release_min:.9},"medianMs":{release_median:.9},"maxMs":{release_max:.9}}},"goldenCases":{golden_cases},"processMemory":{process_memory}}}"#,
+            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}","observedRustc":{observed_rustc}}},"artifact":{{"sourceBytes":{source_bytes},"sourceSha256":"{source_sha256}","watBytes":{wat_bytes},"watSha256":"{wat_sha256}","wasmBytes":{wasm_bytes},"wasmSha256":"{wasm_sha256}"}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"artifactRelease":{{"unit":"milliseconds per batch","samplesMs":[{release_samples}],"minMs":{release_min:.9},"medianMs":{release_median:.9},"maxMs":{release_max:.9}}},"goldenCases":{golden_cases},"processMemory":{process_memory}}}"#,
             case = self.options.workload.name(),
             sample_count = self.options.samples,
             iterations = self.options.iterations,
@@ -245,6 +275,7 @@ impl Report {
             os = std::env::consts::OS,
             arch = std::env::consts::ARCH,
             version = env!("CARGO_PKG_VERSION"),
+            observed_rustc = observed_rustc,
             source_bytes = self.source_bytes,
             wat_bytes = self.wat_bytes,
             wasm_bytes = self.wasm_bytes,
@@ -323,6 +354,9 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         &MEMORY_PHASES,
     )
     .map_err(std::io::Error::other)?;
+    // This native executable may be run without rustc in PATH. Record null
+    // instead of falsely claiming the build toolchain or failing a report.
+    let observed_rustc = observed_rustc();
     Ok(Report {
         options,
         source_bytes: source.len(),
@@ -335,6 +369,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         samples_ms,
         release_ms,
         process_memory,
+        observed_rustc,
         golden_cases: options.workload.cases().len(),
     })
 }

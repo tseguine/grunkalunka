@@ -81,6 +81,13 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         };
         let report = probe(options).unwrap();
         assert_eq!(report.options, options);
+        assert!(
+            report
+                .observed_rustc
+                .as_deref()
+                .is_some_and(|version| version.starts_with("rustc ")),
+            "Cargo integration tests have a running rustc on PATH"
+        );
         assert!(report.source_bytes > 0 && report.source_bytes < 16_384);
         assert!(report.wat_bytes > 0 && report.wasm_bytes >= 8 && report.wasm_bytes <= 1024 * 1024);
         assert!(report.first_compile_ms.is_finite() && report.first_compile_ms >= 0.0);
@@ -146,6 +153,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
             "\"watSha256\":",
             "\"wasmSha256\":",
             "\"processMemory\":",
+            "\"observedRustc\":\"rustc ",
         ] {
             assert!(json.contains(expected), "missing {expected}");
         }
@@ -180,4 +188,28 @@ fn callers_cannot_bypass_validation_by_constructing_options_directly() {
         })
         .is_err()
     );
+}
+
+#[test]
+fn observed_rustc_header_is_strict_and_cannot_inject_report_json() {
+    let valid =
+        "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nrelease: 1.99.1\nhost: x86_64-unknown-linux-gnu\n";
+    assert_eq!(
+        source_compile_cost::parse_observed_rustc(valid).as_deref(),
+        Some("rustc 1.99.1 (58cf8f9c3 2026-10-13)")
+    );
+    for invalid in [
+        "",
+        "not-rustc 1.99.1",
+        "rustc \"fabricated\"",
+        "rustc {json}",
+        "rustc 1.0.0\tbad",
+        "rustc 1.99.1 😀",
+    ] {
+        assert!(
+            source_compile_cost::parse_observed_rustc(invalid).is_none(),
+            "{invalid:?}"
+        );
+    }
+    assert!(source_compile_cost::parse_observed_rustc(&"rustc 1.0.0 ".repeat(20)).is_none());
 }
