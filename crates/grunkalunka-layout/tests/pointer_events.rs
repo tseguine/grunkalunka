@@ -187,7 +187,7 @@ fn contents_and_hidden_ancestors_pass_down_pointer_policy_without_new_boxes() {
     blocks[1].style.visibility = Visibility::Hidden;
     blocks[3].style.visibility = Visibility::Visible;
     let frame = layout(&blocks, 40, 30).unwrap();
-    assert_eq!(frame.contents[1], true);
+    assert!(frame.contents[1]);
     assert_eq!(frame.boxes[1], None);
     assert_eq!(
         frame.pointer_events,
@@ -215,7 +215,7 @@ fn contents_and_hidden_ancestors_pass_down_pointer_policy_without_new_boxes() {
     assert_eq!(removed.boxes[2], None);
     assert_eq!(removed.boxes[3], None);
     assert_eq!(removed.boxes[4].unwrap().border.y, 0);
-    assert_eq!(removed.pointer_events[3], true);
+    assert!(removed.pointer_events[3]);
     assert_eq!(hit_test(&removed, &hits, 1, 8), Ok(Some(0)));
 }
 
