@@ -88,7 +88,9 @@ and broader application workloads remain unfinished P1 work.
 ## Recorded Rust-process memory integrity
 
 New Markdown cost reports may include a `processMemory` envelope with five
-validated Linux RSS/peak-RSS checkpoints; Windows and macOS record explicit
+validated Linux RSS/peak-RSS or Windows working-set/peak-working-set
+checkpoints. Earlier Windows receipts explicitly recorded unsupported/null,
+and that historical absence remains valid. macOS still records
 unsupported/null observations. The capture and same-process comparator now
 **validate a claimed memory envelope** against the saved native OS and the
 complete ordered lifecycle, including units, snapshot keys, integer bounds,
@@ -123,9 +125,13 @@ and interpretation without imposing artificial memory-comparison metrics.
 ## Comparing recorded whole-process memory without attribution
 
 The strict paired comparison now emits a separate `processMemory` summary.
-For two *validated* Linux receipts containing the complete five-phase
-native RSS/peak observations, it preserves each phase's baseline and candidate
-byte count alongside their **signed candidate-minus-baseline difference**.
+For two validated Linux **or current Windows** receipts containing complete
+five-phase native process-memory observations, it preserves each phase's
+baseline and candidate byte count alongside their **signed
+candidate-minus-baseline difference**, together with the actual
+`linux-proc-status` or `windows-psapi-working-set` source label.
+Windows `rssBytes` means current working-set bytes, not Linux RSS.
+The reader refuses mixed source types even when receipts are rebound.
 Both inputs were collected in **separate native processes** by one Node
 capture session. Even equal binaries and OS metadata cannot isolate guest
 allocation, memory fragmentation, cache lifetime, page residency or CPU load.
@@ -135,10 +141,9 @@ regressions without additional controlled experiments.
 
 For historical captures where either process-memory envelope was omitted,
 the comparison explicitly reports `availability: not-comparable` and whether
-each side recorded evidence. The absence is **not** zero memory. On
-Windows/macOS, where the native Rust sampler records only
-`unsupported-on-this-host`, the comparison reports that unavailable status
-without any fabricated phase values. Saved host identity, not the OS used
+each side recorded evidence. The absence is **not** zero memory. Old
+Windows captures and all currently unsupported macOS captures remain
+`unsupported-on-this-host`, without any fabricated phase values. Saved host identity, not the OS used
 to read the JSON, determines whether a reported sample is valid. The
 original timings, signed timing deltas, intact receipt bindings and
 historical pair compatibility remain unchanged.
