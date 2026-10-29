@@ -64,9 +64,41 @@ rankings, winner selection or implied speedup ratios**.
 The normal Rust workspace test runs tiny 2-sample profiles for all three
 fixtures, checks Wasmtime goldens and source-mode correctness, artifact
 repeatability, independently bounded compilation/release samples and output
-fields, then exercises invalid settings. Existing
-Linux/Windows/macOS CI runs this test; the PR does not change the shared runner,
-compiler, dependencies, or CI platform matrix.
+fields, then exercises invalid settings. The existing canonical suite runs this test during Linux/Windows
+verification and native Apple Silicon's scheduled/manual full runs or
+fallback. A healthy macOS baseline-reference PR gate does not imply
+new PR-specific macOS test execution. No shared runner, compiler,
+dependency or CI-platform changes are introduced.
+
+## Whole-process source compilation memory checkpoints
+
+The same real public-compiler probe now also records five **whole-Rust-process**
+RSS and process-lifetime peak-RSS observations, outside all compiler-API,
+artifact-release and Wasmtime calls being timed:
+
+1. Before the first source compile, after selecting the bounded checked-in fixture.
+2. After the first real compiler call, before Wasmtime golden verification.
+3. After checking independent emitted-artifact goldens in Wasmtime.
+4. After verified warmup compiles and disposing of their retained artifacts.
+5. After all measured batches, byte verifications and explicit artifact drops.
+
+On Linux, the existing P1 `/proc/self/status` reader reports current
+`VmRSS` and high-water `VmHWM` converted from KiB to bytes. Its
+well-formedness and monotonic-peak validation are shared with the core-Wasm
+and Markdown component probes. The normal Rust integration tests require
+actual Linux observations for each of `affine-js`, `affine-ts` and
+`gcd-js`, preserving exact phase labels and numeric golden checks.
+Windows and macOS explicitly report `unsupported-on-this-host` and
+`snapshots: null`, rather than inventing zero memory.
+
+These numbers include the **entire process** and allocations from Rust's
+compiler, source/output buffers, Wasmtime verification, allocator caches
+and this test harness. The fourth/fifth phases are taken after artifact
+drops, but lower RSS is neither required nor assumed. The observations
+do **not** measure only the compiler's heap, peak size of one compilation,
+guest-attributable Wasm memory, process startup or performance across
+platforms. Sampling itself may affect subsequent allocator/cache behavior.
+No memory threshold, new OS library or extra GitHub Actions job is added.
 
 ## Boundaries and next evidence
 
