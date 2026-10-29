@@ -57,7 +57,10 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
     let source = include_str!("../../../examples/numeric-workflow/gcd.js");
     let artifact = grunkalunka_compiler::compile(source, false).unwrap();
     assert_eq!(report.wasm_bytes, artifact.wasm.len());
-    assert_eq!(report.wasm_sha256, format!("{:x}", Sha256::digest(&artifact.wasm)));
+    assert_eq!(
+        report.wasm_sha256,
+        format!("{:x}", Sha256::digest(&artifact.wasm))
+    );
     for duration in [
         report.source_compile_ms,
         report.module_compile_ms,
@@ -118,8 +121,14 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
         r#""artifact":{{"bytes":{},"sha256":"{}","imports":0}}"#,
         report.wasm_bytes, report.wasm_sha256
     );
-    assert!(output.contains(&expected_rust), "Rust artifact receipt mismatch");
-    assert!(output.contains(&expected_node), "Node artifact receipt mismatch");
+    assert!(
+        output.contains(&expected_rust),
+        "Rust artifact receipt mismatch"
+    );
+    assert!(
+        output.contains(&expected_node),
+        "Node artifact receipt mismatch"
+    );
     for expected in [
         "\"schemaVersion\":1",
         "\"workload\":\"core-gcd-two-engine\"",
