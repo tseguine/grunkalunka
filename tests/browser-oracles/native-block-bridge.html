@@ -46,12 +46,19 @@
   #pointer-inherited { width: 10px; height: 6px; }
   #pointer-restored { width: 14px; height: 7px; pointer-events: auto; }
   #pointer-sibling { width: 20px; height: 5px; margin-left: 350px; }
+  /* Positive horizontal auto margins; fixed spacer protects scroll witnesses. */
+  #auto-host { width: 200px; height: 64px; }
+  #auto-centered { width: 40px; height: 8px; margin: 0 auto; }
+  #auto-left { width: 50px; height: 7px; margin-left: auto; margin-right: 10px; }
+  #auto-right { width: 30px; height: 6px; margin-left: 12px; margin-right: auto; }
+  #auto-limited { width: auto; max-width: 80px; height: 6px; margin: 0 auto; }
+  #auto-sibling { width: 20px; height: 5px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -274,6 +281,46 @@
   const pointerStates = {
     none: pointerNone, auto: pointerAuto, restored: pointerRestored
   };
+  // Used CSS margins, border rectangles and independent live hit probes.
+  // The selected positive, integral cases avoid rounding and negative margins.
+  const autoMarginIds = ["auto-host", "auto-centered", "auto-left",
+    "auto-right", "auto-limited", "auto-sibling"];
+  const autoMarginChildren = ["auto-centered", "auto-left", "auto-right", "auto-limited"];
+  const autoMarginProbes = [
+    ["center-original", 81, 468],
+    ["center-shifted", 21, 468],
+    ["left-auto", 141, 476],
+    ["right-auto", 13, 483],
+    ["limited", 61, 489],
+    ["host", 195, 525],
+    ["sibling", 1, 533],
+    ["outside", 221, 468]
+  ];
+  function autoMarginSample() {
+    return {
+      computed: Object.fromEntries(autoMarginChildren.map(id => {
+        const style = getComputedStyle(document.getElementById(id));
+        return [id, { left: style.marginLeft, right: style.marginRight }];
+      })),
+      boxes: Object.fromEntries(autoMarginIds.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+      })),
+      hits: Object.fromEntries(autoMarginProbes.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, autoMarginIds.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+  const autoCenter = document.getElementById("auto-centered");
+  const autoOriginal = autoMarginSample();
+  autoCenter.style.marginLeft = "20px";
+  const autoShifted = autoMarginSample();
+  autoCenter.style.removeProperty("margin-left");
+  const autoRestored = autoMarginSample();
+  const autoMarginStates = {
+    centered: autoOriginal, leftFixed: autoShifted, restored: autoRestored
+  };
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
   // All earlier geometry/hit channels were captured before changing scrollY.
   function scrollSample() {
@@ -311,6 +358,7 @@
     descendantClipStates,
     boxlessStates,
     pointerStates,
+    autoMarginStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {

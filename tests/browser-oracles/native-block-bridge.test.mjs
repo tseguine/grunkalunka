@@ -151,6 +151,36 @@ const pointerStates = () => ({
   auto: pointerPhase(true),
   restored: pointerPhase(false),
 });
+const autoMarginGeometry = shifted => ({
+  "auto-host": { x: 0, y: 467, width: 200, height: 64 },
+  "auto-centered": { x: shifted ? 20 : 80, y: 467, width: 40, height: 8 },
+  "auto-left": { x: 140, y: 475, width: 50, height: 7 },
+  "auto-right": { x: 12, y: 482, width: 30, height: 6 },
+  "auto-limited": { x: 60, y: 488, width: 80, height: 6 },
+  "auto-sibling": { x: 0, y: 531, width: 20, height: 5 },
+});
+const autoMarginPhase = shifted => ({
+  boxes: autoMarginGeometry(shifted),
+  computed: {
+    "auto-centered": {
+      left: shifted ? "20px" : "80px", right: shifted ? "140px" : "80px",
+    },
+    "auto-left": { left: "140px", right: "10px" },
+    "auto-right": { left: "12px", right: "158px" },
+    "auto-limited": { left: "60px", right: "60px" },
+  },
+  hits: {
+    "center-original": shifted ? "auto-host" : "auto-centered",
+    "center-shifted": shifted ? "auto-centered" : "auto-host",
+    "left-auto": "auto-left", "right-auto": "auto-right",
+    limited: "auto-limited", host: "auto-host", sibling: "auto-sibling", outside: null,
+  },
+});
+const autoMarginStates = () => ({
+  centered: autoMarginPhase(false),
+  leftFixed: autoMarginPhase(true),
+  restored: autoMarginPhase(false),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -203,6 +233,7 @@ const native = () => ({
   descendantClipStates: descendantClipStates(),
   boxlessStates: boxlessStates(),
   pointerStates: pointerStates(),
+  autoMarginStates: autoMarginStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -232,6 +263,7 @@ function browser() {
     descendantClipStates: descendantClipStates(),
     boxlessStates: boxlessStates(),
     pointerStates: pointerStates(),
+  autoMarginStates: autoMarginStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -277,11 +309,17 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#pointer-inherited { width: 10px; height: 6px; }",
     "#pointer-restored { width: 14px; height: 7px; pointer-events: auto; }",
     "#pointer-sibling { width: 20px; height: 5px; margin-left: 350px; }",
+    "#auto-host { width: 200px; height: 64px; }",
+    "#auto-centered { width: 40px; height: 8px; margin: 0 auto; }",
+    "#auto-left { width: 50px; height: 7px; margin-left: auto; margin-right: 10px; }",
+    "#auto-right { width: 30px; height: 6px; margin-left: 12px; margin-right: auto; }",
+    "#auto-limited { width: auto; max-width: 80px; height: 6px; margin: 0 auto; }",
+    "#auto-sibling { width: 20px; height: 5px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -293,6 +331,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "percentage boxes must be independently measured from DOM rectangles");
   assert.ok(source.includes("const borderBoxes = Object.fromEntries(borderIds.map("),
     "border-box observations must come from independent DOM rectangles");
+  assert.ok(source.includes('autoCenter.style.marginLeft = "20px"'),
+    "actual CSS margin mutation required");
+  assert.ok(source.includes('autoCenter.style.removeProperty("margin-left")'),
+    "CSS margin restoration required");
+  assert.ok(source.includes("const autoMarginStates = {"),
+    "all three observed auto-margin phases required");
+  assert.ok(source.includes("const style = getComputedStyle(document.getElementById(id))"),
+    "used margins must come from browser style");
   assert.ok(source.includes("document.elementFromPoint(10, 590)"),
     "offscreen target must be selected by actual viewport DOM hit testing");
   assert.ok(source.includes("window.scrollTo(0, 350)"),
@@ -762,6 +808,74 @@ test("incomplete or impossible pointer observations fail closed", () => {
   const left = native();
   delete left.pointerStates.none.hits.inherited;
   assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
+});
+
+
+test("source-observed auto margins center, move and restore boxes and input", () => {
+  const result = compareNativeBlockBridge(native(), browser(), fixture);
+  assert.equal(result.status, "equal", JSON.stringify(result.differences));
+  const right = browser();
+  assert.deepEqual(right.autoMarginStates.centered, right.autoMarginStates.restored);
+  assert.deepEqual(right.autoMarginStates.centered.hits, {
+    "center-original": "auto-centered", "center-shifted": "auto-host",
+    "left-auto": "auto-left", "right-auto": "auto-right",
+    limited: "auto-limited", host: "auto-host",
+    sibling: "auto-sibling", outside: null,
+  });
+  assert.deepEqual(right.autoMarginStates.leftFixed.hits, {
+    "center-original": "auto-host", "center-shifted": "auto-centered",
+    "left-auto": "auto-left", "right-auto": "auto-right",
+    limited: "auto-limited", host: "auto-host",
+    sibling: "auto-sibling", outside: null,
+  });
+  assert.deepEqual(right.autoMarginStates.leftFixed.computed["auto-centered"],
+    { left: "20px", right: "140px" });
+});
+
+test("auto margin geometry, used CSS margins and targets report distinct mismatches", () => {
+  const observed = browser();
+  observed.autoMarginStates.leftFixed.boxes["auto-centered"].x += 1;
+  observed.autoMarginStates.centered.computed["auto-limited"].right = "61px";
+  observed.autoMarginStates.restored.hits["center-original"] = "auto-host";
+  const result = compareNativeBlockBridge(native(), observed, fixture);
+  assert.equal(result.status, "different");
+  assert.deepEqual(result.differences, [{
+    kind: "auto-margin-computed", phase: "centered", id: "auto-limited", side: "right",
+    left: "60px", right: "61px",
+    path: "$.autoMarginStates.centered.computed.auto-limited.right",
+  }, {
+    kind: "auto-margin-box", phase: "leftFixed", id: "auto-centered", field: "x",
+    left: 20, right: 21,
+    path: "$.autoMarginStates.leftFixed.boxes.auto-centered.x",
+  }, {
+    kind: "auto-margin-hit", phase: "restored", probe: "center-original",
+    left: "auto-centered", right: "auto-host",
+    path: "$.autoMarginStates.restored.hits.center-original",
+  }]);
+});
+
+test("absent, partial, surplus or impossible auto-margin evidence fails closed", () => {
+  for (const change of [
+    r => { delete r.autoMarginStates; },
+    r => { delete r.autoMarginStates.leftFixed; },
+    r => { delete r.autoMarginStates.centered.computed; },
+    r => { delete r.autoMarginStates.restored.boxes["auto-left"]; },
+    r => { r.autoMarginStates.centered.boxes["auto-centered"].width = -1; },
+    r => { r.autoMarginStates.centered.boxes["auto-host"].x = Infinity; },
+    r => { r.autoMarginStates.leftFixed.computed["auto-centered"].left = "auto"; },
+    r => { r.autoMarginStates.leftFixed.computed["auto-centered"].right = "-1px"; },
+    r => { delete r.autoMarginStates.restored.hits["center-original"]; },
+    r => { r.autoMarginStates.centered.hits["center-original"] = "body"; },
+    r => { r.autoMarginStates.leftFixed.extra = {}; },
+    r => { r.autoMarginStates.unknown = {}; },
+  ]) {
+    const observed = browser();
+    change(observed);
+    assert.equal(compareNativeBlockBridge(native(), observed, fixture).status, "invalid");
+  }
+  const reported = native();
+  delete reported.autoMarginStates.centered.computed["auto-centered"].right;
+  assert.equal(compareNativeBlockBridge(reported, browser(), fixture).status, "invalid");
 });
 
 test("page scroll translates independent viewport hits and restores positions", () => {
