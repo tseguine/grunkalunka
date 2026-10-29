@@ -658,7 +658,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         }
         let emitter = &mut frame.emitter;
         if let Some(value) = state.resumed {
-            if emitter.function.values[value.0] == Type::General {
+            let tagged = matches!(
+                emitter.function.values[value.0],
+                Type::General | Type::AsyncValue
+            );
+            if tagged {
                 writeln!(
                     output,
                     "local.get $awaited_tag\nglobal.set {}",
@@ -669,8 +673,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             writeln!(
                 output,
                 "local.get $awaited\nglobal.set {}",
-                emitter.value_offsets[value.0]
-                    + usize::from(emitter.function.values[value.0] == Type::General)
+                emitter.value_offsets[value.0] + usize::from(tagged)
             )
             .unwrap();
         }

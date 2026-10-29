@@ -579,9 +579,10 @@ no host jobs. Each invocation retains its cells and snapshots in a separate Wasm
 instance, with a stored state index and terminal completion marker. This is a
 conservative coroutine frame, without general Promise values or live-only spilling.
 
-`TryCatch` defines a General reason snapshot only in its handler. The protected
+`TryCatch` defines a General or AsyncValue reason snapshot only in its handler. The protected
 body and handler inherit outer cells/values but not each other's private snapshots.
-`Exit::Throw` requires a visible General reason. Source admission restricts throw
+`Exit::Throw` requires a visible General reason, or AsyncValue when its nearest
+lexical target admits raw reasons. Source admission restricts throw
 to the async entry, and synchronous emission rejects it. It jumps directly to the
 nearest lexical handler or emits immediate rejection status 3. Catch replaces the body's throw completion channel with the handler's
 alternatives. Awaited rejection still uses the original reaction boundary; caught
@@ -1029,7 +1030,8 @@ return lift General undefined. No IR operation, tag or physical width was added.
 
 TryFinally contains a protected body, one finalizer region, private return/reason
 captures and a return continuation. Protected/finalizer returns carry AsyncValue;
-their throws carry General. The raw-completion verifier context permits those
+their throws carry the selected General or AsyncValue reason type. The
+raw-completion verifier context permits those
 throws alongside awaits, separately from non-suspending settlement bodies.
 The return capture is visible only in the continuation. Body snapshots cannot
 leak into finalizer/continuation scope, and the hidden reason is not source-visible.
@@ -1065,3 +1067,29 @@ General/General branch uses the existing Error-aware comparison. No Promise ID
 is coerced to a Number. The operation allocates nothing and has no settlement,
 handling, suspension or job effect. No opcode, tag, layout or host value is added.
 New Error kinds, custom conversion or general Strings must extend this rule.
+
+### Typed raw exception reasons
+
+Private IR catches may select an AsyncValue reason to preserve a Promise identity
+or primitive bits without adopting or handling the value. General remains the
+default exception domain. Protected statements use the nearest catch's domain;
+the handler itself uses the enclosing domain, so rethrowing cannot accidentally
+catch itself. The reason exists only on the handler's lexical entry.
+
+TryFinally can capture an AsyncValue reason when the enclosing handler accepts
+raw reasons. Cleanup preserves that snapshot on normal completion and replaces
+it on an abrupt completion. The pending return remains a separate AsyncValue.
+Non-suspending settlement bodies, inline async-call rejection boundaries and
+exported root rejection still require General reasons. Their boundaries reset
+the verifier's exception domain even inside an outer raw catch.
+
+Existing two-lane value copies, frame spills and catch routing carry these
+reasons. Rejected-await resumption writes both tag and payload for AsyncValue,
+just as it does for General. No new operation, encoding, arena record or host
+value kind is introduced. Maintained IR tests compare native JS/Node-Wasm values,
+identity and reaction ticks through catches, rethrows and suspended finally cleanup.
+Visibility and incompatible exception-boundary cases remain verifier errors.
+
+This is guest exception transport, a prerequisite for general Promise-valued
+throws and rejection reasons. Source admission and host Promise-object transport
+remain required work; the source frontend still selects General catch reasons.
