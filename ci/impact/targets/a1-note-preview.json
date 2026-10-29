@@ -3,6 +3,7 @@
   "dependsOn": [
     "a1-note-preview",
     "grunkalunka-runtime",
-    "grunkalunka-markdown"
+    "grunkalunka-markdown",
+    "grunkalunka-layout"
   ]
 }

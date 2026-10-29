@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { compileSource } from '../../tools/build/compile.mjs';
 import { escapeHtml, renderNotePreview, renderWithCompiledToggle } from '../../examples/note-preview/render.mjs';
+import { prepareNoteScene } from '../../examples/note-preview/scene.mjs';
 
 const bytes = Buffer.from('# Root\r\n## 子😀\n', 'utf8');
 const headings = [
@@ -159,8 +160,11 @@ test('real Markdown/WIT guest drives native-parity granted and denied HTML throu
     checkedCommand('cargo', [...guestBuild, '--target', 'wasm32-unknown-unknown']);
     checkedCommand('cargo', ['build', '-p', 'grunkalunka-runtime', '--example',
       'a1_note_preview', '--locked', '--offline', '-j', '4']);
+    checkedCommand('cargo', ['build', '-p', 'grunkalunka-layout', '--example',
+      'a1_note_scene', '--locked', '--offline', '-j', '4']);
 
     const driver = nativeExample('a1_note_preview');
+    const layoutDriver = nativeExample('a1_note_scene');
     const native = nativeExample('outline_guest');
     const guest = join(targetRoot, 'wasm32-unknown-unknown', 'debug', 'examples',
       'outline_guest.wasm');
@@ -168,6 +172,9 @@ test('real Markdown/WIT guest drives native-parity granted and denied HTML throu
       'utf8');
     const { wasm } = await compileSource({ compiler, source, language: 'js' });
     assert.ok(WebAssembly.validate(wasm));
+    const changedSource = source.replace('expanded > 0 ? count : 0', 'expanded > 0 ? 0 : count');
+    assert.notEqual(changedSource, source);
+    const { wasm: changedWasm } = await compileSource({ compiler, source: changedSource, language: 'js' });
     const fixtures = [
       '# Root\r\n### 子😀\n[relative](../private.md)\n',
       '# &lt;script&gt;bad()&lt;/script&gt;\n## Café\n',
@@ -217,5 +224,133 @@ test('real Markdown/WIT guest drives native-parity granted and denied HTML throu
       assert.doesNotMatch(inaccessible, /<ol|sourceHex|Sensitive|Root|Café/);
       assert.doesNotMatch(shown, /href=|src=|<script>/,
         'projected text and relative Markdown links remain inert');
+
+      // The same real WIT result now drives native semantic layout and pixels.
+      const document = { profile: 'granted', sourceBytes: bytes,
+        headings, backingReads: granted.backingReads };
+      const nativeExpanded = await prepareNoteScene({ wasm, expanded: 1, ...document });
+      const nativeCollapsed = await prepareNoteScene({ wasm, expanded: 0, ...document });
+      const nativeDenied = await prepareNoteScene({ wasm, expanded: 1,
+        profile: 'denied', sourceBytes: Buffer.alloc(0),
+        headings: [], backingReads: denied.backingReads });
+      const sourceMutated = await prepareNoteScene({ wasm: changedWasm, expanded: 1, ...document });
+      assert.equal(nativeExpanded.html, shown);
+      assert.equal(nativeCollapsed.html, collapsed);
+      assert.equal(nativeDenied.html, inaccessible);
+      assert.equal(sourceMutated.html, collapsed);
+
+      const expandedFrame = parseNativeScene(
+        checkedCommand(layoutDriver, ['--report'], nativeExpanded.input));
+      const collapsedFrame = parseNativeScene(
+        checkedCommand(layoutDriver, ['--report'], nativeCollapsed.input));
+      const deniedFrame = parseNativeScene(
+        checkedCommand(layoutDriver, ['--report'], nativeDenied.input));
+      assert.equal(expandedFrame.profile, 'granted');
+      assert.equal(collapsedFrame.profile, 'granted');
+      assert.equal(deniedFrame.profile, 'denied');
+      for (const frame of [expandedFrame, collapsedFrame, deniedFrame]) {
+        assert.deepEqual([frame.width, frame.height], [320, 160]);
+        assert.ok(frame.scrollHeight >= 160);
+      }
+      assert.deepEqual(expandedFrame.anchors.map(anchor => anchor.text),
+        ['Note preview', ...headings.map(heading => heading.text)],
+        'native anchors must retain the real WIT labels');
+      assert.deepEqual(collapsedFrame.anchors.map(anchor => anchor.text),
+        ['Note preview', 'Outline collapsed.']);
+      assert.deepEqual(deniedFrame.anchors.map(anchor => anchor.text),
+        ['Note preview', 'Document access denied.']);
+      for (const [index, heading] of headings.entries()) {
+        const anchor = expandedFrame.anchors[index + 1];
+        assert.equal(anchor.node, index + 4);
+        assert.deepEqual([anchor.start, anchor.end, anchor.level],
+          [heading.start, heading.end, heading.level]);
+        assert.equal(anchor.text, heading.text);
+      }
+      assert.equal(expandedFrame.anchors[1].x, 24 + (headings[0].level - 1) * 8);
+      assert.equal(expandedFrame.anchors[1].y, 40);
+      const expandedPpm = checkedScenePpm(layoutDriver, nativeExpanded.input);
+      const collapsedPpm = checkedScenePpm(layoutDriver, nativeCollapsed.input);
+      const deniedPpm = checkedScenePpm(layoutDriver, nativeDenied.input);
+      const changedPpm = checkedScenePpm(layoutDriver, sourceMutated.input);
+      assert.deepEqual(ppmRgb(expandedPpm, 24, 40), [87, 164, 118]);
+      assert.deepEqual(ppmRgb(collapsedPpm, 24, 40), [160, 160, 160]);
+      assert.deepEqual(ppmRgb(deniedPpm, 24, 40), [192, 80, 80]);
+      assert.notDeepEqual(expandedPpm, collapsedPpm);
+      assert.notDeepEqual(expandedPpm, deniedPpm);
+      assert.deepEqual(changedPpm, collapsedPpm,
+        'mutated compiled JS must change native RGB pixels, not only HTML');
+      assert.doesNotMatch(nativeDenied.input.toString('utf8'), /Root|Sensitive|Café|子/);
+      assert.ok(!deniedFrame.anchors.some(anchor =>
+        headings.some(heading => anchor.text === heading.text)));
+    }
+  });
+
+function parseNativeScene(output) {
+  const [header, ...rows] = output.trimEnd().split('\n');
+  const fields = header.split('\t');
+  assert.equal(fields.length, 6);
+  assert.equal(fields[0], 'A1FRAME1');
+  const [, profile, width, height, scrollHeight, count] = fields;
+  assert.ok(profile === 'granted' || profile === 'denied');
+  assert.equal(rows.length, Number(count));
+  const anchors = rows.map(row => {
+    const columns = row.split('\t');
+    assert.equal(columns.length, 10);
+    const [tag, node, x, y, w, h, start, end, level, textHex] = columns;
+    assert.equal(tag, 'T');
+    assert.match(textHex, /^(?:[a-f0-9]{2})*$/);
+    return {
+      node: Number(node), x: Number(x), y: Number(y),
+      width: Number(w), height: Number(h),
+      start: Number(start), end: Number(end), level: Number(level),
+      text: new TextDecoder('utf-8', { fatal: true })
+        .decode(Buffer.from(textHex, 'hex')),
+    };
+  });
+  return { profile, width: Number(width), height: Number(height),
+    scrollHeight: Number(scrollHeight), anchors };
+}
+
+function checkedScenePpm(executable, input) {
+  const result = spawnSync(executable, ['--ppm'], {
+    cwd: projectRoot, input, shell: false, encoding: null,
+    timeout: 30_000, killSignal: 'SIGKILL', maxBuffer: 512 * 1024,
+  });
+  if (result.error) throw result.error;
+  assert.equal(result.signal, null);
+  assert.equal(result.status, 0, result.stderr.toString('utf8'));
+  const header = Buffer.from('P6\n320 160\n255\n');
+  assert.deepEqual(result.stdout.subarray(0, header.length), header);
+  assert.equal(result.stdout.length, header.length + 320 * 160 * 3);
+  return result.stdout;
+}
+
+function ppmRgb(ppm, x, y) {
+  const offset = Buffer.byteLength('P6\n320 160\n255\n') + (320 * y + x) * 3;
+  return [...ppm.subarray(offset, offset + 3)];
+}
+
+test('native A1 scene rejects forged denial and malformed WIT rows before painting',
+  { timeout: 120_000 }, () => {
+    const executable = nativeExample('a1_note_scene');
+    const cases = [
+      'A1SCENE1\tdenied\t0\t1\t0\n1\t0\t1\t1\t-1\t61\n',
+      'A1SCENE1\tdenied\t1\t0\t0\n',
+      'A1SCENE1\tgranted\t4097\t0\t1\n',
+      'A1SCENE1\tgranted\t20\t1\t0\n1\t0\t5\t20\t-1\t61\n',
+      'A1SCENE1\tgranted\t20\t1\t1\n7\t0\t5\t20\t-1\t61\n',
+      'A1SCENE1\tgranted\t20\t1\t1\n1\t0\t5\t20\t0\t61\n',
+      'A1SCENE1\tgranted\t20\t1\t1\n1\t0\t5\t20\t-1\tff\n',
+      'A1SCENE1\tgranted\t20\t1\t1\n1\t0\t5\t20\t-1\t61\nextra\n',
+    ];
+    for (const [index, input] of cases.entries()) {
+      const result = spawnSync(executable, ['--ppm'], {
+        cwd: projectRoot, input, shell: false, encoding: null,
+        timeout: 30_000, killSignal: 'SIGKILL', maxBuffer: 256 * 1024,
+      });
+      if (result.error) throw result.error;
+      assert.equal(result.signal, null);
+      assert.notEqual(result.status, 0, 'rejected scene case ' + index);
+      assert.equal(result.stdout.length, 0, 'failed scene must not paint pixels');
     }
   });

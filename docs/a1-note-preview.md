@@ -66,12 +66,47 @@ Tests use only existing canonical check registration and dependencies. Changes t
 the Markdown parser or WIT/runtime package must select this integration test as
 well as native package tests; the A1 impact target declares those dependencies.
 
-The next separately bounded step must feed content/visibility into
-Grunkalunka's **native** layout/paint/input pipeline (with explicit HTML parsing
-or a documented semantic adapter). Outputting an HTML string is not evidence
-that the native renderer displays it. The final A1 acceptance also requires
-real build/run/debug/package flows and the same runnable application under two
-capability profiles. Those criteria remain **Planned**.
+## Native semantic layout and RGB scene (next A1 integration unit)
+
+The host now also uses `prepareNoteScene` with the **actual** WIT record list
+and JS-compiled Wasm selector to produce an explicit, bounded scene protocol.
+The profile, permitted source *length*, source positions and owned heading labels
+are inputs to `grunkalunka-layout`'s separate `a1_note_scene` example. Neither
+the renderer nor the protocol receives the original Markdown source bytes;
+the denied scene includes no headings or protected source length.
+
+The Rust scene example validates the private line protocol and maps it to
+the existing typed `Body/Main/Heading/OrderedList/ListItem/Paragraph` semantic
+adapter. It uses the normal-flow layout engine and optional RGB painter, without
+editing their implementation or inventing CSS, DOM or event behavior. A granted
+expanded outline produces visible colored rows, a collapsed outline produces a
+distinct state, and document denial produces a visibly different status panel.
+`--report` emits retained UTF-8 text anchors, node coordinates and original WIT
+source ranges as a bounded text/hex diagnostic. `--ppm` emits a real 320x160
+binary P6 raster. This is a native Grunkalunka **geometry and pixel** result,
+not an external browser oracle or a host-generated image.
+
+The existing A1 canonical Node test composes the real WIT grant/deny guest,
+actual source-compiled numeric Wasm, the trusted HTML presenter, and the native
+layout/paint executable. It checks independently expected text anchors, WIT byte
+ranges, selected pixel colors, different PPM bytes for granted/collapsed/denied,
+and a source-mutation regression that changes native pixels. Malformed, forged
+denied, oversized, invalid-UTF-8 or inconsistent scene records must fail before
+any pixels are emitted. The Rust example uses only standard input/output and
+existing crate dependencies; there is no additional Actions job.
+
+This is deliberately **not** a general HTML parser or CSS cascade: both the
+inert semantic HTML string and the native scene are projections of the *same*
+trusted typed WIT data, rather than parsing that string back into a browser DOM.
+The painter fills boxes; text labels are retained with their native anchors but
+are not drawn as glyphs. No font selection, glyph rasterization, real window,
+pointer dispatch or accessible browser tree has been demonstrated. These are
+explicit remaining front-end integration tasks, together with usable
+build/run/debug/package workflow evidence.
+
+A1 remains **Planned**, not complete. The first-app/product choice remains
+provisional; there is no persistence, writable vault, external resource
+resolution or public source-language DOM binding.
 
 No browser-oracle artifacts, current P1 measurement code or compiler-lowering
 paths are changed by this preparatory A1 unit. The proposed note viewer remains
