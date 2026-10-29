@@ -132,7 +132,7 @@ fn run() -> wasmtime::Result<()> {
         wasmtime::bail!("usage: a1_note_preview GUEST.wasm [--profile granted|denied]");
     }
     let selected = if args.len() == 3 {
-        if args[1] != "--profile" {
+        if args[1].to_str() != Some("--profile") {
             wasmtime::bail!("expected --profile granted|denied");
         }
         match args[2].to_str() {
@@ -176,10 +176,7 @@ fn run() -> wasmtime::Result<()> {
     if selected != Some(false) {
         profiles.push(inspect_profile(&engine, &component, &text, true)?);
     }
-    println!(
-        r#"{{"schemaVersion":1,"profiles":[{}]}}"#,
-        profiles.join(",")
-    );
+    println!(r#"{{"schemaVersion":1,"profiles":[{}]}}"#, profiles.join(","));
     Ok(())
 }
 
