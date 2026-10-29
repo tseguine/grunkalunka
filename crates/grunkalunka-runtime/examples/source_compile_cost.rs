@@ -194,10 +194,9 @@ pub fn parse_observed_rustc(output: &str) -> Option<String> {
     let line = output.lines().next()?.trim();
     if !line.starts_with("rustc ")
         || line.len() > 128
-        || !line.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric()
-                || b" ._()+-".contains(&byte)
-        })
+        || !line
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b" ._()+-".contains(&byte))
     {
         return None;
     }
