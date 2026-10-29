@@ -1,0 +1,5 @@
+{
+  "id": "a1-note-preview",
+  "paths": ["examples/note-preview/", "tests/applications/"],
+  "dependsOn": ["node-build", "node-runtime", "grunkalunka-compiler"]
+}
