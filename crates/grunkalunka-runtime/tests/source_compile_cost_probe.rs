@@ -4,7 +4,7 @@
 mod source_compile_cost;
 
 use sha2::{Digest, Sha256};
-use source_compile_cost::{MEMORY_PHASES, Options, Workload, parse_options, probe};
+use source_compile_cost::{Options, Workload, parse_options, probe};
 
 fn sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
@@ -154,7 +154,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         #[cfg(target_os = "linux")]
         {
             assert!(json.contains("\"source\":\"linux-proc-status\""));
-            for phase in MEMORY_PHASES {
+            for phase in source_compile_cost::MEMORY_PHASES {
                 assert!(json.contains(&format!("\"{phase}\":")), "{phase}");
             }
         }
