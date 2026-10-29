@@ -75,3 +75,18 @@ its directly awaited result are unreachable and never coerce the reason.
 
 General synchronous throw, full interprocedural reason inference, thenables, String/heap
 values and general Promise construction remain separate gaps.
+
+## Mutable catch cells
+
+A catch variable can start with an admitted primitive and later receive a
+represented Promise, even when the module has no Promise-valued throw or rejection
+producer. Its original-symbol assignment provenance selects existing mixed storage;
+the incoming primitive retains its tag. Saved aliases remain snapshots, while
+captured getters observe later writes to the same cell. Logical assignments retain
+selection and skipped effects; a failed right-hand side leaves the old cell value.
+Returning the selected Promise still uses ordinary async-return adoption.
+
+Maintained JS/TS native-JS/Node-Wasm/Wasmtime tests cover primitive tags, identity,
+captures, private helpers, suspension, failure and finally precedence. String, heap
+and function values remain outside this catch-cell profile. No new IR operation,
+host protocol, dependency or resource limit is introduced.

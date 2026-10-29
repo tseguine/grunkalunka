@@ -406,3 +406,15 @@ to preserve the existing 2 MiB compiler-stack stress contract. The source profil
 continues to exclude arbitrary thenables and unsupported heap/function/String
 inputs. Differential value/identity/job/checkpoint tests and unchanged closure
 stress tests verify this bounded extension; see [the contract](../async-promise-resolution.md).
+
+## Mutable catch storage provenance (2026-10-29)
+
+The first thrown value does not bound the later contents of a mutable catch cell.
+Include assignment provenance when selecting the existing AsyncValue carrier, even
+without a module-level raw rejection producer. This reuses current typed storage,
+alias/capture flow and copy semantics instead of introducing another mutable box or
+restricting assignments to the initial reason kind. Ordinary async return still
+adopts a selected Promise; writing a cell neither adopts nor handles it.
+Maintained source differentials cover initial primitive snapshots, captured later
+writes, logical selection, argument failure and cleanup. Broader value domains and
+precise rejection effects remain separate from this storage rule.

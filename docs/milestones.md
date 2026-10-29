@@ -892,3 +892,12 @@ Native JS/Node-Wasm/Wasmtime tests cover the exact former exclusion, captures,
 private forwarding, snapshots, failures, primitive/intrinsic-error values, typed
 erasure, source limits and rejection checkpoints. Existing 2 MiB closure stress
 assertions remain unchanged; see [the contract](async-promise-resolution.md).
+
+## Mixed mutable catch cells (2026-10-29)
+
+Primitive-initialized catch variables can later store represented Promise identities
+without requiring another raw Promise rejection producer in the module. Initial
+primitive tags and saved aliases survive later writes; captures, private calls,
+logical assignments, suspension/failure and finally cleanup use existing mixed
+carrier semantics. JS/TS native-JS/Node-Wasm/Wasmtime tests compare identity, values
+and complete reaction traces. See [catch storage](async-promise-objects.md).
