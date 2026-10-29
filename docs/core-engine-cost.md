@@ -42,6 +42,20 @@ These are **post-warmup** observations, not cold application startup.
 Wasmtime Store setup and Node module/instance runtime behavior differ, and
 both may reuse caches; this is not a machine-independent engine speed ratio.
 
+To account separately for setup excluded from the fresh-instantiation timer,
+the same Wasmtime probe now also measures `samples` empty-host controls:
+construction of a **new `Engine::default()`**, then construction of an empty
+`Store::new(&engine, ())` using that engine. Each has its own raw,
+independently bounded sample series and min/median/max under
+`wasmtime.hostSetup.engineCreation` and `storeCreation`. The controls
+run **after** the existing five Wasmtime whole-process memory checkpoints
+and the separate fresh-instance golden checks, but before the Node subprocess.
+No guest module is compiled or called in these empty-host samples. Engine
+and Store lifetimes may share process caches; destruction is not timed.
+Node/V8 does not expose an equivalent JavaScript Engine/Store constructor,
+so there is **no Node-vs-Wasmtime host-setup ratio** or comparable standalone
+process startup result.
+
 Goldens for all eight pairs and warmup checksums are verified outside timed
 batches. Batch checksums are verified immediately after each timed batch,
 without accepting a silently wrong result. The GCD result must match the
@@ -130,10 +144,10 @@ host CPU/virtualization, machine load and cache conditions alongside each
 report. The Wasmtime version declaration must follow the workspace pin.
 
 Neither subprocess creation nor Node's input transfer is timed as startup.
-Wasm decoding/JIT cache and CPU scheduling are not controlled. Wasmtime
-engine creation, Rust process startup, code cache, **cross-platform and
-guest-attributable Wasmtime memory**, frontend-only cost, nonnumeric values and
-representative application costs remain outside this slice. The process
+Wasm decoding/JIT cache and CPU scheduling are not controlled. Full application startup, Rust process launch, code-cache behavior, **cross-
+platform and guest-attributable Wasmtime memory**, frontend-only cost,
+nonnumeric values and representative application costs remain outside this
+slice. The process
 snapshots above do not create portable engine memory comparisons. Collect multiple reports under stable conditions
 before examining relative changes; the tool does not rank engines.
 
