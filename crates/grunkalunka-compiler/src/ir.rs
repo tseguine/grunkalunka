@@ -438,14 +438,14 @@ pub(crate) enum Op {
         result: ValueId,
         body: Region,
     },
-    // The reason is defined only on the handler's lexical entry.
+    // General or AsyncValue reason, defined only on the handler's lexical entry.
     TryCatch {
         body: Region,
         reason: ValueId,
         handler: Region,
     },
     /// Protected and finalizer returns are raw values. Only the return
-    /// continuation sees the captured return; throws use a private General reason.
+    /// continuation sees the captured return; the reason is General or AsyncValue.
     TryFinally {
         body: Region,
         finalizer: Region,
@@ -828,6 +828,7 @@ struct RegionFrame<'a> {
     allow_loop_control: bool,
     settlement: bool,
     raw_completion: bool,
+    throw_type: Type,
     inline_async: bool,
     return_type: Type,
     entered: bool,
@@ -853,6 +854,7 @@ impl<'a> RegionFrame<'a> {
             allow_loop_control,
             settlement: self.settlement,
             raw_completion: self.raw_completion,
+            throw_type: self.throw_type,
             inline_async: self.inline_async,
             return_type,
             entered: false,
@@ -886,6 +888,16 @@ impl Verifier<'_> {
             ));
         }
         Ok(())
+    }
+
+    fn reason_type(&self, value: ValueId, span: Span) -> Result<Type, String> {
+        match self.function.values.get(value.0).copied() {
+            Some(ty @ (Type::General | Type::AsyncValue)) => Ok(ty),
+            _ => Err(invalid(
+                span,
+                "exception reason must be General or AsyncValue",
+            )),
+        }
     }
 
     fn define(
@@ -1343,6 +1355,7 @@ impl Verifier<'_> {
             allow_loop_control,
             settlement: false,
             raw_completion: false,
+            throw_type: Type::General,
             inline_async: false,
             return_type: self.return_type,
             entered: false,
@@ -1437,6 +1450,7 @@ impl Verifier<'_> {
                     frame.pending = PendingRegion::Settlement;
                     let mut child = frame.child(body, Contract::Function, false, Type::General);
                     child.settlement = true;
+                    child.throw_type = Type::General;
                     return Ok(RegionCheck::Child(child));
                 }
                 (Op::SettlePromise { result, .. }, PendingRegion::Settlement) => {
@@ -1475,6 +1489,9 @@ impl Verifier<'_> {
                     frame.pending = PendingRegion::Inline(ty);
                     let mut child = frame.child(body, Contract::Function, false, ty);
                     child.inline_async |= matches!(operation.kind, Op::AwaitCall { .. });
+                    if matches!(operation.kind, Op::AwaitCall { .. }) {
+                        child.throw_type = Type::General;
+                    }
                     return Ok(RegionCheck::Child(child));
                 }
                 (
@@ -1549,14 +1566,16 @@ impl Verifier<'_> {
                     }
                     left.union(right)
                 }
-                (Op::TryCatch { body, .. }, PendingRegion::Start) => {
+                (Op::TryCatch { body, reason, .. }, PendingRegion::Start) => {
                     frame.pending = PendingRegion::TryBody;
-                    return Ok(RegionCheck::Child(frame.child(
+                    let mut child = frame.child(
                         body,
                         Contract::Statement,
                         frame.allow_loop_control,
                         frame.return_type,
-                    )));
+                    );
+                    child.throw_type = self.reason_type(*reason, span)?;
+                    return Ok(RegionCheck::Child(child));
                 }
                 (
                     Op::TryCatch {
@@ -1571,7 +1590,12 @@ impl Verifier<'_> {
                         frame.allow_loop_control,
                         frame.return_type,
                     );
-                    self.define(*reason, Type::General, &mut child.visible, span)?;
+                    self.define(
+                        *reason,
+                        self.reason_type(*reason, span)?,
+                        &mut child.visible,
+                        span,
+                    )?;
                     frame.pending = PendingRegion::TryHandler(body);
                     return Ok(RegionCheck::Child(child));
                 }
@@ -1594,7 +1618,14 @@ impl Verifier<'_> {
                         ));
                     }
                     let mut hidden = BTreeSet::new();
-                    self.define(*reason, Type::General, &mut hidden, span)?;
+                    let reason_type = self.reason_type(*reason, span)?;
+                    if reason_type == Type::AsyncValue && frame.throw_type != Type::AsyncValue {
+                        return Err(invalid(
+                            span,
+                            "raw finally reason requires a raw outer handler",
+                        ));
+                    }
+                    self.define(*reason, reason_type, &mut hidden, span)?;
                     if self.function.values.get(returned.0) != Some(&Type::AsyncValue) {
                         return Err(invalid(span, "finally return capture must be AsyncValue"));
                     }
@@ -1604,8 +1635,9 @@ impl Verifier<'_> {
                         frame.allow_loop_control,
                         Type::AsyncValue,
                     );
-                    // This region carries a primitive throw separately from its raw return.
+                    // Capture the pending reason separately from the raw return.
                     child.raw_completion = true;
+                    child.throw_type = reason_type;
                     frame.pending = PendingRegion::FinallyBody;
                     return Ok(RegionCheck::Child(child));
                 }
@@ -1769,7 +1801,14 @@ impl Verifier<'_> {
                         || frame.settlement
                         || frame.raw_completion && frame.return_type == Type::AsyncValue) =>
             {
-                self.value(value, Type::General, &frame.visible, region.span)?;
+                let ty = self.reason_type(value, region.span)?;
+                if ty == Type::AsyncValue && frame.throw_type != Type::AsyncValue {
+                    return Err(invalid(
+                        region.span,
+                        "raw throw requires a raw lexical handler",
+                    ));
+                }
+                self.value(value, ty, &frame.visible, region.span)?;
                 completion = completion.then(Completion::THROW);
             }
             (Contract::Statement, Exit::Break) if completion.normal && frame.allow_loop_control => {
