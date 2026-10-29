@@ -469,7 +469,7 @@ argument specialization and finally-sensitive effect elimination remain separate
 
 ## Call-site primitive rejection provenance (2026-10-29)
 
-Refine the existing source-known synchronous call rejection query with primitive
+Refine the existing source-known local call rejection query with primitive
 actual-argument proofs for unwritten formals. Keep the shared physical signature
 and global parameter facts: the refinement affects only the caller's possible
 rejection domain. Propagate those proofs through unwritten aliases, forwarding
@@ -484,6 +484,12 @@ Depth, source, frame, signature and runtime limits remain unchanged. Source
 differentials and deliberate cache/write-guard mutations check raw identity and
 primitive arithmetic together; broader Promise-domain and mutable-flow
 specialization remain separate work.
+
+The same call context applies to the own escaping await/throw query introduced
+above for async targets. Explicit throws use the value proof, and awaits and
+returns follow rejection provenance. Async counterparts retain raw first-call
+inputs, primitive later calls, written formals and older captured activations;
+typed sync and async twins emit identical bytes to their respective JavaScript.
 
 Capture proofs require a stable constructor/alias chain for the called value.
 Mutable storage, factory results and callback formals can select a closure from

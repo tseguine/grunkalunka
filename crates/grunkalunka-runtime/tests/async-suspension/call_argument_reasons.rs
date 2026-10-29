@@ -8,6 +8,28 @@ fn call_argument_reasons_keep_primitive_calls_separate_from_raw_calls() {
     );
 }
 
+#[test]
+fn call_argument_reasons_follow_async_return_await_and_throw_sources() {
+    for body in [
+        "return Promise.reject(x);",
+        "await a;throw x;",
+        "await Promise.reject(x);return b;",
+        "const y=x;await a;throw y;",
+        "return x;",
+    ] {
+        let source = format!(
+            "export async function run(a,b){{const p=Promise.resolve(a),f=async x=>{{{body}}};try{{await f(p);}}catch(e){{if(e!==p)return false;}}try{{await f(b);throw b;}}catch(e){{return e+b;}}}}"
+        );
+        compare_arguments(&[&source]);
+    }
+    compare_arguments(&[
+        "export async function run(a,b){const p=Promise.resolve(a),q=Promise.reject(p),f=async x=>{await x;throw b;};try{await f(q);}catch(e){if(e!==p)return false;}try{await f(b);}catch(e){return e+b;}}",
+        "export async function run(a,b){const p=Promise.resolve(a),f=async x=>{await a;x=p;throw x;};try{await f(b);}catch(e){return e===p;}}",
+        "export async function run(a,b){const p=Promise.resolve(a);let first=true,h=async()=>Promise.reject(b);const f=async x=>{const g=async()=>Promise.reject(x);if(first){first=false;h=g;return Promise.reject(b);}return h();};try{await f(p);}catch(e){}try{await f(b);}catch(e){return e===p;}}",
+        "export async function run(a,b){const p=Promise.resolve(a),f=async()=>b;try{throw p;}catch(e){}try{await f();throw b;}catch(e){return e+b;}}",
+    ]);
+}
+
 fn compare_arguments(sources: &[&str]) {
     compare_async_sources(
         &sources
@@ -108,6 +130,12 @@ fn call_argument_reasons_erase_types_and_preserve_limits() {
     assert_eq!(
         compile_async(js, false).unwrap().wasm,
         compile_async(ts, true).unwrap().wasm
+    );
+    let async_js = js.replace("f=x=>", "f=async x=>");
+    let async_ts = ts.replace("f=(x:unknown)", "f=async (x:unknown)");
+    assert_eq!(
+        compile_async(&async_js, false).unwrap().wasm,
+        compile_async(&async_ts, true).unwrap().wasm
     );
     for count in [1000, 1001] {
         let source = format!(

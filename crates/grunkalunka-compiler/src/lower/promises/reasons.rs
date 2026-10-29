@@ -246,9 +246,7 @@ fn may_reject_raw(
                     if let Some(bodies) = callees(&call.callee, returns) {
                         for body in bodies {
                             let arrow = returns.arrows[&body];
-                            let mut primitive = if !arrow.r#async
-                                && current_capture_callee(&call.callee, semantic)
-                            {
+                            let mut primitive = if current_capture_callee(&call.callee, semantic) {
                                 contexts[context].clone()
                             } else {
                                 BTreeSet::new()
@@ -268,7 +266,6 @@ fn may_reject_raw(
                                     &parameter.pattern
                                     && let (Some(symbol), Some(argument)) =
                                         (binding.symbol_id.get(), argument.as_expression())
-                                    && !arrow.r#async
                                     && !semantic
                                         .scoping()
                                         .get_resolved_references(symbol)
@@ -316,7 +313,13 @@ fn may_reject_raw(
                                     }
                                     if thrown {
                                         // Throw preserves a value; await follows its rejection.
-                                        if return_adopts(argument, semantic, returns, inputs) {
+                                        if value_may_be_promise(
+                                            argument,
+                                            &contexts[child],
+                                            semantic,
+                                            returns,
+                                            inputs,
+                                        ) {
                                             return true;
                                         }
                                     } else {

@@ -146,14 +146,20 @@ JS/TS native-JS/Node-Wasm/Wasmtime tests exercise local handling, own and nested
 effects, raw identity, snapshots, cleanup, primitive tags, typed byte identity and
 existing argument/await limits.
 
-## Primitive arguments of synchronous local calls
+## Primitive arguments of local calls
 
 Await-reason inference can refine an unwritten formal parameter from the actual
-argument of each source-known synchronous call. Calling `x => Promise.reject(x)`
+argument of each source-known local call. Calling `x => Promise.reject(x)`
 with a Promise still preserves that Promise as a raw reason; a later call with a
 primitive can use primitive catch arithmetic. The shared runtime signature and
 parameter cell remain unchanged. Unwritten aliases, forwarding calls, selected
 targets and captured formals carry the same read-only proof.
+
+Async targets use the same context for own escaping sources and returned
+expressions. A throw preserves its argument value; await and async return follow
+the rejection domain. Locally handled sources retain their existing lexical
+routes. Fresh primitive inputs can therefore keep catch arithmetic available
+through async returns, throws and awaits as well as synchronous forwarding.
 
 Captured-formal proofs cross stable binding chains to local arrow constructors.
 A mutable, factory-produced or callback callee may instead close over an older

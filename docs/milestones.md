@@ -931,11 +931,12 @@ precision remain conservative. See [the async source contract](async-promise-obj
 
 ## Primitive call-argument rejection provenance (2026-10-29)
 
-An awaited source-known synchronous helper can retain primitive-only rejection
+An awaited source-known local helper can retain primitive-only rejection
 reasons for one call even when another call passes it a Promise. Unwritten
 formals, aliases, forwarding and captures use per-call primitive proofs while
 keeping the shared runtime signature. Written or uncertain inputs stay
 conservative. Context-sensitive memoization preserves raw alternatives; proof
-budget exhaustion reuses the original global facts. Maintained JS/TS
+budget exhaustion reuses the original global facts. Async own returns, throws and
+awaits use the same context and existing lexical exception routes. Maintained JS/TS
 native-JS/Node-Wasm/Wasmtime tests compare values, full reaction traces, argument
-snapshots, typed erasure and resource boundaries. See [the source contract](async-promise-objects.md#primitive-arguments-of-synchronous-local-calls).
+snapshots, typed erasure and resource boundaries. See [the source contract](async-promise-objects.md#primitive-arguments-of-local-calls).
