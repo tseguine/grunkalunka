@@ -53,6 +53,35 @@ second implementation of Markdown. This validates projection parity; it
 does not independently certify CommonMark. Existing document authority, quota
 and malformed-result suites are separate evidence.
 
+## Rust/Wasmtime whole-process memory checkpoints
+
+The same real Markdown/WIT cost probe now reports five **process-wide**
+Rust/Wasmtime snapshots, independent of its timing intervals: after reading
+the guest and creating the Engine (before embedding), after component
+compilation and linker setup, after fresh-instantiation calibration and
+creation of the granted/denied instances, after warmup, and after verified
+call batches but **before disposing of the two instances**.
+
+On Linux, `/proc/self/status` supplies current `VmRSS` and
+process-lifetime high-water `VmHWM` (converted from KiB to bytes), under
+the named `processMemory.snapshots` phases. The existing bounded parser
+and monotonic-high-water validation from the core-Wasm cost probe are reused,
+not silently reimplemented. Linux canonical integration checks require all
+five real observations, nonnegative integral byte values, current RSS no
+greater than peak, and nondecreasing peak measurements. Windows and macOS
+explicitly report `unsupported-on-this-host` with `snapshots: null`;
+they do **not** fabricate zero-memory or comparable Linux measurements.
+
+These observations describe the **entire Rust process**, including the
+Markdown guest, the Wasmtime runtime, JIT caches, host allocations,
+linker, input/output and the measurement harness. The first peak may
+already include earlier compiler/cache work; even differences between
+snapshots cannot be attributed to guest memory. Source/workload bounds
+still do not bound host RSS, and no performance, resource budget or
+cross-host ranking is enforced. Snapshots are outside the original
+measurement timers. They complement, rather than replace, the separate
+GCD core-Wasm RSS observations and Node/V8 process memory data.
+
 ## Repeatability and local report provenance
 
 The canonical document check also invokes the **same Unicode workload twice in

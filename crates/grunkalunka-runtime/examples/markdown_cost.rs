@@ -1,6 +1,8 @@
 //! Measure the real Markdown guest through a private WIT component, without performance gates.
 #[path = "../tests/fixtures/document-outline/embedding.rs"]
 mod embedding;
+#[path = "core_engine_cost/process_memory.rs"]
+pub mod process_memory;
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -9,6 +11,14 @@ use std::path::Path;
 use std::time::Instant;
 use wasmtime::component::{Component, HasSelf, Linker, Resource};
 use wasmtime::{Engine, Store};
+
+pub const MEMORY_PHASES: [&str; 5] = [
+    "beforeEmbed",
+    "afterCompile",
+    "afterInstantiation",
+    "afterWarmup",
+    "afterBatches",
+];
 
 wasmtime::component::bindgen!({
     path: "tests/fixtures/document-outline",
@@ -308,6 +318,7 @@ pub struct Report {
     pub component_bytes: usize,
     pub embed_ms: f64,
     pub compile_ms: f64,
+    pub process_memory: process_memory::ProcessMemory,
     pub instantiation: Series,
     pub granted: Series,
     pub denied: Series,
@@ -356,7 +367,9 @@ impl Report {
             self.denied.json()
         )
         .unwrap();
-        out.push_str("},\"outcomes\":{");
+        out.push_str("},\"processMemory\":");
+        out.push_str(&self.process_memory.json_with_phases(&MEMORY_PHASES));
+        out.push_str(",\"outcomes\":{");
         write!(
             out,
             "\"grantedBackingReads\":{},\"deniedBackingReads\":{},\"grantedCleanups\":{},\"deniedCleanups\":{}",
@@ -387,6 +400,9 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
     let template = include_str!("../tests/fixtures/document-outline/inspector.wat.in");
     let source = options.workload.source();
     let engine = Engine::default();
+    // This is whole-Rust-process observation after reading the guest and
+    // creating Wasmtime's Engine; it is not a guest-memory baseline.
+    let before_embed = process_memory::observe().map_err(std::io::Error::other)?;
 
     let started = Instant::now();
     let component_bytes = embedding::embed_guest(template, &guest)?;
@@ -397,6 +413,7 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
 
     let mut linker = Linker::new(&engine);
     Inspector::add_to_linker::<_, HasSelf<_>>(&mut linker, |state| state)?;
+    let after_compile = process_memory::observe().map_err(std::io::Error::other)?;
 
     let mut instantiation = Vec::with_capacity(options.samples);
     for _ in 0..options.samples {
@@ -410,6 +427,7 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         instantiate(&engine, &component, &linker, true, &source)?;
     let (mut denied_store, denied_guest) =
         instantiate(&engine, &component, &linker, false, &source)?;
+    let after_instantiation = process_memory::observe().map_err(std::io::Error::other)?;
 
     // Validate typed results and error distinctions before sampling.
     let original = granted_guest
@@ -434,6 +452,7 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
 
     batch(&mut granted_store, &granted_guest, options.warmup)?;
     batch(&mut denied_store, &denied_guest, options.warmup)?;
+    let after_warmup = process_memory::observe().map_err(std::io::Error::other)?;
 
     let mut granted_samples = Vec::with_capacity(options.samples);
     let mut denied_samples = Vec::with_capacity(options.samples);
@@ -468,6 +487,20 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         wasmtime::bail!("Markdown read or post-return count changed during measurement");
     }
 
+    // Observe before dropping the instances, separately from the timed calls.
+    let after_batches = process_memory::observe().map_err(std::io::Error::other)?;
+    let process_memory = process_memory::ProcessMemory::assemble_with_phases(
+        [
+            before_embed,
+            after_compile,
+            after_instantiation,
+            after_warmup,
+            after_batches,
+        ],
+        &MEMORY_PHASES,
+    )
+    .map_err(std::io::Error::other)?;
+
     // Lifting produces host-owned records that survive source instance disposal.
     drop(granted_store);
     drop(denied_store);
@@ -480,6 +513,7 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         component_bytes: component_bytes.len(),
         embed_ms,
         compile_ms,
+        process_memory,
         instantiation: Series::new(instantiation),
         granted: Series::new(granted_samples),
         denied: Series::new(denied_samples),
