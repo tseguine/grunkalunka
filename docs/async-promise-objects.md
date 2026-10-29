@@ -59,8 +59,12 @@ right-hand sides through erased wrappers. Nested argument failures still route
 from their own throw/await nodes; source validation and limits are unchanged.
 Later Promise writes still
 widen catch cells, including captured cells, without losing initial primitive tags.
-Stored and opaque Promise provenance remains conservative; full interprocedural
-reason precision is follow-up work.
+Stored values now follow their original-symbol initializers when the binding has
+no resolved writes, including const aliases, unwritten let bindings and captures.
+Type-only declarations do not hide the value initializer. Shared alias/depth states
+are visited once per query; the existing depth bound keeps cycles conservative.
+The query never re-executes an initializer. Written bindings, opaque inputs and
+full interprocedural reason precision remain follow-up work.
 
 Native JS, Node-Wasm and Wasmtime tests cover exact former local/named throw
 exclusions, caught identity, aliases, captures, recursive forwarding, mutable

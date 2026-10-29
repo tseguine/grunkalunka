@@ -390,8 +390,13 @@ would preserve a known source admission gap. No new IR or runtime mechanism is
 needed. Closed compositions of pristine resolve/reject calls now distinguish the
 raw argument domain of reject from the input rejection domain followed by resolve.
 Following produced-value paths avoids confusing an intermediate Promise with its
-reason; nested argument failures retain their own lexical routes. Stored/opaque
-Promise rejection provenance remains conservative.
+reason; nested argument failures retain their own lexical routes. Stored values
+follow original-symbol initializers only when there are no resolved writes,
+including writes in captured bodies. Merged type-only declarations are skipped
+when finding that initializer. Deduplicating symbol/depth states avoids exponential
+shared-alias traversal while retaining the existing conservative depth bound.
+This is a read-only provenance query, not initializer re-execution or flow-sensitive
+tracking of mutable cells; written bindings and opaque Promise inputs remain conservative.
 Maintained JS/TS native-JS/Node-Wasm/Wasmtime tests cover these boundaries; existing
 raw-reason and small-stack tests remain unchanged.
 

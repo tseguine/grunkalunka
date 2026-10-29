@@ -882,8 +882,11 @@ writes. Direct and closed composed pristine-intrinsic awaits retain primitive
 reason domains, distinguishing raw reject arguments from resolve input tracking and
 preserving nested argument failures. Maintained JS/TS native-JS/Node-Wasm/Wasmtime
 regressions compare values,
-identity and complete reaction traces. Stored/opaque Promise reason provenance
-remains conservative; [broader source/host limits](async-promise-objects.md) remain.
+identity and complete reaction traces. Stored Promise values now retain their
+initializer rejection domains through unwritten original-symbol aliases and
+captures, preserving type-only erasure and bounding repeated alias/depth states.
+Written bindings and opaque inputs remain conservative;
+[broader source/host limits](async-promise-objects.md) remain.
 
 ## Mixed intrinsic Promise.resolve (2026-10-29)
 
