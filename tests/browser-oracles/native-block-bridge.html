@@ -16,10 +16,14 @@
   #border-host { width: 120px; height: 80px; margin: 10px 0 0 0; padding: 4px; border: 2px solid black; box-sizing: border-box; }
   #border-first { width: 50%; height: 50%; margin: 3px 0 5px 0; padding: 2px; border: 1px solid black; box-sizing: border-box; }
   #border-second { width: 25%; height: 25%; margin: 0; box-sizing: content-box; }
+  /* A document-level scroll witness; no nested overflow contexts. */
+  #scroll-spacer { height: 650px; }
+  #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
+<div id="scroll-spacer"></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -86,6 +90,26 @@
   first.style.removeProperty("display");
   const restored = boxes();
   const restoredTargets = hitTargets();
+  // Observe a real page-level scroll, not a synthetic coordinate subtraction.
+  // All earlier geometry/hit channels were captured before changing scrollY.
+  function scrollSample() {
+    const rect = document.getElementById("scroll-target").getBoundingClientRect();
+    const hit = document.elementFromPoint(10, 590);
+    return {
+      scrollX: window.scrollX, scrollY: window.scrollY,
+      targetRect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      hitTarget: hit?.id === "scroll-target" ? "scroll-target" : null
+    };
+  }
+  const scrollBefore = scrollSample();
+  window.scrollTo(0, 350);
+  const scrollDuring = scrollSample();
+  window.scrollTo(0, 0);
+  const scrollRestored = scrollSample();
+  const scrollViewport = {
+    documentHeight: document.scrollingElement.scrollHeight,
+    before: scrollBefore, scrolled: scrollDuring, restored: scrollRestored
+  };
   document.getElementById("output").textContent = JSON.stringify({
     schemaVersion: 1,
     fixtureId: "native-block-bridge-v1",
@@ -97,6 +121,7 @@
     observations,
     percentageHeights,
     borderBoxes,
+    scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {
       original: originalTargets, hidden: hiddenTargets, restored: restoredTargets
