@@ -159,7 +159,14 @@ is established.
 
 The output includes OS and architecture observed by Rust and by Node; Node
 and V8 versions, CPU model when available, Node runtime flags, Wasm SHA-256,
-emitted size, call counts, cases/checksum and raw samples. The Rust report
+emitted size, call counts, cases/checksum and raw samples. The Rust report now
+also hashes its own **actual** compiler-emitted GCD Wasm and checks that the
+Node subprocess reports an identical SHA-256 and exact byte length for the
+bytes delivered through stdin, alongside its existing no-import and eight
+numeric golden checks. The real Rust integration test independently recompiles
+the checked-in numeric source to verify both reported hashes. These are
+content-identity observations, not cryptographic signatures of the toolchain
+or complete JavaScript execution compatibility. The Rust report
 declares the pinned Wasmtime dependency and separately records compiler
 elapsed time. Record exact Git commit, rustc version, compiler/build flags,
 host CPU/virtualization, machine load and cache conditions alongside each
