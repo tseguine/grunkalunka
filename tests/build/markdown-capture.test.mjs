@@ -225,7 +225,11 @@ test('macOS Mach memory receipts accept complete native readings and historic ab
   measured.processMemory = memoryEnvelope('linux');
   measured.processMemory.source = 'macos-mach-task-basic-info';
   assert.doesNotThrow(() => validateOptionalProcessMemory(measured, 'macos'));
-  assert.doesNotThrow(() => validateNativeReport(measured, config, 100));
+  // The full runner validator intentionally binds to the executing host.
+  // Cross-host archived receipt checks must use the OS-aware saved parser.
+  if (platform() === 'darwin') {
+    assert.doesNotThrow(() => validateNativeReport(measured, config, 100));
+  }
 
   for (const corrupt of [
     x => { x.source = 'linux-proc-status'; },
