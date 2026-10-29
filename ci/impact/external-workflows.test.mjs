@@ -86,7 +86,7 @@ test('tool-only source change triggers live smoke and the canonical offline suit
   assert.ok(result.expectedToTrigger.includes('workflow:browser-smoke'));
 });
 
-test('the native negative-control script and its tests rerun real engine checks', () => {
+test('native width sensitivity tools require the native bridge only', () => {
   for (const changed of [
     ['tools/browser-oracles/native-bridge-sensitivity.mjs'],
     ['tools/browser-oracles/native-bridge-sensitivity.test.mjs'],
@@ -94,11 +94,11 @@ test('the native negative-control script and its tests rerun real engine checks'
     const outcome = audit(changed);
     assert.equal(outcome.valid, true, outcome.errors.join('; '));
     assert.deepEqual(outcome.requiredNotTriggered, []);
-    assert.deepEqual(outcome.expectedToTrigger, entries.map(x => x.id));
+    assert.deepEqual(outcome.expectedToTrigger, ['workflow:browser-native-bridge']);
   }
 });
 
-test('native hit sensitivity scripts require both real-engine workflows', () => {
+test('native hit sensitivity tools require the native bridge only', () => {
   for (const path of [
     'tools/browser-oracles/native-hit-sensitivity.mjs',
     'tools/browser-oracles/native-hit-sensitivity.test.mjs',
@@ -106,16 +106,29 @@ test('native hit sensitivity scripts require both real-engine workflows', () => 
     const result = audit([path]);
     assert.equal(result.valid, true, result.errors.join('; '));
     assert.deepEqual(result.requiredNotTriggered, []);
-    assert.deepEqual(result.expectedToTrigger, entries.map(entry => entry.id));
+    assert.deepEqual(result.expectedToTrigger, ['workflow:browser-native-bridge']);
   }
 });
 
-test('tests-only changes trigger live smoke; offline tests are canonical', () => {
+test('live grid fixture edits trigger real smoke; offline tests remain canonical', () => {
   const result = audit(['tests/browser-oracles/grid-placement.html']);
   assert.equal(result.valid, true);
   assert.deepEqual(result.requiredNotTriggered, []);
   assert.deepEqual(result.expectedToTrigger,
     ['workflow:browser-smoke']);
+});
+
+test('native-only fixtures and comparator tests do not restart general engine smoke', () => {
+  for (const input of [
+    'tests/browser-oracles/native-block-bridge.html',
+    'tests/browser-oracles/native-block-bridge.mjs',
+    'tools/browser-oracles/hosted/native-bridge.test.mjs',
+  ]) {
+    const result = audit([input]);
+    assert.equal(result.valid, true, result.errors.join('; '));
+    assert.deepEqual(result.requiredNotTriggered, []);
+    assert.deepEqual(result.expectedToTrigger, ['workflow:browser-native-bridge'], input);
+  }
 });
 
 test('shared comparator and collector changes require live native bridge checks', () => {
@@ -195,6 +208,8 @@ test('source-path, executable-command and engine-matrix drift fail closed', () =
       .replace('    branches: [master]', '    branches: [main]'); },
     s => { s['.github/workflows/browser-smoke.yml'] = s['.github/workflows/browser-smoke.yml']
       .replace('    paths:', '    paths-ignore:'); },
+    s => { s['.github/workflows/browser-smoke.yml'] = s['.github/workflows/browser-smoke.yml']
+      .replace("      - 'tools/browser-oracles/collect.mjs'", "      - 'tools/browser-oracles/unrelated.mjs'"); },
   ]) {
     const source = sources();
     modify(source);
@@ -227,16 +242,59 @@ test('checked-in browser workflows are inspectable or explicitly fail closed', (
 
 // Real browser workflows do not supersede ordinary canonical offline tests.
 // Their descriptors intentionally cover only externally hosted Playwright checks.
-test('retired offline-only workflow descriptors are not required for source attribution', () => {
+test('offline-only tests never allocate hosted browser jobs', () => {
   assert.deepEqual(entries.map(x => x.id),
     ['workflow:browser-native-bridge', 'workflow:browser-smoke']);
   for (const path of [
     'tests/browser-oracles/compare.test.mjs',
     'tools/browser-oracles/collect.test.mjs',
+    'tests/browser-oracles/workflow-node-version.test.mjs',
+    'tests/browser-oracles/workflow-browser-image.test.mjs',
+    'tools/browser-oracles/verify-baseline.test.mjs',
   ]) {
     const result = audit([path]);
     assert.equal(result.valid, true, JSON.stringify(result.errors));
     assert.deepEqual(result.requiredNotTriggered, []);
-    assert.ok(result.expectedToTrigger.includes('workflow:browser-smoke'));
+    assert.deepEqual(result.expectedToTrigger, [], path + ' is canonical only');
+  }
+});
+
+test('the real-engine smoke source trigger tracks its complete consumed inputs', () => {
+  const smoke = entries.find(x => x.id === 'workflow:browser-smoke');
+  assert.ok(smoke);
+  assert.deepEqual(smoke.requiredFor, smoke.paths,
+    'every live source input must be audited against its workflow trigger');
+  for (const input of [
+    'tests/browser-oracles/layout-baseline.html',
+    'tests/browser-oracles/cascade-mutations.html',
+    'tests/browser-oracles/event-dispatch.html',
+    'tests/browser-oracles/listener-lifecycle.html',
+    'tests/browser-oracles/flex-mutations.html',
+    'tests/browser-oracles/flex-wrap-lines.html',
+    'tests/browser-oracles/grid-placement.html',
+    'tests/browser-oracles/shadow-events.html',
+    'tests/browser-oracles/compare.mjs',
+    'tests/browser-oracles/cross-engine.mjs',
+    'tools/browser-oracles/smoke.mjs',
+    'tools/browser-oracles/collect.mjs',
+    'tools/browser-oracles/diagnostic-isolation.mjs',
+    'tools/browser-oracles/cascade.mjs',
+    'tools/browser-oracles/events.mjs',
+    'tools/browser-oracles/listener-lifecycle.mjs',
+    'tools/browser-oracles/flex.mjs',
+    'tools/browser-oracles/flex-wrap-lines.mjs',
+    'tools/browser-oracles/shadow-events.mjs',
+    'tools/browser-oracles/grid-placement.mjs',
+    'tools/browser-oracles/verify-baseline.mjs',
+    'tools/browser-oracles/hosted/smoke.test.mjs',
+    'tools/browser-oracles/hosted/cross-engine.test.mjs',
+    'tools/browser-oracles/package.json',
+    '.gitattributes',
+  ]) {
+    assert.ok(smoke.paths.includes(input), 'missing live input: ' + input);
+    const outcome = audit([input]);
+    assert.equal(outcome.valid, true, outcome.errors.join('; '));
+    assert.deepEqual(outcome.requiredNotTriggered, [], input);
+    assert.ok(outcome.expectedToTrigger.includes('workflow:browser-smoke'), input);
   }
 });
