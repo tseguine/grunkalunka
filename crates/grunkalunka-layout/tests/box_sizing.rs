@@ -1,6 +1,8 @@
 //! Exact content-box versus border-box geometry from caller-resolved inputs.
 //! No CSS parsing, fractional pixel rounding, or general formatting context.
-use grunkalunka_layout::{Block, BoxSizing, Display, Edges, LayoutError, Length, Rect, Style, layout};
+use grunkalunka_layout::{
+    Block, BoxSizing, Display, Edges, LayoutError, Length, Rect, Style, layout,
+};
 
 fn rect(x: u32, y: u32, width: u32, height: u32) -> Rect {
     Rect {
@@ -173,7 +175,10 @@ fn auto_dimensions_and_hidden_subtrees_preserve_existing_flow_rules() {
     let content = layout(&blocks, 50, 40).unwrap();
     blocks[0].style.box_sizing = BoxSizing::BorderBox;
     let border = layout(&blocks, 50, 40).unwrap();
-    assert_eq!(content, border, "auto sizes have no explicit border-box length");
+    assert_eq!(
+        content, border,
+        "auto sizes have no explicit border-box length"
+    );
 
     blocks[1].style.display = Display::None;
     blocks[1].style.height = Length::Percent(50);
