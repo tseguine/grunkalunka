@@ -23,12 +23,16 @@
   #bounds-host { width: 400px; min-width: 45%; max-width: 30%; height: 60px; padding: 4px; border: 2px solid black; box-sizing: border-box; }
   #bounds-first { width: 50%; height: 10px; }
   #bounds-second { width: 250px; max-width: 100px; height: 8px; }
+  /* Same definite 80px containing height; contradictory percentage limits. */
+  #height-limited { width: 80px; height: 90px; min-height: 75%; max-height: 50%; padding: 4px; border: 2px solid black; box-sizing: border-box; }
+  #height-limited-first { width: 30px; height: 50%; }
+  #height-limited-second { width: 20px; height: 12px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -62,6 +66,13 @@
   // so it cannot change the existing document-height/scroll target evidence.
   const boundsIds = ["bounds-host", "bounds-first", "bounds-second"];
   const widthBounds = Object.fromEntries(boundsIds.map(id => {
+    const rect = document.getElementById(id).getBoundingClientRect();
+    return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+  }));
+  // Independent height-bound witness under the same definite 80px container.
+  // The containing box's fixed height protects earlier scroll observations.
+  const limitedIds = ["height-limited", "height-limited-first", "height-limited-second"];
+  const heightBounds = Object.fromEntries(limitedIds.map(id => {
     const rect = document.getElementById(id).getBoundingClientRect();
     return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
   }));
@@ -134,6 +145,7 @@
     percentageHeights,
     borderBoxes,
     widthBounds,
+    heightBounds,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {

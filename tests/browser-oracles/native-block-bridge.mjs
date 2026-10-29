@@ -10,6 +10,7 @@ const ids = ["outer", "first", "second"];
 const heightIds = ["height-host", "height-first", "height-second"];
 const borderIds = ["border-host", "border-first", "border-second"];
 const widthBoundIds = ["bounds-host", "bounds-first", "bounds-second"];
+const heightBoundIds = ["height-limited", "height-limited-first", "height-limited-second"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -31,7 +32,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, percentage-height, border-box, constrained-width and page-scroll rectangle/hit observations; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, percentage-height, border-box, constrained-width/height and page-scroll rectangle/hit observations; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -172,6 +173,30 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   }
   validateWidthBounds("native", native?.widthBounds);
   validateWidthBounds("browser", browser?.widthBounds);
+
+  function validateHeightBounds(owner, value) {
+    const path = "$." + owner + ".heightBounds";
+    if (!record(value) ||
+        Object.keys(value).sort().join(",") !== [...heightBoundIds].sort().join(",")) {
+      error(path, "exactly three named constrained-height boxes required");
+      return;
+    }
+    for (const id of heightBoundIds) {
+      const box = value[id];
+      if (!record(box) || Object.keys(box).sort().join(",") !== [...rectFields].sort().join(",")) {
+        error(path + "." + id, "complete constrained-height rectangle required");
+        continue;
+      }
+      for (const field of rectFields) {
+        if (!Number.isFinite(box[field]) ||
+            (["width", "height"].includes(field) && box[field] < 0)) {
+          error(path + "." + id + "." + field, "finite CSS-pixel rectangle required");
+        }
+      }
+    }
+  }
+  validateHeightBounds("native", native?.heightBounds);
+  validateHeightBounds("browser", browser?.heightBounds);
 
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
@@ -343,6 +368,18 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "width-bound", id, field, left, right,
           path: "$.widthBounds." + id + "." + field,
+        });
+      }
+    }
+  }
+  for (const id of heightBoundIds) {
+    for (const field of rectFields) {
+      const left = native.heightBounds[id][field];
+      const right = browser.heightBounds[id][field];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "height-bound", id, field, left, right,
+          path: "$.heightBounds." + id + "." + field,
         });
       }
     }

@@ -32,6 +32,11 @@ const widthBoundGeometry = () => ({
   "bounds-first": { x: 6, y: 284, width: 84, height: 10 },
   "bounds-second": { x: 6, y: 294, width: 100, height: 8 },
 });
+const heightBoundGeometry = () => ({
+  "height-limited": { x: 0, y: 338, width: 80, height: 60 },
+  "height-limited-first": { x: 6, y: 344, width: 30, height: 24 },
+  "height-limited-second": { x: 6, y: 368, width: 20, height: 12 },
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -79,6 +84,7 @@ const native = () => ({
   percentageHeights: percentageHeightGeometry(),
   borderBoxes: borderBoxGeometry(),
   widthBounds: widthBoundGeometry(),
+  heightBounds: heightBoundGeometry(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -103,6 +109,7 @@ function browser() {
     percentageHeights: percentageHeightGeometry(),
     borderBoxes: borderBoxGeometry(),
     widthBounds: widthBoundGeometry(),
+    heightBounds: heightBoundGeometry(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -130,11 +137,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#bounds-host { width: 400px; min-width: 45%; max-width: 30%;",
     "#bounds-first { width: 50%; height: 10px; }",
     "#bounds-second { width: 250px; max-width: 100px; height: 8px; }",
+    "#height-limited { width: 80px; height: 90px; min-height: 75%; max-height: 50%;",
+    "#height-limited-first { width: 30px; height: 50%; }",
+    "#height-limited-second { width: 20px; height: 12px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -150,6 +160,8 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "offscreen target must be selected by actual viewport DOM hit testing");
   assert.ok(source.includes("window.scrollTo(0, 350)"),
     "source must perform an actual page-level scroll");
+  assert.ok(source.includes("const heightBounds = Object.fromEntries(limitedIds.map("),
+    "height limits must be measured from fresh DOM rectangles");
   assert.ok(source.includes("const widthBounds = Object.fromEntries(boundsIds.map("),
     "width constraints must be measured from fresh DOM rectangles");
   assert.ok(source.includes("const scrollViewport = {"),
@@ -271,6 +283,41 @@ test("missing or malformed constrained-width evidence fails closed", () => {
   }
   const left = native();
   delete left.widthBounds["bounds-first"];
+  assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
+});
+
+test("min/max heights compare real border boxes and dependent percentage children", () => {
+  const left = native(), right = browser();
+  assert.equal(compareNativeBlockBridge(left, right, fixture).status, "equal");
+  assert.deepEqual(right.heightBounds, {
+    "height-limited": { x: 0, y: 338, width: 80, height: 60 },
+    "height-limited-first": { x: 6, y: 344, width: 30, height: 24 },
+    "height-limited-second": { x: 6, y: 368, width: 20, height: 12 },
+  });
+  right.heightBounds["height-limited-first"].height = 25;
+  const result = compareNativeBlockBridge(left, right, fixture);
+  assert.equal(result.status, "different");
+  assert.deepEqual(result.differences, [{
+    kind: "height-bound", id: "height-limited-first", field: "height",
+    left: 24, right: 25, path: "$.heightBounds.height-limited-first.height",
+  }]);
+});
+
+test("incomplete or malformed constrained-height evidence cannot pass", () => {
+  for (const change of [
+    c => { delete c.heightBounds; },
+    c => { delete c.heightBounds["height-limited"]; },
+    c => { c.heightBounds["height-limited-first"].height = -1; },
+    c => { c.heightBounds["height-limited-second"].y = NaN; },
+    c => { delete c.heightBounds["height-limited"].width; },
+    c => { c.heightBounds.unexpected = {}; },
+  ]) {
+    const right = browser();
+    change(right);
+    assert.equal(compareNativeBlockBridge(native(), right, fixture).status, "invalid");
+  }
+  const left = native();
+  delete left.heightBounds["height-limited-first"];
   assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
 });
 
