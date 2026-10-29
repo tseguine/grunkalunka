@@ -144,7 +144,8 @@ fn padding_clip_changes_only_descendant_pixels_and_hits_not_layout_geometry() {
         ((5, 4), PARENT, Some(1)),
         ((8, 6), BLUE, Some(2)),
         ((20, 16), BLUE, Some(2)),
-        ((21, 6), ROOT, Some(0)),
+        ((21, 6), BLACK, Some(1)), // Parent's own border is not clipped.
+        ((22, 6), ROOT, Some(0)), // The overflowing child is clipped.
         ((8, 18), ROOT, Some(0)),
         ((17, 19), ROOT, Some(0)),
         ((2, 19), SIBLING, Some(4)),
