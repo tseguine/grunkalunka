@@ -103,13 +103,13 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         }
         assert_eq!(report.samples_ms.len(), options.samples);
         assert_eq!(report.release_ms.len(), options.samples);
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
             let samples = report
                 .process_memory
                 .snapshots
                 .as_ref()
-                .expect("Linux must observe real compiler host RSS checkpoints");
+                .expect("Linux/Windows must observe real compiler host process memory");
             assert!(
                 samples
                     .iter()
@@ -119,7 +119,7 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
                 assert!(pair[1].peak_rss_bytes >= pair[0].peak_rss_bytes);
             }
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         assert!(report.process_memory.snapshots.is_none());
         assert!(
             report
@@ -151,14 +151,15 @@ fn public_compiler_artifacts_are_repeatable_and_execute_fixed_goldens() {
         }
         assert!(json.contains(&format!("\"case\":\"{}\"", workload.name())));
         assert_eq!(json.matches("\"samplesMs\":").count(), 2);
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
-            assert!(json.contains("\"source\":\"linux-proc-status\""));
+            let label = source_compile_cost::process_memory::source_name();
+            assert!(json.contains(&format!("\"source\":\"{label}\"")));
             for phase in source_compile_cost::MEMORY_PHASES {
                 assert!(json.contains(&format!("\"{phase}\":")), "{phase}");
             }
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         assert!(json.contains("\"source\":\"unsupported-on-this-host\""));
     }
 }
