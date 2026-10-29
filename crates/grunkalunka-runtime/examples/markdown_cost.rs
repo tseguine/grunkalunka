@@ -323,17 +323,41 @@ fn fresh_lifecycles(
         // Alternate the granted/denied order, as in the existing call batches.
         if index.is_multiple_of(2) {
             granted_samples.push(fresh_lifecycle(
-                engine, component, linker, source, workload, true, expected_projection,
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                true,
+                expected_projection,
             )?);
             denied_samples.push(fresh_lifecycle(
-                engine, component, linker, source, workload, false, expected_projection,
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                false,
+                expected_projection,
             )?);
         } else {
             denied_samples.push(fresh_lifecycle(
-                engine, component, linker, source, workload, false, expected_projection,
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                false,
+                expected_projection,
             )?);
             granted_samples.push(fresh_lifecycle(
-                engine, component, linker, source, workload, true, expected_projection,
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                true,
+                expected_projection,
             )?);
         }
     }
