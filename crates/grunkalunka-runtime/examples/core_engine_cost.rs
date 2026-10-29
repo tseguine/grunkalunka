@@ -384,8 +384,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     let (engine_creation_ms, store_creation_ms) = measure_host_setup(options.samples);
     // These whole-process samples run last to preserve the prior Node and
     // Wasmtime cost and memory observation boundaries unchanged.
-    let node_fresh_process_ms =
-        measure_node_fresh_process(&artifact.wasm, options.samples)?;
+    let node_fresh_process_ms = measure_node_fresh_process(&artifact.wasm, options.samples)?;
     Ok(Report {
         options,
         wasm_bytes: artifact.wasm.len(),
