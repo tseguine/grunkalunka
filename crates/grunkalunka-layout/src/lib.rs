@@ -68,10 +68,20 @@ impl BoxSizing {
     }
 }
 
+/// Caller-resolved minimum/maximum width bound, with no `auto` value.
+/// A percent is relative to the containing block's content width.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WidthBound {
+    Px(u32),
+    Percent(u32),
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Style {
     pub display: Display,
     pub width: Length,
+    pub min_width: Option<WidthBound>,
+    pub max_width: Option<WidthBound>,
     pub height: Length,
     pub box_sizing: BoxSizing,
     pub margin: Edges,
@@ -200,7 +210,7 @@ impl Engine<'_> {
         let width_edges = add(border_x, padding_x)?;
         let height_edges = add(border_y, padding_y)?;
         let horizontal = add(margin_x, width_edges)?;
-        let content_width = match style.width {
+        let tentative_width = match style.width {
             Length::Auto => available_width.saturating_sub(horizontal),
             Length::Px(value) => style.box_sizing.content_size(value, width_edges),
             Length::Percent(value) => style.box_sizing.content_size(
@@ -212,6 +222,26 @@ impl Engine<'_> {
                 width_edges,
             ),
         };
+        // Width limits constrain the same used box selected by box_sizing.
+        // Resolve both against the original containing content width, never
+        // the candidate width or the newly constrained width. Apply max first
+        // and min second: an explicit minimum wins a contradictory maximum.
+        let resolve_bound = |bound: WidthBound| -> Result<u32, LayoutError> {
+            let specified = match bound {
+                WidthBound::Px(value) => value,
+                WidthBound::Percent(value) => whole_percent(
+                    available_width,
+                    value,
+                    LayoutError::FractionalPercentageWidth { node },
+                )?,
+            };
+            Ok(style.box_sizing.content_size(specified, width_edges))
+        };
+        let max_content = style.max_width.map(resolve_bound).transpose()?;
+        let min_content = style.min_width.map(resolve_bound).transpose()?;
+        let content_width = tentative_width
+            .min(max_content.unwrap_or(u32::MAX))
+            .max(min_content.unwrap_or(0));
 
         let border_left = add(containing_x, style.margin.left)?;
         let padding_left = add(border_left, style.border.left)?;
@@ -292,8 +322,9 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// display:none, explicit content-box/border-box sizing, and whole percentage
-/// dimensions with exact integral results are admitted. Percentage heights
+/// display:none, explicit content-box/border-box sizing, optional min/max
+/// width constraints, and whole percentage dimensions with exact integral
+/// results are admitted. Percentage heights
 /// require a definite containing content
 /// height; unresolved heights and fractional pixel results are rejected.
 /// Positive margins do not collapse; inline layout, text shaping, floats,

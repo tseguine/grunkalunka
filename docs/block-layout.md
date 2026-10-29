@@ -17,6 +17,10 @@ of visible blocks, plus scroll extents.
 - Explicit `BoxSizing::ContentBox` (default) or `BoxSizing::BorderBox`
   for caller-resolved fixed and percentage widths/heights. Auto sizes keep
   their existing natural sizing behavior.
+- Optional caller-resolved minimum and maximum widths (absolute integer pixels
+  or integral percentages of the containing content width). Constraints affect
+  the used width before descendants lay out, and an explicit minimum wins an
+  incompatible maximum.
 - Explicit integer-percentage content widths relative to the containing content
   width (e.g. 50% of 210 px = 105 px), and heights relative to a definite
   containing content height (the viewport for the root, an explicit height for
@@ -182,3 +186,39 @@ No subpixel rounding, min/max sizing, overflow clipping, layout containment,
 margin collapse or general CSS box-model conformance is claimed. The separate
 [source-checked native border-box bridge](browser-native-box-sizing-bridge.md)
 supplies selected real-engine geometry evidence, not a general CSS compliance claim.
+
+## Optional minimum and maximum widths
+
+`Style::min_width` and `Style::max_width` accept
+`Option<WidthBound>`, where the bound is `Px(u32)` or
+`Percent(u32)`. `None` means no constraint. There is deliberately no
+`auto` width-bound variant, negative dimension, CSS `min-content`/
+`max-content` intrinsic sizing or CSS declaration/cascade parser. The
+existing `Style::default()` has neither constraint, preserving the prior
+unconstrained `Length::Auto`, fixed and percentage width behavior.
+
+Each bound is resolved **independently against the containing block's
+original content width**. Fractional percentages are rejected with the
+existing `FractionalPercentageWidth { node }` error, and unrepresentable
+integer results fail with `Overflow`, even if another bound would have made
+the first one irrelevant. Bounds are expressed in the same box-sizing
+convention as the node's specified width: a `ContentBox` limit applies to
+the content width, and a `BorderBox` limit includes the node's own border
+and padding but excludes margins. A border-box bound smaller than its edge
+sum leaves a zero-width content area without generating negative geometry.
+
+The engine first calculates the tentative content width using the existing
+sizing rules, then applies the maximum and finally the minimum. If
+`min_width > max_width`, the minimum wins. The final content width feeds
+child percentage widths, horizontal flow/scroll extents and the existing
+checked arithmetic. Limits affect *width only*; height remains governed by
+the existing definite/intrinsic-height rules. No scrollbar or clipping
+semantics are inferred from a maximum width.
+
+The independent `crates/grunkalunka-layout/tests/width_bounds.rs`
+module verifies auto/fixed sizing, nested percentage widths, min/max
+precedence, border-box constraints and tiny overconstrained boxes,
+fractional/overflow fail-closed behavior and hidden-subtree isolation.
+These are native literal-coordinate tests. Fresh real-browser source-hashed
+parity evidence for a selected CSS min/max-width fixture is a separate next
+step, not established by these tests.
