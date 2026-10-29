@@ -67,7 +67,8 @@ macOS ARM64 now requests full canonical tests on every master push
 ([#240](https://github.com/tseguine/grunkalunka/pull/240)), allowing active
 runs to finish while replacing obsolete pending revisions. Manual dispatch
 remains available, and PRs reuse the newest healthy completed master
-baseline or take the native fallback when missing, stale or failed. A green **macOS baseline-reference PR gate** does not mean
+baseline or take the native fallback when missing, stale or failed.
+A green **macOS baseline-reference PR gate** does not mean
 that PR's native code ran on macOS. Historical experiment PRs with explicitly
 recorded exact-head three-native-host results retain that evidence, but do not
 make it a standing guarantee for newer PRs. **CI does not retain timing
@@ -181,11 +182,12 @@ not publish them.
   cover numeric core-Wasm, bounded source compilation and a real Markdown/WIT
   component. Linux reports resident set/high-water bytes, whereas Windows
   reports differently accounted working-set/peak bytes; both are process-wide
-  measurements with distinct source labels and lifecycle phases. macOS now has a separately labeled Mach whole-task resident/peak collector,
-  following the independently verified native ABI witness. The new integrated
-  native collector requires its own full Apple Silicon verification, rather than
-  relying on a green baseline-reference PR gate. Guest-attributable memory and genuinely
-  comparable multi-host native memory measurements remain open.
+  measurements with distinct source labels and lifecycle phases. macOS now
+  has a separately labeled Mach whole-task resident/peak collector, following
+  the independently verified native ABI witness. The new integrated native
+  collector requires its own full Apple Silicon verification, rather than
+  relying on a green baseline-reference PR gate. Guest-attributable memory and
+  genuinely comparable multi-host native memory measurements remain open.
 - **Broader useful applications:** most experiments use narrow numeric or
   read-only document operations, not a complete app's build/startup,
   capability-mediated calls, end-user interactions or resource footprint.
