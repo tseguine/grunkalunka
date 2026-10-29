@@ -75,7 +75,10 @@ fn sample() -> [Block; 5] {
 }
 
 fn inputs(blocks: &[Block], colors: &[Rgb]) -> (Vec<HitNode>, Vec<PaintNode>) {
-    let hits = blocks.iter().map(|node| HitNode::new(node.parent)).collect();
+    let hits = blocks
+        .iter()
+        .map(|node| HitNode::new(node.parent))
+        .collect();
     let paints = blocks
         .iter()
         .zip(colors)
@@ -96,29 +99,41 @@ fn padding_clip_changes_only_descendant_pixels_and_hits_not_layout_geometry() {
     without[1].style.descendant_clip = DescendantClip::None;
     let unclipped = layout(&without, 30, 26).unwrap();
 
-    assert_eq!(clipped.boxes, unclipped.boxes, "no reflow or clipped box mutation");
+    assert_eq!(
+        clipped.boxes, unclipped.boxes,
+        "no reflow or clipped box mutation"
+    );
     assert_eq!(clipped.visibility, unclipped.visibility);
     assert_eq!((clipped.scroll_width, clipped.scroll_height), (33, 26));
     assert_eq!(clipped.clip_descendants, [false, true, false, false, false]);
     assert_eq!(unclipped.clip_descendants, [false; 5]);
-    assert_eq!(clipped.boxes[1].unwrap().padding, Rect {
-        x: 5,
-        y: 3,
-        width: 16,
-        height: 14,
-    });
-    assert_eq!(clipped.boxes[2].unwrap().border, Rect {
-        x: 7,
-        y: 5,
-        width: 26,
-        height: 16,
-    });
-    assert_eq!(clipped.boxes[3].unwrap().border, Rect {
-        x: 17,
-        y: 19,
-        width: 4,
-        height: 3,
-    });
+    assert_eq!(
+        clipped.boxes[1].unwrap().padding,
+        Rect {
+            x: 5,
+            y: 3,
+            width: 16,
+            height: 14,
+        }
+    );
+    assert_eq!(
+        clipped.boxes[2].unwrap().border,
+        Rect {
+            x: 7,
+            y: 5,
+            width: 26,
+            height: 16,
+        }
+    );
+    assert_eq!(
+        clipped.boxes[3].unwrap().border,
+        Rect {
+            x: 17,
+            y: 19,
+            width: 4,
+            height: 3,
+        }
+    );
     assert_eq!(clipped.boxes[4].unwrap().border.y, 18);
 
     let (hits, paints) = inputs(&original, &[ROOT, PARENT, BLUE, GREEN, SIBLING]);
@@ -134,7 +149,11 @@ fn padding_clip_changes_only_descendant_pixels_and_hits_not_layout_geometry() {
         ((17, 19), ROOT, Some(0)),
         ((2, 19), SIBLING, Some(4)),
     ] {
-        assert_eq!(surface.pixel(x, y), Some(expected), "clipped pixel ({x},{y})");
+        assert_eq!(
+            surface.pixel(x, y),
+            Some(expected),
+            "clipped pixel ({x},{y})"
+        );
         assert_eq!(hit_test(&clipped, &hits, x, y), Ok(target), "hit ({x},{y})");
     }
     assert_eq!(baseline.pixel(22, 6), Some(BLUE));
@@ -263,21 +282,45 @@ fn absent_clip_metadata_and_overflowing_intersections_fail_closed() {
     let mut frame = layout(&blocks, 30, 26).unwrap();
     let (hits, paints) = inputs(&blocks, &[ROOT, PARENT, BLUE, GREEN, SIBLING]);
     frame.clip_descendants.pop();
-    assert_eq!(hit_test(&frame, &hits, 8, 6), Err(HitError::NodeCountMismatch));
-    assert_eq!(paint(&frame, &paints, CLEAR), Err(PaintError::NodeCountMismatch));
+    assert_eq!(
+        hit_test(&frame, &hits, 8, 6),
+        Err(HitError::NodeCountMismatch)
+    );
+    assert_eq!(
+        paint(&frame, &paints, CLEAR),
+        Err(PaintError::NodeCountMismatch)
+    );
 
     let a = Rect {
-        x: 10, y: 10, width: 3, height: 3,
+        x: 10,
+        y: 10,
+        width: 3,
+        height: 3,
     };
     let b = Rect {
-        x: 20, y: 11, width: 2, height: 2,
+        x: 20,
+        y: 11,
+        width: 2,
+        height: 2,
     };
-    assert_eq!(a.intersection(b), Some(Rect {
-        x: 20, y: 11, width: 0, height: 2,
-    }));
-    assert_eq!(a.intersection(Rect {
-        x: u32::MAX, y: 0, width: 1, height: 1,
-    }), None);
+    assert_eq!(
+        a.intersection(b),
+        Some(Rect {
+            x: 20,
+            y: 11,
+            width: 0,
+            height: 2,
+        })
+    );
+    assert_eq!(
+        a.intersection(Rect {
+            x: u32::MAX,
+            y: 0,
+            width: 1,
+            height: 1,
+        }),
+        None
+    );
 
     let mut invalid = layout(&blocks, 30, 26).unwrap();
     invalid.boxes[1].as_mut().unwrap().padding.x = u32::MAX;
