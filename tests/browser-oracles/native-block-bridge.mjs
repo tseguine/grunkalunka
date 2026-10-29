@@ -19,6 +19,11 @@ const clipPhases = ["clipped", "visible", "restored"];
 const clipIds = ["clip-parent", "clip-child", "clip-sibling"];
 const clipProbes = ["inside", "padding-edge", "border-edge", "outside-parent",
   "bottom-border", "sibling", "parent-border"];
+const boxlessPhases = ["contents", "block", "restored"];
+const boxlessIds = ["contents-first", "contents-second", "contents-sibling"];
+const boxlessTargets = ["contents-wrapper", ...boxlessIds];
+const boxlessProbes = ["first-contents", "second-contents", "wrapper-border",
+  "first-block", "sibling-contents", "sibling-block", "outside"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -40,7 +45,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, dimension bounds, scroll, visibility and descendant padding-clip geometry/hits; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips and boxless contents geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -324,6 +329,64 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   validateDescendantClipStates("native", native?.descendantClipStates);
   validateDescendantClipStates("browser", browser?.descendantClipStates);
 
+  function validateBoxlessStates(owner, states) {
+    const path = "$." + owner + ".boxlessStates";
+    if (!record(states) ||
+        Object.keys(states).sort().join(",") !== [...boxlessPhases].sort().join(",")) {
+      error(path, "boxless contents, block and restored phases required");
+      return;
+    }
+    const expectedBoxes = [...boxlessIds].sort().join(",");
+    const expectedProbes = [...boxlessProbes].sort().join(",");
+    const expectedFields = [...rectFields].sort().join(",");
+    for (const phase of boxlessPhases) {
+      const sample = states[phase], prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,display,hasBox,hits") {
+        error(prefix, "complete boxless geometry, display, box-presence and hits required");
+        continue;
+      }
+      if (!["contents", "block"].includes(sample.display)) {
+        error(prefix + ".display", "source-observed display mode required");
+      }
+      if (typeof sample.hasBox !== "boolean") {
+        error(prefix + ".hasBox", "actual principal-box presence required");
+      }
+      if (!record(sample.boxes) ||
+          Object.keys(sample.boxes).sort().join(",") !== expectedBoxes) {
+        error(prefix + ".boxes", "exactly the three boxless children/sibling required");
+      } else {
+        for (const id of boxlessIds) {
+          const rect = sample.boxes[id];
+          if (!record(rect) || Object.keys(rect).sort().join(",") !== expectedFields) {
+            error(prefix + ".boxes." + id, "complete child/sibling rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(rect[field]) ||
+                (["width", "height"].includes(field) && rect[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite CSS-pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== expectedProbes) {
+        error(prefix + ".hits", "exactly seven independent boxless hit probes required");
+      } else {
+        for (const name of boxlessProbes) {
+          const target = sample.hits[name];
+          if (target !== null && !boxlessTargets.includes(target)) {
+            error(prefix + ".hits." + name, "known boxless node or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validateBoxlessStates("native", native?.boxlessStates);
+  validateBoxlessStates("browser", browser?.boxlessStates);
+
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
     const expected = [...scrollPhases, "documentHeight"].sort().join(",");
@@ -566,6 +629,39 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "descendant-clip-hit", phase, probe, left, right,
           path: "$.descendantClipStates." + phase + ".hits." + probe,
+        });
+      }
+    }
+  }
+  for (const phase of boxlessPhases) {
+    const a = native.boxlessStates[phase];
+    const b = browser.boxlessStates[phase];
+    for (const field of ["display", "hasBox"]) {
+      if (!Object.is(a[field], b[field])) {
+        differences.push({
+          kind: "boxless-mode", phase, field,
+          left: a[field], right: b[field],
+          path: "$.boxlessStates." + phase + "." + field,
+        });
+      }
+    }
+    for (const id of boxlessIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "boxless-box", phase, id, field, left, right,
+            path: "$.boxlessStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+    }
+    for (const probe of boxlessProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "boxless-hit", phase, probe, left, right,
+          path: "$.boxlessStates." + phase + ".hits." + probe,
         });
       }
     }
