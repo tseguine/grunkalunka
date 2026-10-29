@@ -38,6 +38,23 @@ the same eight independent numeric goldens, with golden checks outside the
 instantiation timer. The existing 2..20 sample bound also bounds these
 repetitions, with no extra CLI flags or runner jobs.
 
+A final bounded control measures **new Node/V8 OS process starts** separately
+from its existing in-process module and fresh-instance measurements. Each
+of 2..20 repetitions launches a distinct Node child, transfers the **same
+compiler-emitted Wasm bytes** through stdin, builds a fresh
+`WebAssembly.Module` and `WebAssembly.Instance`, checks all eight fixed
+numeric goldens and exits. The outer Rust monotonic timer covers the
+**entire spawn-through-validated-exit interval**, including process setup,
+stdio transport, Node's startup, module compilation and goldens; it does
+not isolate any of those pieces. Every child must return the independently
+checked Wasm SHA-256 and byte size, with failures rejected instead of counted
+as timing observations. Raw samples and min/median/max appear under
+`nodeFreshProcess`. They run **last**, after the previous Node replay
+and empty Wasmtime host setup, to avoid changing earlier measured boundaries.
+Each child is genuinely new, but OS page caches and filesystem/runtime
+state remain uncontrolled. This is a bounded numeric program launch cost,
+not a complete application startup profile or an engine speed ranking.
+
 These are **post-warmup** observations, not cold application startup.
 Wasmtime Store setup and Node module/instance runtime behavior differ, and
 both may reuse caches; this is not a machine-independent engine speed ratio.

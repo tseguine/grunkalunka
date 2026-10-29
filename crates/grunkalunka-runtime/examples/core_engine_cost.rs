@@ -2,6 +2,7 @@
 #[path = "core_engine_cost/process_memory.rs"]
 mod process_memory;
 use grunkalunka_compiler::compile;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -115,6 +116,7 @@ pub struct Report {
     pub fresh_first_call_ms: Vec<f64>,
     pub engine_creation_ms: Vec<f64>,
     pub store_creation_ms: Vec<f64>,
+    pub node_fresh_process_ms: Vec<f64>,
     pub rust_process_memory: process_memory::ProcessMemory,
     pub node_json: String,
 }
@@ -173,6 +175,13 @@ impl Report {
         .unwrap();
         out.push_str(r#""node":"#);
         out.push_str(&self.node_json);
+        write!(
+            out,
+            r#","nodeFreshProcess":{{"count":{},"boundary":"spawn-through-validated-exit-including-stdin-wasm-transfer","timings":{}}}"#,
+            self.options.samples,
+            statistics(&self.node_fresh_process_ms)
+        )
+        .unwrap();
         out.push('}');
         out
     }
@@ -261,6 +270,51 @@ fn measure_node(bytes: &[u8], options: Options) -> wasmtime::Result<String> {
     Ok(json)
 }
 
+// Observe complete independent Node processes, including spawn, startup,
+// stdin transfer, Wasm compilation, instantiation, eight real goldens and exit.
+// Hash each response against the already checked real compiled artifact.
+fn measure_node_fresh_process(bytes: &[u8], count: usize) -> wasmtime::Result<Vec<f64>> {
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/bench/core-engine-replay.mjs");
+    let hash = format!("{:x}", Sha256::digest(bytes));
+    let expected = format!(
+        r#"{{"mode":"fresh-process","sha256":"{hash}","wasmBytes":{},"goldenCases":{}}}"#,
+        bytes.len(),
+        CASES.len()
+    );
+    let mut samples = Vec::with_capacity(count);
+    for _ in 0..count {
+        let started = Instant::now();
+        let mut child = Command::new("node")
+            .arg(&script)
+            .arg("--fresh-process")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| std::io::Error::other("fresh Node stdin unavailable"))?;
+        stdin.write_all(bytes)?;
+        drop(stdin);
+        let output = child.wait_with_output()?;
+        let elapsed = milliseconds(started);
+        if !output.status.success() {
+            wasmtime::bail!(
+                "fresh Node process failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let observed = String::from_utf8(output.stdout)?;
+        if observed.trim() != expected {
+            wasmtime::bail!("fresh Node process artifact or golden receipt mismatch");
+        }
+        samples.push(elapsed);
+    }
+    Ok(samples)
+}
+
 pub fn probe(options: Options) -> wasmtime::Result<Report> {
     options.validate().map_err(std::io::Error::other)?;
     let started = Instant::now();
@@ -328,6 +382,9 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     // Isolated host setup follows the entire original two-engine replay,
     // so it cannot preheat or otherwise change earlier Node timing samples.
     let (engine_creation_ms, store_creation_ms) = measure_host_setup(options.samples);
+    // These whole-process samples run last to preserve the prior Node and
+    // Wasmtime cost and memory observation boundaries unchanged.
+    let node_fresh_process_ms = measure_node_fresh_process(&artifact.wasm, options.samples)?;
     Ok(Report {
         options,
         wasm_bytes: artifact.wasm.len(),
@@ -340,6 +397,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         fresh_first_call_ms,
         engine_creation_ms,
         store_creation_ms,
+        node_fresh_process_ms,
         rust_process_memory,
         node_json,
     })
