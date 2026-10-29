@@ -165,10 +165,14 @@ fn paint_node(
     let padding_right = padding.right().ok_or(PaintError::Overflow)?;
     let padding_bottom = padding.bottom().ok_or(PaintError::Overflow)?;
 
-    if frame.visibility[index] && let Some(color) = nodes[index].background {
+    if frame.visibility[index]
+        && let Some(color) = nodes[index].background
+    {
         canvas.fill(padding, color)?;
     }
-    if frame.visibility[index] && let Some(color) = nodes[index].border {
+    if frame.visibility[index]
+        && let Some(color) = nodes[index].border
+    {
         canvas.fill(
             Rect {
                 x: border.x,
