@@ -63,3 +63,18 @@ test('fresh process rejects invalid bytes, imports and wrong numeric results', (
 test('fresh-process entrypoint does not accept surplus positional controls', () => {
   rejected(emptyWasm, ['--fresh-process', '2'], /Expected samples iterations warmup/);
 });
+
+test('empty-process controls execute the real Node entrypoint without Wasm', () => {
+  // Deliberately invalid Wasm bytes: the empty control must not consume stdin.
+  const proc = spawnSync(process.execPath, [runner, '--empty-process'], {
+    input: Buffer.from([0, 1, 2, 3]), encoding: 'utf8', shell: false,
+    windowsHide: true, timeout: 10_000, killSignal: 'SIGKILL', maxBuffer: 64 * 1024,
+  });
+  assert.ifError(proc.error);
+  assert.equal(proc.signal, null);
+  assert.equal(proc.status, 0, proc.stderr);
+  assert.equal(proc.stderr, '');
+  assert.deepEqual(JSON.parse(proc.stdout),
+    { mode: 'empty-process', wasmBytes: 0, goldenCases: 0 });
+  rejected(emptyWasm, ['--empty-process', 'extra'], /Expected samples iterations warmup/);
+});

@@ -118,6 +118,7 @@ pub struct Report {
     pub engine_creation_ms: Vec<f64>,
     pub store_creation_ms: Vec<f64>,
     pub node_fresh_process_ms: Vec<f64>,
+    pub node_empty_process_ms: Vec<f64>,
     pub rust_process_memory: process_memory::ProcessMemory,
     pub node_json: String,
 }
@@ -182,9 +183,11 @@ impl Report {
         out.push_str(&self.node_json);
         write!(
             out,
-            r#","nodeFreshProcess":{{"count":{},"boundary":"spawn-through-validated-exit-including-stdin-wasm-transfer","timings":{}}}"#,
+            r#","nodeFreshProcess":{{"count":{},"boundary":"spawn-through-validated-exit-including-stdin-wasm-transfer","timings":{}}},"nodeEmptyProcess":{{"count":{},"boundary":"spawn-through-validated-exit-no-wasm-or-stdin","timings":{}}}"#,
             self.options.samples,
-            statistics(&self.node_fresh_process_ms)
+            statistics(&self.node_fresh_process_ms),
+            self.options.samples,
+            statistics(&self.node_empty_process_ms)
         )
         .unwrap();
         out.push('}');
@@ -330,6 +333,39 @@ fn measure_node_fresh_process(bytes: &[u8], count: usize) -> wasmtime::Result<Ve
     Ok(samples)
 }
 
+// Same script and Node executable as the verified Wasm replay, but no stdin
+// transfer, WebAssembly.Module, instance or guest calls. This also includes
+// Node startup, ESM imports, stdout delivery and process exit. The control is
+// run *after* the existing replay to preserve the old observation boundaries.
+fn measure_node_empty_process(count: usize) -> wasmtime::Result<Vec<f64>> {
+    let script =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/bench/core-engine-replay.mjs");
+    let mut samples = Vec::with_capacity(count);
+    for _ in 0..count {
+        let started = Instant::now();
+        let output = Command::new("node")
+            .arg(&script)
+            .arg("--empty-process")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()?;
+        let elapsed = milliseconds(started);
+        if !output.status.success() {
+            wasmtime::bail!(
+                "empty Node process failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let receipt = String::from_utf8(output.stdout)?;
+        if receipt.trim() != r#"{"mode":"empty-process","wasmBytes":0,"goldenCases":0}"# {
+            wasmtime::bail!("empty Node process receipt mismatch");
+        }
+        samples.push(elapsed);
+    }
+    Ok(samples)
+}
+
 pub fn probe(options: Options) -> wasmtime::Result<Report> {
     options.validate().map_err(std::io::Error::other)?;
     let started = Instant::now();
@@ -400,6 +436,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     // These whole-process samples run last to preserve the prior Node and
     // Wasmtime cost and memory observation boundaries unchanged.
     let node_fresh_process_ms = measure_node_fresh_process(&artifact.wasm, options.samples)?;
+    let node_empty_process_ms = measure_node_empty_process(options.samples)?;
     Ok(Report {
         options,
         wasm_bytes: artifact.wasm.len(),
@@ -414,6 +451,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         engine_creation_ms,
         store_creation_ms,
         node_fresh_process_ms,
+        node_empty_process_ms,
         rust_process_memory,
         node_json,
     })
