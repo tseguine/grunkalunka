@@ -124,13 +124,12 @@ fn observable_host_support_matches_the_actual_platform() {
 
 #[test]
 fn synthetic_sample_records_actual_platform_source_label() {
-    let memory = ProcessMemory::assemble([
-        Some(Snapshot {
+    let memory = ProcessMemory::assemble(
+        [Some(Snapshot {
             rss_bytes: 4096,
             peak_rss_bytes: 8192,
-        });
-        5
-    ])
+        }); 5],
+    )
     .unwrap();
     let source = process_memory::source_name();
     assert!(memory.json().contains(&format!("\"source\":\"{source}\"")));
