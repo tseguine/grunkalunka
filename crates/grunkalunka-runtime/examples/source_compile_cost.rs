@@ -1,10 +1,21 @@
 //! P1 repeated in-process source compilation, without compiler internals or speed gates.
+#[path = "core_engine_cost/process_memory.rs"]
+pub mod process_memory;
+
 use grunkalunka_compiler::{Artifact, compile};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::hint::black_box;
 use std::time::Instant;
 use wasmtime::{Engine, Instance, Module, Store};
+
+pub const MEMORY_PHASES: [&str; 5] = [
+    "beforeFirstCompile",
+    "afterFirstCompile",
+    "afterGoldenVerification",
+    "afterWarmup",
+    "afterBatches",
+];
 
 const AFFINE_JS: &str = include_str!("../../../tests/compatibility/fixtures/affine.js");
 const AFFINE_TS: &str = include_str!("../../../tests/compatibility/fixtures/affine.ts");
@@ -187,6 +198,7 @@ pub struct Report {
     pub first_compile_ms: f64,
     pub samples_ms: Vec<f64>,
     pub release_ms: Vec<f64>,
+    pub process_memory: process_memory::ProcessMemory,
     pub golden_cases: usize,
 }
 
@@ -225,7 +237,7 @@ impl Report {
             "release"
         };
         format!(
-            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"sourceSha256":"{source_sha256}","watBytes":{wat_bytes},"watSha256":"{wat_sha256}","wasmBytes":{wasm_bytes},"wasmSha256":"{wasm_sha256}"}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"artifactRelease":{{"unit":"milliseconds per batch","samplesMs":[{release_samples}],"minMs":{release_min:.9},"medianMs":{release_median:.9},"maxMs":{release_max:.9}}},"goldenCases":{golden_cases}}}"#,
+            r#"{{"schemaVersion":1,"workload":"in-process-source-compile","case":"{case}","language":"{language}","configuration":{{"samples":{sample_count},"iterations":{iterations},"warmup":{warmup}}},"environment":{{"os":"{os}","arch":"{arch}","profile":"{profile}","compilerWorkspaceVersion":"{version}"}},"artifact":{{"sourceBytes":{source_bytes},"sourceSha256":"{source_sha256}","watBytes":{wat_bytes},"watSha256":"{wat_sha256}","wasmBytes":{wasm_bytes},"wasmSha256":"{wasm_sha256}"}},"firstCompileMs":{first:.9},"batches":{{"unit":"milliseconds per batch","samplesMs":[{samples}],"minMs":{min:.9},"medianMs":{median:.9},"maxMs":{max:.9}}},"artifactRelease":{{"unit":"milliseconds per batch","samplesMs":[{release_samples}],"minMs":{release_min:.9},"medianMs":{release_median:.9},"maxMs":{release_max:.9}}},"goldenCases":{golden_cases},"processMemory":{process_memory}}}"#,
             case = self.options.workload.name(),
             sample_count = self.options.samples,
             iterations = self.options.iterations,
@@ -247,6 +259,7 @@ impl Report {
             release_median = release_median,
             release_max = release_max,
             golden_cases = self.golden_cases,
+            process_memory = self.process_memory.json_with_phases(&MEMORY_PHASES),
         )
     }
 }
@@ -258,6 +271,9 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         wasmtime::bail!("selected source exceeds the numeric compiler source bound");
     }
     let source_sha256 = sha256(source.as_bytes());
+    // These are whole-Rust-process snapshots. None encloses a compile,
+    // verification, or artifact-drop timer.
+    let before_compile = process_memory::observe().map_err(std::io::Error::other)?;
 
     // One independently executed emitted artifact, before any timing samples.
     let started = Instant::now();
@@ -266,7 +282,11 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     if golden.wasm.len() < 8 || golden.wasm.len() > 1024 * 1024 {
         wasmtime::bail!("numeric artifact outside the bounded Wasm size profile");
     }
+    let after_compile = process_memory::observe().map_err(std::io::Error::other)?;
     verify_golden(&golden, options.workload)?;
+    // The engine/module used by independent golden checks are included in
+    // these process-wide readings, not isolated as compiler allocations.
+    let after_golden = process_memory::observe().map_err(std::io::Error::other)?;
     // Hash the actual preflight artifact outside timing; later calls must
     // independently reproduce both WAT and Wasm before disposal.
     let wat_sha256 = sha256(golden.wat.as_bytes());
@@ -274,6 +294,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
     let warmed = batch(source, ts, options.warmup)?;
     verify_identical(&warmed, &golden)?;
     drop(warmed);
+    let after_warmup = process_memory::observe().map_err(std::io::Error::other)?;
 
     let mut samples_ms = Vec::with_capacity(options.samples);
     let mut release_ms = Vec::with_capacity(options.samples);
@@ -290,6 +311,18 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         drop(artifacts);
         release_ms.push(started_release.elapsed().as_secs_f64() * 1000.0);
     }
+    let after_batches = process_memory::observe().map_err(std::io::Error::other)?;
+    let process_memory = process_memory::ProcessMemory::assemble_with_phases(
+        [
+            before_compile,
+            after_compile,
+            after_golden,
+            after_warmup,
+            after_batches,
+        ],
+        &MEMORY_PHASES,
+    )
+    .map_err(std::io::Error::other)?;
     Ok(Report {
         options,
         source_bytes: source.len(),
@@ -301,6 +334,7 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         first_compile_ms,
         samples_ms,
         release_ms,
+        process_memory,
         golden_cases: options.workload.cases().len(),
     })
 }
