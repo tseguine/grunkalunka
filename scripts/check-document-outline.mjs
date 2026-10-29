@@ -56,7 +56,11 @@ function runAndValidateCost(selected) {
   assert.equal(report.timings.unit, 'milliseconds');
   assert.equal(report.timings.order, 'alternating');
   assert.ok(report.artifact.guestBytes > 0);
+  assert.equal(report.artifact.guestSha256, initialGuestHash,
+    'native Rust runner must hash the exact Wasm file checked independently by Node');
   assert.ok(report.artifact.componentBytes > report.artifact.guestBytes);
+  assert.match(report.artifact.componentSha256, /^[a-f0-9]{64}$/,
+    'native runner must identify its actual embedded component bytes');
   const memory = report.processMemory;
   assert.equal(memory.scope, 'entire-rust-process');
   assert.equal(memory.unit, 'bytes');
@@ -129,6 +133,8 @@ const captured = JSON.parse(run(process.execPath, [
 assert.equal(captured.schemaVersion, 1);
 assert.equal(captured.workload, 'markdown-wit-capture');
 assert.equal(captured.provenance.guest.sha256, initialGuestHash);
+assert.equal(captured.report.artifact.guestSha256, initialGuestHash);
+assert.equal(captured.report.artifact.componentSha256, repeatedUnicode.artifact.componentSha256);
 assert.equal(captured.provenance.guest.bytes, readFileSync(wasm).byteLength);
 assert.match(captured.provenance.runner.sha256, /^[0-9a-f]{64}$/);
 assert.match(captured.provenance.gitCommit, /^[0-9a-f]{40}$/);
@@ -149,6 +155,8 @@ assert.equal(paired.binding.method, 'same-node-process-sequential');
 assert.equal(paired.captures.length, 2);
 for (const sample of paired.captures) {
   assert.equal(sample.provenance.guest.sha256, initialGuestHash);
+  assert.equal(sample.report.artifact.guestSha256, initialGuestHash);
+  assert.equal(sample.report.artifact.componentSha256, captured.report.artifact.componentSha256);
   assert.equal(sample.provenance.runner.sha256, captured.provenance.runner.sha256);
   assert.deepEqual(sample.report.fixture, captured.report.fixture);
   assert.deepEqual(sample.report.configuration, captured.report.configuration);

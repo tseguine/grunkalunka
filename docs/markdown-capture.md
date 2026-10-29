@@ -1,9 +1,11 @@
 # Saving Markdown/WIT measurement receipts (P1)
 
 The [real Markdown component-cost probe](markdown-component-cost.md) prints raw
-timings, input fixture bytes, and authorization/cleanup evidence, but it does not
-identify the precise guest or native runner binaries. This wrapper adds those
-identities and the observed measurement environment. It **does not** make the
+timings, input fixture bytes, authorization/cleanup evidence and now SHA-256
+identities of its actual guest and generated component bytes. It does **not**
+identify the precise native runner executable. This wrapper independently
+hashes the supplied guest file, verifies that it matches the native report's
+guest hash, and records the runner identity and observed environment. It **does not** make the
 measurements intrinsically comparable or establish a speed ranking.
 
 After building the native and Wasm examples offline:
@@ -40,8 +42,11 @@ The JSON envelope retains its entire original nested report plus:
 
 The wrapper rejects unknown/duplicate/out-of-bound arguments, wrong profile
 counts, mismatched host metadata, invalid timing arrays or statistical summaries,
-wrong guest byte size, non-UTF-8 source fixture bytes, unauthorized backing reads
-and changed observed binaries/repository state. These are input-integrity and
+wrong guest byte size **or SHA-256**, incomplete/malformed guest/component
+hash pairs, non-UTF-8 source fixture bytes, unauthorized backing reads
+and changed observed binaries/repository state. The generated component hash
+comes from the native runner and is a self-reported content identity, not
+an independent component reconstruction. These are input-integrity and
 correctness checks; timing values are accepted as observations with no thresholds.
 
 **Important limits:** a checked hash does not prove how a binary was built.

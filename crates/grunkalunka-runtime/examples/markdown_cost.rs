@@ -4,6 +4,7 @@ mod embedding;
 #[path = "core_engine_cost/process_memory.rs"]
 pub mod process_memory;
 
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::hint::black_box;
@@ -226,6 +227,12 @@ fn hex(bytes: &[u8]) -> String {
     output
 }
 
+// Hash the *actual* guest and generated component after all measurement
+// intervals; these content identities do not authenticate compiler inputs.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
 fn validate_projection(workload: Workload, headings: &[Heading]) -> wasmtime::Result<()> {
     let valid = match workload {
         Workload::Empty => headings.is_empty(),
@@ -407,7 +414,9 @@ impl Series {
 pub struct Report {
     pub options: Options,
     pub guest_bytes: usize,
+    pub guest_sha256: String,
     pub component_bytes: usize,
+    pub component_sha256: String,
     pub embed_ms: f64,
     pub compile_ms: f64,
     pub process_memory: process_memory::ProcessMemory,
@@ -446,8 +455,11 @@ impl Report {
         .unwrap();
         write!(
             out,
-            "\"artifact\":{{\"guestBytes\":{},\"componentBytes\":{}}},",
-            self.guest_bytes, self.component_bytes
+            "\"artifact\":{{\"guestBytes\":{},\"guestSha256\":\"{}\",\"componentBytes\":{},\"componentSha256\":\"{}\"}},",
+            self.guest_bytes,
+            self.guest_sha256,
+            self.component_bytes,
+            self.component_sha256
         )
         .unwrap();
         out.push_str("\"timings\":{\"unit\":\"milliseconds\",\"order\":\"alternating\",");
@@ -622,10 +634,17 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         &projection,
     )?;
 
+    // Hashing follows the whole original cost and process-memory series,
+    // and the additional fresh instance lifecycles: never contaminate timers.
+    let guest_sha256 = sha256_hex(&guest);
+    let component_sha256 = sha256_hex(&component_bytes);
+
     Ok(Report {
         options,
         guest_bytes: guest.len(),
+        guest_sha256,
         component_bytes: component_bytes.len(),
+        component_sha256,
         embed_ms,
         compile_ms,
         process_memory,

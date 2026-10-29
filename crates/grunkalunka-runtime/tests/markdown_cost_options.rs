@@ -121,3 +121,16 @@ fn process_memory_rejects_incomplete_and_decreasing_peak_series() {
     });
     assert!(ProcessMemory::assemble_with_phases(invalid, &MEMORY_PHASES).is_err());
 }
+
+#[test]
+fn sha256_identifies_exact_binary_bytes_not_only_artifact_length() {
+    assert_eq!(
+        markdown_cost::sha256_hex(b"abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+    assert_ne!(
+        markdown_cost::sha256_hex(b"abc"),
+        markdown_cost::sha256_hex(b"abd")
+    );
+    assert_eq!(markdown_cost::sha256_hex(&[0, 1]).len(), 64);
+}

@@ -27,8 +27,17 @@ Options bound samples to 2..12 (default 5), per-batch iterations to 1..100
 ## Observations and independent correctness checks
 
 The JSON report retains the selected source and native-comparable outline
-rows as hex, component/guest byte lengths, OS and architecture, the workspace's
-pinned Wasmtime dependency, fuel policy and separate timing observations:
+rows as hex, component/guest byte lengths and **SHA-256 digests** of the
+actual guest and host-generated component, OS and architecture, the workspace's
+pinned Wasmtime dependency, fuel policy and separate timing observations.
+Both digests are computed only *after* all timing and memory observations.
+The canonical Node check independently hashes the guest file and compares it
+with the Rust report's `artifact.guestSha256`; it also requires a valid
+`artifact.componentSha256` and stable embedded component identity across
+separate same-fixture observations. This detects changed input/component bytes,
+not signed compiler provenance, identical JIT machine code, or a third-party
+rebuild of the component:
+
 
 - One WAT guest-embedding operation and component compilation, outside call loops.
 - Fresh Store/component instantiation samples with one precompiled component
@@ -134,8 +143,8 @@ machine load and whether build products were reused. For an interpretable
 same-workload comparison, require matching fixture source/output bytes,
 samples/iterations/warmup, OS/architecture, Wasmtime dependency, guest binary
 SHA-256 and build conditions; matching byte **lengths** alone are insufficient.
-The report does not independently record the guest hash, compiler flags or CPU
-model, so those must accompany saved reports. Even matched metadata cannot
+The report now records the guest and embedded component byte hashes, but not
+compiler flags or CPU model, so those must accompany saved reports. Even matched metadata cannot
 establish steady CPU frequency, equal caches or JIT state. Collect several
 whole runs; do not apply the numeric-GCD report comparator to these differently
 shaped Markdown reports, rank hosts or infer isolated host overhead.

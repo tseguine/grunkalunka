@@ -153,8 +153,29 @@ export function validateOptionalFreshLifecycles(report, samples) {
   }
 }
 
+// Historical native reports carried lengths only. New reports must provide
+// both digest fields, and a newly captured report must bind the real guest
+// digest to an independently hashed file, never just to the native claim.
+export function validateOptionalArtifactHashes(report, expectedGuestSha256 = null) {
+  const artifact = valueAt(report, 'artifact');
+  const guestPresent = Object.hasOwn(artifact, 'guestSha256');
+  const componentPresent = Object.hasOwn(artifact, 'componentSha256');
+  requireValue(guestPresent === componentPresent, 'complete artifact digest pair');
+  if (expectedGuestSha256 !== null) {
+    requireValue(/^[a-f0-9]{64}$/.test(expectedGuestSha256) && guestPresent,
+      'required independent guest digest');
+  }
+  if (!guestPresent) return;
+  requireValue(/^[a-f0-9]{64}$/.test(artifact.guestSha256) &&
+    /^[a-f0-9]{64}$/.test(artifact.componentSha256), 'artifact digest syntax');
+  if (expectedGuestSha256 !== null) {
+    requireValue(artifact.guestSha256 === expectedGuestSha256,
+      'artifact guest digest identity');
+  }
+}
+
 // Report integrity is not a speed threshold or a second CommonMark oracle.
-export function validateNativeReport(report, config, guestBytes) {
+export function validateNativeReport(report, config, guestBytes, expectedGuestSha256 = null) {
   requireValue(valueAt(report, 'schemaVersion') === 1, 'schemaVersion');
   requireValue(valueAt(report, 'workload') === 'markdown-wit-inspection', 'workload');
   for (const key of ['case', 'samples', 'iterations', 'warmup']) {
@@ -168,6 +189,7 @@ export function validateNativeReport(report, config, guestBytes) {
   requireValue(/^=\d+\.\d+\.\d+$/.test(valueAt(report, 'environment.wasmtimeDependency')),
     'Wasmtime dependency declaration');
   requireValue(valueAt(report, 'artifact.guestBytes') === guestBytes, 'guest byte length');
+  validateOptionalArtifactHashes(report, expectedGuestSha256);
   requireValue(Number.isSafeInteger(valueAt(report, 'artifact.componentBytes')) &&
     report.artifact.componentBytes > guestBytes, 'component byte length');
   requireValue(valueAt(report, 'timings.unit') === 'milliseconds', 'timing unit');
@@ -237,7 +259,7 @@ export async function capture(options) {
     '--samples', String(options.config.samples),
     '--iterations', String(options.config.iterations), '--warmup', String(options.config.warmup)];
   const native = JSON.parse(execute(options.runner, nativeArgs));
-  validateNativeReport(native, options.config, guestInfo.size);
+  validateNativeReport(native, options.config, guestInfo.size, guestSha);
   if (await sha256(options.guest) !== guestSha || await sha256(options.runner) !== runnerSha ||
       execute('git', ['rev-parse', 'HEAD']) !== gitCommit ||
       execute('git', ['status', '--porcelain', '--untracked-files=no']) !== trackedChanges) {

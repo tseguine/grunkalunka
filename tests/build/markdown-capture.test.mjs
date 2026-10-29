@@ -236,3 +236,29 @@ test('fresh WIT lifecycle observations preserve legacy receipts and reject forge
     assert.throws(() => validateNativeReport(native, config, 100), /Invalid/);
   }
 });
+
+test('native artifact digests must be complete and match the independently hashed guest', () => {
+  const hash = 'a'.repeat(64);
+  const withDigests = report();
+  withDigests.artifact.guestSha256 = hash;
+  withDigests.artifact.componentSha256 = 'b'.repeat(64);
+  assert.equal(validateNativeReport(withDigests, config, 100, hash), withDigests);
+  assert.throws(() => validateNativeReport(withDigests, config, 100, 'c'.repeat(64)),
+    /Invalid artifact guest digest identity/);
+  assert.throws(() => validateNativeReport(report(), config, 100, hash),
+    /Invalid required independent guest digest/);
+  for (const artifact of [
+    { ...withDigests.artifact, guestSha256: 'short' },
+    { ...withDigests.artifact, componentSha256: 'B'.repeat(64) },
+    { ...withDigests.artifact, componentSha256: undefined },
+  ]) {
+    assert.throws(() => validateNativeReport({ ...withDigests, artifact }, config, 100, hash),
+      /Invalid artifact digest syntax/);
+  }
+  const missing = { ...withDigests.artifact };
+  delete missing.componentSha256;
+  assert.throws(() => validateNativeReport({ ...withDigests, artifact: missing }, config, 100),
+    /Invalid complete artifact digest pair/);
+  // Pre-hash archived reports still pass when no external guest identity is supplied.
+  assert.doesNotThrow(() => validateNativeReport(report(), config, 100));
+});
