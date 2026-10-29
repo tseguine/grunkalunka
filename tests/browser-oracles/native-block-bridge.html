@@ -41,12 +41,17 @@
   #contents-first { width: 24px; height: 10px; }
   #contents-second { width: 12px; height: 6px; }
   #contents-sibling { width: 20px; height: 5px; margin-left: 200px; }
+  /* Inherited input eligibility without reflow, visibility or paint changes. */
+  #pointer-host { width: 30px; height: 26px; margin-left: 350px; pointer-events: none; }
+  #pointer-inherited { width: 10px; height: 6px; }
+  #pointer-restored { width: 14px; height: 7px; pointer-events: auto; }
+  #pointer-sibling { width: 20px; height: 5px; margin-left: 350px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -233,6 +238,42 @@
   const boxlessStates = {
     contents: contentsOriginal, block: contentsBlock, restored: contentsRestored
   };
+  // A real pointer-events inheritance witness. The parent is untargetable
+  // under none, but its explicitly auto descendant remains a target.
+  // All rectangles and hits are freshly observed at each style change.
+  const pointerIds = ["pointer-host", "pointer-inherited",
+    "pointer-restored", "pointer-sibling"];
+  const pointerProbes = [
+    ["inherited", 351, 438],
+    ["host", 375, 439],
+    ["restored", 351, 444],
+    ["host-lower", 375, 452],
+    ["sibling", 351, 464],
+    ["outside", 385, 440]
+  ];
+  function pointerSample() {
+    return {
+      computed: Object.fromEntries(pointerIds.map(id =>
+        [id, getComputedStyle(document.getElementById(id)).pointerEvents === "auto"])),
+      boxes: Object.fromEntries(pointerIds.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+      })),
+      hits: Object.fromEntries(pointerProbes.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, pointerIds.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+  const pointerHost = document.getElementById("pointer-host");
+  const pointerNone = pointerSample();
+  pointerHost.style.pointerEvents = "auto";
+  const pointerAuto = pointerSample();
+  pointerHost.style.removeProperty("pointer-events");
+  const pointerRestored = pointerSample();
+  const pointerStates = {
+    none: pointerNone, auto: pointerAuto, restored: pointerRestored
+  };
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
   // All earlier geometry/hit channels were captured before changing scrollY.
   function scrollSample() {
@@ -269,6 +310,7 @@
     visibilityStates,
     descendantClipStates,
     boxlessStates,
+    pointerStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {

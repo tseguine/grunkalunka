@@ -123,6 +123,34 @@ const boxlessStates = () => ({
   block: boxlessPhase("block"),
   restored: boxlessPhase("contents"),
 });
+const pointerGeometry = () => ({
+  "pointer-host": { x: 350, y: 436, width: 30, height: 26 },
+  "pointer-inherited": { x: 350, y: 436, width: 10, height: 6 },
+  "pointer-restored": { x: 350, y: 442, width: 14, height: 7 },
+  "pointer-sibling": { x: 350, y: 462, width: 20, height: 5 },
+});
+const pointerPhase = auto => ({
+  boxes: pointerGeometry(),
+  computed: {
+    "pointer-host": auto,
+    "pointer-inherited": auto,
+    "pointer-restored": true,
+    "pointer-sibling": true,
+  },
+  hits: {
+    inherited: auto ? "pointer-inherited" : null,
+    host: auto ? "pointer-host" : null,
+    restored: "pointer-restored",
+    "host-lower": auto ? "pointer-host" : null,
+    sibling: "pointer-sibling",
+    outside: null,
+  },
+});
+const pointerStates = () => ({
+  none: pointerPhase(false),
+  auto: pointerPhase(true),
+  restored: pointerPhase(false),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -174,6 +202,7 @@ const native = () => ({
   visibilityStates: visibilityStates(),
   descendantClipStates: descendantClipStates(),
   boxlessStates: boxlessStates(),
+  pointerStates: pointerStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -202,6 +231,7 @@ function browser() {
     visibilityStates: visibilityStates(),
     descendantClipStates: descendantClipStates(),
     boxlessStates: boxlessStates(),
+    pointerStates: pointerStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -243,11 +273,15 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#contents-first { width: 24px; height: 10px; }",
     "#contents-second { width: 12px; height: 6px; }",
     "#contents-sibling { width: 20px; height: 5px; margin-left: 200px; }",
+    "#pointer-host { width: 30px; height: 26px; margin-left: 350px; pointer-events: none; }",
+    "#pointer-inherited { width: 10px; height: 6px; }",
+    "#pointer-restored { width: 14px; height: 7px; pointer-events: auto; }",
+    "#pointer-sibling { width: 20px; height: 5px; margin-left: 350px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -285,6 +319,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "source must restore the original boxless declaration");
   assert.ok(source.includes('wrapper.getClientRects().length !== 0'),
     "principal box presence must come from real DOM measurement");
+  assert.ok(source.includes('pointerHost.style.pointerEvents = "auto"'),
+    "source must toggle actual inherited pointer-events");
+  assert.ok(source.includes('pointerHost.style.removeProperty("pointer-events")'),
+    "source must restore pointer-events:none");
+  assert.ok(source.includes('getComputedStyle(document.getElementById(id)).pointerEvents === "auto"'),
+    "reference pointer eligibility must come from computed DOM styles");
+  assert.ok(source.includes("const pointerStates = {"),
+    "source must preserve all three independent pointer phases");
   assert.ok(source.includes("const boxlessStates = {"),
     "all three boxless phases must be included in source-hashed evidence");
   assert.ok(source.includes("const descendantClipStates = {"),
@@ -657,6 +699,68 @@ test("invalid and incomplete boxless receipts fail closed", () => {
   }
   const left = native();
   delete left.boxlessStates.block.hits["first-block"];
+  assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
+});
+
+test("real pointer-events inheritance preserves boxes and restores eligible descendants", () => {
+  const left = native(), right = browser();
+  assert.equal(compareNativeBlockBridge(left, right, fixture).status, "equal");
+  assert.deepEqual(right.pointerStates.none.hits, {
+    inherited: null, host: null, restored: "pointer-restored",
+    "host-lower": null, sibling: "pointer-sibling", outside: null,
+  });
+  assert.deepEqual(right.pointerStates.auto.hits, {
+    inherited: "pointer-inherited", host: "pointer-host",
+    restored: "pointer-restored", "host-lower": "pointer-host",
+    sibling: "pointer-sibling", outside: null,
+  });
+  assert.deepEqual(right.pointerStates.restored, right.pointerStates.none);
+  right.pointerStates.none.hits.inherited = "pointer-inherited";
+  const mismatch = compareNativeBlockBridge(left, right, fixture);
+  assert.equal(mismatch.status, "different");
+  assert.deepEqual(mismatch.differences, [{
+    kind: "pointer-hit", phase: "none", probe: "inherited",
+    left: null, right: "pointer-inherited",
+    path: "$.pointerStates.none.hits.inherited",
+  }]);
+});
+
+test("computed pointer policy and fixed geometry differences are independently visible", () => {
+  const observed = browser();
+  observed.pointerStates.auto.computed["pointer-inherited"] = false;
+  observed.pointerStates.restored.boxes["pointer-sibling"].y += 1;
+  const report = compareNativeBlockBridge(native(), observed, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences, [{
+    kind: "pointer-computed", phase: "auto", id: "pointer-inherited",
+    left: true, right: false,
+    path: "$.pointerStates.auto.computed.pointer-inherited",
+  }, {
+    kind: "pointer-box", phase: "restored", id: "pointer-sibling",
+    field: "y", left: 462, right: 463,
+    path: "$.pointerStates.restored.boxes.pointer-sibling.y",
+  }]);
+});
+
+test("incomplete or impossible pointer observations fail closed", () => {
+  for (const mutate of [
+    r => { delete r.pointerStates; },
+    r => { delete r.pointerStates.restored; },
+    r => { delete r.pointerStates.auto.computed; },
+    r => { delete r.pointerStates.none.boxes["pointer-inherited"]; },
+    r => { r.pointerStates.auto.computed["pointer-host"] = "auto"; },
+    r => { r.pointerStates.none.boxes["pointer-restored"].width = -1; },
+    r => { r.pointerStates.restored.boxes["pointer-sibling"].y = Infinity; },
+    r => { r.pointerStates.auto.hits.host = "body"; },
+    r => { delete r.pointerStates.auto.hits["host-lower"]; },
+    r => { r.pointerStates.auto.other = {}; },
+  ]) {
+    const right = browser();
+    mutate(right);
+    assert.equal(compareNativeBlockBridge(native(), right, fixture).status, "invalid");
+  }
+  const left = native();
+  delete left.pointerStates.none.hits.inherited;
   assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
 });
 

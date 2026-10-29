@@ -139,3 +139,13 @@ observations around a padding edge, the parent's own border, an overflowing
 child and the following sibling. The headless native input policy and
 geometry are constructed separately; this is not full CSS overflow or
 DOM event dispatch conformance.
+
+## Independent real-engine pointer-events evidence
+
+A source-checked
+[pointer-events reference witness](browser-native-pointer-events-bridge.md)
+compares actual Chromium, Firefox and WebKit computed pointer policies
+and input targets with a separately built native block tree.
+The witness verifies the parent `none` and child `auto` distinction,
+including toggling the parent and restoring it. Its results do not
+establish DOM event bubbling, keyboard focus or general CSS conformance.

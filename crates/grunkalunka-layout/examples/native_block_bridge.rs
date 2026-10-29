@@ -2,8 +2,8 @@
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
-    Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, Length, Rect, Style,
-    Visibility, WidthBound, layout,
+    Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, Length, PointerEvents,
+    Rect, Style, Visibility, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -1590,6 +1590,326 @@ fn boxless_states_json() -> String {
     format!(r#"{{"contents":{first},"block":{shown},"restored":{final_state}}}"#)
 }
 
+// A source-independent native witness for inherited pointer-events none/auto.
+// Earlier fixed blocks occupy their reviewed normal-flow heights; the pointer
+// group begins at y436 after the contents, clip and visibility groups.
+fn pointer_states_json() -> String {
+    let mut blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(92),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(650),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(80),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(25),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(5),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(22),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(5),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                display: Display::Contents,
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(10),
+            style: Style {
+                height: Length::Px(10),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(10),
+            style: Style {
+                height: Length::Px(6),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                height: Length::Px(5),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                pointer_events: PointerEvents::None,
+                width: Length::Px(30),
+                height: Length::Px(26),
+                margin: Edges {
+                    left: 350,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(14),
+            style: Style {
+                width: Length::Px(10),
+                height: Length::Px(6),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(14),
+            style: Style {
+                pointer_events: PointerEvents::Auto,
+                width: Length::Px(14),
+                height: Length::Px(7),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 350,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(80),
+                height: Length::Px(30),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let blocked = layout(&blocks, 800, 600).expect("pointer none inheritance layout");
+    let expected = [
+        (
+            "pointer-host",
+            14,
+            Rect {
+                x: 350,
+                y: 436,
+                width: 30,
+                height: 26,
+            },
+        ),
+        (
+            "pointer-inherited",
+            15,
+            Rect {
+                x: 350,
+                y: 436,
+                width: 10,
+                height: 6,
+            },
+        ),
+        (
+            "pointer-restored",
+            16,
+            Rect {
+                x: 350,
+                y: 442,
+                width: 14,
+                height: 7,
+            },
+        ),
+        (
+            "pointer-sibling",
+            17,
+            Rect {
+                x: 350,
+                y: 462,
+                width: 20,
+                height: 5,
+            },
+        ),
+    ];
+    for &(id, index, golden) in &expected {
+        assert_eq!(
+            blocked.boxes[index]
+                .expect("pointer geometry remains")
+                .border,
+            golden,
+            "independent native pointer rectangle for {id}"
+        );
+    }
+    assert_eq!(blocked.pointer_events[14..18], [false, false, true, true]);
+    assert_eq!((blocked.scroll_width, blocked.scroll_height), (800, 958));
+    assert_eq!(
+        blocked.boxes[18].unwrap().border,
+        Rect {
+            x: 0,
+            y: 928,
+            width: 80,
+            height: 30,
+        }
+    );
+    let targets: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .map(|(index, node)| HitNode {
+            parent: node.parent,
+            targetable: (14..=17).contains(&index),
+        })
+        .collect();
+    let probes = [
+        ("inherited", 351, 438),
+        ("host", 375, 439),
+        ("restored", 351, 444),
+        ("host-lower", 375, 452),
+        ("sibling", 351, 464),
+        ("outside", 385, 440),
+    ];
+    let expected_none = [None, None, Some(16), None, Some(17), None];
+
+    blocks[14].style.pointer_events = PointerEvents::Auto;
+    let auto = layout(&blocks, 800, 600).expect("pointer auto inheritance layout");
+    assert_eq!(blocked.boxes, auto.boxes);
+    assert_eq!(auto.pointer_events[14..18], [true, true, true, true]);
+    blocks[14].style.pointer_events = PointerEvents::None;
+    let restored = layout(&blocks, 800, 600).expect("restored pointer none layout");
+    assert_eq!(restored, blocked);
+
+    for (frame, targets_expected) in [
+        (&blocked, expected_none),
+        (
+            &auto,
+            [Some(15), Some(14), Some(16), Some(14), Some(17), None],
+        ),
+        (&restored, expected_none),
+    ] {
+        for ((name, x, y), expected_target) in probes.iter().copied().zip(targets_expected) {
+            assert_eq!(
+                hit_test(frame, &targets, x, y),
+                Ok(expected_target),
+                "independent native pointer hit {name}"
+            );
+        }
+    }
+
+    let receipt = |frame: &Frame| {
+        let boxes = expected
+            .iter()
+            .map(|&(id, index, _)| {
+                let rect = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    rect.x, rect.y, rect.width, rect.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let computed = expected
+            .iter()
+            .map(|&(id, index, _)| format!(r#""{id}":{}"#, frame.pointer_events[index]))
+            .collect::<Vec<_>>()
+            .join(",");
+        let hits = probes
+            .iter()
+            .map(|&(name, x, y)| {
+                let id = match hit_test(frame, &targets, x, y).unwrap() {
+                    Some(14) => r#""pointer-host""#,
+                    Some(15) => r#""pointer-inherited""#,
+                    Some(16) => r#""pointer-restored""#,
+                    Some(17) => r#""pointer-sibling""#,
+                    None => "null",
+                    _ => panic!("unexpected independent pointer target"),
+                };
+                format!(r#""{name}":{id}"#)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(r#"{{"computed":{{{computed}}},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#)
+    };
+    let none = receipt(&blocked);
+    let selected = receipt(&auto);
+    let restored = receipt(&restored);
+    format!(r#"{{"none":{none},"auto":{selected},"restored":{restored}}}"#)
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -1773,6 +2093,8 @@ fn main() {
     output.push_str(&descendant_clip_states_json());
     output.push_str(r#","boxlessStates":"#);
     output.push_str(&boxless_states_json());
+    output.push_str(r#","pointerStates":"#);
+    output.push_str(&pointer_states_json());
     output.push('}');
     println!("{output}");
 }

@@ -282,3 +282,14 @@ principal-box presence, child/sibling rectangles and actual input targets.
 The Rust sample independently lays out the same caller-resolved tree,
 without parsing CSS. The [boxless reference guide](browser-native-boxless-bridge.md)
 records literal goldens, provenance and the limits of this selected fixture.
+
+## Inherited pointer-events: none / auto
+
+The native/browser comparison now includes a three-phase source-checked
+pointer-events witness. A parent with `pointer-events:none` remains
+unhittable while an explicitly `auto` child can still be targeted;
+changing the parent's policy to `auto` restores hits on the parent and
+its inherited child without altering any rectangles. Independent Rust
+`Frame::pointer_events` and DOM `elementFromPoint` receipts are
+compared exactly. See the
+[pointer-events evidence guide](browser-native-pointer-events-bridge.md).
