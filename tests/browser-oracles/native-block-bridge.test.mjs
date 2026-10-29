@@ -181,6 +181,32 @@ const autoMarginStates = () => ({
   leftFixed: autoMarginPhase(true),
   restored: autoMarginPhase(false),
 });
+const relativeGeometry = moved => ({
+  "relative-host": { x: moved ? 260 : 252, y: 545, width: 60, height: 32 },
+  "relative-child": { x: moved ? 264 : 256, y: 550, width: 18, height: 8 },
+  "relative-sibling": { x: 350, y: 568, width: 24, height: 6 },
+});
+const relativePhase = moved => ({
+  boxes: relativeGeometry(moved),
+  computed: {
+    "relative-host": { position: "relative", left: moved ? "20px" : "12px", top: "9px" },
+    "relative-child": { position: "relative", left: "4px", top: "5px" },
+  },
+  hits: {
+    "original-parent": moved ? null : "relative-host",
+    "moved-parent": moved ? "relative-host" : null,
+    "original-child": moved ? null : "relative-child",
+    "moved-child": moved ? "relative-child" : "relative-host",
+    "host-interior": "relative-host",
+    sibling: "relative-sibling",
+    outside: null,
+  },
+});
+const relativeStates = () => ({
+  baseline: relativePhase(false),
+  parentMoved: relativePhase(true),
+  restored: relativePhase(false),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -234,6 +260,7 @@ const native = () => ({
   boxlessStates: boxlessStates(),
   pointerStates: pointerStates(),
   autoMarginStates: autoMarginStates(),
+  relativeStates: relativeStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -264,6 +291,7 @@ function browser() {
     boxlessStates: boxlessStates(),
     pointerStates: pointerStates(),
   autoMarginStates: autoMarginStates(),
+  relativeStates: relativeStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -315,11 +343,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#auto-right { width: 30px; height: 6px; margin-left: 12px; margin-right: auto; }",
     "#auto-limited { width: auto; max-width: 80px; height: 6px; margin: 0 auto; }",
     "#auto-sibling { width: 20px; height: 5px; }",
+    "#relative-host { width: 60px; height: 32px; margin-left: 240px; position: relative; left: 12px; top: 9px; }",
+    "#relative-child { width: 18px; height: 8px; position: relative; left: 4px; top: 5px; }",
+    "#relative-sibling { width: 24px; height: 6px; margin-left: 350px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -331,6 +362,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "percentage boxes must be independently measured from DOM rectangles");
   assert.ok(source.includes("const borderBoxes = Object.fromEntries(borderIds.map("),
     "border-box observations must come from independent DOM rectangles");
+  assert.ok(source.includes('relativeHost.style.left = "20px"'),
+    "source must apply a real relative offset change");
+  assert.ok(source.includes('relativeHost.style.removeProperty("left")'),
+    "source must restore the original relative offset");
+  assert.ok(source.includes("const relativeStates = {"),
+    "source must independently measure all three relative phases");
+  assert.ok(source.includes('const style = getComputedStyle(document.getElementById(id))'),
+    "source must measure real browser-computed relative offsets");
   assert.ok(source.includes('autoCenter.style.marginLeft = "20px"'),
     "actual CSS margin mutation required");
   assert.ok(source.includes('autoCenter.style.removeProperty("margin-left")'),
@@ -876,6 +915,73 @@ test("absent, partial, surplus or impossible auto-margin evidence fails closed",
   const reported = native();
   delete reported.autoMarginStates.centered.computed["auto-centered"].right;
   assert.equal(compareNativeBlockBridge(reported, browser(), fixture).status, "invalid");
+});
+
+
+test("real relative offsets shift parent and descendant but not following normal flow", () => {
+  const result = compareNativeBlockBridge(native(), browser(), fixture);
+  assert.equal(result.status, "equal", JSON.stringify(result.differences));
+  const phases = browser().relativeStates;
+  assert.deepEqual(phases.baseline, phases.restored);
+  assert.deepEqual(phases.baseline.boxes, relativeGeometry(false));
+  assert.deepEqual(phases.parentMoved.boxes, relativeGeometry(true));
+  assert.deepEqual(phases.baseline.hits, {
+    "original-parent": "relative-host", "moved-parent": null,
+    "original-child": "relative-child", "moved-child": "relative-host",
+    "host-interior": "relative-host", sibling: "relative-sibling", outside: null,
+  });
+  assert.deepEqual(phases.parentMoved.hits, {
+    "original-parent": null, "moved-parent": "relative-host",
+    "original-child": null, "moved-child": "relative-child",
+    "host-interior": "relative-host", sibling: "relative-sibling", outside: null,
+  });
+});
+
+test("relative boxes, resolved CSS offsets and input targets each detect real drift", () => {
+  const observed = browser();
+  observed.relativeStates.baseline.boxes["relative-child"].x += 2;
+  observed.relativeStates.parentMoved.computed["relative-host"].left = "21px";
+  observed.relativeStates.restored.hits["original-parent"] = null;
+  const report = compareNativeBlockBridge(native(), observed, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences, [{
+    kind: "relative-box", phase: "baseline", id: "relative-child", field: "x",
+    left: 256, right: 258,
+    path: "$.relativeStates.baseline.boxes.relative-child.x",
+  }, {
+    kind: "relative-computed", phase: "parentMoved", id: "relative-host", field: "left",
+    left: "20px", right: "21px",
+    path: "$.relativeStates.parentMoved.computed.relative-host.left",
+  }, {
+    kind: "relative-hit", phase: "restored", probe: "original-parent",
+    left: "relative-host", right: null,
+    path: "$.relativeStates.restored.hits.original-parent",
+  }]);
+});
+
+test("missing, partial and invalid relative receipts never compare equal", () => {
+  for (const change of [
+    c => { delete c.relativeStates; },
+    c => { delete c.relativeStates.parentMoved; },
+    c => { delete c.relativeStates.baseline.boxes; },
+    c => { delete c.relativeStates.parentMoved.boxes["relative-child"]; },
+    c => { c.relativeStates.baseline.boxes["relative-host"].width = -1; },
+    c => { c.relativeStates.restored.boxes["relative-child"].x = Infinity; },
+    c => { c.relativeStates.parentMoved.computed["relative-host"].position = "static"; },
+    c => { c.relativeStates.parentMoved.computed["relative-host"].left = "-1px"; },
+    c => { c.relativeStates.restored.computed["relative-child"].top = "auto"; },
+    c => { delete c.relativeStates.baseline.hits["original-parent"]; },
+    c => { c.relativeStates.baseline.hits["moved-child"] = "body"; },
+    c => { c.relativeStates.restored.extra = 1; },
+    c => { c.relativeStates.unknown = {}; },
+  ]) {
+    const observed = browser();
+    change(observed);
+    assert.equal(compareNativeBlockBridge(native(), observed, fixture).status, "invalid");
+  }
+  const emitted = native();
+  delete emitted.relativeStates.restored.computed["relative-child"].top;
+  assert.equal(compareNativeBlockBridge(emitted, browser(), fixture).status, "invalid");
 });
 
 test("page scroll translates independent viewport hits and restores positions", () => {
