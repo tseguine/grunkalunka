@@ -18,7 +18,10 @@ fn rect(x: u32, y: u32, width: u32, height: u32) -> Rect {
 
 #[test]
 fn all_four_percent_margins_use_parent_width_even_for_vertical_edges() {
-    assert_eq!(Style::default().percentage_margins, PercentageMargins::default());
+    assert_eq!(
+        Style::default().percentage_margins,
+        PercentageMargins::default()
+    );
     let blocks = [
         Block {
             style: Style {
@@ -293,7 +296,10 @@ fn fractional_and_oversized_percentage_margins_fail_without_wraparound() {
     );
 
     blocks[0].style.percentage_margins.left = Some(u32::MAX);
-    assert_eq!(layout(&blocks, MAX_VIEWPORT, 30), Err(LayoutError::Overflow));
+    assert_eq!(
+        layout(&blocks, MAX_VIEWPORT, 30),
+        Err(LayoutError::Overflow)
+    );
 
     blocks[0].style.percentage_margins.left = Some(200);
     blocks[0].style.width = Length::Px(10);
