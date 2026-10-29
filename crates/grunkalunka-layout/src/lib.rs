@@ -274,8 +274,8 @@ impl Engine<'_> {
             };
             Ok(style.box_sizing.content_size(specified, height_edges))
         };
-        let max_content = style.max_height.map(&resolve_height_bound).transpose()?;
-        let min_content = style.min_height.map(&resolve_height_bound).transpose()?;
+        let max_content = style.max_height.map(resolve_height_bound).transpose()?;
+        let min_content = style.min_height.map(resolve_height_bound).transpose()?;
         let apply_bounds = |height: u32| {
             height
                 .min(max_content.unwrap_or(u32::MAX))
@@ -297,7 +297,7 @@ impl Engine<'_> {
                 height_edges,
             )),
         };
-        let definite_height = specified_height.map(&apply_bounds);
+        let definite_height = specified_height.map(apply_bounds);
         let mut next_y = content_y;
         for index in 0..self.children[node].len() {
             let child = self.children[node][index];
