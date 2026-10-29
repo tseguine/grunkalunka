@@ -63,6 +63,9 @@ or model accessibility, selection, opacity, CSS animation, DOM mutation,
 The independent `tests/visibility.rs` exercises exact layout equality,
 nested inheritance and explicit overrides, RGB pixels, input hits,
 `display:none` isolation, malformed metadata and semantic text anchors.
+A separate [source-checked visibility bridge](browser-native-visibility-bridge.md)
+compares the selected geometry, inherited computed visibility and DOM hit
+targets with real Chromium, Firefox and WebKit evidence.
 
 ## What is deliberately NOT implemented
 

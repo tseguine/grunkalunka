@@ -11,6 +11,10 @@ const heightIds = ["height-host", "height-first", "height-second"];
 const borderIds = ["border-host", "border-first", "border-second"];
 const widthBoundIds = ["bounds-host", "bounds-first", "bounds-second"];
 const heightBoundIds = ["height-limited", "height-limited-first", "height-limited-second"];
+const visibilityIds = ["visibility-host", "visibility-child",
+  "visibility-inherited", "visibility-sibling"];
+const visibilityProbes = ["child", "host", "inherited", "sibling"];
+const visibilityPhases = ["hidden", "visible", "restored"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -32,7 +36,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, percentage-height, border-box, constrained-width/height and page-scroll rectangle/hit observations; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimension bounds, scroll and inherited visibility geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -197,6 +201,69 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   }
   validateHeightBounds("native", native?.heightBounds);
   validateHeightBounds("browser", browser?.heightBounds);
+
+  function validateVisibilityStates(owner, states) {
+    const path = "$." + owner + ".visibilityStates";
+    if (!record(states) ||
+        Object.keys(states).sort().join(",") !== [...visibilityPhases].sort().join(",")) {
+      error(path, "exactly hidden, visible and restored visibility phases required");
+      return;
+    }
+    const knownIds = [...visibilityIds].sort().join(",");
+    const knownProbes = [...visibilityProbes].sort().join(",");
+    const knownRectFields = [...rectFields].sort().join(",");
+    for (const phase of visibilityPhases) {
+      const sample = states[phase];
+      const prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,computed,hits") {
+        error(prefix, "complete visibility boxes, computed state and hit probes required");
+        continue;
+      }
+      if (!record(sample.boxes) || Object.keys(sample.boxes).sort().join(",") !== knownIds) {
+        error(prefix + ".boxes", "exactly four visible/hidden geometry nodes required");
+      } else {
+        for (const id of visibilityIds) {
+          const rect = sample.boxes[id];
+          if (!record(rect) ||
+              Object.keys(rect).sort().join(",") !== knownRectFields) {
+            error(prefix + ".boxes." + id, "complete visibility rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(rect[field]) ||
+                (["width", "height"].includes(field) && rect[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite CSS-pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.computed) ||
+          Object.keys(sample.computed).sort().join(",") !== knownIds) {
+        error(prefix + ".computed", "exactly four computed visibility states required");
+      } else {
+        for (const id of visibilityIds) {
+          if (typeof sample.computed[id] !== "boolean") {
+            error(prefix + ".computed." + id, "resolved visibility Boolean required");
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== knownProbes) {
+        error(prefix + ".hits", "exactly four DOM input-target probes required");
+      } else {
+        for (const probe of visibilityProbes) {
+          const target = sample.hits[probe];
+          if (target !== null && !visibilityIds.includes(target)) {
+            error(prefix + ".hits." + probe, "known ID or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validateVisibilityStates("native", native?.visibilityStates);
+  validateVisibilityStates("browser", browser?.visibilityStates);
 
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
@@ -380,6 +447,36 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "height-bound", id, field, left, right,
           path: "$.heightBounds." + id + "." + field,
+        });
+      }
+    }
+  }
+  for (const phase of visibilityPhases) {
+    const a = native.visibilityStates[phase], b = browser.visibilityStates[phase];
+    for (const id of visibilityIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "visibility-box", phase, id, field, left, right,
+            path: "$.visibilityStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+      if (!Object.is(a.computed[id], b.computed[id])) {
+        differences.push({
+          kind: "visibility-computed", phase, id,
+          left: a.computed[id], right: b.computed[id],
+          path: "$.visibilityStates." + phase + ".computed." + id,
+        });
+      }
+    }
+    for (const probe of visibilityProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "visibility-hit", phase, probe, left, right,
+          path: "$.visibilityStates." + phase + ".hits." + probe,
         });
       }
     }

@@ -37,6 +37,32 @@ const heightBoundGeometry = () => ({
   "height-limited-first": { x: 6, y: 344, width: 30, height: 24 },
   "height-limited-second": { x: 6, y: 368, width: 20, height: 12 },
 });
+const visibilityGeometry = () => ({
+  "visibility-host": { x: 300, y: 358, width: 40, height: 25 },
+  "visibility-child": { x: 300, y: 358, width: 14, height: 6 },
+  "visibility-inherited": { x: 300, y: 364, width: 12, height: 5 },
+  "visibility-sibling": { x: 300, y: 383, width: 20, height: 5 },
+});
+const visibilityPhase = shown => ({
+  boxes: visibilityGeometry(),
+  computed: {
+    "visibility-host": shown,
+    "visibility-child": true,
+    "visibility-inherited": shown,
+    "visibility-sibling": true,
+  },
+  hits: {
+    child: "visibility-child",
+    host: shown ? "visibility-host" : null,
+    inherited: shown ? "visibility-inherited" : null,
+    sibling: "visibility-sibling",
+  },
+});
+const visibilityStates = () => ({
+  hidden: visibilityPhase(false),
+  visible: visibilityPhase(true),
+  restored: visibilityPhase(false),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -85,6 +111,7 @@ const native = () => ({
   borderBoxes: borderBoxGeometry(),
   widthBounds: widthBoundGeometry(),
   heightBounds: heightBoundGeometry(),
+  visibilityStates: visibilityStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -110,6 +137,7 @@ function browser() {
     borderBoxes: borderBoxGeometry(),
     widthBounds: widthBoundGeometry(),
     heightBounds: heightBoundGeometry(),
+    visibilityStates: visibilityStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -140,11 +168,15 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#height-limited { width: 80px; height: 90px; min-height: 75%; max-height: 50%;",
     "#height-limited-first { width: 30px; height: 50%; }",
     "#height-limited-second { width: 20px; height: 12px; }",
+    "#visibility-host { width: 40px; height: 25px; margin-left: 300px; visibility: hidden; }",
+    "#visibility-child { width: 14px; height: 6px; visibility: visible; }",
+    "#visibility-inherited { width: 12px; height: 5px; }",
+    "#visibility-sibling { width: 20px; height: 5px; margin-left: 300px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -164,6 +196,14 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "height limits must be measured from fresh DOM rectangles");
   assert.ok(source.includes("const widthBounds = Object.fromEntries(boundsIds.map("),
     "width constraints must be measured from fresh DOM rectangles");
+  assert.ok(source.includes('visibilityHost.style.visibility = "visible"'),
+    "source must toggle actual visibility, not manually edit receipt data");
+  assert.ok(source.includes('visibilityHost.style.removeProperty("visibility")'),
+    "source must restore the original hidden declaration");
+  assert.ok(source.includes("document.elementFromPoint(x, y)"),
+    "actual DOM elementFromPoint must supply all visibility hits");
+  assert.ok(source.includes("const visibilityStates = {"),
+    "all three visibility phases must be retained");
   assert.ok(source.includes("const scrollViewport = {"),
     "all scroll phases must be retained in the original source receipt");
   assert.ok(source.includes("document.elementFromPoint(x, y)"),
@@ -318,6 +358,71 @@ test("incomplete or malformed constrained-height evidence cannot pass", () => {
   }
   const left = native();
   delete left.heightBounds["height-limited-first"];
+  assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
+});
+
+test("visibility inheritance agrees and a hidden parent cannot intercept hits", () => {
+  const left = native(), right = browser();
+  assert.equal(compareNativeBlockBridge(left, right, fixture).status, "equal");
+  assert.deepEqual(right.visibilityStates.hidden.hits, {
+    child: "visibility-child",
+    host: null,
+    inherited: null,
+    sibling: "visibility-sibling",
+  });
+  assert.deepEqual(right.visibilityStates.visible.hits, {
+    child: "visibility-child",
+    host: "visibility-host",
+    inherited: "visibility-inherited",
+    sibling: "visibility-sibling",
+  });
+  assert.deepEqual(right.visibilityStates.restored, right.visibilityStates.hidden);
+  right.visibilityStates.hidden.hits.host = "visibility-host";
+  const altered = compareNativeBlockBridge(left, right, fixture);
+  assert.equal(altered.status, "different");
+  assert.deepEqual(altered.differences, [{
+    kind: "visibility-hit", phase: "hidden", probe: "host",
+    left: null, right: "visibility-host",
+    path: "$.visibilityStates.hidden.hits.host",
+  }]);
+});
+
+test("visibility rectangle and inherited computed state changes are separate differences", () => {
+  const observed = browser();
+  observed.visibilityStates.visible.boxes["visibility-child"].y++;
+  observed.visibilityStates.hidden.computed["visibility-child"] = false;
+  const result = compareNativeBlockBridge(native(), observed, fixture);
+  assert.equal(result.status, "different");
+  assert.deepEqual(result.differences, [{
+    kind: "visibility-computed", phase: "hidden", id: "visibility-child",
+    left: true, right: false,
+    path: "$.visibilityStates.hidden.computed.visibility-child",
+  }, {
+    kind: "visibility-box", phase: "visible", id: "visibility-child", field: "y",
+    left: 358, right: 359,
+    path: "$.visibilityStates.visible.boxes.visibility-child.y",
+  }]);
+});
+
+test("missing, malformed and surplus visibility evidence fails closed", () => {
+  for (const mutate of [
+    r => { delete r.visibilityStates; },
+    r => { delete r.visibilityStates.visible; },
+    r => { delete r.visibilityStates.hidden.computed; },
+    r => { delete r.visibilityStates.visible.hits.host; },
+    r => { r.visibilityStates.visible.hits.inherited = "body"; },
+    r => { r.visibilityStates.hidden.computed["visibility-inherited"] = "hidden"; },
+    r => { r.visibilityStates.hidden.boxes["visibility-host"].width = -1; },
+    r => { r.visibilityStates.restored.boxes["visibility-child"].y = Infinity; },
+    r => { delete r.visibilityStates.hidden.boxes["visibility-sibling"]; },
+    r => { r.visibilityStates.extra = {}; },
+  ]) {
+    const observed = browser();
+    mutate(observed);
+    assert.equal(compareNativeBlockBridge(native(), observed, fixture).status, "invalid");
+  }
+  const left = native();
+  delete left.visibilityStates.hidden.hits.host;
   assert.equal(compareNativeBlockBridge(left, browser(), fixture).status, "invalid");
 });
 

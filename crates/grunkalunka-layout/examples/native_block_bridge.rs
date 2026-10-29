@@ -2,7 +2,8 @@
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
-    Block, BoxSizing, Display, Edges, Frame, HeightBound, Length, Rect, Style, WidthBound, layout,
+    Block, BoxSizing, Display, Edges, Frame, HeightBound, Length, Rect, Style, Visibility,
+    WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -718,6 +719,269 @@ fn width_and_height_bounds_json() -> (String, String) {
     (serialize(&expected), serialize(&expected_height))
 }
 
+// Source-checked visibility witness independent of the browser's DOM boxes.
+// Fixed-height prefixes occupy only their reviewed earlier flow height; the
+// hidden group lives in the existing spacer and cannot alter document extents.
+fn visibility_states_json() -> String {
+    let mut blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(284),
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(132),
+                height: Length::Px(92),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(120),
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(650),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(400),
+                height: Length::Px(80),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(40),
+                height: Length::Px(25),
+                visibility: Visibility::Hidden,
+                margin: Edges {
+                    left: 300,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(6),
+            style: Style {
+                width: Length::Px(14),
+                height: Length::Px(6),
+                visibility: Visibility::Visible,
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(6),
+            style: Style {
+                width: Length::Px(12),
+                height: Length::Px(5),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 300,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(80),
+                height: Length::Px(30),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let hidden = layout(&blocks, 800, 600).expect("hidden visibility layout");
+    let expected = [
+        (
+            "visibility-host",
+            6,
+            Rect {
+                x: 300,
+                y: 358,
+                width: 40,
+                height: 25,
+            },
+        ),
+        (
+            "visibility-child",
+            7,
+            Rect {
+                x: 300,
+                y: 358,
+                width: 14,
+                height: 6,
+            },
+        ),
+        (
+            "visibility-inherited",
+            8,
+            Rect {
+                x: 300,
+                y: 364,
+                width: 12,
+                height: 5,
+            },
+        ),
+        (
+            "visibility-sibling",
+            9,
+            Rect {
+                x: 300,
+                y: 383,
+                width: 20,
+                height: 5,
+            },
+        ),
+    ];
+    for &(id, index, golden) in &expected {
+        assert_eq!(
+            hidden.boxes[index]
+                .expect("visible geometry despite style")
+                .border,
+            golden,
+            "independently resolved visibility geometry for {id}"
+        );
+    }
+    assert_eq!(hidden.visibility[6..10], [false, true, false, true]);
+    assert_eq!((hidden.scroll_width, hidden.scroll_height), (800, 958));
+    assert_eq!(
+        hidden.boxes[10].unwrap().border,
+        Rect {
+            x: 0,
+            y: 928,
+            width: 80,
+            height: 30,
+        }
+    );
+
+    // A targetable flag is caller input policy, independent of computed
+    // visibility. Only this selected group participates in the hit probe.
+    let hit_nodes: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| HitNode {
+            parent: block.parent,
+            targetable: (6..=9).contains(&index),
+        })
+        .collect();
+    let probes = [
+        ("child", 301, 359),
+        ("host", 318, 360),
+        ("inherited", 301, 366),
+        ("sibling", 301, 385),
+    ];
+    let expected_hidden = [Some(7), None, None, Some(9)];
+    blocks[6].style.visibility = Visibility::Visible;
+    let visible = layout(&blocks, 800, 600).expect("visible override layout");
+    assert_eq!(hidden.boxes, visible.boxes);
+    assert_eq!(visible.visibility[6..10], [true, true, true, true]);
+    blocks[6].style.visibility = Visibility::Hidden;
+    let restored = layout(&blocks, 800, 600).expect("restored inheritance");
+    assert_eq!(hidden, restored);
+
+    for (frame, targets) in [
+        (&hidden, expected_hidden),
+        (&visible, [Some(7), Some(6), Some(8), Some(9)]),
+        (&restored, expected_hidden),
+    ] {
+        for ((probe, x, y), expected_hit) in probes.iter().copied().zip(targets) {
+            assert_eq!(
+                hit_test(frame, &hit_nodes, x, y),
+                Ok(expected_hit),
+                "native visibility hit probe {probe}"
+            );
+        }
+    }
+
+    let capture = |frame: &Frame| {
+        let boxes = expected
+            .iter()
+            .map(|&(id, index, _)| {
+                let rect = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    rect.x, rect.y, rect.width, rect.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let computed = [
+            ("visibility-host", 6),
+            ("visibility-child", 7),
+            ("visibility-inherited", 8),
+            ("visibility-sibling", 9),
+        ]
+        .into_iter()
+        .map(|(id, index)| format!(r#""{id}":{}"#, frame.visibility[index]))
+        .collect::<Vec<_>>()
+        .join(",");
+        let hits = probes
+            .iter()
+            .map(|&(name, x, y)| {
+                let target = hit_test(frame, &hit_nodes, x, y).unwrap();
+                let id = match target {
+                    Some(6) => r#""visibility-host""#,
+                    Some(7) => r#""visibility-child""#,
+                    Some(8) => r#""visibility-inherited""#,
+                    Some(9) => r#""visibility-sibling""#,
+                    None => "null",
+                    _ => panic!("unexpected native visibility target"),
+                };
+                format!(r#""{name}":{id}"#)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(r#"{{"boxes":{{{boxes}}},"computed":{{{computed}}},"hits":{{{hits}}}}}"#)
+    };
+    let first = capture(&hidden);
+    let shown = capture(&visible);
+    let final_state = capture(&restored);
+    format!(r#"{{"hidden":{first},"visible":{shown},"restored":{final_state}}}"#)
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -895,6 +1159,8 @@ fn main() {
     output.push_str(&width_bounds);
     output.push_str(r#"},"heightBounds":{"#);
     output.push_str(&height_bounds);
-    output.push_str(r#"}}"#);
+    output.push_str(r#"},"visibilityStates":"#);
+    output.push_str(&visibility_states_json());
+    output.push('}');
     println!("{output}");
 }
