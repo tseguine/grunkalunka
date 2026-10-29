@@ -63,7 +63,34 @@ function statistics(samplesMs) {
   };
 }
 
+// An independent whole-process observation uses fresh Node/V8 state and
+// exactly the same supplied compiler-emitted Wasm as the normal replay.
+async function freshProcess() {
+  const wasm = await input();
+  const module = new WebAssembly.Module(wasm);
+  if (WebAssembly.Module.imports(module).length !== 0) {
+    throw new Error('Fresh-process replay must not grant imports');
+  }
+  const run = new WebAssembly.Instance(module).exports.run;
+  if (typeof run !== 'function') throw new Error('Missing fresh-process run export');
+  for (const [a, b, expected] of cases) {
+    if (!Object.is(run(a, b), expected)) {
+      throw new Error('Incorrect fresh-process independent golden');
+    }
+  }
+  process.stdout.write(JSON.stringify({
+    mode: 'fresh-process',
+    sha256: createHash('sha256').update(wasm).digest('hex'),
+    wasmBytes: wasm.length,
+    goldenCases: cases.length,
+  }) + '\n');
+}
+
 async function main() {
+  if (process.argv.length === 3 && process.argv[2] === '--fresh-process') {
+    await freshProcess();
+    return;
+  }
   const config = controls(process.argv.slice(2));
   const wasm = await input();
   const memorySnapshots = { beforeModule: memorySnapshot() };
