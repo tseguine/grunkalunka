@@ -316,3 +316,16 @@ layout example preserves the sibling's normal position while shifting
 the parent and nested child for paint/hit geometry. See the
 [relative-position evidence guide](browser-native-relative-bridge.md)
 for goldens, limits, fixture provenance and replay.
+
+## Four-sided percentage margins with scrolled hits
+
+A separate three-phase `percentStates` witness measures real browser
+`margin: 10% 5% 15% 20%` under a 200px content-width host, including
+width-based **vertical** percentages. An inline `margin-top` mutation
+moves the first child and its following in-flow sibling vertically,
+while leaving the fixed-height host and outside sibling unchanged. The fixture uses actual `scrollTo(0,200)`, DOM rectangles,
+computed used margins and eight viewport hit probes, then restores the
+original viewport. The independently authored Rust example checks
+the same rectangles and scrolled targets without parsing the CSS.
+See the [percentage-margin evidence guide](browser-native-percentage-margin-bridge.md)
+for literal goldens, fail-closed provenance and supported limits.

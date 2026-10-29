@@ -14,8 +14,9 @@ of visible blocks, plus scroll extents.
   content widths may overflow. Auto heights contain laid-out children and
   an optional caller-supplied intrinsic content height.
 - Nonnegative integer CSS-pixel margins, borders and padding; no vertical
-  margin collapse. Selected horizontal `auto` margins can center a fixed or
-  width-constrained block in its containing content width.
+  margin collapse. Each side can optionally be a whole percentage of the
+  containing **content width**, including vertical margins. Selected
+  horizontal `auto` margins can center a fixed or width-constrained block.
 - Explicit `BoxSizing::ContentBox` (default) or `BoxSizing::BorderBox`
   for caller-resolved fixed and percentage widths/heights. Auto sizes keep
   their existing natural sizing behavior.
@@ -84,6 +85,49 @@ offsets; right/bottom inset precedence; subpixel values; `z-index` or
 stacking contexts; new positioned containing blocks; or absolute, fixed
 and sticky layout. Offsets are caller-resolved values, not CSS declarations
 parsed or computed by the native engine.
+
+## Containing-width-relative percentage margins
+
+`Style::percentage_margins: PercentageMargins` has optional whole-percent
+`top`, `right`, `bottom` and `left` fields. All default to `None`, which
+preserves existing positive `Style::margin: Edges` pixel values. A selected
+percentage overrides its corresponding fixed edge. **All four sides use the
+immediate containing block's original CONTENT width**, not its border width,
+the current block's used width, or the containing height. This intentionally
+follows the selected horizontal writing-mode CSS margin percentage rule: for
+example, `margin-top: 10%` under a 200px-wide content box is 20px even if
+that parent is only 40px tall.
+
+The resolution occurs before auto/fixed/percentage box-width calculation,
+min/max bounds and post-flow relative offsets. A horizontally `auto` side
+takes precedence over its supplied fixed and percentage values, even if
+those ignored inputs would overflow or require fractional pixels.
+Unselected fixed/percentage sides are still independently resolved and
+checked. Top/bottom percentage margins contribute to vertical normal flow
+and following siblings' y positions, while horizontal margins contribute
+to border positions and margin rectangles. The native input/hit/paint
+and scroll projections consume the same resulting geometry.
+
+As elsewhere in this experimental engine, each used percentage must
+produce an **exact nonnegative integer CSS-pixel result**; otherwise layout
+returns `FractionalPercentageMargin { node }`. An exact oversized result
+returns `Overflow`. Percentages above 100% are admitted when resolvable.
+A hidden `display:none` subtree or boxless `display:contents` wrapper
+ignores its own percentage declarations without resolving them; boxless
+children still use the appropriate original containing content width.
+
+The independent `crates/grunkalunka-layout/tests/percentage_margins.rs`
+checks exact four-sided and nested geometry, vertical percentage margins
+based on parent width, auto width with max bounds, horizontal auto
+precedence, relative positioning, paint/hits, ignored wrapper declarations,
+sibling flow and fail-closed arithmetic. The separate
+[real-engine percent-margin bridge](browser-native-percentage-margin-bridge.md)
+checks integral margin values, boxes and input hits through live CSS
+mutations and viewport scrolling in Chromium, Firefox and WebKit.
+
+This is **not** complete CSS margin layout. Negative margins, margin
+collapsing, arbitrary writing modes, mixed calc expressions and fractional
+subpixels remain outside this selected geometry model.
 
 ## Horizontal auto margins for normal-flow blocks
 
@@ -259,7 +303,7 @@ padding-box clipping policy without claiming full CSS overflow handling.
 
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
 tokenizer, selectors/cascade, text shaping, inline formatting, negative margins,
-fractional/percentage horizontal margins, collapsed vertical margins,
+fractional percentage margins, collapsed vertical margins,
 floats, general CSS positioned layout (negative relative offsets,
 absolute/fixed/sticky, stacking contexts), fractional percent widths,
 percentage heights under indefinite auto-height parents, scrollbars,
