@@ -681,18 +681,20 @@ pub(crate) fn parameters(
                         let routes = reasons::routes(semantic, &returns, &inputs);
                         inputs.raw_handlers.extend(routes.handlers);
                         inputs.raw_finalizers.extend(routes.finalizers);
-                        for node in semantic.nodes().iter() {
-                            if let AstKind::CatchClause(handler) = node.kind()
-                                && let Some(parameter) = &handler.param
-                                && let BindingPattern::BindingIdentifier(identifier) =
-                                    &parameter.pattern
-                                && let Some(symbol) = identifier.symbol_id.get()
-                                && (inputs.raw_handlers.contains(&handler.span.start)
-                                    || inputs.choices.contains(&symbol))
-                            {
-                                inputs.choices.insert(symbol);
-                                inputs.mixed.insert(symbol);
-                            }
+                    }
+                    for node in semantic.nodes().iter() {
+                        if let AstKind::CatchClause(handler) = node.kind()
+                            && let Some(parameter) = &handler.param
+                            && let BindingPattern::BindingIdentifier(identifier) =
+                                &parameter.pattern
+                            && let Some(symbol) = identifier.symbol_id.get()
+                            && (inputs.raw_handlers.contains(&handler.span.start)
+                                || inputs.choices.contains(&symbol))
+                        {
+                            // The incoming reason may be primitive even when a
+                            // later assignment gives this same cell a Promise.
+                            inputs.choices.insert(symbol);
+                            inputs.mixed.insert(symbol);
                         }
                     }
                     for (symbol, expression) in &definitions {

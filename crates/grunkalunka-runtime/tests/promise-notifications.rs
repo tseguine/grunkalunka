@@ -24,6 +24,12 @@ mod promise_relational_notifications;
 #[path = "async-suspension/promise_resolve_notifications.rs"]
 mod promise_resolve_notifications;
 
+// Assigning a rejected input must not handle or adopt it; an explicit await does.
+const CATCH_CELL_SOURCES: &[&str] = &[
+    "export async function run(a,b){const p=Promise.reject(b);try{throw a;}catch(e){e=p;return e===p;}}",
+    "export async function run(a,b){const p=Promise.reject(b);try{throw a;}catch(e){e=p;try{await e;}catch(x){return x===b&&e===p;}}}",
+];
+
 fn promoted_identity_case(source: &str, typescript: bool) -> String {
     fn bits(value: Value) -> String {
         match value {
@@ -296,6 +302,7 @@ fn node_reports_detached_child_rejections_like_native_promises() {
         .chain(named_promise_notifications::SOURCES)
         .chain(promise_type_arguments_notifications::SOURCES)
         .chain(promise_resolve_notifications::SOURCES)
+        .chain(CATCH_CELL_SOURCES)
     {
         for typescript in [false, true] {
             cases.push(promoted_identity_case(source, typescript));
