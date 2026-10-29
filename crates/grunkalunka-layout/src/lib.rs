@@ -123,6 +123,18 @@ impl BoxSizing {
     }
 }
 
+/// Per-side, explicitly selected CSS percentage margins. All four sides,
+/// INCLUDING top and bottom, resolve from the containing CONTENT width
+/// (horizontal writing-mode model). A None side uses `Style::margin`.
+/// Horizontal auto margins take priority over both when selected.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PercentageMargins {
+    pub top: Option<u32>,
+    pub right: Option<u32>,
+    pub bottom: Option<u32>,
+    pub left: Option<u32>,
+}
+
 /// Which horizontal margins use the CSS-inspired `auto` policy.
 /// An auto side ignores the corresponding numerical side of `Style::margin`.
 /// The default preserves both explicit integer margins. This is a selected
@@ -186,6 +198,9 @@ pub struct Style {
     pub max_height: Option<HeightBound>,
     pub box_sizing: BoxSizing,
     pub margin: Edges,
+    /// Exact-integer percentage margins relative to the containing width.
+    /// A selected side overrides its fixed `margin` value.
+    pub percentage_margins: PercentageMargins,
     pub horizontal_auto_margins: HorizontalAutoMargins,
     /// A positive relative visual translation; ignored on boxless wrappers.
     /// Affects this node and descendants, but not following siblings' flow.
@@ -296,6 +311,9 @@ pub enum LayoutError {
     FractionalPercentageHeight {
         node: usize,
     },
+    FractionalPercentageMargin {
+        node: usize,
+    },
     /// Two auto margins would each need half an integer CSS pixel; this
     /// engine deliberately refuses fractional geometry instead of rounding.
     FractionalAutoMargin {
@@ -379,11 +397,39 @@ impl Engine<'_> {
         let visual_y = add(cursor_y, style.relative_offset.y)?;
 
         let (auto_left, auto_right) = style.horizontal_auto_margins.sides();
+        // Percentage margins use the ORIGINAL containing content width,
+        // including the vertical sides. The exact-integer policy rejects
+        // fractional CSS pixels rather than silently rounding them.
+        // A horizontally auto side ignores both its fixed and percent input.
+        let resolve_margin = |percent: Option<u32>, fixed: u32| -> Result<u32, LayoutError> {
+            match percent {
+                Some(value) => whole_percent(
+                    available_width,
+                    value,
+                    LayoutError::FractionalPercentageMargin { node },
+                ),
+                None => Ok(fixed),
+            }
+        };
+        let margin = Edges {
+            top: resolve_margin(style.percentage_margins.top, style.margin.top)?,
+            right: if auto_right {
+                0
+            } else {
+                resolve_margin(style.percentage_margins.right, style.margin.right)?
+            },
+            bottom: resolve_margin(style.percentage_margins.bottom, style.margin.bottom)?,
+            left: if auto_left {
+                0
+            } else {
+                resolve_margin(style.percentage_margins.left, style.margin.left)?
+            },
+        };
         // Auto sides do not participate in the tentative width calculation.
         // A width:auto block therefore fills the remaining space and uses
         // zero auto margins unless a width bound later makes room for them.
-        let fixed_left = if auto_left { 0 } else { style.margin.left };
-        let fixed_right = if auto_right { 0 } else { style.margin.right };
+        let fixed_left = margin.left;
+        let fixed_right = margin.right;
         let fixed_margins = add(fixed_left, fixed_right)?;
         let (border_x, border_y) = insets(style.border)?;
         let (padding_x, padding_y) = insets(style.padding)?;
@@ -442,7 +488,7 @@ impl Engine<'_> {
         let border_left = add(visual_x, margin_left)?;
         let padding_left = add(border_left, style.border.left)?;
         let content_x = add(padding_left, style.padding.left)?;
-        let border_top = add(visual_y, style.margin.top)?;
+        let border_top = add(visual_y, margin.top)?;
         let padding_top = add(border_top, style.border.top)?;
         let content_y = add(padding_top, style.padding.top)?;
 
@@ -496,7 +542,7 @@ impl Engine<'_> {
         let padding_height = add(content_height, padding_y)?;
         let border_height = add(padding_height, border_y)?;
         let margin_width = add(border_width, add(margin_left, margin_right)?)?;
-        let margin_height = add(add(style.margin.top, border_height)?, style.margin.bottom)?;
+        let margin_height = add(add(margin.top, border_height)?, margin.bottom)?;
 
         let geometry = BoxGeometry {
             margin: Rect {
@@ -543,8 +589,9 @@ impl Engine<'_> {
 /// display:none, boxless display:contents, inherited visibility, resolved
 /// pointer-events input policy, optional padding-box descendant clipping,
 /// content-box/border-box sizing, min/max width/height constraints,
-/// nonnegative horizontal auto margins, positive post-flow relative offsets,
-/// and whole percentage dimensions with exact integral results are admitted.
+/// nonnegative horizontal auto margins, containing-width-relative percentage
+/// margins on all four sides, positive post-flow relative offsets, and whole
+/// percentage dimensions with exact integral results are admitted.
 /// Relative displacements move an element and descendants for geometry,
 /// painting, hit testing and scroll extent but do not advance sibling flow
 /// or change natural parent heights. Auto margins consume remaining
