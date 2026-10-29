@@ -127,7 +127,10 @@ fn auto_height_bounds_apply_after_children_and_minimum_wins() {
     let frame = layout(&capped, 100, 30).unwrap();
     assert_eq!(frame.boxes[0].unwrap().content.height, 20);
     assert_eq!(frame.boxes[2].unwrap().border.y, 30);
-    assert_eq!(frame.scroll_height, 45, "visible children still contribute scroll extents");
+    assert_eq!(
+        frame.scroll_height, 45,
+        "visible children still contribute scroll extents"
+    );
 }
 
 #[test]
@@ -239,10 +242,7 @@ fn fractional_and_oversized_height_bounds_fail_even_when_not_selected() {
         },
         ..Block::default()
     }];
-    assert_eq!(
-        layout(&huge, 100, MAX_VIEWPORT),
-        Err(LayoutError::Overflow)
-    );
+    assert_eq!(layout(&huge, 100, MAX_VIEWPORT), Err(LayoutError::Overflow));
 }
 
 #[test]
