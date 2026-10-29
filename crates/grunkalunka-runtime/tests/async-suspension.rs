@@ -70,6 +70,9 @@ mod number_coercion;
 #[path = "async-suspension/named_async.rs"]
 mod named_async;
 
+#[path = "async-suspension/named_promise_inputs.rs"]
+mod named_promise_inputs;
+
 #[path = "async-suspension/promise_type_arguments.rs"]
 mod promise_type_arguments;
 

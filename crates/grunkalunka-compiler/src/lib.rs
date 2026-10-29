@@ -247,6 +247,27 @@ fn lower_source_profile_with_identities(
     }
     let promise_parameters =
         lower::infer_promise_parameters(&built.semantic, identities, &signatures);
+    for (index, function) in signatures.iter_mut().enumerate() {
+        if function.async_signature.is_some() {
+            let parameters = declarations[index]
+                .params
+                .items
+                .iter()
+                .map(|parameter| {
+                    let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                        return ir::Type::Number;
+                    };
+                    identifier
+                        .symbol_id
+                        .get()
+                        .and_then(|symbol| promise_parameters.parameter(&symbol))
+                        .unwrap_or(ir::Type::Number)
+                })
+                .collect();
+            function.async_signature =
+                Some(closure_signatures.borrow_mut().intern_async(parameters));
+        }
+    }
     let mut callback_parameters = lower::infer_callback_parameters(
         &built.semantic,
         &signatures,
@@ -271,18 +292,28 @@ fn lower_source_profile_with_identities(
                 .items
                 .iter()
                 .enumerate()
-                .map(|(index, parameter)| match &parameter.pattern {
-                    BindingPattern::BindingIdentifier(identifier)
-                        if closure_signatures.borrow().parameter(previous, index)
-                            == Some(ir::Type::General)
-                            || identifier
-                                .symbol_id
-                                .get()
-                                .is_some_and(|symbol| bindings.inputs.contains(&symbol)) =>
+                .map(|(index, parameter)| {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(kind) = identifier
+                            .symbol_id
+                            .get()
+                            .and_then(|symbol| promise_parameters.parameter(&symbol))
                     {
-                        ir::Type::General
+                        return kind;
                     }
-                    _ => ir::Type::Number,
+                    match &parameter.pattern {
+                        BindingPattern::BindingIdentifier(identifier)
+                            if closure_signatures.borrow().parameter(previous, index)
+                                == Some(ir::Type::General)
+                                || identifier
+                                    .symbol_id
+                                    .get()
+                                    .is_some_and(|symbol| bindings.inputs.contains(&symbol)) =>
+                        {
+                            ir::Type::General
+                        }
+                        _ => ir::Type::Number,
+                    }
                 })
                 .collect();
             let current = closure_signatures.borrow_mut().intern_async(parameters);

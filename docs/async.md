@@ -31,7 +31,8 @@ suspension, inside local closures and from known async bodies. They retain their
 existing declared inputs (up to 1,000 parameters), surplus effects, Number results and ordinary local
 activations; calling a helper adds no reaction job. Helpers still require explicit
 Number completion and cannot suspend or throw. Plain named async helpers are
-also admitted with represented primitive inputs and private async activations; see
+also admitted with represented primitive, Promise and mixed inputs and private
+async activations; see
 [the named-helper contract](async-named-helpers.md). The async `run` entry cannot be
 called as an ordinary source helper, including from another helper or closure.
 

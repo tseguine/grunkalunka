@@ -840,3 +840,15 @@ retain receiver effects, captures and failures without invoking function bodies.
 Tests cover aliases, factories, hidden callback/capture entries, erased types
 and width/depth boundaries. No IR, runtime ABI, dependency or limit change.
 General reflection/property domains remain open; see [the contract](function-length.md).
+
+## Named async Promise inputs (2026-10-29)
+
+Named module async helpers now accept represented Promise identities and mixed
+Promise/primitive actuals through existing private Promise/AsyncValue parameters.
+Original-symbol facts follow aliases, selected named/local calls, forwarding and
+recursion; erased annotations supply no proof. Native JS/Node-Wasm/Wasmtime
+comparisons cover the former exact exclusion, identity, snapshots, captures,
+rejection consumption and adoption ticks. Notification fixtures preserve unused
+argument rejections and skipped startup on argument failure. No IR, runtime ABI,
+dependency or resource limit change. Promise-valued throws/rejection reasons and
+broader object inputs remain open; see [the contract](async-named-helpers.md).
