@@ -113,6 +113,8 @@ pub struct Report {
     pub wasmtime_samples_ms: Vec<f64>,
     pub fresh_instantiation_ms: Vec<f64>,
     pub fresh_first_call_ms: Vec<f64>,
+    pub engine_creation_ms: Vec<f64>,
+    pub store_creation_ms: Vec<f64>,
     pub rust_process_memory: process_memory::ProcessMemory,
     pub node_json: String,
 }
@@ -155,7 +157,7 @@ impl Report {
         .unwrap();
         write!(
             out,
-            r#""wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{},"freshInstances":{{"count":{},"instantiation":{},"firstCall":{}}},"processMemory":{}}},"#,
+            r#""wasmtime":{{"moduleCompileMs":{:.9},"instantiationMs":{:.9},"firstCallMs":{:.9},"batches":{},"freshInstances":{{"count":{},"instantiation":{},"firstCall":{}}},"hostSetup":{{"count":{},"engineCreation":{},"storeCreation":{}}},"processMemory":{}}},"#,
             self.module_compile_ms,
             self.instantiation_ms,
             self.first_call_ms,
@@ -163,6 +165,9 @@ impl Report {
             self.options.samples,
             statistics(&self.fresh_instantiation_ms),
             statistics(&self.fresh_first_call_ms),
+            self.options.samples,
+            statistics(&self.engine_creation_ms),
+            statistics(&self.store_creation_ms),
             self.rust_process_memory.json()
         )
         .unwrap();
@@ -203,6 +208,24 @@ fn measure_fresh_instances(
         }
     }
     Ok((instantiations, first_calls))
+}
+
+// Bounded empty-host controls: freshly construct an Engine and then an empty
+// Store. Both timers exclude guest module compilation, invocation and
+// destruction, and have no direct Node WebAssembly.Module equivalent.
+fn measure_host_setup(count: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut engine_creation = Vec::with_capacity(count);
+    let mut store_creation = Vec::with_capacity(count);
+    for _ in 0..count {
+        let started = Instant::now();
+        let engine = Engine::default();
+        engine_creation.push(milliseconds(started));
+        let started = Instant::now();
+        let store = Store::new(&engine, ());
+        store_creation.push(milliseconds(started));
+        std::hint::black_box(&store);
+    }
+    (engine_creation, store_creation)
 }
 
 fn measure_node(bytes: &[u8], options: Options) -> wasmtime::Result<String> {
@@ -302,6 +325,9 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         measure_fresh_instances(&engine, &module, options.samples)?;
     // The Node subprocess receives these same compiled bytes through stdin.
     let node_json = measure_node(&artifact.wasm, options)?;
+    // Isolated host setup follows the entire original two-engine replay,
+    // so it cannot preheat or otherwise change earlier Node timing samples.
+    let (engine_creation_ms, store_creation_ms) = measure_host_setup(options.samples);
     Ok(Report {
         options,
         wasm_bytes: artifact.wasm.len(),
@@ -312,6 +338,8 @@ pub fn probe(options: Options) -> wasmtime::Result<Report> {
         wasmtime_samples_ms: samples,
         fresh_instantiation_ms,
         fresh_first_call_ms,
+        engine_creation_ms,
+        store_creation_ms,
         rust_process_memory,
         node_json,
     })

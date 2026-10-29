@@ -64,11 +64,15 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
     assert_eq!(report.wasmtime_samples_ms.len(), options.samples);
     assert_eq!(report.fresh_instantiation_ms.len(), options.samples);
     assert_eq!(report.fresh_first_call_ms.len(), options.samples);
+    assert_eq!(report.engine_creation_ms.len(), options.samples);
+    assert_eq!(report.store_creation_ms.len(), options.samples);
     assert!(
         report
             .fresh_instantiation_ms
             .iter()
             .chain(report.fresh_first_call_ms.iter())
+            .chain(report.engine_creation_ms.iter())
+            .chain(report.store_creation_ms.iter())
             .all(|duration| duration.is_finite() && *duration >= 0.0)
     );
     #[cfg(target_os = "linux")]
@@ -111,11 +115,12 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
         "\"afterModule\":",
         "\"afterBatches\":",
         "\"freshInstances\":{\"count\":2,\"instantiation\":",
+        "\"hostSetup\":{\"count\":2,\"engineCreation\":",
     ] {
         assert!(output.contains(expected), "missing {expected}");
     }
     // Node receives the compiled binary on stdin; neither engine recompiles source.
-    assert_eq!(output.matches("\"samplesMs\":").count(), 6);
+    assert_eq!(output.matches("\"samplesMs\":").count(), 8);
     assert_eq!(output.matches("\"freshInstances\":").count(), 2);
 }
 
