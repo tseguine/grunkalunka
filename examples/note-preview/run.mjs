@@ -97,7 +97,8 @@ function liftedResult(report, expectedProfile, bytes) {
       throw new Error('Denied profile disclosed protected bytes');
     }
     return { profile: 'denied', sourceBytes: Buffer.alloc(0),
-      headings: [], backingReads: profile.backingReads };
+      headings: [], backingReads: profile.backingReads,
+      attemptedReads: profile.attempts, cleanups: profile.cleanups };
   }
   const recovered = decodedHex(profile.sourceHex, 'source bytes');
   if (!recovered.equals(bytes)) throw new Error('WIT granted source differs from supplied bytes');
@@ -108,7 +109,8 @@ function liftedResult(report, expectedProfile, bytes) {
       .decode(decodedHex(record.textHex, 'WIT heading')),
   }));
   return { profile: 'granted', sourceBytes: bytes,
-    headings, backingReads: profile.backingReads };
+    headings, backingReads: profile.backingReads,
+    attemptedReads: profile.attempts, cleanups: profile.cleanups };
 }
 
 function checkedPpm(bytes) {
@@ -158,12 +160,14 @@ export async function runPreview({ profile, out, note, expanded = 1, debug = fal
     if (debug) {
       await writeFile(join(staging, 'debug.json'), JSON.stringify({
         schemaVersion: 1, profile, expanded: Boolean(expanded),
-        attemptedReads: 1, backingReads: lifted.backingReads,
+        attemptedReads: lifted.attemptedReads, backingReads: lifted.backingReads,
+        cleanups: lifted.cleanups,
         headingCount: lifted.headings.length, visibleHeadingCount: scene.visibleCount,
         nativeFrame: frame,
       }, null, 2) + '\n');
     }
-    // Source note and its path are never placed in output files.
+    // Original Markdown bytes and input path are not copied into output
+    // files. Granted heading projections are intentionally visible.
     await rename(staging, destination);
   } catch (error) {
     await rm(staging, { recursive: true, force: true });
