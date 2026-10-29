@@ -233,7 +233,10 @@ fn overconstrained_auto_margins_become_zero_and_overflow_remains_visible() {
     blocks[0].style.border = Edges::all(60);
     let edges_overflow = layout(&blocks, 100, 20).unwrap();
     assert_eq!(edges_overflow.boxes[0].unwrap().content.width, 0);
-    assert_eq!(edges_overflow.boxes[0].unwrap().border, rect(0, 0, 120, 123));
+    assert_eq!(
+        edges_overflow.boxes[0].unwrap().border,
+        rect(0, 0, 120, 123)
+    );
     assert_eq!(edges_overflow.scroll_width, 120);
 }
 
