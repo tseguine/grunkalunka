@@ -63,7 +63,7 @@ fn decode_hex(input: &str) -> Result<String, String> {
         return Err("invalid heading hex length".into());
     }
     let mut bytes = Vec::with_capacity(input.len() / 2);
-    for pair in input.as_bytes().chunks_exact(2) {
+    for pair in input.as_bytes().as_chunks::<2>().0 {
         let high = nibble(pair[0]).ok_or("invalid heading hex byte")?;
         let low = nibble(pair[1]).ok_or("invalid heading hex byte")?;
         bytes.push(high << 4 | low);
