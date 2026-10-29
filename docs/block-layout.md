@@ -14,6 +14,9 @@ of visible blocks, plus scroll extents.
   content widths may overflow. Auto heights contain laid-out children and
   an optional caller-supplied intrinsic content height.
 - Nonnegative integer CSS-pixel margins, borders and padding; no margin collapse.
+- Explicit `BoxSizing::ContentBox` (default) or `BoxSizing::BorderBox`
+  for caller-resolved fixed and percentage widths/heights. Auto sizes keep
+  their existing natural sizing behavior.
 - Explicit integer-percentage content widths relative to the containing content
   width (e.g. 50% of 210 px = 105 px), and heights relative to a definite
   containing content height (the viewport for the root, an explicit height for
@@ -145,3 +148,37 @@ exclusion, sibling positions, over-100% overflow, invalid resolution, exact
 integer boundaries and hidden subtree isolation. No HTML/CSS parsing, margin
 collapse, subpixel rounding, browser-engine comparison or broad CSS height
 conformance is claimed.
+
+## Explicit content-box and border-box sizing
+
+The caller supplies `Style::box_sizing` as either
+`BoxSizing::ContentBox` (the unchanged default) or
+`BoxSizing::BorderBox`. This is **resolved layout input**, not CSS selector,
+cascade or `box-sizing` declaration parsing.
+
+For a non-auto fixed or integral percentage dimension, content-box sizing
+treats the specified value as the content length. Border-box sizing instead
+subtracts the corresponding **border and padding** edge sums from the
+specified outer length; margins are never included. If the requested border
+box is smaller than its own border/padding, its content length saturates at
+zero and the *used* border box still contains those edges. Negative content
+sizes or wrapped integer arithmetic are not introduced.
+
+An integral percentage width is resolved against the containing **content
+width** before subtracting the local border/padding. An integral percentage
+height likewise uses the already **definite containing content height**,
+allowing nested border-box percentages without importing the containing
+border/padding. Indefinite height parents, fractional CSS-pixel percentage
+results, checked overflow, normal-flow sibling placement, fixed-height
+overflow and `display:none` retain their prior behavior. `Length::Auto`
+ignores the sizing choice and follows the existing auto width/height rules.
+
+`crates/grunkalunka-layout/tests/box_sizing.rs` checks exact independent
+content/padding/border/margin coordinates, nested percentage dimensions and
+sibling flow, overconstrained border boxes, whole-viewport percentages,
+fractional-input rejections, default behavior, and hidden descendants.
+The existing Rust layout tests remain unchanged to guard content-box output.
+No subpixel rounding, min/max sizing, overflow clipping, layout containment,
+margin collapse or general CSS box-model conformance is claimed. A separate
+real-engine source-hashed comparison would be needed for selected browser
+parity evidence.
