@@ -33,6 +33,8 @@ const requiredPaths = [
   "tools/browser-oracles/native-bridge-sensitivity.test.mjs",
   "tools/browser-oracles/native-hit-sensitivity.mjs",
   "tools/browser-oracles/native-hit-sensitivity.test.mjs",
+  "tools/browser-oracles/native-height-sensitivity.mjs",
+  "tools/browser-oracles/native-height-sensitivity.test.mjs",
   "tools/browser-oracles/hosted/native-bridge.test.mjs",
   "tools/browser-oracles/package.json",
   ".github/workflows/browser-native-bridge.yml",
@@ -73,22 +75,39 @@ test("real layout artifact feeds one engine's node:test parity and sensitivity s
   assert.ok(source.includes("node --test tools/browser-oracles/hosted/native-bridge.test.mjs"));
   assert.ok(source.includes("BROWSER_BRIDGE_NATIVE: target/native-bridge/native.json"));
   assert.ok(source.includes("BROWSER_ENGINE: ${{ matrix.engine }}"));
-  assert.ok(!source.includes("node tools/browser-oracles/native-hit-sensitivity.mjs"),
-    "workflow must invoke the real test, not assemble test assertions inline");
+  for (const tool of ["native-hit-sensitivity", "native-height-sensitivity"]) {
+    assert.ok(!source.includes("node tools/browser-oracles/" + tool + ".mjs"),
+      "workflow must invoke the real test, not assemble test assertions inline");
+  }
 });
 
-test("the hosted node:test suite checks parity before both live mutations", () => {
+test("the hosted node:test suite checks parity before all three live mutations", () => {
   const hosted = readFileSync(new URL("../../tools/browser-oracles/hosted/native-bridge.test.mjs",
     import.meta.url), "utf8");
   const parity = hosted.indexOf("unchanged native geometry and DOM targets agree");
   const width = hosted.indexOf("checkMutation('native-bridge-sensitivity.mjs'");
   const hit = hosted.indexOf("checkMutation('native-hit-sensitivity.mjs'");
-  assert.ok(parity > 0 && parity < width && width < hit,
-    "retain baseline parity and both independent real mutation controls");
+  const height = hosted.indexOf("checkMutation('native-height-sensitivity.mjs'");
+  assert.ok(parity > 0 && parity < width && width < hit && hit < height,
+    "retain baseline parity and all three independent real mutation controls");
   assert.ok(hosted.includes("compareNativeBlockBridge(native, capture, fixture)"));
   assert.ok(hosted.includes("assert.equal(report.status, 'equal'"));
   assert.ok(hosted.includes("writeFile(join(out, 'comparison.json')"));
   assert.ok(hosted.includes("JSON.stringify(capture"));
+});
+
+test("height mutation input edits independently retrigger PR and push browser evidence", () => {
+  for (const file of [
+    "tools/browser-oracles/native-height-sensitivity.mjs",
+    "tools/browser-oracles/native-height-sensitivity.test.mjs",
+  ]) {
+    const entry = "      - '" + file + "'\n";
+    assert.equal(source.split(entry).length, 3, file + " must appear in both events");
+    assert.throws(() => verifyNativeBridgeTriggers(source.replace(entry, "")));
+    const last = source.lastIndexOf(entry);
+    assert.throws(() => verifyNativeBridgeTriggers(
+      source.slice(0, last) + source.slice(last + entry.length)));
+  }
 });
 
 test("real engines remain pinned and all report differences as test failures", () => {

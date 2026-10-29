@@ -64,4 +64,7 @@ test('live native/browser parity and independent negative controls',
     await t.test('real pointer-events mutation changes exactly six hit targets', () => {
       checkMutation('native-hit-sensitivity.mjs', engine, nativePath, join(out, 'hit-sensitivity'));
     });
+    await t.test('real height mutation changes only child height and next sibling y', () => {
+      checkMutation('native-height-sensitivity.mjs', engine, nativePath, join(out, 'height-sensitivity'));
+    });
   });
