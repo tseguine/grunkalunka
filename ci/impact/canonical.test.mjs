@@ -138,15 +138,30 @@ test('an actual canonical check is reached through a logical group', () => {
   assert.ok(!result.tests.includes('test:json-integration'));
 });
 
-test('real layout change selects package tests without building the whole workspace', () => {
+test('real layout change selects layout tests and the A1 consumer without unrelated workspace tests', () => {
   const result = analyze(['crates/grunkalunka-layout/src/lib.rs']);
   assert.equal(result.full, false, JSON.stringify(result.reasons));
-  assert.deepEqual(result.build, ['grunkalunka-layout']);
+  // A1's real WIT->layout/paint integration now consumes this package.
+  // Its Node check must be selected, with the compiler/runtime/Markdown
+  // prerequisites in the *build* closure, rather than silently skipped.
+  assert.ok(result.tests.includes('check:a1-note-preview'));
   assert.ok(result.tests.includes('check:workspace-tests'));
   assert.ok(result.tests.includes('cargo-test:grunkalunka-layout'));
+  assert.ok(!result.tests.includes('cargo-test:grunkalunka-runtime'),
+    'build-only runtime prerequisites must not select unrelated Cargo tests');
+  assert.ok(!result.tests.includes('check:compiler-compatibility-replay'));
+  assert.ok(!result.tests.includes('check:json-composition'));
+  assert.deepEqual(result.build, [
+    'a1-note-preview', 'grunkalunka-cli', 'grunkalunka-compiler',
+    'grunkalunka-layout', 'grunkalunka-markdown', 'grunkalunka-runtime',
+    'grunkalunka-wasm-link', 'node-build', 'node-runtime',
+  ]);
   const preview = previewCargoScope(result, cargo);
   assert.equal(preview.mode, 'scoped-preview', preview.reason);
-  assert.deepEqual(preview.selectedBuildPackages, ['grunkalunka-layout']);
+  assert.deepEqual(preview.selectedBuildPackages, [
+    'grunkalunka-cli', 'grunkalunka-compiler', 'grunkalunka-layout',
+    'grunkalunka-markdown', 'grunkalunka-runtime', 'grunkalunka-wasm-link',
+  ]);
   assert.deepEqual(preview.selectedTestPackages, ['grunkalunka-layout']);
   assert.deepEqual(preview.commands.test,
     ['cargo', 'test', '--locked', '--offline', '-j', '4', '-p', 'grunkalunka-layout']);
