@@ -49,11 +49,31 @@ pub enum Display {
     None,
 }
 
+/// Explicitly resolved box sizing, not a CSS declaration parser.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum BoxSizing {
+    #[default]
+    ContentBox,
+    BorderBox,
+}
+
+impl BoxSizing {
+    fn content_size(self, specified: u32, border_padding: u32) -> u32 {
+        match self {
+            Self::ContentBox => specified,
+            // A requested border box cannot be smaller than its edges.
+            // Keep the content box nonnegative, enlarging the used border box.
+            Self::BorderBox => specified.saturating_sub(border_padding),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Style {
     pub display: Display,
     pub width: Length,
     pub height: Length,
+    pub box_sizing: BoxSizing,
     pub margin: Edges,
     pub border: Edges,
     pub padding: Edges,
@@ -177,15 +197,20 @@ impl Engine<'_> {
         let (margin_x, _) = insets(style.margin)?;
         let (border_x, border_y) = insets(style.border)?;
         let (padding_x, padding_y) = insets(style.padding)?;
-        let horizontal = add(add(margin_x, border_x)?, padding_x)?;
+        let width_edges = add(border_x, padding_x)?;
+        let height_edges = add(border_y, padding_y)?;
+        let horizontal = add(margin_x, width_edges)?;
         let content_width = match style.width {
             Length::Auto => available_width.saturating_sub(horizontal),
-            Length::Px(value) => value,
-            Length::Percent(value) => whole_percent(
-                available_width,
-                value,
-                LayoutError::FractionalPercentageWidth { node },
-            )?,
+            Length::Px(value) => style.box_sizing.content_size(value, width_edges),
+            Length::Percent(value) => style.box_sizing.content_size(
+                whole_percent(
+                    available_width,
+                    value,
+                    LayoutError::FractionalPercentageWidth { node },
+                )?,
+                width_edges,
+            ),
         };
 
         let border_left = add(containing_x, style.margin.left)?;
@@ -200,12 +225,15 @@ impl Engine<'_> {
         // the parent's own containing height was definite.
         let definite_height = match style.height {
             Length::Auto => None,
-            Length::Px(value) => Some(value),
-            Length::Percent(value) => Some(whole_percent(
-                containing_height.ok_or(LayoutError::UnsupportedPercentageHeight { node })?,
-                value,
-                LayoutError::FractionalPercentageHeight { node },
-            )?),
+            Length::Px(value) => Some(style.box_sizing.content_size(value, height_edges)),
+            Length::Percent(value) => Some(style.box_sizing.content_size(
+                whole_percent(
+                    containing_height.ok_or(LayoutError::UnsupportedPercentageHeight { node })?,
+                    value,
+                    LayoutError::FractionalPercentageHeight { node },
+                )?,
+                height_edges,
+            )),
         };
         let mut next_y = content_y;
         for index in 0..self.children[node].len() {
@@ -264,8 +292,9 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// display:none, and whole percentage dimensions with exact integral results
-/// are admitted. Percentage heights require a definite containing content
+/// display:none, explicit content-box/border-box sizing, and whole percentage
+/// dimensions with exact integral results are admitted. Percentage heights
+/// require a definite containing content
 /// height; unresolved heights and fractional pixel results are rejected.
 /// Positive margins do not collapse; inline layout, text shaping, floats,
 /// CSS selectors and painting are not provided. Fixed heights may
