@@ -55,6 +55,21 @@ Each child is genuinely new, but OS page caches and filesystem/runtime
 state remain uncontrolled. This is a bounded numeric program launch cost,
 not a complete application startup profile or an engine speed ranking.
 
+A subsequent bounded `nodeEmptyProcess` control starts **the same**
+`core-engine-replay.mjs` ESM entrypoint with `--empty-process` in a separate
+Node OS process for every sample. It loads the same script and its imports,
+prints a small fixed receipt, and exits without receiving or executing Wasm,
+compiling a module, constructing an instance or checking numeric goldens.
+The parent Rust timer observes the complete process spawn through validated
+stdout and exit. Raw samples and min/median/max use the same 2..20 bound.
+This control runs **after** the previously recorded fresh-process Wasm samples
+and all previous Rust/Node timing and memory checkpoints, so none of those
+earlier observation windows changes. Its command-line mode and stdio workload
+necessarily differ from the full Wasm replay; comparing or subtracting the
+two intervals does **not** isolate a Wasm cost or establish a machine-independent
+startup tax. Neither control enforces cold OS/runtime caches, a speed ranking,
+or a timing pass/fail threshold.
+
 These are **post-warmup** observations, not cold application startup.
 Wasmtime Store setup and Node module/instance runtime behavior differ, and
 both may reuse caches; this is not a machine-independent engine speed ratio.

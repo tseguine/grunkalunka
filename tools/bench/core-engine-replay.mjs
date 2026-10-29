@@ -87,6 +87,14 @@ async function freshProcess() {
 }
 
 async function main() {
+  if (process.argv.length === 3 && process.argv[2] === '--empty-process') {
+    // Same JS entrypoint/imports as the real replay, but no Wasm, stdin read,
+    // module construction or numerical oracle. This is a whole-process control.
+    process.stdout.write(JSON.stringify({
+      mode: 'empty-process', wasmBytes: 0, goldenCases: 0,
+    }) + '\n');
+    return;
+  }
   if (process.argv.length === 3 && process.argv[2] === '--fresh-process') {
     await freshProcess();
     return;
