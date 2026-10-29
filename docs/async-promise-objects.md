@@ -44,11 +44,18 @@ peers isolate malformed roots, snapshots and events from source lowering.
 The async source profile admits `throw` and intrinsic `Promise.reject` of
 represented Promise identities and Promise/primitive selections, including named
 and local async bodies. Neither operation adopts or handles the reason. Catch
-bindings and pending finally reasons use the existing AsyncValue carrier when a
-module may reject with a Promise; modules
-without such a producer retain General catches. This conservative module summary
-can still reject arithmetic on an unrelated catch binding in the same module.
-Precise per-handler reason analysis remains follow-up work.
+bindings use the existing AsyncValue carrier for incoming raw reasons or later
+Promise writes; finally buffers use it where source routes may deliver a raw
+reason. A raw producer in one handler or nested function no longer widens
+unrelated primitive catches. The fixed-point
+query routes throws and awaited reasons to the nearest protected lexical catch,
+through intervening finally buffers. Exceptions from a handler or cleanup bypass
+that scope's own catch; nested function bodies reach callers through their Promise.
+Direct primitive awaits and recognized pristine Promise intrinsics retain General
+reasons when their first argument cannot be a Promise. Later Promise writes still
+widen catch cells, including captured cells, without losing initial primitive tags.
+Stored and opaque Promise provenance remains conservative; full interprocedural
+reason precision is follow-up work.
 
 Native JS, Node-Wasm and Wasmtime tests cover exact former local/named throw
 exclusions, caught identity, aliases, captures, recursive forwarding, mutable
@@ -66,5 +73,5 @@ Returning the wrapper from an async body adopts the wrapper, leaving its reason
 unchanged. A pristine reject has no normal completion; numeric projections of
 its directly awaited result are unreachable and never coerce the reason.
 
-General synchronous throw, precise per-handler inference, thenables, String/heap
+General synchronous throw, full interprocedural reason inference, thenables, String/heap
 values and general Promise construction remain separate gaps.

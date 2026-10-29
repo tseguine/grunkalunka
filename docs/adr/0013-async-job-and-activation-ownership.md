@@ -346,12 +346,11 @@ rejection proxies. Broader thenable/object domains remain required follow-ups; s
 ## Source Promise-valued throw (2026-10-29)
 
 Async throw selects the existing AsyncValue carrier for represented Promise or
-Promise/primitive operands. The source provenance fixed point marks catch cells
-conservatively at module scope when such a producer exists. This reuses existing
-alias/capture/private-call inference and preserves primitive-only modules, at the
-cost of rejecting some arithmetic in unrelated catches of newly admitted mixed
-modules. More precise exception-effect inference is deferred until a concrete
-case warrants it. Type annotations do not choose the domain.
+Promise/primitive operands. The initial source provenance fixed point used a
+conservative module-wide catch domain, reusing alias/capture/private-call facts
+and preserving primitive-only modules. A concrete unrelated-catch arithmetic
+failure motivated the lexical refinement below, which replaces that module-wide
+catch classification. Type annotations do not choose the domain.
 
 Async verification admits raw root and child rejection while lexical primitive
 handlers and ordinary verifiers retain their closed domains. Completion emission
@@ -376,7 +375,21 @@ finishes before construction, using the earlier first-argument snapshot.
 Native JS, Node-Wasm and Wasmtime tests cover the former exact exclusions, nested
 and self-reasons, pending objects, alias/private forwarding, mixed tags, cleanup,
 argument failure, notifications, erased types and full reaction traces. The same
-conservative per-module catch inference limit remains; no host ABI or limit changes.
+host ABI and source limits remain unchanged. Lexical catch inference is refined below.
+
+## Lexical source reason refinement (2026-10-29)
+
+Refine the former module-wide catch classification using the existing monotone
+source provenance query. Route represented raw throws/await rejections to the
+nearest lexical handler and intervening finally buffer, stopping at function
+boundaries. This avoids rejecting unrelated primitive catch arithmetic while
+preserving rethrows, cleanup precedence, captured catch cells and raw identity.
+The alternative of dynamically narrowing every mixed value would leave primitive
+addition ambiguous with Promise string conversion; retaining the module summary
+would preserve a known source admission gap. No new IR or runtime mechanism is
+needed. Stored/opaque Promise rejection provenance remains conservative.
+Maintained JS/TS native-JS/Node-Wasm/Wasmtime tests cover these boundaries; existing
+raw-reason and small-stack tests remain unchanged.
 
 ## Mixed intrinsic resolution (2026-10-29)
 

@@ -5,11 +5,15 @@ use oxc_ast::AstKind;
 use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod reasons;
+
 #[derive(Default)]
 pub(crate) struct Inputs {
     pub(super) identities: bool,
-    // Conservative module exception domain; primitive-only programs stay General.
+    // Module producer fact; lexical routes retain primitive-only handlers/buffers.
     pub(super) raw_throws: bool,
+    raw_handlers: BTreeSet<u32>,
+    raw_finalizers: BTreeSet<u32>,
     named_async: BTreeSet<SymbolId>,
     fulfilled: BTreeSet<SymbolId>,
     pending: BTreeSet<SymbolId>,
@@ -25,6 +29,31 @@ pub(crate) struct Inputs {
 }
 
 impl Inputs {
+    pub(super) fn finally_type(&self, start: u32) -> Type {
+        if self.raw_finalizers.contains(&start) {
+            Type::AsyncValue
+        } else {
+            Type::General
+        }
+    }
+
+    pub(super) fn catch_type(&self, handler: &oxc_ast::ast::CatchClause<'_>) -> Type {
+        let mixed_cell = handler.param.as_ref().is_some_and(|parameter| {
+            let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                return false;
+            };
+            identifier
+                .symbol_id
+                .get()
+                .is_some_and(|symbol| self.is_mixed(&symbol))
+        });
+        if self.raw_handlers.contains(&handler.span.start) || mixed_cell {
+            Type::AsyncValue
+        } else {
+            Type::General
+        }
+    }
+
     fn named_async_call(
         &self,
         callee: &Expression<'_>,
@@ -630,6 +659,8 @@ pub(crate) fn parameters(
                         inputs.mixed_results.len(),
                         inputs.asynchronous.len(),
                         inputs.raw_throws,
+                        inputs.raw_handlers.len(),
+                        inputs.raw_finalizers.len(),
                     );
                     inputs.raw_throws |= semantic.nodes().iter().any(|node| match node.kind() {
                         AstKind::ThrowStatement(statement) => {
@@ -647,12 +678,17 @@ pub(crate) fn parameters(
                         _ => false,
                     });
                     if inputs.raw_throws {
+                        let routes = reasons::routes(semantic, &returns, &inputs);
+                        inputs.raw_handlers.extend(routes.handlers);
+                        inputs.raw_finalizers.extend(routes.finalizers);
                         for node in semantic.nodes().iter() {
                             if let AstKind::CatchClause(handler) = node.kind()
                                 && let Some(parameter) = &handler.param
                                 && let BindingPattern::BindingIdentifier(identifier) =
                                     &parameter.pattern
                                 && let Some(symbol) = identifier.symbol_id.get()
+                                && (inputs.raw_handlers.contains(&handler.span.start)
+                                    || inputs.choices.contains(&symbol))
                             {
                                 inputs.choices.insert(symbol);
                                 inputs.mixed.insert(symbol);
@@ -728,6 +764,8 @@ pub(crate) fn parameters(
                             inputs.mixed_results.len(),
                             inputs.asynchronous.len(),
                             inputs.raw_throws,
+                            inputs.raw_handlers.len(),
+                            inputs.raw_finalizers.len(),
                         )
                     {
                         break;

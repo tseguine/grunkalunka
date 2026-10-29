@@ -869,8 +869,19 @@ Promise.reject now retains represented Promise and mixed-value reasons without
 adoption or handling, including directly awaited and stored constructors. Argument
 snapshots, surplus effects/failures and one await reaction match native JavaScript.
 Source/host differential tests cover pending, nested/self, handled and notification
-identities through Node-Wasm and Wasmtime. General thenables/heap inputs and precise
-per-handler reason inference remain open; see [the contract](async-promise-objects.md).
+identities through Node-Wasm and Wasmtime. General thenables/heap inputs and full
+interprocedural reason precision remain open; lexical inference is refined below.
+See [the contract](async-promise-objects.md).
+
+## Lexical catch reason domains (2026-10-29)
+
+Unrelated primitive catches retain General values even in modules with raw Promise
+throw/reject producers. Source provenance marks receiving handlers and finally
+buffers, preserving nested scopes, rethrows, cleanup and later captured Promise
+writes. Direct primitive and pristine-intrinsic awaits retain primitive reason
+domains. Maintained JS/TS native-JS/Node-Wasm/Wasmtime regressions compare values,
+identity and complete reaction traces. Stored/opaque Promise reason provenance
+remains conservative; [broader source/host limits](async-promise-objects.md) remain.
 
 ## Mixed intrinsic Promise.resolve (2026-10-29)
 
