@@ -92,16 +92,7 @@ fn named_async_primitive_inputs_keep_kind_shape_and_erasure_guards() {
         compile_async(typed, true).unwrap().wasm
     );
     compare_named(&[plain]);
-    for value in [
-        "'x'",
-        "[]",
-        "({})",
-        "1n",
-        "Promise.resolve(a)",
-        "TypeError()",
-        "x=>x",
-        "missing",
-    ] {
+    for value in ["'x'", "[]", "({})", "1n", "TypeError()", "x=>x", "missing"] {
         let source = format!(
             "async function f(x){{return x;}}export async function run(a,b){{return await f({value});}}"
         );
@@ -268,7 +259,6 @@ fn named_async_helpers_keep_erasure_width_source_and_domain_boundaries() {
     for ts in [false, true] {
         for source in [
             "async function f(x){return x;}export function run(a,b){return a;}",
-            "async function f(x){return x;}export async function run(a,b){return await f(Promise.resolve(a));}",
             "async function f(x,y){return x;}export async function run(a,b){return await f(a);}",
             "async function f(x=1){return x;}export async function run(a,b){return await f(a);}",
             "async function f(...x){return a;}export async function run(a,b){return await f(a);}",

@@ -123,6 +123,72 @@ fn symbol(identifier: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Opti
         .symbol_id()
 }
 
+pub(super) fn named_async_targets(
+    returns: &ReturnOrigins<'_, '_, '_>,
+    functions: &[NumericFunction],
+    definitions: &[(SymbolId, &Expression<'_>)],
+    calls: &[&CallExpression<'_>],
+) -> BTreeMap<SymbolId, BTreeSet<SymbolId>> {
+    let mut named: BTreeMap<_, _> = functions
+        .iter()
+        .filter(|function| function.async_signature.is_some())
+        .map(|function| (function.symbol, BTreeSet::from([function.symbol])))
+        .collect();
+    while !named.is_empty() {
+        let origins = |expression| {
+            returns
+                .expression(expression, &BTreeMap::new(), 0, 0)
+                .0
+                .iter()
+                .filter_map(|source| named.get(source))
+                .flatten()
+                .copied()
+                .collect::<BTreeSet<_>>()
+        };
+        let mut additions = definitions
+            .iter()
+            .map(|(symbol, expression)| (*symbol, origins(expression)))
+            .collect::<Vec<_>>();
+        for call in calls {
+            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            for source in sources {
+                if let Some(known) = returns.targets.get(&source) {
+                    bodies.extend(known);
+                }
+            }
+            for body in bodies {
+                for (parameter, argument) in returns.arrows[&body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(&call.arguments)
+                {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(symbol) = identifier.symbol_id.get()
+                        && let Some(actual) = argument.as_expression()
+                    {
+                        additions.push((symbol, origins(actual)));
+                    }
+                }
+            }
+        }
+        let mut changed = false;
+        for (symbol, targets) in additions {
+            if targets.is_empty() {
+                continue;
+            }
+            let known = named.entry(symbol).or_default();
+            let previous = known.len();
+            known.extend(targets);
+            changed |= known.len() != previous;
+        }
+        if !changed {
+            break;
+        }
+    }
+    named
+}
+
 // Origins of a function-valued expression; scalar effects/tests do not supply
 // its value. Actual lowering still checks every branch, target and source limit.
 fn origins(expression: &Expression<'_>, semantic: &Semantic<'_>) -> Origins {

@@ -524,22 +524,10 @@ pub(crate) fn general_mutable_bindings(
     };
     // Named helpers are constructors too. Follow their original symbols through
     // aliases and known local forwarding without inventing runtime targets.
-    let mut named_targets: BTreeMap<_, _> = named_parameters
-        .keys()
-        .map(|symbol| (*symbol, BTreeSet::from([*symbol])))
-        .collect();
-    while !named_targets.is_empty() {
-        let named_origins = |expression, known: &BTreeMap<SymbolId, BTreeSet<SymbolId>>| {
-            let (sources, _) = returns.expression(expression, &BTreeMap::new(), 0, 0);
-            sources
-                .iter()
-                .filter_map(|source| known.get(source))
-                .flatten()
-                .copied()
-                .collect::<BTreeSet<_>>()
-        };
-        let mut additions = Vec::new();
-        for (symbol, expression) in definitions
+    let named_targets = if named_parameters.is_empty() {
+        BTreeMap::new()
+    } else {
+        let named_definitions = definitions
             .iter()
             .filter_map(|(symbol, init)| init.map(|init| (*symbol, init)))
             .chain(
@@ -547,45 +535,17 @@ pub(crate) fn general_mutable_bindings(
                     .iter()
                     .flat_map(|(symbol, values)| values.iter().map(move |value| (*symbol, *value))),
             )
-        {
-            additions.push((symbol, named_origins(expression, &named_targets)));
-        }
-        for node in semantic.nodes().iter() {
-            let AstKind::CallExpression(call) = node.kind() else {
-                continue;
-            };
-            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
-            for source in sources {
-                if let Some(known) = targets.get(&source) {
-                    bodies.extend(known);
-                }
-            }
-            for body in bodies {
-                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
-                {
-                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
-                        && let Some(symbol) = identifier.symbol_id.get()
-                        && let Some(actual) = argument.as_expression()
-                    {
-                        additions.push((symbol, named_origins(actual, &named_targets)));
-                    }
-                }
-            }
-        }
-        let mut changed = false;
-        for (symbol, constructors) in additions {
-            if constructors.is_empty() {
-                continue;
-            }
-            let known = named_targets.entry(symbol).or_default();
-            let previous = known.len();
-            known.extend(constructors);
-            changed |= known.len() != previous;
-        }
-        if !changed {
-            break;
-        }
-    }
+            .collect::<Vec<_>>();
+        let calls = semantic
+            .nodes()
+            .iter()
+            .filter_map(|node| match node.kind() {
+                AstKind::CallExpression(call) => Some(call),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        callbacks::named_async_targets(&returns, functions, &named_definitions, &calls)
+    };
     let mut call_results = BTreeMap::new();
     for node in semantic.nodes().iter() {
         let AstKind::CallExpression(call) = node.kind() else {

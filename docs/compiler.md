@@ -2256,8 +2256,11 @@ actual source calls, aliases and known forwarding. They admit represented
 Undefined/Null/Boolean/Number values without trusting erased annotations.
 Number-only input proofs remain available to synchronous helper calls; widened
 inputs preserve primitive kinds, argument snapshots and captured cells in the
-existing private layout. See [the contract](async-named-helpers.md). Promise,
-function, Error and broader heap inputs remain separate work. No IR, emitter,
+existing private layout. Named helpers also infer Promise and AsyncValue inputs
+from represented constructors, aliases, forwarding and ordinary writes. These
+retain raw identities and mixed primitive values until explicitly consumed.
+See [the contract](async-named-helpers.md). Function, Error and broader heap
+inputs remain separate work. No IR, emitter,
 runtime ABI, dependency or limit changes.
 
 ## Function length reads

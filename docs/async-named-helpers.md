@@ -32,9 +32,10 @@ coerce arguments. Existing callable aliases, same-signature selections and callb
 forwarding can carry these named callables. This does not add general observable
 function identity or properties.
 
-Named async helper inputs now admit represented Undefined, Null, Boolean and
-Number values. Actual calls, aliases and known forwarding choose Number or
-General private parameters; type annotations supply no kind proof. Number-only
+Named async helper inputs now admit represented Undefined, Null, Boolean,
+Number and Promise identities, including Promise/primitive mixtures. Actual
+calls, aliases and known forwarding choose Number, General, Promise or
+AsyncValue private parameters; type annotations supply no kind proof. Number-only
 inputs keep their existing signatures, including forwarding to synchronous
 Number helpers. Mixed inputs use the existing private argument layout and retain
 primitive bits, mutable cells and captures across suspension. Primitive and
@@ -54,10 +55,11 @@ witness exhausts the default Wasmtime boundary fuel; it executes under an explic
 limits are unchanged.
 
 Defaults, rest/destructured parameters, generators, `this`, `arguments`, binding
-rebinding, optional calls, module globals and Promise/Error/function/String/heap
-input domains remain outside this unit. Native JS, Node-Wasm and Wasmtime tests
-cover declaration order,
-values and reactions, forwarding, recursion, concurrent cells, evaluation order,
+rebinding, optional calls, module globals and Error/function/String/heap
+input domains remain outside this unit. Promise-valued throws and intrinsic
+rejection reasons remain a separate gap, including for local Promise values.
+Native JS, Node-Wasm and Wasmtime tests cover declaration order, values and
+reactions, forwarding, recursion, concurrent cells, evaluation order,
 erased types and source/resource boundaries. Notification fixtures also compare
 native rejection checkpoints and exact guest job counts.
 
@@ -69,3 +71,13 @@ exact former null/false exclusions, mixed Number/General frames, concurrent
 cells, alias/conditional selection, callback/factory forwarding, recursive
 activations, argument failures and erased TypeScript. No IR, runtime/frame ABI,
 dependency or resource limit changes are needed.
+
+Named Promise inputs retain their original handle through direct calls, aliases,
+selected named/local callables, callback/factory forwarding and recursive helper
+activations. Plain parameter replacement can require the existing AsyncValue
+carrier; captures and earlier arguments preserve their snapshots. The exact
+former f(Promise.resolve(a)) exclusion now executes in JS and TS against native
+JS, Node-Wasm and Wasmtime, including reaction ticks. Notification tests show
+that passing an unused rejected argument neither handles it nor adopts it, and
+that failure in a later argument prevents helper startup. Broader Promise-cell
+updates/coercions, thenables and object rejection domains remain separate gaps.

@@ -171,7 +171,8 @@ the existing predicate path. This adds neither numeric coercion nor function tra
 
 General IR parameters are restricted to this private closure entry protocol;
 synchronous helpers and exported entries retain their Number parameter contracts.
-Named async helpers use this same private protocol for inferred primitive inputs;
+Named async helpers use this same private protocol for inferred primitive,
+Promise and mixed Promise/primitive inputs;
 see [their contract](async-named-helpers.md).
 Executable IR tests exercise mixed scalar/function/General frames, primitive and
 Number returns, a captured General parameter, and the unchanged 1,000 parameter

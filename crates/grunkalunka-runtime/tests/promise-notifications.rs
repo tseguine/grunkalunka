@@ -12,6 +12,9 @@ mod promoted_identities;
 #[path = "async-suspension/named_async_notifications.rs"]
 mod named_async_notifications;
 
+#[path = "async-suspension/named_promise_notifications.rs"]
+mod named_promise_notifications;
+
 #[path = "async-suspension/promise_type_arguments_notifications.rs"]
 mod promise_type_arguments_notifications;
 
@@ -287,6 +290,7 @@ fn node_reports_detached_child_rejections_like_native_promises() {
         .iter()
         .chain(promise_relational_notifications::SOURCES)
         .chain(named_async_notifications::SOURCES)
+        .chain(named_promise_notifications::SOURCES)
         .chain(promise_type_arguments_notifications::SOURCES)
     {
         for typescript in [false, true] {

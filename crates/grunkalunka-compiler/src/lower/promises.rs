@@ -23,15 +23,26 @@ pub(crate) struct Inputs {
 }
 
 impl Inputs {
-    fn named_async_call(&self, callee: &Expression<'_>, semantic: &Semantic<'_>) -> bool {
-        let Some(Expression::Identifier(identifier)) = closures::unwrapped(callee, 0) else {
-            return false;
-        };
-        identifier
-            .reference_id
-            .get()
-            .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
-            .is_some_and(|symbol| self.named_async.contains(&symbol))
+    fn named_async_call(
+        &self,
+        callee: &Expression<'_>,
+        returns: &callbacks::ReturnOrigins<'_, '_, '_>,
+    ) -> bool {
+        let (sources, mut bodies) = returns.expression(callee, &BTreeMap::new(), 0, 0);
+        let present = !sources.is_empty() || !bodies.is_empty();
+        for source in sources {
+            if self.named_async.contains(&source) {
+                continue;
+            }
+            let Some(known) = returns.targets.get(&source) else {
+                return false;
+            };
+            bodies.extend(known);
+        }
+        present
+            && bodies
+                .iter()
+                .all(|body| self.results.contains(body) && !self.mixed_results.contains(body))
     }
 
     pub(super) fn is_mixed(&self, symbol: &SymbolId) -> bool {
@@ -43,7 +54,7 @@ impl Inputs {
             && !self.mixed.contains(symbol)
     }
 
-    pub(super) fn parameter(&self, symbol: &SymbolId) -> Option<Type> {
+    pub(crate) fn parameter(&self, symbol: &SymbolId) -> Option<Type> {
         if self.mixed.contains(symbol) {
             Some(Type::AsyncValue)
         } else if self.pending.contains(symbol) {
@@ -86,7 +97,7 @@ fn pending_shape(
                 }
             }
             Expression::CallExpression(call) => {
-                if inputs.identities && inputs.named_async_call(&call.callee, semantic) {
+                if inputs.identities && inputs.named_async_call(&call.callee, returns) {
                     continue;
                 }
                 if let Some(intrinsic) = awaited::intrinsic(call, semantic).ok().flatten()
@@ -145,6 +156,25 @@ fn callees(
     let (sources, mut bodies) = returns.expression(expression, &BTreeMap::new(), 0, 0);
     for source in sources {
         bodies.extend(returns.targets.get(&source)?);
+    }
+    (!bodies.is_empty()).then_some(bodies)
+}
+
+// Named declarations are planned separately from arrow bodies. Keep both sides
+// of a selected callable in the input graph without indexing a declaration as
+// an arrow. Unknown source symbols still supply no target proof.
+fn input_callees(
+    expression: &Expression<'_>,
+    returns: &callbacks::ReturnOrigins<'_, '_, '_>,
+    named: Option<&BTreeSet<SymbolId>>,
+) -> Option<BTreeSet<NodeId>> {
+    let (sources, mut bodies) = returns.expression(expression, &BTreeMap::new(), 0, 0);
+    for source in sources {
+        if let Some(known) = returns.targets.get(&source) {
+            bodies.extend(known);
+        } else if !named.is_some_and(|named| named.contains(&source)) {
+            return None;
+        }
     }
     (!bodies.is_empty()).then_some(bodies)
 }
@@ -218,12 +248,13 @@ pub(crate) fn parameters(
     identities: bool,
     functions: &[NumericFunction],
 ) -> Inputs {
-    let named_async: BTreeSet<_> = functions
+    let mut named_async: BTreeSet<_> = functions
         .iter()
         .filter(|f| f.async_signature.is_some())
         .map(|f| f.symbol)
         .collect();
     let mut arrows = BTreeMap::new();
+    let mut named_parameters = BTreeMap::new();
     let mut definitions = Vec::new();
     let mut uninitialized = BTreeSet::new();
     let mut calls = Vec::new();
@@ -233,6 +264,13 @@ pub(crate) fn parameters(
             AstKind::ArrowFunctionExpression(arrow) => {
                 arrows.insert(arrow.node_id.get(), arrow);
                 has_constructor |= arrow.r#async;
+            }
+            AstKind::Function(function) => {
+                if let Some(symbol) = function.id.as_ref().and_then(|id| id.symbol_id.get())
+                    && named_async.contains(&symbol)
+                {
+                    named_parameters.insert(symbol, &function.params);
+                }
             }
             AstKind::VariableDeclaration(declaration) => {
                 for local in &declaration.declarations {
@@ -288,20 +326,27 @@ pub(crate) fn parameters(
         return Inputs::default();
     }
     let mut targets: BTreeMap<SymbolId, BTreeSet<NodeId>> = BTreeMap::new();
-    loop {
+    let named_targets = loop {
         let returns = callbacks::ReturnOrigins {
             semantic,
             targets: &targets,
             arrows: &arrows,
         };
+        let named_targets =
+            callbacks::named_async_targets(&returns, functions, &definitions, &calls);
+        named_async.extend(named_targets.keys().copied());
         let mut additions = Vec::new();
         for &(symbol, expression) in &definitions {
-            if let Some(bodies) = callees(expression, &returns) {
+            if let Some(bodies) =
+                input_callees(expression, &returns, identities.then_some(&named_async))
+            {
                 additions.extend(bodies.into_iter().map(|body| (symbol, body)));
             }
         }
         for call in &calls {
-            let Some(bodies) = callees(&call.callee, &returns) else {
+            let Some(bodies) =
+                input_callees(&call.callee, &returns, identities.then_some(&named_async))
+            else {
                 continue;
             };
             for body in bodies {
@@ -310,7 +355,8 @@ pub(crate) fn parameters(
                     if let BindingPattern::BindingIdentifier(binding) = &parameter.pattern
                         && let (Some(symbol), Some(expression)) =
                             (binding.symbol_id.get(), argument.as_expression())
-                        && let Some(bodies) = callees(expression, &returns)
+                        && let Some(bodies) =
+                            input_callees(expression, &returns, identities.then_some(&named_async))
                     {
                         additions.extend(bodies.into_iter().map(|body| (symbol, body)));
                     }
@@ -322,19 +368,38 @@ pub(crate) fn parameters(
             changed |= targets.entry(symbol).or_default().insert(body);
         }
         if !changed {
-            break;
+            break named_targets;
         }
-    }
+    };
     let returns = callbacks::ReturnOrigins {
         semantic,
         targets: &targets,
         arrows: &arrows,
     };
+    let mut named_incoming = Vec::new();
     if identities {
         // Actual inputs join the same original-source provenance graph as local
         // initializers/writes. Resolving targets never evaluates an argument.
         for call in &calls {
-            let Some(bodies) = callees(&call.callee, &returns) else {
+            let (sources, _) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            for target in sources
+                .iter()
+                .filter_map(|source| named_targets.get(source))
+                .flatten()
+            {
+                if let Some(parameters) = named_parameters.get(target) {
+                    for (parameter, argument) in parameters.items.iter().zip(&call.arguments) {
+                        if let BindingPattern::BindingIdentifier(binding) = &parameter.pattern
+                            && let (Some(symbol), Some(expression)) =
+                                (binding.symbol_id.get(), argument.as_expression())
+                        {
+                            definitions.push((symbol, expression));
+                            named_incoming.push((symbol, expression));
+                        }
+                    }
+                }
+            }
+            let Some(bodies) = input_callees(&call.callee, &returns, Some(&named_async)) else {
                 continue;
             };
             for body in bodies {
@@ -354,7 +419,9 @@ pub(crate) fn parameters(
     loop {
         let mut additions = Vec::new();
         for call in &calls {
-            let Some(bodies) = callees(&call.callee, &returns) else {
+            let Some(bodies) =
+                input_callees(&call.callee, &returns, identities.then_some(&named_async))
+            else {
                 continue;
             };
             for body in bodies {
@@ -468,8 +535,18 @@ pub(crate) fn parameters(
                 inputs.choices.insert(*symbol);
             }
         }
+        for (symbol, expression) in &named_incoming {
+            if pending_shape(expression, semantic, &returns, &inputs) {
+                inputs.pending.insert(*symbol);
+                inputs.values.insert(*symbol);
+            }
+        }
         for call in &calls {
-            let Some(bodies) = callees(&call.callee, &returns) else {
+            let Some(bodies) = input_callees(
+                &call.callee,
+                &returns,
+                inputs.identities.then_some(&inputs.named_async),
+            ) else {
                 continue;
             };
             for body in bodies {
