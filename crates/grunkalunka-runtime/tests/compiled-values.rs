@@ -282,6 +282,22 @@ console.log('PASS '+cases.length+' programs '+calls+' calls per engine');
 }
 
 #[test]
+fn value_profile_generic_call_types_keep_recursive_resource_limits() {
+    let typed = "export function run<T>(a:number,b:number) {return run<T>(a,b);}";
+    let plain = "export function run(a,b) {return run(a,b);}";
+    let artifact = compile_value(typed, true).unwrap();
+    assert_eq!(artifact.wasm, compile_value(plain, false).unwrap().wasm);
+    let error = ValueInstance::new(&artifact.wasm)
+        .unwrap()
+        .run(0.0, 0.0)
+        .unwrap_err();
+    assert!(matches!(
+        error.downcast_ref::<wasmtime::Trap>(),
+        Some(wasmtime::Trap::OutOfFuel | wasmtime::Trap::StackOverflow)
+    ));
+}
+
+#[test]
 fn value_profile_keeps_scope_and_reports_remaining_gaps() {
     for source in [
         "export function run(a,b) {return 'string';}",
@@ -296,13 +312,6 @@ fn value_profile_keeps_scope_and_reports_remaining_gaps() {
     ] {
         assert!(compile_value(source, false).is_err(), "{source}");
     }
-    assert!(
-        compile_value(
-            "export function run<T>(a:number,b:number) {return run<T>(a,b);}",
-            true
-        )
-        .is_err()
-    );
     for depth in [128, 129] {
         let source = format!(
             "export function run(a,b) {{return {}null{};}}",
