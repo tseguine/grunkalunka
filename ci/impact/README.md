@@ -107,6 +107,34 @@ For independent browser workflow path-trigger accounting, see
 [the external-workflow audit](EXTERNAL-WORKFLOWS.md). This
 report does not establish that any external GitHub job actually passed.
 
+## Bounded independent source-dependency audit
+
+`source-dependency-audit.mjs` discovers actual relative file inputs of a
+small, explicit set of consumer files listed individually in
+`source-audits/*.json`. The scanner currently recognizes literal Node ESM
+imports (including `await import(...)`), literal `new URL(...,
+import.meta.url)` file inputs, Rust `include_str!`, `include_bytes!`, and
+`#[path]`. It excludes package/built-in imports and the known generated
+compiler executable under `target/`; computed source inputs within the
+audited files are reported as unresolved.
+
+For every discovered local dependency, the audit independently asks the
+*actual* impact planner whether changing that file would select each
+consumer's declared executable check (or conservatively fall back to full).
+Missing edges, unresolved inputs, invalid specs, or missing files make the
+current PR plan **full** instead of silently omitting checks. Negative tests
+remove real benchmark and out-of-crate Rust fixture edges and require the
+audit to detect the resulting under-selection. This is separate from
+synthetic path-only tests and is invoked automatically by `plan.mjs`.
+
+The initial coverage is deliberately bounded to seven real benchmark and
+Rust source-cost consumers. It is **not** a complete parser, global import
+graph, trace of arbitrary subprocesses, or proof that every dynamic input is
+accounted for. Add new independently owned consumer audit descriptors as
+coverage expands; do not confuse a passing bounded audit with a complete
+project-wide dependency graph. Keep selected-test failures fatal and full
+`master` verification unchanged.
+
 ## Native PR partial executor
 
 `pr-gate.mjs` validates the actual merge-base plan, live canonical command

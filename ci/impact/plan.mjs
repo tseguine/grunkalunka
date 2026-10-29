@@ -1,6 +1,6 @@
 // Read-only PR impact forecast. It never changes the canonical CI gate.
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cargoModules, planImpact } from './impact.mjs';
@@ -8,6 +8,7 @@ import { cargoTestNodes } from './cargo-test-nodes.mjs';
 import { checkNodes, verifyCanonicalChecks } from './canonical.mjs';
 import { auditBrowserWorkflows } from './external-workflows.mjs';
 import { scopedAddedChecks } from './added-checks.mjs';
+import { auditSourceSelection } from './source-dependency-audit.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -68,15 +69,29 @@ try {
   result = { ...planImpact({ changedPaths: changes, modules, groups, tests, global, ignored,
     scopedPaths }),
     canonicalCoverage: coverage, externalWorkflows };
+  // Independently discover the actual literal JS/Rust file inputs in audited
+  // consumer sources; graph descriptors cannot assert their own completeness.
+  // A missing executable test edge forces full, even on unrelated PRs, until
+  // its ownership/selection edges are corrected.
+  const sourceDependencyAudit = auditSourceSelection({
+    specs: readCatalog('source-audits'),
+    readSource: file => readFileSync(join(root, file), 'utf8'),
+    exists: file => existsSync(join(root, file)),
+    planForPath: file => planImpact({ changedPaths: [file], modules, groups, tests,
+      global, ignored }),
+  });
+  result.sourceDependencyAudit = sourceDependencyAudit;
   // An unavailable required external workflow is NOT made safe by a passing
   // full Cargo/Node suite. Report the gap and forbid a selective plan.
   const externalReasons = [
     ...externalWorkflows.errors.map(x => 'browser workflow contract drift: ' + x),
     ...externalWorkflows.requiredNotTriggered.map(x => 'required browser workflow not triggered: ' + x),
   ];
-  if (externalReasons.length) {
+  const sourceReasons = sourceDependencyAudit.errors.map(x =>
+    'source dependency under-selection: ' + x);
+  if (externalReasons.length || sourceReasons.length) {
     result.full = true;
-    result.reasons = [...new Set([...result.reasons, ...externalReasons])];
+    result.reasons = [...new Set([...result.reasons, ...externalReasons, ...sourceReasons])];
     result.tests = tests.map(x => x.id).sort();
     result.build = modules.map(x => x.id).sort();
   }

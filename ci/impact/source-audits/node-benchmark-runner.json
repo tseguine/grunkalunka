@@ -1,0 +1,6 @@
+{
+  "source": "tools/bench/numeric.mjs",
+  "requiredChecks": [
+    "check:benchmark-tests"
+  ]
+}

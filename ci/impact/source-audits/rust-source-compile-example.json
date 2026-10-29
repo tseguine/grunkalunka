@@ -1,0 +1,6 @@
+{
+  "source": "crates/grunkalunka-runtime/examples/source_compile_cost.rs",
+  "requiredChecks": [
+    "cargo-test:grunkalunka-runtime"
+  ]
+}
