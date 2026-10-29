@@ -257,3 +257,63 @@ test('new harness rejects missing, invalid or unbound transitive source evidence
   assert.throws(() => bindMarkdownPair(receipt(), after),
     /matching capture harness versions/);
 });
+
+test('saved Markdown pairs retain raw signed RSS/peak deltas without ranking processes', () => {
+  const before = v2Receipt();
+  const after = v2Receipt('2026-10-27T17:00:01.000Z');
+  if (before.report.environment.os === 'linux') {
+    after.report.processMemory.snapshots.afterBatches.rssBytes += 64;
+    after.report.processMemory.snapshots.afterBatches.peakRssBytes += 128;
+    const compared = compareMarkdownPair(bindMarkdownPair(before, after));
+    assert.equal(compared.processMemory.availability, 'paired-process-observations');
+    assert.equal(compared.processMemory.scope, 'entire-rust-process');
+    assert.equal(compared.processMemory.unit, 'bytes');
+    assert.deepEqual(Object.keys(compared.processMemory.phases), [
+      'beforeEmbed', 'afterCompile', 'afterInstantiation', 'afterWarmup', 'afterBatches',
+    ]);
+    assert.deepEqual(compared.processMemory.phases.afterBatches.rssBytes, {
+      baselineBytes: 1536, candidateBytes: 1600, deltaBytes: 64,
+    });
+    assert.deepEqual(compared.processMemory.phases.afterBatches.peakRssBytes, {
+      baselineBytes: 2560, candidateBytes: 2688, deltaBytes: 128,
+    });
+    assert.equal(compared.processMemory.phases.beforeEmbed.rssBytes.deltaBytes, 0);
+    assert.equal(Object.hasOwn(compared.processMemory, 'ratio'), false);
+  } else {
+    const compared = compareMarkdownPair(bindMarkdownPair(before, after));
+    assert.equal(compared.processMemory.availability, 'unsupported-on-this-host');
+    assert.equal(compared.processMemory.unit, 'bytes');
+    assert.equal(Object.hasOwn(compared.processMemory, 'phases'), false);
+  }
+});
+
+test('historical captures report missing memory without inventing zero samples', () => {
+  const legacy = compareMarkdownPair(validPair());
+  assert.deepEqual([legacy.processMemory.availability,
+    legacy.processMemory.baselinePresent, legacy.processMemory.candidatePresent],
+  ['not-comparable', false, false]);
+
+  const before = receipt();
+  const after = receipt('2026-10-27T17:00:01.000Z');
+  after.report.processMemory = savedMemory(after.report.environment.os);
+  const paired = compareMarkdownPair(bindMarkdownPair(before, after));
+  assert.deepEqual([paired.processMemory.availability,
+    paired.processMemory.baselinePresent, paired.processMemory.candidatePresent],
+  ['not-comparable', false, true]);
+  assert.equal(Object.hasOwn(paired.processMemory, 'phases'), false);
+});
+
+test('saved unsupported platform receipts never fabricate process-memory deltas', () => {
+  const before = v2Receipt();
+  const after = v2Receipt('2026-10-27T17:00:01.000Z');
+  for (const capture of [before, after]) {
+    capture.provenance.host.os = 'win32';
+    capture.provenance.host.arch = 'x64';
+    capture.report.environment.os = 'windows';
+    capture.report.environment.arch = 'x86_64';
+    capture.report.processMemory = savedMemory('windows');
+  }
+  const compared = compareMarkdownPair(bindMarkdownPair(before, after));
+  assert.equal(compared.processMemory.availability, 'unsupported-on-this-host');
+  assert.equal(Object.hasOwn(compared.processMemory, 'phases'), false);
+});

@@ -119,3 +119,26 @@ envelope. The comparator rejects partial identity sets, unsupported
 versions and mixed legacy/new pairs even when their digest bindings are
 recomputed. Existing single-generation pairs retain the old envelope
 and interpretation without imposing artificial memory-comparison metrics.
+
+## Comparing recorded whole-process memory without attribution
+
+The strict paired comparison now emits a separate `processMemory` summary.
+For two *validated* Linux receipts containing the complete five-phase
+native RSS/peak observations, it preserves each phase's baseline and candidate
+byte count alongside their **signed candidate-minus-baseline difference**.
+Both inputs were collected in **separate native processes** by one Node
+capture session. Even equal binaries and OS metadata cannot isolate guest
+allocation, memory fragmentation, cache lifetime, page residency or CPU load.
+A process-lifetime high-water mark is not a per-component allocation peak.
+Do **not** rank implementations or interpret positive/negative deltas as
+regressions without additional controlled experiments.
+
+For historical captures where either process-memory envelope was omitted,
+the comparison explicitly reports `availability: not-comparable` and whether
+each side recorded evidence. The absence is **not** zero memory. On
+Windows/macOS, where the native Rust sampler records only
+`unsupported-on-this-host`, the comparison reports that unavailable status
+without any fabricated phase values. Saved host identity, not the OS used
+to read the JSON, determines whether a reported sample is valid. The
+original timings, signed timing deltas, intact receipt bindings and
+historical pair compatibility remain unchanged.
