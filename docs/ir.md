@@ -1100,3 +1100,14 @@ transports exposed Promise reasons without adoption. Intrinsic Promise.reject(p)
 uses an existing SettlePromise body with a raw Throw and materializes that rejected
 wrapper. Direct await awaits the wrapper, preserving one rejection reaction. More
 precise per-handler source-domain inference remains separate work.
+
+### Source mixed Promise.resolve
+
+Mixed resolution uses AsyncValueIsPromise and a Promise-valued If. One branch
+projects the existing identity; the other projects General, creates FulfillPromise
+and materializes it. Both yield Promise without adoption or handling. The input
+snapshot precedes surplus effects; constructor scheduling runs after them. Direct
+await consumes the saved raw operand after those effects, sharing one source site
+across its Promise/General alternatives. Private lowering helpers keep this work
+outside the large cursor frame; existing stack and source limits remain unchanged.
+See [source resolution](async-promise-resolution.md).

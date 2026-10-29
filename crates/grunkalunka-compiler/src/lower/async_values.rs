@@ -408,6 +408,77 @@ impl Lowering<'_, '_> {
         result
     }
 
+    // Promise.resolve preserves an existing identity. Unlike async return
+    // adoption, this conversion neither awaits nor handles the selected Promise.
+    pub(super) fn resolve_promise_value(
+        &mut self,
+        node: &Expression<'_>,
+        input: ValueId,
+        region: &mut Region,
+    ) -> ValueId {
+        let condition = self.value(Type::Predicate);
+        Self::push(
+            region,
+            node,
+            Op::AsyncValueIsPromise {
+                result: condition,
+                input,
+            },
+        );
+        let mut consequent = self.region(node);
+        let promise = self.value(Type::Promise);
+        Self::push(
+            &mut consequent,
+            node,
+            Op::AsyncValuePromise {
+                result: promise,
+                input,
+            },
+        );
+        consequent.exit = Exit::Yield(promise);
+        let mut alternate = self.region(node);
+        let primitive = self.value(Type::General);
+        Self::push(
+            &mut alternate,
+            node,
+            Op::AsyncValuePrimitive {
+                result: primitive,
+                input,
+            },
+        );
+        let snapshot = self.value(Type::FulfilledPromise);
+        Self::push(
+            &mut alternate,
+            node,
+            Op::FulfillPromise {
+                result: snapshot,
+                input: primitive,
+            },
+        );
+        let wrapped = self.value(Type::Promise);
+        Self::push(
+            &mut alternate,
+            node,
+            Op::MaterializePromise {
+                result: wrapped,
+                input: snapshot,
+            },
+        );
+        alternate.exit = Exit::Yield(wrapped);
+        let result = self.value(Type::Promise);
+        Self::push(
+            region,
+            node,
+            Op::If {
+                result: Some(result),
+                condition,
+                consequent,
+                alternate,
+            },
+        );
+        result
+    }
+
     pub(super) fn resolve_async_value(
         &mut self,
         node: &impl GetSpan,

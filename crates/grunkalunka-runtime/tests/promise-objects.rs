@@ -90,6 +90,10 @@ const THROW_SOURCES: &[(&str, &str)] = &[
         "export async function run(a,b){const p=Promise.resolve(a);throw p;}",
     ),
     (
+        "fulfilled-mixed",
+        "export async function run(a,b){const x=a?Promise.resolve(a):a;throw Promise.resolve(x);}",
+    ),
+    (
         "fulfilled",
         "async function f(p){throw p;}export async function run(a,b){return await f(Promise.resolve(a));}",
     ),

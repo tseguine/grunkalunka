@@ -219,8 +219,11 @@ async calls in bindings, aliases, reassignment, captured getters, homogeneous
 conditional/logical results, object truthiness and discarded positions. Later
 awaits preserve primitive completion and lexical rejection handling.
 `Promise.resolve(existingPending, extra1, extra2)` preserves the identity and evaluates
-extras after the argument, including their effects and suspension. This does not
-implement general Promise adoption. Typed annotations remain erased.
+extras after the argument, including their effects and suspension. Mixed
+Promise/General selections now preserve that order as well: stored resolution
+keeps an existing identity or wraps a General value, while direct await waits
+after the surplus arguments finish. See [mixed resolution](async-promise-resolution.md).
+General thenable adoption remains separate. Typed annotations remain erased.
 
 Source using these identities exports `take_jobs` and `take_promise_event`; other
 source modules retain the legacy primitive protocol described below. Detached
@@ -790,3 +793,12 @@ identities through catches, rethrows, async calls and finally cleanup. Intrinsic
 `Promise.reject(p)` preserves the same raw reason, including direct awaited and
 stored constructor paths, ordered surplus arguments and rejection notifications. See
 [the transport and source contract](async-promise-objects.md).
+
+## Mixed Promise resolution
+
+Promise.resolve now normalizes represented Promise/General selections through
+existing typed regions, preserving an existing identity or creating a fresh
+fulfilled wrapper. It neither handles nor adopts the input Promise. Stored and
+direct-awaited forms save the first argument before surplus effects and awaits;
+argument failure skips the outer resolution. Private calls, captures and erased
+types retain this contract. See [the contract and tests](async-promise-resolution.md).

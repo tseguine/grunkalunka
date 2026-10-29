@@ -871,3 +871,13 @@ snapshots, surplus effects/failures and one await reaction match native JavaScri
 Source/host differential tests cover pending, nested/self, handled and notification
 identities through Node-Wasm and Wasmtime. General thenables/heap inputs and precise
 per-handler reason inference remain open; see [the contract](async-promise-objects.md).
+
+## Mixed intrinsic Promise.resolve (2026-10-29)
+
+Stored and directly awaited resolution now accept represented Promise/General
+selections, including surplus effects and suspension. Promise inputs retain their
+identity and handling state; General inputs receive fresh fulfilled wrappers.
+Native JS/Node-Wasm/Wasmtime tests cover the exact former exclusion, captures,
+private forwarding, snapshots, failures, primitive/intrinsic-error values, typed
+erasure, source limits and rejection checkpoints. Existing 2 MiB closure stress
+assertions remain unchanged; see [the contract](async-promise-resolution.md).

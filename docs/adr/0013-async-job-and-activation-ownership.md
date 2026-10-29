@@ -377,3 +377,19 @@ Native JS, Node-Wasm and Wasmtime tests cover the former exact exclusions, neste
 and self-reasons, pending objects, alias/private forwarding, mixed tags, cleanup,
 argument failure, notifications, erased types and full reaction traces. The same
 conservative per-module catch inference limit remains; no host ABI or limit changes.
+
+## Mixed intrinsic resolution (2026-10-29)
+
+Promise.resolve selects between returning an existing represented Promise and
+materializing a fulfilled General snapshot. This is identity normalization, not
+async-return adoption. Reusing typed If/projection/materialization operations
+avoids a new runtime opcode or host boundary, and resolving alone leaves rejection
+handling unchanged. Direct await can consume the saved raw operand after surplus
+arguments instead of allocating an unobservable primitive wrapper. Existing
+argument ordering, abrupt completion, source-site and reaction rules still apply.
+
+Constructor processing and new work scheduling use small private lowering helpers
+to preserve the existing 2 MiB compiler-stack stress contract. The source profile
+continues to exclude arbitrary thenables and unsupported heap/function/String
+inputs. Differential value/identity/job/checkpoint tests and unchanged closure
+stress tests verify this bounded extension; see [the contract](../async-promise-resolution.md).
