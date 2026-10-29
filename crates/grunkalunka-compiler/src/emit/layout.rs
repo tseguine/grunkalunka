@@ -19,7 +19,8 @@ pub(super) fn share_fulfilled_storage(function: &crate::ir::Function, offsets: &
 pub(super) const SETTLED_REJECTED_BIT: u32 = 1 << 31;
 pub(super) const SETTLED_TAG_MASK: u32 = !SETTLED_REJECTED_BIT;
 
-// Private selection carrier only; exported General values retain kinds 0..=4.
+// Selection carrier and opt-in Promise rejection reasons. Ordinary General
+// fulfillment values retain kinds 0..=4 and adopt Promises in the guest.
 pub(super) const ASYNC_PROMISE_TAG: u32 = 5;
 
 #[derive(Clone, Copy)]

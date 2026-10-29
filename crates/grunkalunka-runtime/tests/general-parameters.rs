@@ -22,8 +22,9 @@ fn parameter_layout_propagates_later_writes_and_captures_old_values() {
 
 fn encode(value: &Value) -> String {
     match value {
-        grunkalunka_runtime::Value::TypeError { .. } => {
-            panic!("primitive-only fixture received an Error object")
+        grunkalunka_runtime::Value::TypeError { .. }
+        | grunkalunka_runtime::Value::Promise { .. } => {
+            panic!("primitive-only fixture received an async object")
         }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),

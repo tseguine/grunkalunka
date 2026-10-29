@@ -29,7 +29,7 @@ fn promoted_identity_case(source: &str, typescript: bool) -> String {
             Value::Boolean(value) => value.to_string(),
             Value::Number(value) if value.is_nan() => "nan".into(),
             Value::Number(value) => format!("{:016x}", value.to_bits()),
-            Value::TypeError { .. } => {
+            Value::TypeError { .. } | Value::Promise { .. } => {
                 panic!("promoted primitive fixtures must not create TypeErrors")
             }
         }

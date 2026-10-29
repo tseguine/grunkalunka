@@ -1636,6 +1636,7 @@ fn primitive_bits(value: Value) -> String {
         Value::Number(value) if value.is_nan() => "nan".into(),
         Value::Number(value) => format!("{:x}", value.to_bits()),
         Value::TypeError { .. } => "type-error".into(),
+        Value::Promise { .. } => panic!("primitive fixture exposed a Promise object"),
     }
 }
 

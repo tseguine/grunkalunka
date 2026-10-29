@@ -36,8 +36,8 @@ fn evaluate(path: &str, value_profile: bool) -> Result<(), Box<dyn Error>> {
         input_pairs(|a, b| {
             let value = instance.run(a, b).map_err(|error| format!("{error:#}"))?;
             match value {
-                Value::TypeError { .. } => {
-                    return Err("the primitive value protocol does not admit Error objects".into());
+                Value::TypeError { .. } | Value::Promise { .. } => {
+                    return Err("the primitive value protocol does not admit async objects".into());
                 }
                 Value::Undefined => println!("undefined"),
                 Value::Null => println!("null"),

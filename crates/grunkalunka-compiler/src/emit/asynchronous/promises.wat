@@ -64,8 +64,19 @@
   local.get $p call $promise_check
   local.get $p i32.load offset=4)
 
+(func $promise_reference (param $id f64) (result i32) (local $p i32)
+  local.get $id i32.trunc_f64_u local.tee $p
+  f64.convert_i32_u local.get $id f64.ne if unreachable end
+  local.get $p call $promise_check
+  local.get $p)
+
 (func $promise_payload (param $rejected i32) (param $tag i32) (param $payload f64)
   local.get $rejected i32.const 1 i32.gt_u if unreachable end
+  local.get $tag i32.const 5 i32.eq
+  if
+    local.get $rejected i32.eqz if unreachable end
+    local.get $payload call $promise_reference drop return
+  end
   local.get $tag i32.const 3 i32.gt_u if unreachable end
   local.get $tag i32.const 3 i32.eq if return end
   local.get $tag i32.const 2 i32.eq
@@ -176,6 +187,17 @@
   local.get $p i32.load offset=4 i32.const 2 i32.eq
   local.get $p i32.load offset=8
   local.get $p f64.load offset=16)
+
+;; Read-only host snapshot. Pending records have no completion payload.
+(func $promise_snapshot (param $id f64) (result i32 i32 i32 f64)
+  (local $p i32) (local $state i32) (local $tag i32) (local $payload f64)
+  local.get $id call $promise_reference local.tee $p
+  i32.load offset=4 local.tee $state
+  if
+    local.get $p call $promise_result local.set $payload local.set $tag drop
+  end
+  local.get $state local.get $p i32.load offset=12
+  local.get $tag local.get $payload)
 
 (func $promise_handled (param $p i32) (result i32)
   local.get $p call $promise_check

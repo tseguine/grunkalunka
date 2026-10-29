@@ -155,8 +155,9 @@ fn source_pairs() -> Vec<(String, String)> {
 
 fn observation(value: &Value) -> String {
     match value {
-        grunkalunka_runtime::Value::TypeError { .. } => {
-            panic!("primitive-only fixture received an Error object")
+        grunkalunka_runtime::Value::TypeError { .. }
+        | grunkalunka_runtime::Value::Promise { .. } => {
+            panic!("primitive-only fixture received an async object")
         }
         Value::Undefined => "undefined".into(),
         Value::Null => "null".into(),

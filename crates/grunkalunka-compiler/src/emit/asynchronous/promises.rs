@@ -57,4 +57,5 @@ pub(super) const WRAPPERS: &str = r#"
   global.get $async_tag global.get $async_payload call $advance)
 (func (export "take_jobs") (result i32) call $reaction_issued)
 (func (export "take_promise_event") (result i32 i32 i32 f64) call $promise_event_take)
+(export "promise_state" (func $promise_snapshot))
 "#;

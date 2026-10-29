@@ -117,8 +117,9 @@ fn node(script: &str, expected: &str) {
 
 fn encode(value: &Value) -> String {
     match value {
-        grunkalunka_runtime::Value::TypeError { .. } => {
-            panic!("primitive-only fixture received an Error object")
+        grunkalunka_runtime::Value::TypeError { .. }
+        | grunkalunka_runtime::Value::Promise { .. } => {
+            panic!("primitive-only fixture received an async object")
         }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
@@ -129,8 +130,9 @@ fn encode(value: &Value) -> String {
 
 fn standard_number(value: &Value) -> f64 {
     match value {
-        grunkalunka_runtime::Value::TypeError { .. } => {
-            panic!("primitive-only fixture received an Error object")
+        grunkalunka_runtime::Value::TypeError { .. }
+        | grunkalunka_runtime::Value::Promise { .. } => {
+            panic!("primitive-only fixture received an async object")
         }
         Value::Undefined => f64::NAN,
         Value::Null => 0.0,

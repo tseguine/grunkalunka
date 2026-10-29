@@ -15,8 +15,9 @@ fn const_binding_preserves_the_selected_primitive_kind() {
 
 fn encoded(value: Value) -> String {
     match value {
-        grunkalunka_runtime::Value::TypeError { .. } => {
-            panic!("primitive-only fixture received an Error object")
+        grunkalunka_runtime::Value::TypeError { .. }
+        | grunkalunka_runtime::Value::Promise { .. } => {
+            panic!("primitive-only fixture received an async object")
         }
         Value::Undefined => "[0]".into(),
         Value::Null => "[1]".into(),
