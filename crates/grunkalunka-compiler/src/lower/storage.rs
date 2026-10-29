@@ -322,10 +322,21 @@ pub(crate) fn general_mutable_bindings(
         .flat_map(|parameters| parameters.keys().copied())
         .collect();
     let mut arrows = BTreeMap::new();
+    let mut named_parameters = BTreeMap::new();
     for node in semantic.nodes().iter() {
         match node.kind() {
             AstKind::ArrowFunctionExpression(arrow) => {
                 arrows.insert(arrow.node_id.get(), arrow);
+            }
+
+            AstKind::Function(function) => {
+                if let Some(symbol) = function.id.as_ref().and_then(|id| id.symbol_id.get())
+                    && functions
+                        .iter()
+                        .any(|f| f.symbol == symbol && f.async_signature.is_some())
+                {
+                    named_parameters.insert(symbol, &function.params);
+                }
             }
 
             AstKind::VariableDeclaration(declaration)
@@ -507,6 +518,70 @@ pub(crate) fn general_mutable_bindings(
         targets: &targets,
         arrows: &arrows,
     };
+    // Named helpers are constructors too. Follow their original symbols through
+    // aliases and known local forwarding without inventing runtime targets.
+    let mut named_targets: BTreeMap<_, _> = named_parameters
+        .keys()
+        .map(|symbol| (*symbol, BTreeSet::from([*symbol])))
+        .collect();
+    while !named_targets.is_empty() {
+        let named_origins = |expression, known: &BTreeMap<SymbolId, BTreeSet<SymbolId>>| {
+            let (sources, _) = returns.expression(expression, &BTreeMap::new(), 0, 0);
+            sources
+                .iter()
+                .filter_map(|source| known.get(source))
+                .flatten()
+                .copied()
+                .collect::<BTreeSet<_>>()
+        };
+        let mut additions = Vec::new();
+        for (symbol, expression) in definitions
+            .iter()
+            .filter_map(|(symbol, init)| init.map(|init| (*symbol, init)))
+            .chain(
+                writes
+                    .iter()
+                    .flat_map(|(symbol, values)| values.iter().map(move |value| (*symbol, *value))),
+            )
+        {
+            additions.push((symbol, named_origins(expression, &named_targets)));
+        }
+        for node in semantic.nodes().iter() {
+            let AstKind::CallExpression(call) = node.kind() else {
+                continue;
+            };
+            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            for source in sources {
+                if let Some(known) = targets.get(&source) {
+                    bodies.extend(known);
+                }
+            }
+            for body in bodies {
+                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(symbol) = identifier.symbol_id.get()
+                        && let Some(actual) = argument.as_expression()
+                    {
+                        additions.push((symbol, named_origins(actual, &named_targets)));
+                    }
+                }
+            }
+        }
+        let mut changed = false;
+        for (symbol, constructors) in additions {
+            if constructors.is_empty() {
+                continue;
+            }
+            let known = named_targets.entry(symbol).or_default();
+            let previous = known.len();
+            known.extend(constructors);
+            changed |= known.len() != previous;
+        }
+        if !changed {
+            break;
+        }
+    }
     let mut call_results = BTreeMap::new();
     for node in semantic.nodes().iter() {
         let AstKind::CallExpression(call) = node.kind() else {
@@ -593,8 +668,34 @@ pub(crate) fn general_mutable_bindings(
             continue;
         };
         let runtime_input = static_constructor(&call.callee, &static_targets)
-            .is_none_or(|body| arrows[&body].r#async || promises.results.contains(&body));
+            .is_none_or(|body| arrows[&body].r#async || promises.results.contains(&body))
+            || call.arguments.iter().any(|argument| {
+                argument.as_expression().is_some_and(|actual| {
+                    returns
+                        .expression(actual, &BTreeMap::new(), 0, 0)
+                        .0
+                        .iter()
+                        .any(|source| named_targets.contains_key(source))
+                })
+            });
         let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+        for target in sources
+            .iter()
+            .filter_map(|source| named_targets.get(source))
+            .flatten()
+        {
+            if let Some(parameters) = named_parameters.get(target) {
+                for (parameter, argument) in parameters.items.iter().zip(&call.arguments) {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(symbol) = identifier.symbol_id.get()
+                        && let Some(actual) = argument.as_expression()
+                    {
+                        writes.entry(symbol).or_default().push(actual);
+                        incoming.push((symbol, actual));
+                    }
+                }
+            }
+        }
         for source in sources {
             if let Some(known) = targets.get(&source) {
                 bodies.extend(known);
@@ -617,6 +718,7 @@ pub(crate) fn general_mutable_bindings(
                 if !constructors.is_empty()
                     || sources.iter().any(|source| {
                         targets.contains_key(source)
+                            || named_targets.contains_key(source)
                             || callback_parameters
                                 .values()
                                 .any(|parameters| parameters.contains_key(source))

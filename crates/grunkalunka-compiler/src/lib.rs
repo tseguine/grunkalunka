@@ -247,19 +247,58 @@ fn lower_source_profile_with_identities(
     }
     let promise_parameters =
         lower::infer_promise_parameters(&built.semantic, identities, &signatures);
-    let callback_parameters = lower::infer_callback_parameters(
+    let mut callback_parameters = lower::infer_callback_parameters(
         &built.semantic,
         &signatures,
         &promise_parameters,
         &closure_signatures,
     )?;
-    let mut general_bindings = lower::general_mutable_bindings(
-        &built.semantic,
-        &signatures,
-        &callback_parameters,
-        &closure_signatures.borrow(),
-        &promise_parameters,
-    );
+    let mut general_bindings = loop {
+        let bindings = lower::general_mutable_bindings(
+            &built.semantic,
+            &signatures,
+            &callback_parameters,
+            &closure_signatures.borrow(),
+            &promise_parameters,
+        );
+        let mut changed = false;
+        for (index, signature) in signatures.iter_mut().enumerate() {
+            let Some(previous) = signature.async_signature else {
+                continue;
+            };
+            let parameters = declarations[index]
+                .params
+                .items
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| match &parameter.pattern {
+                    BindingPattern::BindingIdentifier(identifier)
+                        if closure_signatures.borrow().parameter(previous, index)
+                            == Some(ir::Type::General)
+                            || identifier
+                                .symbol_id
+                                .get()
+                                .is_some_and(|symbol| bindings.inputs.contains(&symbol)) =>
+                    {
+                        ir::Type::General
+                    }
+                    _ => ir::Type::Number,
+                })
+                .collect();
+            let current = closure_signatures.borrow_mut().intern_async(parameters);
+            changed |= current != previous;
+            signature.async_signature = Some(current);
+        }
+        if !changed {
+            break bindings;
+        }
+        callback_parameters = lower::infer_callback_parameters(
+            &built.semantic,
+            &signatures,
+            &promise_parameters,
+            &closure_signatures,
+        )?;
+    };
     general_bindings
         .async_results
         .extend(&promise_parameters.asynchronous);
@@ -298,7 +337,14 @@ fn lower_source_profile_with_identities(
                 mutable: true,
             });
             slots.push(ir::Slot {
-                ty: ir::Type::Number,
+                ty: signatures[index]
+                    .async_signature
+                    .and_then(|signature| {
+                        closure_signatures
+                            .borrow()
+                            .parameter(signature, slots.len())
+                    })
+                    .unwrap_or(ir::Type::Number),
                 owner: ir::RegionId(0),
                 mutable: true,
                 parameter: true,

@@ -2158,9 +2158,9 @@ The private typed IR and backend now represent General closure parameters, using
 the existing tag/f64 value layout in sixteen-byte argument entries. Number and
 function entries remain eight bytes. Shared prefix offsets drive both caller
 stores and callee loads, avoiding payload overlap when General values sit next
-to other arguments. Exported entries and ordinary helpers retain Number parameters;
-Predicate closure parameters remain invalid. Source parameter inference has not
-changed and primitive source arguments remain guarded.
+to other arguments. Exported entries and synchronous helpers retain Number parameters;
+Predicate closure parameters remain invalid. The initial IR extension did not
+change source input inference; named async primitive inputs now use the contract below.
 
 Twenty mixed-frame IR variants execute against native JavaScript and Node-Wasm,
 covering four primitive kinds, Number/General results, callbacks and captured
@@ -2248,3 +2248,14 @@ its expectation is unchanged. Separate bounded recursion and argument-effect
 examples execute against native JS, Node-Wasm and Wasmtime. The numeric rejection
 inventory now has 841 records. No IR, runtime/frame ABI, dependency or limit
 change is introduced.
+
+## Named async primitive inputs
+
+Named module async helpers now infer Number or General private inputs from
+actual source calls, aliases and known forwarding. They admit represented
+Undefined/Null/Boolean/Number values without trusting erased annotations.
+Number-only input proofs remain available to synchronous helper calls; widened
+inputs preserve primitive kinds, argument snapshots and captured cells in the
+existing private layout. See [the contract](async-named-helpers.md). Promise,
+function, Error and broader heap inputs remain separate work. No IR, emitter,
+runtime ABI, dependency or limit changes.

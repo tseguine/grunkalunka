@@ -319,6 +319,9 @@ The alternative of treating declarations as synchronous General-returning calls
 would lose Promise identity and body/caller reaction boundaries. A separate named
 coroutine implementation would duplicate the existing frame and queue protocol.
 The selected reuse changes no IR operation/type, physical frame, host ABI, job or
-fuel policy. Helper parameters stay Number; broader input domains remain separate.
+fuel policy. Named helper parameters now infer Number/General primitive inputs
+from actual calls and forwarding. This reuses private closure input packing and
+captured cells; Number-only proofs/signatures stay intact. Promise, function,
+Error and heap input domains remain separate. Erased types do not choose kinds.
 Maintained native/Node-Wasm/Wasmtime and rejection-checkpoint tests exercise this
 bounded extension; see [the contract and limits](../async-named-helpers.md).

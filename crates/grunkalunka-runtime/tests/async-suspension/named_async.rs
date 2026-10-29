@@ -16,6 +16,102 @@ fn compare_named(programs: &[&str]) {
 }
 
 #[test]
+fn named_async_helpers_accept_primitive_inputs() {
+    compare_named(&[
+        "async function f(x){return x;}export async function run(a,b){return await f(null);}",
+        "async function f(x){return x;}export async function run(a,b){return await f(false);}",
+        "async function f(x){await x;return x;}export async function run(a,b){return await f(undefined);}",
+        "async function f(x){const old=x;await x;return old;}export async function run(a,b){return await f(a?null:false);}",
+        "async function f(x){await x;return x;}export async function run(a,b){const p=f(a),q=f(null);const l=await p,r=await q;return l===a&&r===null;}",
+        "async function f(x){return x;}export async function run(a,b){f(null);return await f(a);}",
+        "async function f(x){const read=()=>x;await x;x++;return read();}export async function run(a,b){return await f(null);}",
+    ]);
+}
+
+#[test]
+fn named_async_primitive_inputs_follow_aliases_and_forwarding() {
+    compare_named(&[
+        "async function f(x){await x;return x;}export async function run(a,b){const h=f;return await h(null);}",
+        "async function f(x){return x;}async function g(x){return x;}export async function run(a,b){const h=a?f:g;return await h(false);}",
+        "async function f(x){return x;}export async function run(a,b){const apply=(fn,x)=>fn(x);return await apply(f,null);}",
+        "async function f(x){return x;}export async function run(a,b){const id=fn=>fn;return await id(f)(false);}",
+        "async function f(x){return x;}export async function run(a,b){const make=()=>f;return await make()(null);}",
+        "async function f(x){return await g(x);}async function g(x){return x;}export async function run(a,b){return await f(false);}",
+    ]);
+}
+
+#[test]
+fn named_async_primitive_inputs_preserve_mixed_frames_and_cells() {
+    compare_named(&[
+        "function add(x,y){return x+y;}async function f(n,x,m){await x;return x===null?add(n,m):n;}export async function run(a,b){return await f(a,null,b);}",
+        "async function f(n,x,m){const read=()=>x;const old=x;await n;x=m;return old===null?read():old;}export async function run(a,b){const p=f(a,null,b),q=f(b,false,a);const x=await p,y=await q;return y===false?x:y;}",
+        "async function f(x,n){const read=()=>x;await n;x??=n;return read();}export async function run(a,b){return await f(a?null:false,b);}",
+        "async function f(n,x){if(n<=0)return x;await n;return await f(n-1,x);}export async function run(a,b){return await f(3,a?null:false);}",
+        "async function f(n,x){if(n<=0)return x;return await g(n-1,x);}async function g(n,x){if(n<=0)return x;await n;return await f(n-1,x);}export async function run(a,b){return await f(4,null);}",
+        "async function f(x){const read=()=>x;await x;x=!x;return read();}export async function run(a,b){const p=f(null),q=f(false);const x=await q,y=await p;return x===y;}",
+    ]);
+    for count in [17, 32] {
+        let parameters = (0..count)
+            .map(|i| format!("p{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let arguments = (0..count)
+            .map(|i| match i {
+                1 => "null",
+                5 => "false",
+                _ => "a",
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let source = format!(
+            "async function f({parameters}){{await p1;return p1===null&&p5===false?p0+p{}:-1;}}export async function run(a,b){{return await f({arguments});}}",
+            count - 1
+        );
+        compare_named(&[&source]);
+    }
+}
+
+#[test]
+fn named_async_primitive_inputs_preserve_argument_and_rejection_order() {
+    compare_named(&[
+        "async function f(x,y){await y;return x;}export async function run(a,b){let x=null;return await f(x,await(x=false));}",
+        "async function f(x){return x;}export async function run(a,b){let x=null;const p=f(x,x=false);return (await p)===null&&x===false;}",
+        "async function f(x){throw x;}export async function run(a,b){let n=0;try{return await f(null,await Promise.reject(b),n=1);}catch(e){return n;}}",
+        "async function f(x,y){throw x;}export async function run(a,b){let n=0;try{return await f(await Promise.reject(null),n=1);}catch(e){return n;}}",
+        "async function f(x){try{throw x;}finally{await x;}}export async function run(a,b){try{return await f(false);}catch(e){return e;}}",
+        "async function f(x){return Promise.reject(x);}export async function run(a,b){try{return await f(null);}catch(e){return e;}}",
+    ]);
+}
+
+#[test]
+fn named_async_primitive_inputs_keep_kind_shape_and_erasure_guards() {
+    let plain = "async function f(x,n){const read=()=>x;await n;return read();}export async function run(a,b){return await f(a?null:false,b);}";
+    let typed = "async function f<T>(x:never,n:Wrong):Promise<number>{const read=()=>x;await(n as any);return read() as never;}export async function run(a:never,b:Wrong):Promise<string>{return await f((a?null:false) as number,b as never);}";
+    assert_eq!(
+        compile_async(plain, false).unwrap().wasm,
+        compile_async(typed, true).unwrap().wasm
+    );
+    compare_named(&[plain]);
+    for value in [
+        "'x'",
+        "[]",
+        "({})",
+        "1n",
+        "Promise.resolve(a)",
+        "TypeError()",
+        "x=>x",
+        "missing",
+    ] {
+        let source = format!(
+            "async function f(x){{return x;}}export async function run(a,b){{return await f({value});}}"
+        );
+        for ts in [false, true] {
+            assert!(compile_async(&source, ts).is_err(), "{source}");
+        }
+    }
+}
+
+#[test]
 fn named_async_helpers_run_before_and_after_their_declaration() {
     compare_named(&[
         "export async function run(a,b){return await twice(a);}async function twice(x){return (await x)*2;}",
@@ -172,8 +268,6 @@ fn named_async_helpers_keep_erasure_width_source_and_domain_boundaries() {
     for ts in [false, true] {
         for source in [
             "async function f(x){return x;}export function run(a,b){return a;}",
-            "async function f(x){return x;}export async function run(a,b){return await f(null);}",
-            "async function f(x){return x;}export async function run(a,b){return await f(false);}",
             "async function f(x){return x;}export async function run(a,b){return await f(Promise.resolve(a));}",
             "async function f(x,y){return x;}export async function run(a,b){return await f(a);}",
             "async function f(x=1){return x;}export async function run(a,b){return await f(a);}",

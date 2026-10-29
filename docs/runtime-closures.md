@@ -170,7 +170,9 @@ constructors, assignments, known returned values and admitted higher-order pairs
 the existing predicate path. This adds neither numeric coercion nor function transport.
 
 General IR parameters are restricted to this private closure entry protocol;
-ordinary helpers and exported entries retain their Number parameter contracts.
+synchronous helpers and exported entries retain their Number parameter contracts.
+Named async helpers use this same private protocol for inferred primitive inputs;
+see [their contract](async-named-helpers.md).
 Executable IR tests exercise mixed scalar/function/General frames, primitive and
 Number returns, a captured General parameter, and the unchanged 1,000 parameter
 limit. Known scalar-result local source calls such as `(x=>+x)(null)` now specialize
