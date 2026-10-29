@@ -382,6 +382,34 @@ test('paired Windows working-set readings retain the Windows source label on any
     /paired process memory source/);
 });
 
+test('saved Mach task memory retains macOS-only source and raw signed deltas', () => {
+  const before = v2Receipt();
+  const after = v2Receipt('2026-10-27T17:00:01.000Z');
+  for (const receipt of [before, after]) {
+    receipt.provenance.host.os = 'darwin';
+    receipt.provenance.host.arch = 'arm64';
+    receipt.report.environment.os = 'macos';
+    receipt.report.environment.arch = 'aarch64';
+    receipt.report.processMemory = savedMemory('linux');
+    receipt.report.processMemory.source = 'macos-mach-task-basic-info';
+  }
+  after.report.processMemory.snapshots.afterBatches.rssBytes += 64;
+  after.report.processMemory.snapshots.afterBatches.peakRssBytes += 128;
+  const paired = compareMarkdownPair(bindMarkdownPair(before, after));
+  assert.equal(paired.processMemory.availability, 'paired-process-observations');
+  assert.equal(paired.processMemory.source, 'macos-mach-task-basic-info');
+  assert.deepEqual(paired.processMemory.phases.afterBatches.rssBytes, {
+    baselineBytes: 1536, candidateBytes: 1600, deltaBytes: 64,
+  });
+  assert.deepEqual(paired.processMemory.phases.afterBatches.peakRssBytes, {
+    baselineBytes: 2560, candidateBytes: 2688, deltaBytes: 128,
+  });
+  assert.equal(Object.hasOwn(paired.processMemory, 'ratio'), false);
+  const archived = structuredClone(after);
+  archived.report.processMemory = savedMemory('macos');
+  assert.throws(() => bindMarkdownPair(before, archived), /paired process memory source/);
+});
+
 test('saved WIT lifecycle receipts require bounded samples and same-pair presence', () => {
   const first = receipt();
   const second = receipt('2026-10-27T17:00:01.000Z');

@@ -112,6 +112,12 @@ interpret absolute byte counts as a host-comparable performance score.
 
 Archived Windows v1/v2 receipts that explicitly recorded
 `unsupported-on-this-host` with `snapshots: null` remain readable and are
-never backfilled with fictional measurements. On macOS, observations remain
-unavailable. The versioned harness hashes include the real native sampler
+never backfilled with fictional measurements. Historical macOS captures also
+retain their original explicit unavailable/null evidence. The reader now
+accepts a separately labeled complete `macos-mach-task-basic-info` phase
+envelope only when the saved native OS is macOS, with the same phase/peak
+integrity checks. This enables a future native collector but does **not**
+establish that it has run: the shared native collector currently still
+reports macOS unavailable. Mach task residency is not Linux RSS or Windows
+working set. The versioned harness hashes include the real native sampler
 source, so captures from changed implementations remain distinguishable.
