@@ -187,7 +187,7 @@
   const clipVisible = clipSample();
   clipParent.style.removeProperty("overflow");
   const clipRestored = clipSample();
-  const clipStates = {
+  const descendantClipStates = {
     clipped: clipOriginal, visible: clipVisible, restored: clipRestored
   };
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
@@ -224,7 +224,7 @@
     widthBounds,
     heightBounds,
     visibilityStates,
-    clipStates,
+    descendantClipStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {
