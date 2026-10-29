@@ -46,6 +46,9 @@ pub enum Length {
 pub enum Display {
     #[default]
     Block,
+    /// Remove the element's own box while laying out its children directly
+    /// in the containing block's normal flow.
+    Contents,
     None,
 }
 
@@ -197,6 +200,10 @@ pub struct BoxGeometry {
 pub struct Frame {
     /// None represents display:none and its descendants.
     pub boxes: Vec<Option<BoxGeometry>>,
+    /// Active display:contents nodes. Their own box is absent, but their
+    /// descendants still participate in layout, painting and input.
+    /// Inactive descendants of display:none are not marked boxless.
+    pub contents: Vec<bool>,
     /// Computed inherited visibility per node; independent of layout box
     /// existence. Explicit visible descendants can override hidden ancestors.
     pub visibility: Vec<bool>,
@@ -267,6 +274,25 @@ impl Engine<'_> {
         let style = block.style;
         if style.display == Display::None {
             return Ok(0);
+        }
+        if style.display == Display::Contents {
+            // Flatten a boxless wrapper into its containing block's flow.
+            // Wrapper margins, padding, dimensions and intrinsic height have
+            // no used box to resolve; descendants retain normal tree identity
+            // and inherit the same containing width/definite height.
+            let mut next_y = cursor_y;
+            for index in 0..self.children[node].len() {
+                let child = self.children[node][index];
+                let consumed = self.place(
+                    child,
+                    containing_x,
+                    next_y,
+                    available_width,
+                    containing_height,
+                )?;
+                next_y = add(next_y, consumed)?;
+            }
+            return Ok(next_y - cursor_y);
         }
 
         let (margin_x, _) = insets(style.margin)?;
@@ -410,10 +436,11 @@ impl Engine<'_> {
 /// Arrange a flat, parent-before-child tree from the viewport origin.
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
-/// display:none, inherited visibility, optional padding-box descendant
-/// clipping, explicit content-box/border-box sizing, min/max width/height
-/// constraints and whole percentage dimensions with exact integral results
-/// are admitted. Percentage heights need a definite containing content height;
+/// display:none, boxless display:contents, inherited visibility, optional
+/// padding-box descendant clipping, content-box/border-box sizing, min/max
+/// width/height constraints and whole percentage dimensions with exact
+/// integral results are admitted. Percentage heights need a definite
+/// containing content height;
 /// unresolved heights and fractional pixel results are rejected.
 /// Positive margins do not collapse; inline layout, text shaping, floats,
 /// CSS selectors and painting are not provided. Fixed heights may
@@ -444,6 +471,12 @@ pub fn layout(
     let mut children = vec![Vec::new(); blocks.len()];
     let mut depths = vec![0usize; blocks.len()];
     let mut visibility = vec![true; blocks.len()];
+    // The boxless bit only marks contents wrappers in active subtrees.
+    // Nodes beneath display:none remain absent and cannot revive children.
+    let mut active = vec![true; blocks.len()];
+    let mut contents = vec![false; blocks.len()];
+    active[0] = blocks[0].style.display != Display::None;
+    contents[0] = blocks[0].style.display == Display::Contents;
     let clip_descendants: Vec<bool> = blocks
         .iter()
         .map(|block| block.style.descendant_clip == DescendantClip::PaddingBox)
@@ -457,6 +490,8 @@ pub fn layout(
             return Err(LayoutError::InvalidParent { node });
         }
         depths[node] = depths[parent] + 1;
+        active[node] = active[parent] && block.style.display != Display::None;
+        contents[node] = active[node] && block.style.display == Display::Contents;
         visibility[node] = block.style.visibility.resolve(visibility[parent]);
         if depths[node] > MAX_DEPTH {
             return Err(LayoutError::TooDeep { node });
@@ -469,6 +504,7 @@ pub fn layout(
         children,
         frame: Frame {
             boxes: vec![None; blocks.len()],
+            contents,
             visibility,
             clip_descendants,
             viewport_width,
