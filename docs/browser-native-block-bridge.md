@@ -305,3 +305,14 @@ independently asserts integer-pixel rectangles and used margins;
 Firefox and WebKit receipts. See the
 [auto-margin witness guide](browser-native-auto-margin-bridge.md)
 for fixed coordinates, fail-closed schema and scope limits.
+
+## Relative positive offsets without sibling reflow
+
+A three-phase source-checked `relativeStates` witness compares actual
+`position:relative` CSS left/top values, parent/child rectangles,
+a normal-flow sibling and seven browser hit targets before, during and
+after changing the parent's horizontal offset. The independent Rust
+layout example preserves the sibling's normal position while shifting
+the parent and nested child for paint/hit geometry. See the
+[relative-position evidence guide](browser-native-relative-bridge.md)
+for goldens, limits, fixture provenance and replay.

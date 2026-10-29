@@ -42,9 +42,48 @@ of visible blocks, plus scroll extents.
   explicitly auto descendant may override an inherited none policy.
 - Optional caller-resolved padding-box descendant clipping restricts paint
   and hit tests through nested ancestor clips without moving or hiding boxes.
+- Positive post-flow `RelativeOffset { x, y }` translations move the visible
+  box and descendants without consuming extra vertical normal-flow space,
+  moving following siblings or changing auto-sized ancestors' natural height.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
   1–16,384 CSS pixels per viewport dimension. Malformed parent indices
   and overflowing dimensions fail instead of wrapping or silently truncating.
+
+## Positive relative visual offsets (normal-flow-only experiment)
+
+`Style::relative_offset: RelativeOffset { x, y }` is an optional, already
+resolved **nonnegative integer CSS-pixel** visual displacement. Zero is the
+default. Every boxed node is first sized and positioned in its existing
+normal flow (including horizontal auto-margin resolution), then translated
+to the right by `x` and downward by `y`. The translation applies to the
+node's margin, border, padding and content rectangles and to all visible
+descendants. A descendant's own positive translation composes with its
+ancestors' translated origin.
+
+The *consumed flow height* remains the original margin-box height, and
+the parent advances to the next sibling as though no relative translation
+occurred. An auto-height parent also measures its normal-flow children,
+not the visual displacement. Translated margin boxes nevertheless
+contribute to the explicit document scroll extents; checked arithmetic
+rejects overflow rather than wrapping. The RGB painter, input hit tester,
+viewport-scrolled projection, ancestor padding clips and semantic text
+anchors receive the same translated geometry. An active `display: contents`
+wrapper has no box and ignores **its own** offset; its laid-out children
+may each have an offset. A `display: none` subtree is skipped entirely.
+
+The independent `crates/grunkalunka-layout/tests/relative_offsets.rs`
+tests literal nested rectangles, sibling flow invariance, positive visual
+overflow, scrolling, clipping, automatic horizontal margins, boxless
+wrappers, pixel/hit agreement and checked overflow. The selected
+[source-checked relative-offset bridge](browser-native-relative-bridge.md)
+compares a positive `position: relative; left/top` configuration and a
+live parent mutation with Chromium, Firefox and WebKit.
+
+This is **not** general CSS positioned layout. It does not model negative
+offsets; right/bottom inset precedence; subpixel values; `z-index` or
+stacking contexts; new positioned containing blocks; or absolute, fixed
+and sticky layout. Offsets are caller-resolved values, not CSS declarations
+parsed or computed by the native engine.
 
 ## Horizontal auto margins for normal-flow blocks
 
@@ -221,9 +260,10 @@ padding-box clipping policy without claiming full CSS overflow handling.
 This is not CSS 2.1 block formatting conformance. There is no HTML parser, CSS
 tokenizer, selectors/cascade, text shaping, inline formatting, negative margins,
 fractional/percentage horizontal margins, collapsed vertical margins,
-floats, positioning, fractional percent widths,
+floats, general CSS positioned layout (negative relative offsets,
+absolute/fixed/sticky, stacking contexts), fractional percent widths,
 percentage heights under indefinite auto-height parents, scrollbars,
-CSS painting, hit testing, event loop or native window. Input text heights are
+CSS paint/style processing, DOM event dispatch or native window. Input text heights are
 provided by a separate caller, not guessed. All coordinates are unsigned
 integers. This is a small, experimental implementation component, NOT an
 A1 application or a commitment to the final renderer architecture.
