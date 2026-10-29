@@ -176,7 +176,10 @@ fn run() -> wasmtime::Result<()> {
     if selected != Some(false) {
         profiles.push(inspect_profile(&engine, &component, &text, true)?);
     }
-    println!(r#"{{"schemaVersion":1,"profiles":[{}]}}"#, profiles.join(","));
+    println!(
+        r#"{{"schemaVersion":1,"profiles":[{}]}}"#,
+        profiles.join(",")
+    );
     Ok(())
 }
 
