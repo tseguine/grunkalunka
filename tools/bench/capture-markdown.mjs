@@ -136,6 +136,23 @@ export function validateOptionalProcessMemory(report, nativeOs) {
   }
 }
 
+// Earlier native-v1 receipts lack this post-measurement observation. If a
+// report claims new fresh WIT lifecycle samples, validate all real timings.
+export function validateOptionalFreshLifecycles(report, samples) {
+  if (!Object.hasOwn(report, 'freshLifecycles')) return;
+  const lifecycle = valueAt(report, 'freshLifecycles');
+  requireValue(lifecycle && typeof lifecycle === 'object' &&
+    !Array.isArray(lifecycle) &&
+    Object.keys(lifecycle).sort().join(',') === 'count,denied,granted,unit',
+  'freshLifecycles envelope');
+  requireValue(lifecycle.count === samples &&
+    lifecycle.unit === 'milliseconds per fresh component lifecycle',
+  'freshLifecycles count/units');
+  for (const name of ['granted', 'denied']) {
+    checkSeries(lifecycle[name], samples, 'freshLifecycles.' + name);
+  }
+}
+
 // Report integrity is not a speed threshold or a second CommonMark oracle.
 export function validateNativeReport(report, config, guestBytes) {
   requireValue(valueAt(report, 'schemaVersion') === 1, 'schemaVersion');
@@ -146,6 +163,7 @@ export function validateNativeReport(report, config, guestBytes) {
   requireValue(valueAt(report, 'environment.os') === nativeOS[platform()], 'host OS');
   requireValue(valueAt(report, 'environment.arch') === nativeArch[arch()], 'host architecture');
   validateOptionalProcessMemory(report, valueAt(report, 'environment.os'));
+  validateOptionalFreshLifecycles(report, config.samples);
   requireValue(valueAt(report, 'environment.fuelEnabled') === false, 'fuel policy');
   requireValue(/^=\d+\.\d+\.\d+$/.test(valueAt(report, 'environment.wasmtimeDependency')),
     'Wasmtime dependency declaration');
