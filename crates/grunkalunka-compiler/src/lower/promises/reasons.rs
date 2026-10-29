@@ -7,6 +7,26 @@ pub(super) struct Routes {
     pub finalizers: BTreeSet<u32>,
 }
 
+// A source exception reaches this arrow only if no inner protected catch owns it.
+fn escapes_arrow(node: NodeId, body: NodeId, semantic: &Semantic<'_>) -> bool {
+    let span = semantic.nodes().kind(node).span();
+    for ancestor in semantic.nodes().ancestor_kinds(node) {
+        match ancestor {
+            AstKind::TryStatement(statement) => {
+                let protected = statement.block.span.start <= span.start
+                    && span.end <= statement.block.span.end;
+                if statement.handler.is_some() && protected {
+                    return false;
+                }
+            }
+            AstKind::ArrowFunctionExpression(arrow) => return arrow.node_id.get() == body,
+            AstKind::Function(_) => return false,
+            _ => (),
+        }
+    }
+    false
+}
+
 // Describe the rejection of an awaited value, rather than whether that value
 // itself can be a Promise. Reject uses its argument; resolve follows its input.
 fn may_reject_raw(
@@ -98,9 +118,29 @@ fn may_reject_raw(
                                 continue;
                             }
                             let arrow = returns.arrows[&body];
-                            // Async bodies can also reject from their own await/throw sites.
                             if arrow.r#async {
-                                return true;
+                                for node in semantic.nodes().iter() {
+                                    let (argument, thrown) = match node.kind() {
+                                        AstKind::ThrowStatement(statement) => {
+                                            (&statement.argument, true)
+                                        }
+                                        AstKind::AwaitExpression(expression) => {
+                                            (&expression.argument, false)
+                                        }
+                                        _ => continue,
+                                    };
+                                    if !escapes_arrow(node.id(), body, semantic) {
+                                        continue;
+                                    }
+                                    if thrown {
+                                        // Throw preserves a value; await follows its rejection.
+                                        if return_adopts(argument, semantic, returns, inputs) {
+                                            return true;
+                                        }
+                                    } else {
+                                        work.push((argument, depth + 1));
+                                    }
+                                }
                             }
                             if let Some(value) = arrow.get_expression() {
                                 work.push((value, depth + 1));

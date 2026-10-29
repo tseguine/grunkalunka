@@ -917,3 +917,14 @@ classification; bare returns and fallthrough yield non-rejecting Undefined. Asyn
 bodies and unknown possible-Promise targets remain conservative. Native JS/Node-Wasm/Wasmtime tests compare values and full
 reaction traces, with erased-type, width/await and existing stack/resource guards.
 See [the bounded source contract](async-promise-objects.md#rejection-domains-of-synchronous-local-calls).
+
+## Asynchronous local call rejection provenance (2026-10-29)
+
+Awaited source-known async calls now preserve primitive-only catch domains by
+combining returned expressions with their own escaping awaits and throws. Local
+catches and nested definitions do not spuriously widen the caller; raw escaping
+reasons retain identity. Numeric inline regions inside an awaited async call also
+retain its existing exception boundary during IR verification. Native
+JS/Node-Wasm/Wasmtime differentials cover values, reaction traces, snapshots,
+cleanup, typed erasure and source limits. Opaque targets and broader flow-sensitive
+precision remain conservative. See [the async source contract](async-promise-objects.md#rejection-domains-of-asynchronous-local-calls).

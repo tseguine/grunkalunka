@@ -447,3 +447,22 @@ Argument failures route independently, and runtime evaluation order, captures,
 identity, reaction jobs and handling remain on their existing paths. Differential
 source tests and two valid-execution mutations exercise the target-union and async
 body boundaries. General mutable-cell and interprocedural precision remain open.
+
+## Source-known async call rejection provenance (2026-10-29)
+
+The earlier conservative async-body boundary is now refined by scanning each
+target's own escaping await/throw sources alongside returned expressions. Throws
+use the value domain; awaits and async returns use the rejection domain. A local
+catch excludes only protected try-block effects, and nested definitions are not
+executions. Handler/finalizer throws and returned rejected Promises still escape.
+Unknown targets and control-flow overrides remain conservative. This preserves
+the existing depth bound and body/depth memoization without a new effect IR or
+runtime mechanism.
+
+The existing awaited-call exception boundary also applies to its nested numeric
+inline regions. The verifier previously rejected their throws even when handled
+locally; it now accepts them under that boundary while retaining raw-handler type
+checks and rejecting numeric throws without the boundary. A compiler regression
+removes the boundary to verify that guard. Source differential tests cover raw
+identity and primitive arithmetic together with full reaction traces. General
+argument specialization and finally-sensitive effect elimination remain separate.

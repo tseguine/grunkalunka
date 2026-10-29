@@ -1800,6 +1800,7 @@ impl Verifier<'_> {
                 if completion.normal
                     && (frame.return_type == Type::General
                         || frame.settlement
+                        || frame.inline_async
                         || frame.raw_completion && frame.return_type == Type::AsyncValue) =>
             {
                 let ty = self.reason_type(value, region.span)?;
@@ -4628,6 +4629,39 @@ mod throw_value_tests {
 #[cfg(test)]
 mod awaited_call_tests {
     use super::*;
+
+    #[test]
+    fn numeric_inline_throws_require_an_async_completion_boundary() {
+        let source = "export async function run(a,b){const f=async()=>{try{throw a;}catch(e){}await b;return b;};return await f();}";
+        let mut module = crate::lower_source_profile(source, false, Type::General, true).unwrap();
+        verify_async_module(&module).unwrap();
+        let function = &mut module.functions[0];
+        let index = function
+            .body
+            .operations
+            .iter()
+            .position(|operation| matches!(operation.kind, Op::AwaitCall { .. }))
+            .unwrap();
+        let Operation {
+            span,
+            kind: Op::AwaitCall { result, body },
+        } = function.body.operations.remove(index)
+        else {
+            unreachable!()
+        };
+        function.body.operations.insert(
+            index,
+            Operation {
+                span,
+                kind: Op::InlineCall { result, body },
+            },
+        );
+        assert!(
+            verify_async_module(&module)
+                .unwrap_err()
+                .contains("invalid region exit contract")
+        );
+    }
 
     #[test]
     fn awaited_calls_require_general_results_and_complete_scoped_bodies() {
