@@ -233,3 +233,14 @@ separately calls `hit_test_scrolled` on reviewed caller-resolved geometry;
 the comparator requires exact offset, document extent, rectangle and target
 observations. See the [viewport-scroll evidence guide](browser-native-viewport-scroll-bridge.md)
 for goldens, source receipts and deliberately excluded browser behavior.
+
+## Native minimum/maximum width comparison
+
+A source-checked min/max-width witness now lives entirely within the
+existing fixed-height scroll spacer. It measures a contradictory percentage
+minimum/maximum, border-box sizing and dependent nested widths in the
+reference engines; the independent Rust layout receipt carries its own
+content/rectangle goldens. The existing comparator requires exact
+`widthBounds` evidence without changing the original scrolling or
+height/geometry/hit mutation channels. See
+[the bounded width evidence guide](browser-width-bounds-bridge.md).

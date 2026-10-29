@@ -1,7 +1,9 @@
 //! Hand-projected browser oracle slice: resolved boxes, not an HTML/CSS parser.
 //! Run: cargo run -p grunkalunka-layout --example native_block_bridge --locked
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
-use grunkalunka_layout::{Block, BoxSizing, Display, Edges, Frame, Length, Rect, Style, layout};
+use grunkalunka_layout::{
+    Block, BoxSizing, Display, Edges, Frame, Length, Rect, Style, WidthBound, layout,
+};
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
 fn boxes_json(frame: &Frame) -> String {
@@ -447,6 +449,190 @@ fn scroll_viewport_json() -> String {
     )
 }
 
+// This additional group lives inside the fixture's pre-existing 650px fixed
+// scroll spacer. The preceding fixed-height placeholders preserve its original
+// y position, document scroll extent and unrelated real-engine observations.
+fn width_bounds_json() -> String {
+    let blocks = [
+        Block::default(),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(284),
+                height: Length::Px(86),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(132),
+                height: Length::Px(92),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(120),
+                height: Length::Px(80),
+                margin: Edges {
+                    top: 10,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                height: Length::Px(650),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(4),
+            style: Style {
+                width: Length::Px(400),
+                height: Length::Px(80),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(5),
+            style: Style {
+                box_sizing: BoxSizing::BorderBox,
+                width: Length::Px(400),
+                min_width: Some(WidthBound::Percent(45)),
+                max_width: Some(WidthBound::Percent(30)),
+                height: Length::Px(60),
+                padding: Edges::all(4),
+                border: Edges::all(2),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(6),
+            style: Style {
+                width: Length::Percent(50),
+                height: Length::Px(10),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(6),
+            style: Style {
+                width: Length::Px(250),
+                max_width: Some(WidthBound::Px(100)),
+                height: Length::Px(8),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(80),
+                height: Length::Px(30),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let frame = layout(&blocks, 800, 600).expect("native width limits must lay out");
+    assert_eq!(
+        frame.boxes[5].unwrap().content,
+        Rect {
+            x: 0,
+            y: 278,
+            width: 400,
+            height: 80,
+        }
+    );
+    assert_eq!(
+        frame.boxes[6].unwrap().content,
+        Rect {
+            x: 6,
+            y: 284,
+            width: 168,
+            height: 48,
+        }
+    );
+    assert_eq!((frame.scroll_width, frame.scroll_height), (800, 958));
+    assert_eq!(
+        frame.boxes[9].unwrap().border,
+        Rect {
+            x: 0,
+            y: 928,
+            width: 80,
+            height: 30,
+        }
+    );
+    let expected = [
+        (
+            "bounds-host",
+            6,
+            Rect {
+                x: 0,
+                y: 278,
+                width: 180,
+                height: 60,
+            },
+        ),
+        (
+            "bounds-first",
+            7,
+            Rect {
+                x: 6,
+                y: 284,
+                width: 84,
+                height: 10,
+            },
+        ),
+        (
+            "bounds-second",
+            8,
+            Rect {
+                x: 6,
+                y: 294,
+                width: 100,
+                height: 8,
+            },
+        ),
+    ];
+    for &(id, index, golden) in &expected {
+        assert_eq!(
+            frame.boxes[index]
+                .expect("visible min/max-width witness")
+                .border,
+            golden,
+            "independent native constrained-width rectangle for {id}"
+        );
+    }
+    expected
+        .into_iter()
+        .map(|(id, index, _)| {
+            let rect = frame.boxes[index].unwrap().border;
+            format!(
+                r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                rect.x, rect.y, rect.width, rect.height
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -619,6 +805,8 @@ fn main() {
     output.push_str(&border_boxes_json());
     output.push_str(r#"},"scrollViewport":"#);
     output.push_str(&scroll_viewport_json());
-    output.push('}');
+    output.push_str(r#","widthBounds":{"#);
+    output.push_str(&width_bounds_json());
+    output.push_str(r#"}}"#);
     println!("{output}");
 }

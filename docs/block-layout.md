@@ -219,6 +219,7 @@ The independent `crates/grunkalunka-layout/tests/width_bounds.rs`
 module verifies auto/fixed sizing, nested percentage widths, min/max
 precedence, border-box constraints and tiny overconstrained boxes,
 fractional/overflow fail-closed behavior and hidden-subtree isolation.
-These are native literal-coordinate tests. Fresh real-browser source-hashed
-parity evidence for a selected CSS min/max-width fixture is a separate next
-step, not established by these tests.
+These are native literal-coordinate tests. The separate
+[source-checked width-bounds bridge](browser-width-bounds-bridge.md) compares
+one selected min/max-width configuration with real browser measurements; it
+does not establish broad CSS conformance.
