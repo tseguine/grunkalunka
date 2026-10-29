@@ -111,9 +111,11 @@ invariance and malformed frame metadata.
 
 This selected input eligibility does not model DOM event paths,
 capturing/bubbling, `pointerenter`/`pointerleave`, pointer capture,
-hover state, keyboard navigation or accessibility. The eventual
-reference witness must test actual browser `elementFromPoint` output
-independently of these native goldens.
+hover state, keyboard navigation or accessibility. A separate
+[source-checked pointer-events witness](browser-native-pointer-events-bridge.md)
+now compares a selected inherited-none/explicit-auto case with real
+Chromium, Firefox and WebKit `elementFromPoint` observations. This remains
+narrow reference evidence, not DOM event-dispatch conformance.
 
 ## Inherited visibility without reflow
 

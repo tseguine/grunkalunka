@@ -24,6 +24,11 @@ const boxlessIds = ["contents-first", "contents-second", "contents-sibling"];
 const boxlessTargets = ["contents-wrapper", ...boxlessIds];
 const boxlessProbes = ["first-contents", "second-contents", "wrapper-border",
   "first-block", "sibling-contents", "sibling-block", "outside"];
+const pointerPhases = ["none", "auto", "restored"];
+const pointerIds = ["pointer-host", "pointer-inherited",
+  "pointer-restored", "pointer-sibling"];
+const pointerProbes = ["inherited", "host", "restored",
+  "host-lower", "sibling", "outside"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -45,7 +50,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips and boxless contents geometry/hits; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents and pointer-events geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -387,6 +392,67 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   validateBoxlessStates("native", native?.boxlessStates);
   validateBoxlessStates("browser", browser?.boxlessStates);
 
+  function validatePointerStates(owner, states) {
+    const path = "$." + owner + ".pointerStates";
+    if (!record(states) ||
+        Object.keys(states).sort().join(",") !== [...pointerPhases].sort().join(",")) {
+      error(path, "none, auto and restored pointer-events phases required");
+      return;
+    }
+    const exactIds = [...pointerIds].sort().join(",");
+    const exactProbes = [...pointerProbes].sort().join(",");
+    const exactFields = [...rectFields].sort().join(",");
+    for (const phase of pointerPhases) {
+      const sample = states[phase], prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,computed,hits") {
+        error(prefix, "complete pointer geometry, computed styles and hits required");
+        continue;
+      }
+      if (!record(sample.boxes) || Object.keys(sample.boxes).sort().join(",") !== exactIds) {
+        error(prefix + ".boxes", "exactly four pointer witness boxes required");
+      } else {
+        for (const id of pointerIds) {
+          const rect = sample.boxes[id];
+          if (!record(rect) || Object.keys(rect).sort().join(",") !== exactFields) {
+            error(prefix + ".boxes." + id, "complete pointer rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(rect[field]) ||
+                (["width", "height"].includes(field) && rect[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite CSS-pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.computed) ||
+          Object.keys(sample.computed).sort().join(",") !== exactIds) {
+        error(prefix + ".computed", "exactly four inherited pointer values required");
+      } else {
+        for (const id of pointerIds) {
+          if (typeof sample.computed[id] !== "boolean") {
+            error(prefix + ".computed." + id, "resolved pointer eligibility Boolean required");
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== exactProbes) {
+        error(prefix + ".hits", "exactly six pointer input probes required");
+      } else {
+        for (const probe of pointerProbes) {
+          const id = sample.hits[probe];
+          if (id !== null && !pointerIds.includes(id)) {
+            error(prefix + ".hits." + probe, "known pointer element or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validatePointerStates("native", native?.pointerStates);
+  validatePointerStates("browser", browser?.pointerStates);
+
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
     const expected = [...scrollPhases, "documentHeight"].sort().join(",");
@@ -662,6 +728,36 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "boxless-hit", phase, probe, left, right,
           path: "$.boxlessStates." + phase + ".hits." + probe,
+        });
+      }
+    }
+  }
+  for (const phase of pointerPhases) {
+    const a = native.pointerStates[phase], b = browser.pointerStates[phase];
+    for (const id of pointerIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "pointer-box", phase, id, field, left, right,
+            path: "$.pointerStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+      if (!Object.is(a.computed[id], b.computed[id])) {
+        differences.push({
+          kind: "pointer-computed", phase, id,
+          left: a.computed[id], right: b.computed[id],
+          path: "$.pointerStates." + phase + ".computed." + id,
+        });
+      }
+    }
+    for (const probe of pointerProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "pointer-hit", phase, probe, left, right,
+          path: "$.pointerStates." + phase + ".hits." + probe,
         });
       }
     }
