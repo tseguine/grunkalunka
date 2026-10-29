@@ -1,0 +1,6 @@
+{
+  "source": "tests/build/benchmark.test.mjs",
+  "requiredChecks": [
+    "check:benchmark-tests"
+  ]
+}
