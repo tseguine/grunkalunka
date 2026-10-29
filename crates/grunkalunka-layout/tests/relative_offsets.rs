@@ -4,8 +4,8 @@
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::paint::{PaintNode, Rgb, paint, paint_scrolled};
 use grunkalunka_layout::{
-    Block, DescendantClip, Display, Edges, HorizontalAutoMargins, LayoutError, Length,
-    Rect, RelativeOffset, Style, layout,
+    Block, DescendantClip, Display, Edges, HorizontalAutoMargins, LayoutError, Length, Rect,
+    RelativeOffset, Style, layout,
 };
 
 const ROOT: Rgb = Rgb::new(190, 190, 190);
@@ -14,7 +14,12 @@ const BLUE: Rgb = Rgb::new(20, 40, 230);
 const GREEN: Rgb = Rgb::new(30, 185, 40);
 
 fn rect(x: u32, y: u32, width: u32, height: u32) -> Rect {
-    Rect { x, y, width, height }
+    Rect {
+        x,
+        y,
+        width,
+        height,
+    }
 }
 
 fn inputs(blocks: &[Block], colors: &[Rgb]) -> (Vec<HitNode>, Vec<PaintNode>) {
@@ -109,7 +114,11 @@ fn nested_visual_offsets_shift_descendants_but_not_following_siblings() {
         ((19, 23), GREEN, Some(3)),
     ] {
         assert_eq!(canvas.pixel(x, y), Some(color), "paint at ({x},{y})");
-        assert_eq!(hit_test(&frame, &hits, x, y), Ok(target), "hit at ({x},{y})");
+        assert_eq!(
+            hit_test(&frame, &hits, x, y),
+            Ok(target),
+            "hit at ({x},{y})"
+        );
     }
 }
 
@@ -214,7 +223,10 @@ fn boxless_and_hidden_wrappers_ignore_offsets_without_leaking_to_children() {
             parent: Some(0),
             style: Style {
                 display: Display::Contents,
-                relative_offset: RelativeOffset { x: u32::MAX, y: u32::MAX },
+                relative_offset: RelativeOffset {
+                    x: u32::MAX,
+                    y: u32::MAX,
+                },
                 margin: Edges::all(u32::MAX),
                 ..Style::default()
             },
@@ -234,7 +246,10 @@ fn boxless_and_hidden_wrappers_ignore_offsets_without_leaking_to_children() {
             parent: Some(0),
             style: Style {
                 display: Display::None,
-                relative_offset: RelativeOffset { x: u32::MAX, y: u32::MAX },
+                relative_offset: RelativeOffset {
+                    x: u32::MAX,
+                    y: u32::MAX,
+                },
                 ..Style::default()
             },
             ..Block::default()
@@ -242,7 +257,10 @@ fn boxless_and_hidden_wrappers_ignore_offsets_without_leaking_to_children() {
         Block {
             parent: Some(3),
             style: Style {
-                relative_offset: RelativeOffset { x: u32::MAX, y: u32::MAX },
+                relative_offset: RelativeOffset {
+                    x: u32::MAX,
+                    y: u32::MAX,
+                },
                 ..Style::default()
             },
             ..Block::default()
@@ -269,7 +287,10 @@ fn boxless_and_hidden_wrappers_ignore_offsets_without_leaking_to_children() {
         Block {
             style: Style {
                 display: Display::Contents,
-                relative_offset: RelativeOffset { x: u32::MAX, y: u32::MAX },
+                relative_offset: RelativeOffset {
+                    x: u32::MAX,
+                    y: u32::MAX,
+                },
                 ..Style::default()
             },
             ..Block::default()
