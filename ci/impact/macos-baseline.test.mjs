@@ -89,12 +89,14 @@ test('new workflow 404 is allowed during bootstrap; other API errors propagate',
 
 test('native macOS master push trigger is unfiltered and active runs are preserved', () => {
   const workflow = readFileSync(new URL('../../.github/workflows/macos.yml', import.meta.url), 'utf8');
-  const triggers = workflow.split('\non:\n')[1]?.split('\npermissions:')[0];
+  // Git checkouts may use CRLF on Windows; inspect the same YAML on every host.
+  const normalized = workflow.replace(/\r\n/g, '\n');
+  const triggers = normalized.split('\non:\n')[1]?.split('\npermissions:')[0];
   assert.ok(triggers, 'macOS workflow must declare triggers');
   assert.match(triggers, /^  push:\n    branches: \[master\]$/m);
   assert.match(triggers, /^  workflow_dispatch:$/m);
   assert.match(triggers, /^  workflow_call:$/m);
   assert.doesNotMatch(triggers, /^  schedule:$/m);
   assert.doesNotMatch(triggers, /^    paths:$/m);
-  assert.match(workflow, /^  cancel-in-progress: false$/m);
+  assert.match(normalized, /^  cancel-in-progress: false$/m);
 });
