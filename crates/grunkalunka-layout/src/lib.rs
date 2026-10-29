@@ -76,6 +76,14 @@ pub enum WidthBound {
     Percent(u32),
 }
 
+/// Caller-resolved minimum/maximum height bound. Percentages require a
+/// definite containing content height; no CSS fallback is guessed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HeightBound {
+    Px(u32),
+    Percent(u32),
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Style {
     pub display: Display,
@@ -83,6 +91,8 @@ pub struct Style {
     pub min_width: Option<WidthBound>,
     pub max_width: Option<WidthBound>,
     pub height: Length,
+    pub min_height: Option<HeightBound>,
+    pub max_height: Option<HeightBound>,
     pub box_sizing: BoxSizing,
     pub margin: Edges,
     pub border: Edges,
@@ -250,10 +260,38 @@ impl Engine<'_> {
         let padding_top = add(border_top, style.border.top)?;
         let content_y = add(padding_top, style.padding.top)?;
 
-        // A child's percentage height uses this box's definite content height,
-        // not its border/padding dimensions. Auto height is indefinite even if
-        // the parent's own containing height was definite.
-        let definite_height = match style.height {
+        // Resolve both height limits independently against the parent's
+        // definite content height. No percentage fallback is invented for an
+        // auto-height containing block; hidden subtrees were skipped above.
+        let resolve_height_bound = |bound: HeightBound| -> Result<u32, LayoutError> {
+            let specified = match bound {
+                HeightBound::Px(value) => value,
+                HeightBound::Percent(value) => whole_percent(
+                    containing_height.ok_or(LayoutError::UnsupportedPercentageHeight { node })?,
+                    value,
+                    LayoutError::FractionalPercentageHeight { node },
+                )?,
+            };
+            Ok(style.box_sizing.content_size(specified, height_edges))
+        };
+        let max_content = style
+            .max_height
+            .map(|bound| resolve_height_bound(bound))
+            .transpose()?;
+        let min_content = style
+            .min_height
+            .map(|bound| resolve_height_bound(bound))
+            .transpose()?;
+        let apply_bounds = |height: u32| {
+            height
+                .min(max_content.unwrap_or(u32::MAX))
+                .max(min_content.unwrap_or(0))
+        };
+
+        // A child's percentage height uses this box's *used definite*
+        // content height. Clamped fixed/percentage heights remain definite;
+        // auto heights stay indefinite even if their used size is bounded.
+        let specified_height = match style.height {
             Length::Auto => None,
             Length::Px(value) => Some(style.box_sizing.content_size(value, height_edges)),
             Length::Percent(value) => Some(style.box_sizing.content_size(
@@ -265,6 +303,7 @@ impl Engine<'_> {
                 height_edges,
             )),
         };
+        let definite_height = specified_height.map(|height| apply_bounds(height));
         let mut next_y = content_y;
         for index in 0..self.children[node].len() {
             let child = self.children[node][index];
@@ -272,7 +311,7 @@ impl Engine<'_> {
             next_y = add(next_y, consumed)?;
         }
         let natural_height = (next_y - content_y).max(block.intrinsic_height);
-        let content_height = definite_height.unwrap_or(natural_height);
+        let content_height = definite_height.unwrap_or_else(|| apply_bounds(natural_height));
         let padding_width = add(content_width, padding_x)?;
         let padding_height = add(content_height, padding_y)?;
         let border_width = add(padding_width, border_x)?;
@@ -323,8 +362,8 @@ impl Engine<'_> {
 ///
 /// Only nonnegative resolved integer CSS pixels, vertical block flow,
 /// display:none, explicit content-box/border-box sizing, optional min/max
-/// width constraints, and whole percentage dimensions with exact integral
-/// results are admitted. Percentage heights
+/// width/height constraints, and whole percentage dimensions with exact
+/// integral results are admitted. Percentage heights
 /// require a definite containing content
 /// height; unresolved heights and fractional pixel results are rejected.
 /// Positive margins do not collapse; inline layout, text shaping, floats,

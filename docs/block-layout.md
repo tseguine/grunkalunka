@@ -17,10 +17,11 @@ of visible blocks, plus scroll extents.
 - Explicit `BoxSizing::ContentBox` (default) or `BoxSizing::BorderBox`
   for caller-resolved fixed and percentage widths/heights. Auto sizes keep
   their existing natural sizing behavior.
-- Optional caller-resolved minimum and maximum widths (absolute integer pixels
-  or integral percentages of the containing content width). Constraints affect
-  the used width before descendants lay out, and an explicit minimum wins an
-  incompatible maximum.
+- Optional caller-resolved minimum/maximum widths and heights (absolute
+  integer pixels or integral percentages of the containing content dimension).
+  Explicit dimensions are constrained before descendants lay out; auto
+  height is constrained after natural child layout. An explicit minimum wins
+  an incompatible maximum.
 - Explicit integer-percentage content widths relative to the containing content
   width (e.g. 50% of 210 px = 105 px), and heights relative to a definite
   containing content height (the viewport for the root, an explicit height for
@@ -182,8 +183,8 @@ content/padding/border/margin coordinates, nested percentage dimensions and
 sibling flow, overconstrained border boxes, whole-viewport percentages,
 fractional-input rejections, default behavior, and hidden descendants.
 The existing Rust layout tests remain unchanged to guard content-box output.
-No subpixel rounding, min/max sizing, overflow clipping, layout containment,
-margin collapse or general CSS box-model conformance is claimed. The separate
+No subpixel rounding, intrinsic min-/max-content sizing, overflow clipping,
+layout containment, margin collapse or general CSS box-model conformance is claimed. The separate
 [source-checked native border-box bridge](browser-native-box-sizing-bridge.md)
 supplies selected real-engine geometry evidence, not a general CSS compliance claim.
 
@@ -211,8 +212,8 @@ The engine first calculates the tentative content width using the existing
 sizing rules, then applies the maximum and finally the minimum. If
 `min_width > max_width`, the minimum wins. The final content width feeds
 child percentage widths, horizontal flow/scroll extents and the existing
-checked arithmetic. Limits affect *width only*; height remains governed by
-the existing definite/intrinsic-height rules. No scrollbar or clipping
+checked arithmetic. These constraints affect *width only*; height limits
+are an independent feature described below. No scrollbar or clipping
 semantics are inferred from a maximum width.
 
 The independent `crates/grunkalunka-layout/tests/width_bounds.rs`
@@ -223,3 +224,38 @@ These are native literal-coordinate tests. The separate
 [source-checked width-bounds bridge](browser-width-bounds-bridge.md) compares
 one selected min/max-width configuration with real browser measurements; it
 does not establish broad CSS conformance.
+
+## Optional minimum and maximum heights
+
+`Style::min_height` and `Style::max_height` are optional
+`HeightBound::{Px(u32),Percent(u32)}` values. They use the node's chosen
+`ContentBox` or `BorderBox` convention, subtracting only local border and
+padding for border-box sizing. They do not include margins and cannot
+produce negative content dimensions. The default has no limits.
+
+Each percentage height bound resolves independently against the
+**definite containing content height**. As with the existing percentage
+height declaration, a parent with auto height provides no definite
+containing height, so the engine rejects percentage bounds with
+`UnsupportedPercentageHeight { node }` instead of inventing browser auto
+fallback semantics. Fractional CSS pixels fail with
+`FractionalPercentageHeight { node }`, and excessive exact magnitudes
+fail with `Overflow` even when the other constraint would win.
+
+An explicitly fixed or resolved-percentage `height` is clamped by the
+maximum, then the minimum (minimum wins contradictions) **before** laying
+out descendants. Children with percentage heights therefore use the
+parent's final definite content height. By contrast, `height: Auto`
+first measures its descendants and caller-provided intrinsic height,
+then clamps that natural result. This used height remains *indefinite*
+for child percentage resolution: a minimum alone does not turn an auto
+height into a definite height. A maximum does not clip descendants;
+overflowing boxes continue to contribute to document scroll extents.
+
+The independent `crates/grunkalunka-layout/tests/height_bounds.rs`
+suite checks fixed/auto limits, post-child natural sizing, percentage
+containing boxes, nested descendant heights, contradictory constraints,
+border-box edges, fractional/overflow rejection, visible overflow and
+hidden-subtree isolation. No CSS margin collapse, viewport fitting,
+intrinsic text sizing, auto-percentage fallback or real-engine parity
+is claimed by these native tests alone.
