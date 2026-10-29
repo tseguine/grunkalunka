@@ -6,6 +6,7 @@ import { stat } from 'node:fs/promises';
 import { arch, cpus, platform, release } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { performance } from 'node:perf_hooks';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const nativeOS = { linux: 'linux', darwin: 'macos', win32: 'windows' };
@@ -258,7 +259,16 @@ export async function capture(options) {
   const nativeArgs = [options.guest, '--workload', options.config.case,
     '--samples', String(options.config.samples),
     '--iterations', String(options.config.iterations), '--warmup', String(options.config.warmup)];
-  const native = JSON.parse(execute(options.runner, nativeArgs));
+  // Parent-process monotonic wall time around precisely one already-built
+  // native cost runner. Includes process creation, output transfer and exit,
+  // unlike the runner's internal Wasmtime timers; excludes JSON parsing,
+  // validation, hashing and wrapper setup.
+  const nativeStarted = performance.now();
+  const output = execute(options.runner, nativeArgs);
+  const nativeProcessElapsedMs = performance.now() - nativeStarted;
+  requireValue(Number.isFinite(nativeProcessElapsedMs) && nativeProcessElapsedMs >= 0,
+    'nativeProcessElapsedMs');
+  const native = JSON.parse(output);
   validateNativeReport(native, options.config, guestInfo.size, guestSha);
   if (await sha256(options.guest) !== guestSha || await sha256(options.runner) !== runnerSha ||
       execute('git', ['rev-parse', 'HEAD']) !== gitCommit ||
@@ -269,6 +279,7 @@ export async function capture(options) {
   return {
     schemaVersion: 1, workload: 'markdown-wit-capture', observedAt: new Date().toISOString(),
     cachePolicy: 'OS and Wasmtime caches uncontrolled; one compilation, then warm samples',
+    nativeProcessElapsedMs,
     provenance: {
       gitCommit, trackedChangesPresent: trackedChanges.length > 0,
       buildLabel: options.buildLabel,
