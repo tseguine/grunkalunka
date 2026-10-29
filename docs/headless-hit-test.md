@@ -11,8 +11,9 @@ fonts, images or external dependencies.
 - Each HitNode supplies its parent index (matching the layout tree) and an
   explicit targetable Boolean. An unpainted box may still be targetable.
   This is caller input policy, **not** a CSS pointer-events implementation.
-  Resolved inherited `Frame::visibility` is a separate, necessary filter;
-  hidden nodes cannot be selected, but explicitly visible descendants can.
+  Resolved inherited `Frame::visibility` and `Frame::pointer_events`
+  are separate necessary filters; hidden nodes cannot be selected, and
+  explicit visible/auto descendants can override inherited exclusions.
 - The topmost candidate is chosen by the reverse of the toy painter's
   **depth-first traversal**: descendants over parents, later siblings over
   earlier siblings. The flat parent-before-child representation need not
@@ -28,8 +29,8 @@ fonts, images or external dependencies.
   `hit_test_scrolled` translates viewport points by a checked global
   document-space offset; nested scroll containers are not represented.
 - The function validates all tree and box inputs before accepting any hit:
-  viewport dimensions, exact frame/node/visibility/clip/contents count,
-  at most 4,096 nodes, depth
+  viewport dimensions, exact frame/node/visibility/clip/contents/
+  pointer-events count, at most 4,096 nodes, depth
   at most 64, ordered valid parents, no visible descendants of hidden parents,
   checked rectangle arithmetic and content-within-padding-within-border-
   within-margin geometry. Malformed input returns a typed error.
@@ -73,6 +74,19 @@ a boxless parent. The independent `tests/display_contents.rs` checks
 nested wrappers, inherited visibility, exact targets and malformed
 parent/frame metadata. This does not imply DOM event bubbling,
 accessibility tree preservation or CSS display conformance.
+
+## Inherited pointer-events targetability
+
+The native input primitive now accepts already-resolved
+`PointerEvents::{Inherit,Auto,None}` through the layout style and
+`Frame::pointer_events`. This Boolean eligibility is independent
+of the caller's explicit `HitNode::targetable`, inherited visibility,
+clip rectangles and box presence. A `None` ancestor suppresses its
+own hits but does not suppress an explicitly `Auto` descendant;
+the computed policy flows through boxless wrappers. The independent
+`tests/pointer_events.rs` asserts literal targets, unchanged RGB
+painting and document-space scrolling. It does not implement DOM
+event dispatch, event paths or pointer capture.
 
 ## Intentional limitations
 

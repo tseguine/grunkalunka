@@ -35,6 +35,9 @@ of visible blocks, plus scroll extents.
 - Resolved inherited visibility controls painting and input separately:
   hidden boxes remain in geometry and flow, while an explicitly visible
   descendant can override a hidden ancestor without reflow.
+- Resolved inherited `PointerEvents::Auto/None` controls hit eligibility
+  independently from geometry, visibility and caller targetability. An
+  explicitly auto descendant may override an inherited none policy.
 - Optional caller-resolved padding-box descendant clipping restricts paint
   and hit tests through nested ancestor clips without moving or hiding boxes.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
@@ -77,6 +80,40 @@ rejection and corrupt frame metadata.
 A separate [source-checked display:contents bridge](browser-native-boxless-bridge.md)
 compares the resulting child/sibling geometry and input hits against real
 Chromium, Firefox and WebKit observations under a DOM style toggle.
+
+## Inherited pointer-events eligibility for native input
+
+`Style::pointer_events` supports `PointerEvents::Inherit` (default),
+`PointerEvents::Auto` and `PointerEvents::None`. The root inherits
+`Auto`. The layout pass computes `Frame::pointer_events` in parent-before-
+child order, preserving ancestor `None` on descendants unless they
+explicitly override it with `Auto`. This follows the selected HTML
+`pointer-events` inheritance behavior in CSS UI, but does **not**
+implement SVG-only values or general DOM pointer dispatch.
+
+The headless hit tester requires **all three independent eligibility
+conditions** before choosing a border-box target: caller-supplied
+`HitNode::targetable`, resolved `Frame::visibility` and resolved
+`Frame::pointer_events`. A parent with `None` is not a target, but its
+`Auto` child remains eligible. `display:none` still removes all boxes;
+`display:contents` wrappers can propagate inherited pointer eligibility
+without having a hit box themselves. Existing ancestor padding-box clips
+continue to restrict restored descendants.
+
+This property does not change any layout box, scroll extent, RGB pixel,
+semantic text anchor or bitmap/glyph content. Hit testing rejects missing
+or mismatched pointer metadata instead of assuming `Auto`; painting
+deliberately does not depend on that metadata. The independent
+`tests/pointer_events.rs` checks exact targets, auto overrides,
+non-targetable caller flags, root-none inheritance, nested contents,
+visibility, `display:none`, clipping, viewport scrolling, pixel
+invariance and malformed frame metadata.
+
+This selected input eligibility does not model DOM event paths,
+capturing/bubbling, `pointerenter`/`pointerleave`, pointer capture,
+hover state, keyboard navigation or accessibility. The eventual
+reference witness must test actual browser `elementFromPoint` output
+independently of these native goldens.
 
 ## Inherited visibility without reflow
 
