@@ -272,6 +272,98 @@ fn batch(
     Ok(())
 }
 
+// A complete fresh Store/Component/one-WIT-call lifecycle is distinct from
+// instantiation-only and repeated-call measurements. Keep every correctness
+// and host-policy check *outside* the timed interval.
+fn fresh_lifecycle(
+    engine: &Engine,
+    component: &Component,
+    linker: &Linker<Host>,
+    source: &str,
+    workload: Workload,
+    granted: bool,
+    expected_projection: &str,
+) -> wasmtime::Result<f64> {
+    let started = Instant::now();
+    let (mut store, inspector) = instantiate(engine, component, linker, granted, source)?;
+    let observed = inspector.call_inspect(&mut store, Resource::new_borrow(7))?;
+    let elapsed = milliseconds(started);
+    if granted {
+        let headings = observed.map_err(|error| {
+            wasmtime::Error::msg(format!("fresh granted Markdown inspection: {error:?}"))
+        })?;
+        validate_projection(workload, &headings)?;
+        if rows(&headings) != expected_projection {
+            wasmtime::bail!("fresh granted Markdown projection differs from original");
+        }
+    } else if !matches!(observed, Err(InspectError::Denied)) {
+        wasmtime::bail!("fresh denied Markdown inspection was not a policy denial");
+    }
+    if store.data().attempts != 1
+        || store.data().reads != usize::from(granted)
+        || inspector.call_cleanup_count(&mut store)? != 1
+    {
+        wasmtime::bail!("fresh Markdown lifecycle changed read or cleanup counts");
+    }
+    Ok(elapsed)
+}
+
+fn fresh_lifecycles(
+    engine: &Engine,
+    component: &Component,
+    linker: &Linker<Host>,
+    source: &str,
+    workload: Workload,
+    count: usize,
+    expected_projection: &str,
+) -> wasmtime::Result<(Series, Series)> {
+    let mut granted_samples = Vec::with_capacity(count);
+    let mut denied_samples = Vec::with_capacity(count);
+    for index in 0..count {
+        // Alternate the granted/denied order, as in the existing call batches.
+        if index.is_multiple_of(2) {
+            granted_samples.push(fresh_lifecycle(
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                true,
+                expected_projection,
+            )?);
+            denied_samples.push(fresh_lifecycle(
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                false,
+                expected_projection,
+            )?);
+        } else {
+            denied_samples.push(fresh_lifecycle(
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                false,
+                expected_projection,
+            )?);
+            granted_samples.push(fresh_lifecycle(
+                engine,
+                component,
+                linker,
+                source,
+                workload,
+                true,
+                expected_projection,
+            )?);
+        }
+    }
+    Ok((Series::new(granted_samples), Series::new(denied_samples)))
+}
+
 #[derive(Debug)]
 pub struct Series {
     pub samples_ms: Vec<f64>,
@@ -322,6 +414,8 @@ pub struct Report {
     pub instantiation: Series,
     pub granted: Series,
     pub denied: Series,
+    pub fresh_granted: Series,
+    pub fresh_denied: Series,
     pub granted_reads: usize,
     pub denied_reads: usize,
     pub granted_cleanups: usize,
@@ -365,6 +459,15 @@ impl Report {
             self.instantiation.json(),
             self.granted.json(),
             self.denied.json()
+        )
+        .unwrap();
+        out.push_str("},\"freshLifecycles\":{");
+        write!(
+            out,
+            "\"count\":{},\"unit\":\"milliseconds per fresh component lifecycle\",\"granted\":{},\"denied\":{}",
+            self.options.samples,
+            self.fresh_granted.json(),
+            self.fresh_denied.json()
         )
         .unwrap();
         out.push_str("},\"processMemory\":");
@@ -507,6 +610,18 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
     let projection = rows(&original);
     validate_projection(options.workload, &original)?;
 
+    // Use the same compiled component and linker, but independent Stores,
+    // after the entire original timing and memory series has concluded.
+    let (fresh_granted, fresh_denied) = fresh_lifecycles(
+        &engine,
+        &component,
+        &linker,
+        &source,
+        options.workload,
+        options.samples,
+        &projection,
+    )?;
+
     Ok(Report {
         options,
         guest_bytes: guest.len(),
@@ -517,6 +632,8 @@ pub fn probe(guest_file: &Path, options: Options) -> wasmtime::Result<Report> {
         instantiation: Series::new(instantiation),
         granted: Series::new(granted_samples),
         denied: Series::new(denied_samples),
+        fresh_granted,
+        fresh_denied,
         granted_reads: repeated + 1,
         denied_reads: 0,
         granted_cleanups,

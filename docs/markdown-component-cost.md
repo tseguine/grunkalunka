@@ -37,6 +37,23 @@ pinned Wasmtime dependency, fuel policy and separate timing observations:
   including host dispatch, Rust guest Markdown parsing, original byte positions,
   canonical ABI list/string lifting, allocations and post-return cleanup.
 
+A second **one-shot lifecycle** measurement runs only *after* the original
+five host-memory snapshots, repeated-call measurements, correctness-count
+checks and disposal of their persistent Stores. For each bounded sample,
+a new granted Store and component Instance performs exactly one typed WIT
+inspection, including canonical lifting and post-return cleanup; a separate
+new denied instance performs exactly one typed denial without a backing
+read. Their measurement interval includes Store/Instance creation and the
+single WIT call, but excludes independent correctness, ownership/read-count
+and cleanup-count validation and disposal. Results are retained as
+`freshLifecycles.granted` and `freshLifecycles.denied`, with the
+original raw samples and min/median/max convention. The two profiles
+alternate ordering. The granted result must reproduce the original exact
+projection, and each fresh instance must record precisely one backing
+attempt, the appropriate zero/one read count, and one post-return cleanup.
+This is a warmed compiled Component and existing Linker, **not** a cold
+application launch, guest-only execution time, or standalone host-call tax.
+
 The denied profile returns a typed policy error without a backing read or parse.
 The granted profile returns owned headings and normalized native-comparable rows.
 Before measuring, known fixture headings and denial/unknown-grant behavior are

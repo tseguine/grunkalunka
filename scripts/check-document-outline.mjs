@@ -94,8 +94,11 @@ function runAndValidateCost(selected) {
   const expected = Buffer.from(run(executable('outline_guest'), [], true, source));
   assert.deepEqual(Buffer.from(fixture.outlineHex, 'hex'), expected,
     'cost workload must equal the unchanged native Markdown projection');
+  assert.equal(report.freshLifecycles.count, 2);
+  assert.equal(report.freshLifecycles.unit, 'milliseconds per fresh component lifecycle');
   for (const series of [
     report.timings.instantiation, report.timings.granted, report.timings.denied,
+    report.freshLifecycles.granted, report.freshLifecycles.denied,
   ]) {
     assert.equal(series.samplesMs.length, 2);
     assert.ok(series.samplesMs.every(ms => Number.isFinite(ms) && ms >= 0));

@@ -347,3 +347,20 @@ test('paired Windows working-set readings retain the Windows source label on any
   assert.throws(() => bindMarkdownPair(before, mismatched),
     /paired process memory source/);
 });
+
+test('saved WIT lifecycle receipts require bounded samples and same-pair presence', () => {
+  const first = receipt();
+  const second = receipt('2026-10-27T17:00:01.000Z');
+  const lifecycle = {
+    count: 2, unit: 'milliseconds per fresh component lifecycle',
+    granted: summary([2, 4]), denied: summary([1, 3]),
+  };
+  first.report.freshLifecycles = structuredClone(lifecycle);
+  second.report.freshLifecycles = structuredClone(lifecycle);
+  assert.equal(compareMarkdownPair(bindMarkdownPair(first, second)).workload,
+    'markdown-wit-repeat-comparison');
+  const without = receipt('2026-10-27T17:00:01.000Z');
+  assert.throws(() => bindMarkdownPair(first, without), /matching fresh WIT lifecycle evidence/);
+  second.report.freshLifecycles.granted.minMs = -1;
+  assert.throws(() => bindMarkdownPair(first, second), /Invalid/);
+});
