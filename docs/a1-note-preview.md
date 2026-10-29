@@ -173,3 +173,61 @@ the toggle. A separate bounded packaging exercise must preserve the portable
 Wasm artifacts and make the host/platform requirements explicit. Real glyph
 painting, HTML parsing, DOM/input behavior, persistence, installation and
 ship-ready packaging remain absent. **A1 remains Planned.**
+
+
+## Locally packaged A1 host (portability boundary experiment)
+
+After the one-command development build, create a **fresh output folder**
+containing only the required host code, two native executables and **portable
+Wasm bytes**. Packaging compiles the checked-in actual JS source once into
+a numeric core-Wasm module, then records checksums for that module and the
+existing Markdown core-Wasm guest independently.
+
+```sh
+node examples/note-preview/build.mjs
+node examples/note-preview/package.mjs --out ./note-preview-bundle
+
+node ./note-preview-bundle/examples/note-preview/bundle-entry.mjs \
+  --profile granted --note ./notes.md --out ./preview-result --debug
+node ./note-preview-bundle/examples/note-preview/bundle-entry.mjs \
+  --profile denied --note ./nonexistent.md --out ./denied-result
+```
+
+The copied application runs directly from its new directory (also with an
+unrelated working directory and an unrelated `CARGO_TARGET_DIR`). It does
+**not** require the source checkout, Rust, Cargo or a compiler binary at
+*run* time. Node is still required, and the two Rust host binaries are
+native to the **packaging** machine's OS/architecture and may depend on
+that host's native runtime libraries.
+
+Package contents are bounded and explicit:
+
+- `artifacts/toggle.wasm` — compiler-emitted, import-free portable Wasm,
+  **not** a JavaScript reproduction of the numeric selector.
+- `target/wasm32-unknown-unknown/debug/examples/outline_guest.wasm` —
+  the unchanged Markdown core-Wasm guest.
+- `target/debug/examples/a1_note_preview[.exe]` and
+  `a1_note_scene[.exe]` — the two platform-specific native hosts.
+- A curated Node runtime/presentation subset including the bounded
+  worker/guest execution modules and a packaged entry point.
+- `manifest.json` — platform, architecture, required Node major version,
+  each payload's byte length, SHA-256 and role.
+
+The entry point checks *every* listed payload against a fixed allowlist and
+its recorded SHA-256 before loading the app modules, and rejects a corrupted
+payload before touching the selected note or creating the result directory.
+This detects accidental copying or corruption; a self-contained hash manifest
+is **not** cryptographic publisher authentication or signed distribution.
+The packaged app still enforces the real WIT grant/deny and bounded source
+rules, produces the same HTML/native RGB outputs, and does not open the note
+path under the denied profile. Compiler, Cargo, source `toggle.js`, build
+API and arbitrary repository files are intentionally absent from the bundle.
+
+Packaging refuses existing output, stages outputs in the destination parent,
+and does not bundle the user's Markdown document. This is a **local
+host-specific runnable distribution experiment**, not a platform-neutral
+installer or an accepted public distribution format. Cross-host execution of
+the *Wasm modules* does not imply that the bundled native binaries can run on
+another OS/architecture. The remaining A1 goals include real text/glyph
+rendering, application interaction, and product-level usability and packaging.
+A1 stays **Planned**.
