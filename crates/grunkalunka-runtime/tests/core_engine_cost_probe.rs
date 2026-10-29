@@ -66,6 +66,7 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
     assert_eq!(report.fresh_first_call_ms.len(), options.samples);
     assert_eq!(report.engine_creation_ms.len(), options.samples);
     assert_eq!(report.store_creation_ms.len(), options.samples);
+    assert_eq!(report.node_fresh_process_ms.len(), options.samples);
     assert!(
         report
             .fresh_instantiation_ms
@@ -73,6 +74,7 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
             .chain(report.fresh_first_call_ms.iter())
             .chain(report.engine_creation_ms.iter())
             .chain(report.store_creation_ms.iter())
+            .chain(report.node_fresh_process_ms.iter())
             .all(|duration| duration.is_finite() && *duration >= 0.0)
     );
     #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -122,11 +124,12 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
         "\"afterBatches\":",
         "\"freshInstances\":{\"count\":2,\"instantiation\":",
         "\"hostSetup\":{\"count\":2,\"engineCreation\":",
+        "\"nodeFreshProcess\":{\"count\":2,\"boundary\":\"spawn-through-validated-exit-including-stdin-wasm-transfer\"",
     ] {
         assert!(output.contains(expected), "missing {expected}");
     }
     // Node receives the compiled binary on stdin; neither engine recompiles source.
-    assert_eq!(output.matches("\"samplesMs\":").count(), 8);
+    assert_eq!(output.matches("\"samplesMs\":").count(), 9);
     assert_eq!(output.matches("\"freshInstances\":").count(), 2);
 }
 
