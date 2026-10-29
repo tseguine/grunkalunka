@@ -200,11 +200,14 @@ fn observed_rustc_header_is_strict_and_cannot_inject_report_json() {
     for invalid in [
         "", "not-rustc 1.99.1", "rustc \"fabricated\"",
         "rustc {json}", "rustc 1.0.0\tbad",
-        "rustc 1.99.1 😀", "rustc 1.0.0 ".repeat(20).as_str(),
+        "rustc 1.99.1 😀",
     ] {
         assert!(
             source_compile_cost::parse_observed_rustc(invalid).is_none(),
             "{invalid:?}"
         );
     }
+    assert!(
+        source_compile_cost::parse_observed_rustc(&"rustc 1.0.0 ".repeat(20)).is_none()
+    );
 }
