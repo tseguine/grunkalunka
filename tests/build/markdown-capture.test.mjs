@@ -252,6 +252,23 @@ test('macOS Mach memory receipts accept complete native readings and historic ab
   assert.throws(() => validateOptionalProcessMemory(measured, 'windows'), /Invalid/);
 });
 
+test('native Markdown outline control validates raw samples, preserving absent legacy data', () => {
+  assert.doesNotThrow(() => validateNativeReport(report(), config, 100));
+  const present = report();
+  present.timings.nativeOutline = series([2, 3, 4]);
+  assert.doesNotThrow(() => validateNativeReport(present, config, 100));
+  for (const invalid of [
+    null, [], { ...series([2, 3, 4]), samplesMs: [2, 3] },
+    { ...series([2, 3, 4]), medianMs: -1 },
+    { ...series([2, 3, 4]), samplesMs: [2, Infinity, 4] },
+    { ...series([2, 3, 4]), samplesMs: ['2', 3, 4] },
+  ]) {
+    const corrupted = report();
+    corrupted.timings.nativeOutline = invalid;
+    assert.throws(() => validateNativeReport(corrupted, config, 100), /Invalid/);
+  }
+});
+
 test('fresh WIT lifecycle observations preserve legacy receipts and reject forged series', () => {
   const native = report();
   assert.doesNotThrow(() => validateNativeReport(native, config, 100));
