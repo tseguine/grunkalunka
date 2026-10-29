@@ -236,6 +236,35 @@ const percentStates = () => ({
   changed: percentPhase(true),
   restored: percentPhase(false),
 });
+const paddingPercentGeometry = reduced => ({
+  "padding-host": { x: 0, y: 681, width: 172, height: 102 },
+  "padding-first": { x: 6, y: 687, width: 82, height: reduced ? 44 : 52 },
+  "padding-inner": { x: 39, y: reduced ? 696 : 704, width: 12, height: 5 },
+  "padding-next": { x: 6, y: reduced ? 731 : 739, width: 24, height: 6 },
+  "padding-after": { x: 250, y: 783, width: 20, height: 5 },
+});
+const paddingPercentPhase = reduced => ({
+  scrollY: 350,
+  boxes: paddingPercentGeometry(reduced),
+  computed: {
+    top: reduced ? "8px" : "16px", right: "8px", bottom: "24px", left: "32px",
+  },
+  hits: {
+    "original-inner": reduced ? "padding-first" : "padding-inner",
+    "shifted-inner": reduced ? "padding-inner" : "padding-first",
+    "original-next": reduced ? "padding-host" : "padding-next",
+    "shifted-next": reduced ? "padding-next" : "padding-first",
+    "left-padding": "padding-first",
+    "host-background": "padding-host",
+    "outside-sibling": "padding-after",
+    outside: null,
+  },
+});
+const paddingPercentStates = () => ({
+  original: paddingPercentPhase(false),
+  topReduced: paddingPercentPhase(true),
+  restored: paddingPercentPhase(false),
+});
 const scrollSample = scrollY => ({
   scrollX: 0, scrollY,
   targetRect: { x: 0, y: 928 - scrollY, width: 80, height: 30 },
@@ -291,6 +320,7 @@ const native = () => ({
   autoMarginStates: autoMarginStates(),
   relativeStates: relativeStates(),
   percentStates: percentStates(),
+  paddingPercentStates: paddingPercentStates(),
   scrollViewport: scrollViewport(),
   reflow: { hidden: hidden(), restored: geometryMap() },
   hitTargets: hitTargets(),
@@ -323,6 +353,7 @@ function browser() {
   autoMarginStates: autoMarginStates(),
   relativeStates: relativeStates(),
   percentStates: percentStates(),
+  paddingPercentStates: paddingPercentStates(),
     scrollViewport: scrollViewport(),
     provenance: {
       collector: "playwright", engine: "chromium", engineFamily: "blink",
@@ -381,11 +412,16 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#percent-first { width: 150px; height: 8px; margin: 10% 5% 15% 20%; }",
     "#percent-next { width: 24px; height: 6px; }",
     "#percent-after { width: 20px; height: 5px; margin-left: 250px; }",
+    "#padding-host { width: 160px; height: 90px; padding: 4px; border: 2px solid black; box-sizing: content-box; }",
+    "#padding-first { width: 40px; height: 10px; padding: 10% 5% 15% 20%; border: 1px solid black; box-sizing: content-box; }",
+    "#padding-inner { width: 12px; height: 5px; }",
+    "#padding-next { width: 24px; height: 6px; }",
+    "#padding-after { width: 20px; height: 5px; margin-left: 250px; }",
     "#scroll-target { width: 80px; height: 30px; }",
     '<div id="outer"><div id="first"></div><div id="second"></div></div>',
     '<div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>',
     '<div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>',
-    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div><div id="percent-host"><div id="percent-first"></div><div id="percent-next"></div></div><div id="percent-after"></div></div><div id="scroll-target"></div>',
+    '<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div><div id="percent-host"><div id="percent-first"></div><div id="percent-next"></div></div><div id="percent-after"></div><div id="padding-host"><div id="padding-first"><div id="padding-inner"></div></div><div id="padding-next"></div></div><div id="padding-after"></div></div><div id="scroll-target"></div>',
   ]) {
     assert.ok(source.includes(rule), "fixture drift: " + rule);
   }
@@ -397,6 +433,18 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "percentage boxes must be independently measured from DOM rectangles");
   assert.ok(source.includes("const borderBoxes = Object.fromEntries(borderIds.map("),
     "border-box observations must come from independent DOM rectangles");
+  assert.ok(source.includes('paddingFirst.style.paddingTop = "5%"'),
+    "source must change actual CSS percentage padding");
+  assert.ok(source.includes('paddingFirst.style.removeProperty("padding-top")'),
+    "source must restore the original padding");
+  assert.ok(source.includes("const paddingPercentStates = {"),
+    "source must retain all three observed padding phases");
+  assert.ok(source.includes("const paddingPercentOriginal = paddingPercentSample()"),
+    "source must measure live DOM padding before mutation");
+  assert.ok(source.includes('getComputedStyle(document.getElementById("padding-first"))'),
+    "computed padding values must come from browser CSS");
+  assert.ok(source.includes("window.scrollTo(0, 350)"),
+    "source must scroll to observe the offscreen padding group");
   assert.ok(source.includes('percentFirst.style.marginTop = "5%"'),
     "source must change actual CSS margin declaration");
   assert.ok(source.includes('percentFirst.style.removeProperty("margin-top")'),
@@ -1101,6 +1149,81 @@ test("missing, incomplete, invalid or unscrolled percentage receipts fail closed
   const nativeBad = native();
   delete nativeBad.percentStates.original.computed.bottom;
   assert.equal(compareNativeBlockBridge(nativeBad, browser(), fixture).status, "invalid");
+});
+
+
+test("percentage padding uses containing width and reflows nested/sibling geometry", () => {
+  const report = compareNativeBlockBridge(native(), browser(), fixture);
+  assert.equal(report.status, "equal", JSON.stringify(report.differences));
+  const states = browser().paddingPercentStates;
+  assert.deepEqual(states.original, states.restored);
+  assert.deepEqual(states.original.boxes, paddingPercentGeometry(false));
+  assert.deepEqual(states.topReduced.boxes, paddingPercentGeometry(true));
+  assert.deepEqual(states.original.computed,
+    { top: "16px", right: "8px", bottom: "24px", left: "32px" });
+  assert.deepEqual(states.topReduced.computed,
+    { top: "8px", right: "8px", bottom: "24px", left: "32px" });
+  assert.deepEqual(states.original.hits, {
+    "original-inner": "padding-inner", "shifted-inner": "padding-first",
+    "original-next": "padding-next", "shifted-next": "padding-first",
+    "left-padding": "padding-first", "host-background": "padding-host",
+    "outside-sibling": "padding-after", outside: null,
+  });
+  assert.deepEqual(states.topReduced.hits, {
+    "original-inner": "padding-first", "shifted-inner": "padding-inner",
+    "original-next": "padding-host", "shifted-next": "padding-next",
+    "left-padding": "padding-first", "host-background": "padding-host",
+    "outside-sibling": "padding-after", outside: null,
+  });
+});
+
+test("percent padding geometry, computed used pixels and hits report separately", () => {
+  const observed = browser();
+  observed.paddingPercentStates.original.boxes["padding-inner"].y += 1;
+  observed.paddingPercentStates.topReduced.computed.top = "9px";
+  observed.paddingPercentStates.restored.hits["original-inner"] = "padding-first";
+  const report = compareNativeBlockBridge(native(), observed, fixture);
+  assert.equal(report.status, "different");
+  assert.deepEqual(report.differences, [{
+    kind: "percent-padding-box", phase: "original", id: "padding-inner", field: "y",
+    left: 704, right: 705,
+    path: "$.paddingPercentStates.original.boxes.padding-inner.y",
+  }, {
+    kind: "percent-padding-computed", phase: "topReduced", side: "top",
+    left: "8px", right: "9px",
+    path: "$.paddingPercentStates.topReduced.computed.top",
+  }, {
+    kind: "percent-padding-hit", phase: "restored", probe: "original-inner",
+    left: "padding-inner", right: "padding-first",
+    path: "$.paddingPercentStates.restored.hits.original-inner",
+  }]);
+});
+
+test("incomplete, malformed and non-source-attributed percentage padding fails closed", () => {
+  for (const change of [
+    r => { delete r.paddingPercentStates; },
+    r => { delete r.paddingPercentStates.topReduced; },
+    r => { delete r.paddingPercentStates.original.scrollY; },
+    r => { r.paddingPercentStates.original.scrollY = 349; },
+    r => { r.paddingPercentStates.topReduced.scrollY = 0; },
+    r => { delete r.paddingPercentStates.restored.boxes["padding-inner"]; },
+    r => { r.paddingPercentStates.original.boxes["padding-first"].width = -1; },
+    r => { r.paddingPercentStates.topReduced.boxes["padding-next"].y = Infinity; },
+    r => { delete r.paddingPercentStates.original.computed.left; },
+    r => { r.paddingPercentStates.topReduced.computed.top = "5%"; },
+    r => { r.paddingPercentStates.topReduced.computed.bottom = "-1px"; },
+    r => { delete r.paddingPercentStates.restored.hits["original-inner"]; },
+    r => { r.paddingPercentStates.topReduced.hits["shifted-inner"] = "body"; },
+    r => { r.paddingPercentStates.original.extra = 1; },
+    r => { r.paddingPercentStates.other = {}; },
+  ]) {
+    const observed = browser();
+    change(observed);
+    assert.equal(compareNativeBlockBridge(native(), observed, fixture).status, "invalid");
+  }
+  const malformedNative = native();
+  delete malformedNative.paddingPercentStates.original.computed.right;
+  assert.equal(compareNativeBlockBridge(malformedNative, browser(), fixture).status, "invalid");
 });
 
 test("page scroll translates independent viewport hits and restores positions", () => {

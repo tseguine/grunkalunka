@@ -3,8 +3,8 @@
 use grunkalunka_layout::hit_test::{HitNode, hit_test, hit_test_scrolled};
 use grunkalunka_layout::{
     Block, BoxSizing, DescendantClip, Display, Edges, Frame, HeightBound, HorizontalAutoMargins,
-    Length, PercentageMargins, PointerEvents, Rect, RelativeOffset, Style, Visibility, WidthBound,
-    layout,
+    Length, PercentageMargins, PercentagePadding, PointerEvents, Rect, RelativeOffset, Style,
+    Visibility, WidthBound, layout,
 };
 
 // Only native border boxes: this receipt never claims HTML/CSS layout parsing.
@@ -2600,6 +2600,275 @@ fn percent_states_json() -> String {
     format!(r#"{{"original":{before},"changed":{during},"restored":{after}}}"#)
 }
 
+// A source-independent witness appended below the percentage-margin group
+// within the existing 650px fixed spacer (normal-flow document y681).
+// All four padding percentages use the host's 160px CONTENT width. Read
+// real hit results through viewport scrollY=350, never inferred browser CSS.
+fn padding_percent_states_json() -> String {
+    let mut blocks = [
+        Block {
+            style: Style {
+                height: Length::Px(958),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block::child(0, 681),
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(160),
+                height: Length::Px(90),
+                border: Edges::all(2),
+                padding: Edges::all(4),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(2),
+            style: Style {
+                width: Length::Px(40),
+                height: Length::Px(10),
+                border: Edges::all(1),
+                percentage_padding: PercentagePadding {
+                    top: Some(10),
+                    right: Some(5),
+                    bottom: Some(15),
+                    left: Some(20),
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(3),
+            style: Style {
+                width: Length::Px(12),
+                height: Length::Px(5),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(2),
+            style: Style {
+                width: Length::Px(24),
+                height: Length::Px(6),
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+        Block {
+            parent: Some(0),
+            style: Style {
+                width: Length::Px(20),
+                height: Length::Px(5),
+                margin: Edges {
+                    left: 250,
+                    ..Edges::default()
+                },
+                ..Style::default()
+            },
+            ..Block::default()
+        },
+    ];
+    let original = layout(&blocks, 800, 600).expect("native percentage padding baseline");
+    blocks[3].style.percentage_padding.top = Some(5);
+    let reduced = layout(&blocks, 800, 600).expect("native percentage padding top reduced");
+    blocks[3].style.percentage_padding.top = Some(10);
+    let restored = layout(&blocks, 800, 600).expect("native percentage padding restored");
+    assert_eq!(
+        restored, original,
+        "percentage padding restoration is exact"
+    );
+    assert_eq!((original.scroll_width, original.scroll_height), (800, 958));
+    assert_eq!((reduced.scroll_width, reduced.scroll_height), (800, 958));
+
+    let expected = [
+        ("padding-host", 2, (0, 681, 172, 102)),
+        ("padding-first", 3, (6, 687, 82, 52)),
+        ("padding-inner", 4, (39, 704, 12, 5)),
+        ("padding-next", 5, (6, 739, 24, 6)),
+        ("padding-after", 6, (250, 783, 20, 5)),
+    ];
+    for &(id, index, (x, y, width, height)) in &expected {
+        assert_eq!(
+            original.boxes[index].unwrap().border,
+            Rect {
+                x,
+                y,
+                width,
+                height
+            },
+            "native border box for {id}"
+        );
+    }
+    assert_eq!(
+        original.boxes[3].unwrap().padding,
+        Rect {
+            x: 7,
+            y: 688,
+            width: 80,
+            height: 50
+        }
+    );
+    assert_eq!(
+        original.boxes[3].unwrap().content,
+        Rect {
+            x: 39,
+            y: 704,
+            width: 40,
+            height: 10
+        }
+    );
+    assert_eq!(
+        reduced.boxes[3].unwrap().border,
+        Rect {
+            x: 6,
+            y: 687,
+            width: 82,
+            height: 44
+        }
+    );
+    assert_eq!(
+        reduced.boxes[3].unwrap().content,
+        Rect {
+            x: 39,
+            y: 696,
+            width: 40,
+            height: 10
+        }
+    );
+    assert_eq!(
+        reduced.boxes[4].unwrap().border,
+        Rect {
+            x: 39,
+            y: 696,
+            width: 12,
+            height: 5
+        }
+    );
+    assert_eq!(
+        reduced.boxes[5].unwrap().border,
+        Rect {
+            x: 6,
+            y: 731,
+            width: 24,
+            height: 6
+        }
+    );
+    assert_eq!(reduced.boxes[2], original.boxes[2], "host fixed geometry");
+    assert_eq!(reduced.boxes[6], original.boxes[6], "outside normal flow");
+
+    let probes = [
+        ("original-inner", 40, 355),
+        ("shifted-inner", 40, 347),
+        ("original-next", 7, 391),
+        ("shifted-next", 7, 383),
+        ("left-padding", 10, 347),
+        ("host-background", 150, 400),
+        ("outside-sibling", 251, 435),
+        ("outside", 300, 401),
+    ];
+    let nodes = [
+        HitNode::new(None),
+        HitNode::new(Some(0)),
+        HitNode::new(Some(0)),
+        HitNode::new(Some(2)),
+        HitNode::new(Some(3)),
+        HitNode::new(Some(2)),
+        HitNode::new(Some(0)),
+    ];
+    let targets = |frame: &Frame| -> Vec<Option<&'static str>> {
+        probes
+            .iter()
+            .map(|&(_, x, y)| {
+                match hit_test_scrolled(frame, &nodes, x, y, 0, 350)
+                    .expect("native scrolled percentage padding hit")
+                {
+                    Some(2) => Some("padding-host"),
+                    Some(3) => Some("padding-first"),
+                    Some(4) => Some("padding-inner"),
+                    Some(5) => Some("padding-next"),
+                    Some(6) => Some("padding-after"),
+                    None | Some(0) | Some(1) => None,
+                    Some(other) => panic!("unexpected percentage-padding target {other}"),
+                }
+            })
+            .collect()
+    };
+    let before_hits = targets(&original);
+    let reduced_hits = targets(&reduced);
+    assert_eq!(
+        before_hits,
+        vec![
+            Some("padding-inner"),
+            Some("padding-first"),
+            Some("padding-next"),
+            Some("padding-first"),
+            Some("padding-first"),
+            Some("padding-host"),
+            Some("padding-after"),
+            None,
+        ]
+    );
+    assert_eq!(
+        reduced_hits,
+        vec![
+            Some("padding-first"),
+            Some("padding-inner"),
+            Some("padding-host"),
+            Some("padding-next"),
+            Some("padding-first"),
+            Some("padding-host"),
+            Some("padding-after"),
+            None,
+        ]
+    );
+    assert_eq!(targets(&restored), before_hits);
+
+    let receipt = |frame: &Frame, hits: &[Option<&str>]| {
+        let boxes = expected
+            .iter()
+            .map(|&(id, index, _)| {
+                let r = frame.boxes[index].unwrap().border;
+                format!(
+                    r#""{id}":{{"x":{},"y":{},"width":{},"height":{}}}"#,
+                    r.x, r.y, r.width, r.height
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let box_geometry = frame.boxes[3].unwrap();
+        let padding = box_geometry.padding;
+        let content = box_geometry.content;
+        let top = content.y - padding.y;
+        let left = content.x - padding.x;
+        let right = padding.width - content.width - left;
+        let bottom = padding.height - content.height - top;
+        let computed = format!(
+            r#""top":"{top}px","right":"{right}px","bottom":"{bottom}px","left":"{left}px""#
+        );
+        let hits = probes
+            .iter()
+            .zip(hits)
+            .map(|(&(name, _, _), target)| match target {
+                Some(id) => format!(r#""{name}":"{id}""#),
+                None => format!(r#""{name}":null"#),
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            r#"{{"scrollY":350,"computed":{{{computed}}},"boxes":{{{boxes}}},"hits":{{{hits}}}}}"#
+        )
+    };
+    let first = receipt(&original, &before_hits);
+    let second = receipt(&reduced, &reduced_hits);
+    let last = receipt(&restored, &before_hits);
+    format!(r#"{{"original":{first},"topReduced":{second},"restored":{last}}}"#)
+}
+
 fn main() {
     // Synthetic html/body ancestors have zero margins and padding. The first
     // group avoids text shaping and percentage lengths; appended groups use
@@ -2791,6 +3060,8 @@ fn main() {
     output.push_str(&relative_states_json());
     output.push_str(r#","percentStates":"#);
     output.push_str(&percent_states_json());
+    output.push_str(r#","paddingPercentStates":"#);
+    output.push_str(&padding_percent_states_json());
     output.push('}');
     println!("{output}");
 }
