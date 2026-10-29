@@ -62,12 +62,18 @@
   #percent-first { width: 150px; height: 8px; margin: 10% 5% 15% 20%; }
   #percent-next { width: 24px; height: 6px; }
   #percent-after { width: 20px; height: 5px; margin-left: 250px; }
+  /* Four-sided percent padding uses the containing block's 160px content width. */
+  #padding-host { width: 160px; height: 90px; padding: 4px; border: 2px solid black; box-sizing: content-box; }
+  #padding-first { width: 40px; height: 10px; padding: 10% 5% 15% 20%; border: 1px solid black; box-sizing: content-box; }
+  #padding-inner { width: 12px; height: 5px; }
+  #padding-next { width: 24px; height: 6px; }
+  #padding-after { width: 20px; height: 5px; margin-left: 250px; }
   #scroll-target { width: 80px; height: 30px; }
 </style>
 <div id="outer"><div id="first"></div><div id="second"></div></div>
 <div id="height-host"><div id="height-first"></div><div id="height-second"></div></div>
 <div id="border-host"><div id="border-first"></div><div id="border-second"></div></div>
-<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div><div id="percent-host"><div id="percent-first"></div><div id="percent-next"></div></div><div id="percent-after"></div></div><div id="scroll-target"></div>
+<div id="scroll-spacer"><div id="bounds-containing"><div id="bounds-host"><div id="bounds-first"></div><div id="bounds-second"></div></div><div id="height-limited"><div id="height-limited-first"></div><div id="height-limited-second"></div></div></div><div id="visibility-host"><div id="visibility-child"></div><div id="visibility-inherited"></div></div><div id="visibility-sibling"></div><div id="clip-parent"><div id="clip-child"></div></div><div id="clip-sibling"></div><div id="contents-wrapper"><div id="contents-first"></div><div id="contents-second"></div></div><div id="contents-sibling"></div><div id="pointer-host"><div id="pointer-inherited"></div><div id="pointer-restored"></div></div><div id="pointer-sibling"></div><div id="auto-host"><div id="auto-centered"></div><div id="auto-left"></div><div id="auto-right"></div><div id="auto-limited"></div></div><div id="auto-sibling"></div><div id="relative-host"><div id="relative-child"></div></div><div id="relative-sibling"></div><div id="percent-host"><div id="percent-first"></div><div id="percent-next"></div></div><div id="percent-after"></div><div id="padding-host"><div id="padding-first"><div id="padding-inner"></div></div><div id="padding-next"></div></div><div id="padding-after"></div></div><div id="scroll-target"></div>
 <pre id="output" hidden></pre>
 <script>
 (() => {
@@ -412,6 +418,52 @@
     original: percentOriginal, changed: percentChanged, restored: percentRestored
   };
   window.scrollTo(0, 0);
+  // The new percentage-padding group starts at y681. Observe real viewport
+  // input targets after scrolling and preserve document-space rectangles.
+  // Its fixed-height host and outer sibling preserve the scroll target at y928.
+  window.scrollTo(0, 350);
+  const paddingPercentIds = ["padding-host", "padding-first", "padding-inner",
+    "padding-next", "padding-after"];
+  const paddingPercentSides = ["top", "right", "bottom", "left"];
+  const paddingPercentProbes = [
+    ["original-inner", 40, 355],
+    ["shifted-inner", 40, 347],
+    ["original-next", 7, 391],
+    ["shifted-next", 7, 383],
+    ["left-padding", 10, 347],
+    ["host-background", 150, 400],
+    ["outside-sibling", 251, 435],
+    ["outside", 300, 401]
+  ];
+  function paddingPercentSample() {
+    const style = getComputedStyle(document.getElementById("padding-first"));
+    return {
+      scrollY: window.scrollY,
+      computed: Object.fromEntries(paddingPercentSides.map(side =>
+        [side, style["padding" + side[0].toUpperCase() + side.slice(1)]])),
+      boxes: Object.fromEntries(paddingPercentIds.map(id => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return [id, { x: rect.x + window.scrollX, y: rect.y + window.scrollY,
+          width: rect.width, height: rect.height }];
+      })),
+      hits: Object.fromEntries(paddingPercentProbes.map(([name, x, y]) => {
+        const element = document.elementFromPoint(x, y);
+        return [name, paddingPercentIds.includes(element?.id) ? element.id : null];
+      }))
+    };
+  }
+  const paddingFirst = document.getElementById("padding-first");
+  const paddingPercentOriginal = paddingPercentSample();
+  paddingFirst.style.paddingTop = "5%";
+  const paddingPercentReduced = paddingPercentSample();
+  paddingFirst.style.removeProperty("padding-top");
+  const paddingPercentRestored = paddingPercentSample();
+  const paddingPercentStates = {
+    original: paddingPercentOriginal,
+    topReduced: paddingPercentReduced,
+    restored: paddingPercentRestored
+  };
+  window.scrollTo(0, 0);
   // Observe a real page-level scroll, not a synthetic coordinate subtraction.
   // All earlier geometry/hit channels were captured before changing scrollY.
   function scrollSample() {
@@ -452,6 +504,7 @@
     autoMarginStates,
     relativeStates,
     percentStates,
+    paddingPercentStates,
     scrollViewport,
     reflow: { hidden, restored },
     hitTargets: {

@@ -45,6 +45,12 @@ const percentIds = ["percent-host", "percent-first", "percent-next", "percent-af
 const percentSides = ["top", "right", "bottom", "left"];
 const percentProbes = ["baseline-first", "shifted-first", "top-margin",
   "baseline-next", "shifted-next", "host-bottom", "following-sibling", "outside"];
+const paddingPercentPhases = ["original", "topReduced", "restored"];
+const paddingPercentIds = ["padding-host", "padding-first", "padding-inner",
+  "padding-next", "padding-after"];
+const paddingPercentSides = ["top", "right", "bottom", "left"];
+const paddingPercentProbes = ["original-inner", "shifted-inner", "original-next",
+  "shifted-next", "left-padding", "host-background", "outside-sibling", "outside"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -66,7 +72,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents, pointer-events, auto margins and relative offsets and percentage-margin geometry/hits; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents, pointer-events, auto margins and relative offsets, percentage margins and percentage padding geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -684,6 +690,74 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   validatePercentStates("native", native?.percentStates);
   validatePercentStates("browser", browser?.percentStates);
 
+  function validatePaddingPercentStates(owner, states) {
+    const path = "$." + owner + ".paddingPercentStates";
+    if (!record(states) ||
+        Object.keys(states).sort().join(",") !== [...paddingPercentPhases].sort().join(",")) {
+      error(path, "original, topReduced and restored padding phases required");
+      return;
+    }
+    const exactIds = [...paddingPercentIds].sort().join(",");
+    const exactSides = [...paddingPercentSides].sort().join(",");
+    const exactProbes = [...paddingPercentProbes].sort().join(",");
+    const rectKeys = [...rectFields].sort().join(",");
+    for (const phase of paddingPercentPhases) {
+      const sample = states[phase], prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,computed,hits,scrollY") {
+        error(prefix, "complete padding geometry, used values, scroll and hits required");
+        continue;
+      }
+      if (sample.scrollY !== 350) {
+        error(prefix + ".scrollY", "actual reference viewport scroll must be 350px");
+      }
+      if (!record(sample.boxes) || Object.keys(sample.boxes).sort().join(",") !== exactIds) {
+        error(prefix + ".boxes", "exactly five padding group rectangles required");
+      } else {
+        for (const id of paddingPercentIds) {
+          const box = sample.boxes[id];
+          if (!record(box) || Object.keys(box).sort().join(",") !== rectKeys) {
+            error(prefix + ".boxes." + id, "complete document-space rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(box[field]) ||
+                (["width", "height"].includes(field) && box[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite nonnegative-size CSS-pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.computed) ||
+          Object.keys(sample.computed).sort().join(",") !== exactSides) {
+        error(prefix + ".computed", "all four used percent-padding values required");
+      } else {
+        for (const side of paddingPercentSides) {
+          const value = sample.computed[side];
+          if (typeof value !== "string" || !/^\d+(?:\.\d+)?px$/.test(value)) {
+            error(prefix + ".computed." + side,
+              "nonnegative CSS-pixel used padding required");
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== exactProbes) {
+        error(prefix + ".hits", "exactly eight scrolled percent-padding hit probes required");
+      } else {
+        for (const probe of paddingPercentProbes) {
+          const target = sample.hits[probe];
+          if (target !== null && !paddingPercentIds.includes(target)) {
+            error(prefix + ".hits." + probe,
+              "known padding element or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validatePaddingPercentStates("native", native?.paddingPercentStates);
+  validatePaddingPercentStates("browser", browser?.paddingPercentStates);
+
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
     const expected = [...scrollPhases, "documentHeight"].sort().join(",");
@@ -1096,6 +1170,45 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "percent-margin-hit", phase, probe, left, right,
           path: "$.percentStates." + phase + ".hits." + probe,
+        });
+      }
+    }
+  }
+
+  for (const phase of paddingPercentPhases) {
+    const a = native.paddingPercentStates[phase], b = browser.paddingPercentStates[phase];
+    if (!Object.is(a.scrollY, b.scrollY)) {
+      differences.push({
+        kind: "percent-padding-scroll", phase, left: a.scrollY, right: b.scrollY,
+        path: "$.paddingPercentStates." + phase + ".scrollY",
+      });
+    }
+    for (const id of paddingPercentIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "percent-padding-box", phase, id, field, left, right,
+            path: "$.paddingPercentStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+    }
+    for (const side of paddingPercentSides) {
+      const left = a.computed[side], right = b.computed[side];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "percent-padding-computed", phase, side, left, right,
+          path: "$.paddingPercentStates." + phase + ".computed." + side,
+        });
+      }
+    }
+    for (const probe of paddingPercentProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "percent-padding-hit", phase, probe, left, right,
+          path: "$.paddingPercentStates." + phase + ".hits." + probe,
         });
       }
     }
