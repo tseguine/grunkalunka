@@ -262,3 +262,12 @@ test('native artifact digests must be complete and match the independently hashe
   // Pre-hash archived reports still pass when no external guest identity is supplied.
   assert.doesNotThrow(() => validateNativeReport(report(), config, 100));
 });
+
+test('subprocess wall-cost validity is distinct from the native internal timer', () => {
+  const input = report();
+  assert.equal(validateNativeReport(input, config, 100), input,
+    'runner report remains a separate internal timing contract');
+  // The outer timing belongs to the capture wrapper, not inside a forged
+  // Wasmtime timing array. Legacy runner reports remain unchanged.
+  assert.equal(Object.hasOwn(input, 'nativeProcessElapsedMs'), false);
+});

@@ -29,6 +29,17 @@ built executable and validates its output; it does not compile source.
 
 The JSON envelope retains its entire original nested report plus:
 
+- `nativeProcessElapsedMs`: a monotonic **parent-Node process** wall-clock
+  interval for exactly one invocation of the already-built Markdown cost
+  executable, from the subprocess spawn request through the runner's exit
+  and captured stdout. This is deliberately **outside** all Rust/Wasmtime
+  embedding/compile/instance/call timing loops and excludes wrapper-side
+  binary hashing, Git metadata, JSON parsing and report validation. It
+  includes OS process creation and teardown, WASM guest embedding,
+  Wasmtime compilation and all samples, unlike any single internal timing
+  series. It does not establish cold disk/OS caches, startup of a general
+  application, or a performance gate.
+
 - SHA-256 hashes of the actual Wasm guest, native benchmark executable,
   capture wrapper, Markdown benchmark source, fixed WAT adapter/embedding
   sources, Cargo.lock, **and the transitive Rust process-memory collector**

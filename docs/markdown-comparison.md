@@ -63,6 +63,13 @@ with only one such series is rejected. Older valid pairs omit the optional
 summary entirely—absence is never treated as zero time. The generated component
 was already compiled and the Linker existed before these fresh observations;
 the figures are not cold process launch costs or guest-only execution time.
+When both capture receipts contain the later `nativeProcessElapsedMs` wall
+observations, the comparison also reports the raw baseline and candidate
+values and their **signed** difference. The measured interval includes process
+creation, native Wasmtime fixture execution and subprocess completion; it
+excludes the separate Node wrapper setup/validation. It is **not** a cold
+startup benchmark or isolated host overhead. Earlier historical receipts
+omit the optional field entirely, while malformed or one-sided claims fail.
 There are no ratios, winner selections, noise significance tests, performance
 thresholds or benchmark rankings. Zero timings are valid.
 

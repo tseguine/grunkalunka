@@ -424,3 +424,30 @@ test('saved native digests must match independently recorded guest provenance', 
   assert.doesNotThrow(() => bindMarkdownPair(receipt(),
     receipt('2026-10-27T17:00:01.000Z')));
 });
+
+test('outer native-process wall time admits real zeros and signed deltas without ranking', () => {
+  const before = receipt();
+  const after = receipt('2026-10-27T17:00:01.000Z');
+  before.nativeProcessElapsedMs = 150.25;
+  after.nativeProcessElapsedMs = 135.75;
+  const paired = bindMarkdownPair(before, after);
+  assert.deepEqual(compareMarkdownPair(paired).nativeProcessElapsedMs, {
+    baselineMs: 150.25, candidateMs: 135.75, deltaMs: -14.5,
+  });
+  assert.equal(Object.hasOwn(compareMarkdownPair(validPair()), 'nativeProcessElapsedMs'),
+    false, 'historical captures must not manufacture outer timings');
+  const zero = receipt('2026-10-27T17:00:01.000Z');
+  zero.nativeProcessElapsedMs = 0;
+  assert.deepEqual(compareMarkdownPair(bindMarkdownPair(before, zero)).nativeProcessElapsedMs, {
+    baselineMs: 150.25, candidateMs: 0, deltaMs: -150.25,
+  });
+  const oneSided = receipt('2026-10-27T17:00:01.000Z');
+  assert.throws(() => bindMarkdownPair(before, oneSided),
+    /matching native subprocess wall-time evidence/);
+  for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY, null, '100', {}]) {
+    const corrupted = receipt('2026-10-27T17:00:01.000Z');
+    corrupted.nativeProcessElapsedMs = bad;
+    assert.throws(() => bindMarkdownPair(before, corrupted),
+      /Invalid nativeProcessElapsedMs/);
+  }
+});

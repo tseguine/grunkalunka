@@ -132,6 +132,9 @@ const captured = JSON.parse(run(process.execPath, [
 ], true));
 assert.equal(captured.schemaVersion, 1);
 assert.equal(captured.workload, 'markdown-wit-capture');
+assert.ok(Number.isFinite(captured.nativeProcessElapsedMs) &&
+  captured.nativeProcessElapsedMs >= 0,
+  'capture must record monotonic wall time for the real native subprocess');
 assert.equal(captured.provenance.guest.sha256, initialGuestHash);
 assert.equal(captured.report.artifact.guestSha256, initialGuestHash);
 assert.equal(captured.report.artifact.componentSha256, repeatedUnicode.artifact.componentSha256);
@@ -155,6 +158,8 @@ assert.equal(paired.binding.method, 'same-node-process-sequential');
 assert.equal(paired.captures.length, 2);
 for (const sample of paired.captures) {
   assert.equal(sample.provenance.guest.sha256, initialGuestHash);
+  assert.ok(Number.isFinite(sample.nativeProcessElapsedMs) &&
+    sample.nativeProcessElapsedMs >= 0);
   assert.equal(sample.report.artifact.guestSha256, initialGuestHash);
   assert.equal(sample.report.artifact.componentSha256, captured.report.artifact.componentSha256);
   assert.equal(sample.provenance.runner.sha256, captured.provenance.runner.sha256);
@@ -167,6 +172,12 @@ const compared = JSON.parse(run(process.execPath, [
 ], true, JSON.stringify(paired)));
 assert.equal(compared.workload, 'markdown-wit-repeat-comparison');
 assert.equal(compared.guestSha256, initialGuestHash);
+assert.deepEqual(compared.nativeProcessElapsedMs, {
+  baselineMs: paired.captures[0].nativeProcessElapsedMs,
+  candidateMs: paired.captures[1].nativeProcessElapsedMs,
+  deltaMs: paired.captures[1].nativeProcessElapsedMs -
+    paired.captures[0].nativeProcessElapsedMs,
+});
 assert.equal(compared.runnerSha256, captured.provenance.runner.sha256);
 assert.deepEqual(compared.configuration, captured.report.configuration);
 assert.equal(compared.freshLifecycles.count, 2);
