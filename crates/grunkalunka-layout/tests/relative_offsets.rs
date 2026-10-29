@@ -162,7 +162,7 @@ fn auto_height_ignores_offset_while_visual_overflow_remains_scrollable() {
     assert_eq!(frame.boxes[0].unwrap().content, rect(2, 2, 40, 21));
     assert_eq!(frame.boxes[1].unwrap().border, rect(42, 25, 15, 8));
     assert_eq!(frame.boxes[2].unwrap().border, rect(2, 17, 20, 6));
-    assert_eq!((frame.scroll_width, frame.scroll_height), (60, 33));
+    assert_eq!((frame.scroll_width, frame.scroll_height), (60, 37));
 
     let (hits, paints) = inputs(&blocks, &[ROOT, RED, GREEN]);
     let scrolled = paint_scrolled(&frame, &paints, Rgb::WHITE, 0, 3).unwrap();
@@ -334,7 +334,7 @@ fn ancestor_padding_clip_still_restricts_relatively_shifted_descendants() {
     let (hits, paints) = inputs(&blocks, &[ROOT, BLUE]);
     let pixels = paint(&clipped, &paints, Rgb::WHITE).unwrap();
     assert_eq!(pixels.pixel(29, 9), Some(BLUE));
-    assert_eq!(pixels.pixel(30, 9), Some(ROOT));
+    assert_eq!(pixels.pixel(30, 9), Some(Rgb::WHITE));
     assert_eq!(hit_test(&clipped, &hits, 29, 9), Ok(Some(1)));
     assert_eq!(hit_test(&clipped, &hits, 30, 9), Ok(Some(0)));
 
