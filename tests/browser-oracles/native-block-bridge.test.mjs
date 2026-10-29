@@ -209,23 +209,23 @@ const relativeStates = () => ({
 });
 const percentGeometry = changed => ({
   "percent-host": { x: 0, y: 574, width: 212, height: 102 },
-  "percent-first": { x: changed ? 26 : 46, y: 600, width: 40, height: 8 },
-  "percent-next": { x: 6, y: 638, width: 24, height: 6 },
+  "percent-first": { x: 46, y: changed ? 590 : 600, width: 150, height: 8 },
+  "percent-next": { x: 6, y: changed ? 628 : 638, width: 24, height: 6 },
   "percent-after": { x: 250, y: 676, width: 20, height: 5 },
 });
 const percentPhase = changed => ({
   scrollY: 200,
   boxes: percentGeometry(changed),
   computed: {
-    top: "20px", right: "10px", bottom: "30px",
-    left: changed ? "20px" : "40px",
+    top: changed ? "10px" : "20px",
+    right: "10px", bottom: "30px", left: "40px",
   },
   hits: {
-    "baseline-only": changed ? "percent-host" : "percent-first",
-    "shifted-only": changed ? "percent-first" : "percent-host",
-    "first-center": "percent-first",
+    "baseline-first": changed ? "percent-host" : "percent-first",
+    "shifted-first": changed ? "percent-first" : "percent-host",
     "top-margin": "percent-host",
-    "next-in-flow": "percent-next",
+    "baseline-next": changed ? "percent-host" : "percent-next",
+    "shifted-next": changed ? "percent-next" : "percent-host",
     "host-bottom": "percent-host",
     "following-sibling": "percent-after",
     outside: null,
@@ -378,7 +378,7 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "#relative-child { width: 18px; height: 8px; position: relative; left: 4px; top: 5px; }",
     "#relative-sibling { width: 24px; height: 6px; margin-left: 350px; }",
     "#percent-host { width: 200px; height: 90px; border: 2px solid black; padding: 4px; box-sizing: content-box; }",
-    "#percent-first { width: 40px; height: 8px; margin: 10% 5% 15% 20%; }",
+    "#percent-first { width: 150px; height: 8px; margin: 10% 5% 15% 20%; }",
     "#percent-next { width: 24px; height: 6px; }",
     "#percent-after { width: 20px; height: 5px; margin-left: 250px; }",
     "#scroll-target { width: 80px; height: 30px; }",
@@ -397,9 +397,9 @@ test("self-contained source keeps the manually projected dimensions and IDs", ()
     "percentage boxes must be independently measured from DOM rectangles");
   assert.ok(source.includes("const borderBoxes = Object.fromEntries(borderIds.map("),
     "border-box observations must come from independent DOM rectangles");
-  assert.ok(source.includes('percentFirst.style.marginLeft = "10%"'),
+  assert.ok(source.includes('percentFirst.style.marginTop = "5%"'),
     "source must change actual CSS margin declaration");
-  assert.ok(source.includes('percentFirst.style.removeProperty("margin-left")'),
+  assert.ok(source.includes('percentFirst.style.removeProperty("margin-top")'),
     "source must restore percentage declaration");
   assert.ok(source.includes("const percentStates = {"),
     "all three percentage margin phases must be measured from DOM");
@@ -1030,7 +1030,8 @@ test("missing, partial and invalid relative receipts never compare equal", () =>
 });
 
 
-test("source-checked percent margins on all four sides preserve sibling flow", () => {
+
+test("source-checked four-sided percentage margins move normal-flow siblings vertically", () => {
   const report = compareNativeBlockBridge(native(), browser(), fixture);
   assert.equal(report.status, "equal", JSON.stringify(report.differences));
   const phases = browser().percentStates;
@@ -1040,38 +1041,38 @@ test("source-checked percent margins on all four sides preserve sibling flow", (
   assert.deepEqual(phases.original.computed,
     { top: "20px", right: "10px", bottom: "30px", left: "40px" });
   assert.deepEqual(phases.changed.computed,
-    { top: "20px", right: "10px", bottom: "30px", left: "20px" });
+    { top: "10px", right: "10px", bottom: "30px", left: "40px" });
   assert.deepEqual(phases.original.hits, {
-    "baseline-only": "percent-first", "shifted-only": "percent-host",
-    "first-center": "percent-first", "top-margin": "percent-host",
-    "next-in-flow": "percent-next", "host-bottom": "percent-host",
+    "baseline-first": "percent-first", "shifted-first": "percent-host",
+    "top-margin": "percent-host", "baseline-next": "percent-next",
+    "shifted-next": "percent-host", "host-bottom": "percent-host",
     "following-sibling": "percent-after", outside: null,
   });
   assert.deepEqual(phases.changed.hits, {
-    "baseline-only": "percent-host", "shifted-only": "percent-first",
-    "first-center": "percent-first", "top-margin": "percent-host",
-    "next-in-flow": "percent-next", "host-bottom": "percent-host",
+    "baseline-first": "percent-host", "shifted-first": "percent-first",
+    "top-margin": "percent-host", "baseline-next": "percent-host",
+    "shifted-next": "percent-next", "host-bottom": "percent-host",
     "following-sibling": "percent-after", outside: null,
   });
 });
 
 test("percentage margin rectangles, CSS used values and hits report separate drift", () => {
   const observed = browser();
-  observed.percentStates.original.boxes["percent-first"].x += 1;
-  observed.percentStates.changed.computed.left = "21px";
-  observed.percentStates.restored.hits["baseline-only"] = "percent-host";
+  observed.percentStates.original.boxes["percent-first"].y += 1;
+  observed.percentStates.changed.computed.top = "11px";
+  observed.percentStates.restored.hits["baseline-first"] = "percent-host";
   const report = compareNativeBlockBridge(native(), observed, fixture);
   assert.equal(report.status, "different");
   assert.deepEqual(report.differences, [{
-    kind: "percent-margin-box", phase: "original", id: "percent-first", field: "x",
-    left: 46, right: 47, path: "$.percentStates.original.boxes.percent-first.x",
+    kind: "percent-margin-box", phase: "original", id: "percent-first", field: "y",
+    left: 600, right: 601, path: "$.percentStates.original.boxes.percent-first.y",
   }, {
-    kind: "percent-margin-computed", phase: "changed", side: "left",
-    left: "20px", right: "21px", path: "$.percentStates.changed.computed.left",
+    kind: "percent-margin-computed", phase: "changed", side: "top",
+    left: "10px", right: "11px", path: "$.percentStates.changed.computed.top",
   }, {
-    kind: "percent-margin-hit", phase: "restored", probe: "baseline-only",
+    kind: "percent-margin-hit", phase: "restored", probe: "baseline-first",
     left: "percent-first", right: "percent-host",
-    path: "$.percentStates.restored.hits.baseline-only",
+    path: "$.percentStates.restored.hits.baseline-first",
   }]);
 });
 
@@ -1088,7 +1089,7 @@ test("missing, incomplete, invalid or unscrolled percentage receipts fail closed
     r => { delete r.percentStates.original.computed.top; },
     r => { r.percentStates.changed.computed.left = "10%"; },
     r => { r.percentStates.changed.computed.top = "-1px"; },
-    r => { delete r.percentStates.restored.hits["first-center"]; },
+    r => { delete r.percentStates.restored.hits["baseline-first"]; },
     r => { r.percentStates.changed.hits["top-margin"] = "body"; },
     r => { r.percentStates.changed.unexpected = 1; },
     r => { r.percentStates.other = {}; },
