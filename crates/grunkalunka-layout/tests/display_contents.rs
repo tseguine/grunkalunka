@@ -2,9 +2,7 @@
 //! This tests geometry and paint/hit projection, not a DOM or CSS parser.
 use grunkalunka_layout::hit_test::{HitError, HitNode, hit_test};
 use grunkalunka_layout::paint::{PaintError, PaintNode, Rgb, paint};
-use grunkalunka_layout::semantic::{
-    Element, ElementKind, SemanticError, layout_semantic,
-};
+use grunkalunka_layout::semantic::{Element, ElementKind, SemanticError, layout_semantic};
 use grunkalunka_layout::{
     Block, DescendantClip, Display, Edges, Length, Rect, Style, Visibility, layout,
 };
@@ -101,18 +99,34 @@ fn contents_wrapper_has_no_box_and_children_flatten_into_parent_flow() {
     assert!(frame.boxes[1].is_none());
     assert_eq!(
         frame.boxes[2].unwrap().border,
-        Rect { x: 4, y: 3, width: 12, height: 5 }
+        Rect {
+            x: 4,
+            y: 3,
+            width: 12,
+            height: 5
+        }
     );
     assert_eq!(
         frame.boxes[3].unwrap().border,
-        Rect { x: 1, y: 8, width: 6, height: 9 }
+        Rect {
+            x: 1,
+            y: 8,
+            width: 6,
+            height: 9
+        }
     );
     assert_eq!(
         frame.boxes[4].unwrap().border,
-        Rect { x: 1, y: 17, width: 8, height: 4 }
+        Rect {
+            x: 1,
+            y: 17,
+            width: 8,
+            height: 4
+        }
     );
 
-    let direct = [original[0],
+    let direct = [
+        original[0],
         Block {
             parent: Some(0),
             ..original[2]
@@ -220,12 +234,19 @@ fn nested_contents_keep_visibility_inheritance_and_do_not_restore_display_none()
     assert_eq!(frame.boxes[4].unwrap().border.y, 7);
     assert_eq!(frame.boxes[5].unwrap().border.y, 13);
 
-    let hits: Vec<_> = blocks.iter().map(|node| HitNode::new(node.parent)).collect();
-    let paints: Vec<_> = blocks.iter().enumerate().map(|(i, node)| PaintNode {
-        parent: node.parent,
-        background: Some([ROOT, WRAPPER, WRAPPER, FIRST, SECOND, SIBLING][i]),
-        border: None,
-    }).collect();
+    let hits: Vec<_> = blocks
+        .iter()
+        .map(|node| HitNode::new(node.parent))
+        .collect();
+    let paints: Vec<_> = blocks
+        .iter()
+        .enumerate()
+        .map(|(i, node)| PaintNode {
+            parent: node.parent,
+            background: Some([ROOT, WRAPPER, WRAPPER, FIRST, SECOND, SIBLING][i]),
+            border: None,
+        })
+        .collect();
     let canvas = paint(&frame, &paints, Rgb::WHITE).unwrap();
     assert_eq!(canvas.pixel(1, 1), Some(FIRST));
     assert_eq!(canvas.pixel(1, 9), Some(ROOT));
@@ -280,17 +301,39 @@ fn contents_root_uses_viewport_for_children_and_never_gets_a_paint_box() {
     let frame = layout(&blocks, 80, 40).unwrap();
     assert_eq!(frame.contents, [true, false, false]);
     assert_eq!(frame.boxes[0], None);
-    assert_eq!(frame.boxes[1].unwrap().content, Rect {
-        x: 0, y: 0, width: 40, height: 20
-    });
+    assert_eq!(
+        frame.boxes[1].unwrap().content,
+        Rect {
+            x: 0,
+            y: 0,
+            width: 40,
+            height: 20
+        }
+    );
     assert_eq!(frame.boxes[2].unwrap().border.y, 20);
     assert_eq!((frame.scroll_width, frame.scroll_height), (80, 40));
 
-    let hits = [HitNode::new(None), HitNode::new(Some(0)), HitNode::new(Some(0))];
+    let hits = [
+        HitNode::new(None),
+        HitNode::new(Some(0)),
+        HitNode::new(Some(0)),
+    ];
     let paints = [
-        PaintNode { parent: None, background: Some(WRAPPER), border: None },
-        PaintNode { parent: Some(0), background: Some(FIRST), border: None },
-        PaintNode { parent: Some(0), background: Some(SIBLING), border: None },
+        PaintNode {
+            parent: None,
+            background: Some(WRAPPER),
+            border: None,
+        },
+        PaintNode {
+            parent: Some(0),
+            background: Some(FIRST),
+            border: None,
+        },
+        PaintNode {
+            parent: Some(0),
+            background: Some(SIBLING),
+            border: None,
+        },
     ];
     let canvas = paint(&frame, &paints, Rgb::WHITE).unwrap();
     assert_eq!(canvas.pixel(2, 2), Some(FIRST));
@@ -306,13 +349,25 @@ fn malformed_contents_metadata_fails_before_paint_and_hit_selection() {
     let (hits, paints) = layers(&blocks);
     let mut bad = frame.clone();
     bad.contents.pop();
-    assert_eq!(paint(&bad, &paints, Rgb::WHITE), Err(PaintError::NodeCountMismatch));
-    assert_eq!(hit_test(&bad, &hits, 4, 4), Err(HitError::NodeCountMismatch));
+    assert_eq!(
+        paint(&bad, &paints, Rgb::WHITE),
+        Err(PaintError::NodeCountMismatch)
+    );
+    assert_eq!(
+        hit_test(&bad, &hits, 4, 4),
+        Err(HitError::NodeCountMismatch)
+    );
 
     let mut bad = frame.clone();
     bad.contents[0] = true;
-    assert_eq!(paint(&bad, &paints, Rgb::WHITE), Err(PaintError::InvalidBox { node: 0 }));
-    assert_eq!(hit_test(&bad, &hits, 4, 4), Err(HitError::InvalidBox { node: 0 }));
+    assert_eq!(
+        paint(&bad, &paints, Rgb::WHITE),
+        Err(PaintError::InvalidBox { node: 0 })
+    );
+    assert_eq!(
+        hit_test(&bad, &hits, 4, 4),
+        Err(HitError::InvalidBox { node: 0 })
+    );
 
     let mut bad = frame.clone();
     bad.contents[1] = false;
@@ -348,7 +403,11 @@ fn semantic_tree_uses_boxless_div_containers_but_rejects_direct_text() {
     assert_eq!(frame.frame.boxes[3].unwrap().content.y, 11);
     assert_eq!(frame.frame.boxes[4].unwrap().content.y, 24);
     assert_eq!(
-        frame.text_boxes.iter().map(|box_| box_.node).collect::<Vec<_>>(),
+        frame
+            .text_boxes
+            .iter()
+            .map(|box_| box_.node)
+            .collect::<Vec<_>>(),
         vec![2, 3, 4]
     );
 
