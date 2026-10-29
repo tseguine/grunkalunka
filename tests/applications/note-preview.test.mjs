@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -114,3 +116,106 @@ test('actual compiled JS/TS Wasm switches HTML and changed source changes HTML',
     await assert.rejects(compileSource({ compiler, source: 'export function run( {', language }));
   }
 });
+
+const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
+const targetRoot = resolve(projectRoot, process.env.CARGO_TARGET_DIR ?? 'target');
+const nativeExample = name => join(targetRoot, 'debug', 'examples',
+  name + (process.platform === 'win32' ? '.exe' : ''));
+
+function checkedCommand(command, args, input) {
+  const result = spawnSync(command, args, {
+    cwd: projectRoot, input, encoding: 'utf8', shell: false,
+    timeout: 180_000, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024,
+  });
+  if (result.error) throw result.error;
+  assert.equal(result.signal, null, command + ' terminated by a signal');
+  assert.equal(result.status, 0, result.stderr || command + ' failed');
+  return result.stdout;
+}
+
+function nativeOutlineRows(output) {
+  if (!output) return [];
+  return output.trimEnd().split('\n').map(line => {
+    const matched = /^([1-6]) (\d+) (\d+) (\d+) (-?\d+) (\d+) ([a-f0-9]*)$/.exec(line);
+    assert.ok(matched, 'native outline must use the unchanged typed row protocol');
+    const [, level, start, end, sectionEnd, parent, length, textHex] = matched;
+    const textBytes = Buffer.from(textHex, 'hex');
+    assert.equal(textBytes.length, Number(length), 'native label byte length');
+    return {
+      level: Number(level), start: Number(start), end: Number(end),
+      sectionEnd: Number(sectionEnd), parent: Number(parent) === -1 ? null : Number(parent),
+      text: new TextDecoder('utf-8', { fatal: true }).decode(textBytes),
+    };
+  });
+}
+
+test('real Markdown/WIT guest drives native-parity granted and denied HTML through compiled JS Wasm',
+  { timeout: 300_000 }, async () => {
+    const guestBuild = ['build', '-p', 'grunkalunka-markdown', '--example',
+      'outline_guest', '--locked', '--offline', '-j', '4'];
+    // Reuses the existing guest, adapter/WIT and native library. No new
+    // GitHub workflow or fixture-only fake of a permitted WIT read.
+    checkedCommand('cargo', guestBuild);
+    checkedCommand('cargo', [...guestBuild, '--target', 'wasm32-unknown-unknown']);
+    checkedCommand('cargo', ['build', '-p', 'grunkalunka-runtime', '--example',
+      'a1_note_preview', '--locked', '--offline', '-j', '4']);
+
+    const driver = nativeExample('a1_note_preview');
+    const native = nativeExample('outline_guest');
+    const guest = join(targetRoot, 'wasm32-unknown-unknown', 'debug', 'examples',
+      'outline_guest.wasm');
+    const source = await readFile(new URL('../../examples/note-preview/toggle.js', import.meta.url),
+      'utf8');
+    const { wasm } = await compileSource({ compiler, source, language: 'js' });
+    assert.ok(WebAssembly.validate(wasm));
+    const fixtures = [
+      '# Root\r\n### 子😀\n[relative](../private.md)\n',
+      '# &lt;script&gt;bad()&lt;/script&gt;\n## Café\n',
+      '# Sensitive literal \u0000 marker\n',
+    ];
+    for (const note of fixtures) {
+      const bytes = Buffer.from(note, 'utf8');
+      const report = JSON.parse(checkedCommand(driver, [guest], bytes));
+      assert.equal(report.schemaVersion, 1);
+      assert.deepEqual(report.profiles.map(item => item.profile), ['denied', 'granted']);
+      const [denied, granted] = report.profiles;
+      assert.deepEqual(denied.headings, []);
+      assert.equal(Object.hasOwn(denied, 'sourceHex'), false,
+        'denied host output cannot disclose the original note');
+      assert.deepEqual([denied.attempts, denied.backingReads, denied.cleanups], [1, 0, 1]);
+      assert.deepEqual([granted.attempts, granted.backingReads, granted.cleanups], [1, 1, 1]);
+      assert.match(granted.sourceHex, /^(?:[a-f0-9]{2})*$/);
+      assert.deepEqual(Buffer.from(granted.sourceHex, 'hex'), bytes);
+      const headings = granted.headings.map(heading => {
+        assert.match(heading.textHex, /^(?:[a-f0-9]{2})*$/);
+        const text = new TextDecoder('utf-8', { fatal: true })
+          .decode(Buffer.from(heading.textHex, 'hex'));
+        return {
+          level: heading.level, start: heading.start, end: heading.end,
+          sectionEnd: heading.sectionEnd, parent: heading.parent, text,
+        };
+      });
+      assert.deepEqual(headings, nativeOutlineRows(checkedCommand(native, [], bytes)),
+        'actual WIT-owned headings must match same native Markdown parser');
+      const shown = await renderWithCompiledToggle({
+        wasm, expanded: 1, profile: 'granted',
+        sourceBytes: Buffer.from(granted.sourceHex, 'hex'), headings,
+        backingReads: granted.backingReads,
+      });
+      const collapsed = await renderWithCompiledToggle({
+        wasm, expanded: 0, profile: 'granted', sourceBytes: bytes, headings,
+        backingReads: granted.backingReads,
+      });
+      const inaccessible = await renderWithCompiledToggle({
+        wasm, expanded: 1, profile: 'denied', sourceBytes: Buffer.alloc(0),
+        headings: [], backingReads: denied.backingReads,
+      });
+      assert.notEqual(shown, collapsed, 'source-compiled toggle must change HTML');
+      assert.match(shown, /<ol id="note-outline"/);
+      assert.match(collapsed, /Outline collapsed/);
+      assert.match(inaccessible, /role="alert">Document access denied/);
+      assert.doesNotMatch(inaccessible, /<ol|sourceHex|Sensitive|Root|Café/);
+      assert.doesNotMatch(shown, /href=|src=|<script>/,
+        'projected text and relative Markdown links remain inert');
+    }
+  });

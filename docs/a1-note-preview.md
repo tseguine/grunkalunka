@@ -37,16 +37,36 @@ manifest and an impact-selection descriptor; there is no separate PR workflow.
 
 ## Deliberate evidence limits / next A1 tasks
 
-This unit uses **representative, independently checked host-provided heading
-records**, not a live WIT component call. Its permission tests validate the
-presentation adapter's input contract, **not** the guest's real read counters.
-Existing D1 tests separately prove the actual guest's grant/deny properties.
-The next integration unit must execute the actual Markdown/WIT guest under both
-profiles and feed its owned result and real per-call counters to this adapter,
-checking the native Markdown projection against the same source bytes. It must
-not fake a permitted WIT read using a synthetic object.
+PR #235 initially established the presentation contract with representative
+host-provided heading records. The following A1 integration unit now also
+executes **the real Markdown core-Wasm guest embedded into the existing private
+WIT inspector component** through the independent host driver
+`crates/grunkalunka-runtime/examples/a1_note_preview.rs`. Its owned WIT
+heading records and real per-profile protected backing-read, attempt and
+cleanup counts cross into `renderNotePreview`; the result is controlled by
+the actual JS-compiled Wasm toggle. The denied profile produces no note bytes
+or headings and has zero protected reads. The same component bytes and same
+explicit in-memory note are used by separate granted and denied Wasmtime Stores.
 
-After that, a separate bounded step must feed content/visibility into
+The normal A1 Node test builds the existing native and Wasm Markdown guests,
+builds only the new private Rust example, and compares each *actual*
+component-returned outline against the unchanged native Markdown library on
+Unicode, HTML entity and NUL fixtures. It checks visible HTML changes under the
+source-compiled toggle, inert relative links, escaping and denied output.
+This is a combined integration receipt, not just a standalone synthetic host
+object or a fake backing-read counter. The Rust example's JSON transport uses
+hex for source and label bytes to avoid lossy intermediate escaping; it is a
+private test protocol, not a public framework ABI.
+
+```sh
+node --test tests/applications/note-preview.test.mjs
+```
+
+Tests use only existing canonical check registration and dependencies. Changes to
+the Markdown parser or WIT/runtime package must select this integration test as
+well as native package tests; the A1 impact target declares those dependencies.
+
+The next separately bounded step must feed content/visibility into
 Grunkalunka's **native** layout/paint/input pipeline (with explicit HTML parsing
 or a documented semantic adapter). Outputting an HTML string is not evidence
 that the native renderer displays it. The final A1 acceptance also requires

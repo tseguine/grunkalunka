@@ -1,4 +1,8 @@
 {
   "id": "test:a1-note-preview",
-  "dependsOn": ["a1-note-preview"]
+  "dependsOn": [
+    "a1-note-preview",
+    "grunkalunka-runtime",
+    "grunkalunka-markdown"
+  ]
 }
