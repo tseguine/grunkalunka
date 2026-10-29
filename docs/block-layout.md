@@ -29,9 +29,40 @@ of visible blocks, plus scroll extents.
   Values above 100% may overflow.
 - Display:none removes an entire subtree. Changing the display value and
   running layout again restores boxes without modifying document ownership.
+- Resolved inherited visibility controls painting and input separately:
+  hidden boxes remain in geometry and flow, while an explicitly visible
+  descendant can override a hidden ancestor without reflow.
 - Checked arithmetic and bounds: at most 4,096 nodes, depth 64 and
   1–16,384 CSS pixels per viewport dimension. Malformed parent indices
   and overflowing dimensions fail instead of wrapping or silently truncating.
+
+## Inherited visibility without reflow
+
+`Style::visibility` admits `Visibility::Inherit` (the default),
+`Visibility::Visible` and `Visibility::Hidden`. The root's inherited
+value resolves to visible. A descendant inherits its parent's *resolved*
+visibility unless explicitly overridden; unlike `display:none`, a
+hidden ancestor retains geometry, occupies its normal-flow height and
+still contributes to scroll extents. An explicit visible descendant
+under a hidden ancestor keeps its own paint and input targetability.
+An explicit visible descendant under `display:none` cannot resurrect
+an absent box.
+
+The `Frame::visibility` vector contains these resolved per-node Booleans
+alongside the existing optional layout boxes. The RGB painter suppresses
+background and border paint for hidden nodes but still visits all present
+descendants, allowing an explicit visible override. Hit testing first
+requires both caller targetability and resolved visibility. A hidden
+topmost node permits fallthrough to the next visible target. Both consumers
+reject a malformed visibility vector rather than guessing values.
+
+The typed semantic adapter filters invisible text *paint anchors* while
+retaining all present block geometry. This does not delete the source text
+or model accessibility, selection, opacity, CSS animation, DOM mutation,
+`visibility: collapse`, pointer-events inheritance or hit-test retargeting.
+The independent `tests/visibility.rs` exercises exact layout equality,
+nested inheritance and explicit overrides, RGB pixels, input hits,
+`display:none` isolation, malformed metadata and semantic text anchors.
 
 ## What is deliberately NOT implemented
 
