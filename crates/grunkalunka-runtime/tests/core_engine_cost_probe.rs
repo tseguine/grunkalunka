@@ -4,6 +4,7 @@
 mod core_engine_cost;
 
 use core_engine_cost::{Options, parse_options, probe};
+use sha2::{Digest, Sha256};
 
 fn args(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_string()).collect()
@@ -53,6 +54,13 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
     let report = probe(options).unwrap();
     assert_eq!(report.options, options);
     assert!(report.wasm_bytes > 0 && report.wasm_bytes < 1024 * 1024);
+    let source = include_str!("../../../examples/numeric-workflow/gcd.js");
+    let artifact = grunkalunka_compiler::compile(source, false).unwrap();
+    assert_eq!(report.wasm_bytes, artifact.wasm.len());
+    assert_eq!(
+        report.wasm_sha256,
+        format!("{:x}", Sha256::digest(&artifact.wasm))
+    );
     for duration in [
         report.source_compile_ms,
         report.module_compile_ms,
@@ -105,6 +113,22 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
             .all(|duration| duration.is_finite() && *duration >= 0.0)
     );
     let output = report.json();
+    let expected_rust = format!(
+        r#""artifact":{{"wasmBytes":{},"sha256":"{}"}}"#,
+        report.wasm_bytes, report.wasm_sha256
+    );
+    let expected_node = format!(
+        r#""artifact":{{"bytes":{},"sha256":"{}","imports":0}}"#,
+        report.wasm_bytes, report.wasm_sha256
+    );
+    assert!(
+        output.contains(&expected_rust),
+        "Rust artifact receipt mismatch"
+    );
+    assert!(
+        output.contains(&expected_node),
+        "Node artifact receipt mismatch"
+    );
     for expected in [
         "\"schemaVersion\":1",
         "\"workload\":\"core-gcd-two-engine\"",
