@@ -29,6 +29,12 @@ const pointerIds = ["pointer-host", "pointer-inherited",
   "pointer-restored", "pointer-sibling"];
 const pointerProbes = ["inherited", "host", "restored",
   "host-lower", "sibling", "outside"];
+const autoMarginPhases = ["centered", "leftFixed", "restored"];
+const autoMarginIds = ["auto-host", "auto-centered", "auto-left", "auto-right",
+  "auto-limited", "auto-sibling"];
+const autoMarginChildren = ["auto-centered", "auto-left", "auto-right", "auto-limited"];
+const autoMarginProbes = ["center-original", "center-shifted", "left-auto",
+  "right-auto", "limited", "host", "sibling", "outside"];
 const scrollPhases = ["before", "scrolled", "restored"];
 const probes = ["first-center", "first-lower", "second-original", "left-margin",
   "outer-border", "outside", "first-right"];
@@ -50,7 +56,7 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   const report = {
     schemaVersion: 1, kind: "grunkalunka-native-browser-geometry",
     status: "invalid", conformance: "not-assessed", sourceSha256,
-    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents and pointer-events geometry/hits; no HTML/CSS parsing, inline layout or paint",
+    comparisonScope: "selected block, dimensions, scroll, visibility, padding clips, boxless contents, pointer-events and horizontal auto-margin geometry/hits; no HTML/CSS parsing, inline layout or paint",
     invalid, incompatible, differences, native, browser,
   };
   if (!record(native) || native.schemaVersion !== 1 ||
@@ -453,6 +459,78 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
   validatePointerStates("native", native?.pointerStates);
   validatePointerStates("browser", browser?.pointerStates);
 
+  function validateAutoMarginStates(owner, states) {
+    const path = "$." + owner + ".autoMarginStates";
+    if (!record(states) ||
+        Object.keys(states).sort().join(",") !== [...autoMarginPhases].sort().join(",")) {
+      error(path, "centered, leftFixed and restored auto-margin phases required");
+      return;
+    }
+    const exactIds = [...autoMarginIds].sort().join(",");
+    const exactChildren = [...autoMarginChildren].sort().join(",");
+    const exactProbes = [...autoMarginProbes].sort().join(",");
+    const exactFields = [...rectFields].sort().join(",");
+    for (const phase of autoMarginPhases) {
+      const sample = states[phase], prefix = path + "." + phase;
+      if (!record(sample) ||
+          Object.keys(sample).sort().join(",") !== "boxes,computed,hits") {
+        error(prefix, "complete auto-margin geometry, used margins and hits required");
+        continue;
+      }
+      if (!record(sample.boxes) || Object.keys(sample.boxes).sort().join(",") !== exactIds) {
+        error(prefix + ".boxes", "exactly six auto-margin boxes required");
+      } else {
+        for (const id of autoMarginIds) {
+          const rect = sample.boxes[id];
+          if (!record(rect) || Object.keys(rect).sort().join(",") !== exactFields) {
+            error(prefix + ".boxes." + id, "complete auto-margin rectangle required");
+            continue;
+          }
+          for (const field of rectFields) {
+            if (!Number.isFinite(rect[field]) ||
+                (["width", "height"].includes(field) && rect[field] < 0)) {
+              error(prefix + ".boxes." + id + "." + field,
+                "finite CSS-pixel rectangle required");
+            }
+          }
+        }
+      }
+      if (!record(sample.computed) ||
+          Object.keys(sample.computed).sort().join(",") !== exactChildren) {
+        error(prefix + ".computed", "exactly four used horizontal margin pairs required");
+      } else {
+        for (const id of autoMarginChildren) {
+          const used = sample.computed[id];
+          if (!record(used) || Object.keys(used).sort().join(",") !== "left,right") {
+            error(prefix + ".computed." + id, "both used horizontal margins required");
+            continue;
+          }
+          for (const side of ["left", "right"]) {
+            if (typeof used[side] !== "string" ||
+                !/^\d+(?:\.\d+)?px$/.test(used[side])) {
+              error(prefix + ".computed." + id + "." + side,
+                "nonnegative browser-computed CSS pixel margin required");
+            }
+          }
+        }
+      }
+      if (!record(sample.hits) ||
+          Object.keys(sample.hits).sort().join(",") !== exactProbes) {
+        error(prefix + ".hits", "exactly eight auto-margin input probes required");
+      } else {
+        for (const probe of autoMarginProbes) {
+          const id = sample.hits[probe];
+          if (id !== null && !autoMarginIds.includes(id)) {
+            error(prefix + ".hits." + probe,
+              "known auto-margin element or explicit null required");
+          }
+        }
+      }
+    }
+  }
+  validateAutoMarginStates("native", native?.autoMarginStates);
+  validateAutoMarginStates("browser", browser?.autoMarginStates);
+
   function validateScrollViewport(owner, value) {
     const path = "$." + owner + ".scrollViewport";
     const expected = [...scrollPhases, "documentHeight"].sort().join(",");
@@ -758,6 +836,40 @@ export function compareNativeBlockBridge(native, browser, sourceBytes) {
         differences.push({
           kind: "pointer-hit", phase, probe, left, right,
           path: "$.pointerStates." + phase + ".hits." + probe,
+        });
+      }
+    }
+  }
+  for (const phase of autoMarginPhases) {
+    const a = native.autoMarginStates[phase], b = browser.autoMarginStates[phase];
+    for (const id of autoMarginIds) {
+      for (const field of rectFields) {
+        const left = a.boxes[id][field], right = b.boxes[id][field];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "auto-margin-box", phase, id, field, left, right,
+            path: "$.autoMarginStates." + phase + ".boxes." + id + "." + field,
+          });
+        }
+      }
+    }
+    for (const id of autoMarginChildren) {
+      for (const side of ["left", "right"]) {
+        const left = a.computed[id][side], right = b.computed[id][side];
+        if (!Object.is(left, right)) {
+          differences.push({
+            kind: "auto-margin-computed", phase, id, side, left, right,
+            path: "$.autoMarginStates." + phase + ".computed." + id + "." + side,
+          });
+        }
+      }
+    }
+    for (const probe of autoMarginProbes) {
+      const left = a.hits[probe], right = b.hits[probe];
+      if (!Object.is(left, right)) {
+        differences.push({
+          kind: "auto-margin-hit", phase, probe, left, right,
+          path: "$.autoMarginStates." + phase + ".hits." + probe,
         });
       }
     }
