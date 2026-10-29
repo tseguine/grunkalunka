@@ -83,8 +83,9 @@ Results can be stored, aliased, forwarded, discarded or tested for object truthi
 The body must actually lower to a primitive completion, including explicit or
 fallthrough Undefined; annotations establish no kind. Own-scope await/throw in
 runtime async closures, async-return adoption and general Promise/function
-outcomes remain separate requirements. `await Promise.reject(f())` is rejected:
-the reason would be the Promise object, rather than its eventual primitive value.
+outcomes remain separate requirements of that earlier representation. In the
+identity profile, `await Promise.reject(f())` now rejects with the Promise object
+returned by f, preserving its identity without adopting it.
 `await Promise.reject(await f())` uses a primitive reason and remains supported.
 
 Known synchronous local arrows can return admitted fulfilled Promise values
@@ -786,5 +787,6 @@ reasons. Node keeps stable native Promise objects; Wasmtime provides typed IDs
 and read-only state queries. Reads preserve guest handling and jobs, and normal
 fulfillment still adopts in the guest. Source `throw` preserves represented Promise
 identities through catches, rethrows, async calls and finally cleanup. Intrinsic
-`Promise.reject(p)` still requires frontend admission. See
+`Promise.reject(p)` preserves the same raw reason, including direct awaited and
+stored constructor paths, ordered surplus arguments and rejection notifications. See
 [the transport and source contract](async-promise-objects.md).

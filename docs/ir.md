@@ -1093,8 +1093,10 @@ identity and reaction ticks through catches, rethrows and suspended finally clea
 Visibility and incompatible exception-boundary cases remain verifier errors.
 
 The async source frontend selects AsyncValue catches and finally reasons when
-its module summary finds a possible Promise-valued throw. Other modules retain
-General cells. Catch provenance follows ordinary aliases, captures and private
+its module summary finds a possible Promise-valued throw or intrinsic rejection
+reason. Other modules retain General cells. Catch provenance follows ordinary aliases, captures and private
 forwarding; erased type syntax does not establish a value kind. The host protocol
 transports exposed Promise reasons without adoption. Intrinsic Promise.reject(p)
-and more precise per-handler source-domain inference remain separate work.
+uses an existing SettlePromise body with a raw Throw and materializes that rejected
+wrapper. Direct await awaits the wrapper, preserving one rejection reaction. More
+precise per-handler source-domain inference remains separate work.

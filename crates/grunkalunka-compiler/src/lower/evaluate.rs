@@ -677,6 +677,41 @@ impl Lowering<'_, '_> {
         result
     }
 
+    // Keep constructor scheduling outside the large cursor frame: source-level
+    // constructor crossings retain the existing 2 MiB native stack contract.
+    fn schedule_raw_rejected_await<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        mode: Mode,
+        operand: &awaited::Operand<'e, 'a>,
+        site: Option<usize>,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<bool, String> {
+        if !self.promise_parameters.identities || !operand.rejected {
+            return Ok(false);
+        }
+        let Some(argument) = operand.argument else {
+            return Ok(false);
+        };
+        if !self.has_promise_choice(argument, operand.depth) {
+            return Ok(false);
+        }
+        // Pristine reject cannot complete normally: any numeric projection
+        // is unreachable and never coerces its reason.
+        call_result(work, node, mode, Type::General, true)?;
+        work.push(Work::AwaitPending(node, site));
+        work.push(Work::CreatePromise(node, true));
+        for extra in operand.extras.iter().rev() {
+            work.push(Work::Eval(
+                extra.as_expression().expect("validated intrinsic argument"),
+                operand.depth,
+                Mode::Discard,
+            ));
+        }
+        work.push(Work::Eval(argument, operand.depth, Mode::AsyncValue));
+        Ok(true)
+    }
+
     pub(super) fn evaluate<'e, 'a>(
         &mut self,
         expression: &'e Expression<'a>,
@@ -703,6 +738,9 @@ impl Lowering<'_, '_> {
                     operand,
                     site,
                 } => {
+                    if self.schedule_raw_rejected_await(node, mode, &operand, site, &mut work)? {
+                        continue;
+                    }
                     if let Some(argument) = operand.argument
                         && self.composed_await_selection(argument, operand.depth)
                         // Identity evaluation keeps the selected Promise while
@@ -981,10 +1019,10 @@ impl Lowering<'_, '_> {
                     values.push(Value::Promise(result));
                 }
                 Work::CreatePromise(node, rejected) => {
-                    let payload = values.pop().expect("Promise constructor payload").general();
+                    let payload = values.pop().expect("Promise constructor payload");
                     let input = if rejected {
                         let mut body = self.region(node);
-                        body.exit = Exit::Throw(payload);
+                        body.exit = Exit::Throw(payload.id());
                         let result = self.value(Type::SettledPromise);
                         Self::push(regions.current(), node, Op::SettlePromise { result, body });
                         result
@@ -995,7 +1033,7 @@ impl Lowering<'_, '_> {
                             node,
                             Op::FulfillPromise {
                                 result,
-                                input: payload,
+                                input: payload.general(),
                             },
                         );
                         result
@@ -2480,7 +2518,14 @@ impl Lowering<'_, '_> {
                                     ));
                                 }
                                 if let Some(argument) = intrinsic.argument {
-                                    work.push(Work::Eval(argument, depth + 1, Mode::General));
+                                    let mode = if intrinsic.rejected
+                                        && self.has_promise_choice(argument, depth + 1)
+                                    {
+                                        Mode::AsyncValue
+                                    } else {
+                                        Mode::General
+                                    };
+                                    work.push(Work::Eval(argument, depth + 1, mode));
                                 } else {
                                     let input = self.undefined_value(node, regions.current());
                                     values.push(Value::General(input));

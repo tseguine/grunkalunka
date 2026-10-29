@@ -65,10 +65,7 @@ fn stored_pending_async_results_keep_erasure_admission_and_site_limits() {
             );
         }
     }
-    for body in [
-        "const f=async()=>{await a;return b;};const p=f();p=f();return await p;",
-        "const f=async()=>{await a;return b;};const p=f();return await Promise.reject(p);",
-    ] {
+    for body in ["const f=async()=>{await a;return b;};const p=f();p=f();return await p;"] {
         for ts in [false, true] {
             assert!(compile_async(&source_for(body), ts).is_err(), "{body}");
         }

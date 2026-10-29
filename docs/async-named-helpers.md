@@ -57,8 +57,8 @@ limits are unchanged.
 Defaults, rest/destructured parameters, generators, `this`, `arguments`, binding
 rebinding, optional calls, module globals and Error/function/String/heap
 input domains remain outside this unit. Promise-valued throws now preserve raw
-identity through named/local async rejection and lexical catches; intrinsic
-Promise.reject(p) remains a separate source producer.
+identity through named/local async rejection and lexical catches. Intrinsic
+Promise.reject(p) preserves the same raw reason without adoption or handling.
 Native JS, Node-Wasm and Wasmtime tests cover declaration order, values and
 reactions, forwarding, recursion, concurrent cells, evaluation order,
 erased types and source/resource boundaries. Notification fixtures also compare

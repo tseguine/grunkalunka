@@ -84,6 +84,7 @@ for(const {name,wasm,source} of cases){
     }
     for(const [a,b] of [[4,2],[0,-0],[-2,-4],[NaN,Infinity]]){
         if(name==='choice'&&!a)assert.deepEqual(await compiled(a,b),await native(a,b));
+        else if(name==='mixed-reason'&&!a)assert.deepEqual((await reason(compiled,a,b)).value,(await reason(native,a,b)).value);
         else assert.deepEqual(await observe(compiled,name,a,b),await observe(native,name,a,b));
         if(!['shared','rejected-unhandled'].includes(name))assert.deepEqual(await reactionTrace(compiled,a,b),await reactionTrace(native,a,b),`${name}: root and reason reaction order`);
     }

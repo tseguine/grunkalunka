@@ -20,7 +20,7 @@ existing meanings. A rejected await in a handler belongs to an enclosing try, if
 present. With no enclosing handler it rejects the activation as before.
 
 The catch binding is a mutable cell identified by its original semantic symbol.
-It uses General unless the async module may throw a represented Promise, when
+It uses General unless the async module may reject with a represented Promise, when
 it uses AsyncValue to retain raw identity without adoption or handling. It preserves
 undefined, null, Boolean and Number reasons without coercion,
 including signed zero, finite Number bits, NaN and infinities. Shadows do not alter
@@ -70,5 +70,6 @@ four malformed reason visibility/type cases.
 Represented Promise reasons now pass through source throw, caught/rethrown async
 rejection and suspended finally cleanup. Conservative module-level inference may
 still reject numeric operations in an unrelated catch in such a module. Precise
-per-handler inference and intrinsic Promise.reject(p) remain follow-up work; see
+per-handler inference remains follow-up work. Intrinsic Promise.reject(p) now
+uses the same raw reason domain; see
 [the source and host contract](async-promise-objects.md).

@@ -63,7 +63,6 @@ fn promise_throw_reasons_erase_types_and_keep_remaining_source_guards() {
         "export async function run(a,b){throw {then:a};}",
         "export async function run(a,b){throw missing as Promise<number>;}",
         "export async function run(a,b){throw Promise.resolve(a)+1;}",
-        "export async function run(a,b){throw Promise.reject(Promise.resolve(a));}",
         "export function run(a,b){throw Promise.resolve(a);}",
     ] {
         assert!(compile_async(source, true).is_err(), "{source}");

@@ -850,8 +850,8 @@ recursion; erased annotations supply no proof. Native JS/Node-Wasm/Wasmtime
 comparisons cover the former exact exclusion, identity, snapshots, captures,
 rejection consumption and adoption ticks. Notification fixtures preserve unused
 argument rejections and skipped startup on argument failure. No IR, runtime ABI,
-dependency or resource limit change. Intrinsic Promise.reject(p) and broader
-object inputs remain open; see [the contract](async-named-helpers.md).
+dependency or resource limit change. Broader object inputs remain open; see
+[the contract](async-named-helpers.md).
 
 ## Source Promise-valued throws (2026-10-29)
 
@@ -860,5 +860,14 @@ through catches, aliases, rethrows, recursive async calls and suspended finally
 cleanup. Raw root reasons use the existing opt-in host transport; native Node
 Promise branding, nested/self reasons, notifications and reaction ordering are
 compared with compiled source. Primitive-only modules retain General catch cells.
-Intrinsic Promise.reject(p), precise per-handler reason inference and broader
-object/thenable domains remain open; see [the contract](async-promise-objects.md).
+Precise per-handler reason inference and broader object/thenable domains remain
+open; see [the contract](async-promise-objects.md).
+
+## Intrinsic Promise-valued rejection (2026-10-29)
+
+Promise.reject now retains represented Promise and mixed-value reasons without
+adoption or handling, including directly awaited and stored constructors. Argument
+snapshots, surplus effects/failures and one await reaction match native JavaScript.
+Source/host differential tests cover pending, nested/self, handled and notification
+identities through Node-Wasm and Wasmtime. General thenables/heap inputs and precise
+per-handler reason inference remain open; see [the contract](async-promise-objects.md).

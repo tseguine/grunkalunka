@@ -140,10 +140,91 @@ fn node_source_throws_expose_real_promise_objects_without_adoption() {
     run_source_node(THROW_SOURCES);
 }
 
+const REJECT_SOURCES: &[(&str, &str)] = &[
+    (
+        "fulfilled-direct",
+        "export async function run(a,b){const p=Promise.resolve(a);return Promise.reject(p);}",
+    ),
+    (
+        "fulfilled",
+        "async function f(p){return Promise.reject(p);}export async function run(a,b){return await f(Promise.resolve(a));}",
+    ),
+    (
+        "fulfilled-await",
+        "export async function run(a,b){const p=Promise.resolve(a);return await Promise.reject(p);}",
+    ),
+    (
+        "pending",
+        "export async function run(a,b){let f=async()=>{await a;return b;};return await Promise.reject(f());}",
+    ),
+    (
+        "pending",
+        "export async function run(a,b){const f=async()=>{await a;return b;};const p=f();return await Promise.reject(p);}",
+    ),
+    (
+        "mixed-reason",
+        "export async function run(a,b){let f=async()=>{await a;return b;};return await Promise.reject(a?f():b);}",
+    ),
+    (
+        "rejected",
+        "export async function run(a,b){const p=Promise.reject(b);return Promise.reject(p);}",
+    ),
+    (
+        "rejected-a",
+        "export async function run(a,b){let f=async()=>{throw a;};return await Promise.reject(f());}",
+    ),
+    (
+        "rejected-unhandled",
+        "export async function run(a,b){const p=Promise.reject(b);return Promise.reject(p);}",
+    ),
+    (
+        "self",
+        "export async function run(a,b){let p;const f=async()=>{await a;return Promise.reject(p);};p=f();return Promise.reject(p);}",
+    ),
+    (
+        "shared",
+        "export async function run(a,b){const p=Promise.resolve(a);Promise.reject(p);return Promise.reject(p);}",
+    ),
+    (
+        "nested",
+        "export async function run(a,b){const p=Promise.resolve(a);return Promise.reject(Promise.reject(p));}",
+    ),
+    (
+        "nested",
+        "export async function run(a,b){throw Promise.reject(Promise.resolve(a));}",
+    ),
+    (
+        "handled",
+        "export async function run(a,b){const p=Promise.reject(b);try{await p;}catch(e){}return Promise.reject(p);}",
+    ),
+    (
+        "fulfilled-finally",
+        "export async function run(a,b){const p=Promise.resolve(a);try{return Promise.reject(p);}finally{await b;}}",
+    ),
+    (
+        "choice",
+        "export async function run(a,b){const f=a?async()=>Promise.reject(Promise.resolve(a)):async()=>b;return await f();}",
+    ),
+];
+
+#[test]
+fn node_source_rejections_expose_promise_objects_without_adoption() {
+    run_source_node(REJECT_SOURCES);
+}
+
 #[test]
 fn wasmtime_source_throws_keep_readonly_nested_and_self_reasons() {
+    wasmtime_source_reasons(THROW_SOURCES);
+}
+
+#[test]
+fn wasmtime_source_rejections_keep_readonly_nested_and_self_reasons() {
+    wasmtime_source_reasons(REJECT_SOURCES);
+}
+
+fn wasmtime_source_reasons(sources: &[(&str, &str)]) {
     use grunkalunka_runtime::{AsyncState, PreparedAsyncModule, PromiseNotification, Value};
-    for (name, source) in THROW_SOURCES {
+    for (name, source) in sources {
         let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();
         let module = PreparedAsyncModule::new(&artifact.wasm).unwrap();
         for (a, b) in [
@@ -166,6 +247,13 @@ fn wasmtime_source_throws_keep_readonly_nested_and_self_reasons() {
                 assert_eq!(actual.to_bits(), b.to_bits());
                 continue;
             }
+            if *name == "mixed-reason" && (a == 0.0 || a.is_nan()) {
+                let AsyncState::Rejected(Value::Number(actual)) = run.state().unwrap() else {
+                    panic!("mixed primitive rejection");
+                };
+                assert_eq!(actual.to_bits(), b.to_bits());
+                continue;
+            }
             let AsyncState::Rejected(Value::Promise { id }) = run.state().unwrap() else {
                 panic!("{name}: root must reject with a raw Promise");
             };
@@ -178,11 +266,12 @@ fn wasmtime_source_throws_keep_readonly_nested_and_self_reasons() {
             );
             match first {
                 AsyncState::Fulfilled(Value::Number(actual)) => {
-                    let expected = if matches!(*name, "pending" | "fulfilled-suspended") {
-                        b
-                    } else {
-                        a
-                    };
+                    let expected =
+                        if matches!(*name, "pending" | "mixed-reason" | "fulfilled-suspended") {
+                            b
+                        } else {
+                            a
+                        };
                     assert!(
                         actual.to_bits() == expected.to_bits()
                             || actual.is_nan() && expected.is_nan(),
@@ -192,9 +281,13 @@ fn wasmtime_source_throws_keep_readonly_nested_and_self_reasons() {
                 AsyncState::Rejected(Value::Number(actual)) => {
                     assert!(matches!(
                         *name,
-                        "rejected" | "rejected-unhandled" | "handled"
+                        "rejected" | "rejected-a" | "rejected-unhandled" | "handled"
                     ));
-                    assert_eq!(actual.to_bits(), b.to_bits());
+                    let expected = if *name == "rejected-a" { a } else { b };
+                    assert!(
+                        actual.to_bits() == expected.to_bits()
+                            || actual.is_nan() && expected.is_nan()
+                    );
                 }
                 AsyncState::Rejected(Value::Promise { id: nested }) => {
                     if *name == "self" {
