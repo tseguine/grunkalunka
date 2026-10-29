@@ -87,7 +87,11 @@ fn one_compiled_artifact_replays_with_independent_goldens_in_both_engines() {
                 .all(|snapshot| snapshot.peak_rss_bytes >= snapshot.rss_bytes)
         );
         assert!(memory[4].peak_rss_bytes >= memory[0].peak_rss_bytes);
-        let label = core_engine_cost::process_memory::source_name();
+        let label = if cfg!(target_os = "linux") {
+            "linux-proc-status"
+        } else {
+            "windows-psapi-working-set"
+        };
         assert!(report.json().contains(&format!("\"source\":\"{label}\"")));
     }
     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
