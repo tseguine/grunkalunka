@@ -1,0 +1,4 @@
+{
+  "command": "node",
+  "args": ["--test", "tests/applications/note-preview.test.mjs"]
+}

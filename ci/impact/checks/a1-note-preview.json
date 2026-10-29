@@ -1,0 +1,7 @@
+{
+  "id": "check:a1-note-preview",
+  "command": "node",
+  "args": ["--test", "tests/applications/note-preview.test.mjs"],
+  "dependsOn": ["test:a1-note-preview"],
+  "paths": ["tests/applications/note-preview.test.mjs"]
+}
