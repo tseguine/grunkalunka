@@ -4,7 +4,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { capture, parseCaptureArgs } from './capture-markdown.mjs';
+import { capture, parseCaptureArgs, validateOptionalProcessMemory } from './capture-markdown.mjs';
 
 const workloads = new Set(['empty', 'unicode', 'dense', 'wide']);
 const osMap = { linux: 'linux', darwin: 'macos', win32: 'windows' };
@@ -98,6 +98,7 @@ function validateCapture(receipt) {
   }
   requireValid(field(native, 'environment.os') === osMap[host.os], 'environment.os');
   requireValid(field(native, 'environment.arch') === archMap[host.arch], 'environment.arch');
+  validateOptionalProcessMemory(native, field(native, 'environment.os'));
   requireValid(field(native, 'environment.fuelEnabled') === false, 'fuel policy');
   requireValid(/^=\d+\.\d+\.\d+$/.test(field(native, 'environment.wasmtimeDependency')),
     'Wasmtime dependency');
