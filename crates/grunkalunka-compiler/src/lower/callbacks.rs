@@ -184,6 +184,7 @@ pub(crate) fn infer_callback_parameters(
     let mut demands: BTreeMap<SymbolId, BTreeSet<usize>> = BTreeMap::new();
     let mut arrows = BTreeMap::new();
     let mut calls = Vec::new();
+    let mut length_receivers = BTreeSet::new();
     let mut definitions = Vec::new();
     let mut definition = |id, expression| {
         definitions.push((id, expression));
@@ -226,6 +227,11 @@ pub(crate) fn infer_callback_parameters(
                     demands.entry(id).or_default().insert(call.arguments.len());
                 }
                 calls.push(call);
+            }
+            AstKind::StaticMemberExpression(member)
+                if !member.optional && member.property.name == "length" =>
+            {
+                length_receivers.extend(origins(&member.object, semantic).0);
             }
             _ => (),
         }
@@ -350,6 +356,35 @@ pub(crate) fn infer_callback_parameters(
         }
         if !changed {
             break;
+        }
+    }
+    // A length-only callback use requires a function, but does not invent its
+    // signature. Seed that demand only from actual source-known constructors.
+    for receiver in length_receivers {
+        let mut pending = vec![receiver];
+        let mut seen = BTreeSet::new();
+        while let Some(source) = pending.pop() {
+            if !seen.insert(source) {
+                continue;
+            }
+            if let Some(bodies) = targets.get(&source) {
+                demands
+                    .entry(receiver)
+                    .or_default()
+                    .extend(bodies.iter().map(|body| arrows[body].params.items.len()));
+            }
+            if let Some(function) = functions
+                .iter()
+                .find(|function| function.symbol == source && function.async_signature.is_some())
+            {
+                demands
+                    .entry(receiver)
+                    .or_default()
+                    .insert(function.parameter_count);
+            }
+            if let Some(sources) = aliases.get(&source) {
+                pending.extend(sources);
+            }
         }
     }
     loop {

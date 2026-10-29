@@ -167,6 +167,10 @@ pub(super) fn number_result_shape<'a>(
                 pending.push((&logical.left, depth + 1));
             }
             Expression::NumericLiteral(_) | Expression::UpdateExpression(_) => (),
+            // Lowering admits this read only after checking a function receiver.
+            // All currently admitted function length reads have Number results.
+            Expression::StaticMemberExpression(member)
+                if !member.optional && member.property.name == "length" => {}
             Expression::AwaitExpression(awaited) => {
                 let Ok(operand) = awaited::operand(awaited, depth, semantic) else {
                     return false;

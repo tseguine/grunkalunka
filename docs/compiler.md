@@ -2259,3 +2259,11 @@ inputs preserve primitive kinds, argument snapshots and captured cells in the
 existing private layout. See [the contract](async-named-helpers.md). Promise,
 function, Error and broader heap inputs remain separate work. No IR, emitter,
 runtime ABI, dependency or limit changes.
+
+## Function length reads
+
+Static `.length` on admitted function values and immutable module declarations
+now returns their ordinary source parameter count. Receivers retain effects,
+ordered snapshots and failures; bodies stay dormant. Full callable signatures
+and erased types do not become the count. Number/primitive/async entries share
+this lowering. See [the contract and remaining reflection gaps](function-length.md).

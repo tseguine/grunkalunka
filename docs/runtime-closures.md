@@ -160,7 +160,7 @@ with finite scalar-result signatures, including captured callback cells after cr
 Concise and complete block runtime factories can return further factories through
 acyclic result signatures with Number, General or finite scalar-result callback parameters.
 Cyclic callback types, unrepresented leaf
-return kinds, function coercions, identity and properties, recursive initialization
+return kinds, function coercions, identity and other properties, recursive initialization
 and escaping per-iteration environments remain open.
 The exported Number/primitive/async signatures and dependency set are unchanged.
 
@@ -608,3 +608,11 @@ and native JS, Node-Wasm and Wasmtime behavior. Existing factory cell/snapshot a
 signature checks also pass. Restoring the obsolete type-argument guard is caught
 by the selected-factory witness. No IR, frame layout, ABI, dependency or limit
 change is introduced.
+
+## Function length reads
+
+Represented closures, aliases, selected values, returned factories and named
+module declarations now support static `.length`. The Number result counts
+ordinary parameters while retaining receiver effects and leaving bodies dormant.
+Capture cells and hidden ABI inputs do not count. Other function-object/property
+domains remain separate gaps; see [the contract](function-length.md).

@@ -195,6 +195,7 @@ enum Work<'e, 'a> {
         site: Option<usize>,
     },
     Forget,
+    FunctionLength(&'e Expression<'a>, usize),
     Await(&'e Expression<'a>, bool, Type, Option<usize>),
     AwaitPending(&'e Expression<'a>, Option<usize>),
     AdoptResult(&'e Expression<'a>),
@@ -617,6 +618,63 @@ impl Lowering<'_, '_> {
         } else {
             Mode::General
         }
+    }
+
+    // Keep property planning and operation construction out of the central
+    // cursor frame: existing constructor crossings have a 2 MiB stack contract.
+    fn schedule_function_length<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        object: &'e Expression<'a>,
+        depth: usize,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        let declaration = match closures::unwrapped(object, depth) {
+            Some(Expression::Identifier(identifier)) => identifier
+                .reference_id
+                .get()
+                .and_then(|reference| self.semantic.scoping().get_reference(reference).symbol_id())
+                .and_then(|symbol| {
+                    self.functions
+                        .iter()
+                        .find(|function| function.symbol == symbol)
+                }),
+            _ => None,
+        };
+        if let Some(function) = declaration {
+            work.push(Work::FunctionLength(node, function.parameter_count));
+        } else {
+            let signature = self.function_arity(object, depth).ok_or_else(|| {
+                unsupported(node, "length requires an admitted function receiver")
+            })?;
+            let count = self
+                .closure_signatures
+                .borrow()
+                .parameter_count(signature)
+                .ok_or("missing callable parameter count")?;
+            work.push(Work::FunctionLength(node, count));
+            work.push(Work::Forget);
+            work.push(Work::Eval(object, depth, Mode::Function(signature)));
+        }
+        Ok(())
+    }
+
+    fn function_length_number(
+        &mut self,
+        node: &Expression<'_>,
+        count: usize,
+        region: &mut Region,
+    ) -> ValueId {
+        let result = self.value(Type::Number);
+        Self::push(
+            region,
+            node,
+            Op::Constant {
+                result,
+                value: count as f64,
+            },
+        );
+        result
     }
 
     pub(super) fn evaluate<'e, 'a>(
@@ -2170,6 +2228,10 @@ impl Lowering<'_, '_> {
                         Type::Promise => Value::Pending(result),
                     });
                 }
+                Work::FunctionLength(node, count) => {
+                    let result = self.function_length_number(node, count, regions.current());
+                    values.push(Value::Number(result));
+                }
                 Work::Eval(node, depth, Mode::Discard) => {
                     if self.async_value_slot(node, depth).is_some()
                         || self.async_value_assignment_slot(node, depth).is_some()
@@ -3178,6 +3240,16 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     match node {
+                        Expression::StaticMemberExpression(member)
+                            if !member.optional && member.property.name == "length" =>
+                        {
+                            self.schedule_function_length(
+                                node,
+                                &member.object,
+                                depth + 1,
+                                &mut work,
+                            )?;
+                        }
                         Expression::NumericLiteral(literal) => {
                             let result = self.value(Type::Number);
                             Self::push(

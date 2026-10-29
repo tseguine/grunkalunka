@@ -769,3 +769,10 @@ Node-Wasm and Wasmtime outcomes. A synchronous numeric/primitive group checks th
 same shared admission rules. The exact older `f<never>(a)` Promise and Math guards
 now have positive byte-identity and execution tests. No IR, runtime ABI, frame layout,
 dependency, type checker or resource-limit change is introduced.
+
+## Function length reads
+
+Admitted async functions expose their ordinary parameter count through static
+`.length`, without starting their bodies or creating child Promises/reactions.
+Receivers that evaluate factories or await retain those effects and failure.
+See [the shared contract](function-length.md).

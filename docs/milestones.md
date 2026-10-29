@@ -831,3 +831,12 @@ Node-Wasm and Wasmtime oracles. Mixed frames, captures, recursive activations,
 argument failures and misleading annotations have maintained coverage. No IR,
 frame ABI, dependency or resource-limit change; broader input domains remain
 open. See [the contract](async-named-helpers.md).
+
+## Function length reads (2026-10-29)
+
+Static `.length` on represented functions and immutable module declarations
+now yields a Number source-parameter count. Number/primitive/async executions
+retain receiver effects, captures and failures without invoking function bodies.
+Tests cover aliases, factories, hidden callback/capture entries, erased types
+and width/depth boundaries. No IR, runtime ABI, dependency or limit change.
+General reflection/property domains remain open; see [the contract](function-length.md).
