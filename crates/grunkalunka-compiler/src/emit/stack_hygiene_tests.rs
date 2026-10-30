@@ -27,10 +27,7 @@ fn nested(depth: usize, exit: Exit) -> Region {
 }
 
 fn drain(mut region: Region) {
-    loop {
-        let Some(operation) = region.operations.pop() else {
-            break;
-        };
+    while let Some(operation) = region.operations.pop() {
         let Op::Block(child) = operation.kind else {
             panic!("expected synthetic block")
         };
