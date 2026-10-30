@@ -989,6 +989,54 @@ mod tests {
     use super::*;
 
     #[test]
+    fn async_split_states_borrow_their_original_argument_snapshots() {
+        use oxc_span::Span;
+
+        // Both immediate child startup and awaited closure invocation share the
+        // source-owned argument slice; no per-state copy is needed.
+        for awaited in [false, true] {
+            let span = Span::new(0, 0);
+            let arguments = vec![ValueId(7), ValueId(3), ValueId(11)];
+            let kind = if awaited {
+                Op::AwaitClosureCall {
+                    result: ValueId(12),
+                    callee: ValueId(5),
+                    arguments,
+                }
+            } else {
+                Op::StartAsyncClosure {
+                    result: ValueId(12),
+                    callee: ValueId(5),
+                    arguments,
+                }
+            };
+            let region = Region {
+                id: ir::RegionId(0),
+                span,
+                operations: vec![ir::Operation { span, kind }],
+                exit: Exit::Fallthrough,
+            };
+            let source_arguments = match &region.operations[0].kind {
+                Op::StartAsyncClosure { arguments, .. }
+                | Op::AwaitClosureCall { arguments, .. } => arguments.as_slice(),
+                _ => unreachable!(),
+            };
+            let mut split = Splitter::default();
+            let done = split.terminal(End::Trap).unwrap();
+            let entry = split.region(&region, done, None, None).unwrap();
+            match &split.states[entry].end {
+                End::InvokeClosure {
+                    arguments: saved, ..
+                } => {
+                    assert_eq!(*saved, source_arguments);
+                    assert_eq!(saved.as_ptr(), source_arguments.as_ptr());
+                }
+                _ => panic!("async invocation must use the source argument list"),
+            }
+        }
+    }
+
+    #[test]
     fn async_targets_cannot_use_the_source_entry_as_an_ordinary_call() {
         for body in [
             "return +run(a,b);",
