@@ -139,6 +139,11 @@ Related: [ADR 0008](0008-strict-core-wasm-composition.md),
 [0011](0011-semantic-values-and-lifetime-boundaries.md).
 Roadmap: R1, P1 and A1; later browser/Node environment work.
 
+[Proposed ADR 0018](0018-component-composed-environments.md) expands the *candidate*
+environment composition, provider/shim, cross-language WIT binding,
+placement/isolation and interop-cost questions. It does not change ADR 0012's
+guest-owned language-semantics boundary or accept a public host API.
+
 The [WIT reference](https://component-model.bytecodealliance.org/design/wit.html)
 describes interfaces and owned/borrowed resources; it does not supply this
 project's authorization policy. Identify the first application service before

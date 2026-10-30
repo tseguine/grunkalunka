@@ -242,6 +242,14 @@ validate separately.
 
 ## Related work and follow-up
 
+The optional true-parallel JS/TS task idea belongs to
+[proposed ADR 0018](0018-component-composed-environments.md#workers-asynchronous-tasks-and-optional-parallel-js).
+An `async` function is not automatically parallelizable: a future explicit
+parallel-isolate API must preserve this ADR's single-agent Promise/job order,
+resource ownership and no-unsafe-reentry requirements. Threading and shared
+heap semantics remain undecided.
+
+
 Related: [async profile](../async.md), [catch](../async-catch.md),
 [throw](../async-throw.md), [captured cells](../captured-cells.md),
 [ADR 0010](0010-bounded-internal-root-frames.md), and proposed

@@ -231,3 +231,84 @@ the *Wasm modules* does not imply that the bundled native binaries can run on
 another OS/architecture. The remaining A1 goals include real text/glyph
 rendering, application interaction, and product-level usability and packaging.
 A1 stays **Planned**.
+
+
+## Candidate next A1 acceptance and compiler priorities (steering, 2026-10-30)
+
+This section is **proposed next-slice steering**, not an implemented feature, a
+completed A1 claim, or an assignment of every workstream. The architectural
+extension discussion lives separately in [proposed ADR 0018](adr/0018-component-composed-environments.md);
+A1 should exercise the smallest relevant seam rather than build the full platform first.
+Current integration evidence remains the rest of this document; [steering #52](https://github.com/tseguine/grunkalunka/issues/52)
+coordinates cross-stream acceptance.
+
+### Existing application evidence versus missing behavior
+
+The trusted host already reads authorized Markdown through WIT, compiles
+`toggle.js` to import-free numeric core Wasm, executes `run(expanded, count)` in a
+fresh disposable Node worker, projects inert HTML, sends private `A1SCENE1` records
+to native Rust layout/paint, and packages the portable Wasm plus host binaries.
+The two profiles preserve grant/denial semantics; denial performs no protected
+backing read. Native layout, RGB painting, text anchors and independent headless
+hit-test/reflow primitives exist.
+
+What is **not** demonstrated: the A1 scene does not consume user-originated input;
+a guest event does not invoke a JS-defined UI service; no public JS/Rust shared
+view contract exists; text labels are not actually measured/rasterized as glyphs;
+there is no persistent update/repaint loop, DOM/CSS parsing or window system.
+The source compiler does not admit general runtime imports. The
+[compiled-capability probe](compiled-capability.md) calls generated numeric code
+from a handwritten WIT adapter; it does not lower a JS source call **to** WIT.
+
+### Proposed independently testable gates
+
+1. **Compiler/lowering: a real source-compiled WIT import (first prerequisite).**
+   At the next IR workstream boundary, after preserving its already active PRs,
+   prioritize an explicitly bound, statically known imported operation with
+   bounded scalar parameters/result and actual generated call/import. A narrow
+   registered import is acceptable before full JS modules, general strings,
+   heap objects or native component emission. Require paired JS/TS fixtures,
+   executable Rust/Wasmtime provider and supported Node-Wasm host path,
+   source-side evaluation order, missing/denied imports, unchanged host authority
+   and negative unsupported-module diagnostics. The compiled source must **call
+   the imported service**: a host adapter calling a pure `run` function doesn't pass.
+2. **Application-facing service: one small view/action WIT boundary.** Extend
+   from scalar import to the minimum owned typed record/validated resource needed
+   to set A1 outline expansion or visible count through a Rust-implemented service.
+   Define lifetime, IDs/handles, grants, errors and synchronous/async behavior
+   explicitly. Exercise the **same semantics** through idiomatic native Rust and
+   generated JS/TS bindings. Do not standardize DOM or final public API names based
+   on the private A1 wire format. Use per-operation WIT calls or coarse-grained
+   updates only as justified by measured marshalling cost.
+3. **Rendering/input: a genuine update cycle.** A headless event source (optionally
+   a thin viewer forwarding real pointer/keyboard input) targets an element via
+   existing native hit testing; a queued activation runs compiled JS logic; the
+   agreed UI service changes state; Rust reflows and paints the changed scene.
+   Add an explicit text measurement/glyph rasterization service so actual note
+   headings are readable, with declared font/Unicode limits and consistent
+   measure-versus-paint geometry. Verify pixels, text content/positions,
+   source mutation, and grant/deny read counts. No final Win32/Cocoa/Wayland/X11
+   adapter is required for the headless proof.
+4. **Cross-language and integration gate.** A Rust app using the same view/action
+   contract yields equivalent behavior under identical profiles, and the compiled
+   JS path genuinely uses a WIT service rather than duplicating a host selector.
+   Include actual CI coverage through the canonical test/impact selection, no
+   extra per-test Actions workflow. Keep portable Wasm payloads in the package.
+
+**Avoid as unrelated prerequisites:** complete JavaScript Promise/thenable
+coverage; full DOM/HTML parser/CSS cascade, layout conformance or shadow DOM;
+general JavaScript objects/GC; generalized plugin loader; parallel JS threads;
+native window manager or fully packaged desktop installer. These may be valuable
+platform features (see ADR 0018), but the chosen A1 input/state/frame test does
+not intrinsically require them. In particular, ordinary `async` does **not**
+authorize parallel execution: the proposed opt-in parallel-isolate task model is
+a separate future extension.
+
+**Ownership/priority:** The maintainer requested that the **IR/lowering stream**
+be steered toward concrete missing A1 prerequisites. Finishing the current
+independent IR PRs remains appropriate; prioritize the source-to-WIT call as a
+bounded next implementation candidate and coordinate the exact service with the
+A1/runtime and browser/layout owners before fixing an ABI. This document is
+not authorization to commandeer another stream or merge its PRs. A1 remains
+`Planned` until the observed integrated interaction and developer-facing
+acceptance are demonstrated.
