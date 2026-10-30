@@ -18,6 +18,8 @@ mod relational_tests;
 mod runtime_closure_tests;
 #[cfg(test)]
 mod settled_promise_tests;
+#[cfg(test)]
+mod stack_hygiene_tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct ValueId(pub usize);
