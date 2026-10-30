@@ -215,6 +215,14 @@ impl Emitter<'_> {
         self.set(result);
     }
 
+    // Async states are already flattened into sequences of atomic operations.
+    // Retain the shared interface without reintroducing region recursion.
+    fn operations(&mut self, operations: &[ir::Operation]) {
+        for operation in operations {
+            self.atomic_operation(operation);
+        }
+    }
+
     fn atomic_operation(&mut self, operation: &ir::Operation) {
         match &operation.kind {
             Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
