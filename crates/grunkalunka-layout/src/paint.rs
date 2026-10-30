@@ -177,84 +177,84 @@ fn paint_node(
             }
             continue;
         };
-    if !contains(geometry.margin, geometry.border)?
-        || !contains(geometry.border, geometry.padding)?
-        || !contains(geometry.padding, geometry.content)?
-    {
-        return Err(PaintError::InvalidBox { node: index });
-    }
+        if !contains(geometry.margin, geometry.border)?
+            || !contains(geometry.border, geometry.padding)?
+            || !contains(geometry.padding, geometry.content)?
+        {
+            return Err(PaintError::InvalidBox { node: index });
+        }
 
-    let border = geometry.border;
-    let padding = geometry.padding;
-    let border_right = border.right().ok_or(PaintError::Overflow)?;
-    let border_bottom = border.bottom().ok_or(PaintError::Overflow)?;
-    let padding_right = padding.right().ok_or(PaintError::Overflow)?;
-    let padding_bottom = padding.bottom().ok_or(PaintError::Overflow)?;
+        let border = geometry.border;
+        let padding = geometry.padding;
+        let border_right = border.right().ok_or(PaintError::Overflow)?;
+        let border_bottom = border.bottom().ok_or(PaintError::Overflow)?;
+        let padding_right = padding.right().ok_or(PaintError::Overflow)?;
+        let padding_bottom = padding.bottom().ok_or(PaintError::Overflow)?;
 
-    if frame.visibility[index]
-        && let Some(color) = nodes[index].background
-    {
-        canvas.fill(padding, color, ancestor_clip)?;
-    }
-    if frame.visibility[index]
-        && let Some(color) = nodes[index].border
-    {
-        canvas.fill(
-            Rect {
-                x: border.x,
-                y: border.y,
-                width: border.width,
-                height: padding.y - border.y,
-            },
-            color,
-            ancestor_clip,
-        )?;
-        canvas.fill(
-            Rect {
-                x: border.x,
-                y: padding_bottom,
-                width: border.width,
-                height: border_bottom - padding_bottom,
-            },
-            color,
-            ancestor_clip,
-        )?;
-        canvas.fill(
-            Rect {
-                x: border.x,
-                y: padding.y,
-                width: padding.x - border.x,
-                height: padding.height,
-            },
-            color,
-            ancestor_clip,
-        )?;
-        canvas.fill(
-            Rect {
-                x: padding_right,
-                y: padding.y,
-                width: border_right - padding_right,
-                height: padding.height,
-            },
-            color,
-            ancestor_clip,
-        )?;
-    }
-    // The box's own background and border are not affected by its *own*
-    // descendant clip; only its children inherit the clip at its padding edge.
-    // Intersecting with a prior ancestor clip never permits a grandchild to
-    // escape an older clipping boundary.
-    let child_clip = if frame.clip_descendants[index] {
-        Some(if let Some(previous) = ancestor_clip {
-            previous
-                .intersection(geometry.padding)
-                .ok_or(PaintError::Overflow)?
+        if frame.visibility[index]
+            && let Some(color) = nodes[index].background
+        {
+            canvas.fill(padding, color, ancestor_clip)?;
+        }
+        if frame.visibility[index]
+            && let Some(color) = nodes[index].border
+        {
+            canvas.fill(
+                Rect {
+                    x: border.x,
+                    y: border.y,
+                    width: border.width,
+                    height: padding.y - border.y,
+                },
+                color,
+                ancestor_clip,
+            )?;
+            canvas.fill(
+                Rect {
+                    x: border.x,
+                    y: padding_bottom,
+                    width: border.width,
+                    height: border_bottom - padding_bottom,
+                },
+                color,
+                ancestor_clip,
+            )?;
+            canvas.fill(
+                Rect {
+                    x: border.x,
+                    y: padding.y,
+                    width: padding.x - border.x,
+                    height: padding.height,
+                },
+                color,
+                ancestor_clip,
+            )?;
+            canvas.fill(
+                Rect {
+                    x: padding_right,
+                    y: padding.y,
+                    width: border_right - padding_right,
+                    height: padding.height,
+                },
+                color,
+                ancestor_clip,
+            )?;
+        }
+        // The box's own background and border are not affected by its *own*
+        // descendant clip; only its children inherit the clip at its padding edge.
+        // Intersecting with a prior ancestor clip never permits a grandchild to
+        // escape an older clipping boundary.
+        let child_clip = if frame.clip_descendants[index] {
+            Some(if let Some(previous) = ancestor_clip {
+                previous
+                    .intersection(geometry.padding)
+                    .ok_or(PaintError::Overflow)?
+            } else {
+                geometry.padding
+            })
         } else {
-            geometry.padding
-        })
-    } else {
-        ancestor_clip
-    };
+            ancestor_clip
+        };
         for &child in children[index].iter().rev() {
             pending.push((child, child_clip));
         }
