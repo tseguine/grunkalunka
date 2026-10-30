@@ -91,72 +91,91 @@ impl Writer {
     }
 
     fn value(&mut self, value: &JsonValue, depth: usize) -> Result<(), StringifyError> {
-        self.charge(1)?;
-        self.remaining_values = self
-            .remaining_values
-            .checked_sub(1)
-            .ok_or(StringifyError::Limit(StringifyLimit::Values))?;
-        match value {
-            JsonValue::Null => self.emit(&[110, 117, 108, 108]),
-            JsonValue::Boolean(true) => self.emit(&[116, 114, 117, 101]),
-            JsonValue::Boolean(false) => self.emit(&[102, 97, 108, 115, 101]),
-            JsonValue::Number(n) => {
-                if !n.is_finite() {
-                    return self.emit(&[110, 117, 108, 108]);
-                }
-                self.emit(
-                    &ryu_js::Buffer::new()
-                        .format_finite(*n)
-                        .encode_utf16()
-                        .collect::<Vec<_>>(),
-                )
-            }
-            JsonValue::String(units) => self.quote(units),
-            JsonValue::Array(values) => {
-                self.container(depth, values.len())?;
-                self.emit(&[91])?;
-                for (index, value) in values.iter().enumerate() {
-                    if index > 0 {
-                        self.emit(&[44])?;
-                    }
-                    self.value(value, depth + 1)?;
-                }
-                self.emit(&[93])
-            }
-            JsonValue::Object(entries) => {
-                self.container(depth, entries.len())?;
-                let count = entries.len();
-                if count > 1 {
-                    let levels = (usize::BITS - (count - 1).leading_zeros()) as usize;
-                    let ordering = count
-                        .checked_mul(levels)
-                        .ok_or(StringifyError::Limit(StringifyLimit::Work))?;
-                    self.charge(ordering)?;
-                }
-                let mut ordered = Vec::new();
-                for (index, (key, _)) in entries.iter().enumerate() {
-                    self.charge(key.len())?;
-                    for (previous, _) in &entries[..index] {
-                        self.charge(previous.len().min(key.len()) + 1)?;
-                        if previous == key {
-                            return Err(StringifyError::DuplicateKey);
+        // Schedule delimiters, keys and values in their original execution
+        // order, with heap-owned frames instead of recursive Rust calls.
+        enum Work<'a> {
+            Value(&'a JsonValue, usize),
+            Quote(&'a [u16]),
+            Unit(u16),
+        }
+
+        let mut pending = vec![Work::Value(value, depth)];
+        while let Some(work) = pending.pop() {
+            match work {
+                Work::Quote(key) => self.quote(key)?,
+                Work::Unit(unit) => self.emit(&[unit])?,
+                Work::Value(value, depth) => {
+                    self.charge(1)?;
+                    self.remaining_values = self
+                        .remaining_values
+                        .checked_sub(1)
+                        .ok_or(StringifyError::Limit(StringifyLimit::Values))?;
+                    match value {
+                        JsonValue::Null => self.emit(&[110, 117, 108, 108])?,
+                        JsonValue::Boolean(true) => self.emit(&[116, 114, 117, 101])?,
+                        JsonValue::Boolean(false) => self.emit(&[102, 97, 108, 115, 101])?,
+                        JsonValue::Number(n) => {
+                            if !n.is_finite() {
+                                self.emit(&[110, 117, 108, 108])?;
+                            } else {
+                                self.emit(
+                                    &ryu_js::Buffer::new()
+                                        .format_finite(*n)
+                                        .encode_utf16()
+                                        .collect::<Vec<_>>(),
+                                )?;
+                            }
+                        }
+                        JsonValue::String(units) => self.quote(units)?,
+                        JsonValue::Array(values) => {
+                            self.container(depth, values.len())?;
+                            self.emit(&[91])?;
+                            pending.push(Work::Unit(93));
+                            for (index, child) in values.iter().enumerate().rev() {
+                                pending.push(Work::Value(child, depth + 1));
+                                if index > 0 {
+                                    pending.push(Work::Unit(44));
+                                }
+                            }
+                        }
+                        JsonValue::Object(entries) => {
+                            self.container(depth, entries.len())?;
+                            let count = entries.len();
+                            if count > 1 {
+                                let levels = (usize::BITS - (count - 1).leading_zeros()) as usize;
+                                let ordering = count
+                                    .checked_mul(levels)
+                                    .ok_or(StringifyError::Limit(StringifyLimit::Work))?;
+                                self.charge(ordering)?;
+                            }
+                            let mut ordered = Vec::new();
+                            for (index, (key, _)) in entries.iter().enumerate() {
+                                self.charge(key.len())?;
+                                for (previous, _) in &entries[..index] {
+                                    self.charge(previous.len().min(key.len()) + 1)?;
+                                    if previous == key {
+                                        return Err(StringifyError::DuplicateKey);
+                                    }
+                                }
+                                ordered.push((array_index(key).map_or((1, 0), |n| (0, n)), &entries[index]));
+                            }
+                            ordered.sort_by_key(|(order, _)| *order);
+                            self.emit(&[123])?;
+                            pending.push(Work::Unit(125));
+                            for (index, (_, (key, child))) in ordered.into_iter().enumerate().rev() {
+                                pending.push(Work::Value(child, depth + 1));
+                                pending.push(Work::Unit(58));
+                                pending.push(Work::Quote(key));
+                                if index > 0 {
+                                    pending.push(Work::Unit(44));
+                                }
+                            }
                         }
                     }
-                    ordered.push((array_index(key).map_or((1, 0), |n| (0, n)), &entries[index]));
                 }
-                ordered.sort_by_key(|(order, _)| *order);
-                self.emit(&[123])?;
-                for (index, (_, (key, value))) in ordered.into_iter().enumerate() {
-                    if index > 0 {
-                        self.emit(&[44])?;
-                    }
-                    self.quote(key)?;
-                    self.emit(&[58])?;
-                    self.value(value, depth + 1)?;
-                }
-                self.emit(&[125])
             }
         }
+        Ok(())
     }
 
     fn quote(&mut self, units: &[u16]) -> Result<(), StringifyError> {

@@ -133,97 +133,150 @@ impl Parser<'_> {
             false
         }
     }
-    fn value(&mut self, depth: usize) -> Result<JsonValue, ParseError> {
+    fn object_key(&mut self) -> Result<Vec<u16>, ParseError> {
         self.space();
-        self.charge(1)?;
-        self.remaining_values = self
-            .remaining_values
-            .checked_sub(1)
-            .ok_or_else(|| self.limit(Limit::Values))?;
-        let rest = &self.text[self.pos..];
-        for (literal, value) in [
-            (&[110, 117, 108, 108][..], JsonValue::Null),
-            (&[116, 114, 117, 101][..], JsonValue::Boolean(true)),
-            (&[102, 97, 108, 115, 101][..], JsonValue::Boolean(false)),
-        ] {
-            if rest.starts_with(literal) {
-                self.pos += literal.len();
-                return Ok(value);
-            }
+        let (consumed, key) = quoted(&self.text[self.pos..]).ok_or_else(|| self.error())?;
+        self.pos += consumed;
+        self.space();
+        if !self.take(58) {
+            return Err(self.error());
         }
-        if self.take(91) {
-            if depth >= self.limits.max_depth {
-                return Err(self.limit(Limit::Depth));
-            }
+        Ok(key)
+    }
+
+    fn value(&mut self, depth: usize) -> Result<JsonValue, ParseError> {
+        // Keep incomplete containers on the heap, not the native call stack.
+        // The stack length is also the number of active nonempty containers.
+        enum Frame {
+            Array(Vec<JsonValue>),
+            Object {
+                entries: Vec<(Vec<u16>, JsonValue)>,
+                key: Vec<u16>,
+            },
+        }
+
+        let mut frames = Vec::new();
+        let mut depth = depth;
+        loop {
             self.space();
-            let mut values = Vec::new();
-            if self.take(93) {
-                return Ok(JsonValue::Array(values));
-            }
-            loop {
-                values.push(self.value(depth + 1)?);
+            self.charge(1)?;
+            self.remaining_values = self
+                .remaining_values
+                .checked_sub(1)
+                .ok_or_else(|| self.limit(Limit::Values))?;
+            let rest = &self.text[self.pos..];
+            let literal = [
+                (&[110, 117, 108, 108][..], JsonValue::Null),
+                (&[116, 114, 117, 101][..], JsonValue::Boolean(true)),
+                (&[102, 97, 108, 115, 101][..], JsonValue::Boolean(false)),
+            ]
+            .into_iter()
+            .find(|(token, _)| rest.starts_with(token));
+            let mut value = if let Some((token, value)) = literal {
+                self.pos += token.len();
+                value
+            } else if self.take(91) {
+                if depth >= self.limits.max_depth {
+                    return Err(self.limit(Limit::Depth));
+                }
                 self.space();
                 if self.take(93) {
-                    return Ok(JsonValue::Array(values));
-                }
-                if !self.take(44) {
-                    return Err(self.error());
-                }
-            }
-        }
-        if self.take(123) {
-            if depth >= self.limits.max_depth {
-                return Err(self.limit(Limit::Depth));
-            }
-            self.space();
-            let mut entries: Vec<(Vec<u16>, JsonValue)> = Vec::new();
-            if self.take(125) {
-                return Ok(JsonValue::Object(entries));
-            }
-            loop {
-                self.space();
-                let (consumed, key) = quoted(&self.text[self.pos..]).ok_or_else(|| self.error())?;
-                self.pos += consumed;
-                self.space();
-                if !self.take(58) {
-                    return Err(self.error());
-                }
-                let value = self.value(depth + 1)?;
-                let mut found = None;
-                for (index, (existing, _)) in entries.iter().enumerate() {
-                    self.charge(existing.len().min(key.len()) + 1)?;
-                    if existing == &key {
-                        found = Some(index);
-                        break;
-                    }
-                }
-                if let Some(index) = found {
-                    entries[index].1 = value;
+                    JsonValue::Array(Vec::new())
                 } else {
-                    entries.push((key, value));
+                    frames.push(Frame::Array(Vec::new()));
+                    depth += 1;
+                    continue;
+                }
+            } else if self.take(123) {
+                if depth >= self.limits.max_depth {
+                    return Err(self.limit(Limit::Depth));
                 }
                 self.space();
                 if self.take(125) {
-                    return Ok(JsonValue::Object(entries));
+                    JsonValue::Object(Vec::new())
+                } else {
+                    let key = self.object_key()?;
+                    frames.push(Frame::Object {
+                        entries: Vec::new(),
+                        key,
+                    });
+                    depth += 1;
+                    continue;
                 }
-                if !self.take(44) {
-                    return Err(self.error());
+            } else if rest.first() == Some(&34) {
+                let (consumed, value) = quoted(rest).ok_or_else(|| self.error())?;
+                self.pos += consumed;
+                JsonValue::String(value)
+            } else {
+                let end = self.text[self.pos..]
+                    .iter()
+                    .position(|u| matches!(*u, 9 | 10 | 13 | 32 | 44 | 93 | 125))
+                    .map_or(self.text.len(), |i| self.pos + i);
+                let value = number(&self.text[self.pos..end]).ok_or_else(|| self.error())?;
+                self.pos = end;
+                JsonValue::Number(value)
+            };
+
+            // Complete containers from the innermost outward. A comma
+            // suspends this reduction so the next loop parses a sibling.
+            loop {
+                let Some(frame) = frames.last_mut() else {
+                    return Ok(value);
+                };
+                match frame {
+                    Frame::Array(values) => {
+                        values.push(value);
+                        self.space();
+                        if self.take(93) {
+                            let Some(Frame::Array(values)) = frames.pop() else {
+                                unreachable!("array frame")
+                            };
+                            value = JsonValue::Array(values);
+                            depth -= 1;
+                        } else if self.take(44) {
+                            break;
+                        } else {
+                            return Err(self.error());
+                        }
+                    }
+                    Frame::Object { entries, key } => {
+                        let key = std::mem::take(key);
+                        let mut found = None;
+                        for (index, (existing, _)) in entries.iter().enumerate() {
+                            self.charge(existing.len().min(key.len()) + 1)?;
+                            if existing == &key {
+                                found = Some(index);
+                                break;
+                            }
+                        }
+                        if let Some(index) = found {
+                            entries[index].1 = value;
+                        } else {
+                            entries.push((key, value));
+                        }
+                        self.space();
+                        if self.take(125) {
+                            let Some(Frame::Object { entries, .. }) = frames.pop() else {
+                                unreachable!("object frame")
+                            };
+                            value = JsonValue::Object(entries);
+                            depth -= 1;
+                        } else if self.take(44) {
+                            let next_key = self.object_key()?;
+                            let Some(Frame::Object { key, .. }) = frames.last_mut() else {
+                                unreachable!("object frame")
+                            };
+                            *key = next_key;
+                            break;
+                        } else {
+                            return Err(self.error());
+                        }
+                    }
                 }
             }
         }
-        if rest.first() == Some(&34) {
-            let (consumed, value) = quoted(rest).ok_or_else(|| self.error())?;
-            self.pos += consumed;
-            return Ok(JsonValue::String(value));
-        }
-        let end = self.text[self.pos..]
-            .iter()
-            .position(|u| matches!(*u, 9 | 10 | 13 | 32 | 44 | 93 | 125))
-            .map_or(self.text.len(), |i| self.pos + i);
-        let value = number(&self.text[self.pos..end]).ok_or_else(|| self.error())?;
-        self.pos = end;
-        Ok(JsonValue::Number(value))
     }
+
 }
 
 fn quoted(text: &[u16]) -> Option<(usize, Vec<u16>)> {
