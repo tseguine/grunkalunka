@@ -185,6 +185,23 @@ independent validation and required check behavior until a safe replacement is
 proven. Do not silently remove coverage, fake a passing check, or weaken full
 `master` validation or fail-closed PR selection.
 
+## Native-stack hygiene
+
+For traversals whose maximum depth depends on source text, AST or generated IR,
+prefer iterative control flow with heap-owned work/continuation stacks. Use native
+recursion only with a proven **O(1) or O(log n) maximum call depth**, bounded
+inputs and exercised stack limits on supported hosts. This is a bound on call
+**depth**, not total algorithmic runtime. Tail-recursive formulations are
+preferable when recursion is warranted, but **Rust does not guarantee TCO**;
+a tail call must not be treated as a safe constant-stack loop.
+
+Keep source-depth, generated-region, native-stack and guest Wasm stack/fuel
+budgets separate. Limit exhaustion must produce a controlled diagnostic rather
+than a process crash. Stress admitted boundaries and just-past-limit rejections
+on the Windows and Linux CI hosts. Do not conceal native-stack problems by
+raising thread stacks, weakening acceptance, or serializing the entire suite.
+Record cross-phase findings in [stack-depth hygiene #281](https://github.com/tseguine/grunkalunka/issues/281).
+
 ## Formatting before commits
 
 Before committing Rust code, run `cargo fmt --all` from the repository root, then

@@ -18,6 +18,8 @@ mod relational_tests;
 mod runtime_closure_tests;
 #[cfg(test)]
 mod settled_promise_tests;
+#[cfg(test)]
+mod stack_hygiene_tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct ValueId(pub usize);
@@ -316,36 +318,47 @@ pub(crate) enum Nullish {
     Null,
 }
 
+/// Visit each operation in source-region preorder without consuming native
+/// call stack proportional to nested IR control flow. Sibling child regions
+/// retain the original ordering (e.g. condition, body, then step).
+///
+/// This is a traversal guarantee, not a change to the admitted source depth,
+/// verifier budgets, or recursion in other compiler phases.
 pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
-    for operation in &region.operations {
+    let mut pending = vec![region.operations.iter()];
+    while let Some(iter) = pending.last_mut() {
+        let Some(operation) = iter.next() else {
+            pending.pop();
+            continue;
+        };
         visit(&operation.kind);
         match &operation.kind {
             Op::InlineCall { body, .. }
             | Op::AwaitCall { body, .. }
             | Op::SettlePromise { body, .. }
-            | Op::Block(body) => visit_operations(body, visit),
+            | Op::Block(body) => pending.push(body.operations.iter()),
             Op::If {
                 consequent,
                 alternate,
                 ..
             } => {
-                visit_operations(consequent, visit);
-                visit_operations(alternate, visit);
+                pending.push(alternate.operations.iter());
+                pending.push(consequent.operations.iter());
             }
             Op::While {
                 condition,
                 body,
                 step,
             } => {
-                visit_operations(condition, visit);
-                visit_operations(body, visit);
                 if let Some(step) = step {
-                    visit_operations(step, visit);
+                    pending.push(step.operations.iter());
                 }
+                pending.push(body.operations.iter());
+                pending.push(condition.operations.iter());
             }
             Op::TryCatch { body, handler, .. } => {
-                visit_operations(body, visit);
-                visit_operations(handler, visit);
+                pending.push(handler.operations.iter());
+                pending.push(body.operations.iter());
             }
             Op::TryFinally {
                 body,
@@ -353,13 +366,13 @@ pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
                 continuation,
                 ..
             } => {
-                visit_operations(body, visit);
-                visit_operations(finalizer, visit);
-                visit_operations(continuation, visit);
+                pending.push(continuation.operations.iter());
+                pending.push(finalizer.operations.iter());
+                pending.push(body.operations.iter());
             }
             Op::DoWhile { body, condition } => {
-                visit_operations(body, visit);
-                visit_operations(condition, visit);
+                pending.push(condition.operations.iter());
+                pending.push(body.operations.iter());
             }
             _ => (),
         }
