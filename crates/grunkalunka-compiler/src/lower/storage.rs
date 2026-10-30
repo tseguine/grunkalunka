@@ -121,7 +121,6 @@ fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Compl
     values.pop().expect("one completed shape")
 }
 
-
 pub(super) fn arrow_returns<'n, 'a: 'n>(
     arrow: &'n oxc_ast::ast::ArrowFunctionExpression<'a>,
     semantic: &Semantic<'a>,
