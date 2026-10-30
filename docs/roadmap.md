@@ -28,6 +28,14 @@ serve that developer experience; they are not the product pitch by themselves.
 - Familiar Node/Bun build workflows for application authors.
 - Portability across hosts and environments wherever reasonably practical.
 
+The proposed [component-composed environment architecture](adr/0018-component-composed-environments.md)
+explores Rust/JS/TS parity for WIT service APIs, WASI-based application services,
+provider/shim extensibility, window/view/surface separation, worker/async/opt-in
+parallel execution, explicit trust/process placement and reduced cross-boundary
+marshalling. These are proposed principles, **not** adopted public APIs or
+new implementation assignments. The near-term [A1 acceptance gate](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
+selects a small source-compiled WIT UI call and real interaction before generalizing.
+
 Type annotations cannot by themselves justify changing observable JavaScript
 behavior. A narrow lowering experiment may reject features it cannot implement;
 that experimental restriction is not a decision to make the platform a TS subset.
