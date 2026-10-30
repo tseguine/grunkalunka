@@ -63,6 +63,73 @@ fn is_type_module_item(statement: &Statement<'_>) -> bool {
         }
 }
 
+// Keep A1-only import validation out of the ordinary compiler's stack frame.
+// Deep-source admission tests deliberately run with a 2 MiB native stack.
+#[inline(never)]
+fn resolve_a1_ui_import(
+    program: &oxc_ast::ast::Program<'_>,
+    semantic: &oxc_semantic::Semantic<'_>,
+) -> Result<oxc_semantic::SymbolId, String> {
+    // This is an explicit build-time registry with precisely one runtime
+    // binding, NOT general ES module resolution or an ambient host grant.
+    let imports: Vec<_> = program
+        .body
+        .iter()
+        .filter_map(|statement| match statement {
+            Statement::ImportDeclaration(import)
+                if import.import_kind == ImportOrExportKind::Value =>
+            {
+                Some(import.as_ref())
+            }
+            _ => None,
+        })
+        .collect();
+    if imports.len() != 1 {
+        return Err(unsupported(
+            program,
+            "A1 UI profile needs exactly one runtime import",
+        ));
+    }
+    let import = imports[0];
+    if import.source.value.as_str() != Some("grunkalunka:a1/ui")
+        || import.with_clause.is_some()
+        || import.phase.is_some()
+    {
+        return Err(unsupported(import, "unknown A1 UI service import"));
+    }
+    let specifiers = import
+        .specifiers
+        .as_ref()
+        .ok_or_else(|| unsupported(import, "expected one named A1 UI import"))?;
+    let [ImportDeclarationSpecifier::ImportSpecifier(specifier)] = specifiers.as_slice() else {
+        return Err(unsupported(import, "expected one named A1 UI import"));
+    };
+    let ModuleExportName::IdentifierName(name) = &specifier.imported else {
+        return Err(unsupported(import, "expected selectVisible binding"));
+    };
+    if name.name.as_str() != "selectVisible"
+        || specifier.import_kind != ImportOrExportKind::Value
+    {
+        return Err(unsupported(import, "expected selectVisible binding"));
+    }
+    let symbol = specifier
+        .local
+        .symbol_id
+        .get()
+        .ok_or("missing A1 service import binding")?;
+    if semantic
+        .scoping()
+        .get_resolved_references(symbol)
+        .any(|reference| reference.is_write())
+    {
+        return Err(unsupported(
+            import,
+            "writes to A1 service bindings are not admitted",
+        ));
+    }
+    Ok(symbol)
+}
+
 fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
     lower_source_with_entry_type(source, typescript, ir::Type::Number)
 }
@@ -122,65 +189,7 @@ fn lower_source_profile_with_identities(
     }
     let program = &parsed.program;
     let ui_import = if ui_service {
-        // This is an explicit build-time registry with precisely one runtime
-        // binding, NOT general ES module resolution or an ambient host grant.
-        let imports: Vec<_> = program
-            .body
-            .iter()
-            .filter_map(|statement| match statement {
-                Statement::ImportDeclaration(import)
-                    if import.import_kind == ImportOrExportKind::Value =>
-                {
-                    Some(import.as_ref())
-                }
-                _ => None,
-            })
-            .collect();
-        if imports.len() != 1 {
-            return Err(unsupported(
-                program,
-                "A1 UI profile needs exactly one runtime import",
-            ));
-        }
-        let import = imports[0];
-        if import.source.value.as_str() != Some("grunkalunka:a1/ui")
-            || import.with_clause.is_some()
-            || import.phase.is_some()
-        {
-            return Err(unsupported(import, "unknown A1 UI service import"));
-        }
-        let specifiers = import
-            .specifiers
-            .as_ref()
-            .ok_or_else(|| unsupported(import, "expected one named A1 UI import"))?;
-        let [ImportDeclarationSpecifier::ImportSpecifier(specifier)] = specifiers.as_slice() else {
-            return Err(unsupported(import, "expected one named A1 UI import"));
-        };
-        let ModuleExportName::IdentifierName(name) = &specifier.imported else {
-            return Err(unsupported(import, "expected selectVisible binding"));
-        };
-        if name.name.as_str() != "selectVisible"
-            || specifier.import_kind != ImportOrExportKind::Value
-        {
-            return Err(unsupported(import, "expected selectVisible binding"));
-        }
-        let symbol = specifier
-            .local
-            .symbol_id
-            .get()
-            .ok_or("missing A1 service import binding")?;
-        if built
-            .semantic
-            .scoping()
-            .get_resolved_references(symbol)
-            .any(|reference| reference.is_write())
-        {
-            return Err(unsupported(
-                import,
-                "writes to A1 service bindings are not admitted",
-            ));
-        }
-        Some(symbol)
+        Some(resolve_a1_ui_import(program, &built.semantic)?)
     } else {
         None
     };
