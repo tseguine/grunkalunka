@@ -884,6 +884,38 @@ enum RegionCheck<'a> {
     Complete(Completion),
 }
 
+// A sufficient (not exhaustive) proof that the protected body cannot enter its
+// catch. A call, await, coercion, nested control region or explicit throw must
+// retain the conservative handler completion: even a syntactic return may fail
+// while evaluating its value. This is independent of the handler's validity;
+// the verifier still checks the handler before composing the two completions.
+fn protected_region_cannot_throw(region: &Region) -> bool {
+    matches!(region.exit, Exit::Fallthrough | Exit::Return(_))
+        && region.operations.iter().all(|operation| {
+            matches!(
+                &operation.kind,
+                Op::AwaitSite { .. }
+                    | Op::Nullish { .. }
+                    | Op::Not { .. }
+                    | Op::Boolean { .. }
+                    | Op::Constant { .. }
+                    | Op::Load { .. }
+                    | Op::Initialize { .. }
+                    | Op::Store { .. }
+                    | Op::Pack { .. }
+                    | Op::Unary { .. }
+                    | Op::Binary { .. }
+                    | Op::Compare { .. }
+                    | Op::NumberFromPredicate { .. }
+                    | Op::Truthy { .. }
+                    | Op::GeneralTruthy { .. }
+                    | Op::GeneralIsNullish { .. }
+                    | Op::PrimitiveStrictEqual { .. }
+                    | Op::PromiseIdentityEqual { .. }
+            )
+        })
+}
+
 impl Verifier<'_> {
     fn value(
         &self,
@@ -1613,8 +1645,18 @@ impl Verifier<'_> {
                     frame.pending = PendingRegion::TryHandler(body);
                     return Ok(RegionCheck::Child(child));
                 }
-                (Op::TryCatch { .. }, PendingRegion::TryHandler(body)) => {
-                    body.caught_by(completed.take().expect("checked handler"))
+                (
+                    Op::TryCatch {
+                        body: protected, ..
+                    },
+                    PendingRegion::TryHandler(body),
+                ) => {
+                    let handler = completed.take().expect("checked handler");
+                    if protected_region_cannot_throw(protected) {
+                        body
+                    } else {
+                        body.caught_by(handler)
+                    }
                 }
                 (
                     Op::TryFinally {
@@ -4545,6 +4587,32 @@ mod catch_value_tests {
                 verify_module_with_entry_type(&module, Type::General).is_err(),
                 "mutation {change}"
             );
+        }
+    }
+
+    #[test]
+    fn catch_completion_excludes_unreachable_handlers_only_for_nonthrowing_paths() {
+        for (protected, expected) in [
+            ("return a;", true),
+            ("return a + b;", true),
+            ("return await a;", false),
+            ("throw a;", false),
+        ] {
+            let source = format!(
+                "export async function run(a,b){{try{{{protected}}}catch(e){{return b;}}}}"
+            );
+            let mut module =
+                crate::lower_source_profile(&source, false, Type::General, true).unwrap();
+            verify_module_with_entry_type(&module, Type::General).unwrap();
+            let Op::TryCatch { handler, .. } = &mut module.functions[0].body.operations[0].kind
+            else {
+                panic!("try/catch");
+            };
+            // The handler is still verified, but its completion should only
+            // affect a root's return guarantee when it can be entered.
+            handler.exit = Exit::Fallthrough;
+            let result = verify_module_with_entry_type(&module, Type::General);
+            assert_eq!(result.is_ok(), expected, "{protected}: {result:?}");
         }
     }
 }
