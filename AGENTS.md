@@ -185,6 +185,15 @@ independent validation and required check behavior until a safe replacement is
 proven. Do not silently remove coverage, fake a passing check, or weaken full
 `master` validation or fail-closed PR selection.
 
+## Formatting before commits
+
+Before committing Rust code, run `cargo fmt --all` from the repository root, then
+`cargo fmt --all --check`. If changing the separate frontend spike, also run
+`cargo fmt --manifest-path spikes/001-frontend-semantics/Cargo.toml` and its
+`--check` counterpart. GitHub API edits do not invoke local Git hooks, so agents
+must perform or verify formatting independently rather than relying on the
+repository's optional pre-commit hook. Do not claim a check ran unless it did.
+
 ## Verification and merging
 
 Use the current [CI contract](docs/ci.md), [testing plan](docs/testing.md) and
