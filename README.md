@@ -31,6 +31,13 @@ cargo build --workspace --locked --offline
 node scripts/check.mjs
 ```
 
+To opt in to the lightweight Rust formatting pre-commit check, run
+`chmod +x .githooks/pre-commit && git config --local core.hooksPath .githooks`
+on macOS/Linux (or ensure the hook is executable in your Git environment).
+The hook checks formatting for the main workspace and frontend spike; it does
+not format files automatically. GitHub API commits bypass local hooks, so agents
+must run `cargo fmt --all` themselves before committing Rust changes.
+
 The complete check includes formatting, Clippy, workspace tests, dependency
 screening, the historical frontend observations, the JSON guest on Node and
 Wasmtime, and the differential regression corpus. [CI](docs/ci.md) runs the canonical check on Linux and Windows for `master`
