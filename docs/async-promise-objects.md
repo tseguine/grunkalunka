@@ -233,8 +233,9 @@ The saved read retains that assignment's value even when later writes change the
 variable. This refines the reason domain without changing handle identity, jobs,
 handling, effects, carriers or parameter/capture proofs. Ancestor and write queries
 are iterative. This is not a general reaching-definition analysis: mutually
-exclusive branches can still lose precision, and Promise assignment in a scalar
-logical-expression position remains a separate admission gap. Maintained JS/TS
+exclusive branches can still lose precision. Promise assignments in discarded
+logical expressions retain their selected effects; see
+[discarded logical expressions](discarded-logical.md). Maintained JS/TS
 native-JS/Node-Wasm/Wasmtime tests cover overwrites, contained blocks, raw identity,
 primitive payloads, conditional writes, loops, captured writers, prior activations,
 RHS self-reads, erased types and existing source limits.
