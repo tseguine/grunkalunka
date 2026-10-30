@@ -49,8 +49,8 @@ fn assigned_promise_snapshots_preserve_raw_reasons_and_primitive_payloads() {
 
 #[test]
 fn assigned_promise_snapshots_retain_conditional_and_nested_write_uncertainty() {
-    assert!(compile_async("export async function run(a,b){let q=Promise.resolve(b);a&&(q=Promise.resolve(a));return await q;}",false).is_err());
     compare_snapshots(&[
+        "export async function run(a,b){let q=Promise.resolve(b);a&&(q=Promise.resolve(a));return await q;}",
         "export async function run(a,b){const p=Promise.resolve(a);let q=Promise.resolve(b);q=Promise.reject(b);try{await q;}catch{}if(a)q=Promise.reject(p);const alias=q;q=Promise.resolve(b);try{await alias;}catch(e){return e;}}",
         "export async function run(a,b){const p=Promise.resolve(a);let q=Promise.reject(p);try{await q;}catch{}if(a)q=Promise.reject(b);const alias=q;q=Promise.resolve(b);try{await alias;}catch(e){return e;}}",
         "export async function run(a,b){const p=Promise.resolve(a);let q=Promise.reject(p);try{await q;}catch{}if(a){q=Promise.reject(b);}const alias=q;q=Promise.resolve(b);try{await alias;}catch(e){return e;}}",
