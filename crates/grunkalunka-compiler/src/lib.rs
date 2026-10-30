@@ -284,6 +284,15 @@ fn lower_source_profile_with_identities(
         );
         let mut changed = false;
         for (index, signature) in signatures.iter_mut().enumerate() {
+            if index != 0
+                && entry_type != ir::Type::Number
+                && signature.async_signature.is_none()
+                && signature.return_type == ir::Type::Number
+                && bindings.general_functions.contains(&signature.symbol)
+            {
+                signature.return_type = ir::Type::General;
+                changed = true;
+            }
             let Some(previous) = signature.async_signature else {
                 continue;
             };

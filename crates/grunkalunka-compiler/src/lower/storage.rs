@@ -227,6 +227,22 @@ pub(super) fn number_result_shape<'a>(
                 }
             }
             Expression::CallExpression(call) => {
+                // Module signatures take precedence over the optimistic local
+                // callback proof used while closure bindings are still converging.
+                if let Some(Expression::Identifier(identifier)) =
+                    closures::unwrapped(&call.callee, depth + 1)
+                    && let Some(symbol) = identifier.reference_id.get().and_then(|reference| {
+                        semantic.scoping().get_reference(reference).symbol_id()
+                    })
+                    && let Some(function) = functions.iter().find(|function| {
+                        function.symbol == symbol && function.async_signature.is_none()
+                    })
+                {
+                    if function.return_type != Type::Number {
+                        return false;
+                    }
+                    continue;
+                }
                 if let NumberCalls::Proven(known) = calls
                     && known.contains(&call.node_id.get())
                 {
@@ -299,6 +315,8 @@ pub(crate) struct BindingKinds {
     pub(crate) general_results: BTreeSet<NodeId>,
     pub(crate) settled_results: BTreeSet<NodeId>,
     pub(crate) async_results: BTreeSet<NodeId>,
+    // Synchronous module helper results that cannot keep the Number interface.
+    pub(crate) general_functions: BTreeSet<SymbolId>,
 }
 
 pub(crate) fn general_mutable_bindings(
@@ -923,7 +941,11 @@ pub(crate) fn general_mutable_bindings(
                         semantic,
                         functions,
                         NumberCalls::Proven(&number_calls),
-                        |callee| !storage.contains(&callee),
+                        |callee| {
+                            !storage.contains(&callee)
+                                && (targets.contains_key(&callee)
+                                    || numeric_callbacks.contains(&callee))
+                        },
                         |input| numbers.contains(&input) && !callback_formals.contains(&input),
                     )
             }) {
@@ -970,6 +992,39 @@ pub(crate) fn general_mutable_bindings(
             break;
         }
     }
+    let general_functions = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let AstKind::Function(function) = node.kind() else {
+                return None;
+            };
+            let symbol = function.id.as_ref()?.symbol_id.get()?;
+            if function.r#async || !functions.iter().skip(1).any(|f| f.symbol == symbol) {
+                return None;
+            }
+            let number = block_results::return_statements(semantic, function.node_id.get())
+                .iter()
+                .all(|statement| {
+                    statement.argument.as_ref().is_some_and(|expression| {
+                        number_result_shape(
+                            expression,
+                            0,
+                            semantic,
+                            functions,
+                            NumberCalls::Proven(&number_calls),
+                            |callee| {
+                                !storage.contains(&callee)
+                                    && (targets.contains_key(&callee)
+                                        || numeric_callbacks.contains(&callee))
+                            },
+                            |input| numbers.contains(&input) && !callback_formals.contains(&input),
+                        )
+                    })
+                });
+            (!number).then_some(symbol)
+        })
+        .collect();
     BindingKinds {
         storage,
         inputs,
@@ -977,5 +1032,6 @@ pub(crate) fn general_mutable_bindings(
         general_results,
         settled_results,
         async_results,
+        general_functions,
     }
 }
