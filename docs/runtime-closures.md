@@ -617,3 +617,27 @@ module declarations now support static `.length`. The Number result counts
 ordinary parameters while retaining receiver effects and leaving bodies dormant.
 Capture cells and hidden ABI inputs do not count. Other function-object/property
 domains remain separate gaps; see [the contract](function-length.md).
+
+## Shared scalar Promise inputs
+
+In the async identity profile, source-known arrow constructors sharing a value
+now join corresponding scalar input carriers before full signatures are checked.
+A direct call may give one constructor a Promise input while a peer is called
+only with primitives or has an unused formal. That difference no longer prevents
+their selection or assignment when the existing mixed carrier can represent both.
+Fully Promise-proved families retain their homogeneous carrier. Aliases, inline choices,
+callbacks, overlapping value families and returned constructors participate;
+factory-return discovery uses the existing eight-frame query bound.
+
+The slot still has one fixed complete signature. Different arities, incompatible
+callback domains or result/execution kinds, unsupported bodies and mixed
+function/scalar storage keep their checks. Function-valued formals follow the
+callback signature path. Bodies must still validate against their joined inputs;
+this does not add String-producing Promise conversions or a universal value kind.
+
+The query executes no source call and changes no runtime frame or ABI. The
+existing cursor snapshots the callee before ordered arguments, including an
+argument that reassigns it, and keeps async prefixes, captures and primitive bits.
+JS/TS native-JS/Node-Wasm/Wasmtime tests cover those effects, active numeric input
+consumers, callbacks, mixed results, unused factories, typed byte identity,
+1,000-parameter last-position inputs, source limits and incompatible signatures.

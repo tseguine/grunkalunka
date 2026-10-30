@@ -407,6 +407,84 @@ pub(crate) fn parameters(
         targets: &targets,
         arrows: &arrows,
     };
+    // Constructors stored in one value require the same scalar input carrier.
+    // Function-valued formals remain on the separate callback signature path.
+    let mut constructor_groups: BTreeSet<_> = targets
+        .values()
+        .filter(|bodies| bodies.len() > 1)
+        .cloned()
+        .collect();
+    for call in &calls {
+        if let Some(bodies) =
+            input_callees(&call.callee, &returns, identities.then_some(&named_async))
+            && bodies.len() > 1
+        {
+            constructor_groups.insert(bodies);
+        }
+    }
+    // Returned constructors need a common interface even when their factory is unused.
+    // Match the existing eight-frame scalar interface/return query boundary.
+    let mut frontier = constructor_groups.clone();
+    frontier.extend(arrows.keys().map(|body| BTreeSet::from([*body])));
+    for _ in 0..8 {
+        let mut next = BTreeSet::new();
+        for group in &frontier {
+            let mut returned = BTreeSet::new();
+            for body in group {
+                if let Some(expressions) = storage::arrow_returns(arrows[body], semantic) {
+                    for expression in expressions {
+                        let (sources, constructors) =
+                            returns.expression(expression, &BTreeMap::new(), 0, 0);
+                        returned.extend(constructors);
+                        for source in sources {
+                            if let Some(known) = targets.get(&source) {
+                                returned.extend(known);
+                            }
+                        }
+                    }
+                }
+            }
+            if returned.len() > 1 {
+                constructor_groups.insert(returned.clone());
+            }
+            if !returned.is_empty() {
+                next.insert(returned);
+            }
+        }
+        if next.is_empty() {
+            break;
+        }
+        frontier = next;
+    }
+    let mut parameter_groups = BTreeSet::new();
+    for bodies in &constructor_groups {
+        let count = arrows[bodies.first().unwrap()].params.items.len();
+        if bodies
+            .iter()
+            .any(|body| arrows[body].params.items.len() != count)
+        {
+            continue;
+        }
+        for index in 0..count {
+            let group: BTreeSet<_> = bodies
+                .iter()
+                .filter_map(|body| {
+                    let BindingPattern::BindingIdentifier(binding) =
+                        &arrows[body].params.items[index].pattern
+                    else {
+                        return None;
+                    };
+                    binding
+                        .symbol_id
+                        .get()
+                        .filter(|symbol| !targets.contains_key(symbol))
+                })
+                .collect();
+            if group.len() == bodies.len() {
+                parameter_groups.insert(group);
+            }
+        }
+    }
     let mut named_incoming = Vec::new();
     if identities {
         // Actual inputs join the same original-source provenance graph as local
@@ -712,6 +790,17 @@ pub(crate) fn parameters(
                         })
                         .collect();
                     inputs.mixed.extend(mixed);
+                    for group in &parameter_groups {
+                        if group.is_disjoint(&inputs.choices) {
+                            continue;
+                        }
+                        let mixed = !group.is_disjoint(&inputs.mixed)
+                            || group.iter().any(|symbol| !inputs.values.contains(symbol));
+                        inputs.choices.extend(group);
+                        if mixed {
+                            inputs.mixed.extend(group);
+                        }
+                    }
                     for (id, arrow) in &arrows {
                         let expressions = arrow
                             .get_expression()

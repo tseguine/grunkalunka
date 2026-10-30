@@ -940,3 +940,15 @@ budget exhaustion reuses the original global facts. Async own returns, throws an
 awaits use the same context and existing lexical exception routes. Maintained JS/TS
 native-JS/Node-Wasm/Wasmtime tests compare values, full reaction traces, argument
 snapshots, typed erasure and resource boundaries. See [the source contract](async-promise-objects.md#primitive-arguments-of-local-calls).
+
+## Shared scalar Promise input interfaces (2026-10-29)
+
+Source-known arrow constructors stored in or selected for one value now join
+compatible Promise/primitive scalar inputs before complete signature checks.
+Different direct-call input histories and unused peer formals no longer prevent
+assignment; callback positions, arity, result kinds and body guards stay separate.
+Aliases, inline selections, overlapping families and returned constructors reuse
+the existing frame and cursor, retaining callee snapshots and argument effects.
+Maintained JS/TS native-JS/Node-Wasm/Wasmtime differentials cover values, reaction
+traces, async prefixes, typed bytes and 1,000-parameter last-position inputs.
+See [the closure contract](runtime-closures.md#shared-scalar-promise-inputs).
