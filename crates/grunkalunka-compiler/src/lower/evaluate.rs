@@ -719,6 +719,104 @@ impl Lowering<'_, '_> {
         Ok(true)
     }
 
+    // Isolate A1-only planning from ordinary source evaluation as well.
+    #[inline(never)]
+    fn schedule_ui_call<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        mode: Mode,
+        depth: usize,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<bool, String> {
+        let imported = match &call.callee {
+            Expression::Identifier(identifier) => {
+                identifier.reference_id.get().and_then(|reference| {
+                    self.semantic.scoping().get_reference(reference).symbol_id()
+                }) == self.ui_import
+                    && self.ui_import.is_some()
+            }
+            _ => false,
+        };
+        if !imported {
+            return Ok(false);
+        }
+        if call.optional || call.arguments.len() < 2 || call.arguments.len() > 1000 {
+            return Err(unsupported(
+                node,
+                "A1 UI import needs two ordinary Number arguments",
+            ));
+        }
+        call_result(work, node, mode, Type::Number, true)?;
+        work.push(Work::UiCall {
+            node,
+            call,
+            index: 0,
+            arguments: Vec::new(),
+            depth: depth + 1,
+        });
+        Ok(true)
+    }
+
+    // Keep A1 continuation temporaries out of every evaluator activation.
+    // Constructor validation can re-enter the evaluator on a 2 MiB native stack.
+    #[inline(never)]
+    fn resume_ui_call<'e, 'a>(
+        &mut self,
+        task: Work<'e, 'a>,
+        regions: &mut Regions<'_>,
+        work: &mut Vec<Work<'e, 'a>>,
+        values: &mut Vec<Value>,
+    ) -> Result<(), String> {
+        let Work::UiCall {
+            node,
+            call,
+            index,
+            mut arguments,
+            depth,
+        } = task
+        else {
+            unreachable!("UI call continuation");
+        };
+        if index != 0 && index <= 2 {
+            arguments.push(values.pop().expect("UI import argument").number());
+        }
+        if index == call.arguments.len() {
+            let result = self.value(Type::Number);
+            Self::push(
+                regions.current(),
+                node,
+                Op::UiSelectVisible {
+                    result,
+                    expanded: arguments[0],
+                    count: arguments[1],
+                },
+            );
+            values.push(Value::Number(result));
+        } else {
+            let argument = call.arguments[index]
+                .as_expression()
+                .ok_or_else(|| unsupported(node, "spread UI service arguments are not admitted"))?;
+            work.push(Work::UiCall {
+                node,
+                call,
+                index: index + 1,
+                arguments,
+                depth,
+            });
+            work.push(Work::Eval(
+                argument,
+                depth,
+                if index < 2 {
+                    Mode::Number
+                } else {
+                    Mode::Discard
+                },
+            ));
+        }
+        Ok(())
+    }
+
     pub(super) fn evaluate<'e, 'a>(
         &mut self,
         expression: &'e Expression<'a>,
@@ -1890,49 +1988,8 @@ impl Lowering<'_, '_> {
                     );
                     values.push(Value::Number(value));
                 }
-                Work::UiCall {
-                    node,
-                    call,
-                    index,
-                    mut arguments,
-                    depth,
-                } => {
-                    if index != 0 && index <= 2 {
-                        arguments.push(values.pop().expect("UI import argument").number());
-                    }
-                    if index == call.arguments.len() {
-                        let result = self.value(Type::Number);
-                        Self::push(
-                            regions.current(),
-                            node,
-                            Op::UiSelectVisible {
-                                result,
-                                expanded: arguments[0],
-                                count: arguments[1],
-                            },
-                        );
-                        values.push(Value::Number(result));
-                    } else {
-                        let argument = call.arguments[index].as_expression().ok_or_else(|| {
-                            unsupported(node, "spread UI service arguments are not admitted")
-                        })?;
-                        work.push(Work::UiCall {
-                            node,
-                            call,
-                            index: index + 1,
-                            arguments,
-                            depth,
-                        });
-                        work.push(Work::Eval(
-                            argument,
-                            depth,
-                            if index < 2 {
-                                Mode::Number
-                            } else {
-                                Mode::Discard
-                            },
-                        ));
-                    }
+                task @ Work::UiCall { .. } => {
+                    self.resume_ui_call(task, &mut regions, &mut work, &mut values)?;
                 }
                 Work::Call {
                     node,
@@ -3379,35 +3436,7 @@ impl Lowering<'_, '_> {
                             values.push(Value::Number(result));
                         }
                         Expression::CallExpression(call) => {
-                            // A single build-time bound UI service is the only
-                            // allowed runtime source import in this profile.
-                            let imported = match &call.callee {
-                                Expression::Identifier(identifier) => {
-                                    identifier.reference_id.get().and_then(|reference| {
-                                        self.semantic.scoping().get_reference(reference).symbol_id()
-                                    }) == self.ui_import
-                                        && self.ui_import.is_some()
-                                }
-                                _ => false,
-                            };
-                            if imported {
-                                if call.optional
-                                    || call.arguments.len() < 2
-                                    || call.arguments.len() > 1000
-                                {
-                                    return Err(unsupported(
-                                        node,
-                                        "A1 UI import needs two ordinary Number arguments",
-                                    ));
-                                }
-                                call_result(&mut work, node, mode, Type::Number, true)?;
-                                work.push(Work::UiCall {
-                                    node,
-                                    call,
-                                    index: 0,
-                                    arguments: Vec::new(),
-                                    depth: depth + 1,
-                                });
+                            if self.schedule_ui_call(node, call, mode, depth, &mut work)? {
                                 continue;
                             }
                             if let Some((operator, _)) = math_unary(call, self.semantic) {
