@@ -1,5 +1,8 @@
 # Named module async helpers
 
+Synchronous helpers used by the async profile also support [represented primitive
+results](module-primitive-results.md); their inputs remain Number-only.
+
 The async identity profile admits plain, unexported module-level async function
 declarations alongside the single exported async `run(a,b)` entry. Helpers may
 appear before or after their callers and recurse or call one another.

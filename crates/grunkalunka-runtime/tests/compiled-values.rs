@@ -1,6 +1,9 @@
 use grunkalunka_compiler::compile_value;
 use grunkalunka_runtime::{Value, ValueInstance};
 
+#[path = "compiled-values/module_helpers.rs"]
+mod module_helpers;
+
 #[test]
 fn compiled_null_is_a_null_value() {
     let artifact = compile_value("export function run(a,b) { return null; }", false).unwrap();
@@ -94,14 +97,15 @@ fn calls_use_the_callees_result_type() {
     }
     {
         let source = "function helper(a,b) {return run(a,b);} export function run(a,b) {return helper(a,b);}";
-        let error = match compile_value(source, false) {
-            Ok(_) => panic!("General result used as Number"),
-            Err(error) => error,
-        };
-        assert!(
-            error.contains("value-returning calls require a General result position"),
-            "{error}"
-        );
+        let artifact = compile_value(source, false).unwrap();
+        let error = ValueInstance::new(&artifact.wasm)
+            .unwrap()
+            .run(0.0, 0.0)
+            .unwrap_err();
+        assert!(matches!(
+            error.downcast_ref::<wasmtime::Trap>(),
+            Some(wasmtime::Trap::OutOfFuel | wasmtime::Trap::StackOverflow)
+        ));
     }
 }
 
@@ -169,6 +173,10 @@ fn observation(value: &Value) -> String {
 
 #[test]
 fn js_and_ts_primitive_returns_match_original_js_in_both_engines() {
+    compare_primitive_sources(source_pairs());
+}
+
+fn compare_primitive_sources(pairs: Vec<(String, String)>) {
     use std::io::Write;
     use std::process::{Command, Stdio};
     let inputs = [
@@ -219,7 +227,7 @@ const inputs = [
     }
     script.push_str("];\nconst cases = [\n");
     let mut programs = 0;
-    for (js, ts) in source_pairs() {
+    for (js, ts) in pairs {
         assert!(
             js.is_ascii() && ts.is_ascii(),
             "test script literal encoding"

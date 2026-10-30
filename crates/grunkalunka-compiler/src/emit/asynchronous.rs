@@ -1086,17 +1086,14 @@ mod tests {
                 });
                 function.body.exit = Exit::Return(result);
             }
-            if throwing {
-                assert!(ir::verify_module_with_entry_type(&module, Type::General).is_err());
-                assert!(emit_async(&module).is_err());
-            } else {
-                ir::verify_module_with_entry_type(&module, Type::General).unwrap();
-                assert!(
-                    emit_async(&module)
-                        .unwrap_err()
-                        .contains("bodies must be synchronous")
-                );
-            }
+            // Primitive-returning helpers are well typed; the backend still
+            // rejects both forms of control without a helper exception boundary.
+            ir::verify_module_with_entry_type(&module, Type::General).unwrap();
+            assert!(
+                emit_async(&module)
+                    .unwrap_err()
+                    .contains("bodies must be synchronous")
+            );
         }
     }
 }

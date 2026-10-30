@@ -1,5 +1,8 @@
 # Decoding primitive results in JavaScript
 
+Source primitive profiles also support [primitive results from named module
+helpers](module-primitive-results.md), while retaining Number-only helper inputs.
+
 `decodePrimitiveResult(result)` from `tools/runtime/values.mjs` converts the
 existing primitive-return-v1 Wasm result into an ordinary JavaScript value. It
 implements the wire contract in [ADR 0002](adr/0002-tagged-primitive-values.md),

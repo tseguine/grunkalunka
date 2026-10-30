@@ -4,11 +4,11 @@ use oxc_ast::{AstKind, ast::ArrowFunctionExpression};
 use oxc_syntax::node::NodeId;
 use std::collections::BTreeMap;
 
-// Shared by result-kind and callback-origin queries. Do not let a nested arrow's
-// returns become evidence about its enclosing creator.
+// Shared by result-kind and callback-origin queries. The nearest function owns
+// each return; nested bodies never provide evidence about their creator.
 pub(super) fn return_statements<'a>(
     semantic: &Semantic<'a>,
-    arrow: NodeId,
+    body: NodeId,
 ) -> Vec<&'a oxc_ast::ast::ReturnStatement<'a>> {
     semantic
         .nodes()
@@ -21,11 +21,11 @@ pub(super) fn return_statements<'a>(
                 .nodes()
                 .ancestor_kinds(node.id())
                 .find_map(|kind| match kind {
-                    AstKind::ArrowFunctionExpression(owner) => Some(Some(owner.node_id.get())),
-                    AstKind::Function(_) => Some(None),
+                    AstKind::ArrowFunctionExpression(owner) => Some(owner.node_id.get()),
+                    AstKind::Function(owner) => Some(owner.node_id.get()),
                     _ => None,
                 });
-            (owner == Some(Some(arrow))).then_some(statement)
+            (owner == Some(body)).then_some(statement)
         })
         .collect()
 }

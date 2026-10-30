@@ -1194,7 +1194,7 @@ impl Verifier<'_> {
                 let ty = if function.0 == 0 {
                     self.entry_type
                 } else {
-                    Type::Number
+                    target.return_type
                 };
                 self.define(*result, ty, visible, span)?;
             }
@@ -1989,6 +1989,10 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
             function.return_type
         } else if index == 0 {
             entry_type
+        } else if entry_type == Type::General
+            && matches!(function.return_type, Type::Number | Type::General)
+        {
+            function.return_type
         } else {
             Type::Number
         };
@@ -4013,6 +4017,26 @@ mod primitive_value_tests {
             .unwrap();
         f.values[call.0] = Type::General;
         assert!(verify_module_with_entry_type(&module, Type::General).is_err());
+    }
+
+    #[test]
+    fn general_helper_calls_check_the_actual_callee_result() {
+        let source = "function h(x){return null;}export function run(a,b){return h(b);}";
+        let module = lower(source);
+        verify_module_with_entry_type(&module, Type::General).unwrap();
+        assert!(verify_module(&module).is_err());
+        for kind in [Type::Number, Type::Predicate, Type::Promise] {
+            let mut changed = lower(source);
+            changed.functions[1].return_type = kind;
+            assert!(verify_module_with_entry_type(&changed, Type::General).is_err());
+        }
+        let mut changed = lower(source);
+        let Op::Call { result, .. } = changed.functions[0].body.operations.last().unwrap().kind
+        else {
+            panic!("call");
+        };
+        changed.functions[0].values[result.0] = Type::Number;
+        assert!(verify_module_with_entry_type(&changed, Type::General).is_err());
     }
 }
 
