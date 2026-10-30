@@ -217,10 +217,10 @@ impl Emitter<'_> {
 
     // Async states are already flattened into sequences of atomic operations.
     // Retain the shared interface without reintroducing region recursion.
+    // Async states may contain structured operations too. Schedule them with
+    // the same iterative walker, but without adding a region exit.
     fn operations(&mut self, operations: &[ir::Operation]) {
-        for operation in operations {
-            self.atomic_operation(operation);
-        }
+        self.emit_walk(None, operations);
     }
 
     fn atomic_operation(&mut self, operation: &ir::Operation) {
@@ -555,6 +555,10 @@ impl Emitter<'_> {
     }
 
     fn region(&mut self, root: &Region) {
+        self.emit_walk(Some(root), &[]);
+    }
+
+    fn emit_walk<'a>(&mut self, root: Option<&'a Region>, operations: &'a [ir::Operation]) {
         // Explicit continuations preserve WAT byte order and the lexical
         // context of nested blocks without allocating native stack frames.
         enum Work<'a> {
@@ -573,7 +577,14 @@ impl Emitter<'_> {
             },
         }
 
-        let mut pending = vec![Work::Region(root)];
+        let mut pending = Vec::new();
+        if let Some(root) = root {
+            pending.push(Work::Region(root));
+        } else {
+            for operation in operations.iter().rev() {
+                pending.push(Work::Operation(operation));
+            }
+        }
         while let Some(task) = pending.pop() {
             match task {
                 Work::Region(region) => {
