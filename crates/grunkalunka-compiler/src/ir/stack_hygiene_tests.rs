@@ -97,8 +97,7 @@ fn deep_operation_walk_stays_on_a_small_native_stack() {
             visit_operations(&root, &mut |op| match op {
                 Op::Block(_) => blocks += 1,
                 Op::Constant {
-                    result: ValueId(7),
-                    ..
+                    result: ValueId(7), ..
                 } => values += 1,
                 _ => panic!("unexpected synthetic operation"),
             });
