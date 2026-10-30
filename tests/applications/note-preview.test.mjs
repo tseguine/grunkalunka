@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { access, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { compileSource } from '../../tools/build/compile.mjs';
@@ -511,8 +511,8 @@ test('A1 host bundle retains portable Wasm and runs independently of the source 
     await assert.rejects(access(join(bundle, 'tools/build/compile.mjs')), { code: 'ENOENT' });
     await assert.rejects(access(join(bundle, 'examples/note-preview/toggle.js')), { code: 'ENOENT' });
     const entry = join(bundle, 'examples/note-preview/bundle-entry.mjs');
-    function packagedRun(args) {
-      const result = spawnSync(process.execPath, [entry, ...args], {
+    function packagedRun(args, selectedEntry = entry) {
+      const result = spawnSync(process.execPath, [selectedEntry, ...args], {
         cwd, shell: false, encoding: 'utf8', timeout: 120_000,
         maxBuffer: 1024 * 1024,
         env: { ...process.env, CARGO_TARGET_DIR: join(cwd, 'nonexistent-target') },
@@ -551,6 +551,22 @@ test('A1 host bundle retains portable Wasm and runs independently of the source 
     assert.deepEqual([deniedInfo.attemptedReads, deniedInfo.backingReads, deniedInfo.cleanups],
       [1, 0, 1]);
     assert.ok(!JSON.stringify(deniedInfo).includes('missing-secret'));
+
+    // A symlinked entry path must still run the CLI. Node may canonicalize
+    // import.meta.url while process.argv[1] retains the symlinked path; on
+    // macOS, even tmpdir() commonly traverses /var -> /private/var.
+    if (process.platform !== 'win32') {
+      const alias = join(cwd, 'linked-bundle');
+      await symlink(bundle, alias, 'dir');
+      const linkedOutput = join(cwd, 'linked-denied');
+      const linked = packagedRun([
+        '--profile', 'denied', '--out', linkedOutput,
+      ], join(alias, 'examples/note-preview/bundle-entry.mjs'));
+      assert.equal(linked.status, 0, linked.stderr);
+      assert.equal(JSON.parse(linked.stdout).profile, 'denied');
+      assert.match(await readFile(join(linkedOutput, 'index.html'), 'utf8'),
+        /Document access denied/);
+    }
 
     // Packaging refuses an existing destination and cannot damage it.
     await assert.rejects(packageNotePreview({ out: bundle }), /already exists/);
