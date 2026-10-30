@@ -29,11 +29,10 @@ fn compile_file(
     if diagnostics {
         eprintln!("DIAG phase=source event=start path={path:?}");
     }
-    let source = fs::read_to_string(path).map_err(|error| {
+    let source = fs::read_to_string(path).inspect_err(|error| {
         if diagnostics {
             eprintln!("DIAG phase=source event=error kind={:?}", error.kind());
         }
-        error
     })?;
     if diagnostics {
         eprintln!("DIAG phase=source event=ok bytes={}", source.len());
@@ -63,11 +62,10 @@ fn evaluate(path: &str, value_profile: bool, diagnostics: bool) -> Result<(), Bo
     if diagnostics {
         eprintln!("DIAG phase=wasm-read event=start path={path:?}");
     }
-    let bytes = fs::read(path).map_err(|error| {
+    let bytes = fs::read(path).inspect_err(|error| {
         if diagnostics {
             eprintln!("DIAG phase=wasm-read event=error kind={:?}", error.kind());
         }
-        error
     })?;
     if diagnostics {
         eprintln!("DIAG phase=wasm-read event=ok bytes={}", bytes.len());
@@ -131,11 +129,10 @@ fn input_pairs(
             }
             return Err("at most 4096 input pairs are admitted".into());
         }
-        let line = line.map_err(|error| {
+        let line = line.inspect_err(|error| {
             if diagnostics {
                 eprintln!("DIAG phase=input event=error line={line_number} reason=read");
             }
-            error
         })?;
         let inputs = line.split_whitespace().collect::<Vec<_>>();
         if inputs.len() != 2 || inputs.iter().any(|input| input.len() != 16) {
@@ -144,17 +141,15 @@ fn input_pairs(
             }
             return Err("expected two 16-digit hexadecimal binary64 bit patterns per line".into());
         }
-        let a_bits = u64::from_str_radix(inputs[0], 16).map_err(|error| {
+        let a_bits = u64::from_str_radix(inputs[0], 16).inspect_err(|error| {
             if diagnostics {
                 eprintln!("DIAG phase=input event=error line={line_number} reason=hex-a");
             }
-            error
         })?;
-        let b_bits = u64::from_str_radix(inputs[1], 16).map_err(|error| {
+        let b_bits = u64::from_str_radix(inputs[1], 16).inspect_err(|error| {
             if diagnostics {
                 eprintln!("DIAG phase=input event=error line={line_number} reason=hex-b");
             }
-            error
         })?;
         if let Err(error) = evaluate(f64::from_bits(a_bits), f64::from_bits(b_bits)) {
             if diagnostics {
