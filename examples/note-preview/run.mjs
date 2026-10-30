@@ -1,9 +1,10 @@
 // A1-only runnable host. Source and capabilities remain explicit; the guest
 // receives only in-memory bytes, never a filesystem or ambient Node binding.
 import { spawnSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { open, lstat, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { prepareNoteScene } from './scene.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -193,7 +194,10 @@ export async function runPreview({
     visible: scene.visibleCount };
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+// Node canonicalizes the loaded module URL, but argv may retain a symlinked path
+// (notably macOS /var -> /private/var). Compare file identities, not URLs.
+if (process.argv[1] &&
+    realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     console.log(JSON.stringify(await runPreview(parseArguments(process.argv.slice(2)))));
   } catch (error) {
