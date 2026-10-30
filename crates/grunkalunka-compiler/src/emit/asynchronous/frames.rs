@@ -104,13 +104,7 @@ impl<'a> Frame<'a> {
     }
 
     pub fn take_output(&mut self, output: &mut String) {
-        output.push_str(
-            &self
-                .emitter
-                .output
-                .replace("local.get ", "global.get ")
-                .replace("local.set ", "global.set "),
-        );
+        append_globalized(output, &self.emitter.output);
         self.emitter.output.clear();
     }
 
@@ -188,4 +182,72 @@ impl<'a> Frame<'a> {
 
 pub(super) fn complete(output: &mut String, rejected: bool) {
     writeln!(output,"global.set $async_payload\nglobal.set $async_tag\ni32.const {}\nglobal.set $async_rejected\nglobal.get $async_frame\ni32.load offset=4\nglobal.set $pc\nglobal.get $async_frame\ni32.load\nglobal.set $async_frame\nbr $dispatch",u8::from(rejected)).unwrap();
+}
+
+ 
+// The atomic emitter renders instructions against numeric-indexed locals.
+// Coroutine frames store the same value lanes in globals. Copy the instructions
+// directly into the destination, changing only those two instruction mnemonics.
+// This keeps the old exact output without two whole-string allocations per state.
+fn append_globalized(output: &mut String, instructions: &str) {
+    let mut remaining = instructions;
+    while let Some((prefix, suffix)) = remaining.split_once("local.") {
+        output.push_str(prefix);
+        if let Some(rest) = suffix.strip_prefix("get ") {
+            output.push_str("global.get ");
+            remaining = rest;
+        } else if let Some(rest) = suffix.strip_prefix("set ") {
+            output.push_str("global.set ");
+            remaining = rest;
+        } else {
+            output.push_str("local.");
+            remaining = suffix;
+        }
+    }
+    output.push_str(remaining);
+}
+
+#[cfg(test)]
+mod globalize_tests {
+    use super::append_globalized;
+
+    #[test]
+    fn rewrites_only_get_and_set_in_one_pass() {
+        for input in [
+            "",
+            "local.get 0",
+            "local.set 14\\nlocal.get 3\\n",
+            "global.get 9\\nlocal.get 0\\nlocal.set 1\\n",
+            "local.tee 4\\nlocal.get 7\\nlocal.foo local.set 2",
+            "a-local.get 1 local.local.set 9 local.get 11",
+        ] {
+            let mut output = "prefix:".to_string();
+            append_globalized(&mut output, input);
+            assert_eq!(
+                output,
+                format!(
+                    "prefix:{}",
+                    input
+                        .replace("local.get ", "global.get ")
+                        .replace("local.set ", "global.set ")
+                ),
+                "{input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn long_instruction_sequence_retains_exact_existing_wat_bytes() {
+        let input = (0..4096)
+            .map(|i| format!("local.get {i}\\nlocal.set {i}\\n"))
+            .collect::<String>();
+        let mut result = String::new();
+        append_globalized(&mut result, &input);
+        assert_eq!(
+            result,
+            input
+                .replace("local.get ", "global.get ")
+                .replace("local.set ", "global.set ")
+        );
+    }
 }
