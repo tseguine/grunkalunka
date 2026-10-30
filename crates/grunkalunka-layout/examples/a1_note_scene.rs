@@ -262,7 +262,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(node) = selected {
             let heading_index = node - 4;
             let heading = &note.headings[heading_index];
-            writeln!(stdout, "A1HIT1\t{heading_index}\\t{}\\t{}\\t{}",
+            writeln!(stdout, "A1HIT1\t{heading_index}\t{}\t{}\t{}",
                 heading.start, heading.end, heading.level)?;
         } else {
             writeln!(stdout, "A1HIT1\tnone")?;
