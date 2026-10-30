@@ -97,6 +97,9 @@ mod catch_rethrow_context;
 #[path = "async-suspension/promise_alias_snapshot_reasons.rs"]
 mod promise_alias_snapshot_reasons;
 
+#[path = "async-suspension/assigned_promise_snapshots.rs"]
+mod assigned_promise_snapshots;
+
 #[path = "async-suspension/async_body_reasons.rs"]
 mod async_body_reasons;
 
