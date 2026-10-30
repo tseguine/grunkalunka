@@ -276,7 +276,6 @@ impl Parser<'_> {
             }
         }
     }
-
 }
 
 fn quoted(text: &[u16]) -> Option<(usize, Vec<u16>)> {
