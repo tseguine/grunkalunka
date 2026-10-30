@@ -395,6 +395,25 @@ test('single-profile runnable A1 host emits HTML, native PPM and bounded debug r
     assert.equal(await readFile(join(output, 'index.html'), 'utf8'), html);
   });
 
+test('development CLI executes through a symlinked entry path', async t => {
+  if (process.platform === 'win32') return t.skip('symlink permissions vary on Windows');
+  const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-entry-'));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  const runner = fileURLToPath(new URL('../../examples/note-preview/run.mjs', import.meta.url));
+  const alias = join(cwd, 'linked-run.mjs');
+  await symlink(runner, alias, 'file');
+  // Deliberately invalid options exercise entry dispatch without requiring
+  // a native build or touching the protected note path.
+  const result = spawnSync(process.execPath, [alias, '--invalid'], {
+    cwd, encoding: 'utf8', shell: false, timeout: 10_000,
+  });
+  if (result.error) throw result.error;
+  assert.equal(result.signal, null);
+  assert.equal(result.status, 1, 'symlinked CLI must run rather than exit silently');
+  assert.match(result.stderr, /A1 note preview: usage:/);
+  assert.equal(result.stdout, '');
+});
+
 test('CLI from unrelated cwd selects only denied WIT profile without reading note path',
   { timeout: 180_000 }, async t => {
     const cwd = await mkdtemp(join(tmpdir(), 'grunkalunka-a1-denial-'));
