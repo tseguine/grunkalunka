@@ -9,6 +9,9 @@ use wasmtime::{Engine, Instance, Module, Store, Trap};
 #[path = "runtime-closures/function_length.rs"]
 mod function_length;
 
+#[path = "runtime-closures/discarded_logical.rs"]
+mod discarded_logical;
+
 #[test]
 fn eager_async_closures_keep_synchronous_prefix_effects() {
     compare_functions(&[
