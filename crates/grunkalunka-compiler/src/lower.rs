@@ -144,44 +144,63 @@ fn boolean_shape(mut expression: &Expression<'_>, mut depth: usize) -> bool {
 // Inspect only result-producing syntax, before emitting anything. Types asserted by
 // TypeScript are not runtime kinds. Ordinary lowering owns the depth diagnostic.
 fn discarded_boolean_shape(expression: &Expression<'_>, depth: usize) -> bool {
-    if depth > 128 {
-        return false;
-    }
-    if let Some(inner) = erased_inner(expression) {
-        return discarded_boolean_shape(inner, depth + 1);
-    }
-    match expression {
-        Expression::BooleanLiteral(_) => true,
-        Expression::UnaryExpression(unary) => unary.operator == UnaryOperator::LogicalNot,
-        Expression::BinaryExpression(binary) => matches!(
-            binary.operator,
-            BinaryOperator::LessThan
-                | BinaryOperator::LessEqualThan
-                | BinaryOperator::GreaterThan
-                | BinaryOperator::GreaterEqualThan
-                | BinaryOperator::Equality
-                | BinaryOperator::StrictEquality
-                | BinaryOperator::Inequality
-                | BinaryOperator::StrictInequality
-        ),
-        Expression::ParenthesizedExpression(wrapper) => {
-            discarded_boolean_shape(&wrapper.expression, depth + 1)
+    // An existential read-only shape query. Preserve the original left-first
+    // short circuit and charge depth on every wrapper/branch.
+    let mut pending = vec![(expression, depth)];
+    while let Some((expression, depth)) = pending.pop() {
+        if depth > 128 {
+            continue;
         }
-        Expression::SequenceExpression(sequence) => sequence
-            .expressions
-            .last()
-            .is_some_and(|last| discarded_boolean_shape(last, depth + 1)),
-        Expression::ConditionalExpression(conditional) => {
-            discarded_boolean_shape(&conditional.consequent, depth + 1)
-                || discarded_boolean_shape(&conditional.alternate, depth + 1)
+        if let Some(inner) = erased_inner(expression) {
+            pending.push((inner, depth + 1));
+            continue;
         }
-        Expression::LogicalExpression(logical) if logical.operator != LogicalOperator::Coalesce => {
-            discarded_boolean_shape(&logical.left, depth + 1)
-                || discarded_boolean_shape(&logical.right, depth + 1)
+        match expression {
+            Expression::BooleanLiteral(_) => return true,
+            Expression::UnaryExpression(unary)
+                if unary.operator == UnaryOperator::LogicalNot =>
+            {
+                return true;
+            }
+            Expression::BinaryExpression(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::LessThan
+                        | BinaryOperator::LessEqualThan
+                        | BinaryOperator::GreaterThan
+                        | BinaryOperator::GreaterEqualThan
+                        | BinaryOperator::Equality
+                        | BinaryOperator::StrictEquality
+                        | BinaryOperator::Inequality
+                        | BinaryOperator::StrictInequality
+                ) =>
+            {
+                return true;
+            }
+            Expression::ParenthesizedExpression(wrapper) => {
+                pending.push((&wrapper.expression, depth + 1));
+            }
+            Expression::SequenceExpression(sequence) => {
+                if let Some(last) = sequence.expressions.last() {
+                    pending.push((last, depth + 1));
+                }
+            }
+            Expression::ConditionalExpression(conditional) => {
+                pending.push((&conditional.alternate, depth + 1));
+                pending.push((&conditional.consequent, depth + 1));
+            }
+            Expression::LogicalExpression(logical)
+                if logical.operator != LogicalOperator::Coalesce =>
+            {
+                pending.push((&logical.right, depth + 1));
+                pending.push((&logical.left, depth + 1));
+            }
+            _ => {}
         }
-        _ => false,
     }
+    false
 }
+
 
 // Resolve only the original reference; never evaluate a write target as a value.
 // Oxc discards outer target parentheses, but retained inner nodes each cost depth.

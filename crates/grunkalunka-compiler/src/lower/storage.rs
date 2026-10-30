@@ -18,54 +18,109 @@ pub(super) enum NumberCalls<'s, 'a> {
 // The same completion algebra as statement lowering, without evaluating source
 // expressions or looking inside nested functions. Unsupported statements are
 // still rejected by lowering; this query only proves complete Number returns.
-fn completion_shape(statement: &Statement<'_>, depth: usize) -> Completion {
-    if depth > 128 {
-        return Completion::NORMAL;
+fn completion_shape<'s, 'a>(statement: &'s Statement<'a>, depth: usize) -> Completion {
+    // The original sequence/completion algebra is evaluated in postorder
+    // with heap-owned continuations, not one Rust stack frame per statement.
+    enum Task<'s, 'a> {
+        Statement(&'s Statement<'a>, usize),
+        Sequence(&'s [Statement<'a>], usize),
+        Value(Completion),
+        Fold(usize),
+        Union,
+        CaughtBy,
+        FinalizedBy,
+        PretestLoop,
+        DoLoop,
     }
-    match statement {
-        Statement::ReturnStatement(_) => Completion::RETURN,
-        Statement::ThrowStatement(_) => Completion::THROW,
-        Statement::BreakStatement(_) => Completion::BREAK,
-        Statement::ContinueStatement(_) => Completion::CONTINUE,
-        Statement::BlockStatement(block) => block
-            .body
-            .iter()
-            .fold(Completion::NORMAL, |completion, statement| {
-                completion.then(completion_shape(statement, depth + 1))
-            }),
-        Statement::IfStatement(branch) => completion_shape(&branch.consequent, depth + 1).union(
-            branch
-                .alternate
-                .as_ref()
-                .map_or(Completion::NORMAL, |statement| {
-                    completion_shape(statement, depth + 1)
-                }),
-        ),
-        Statement::WhileStatement(loop_) => completion_shape(&loop_.body, depth + 1).pretest_loop(),
-        Statement::ForStatement(loop_) => completion_shape(&loop_.body, depth + 1).pretest_loop(),
-        Statement::DoWhileStatement(loop_) => completion_shape(&loop_.body, depth + 1).do_loop(),
-        Statement::TryStatement(statement) if statement.finalizer.is_some() => {
-            let sequence = |body: &oxc_ast::ast::BlockStatement<'_>| {
-                body.body
-                    .iter()
-                    .fold(Completion::NORMAL, |completion, child| {
-                        completion.then(completion_shape(child, depth + 1))
-                    })
-            };
-            let mut completion = sequence(&statement.block);
-            if let Some(handler) = &statement.handler {
-                completion = completion.caught_by(sequence(&handler.body));
+    let mut pending = vec![Task::Statement(statement, depth)];
+    let mut values = Vec::new();
+    while let Some(task) = pending.pop() {
+        match task {
+            Task::Value(value) => values.push(value),
+            Task::Statement(statement, depth) => {
+                if depth > 128 {
+                    values.push(Completion::NORMAL);
+                    continue;
+                }
+                match statement {
+                    Statement::ReturnStatement(_) => values.push(Completion::RETURN),
+                    Statement::ThrowStatement(_) => values.push(Completion::THROW),
+                    Statement::BreakStatement(_) => values.push(Completion::BREAK),
+                    Statement::ContinueStatement(_) => values.push(Completion::CONTINUE),
+                    Statement::BlockStatement(block) => {
+                        pending.push(Task::Sequence(&block.body, depth + 1));
+                    }
+                    Statement::IfStatement(branch) => {
+                        pending.push(Task::Union);
+                        if let Some(other) = &branch.alternate {
+                            pending.push(Task::Statement(other, depth + 1));
+                        } else {
+                            pending.push(Task::Value(Completion::NORMAL));
+                        }
+                        pending.push(Task::Statement(&branch.consequent, depth + 1));
+                    }
+                    Statement::WhileStatement(loop_) => {
+                        pending.push(Task::PretestLoop);
+                        pending.push(Task::Statement(&loop_.body, depth + 1));
+                    }
+                    Statement::ForStatement(loop_) => {
+                        pending.push(Task::PretestLoop);
+                        pending.push(Task::Statement(&loop_.body, depth + 1));
+                    }
+                    Statement::DoWhileStatement(loop_) => {
+                        pending.push(Task::DoLoop);
+                        pending.push(Task::Statement(&loop_.body, depth + 1));
+                    }
+                    Statement::TryStatement(statement) if statement.finalizer.is_some() => {
+                        pending.push(Task::FinalizedBy);
+                        let finalizer = statement.finalizer.as_ref().expect("checked finalizer");
+                        pending.push(Task::Sequence(&finalizer.body, depth + 1));
+                        if let Some(handler) = &statement.handler {
+                            pending.push(Task::CaughtBy);
+                            pending.push(Task::Sequence(&handler.body.body, depth + 1));
+                        }
+                        pending.push(Task::Sequence(&statement.block.body, depth + 1));
+                    }
+                    _ => values.push(Completion::NORMAL),
+                }
             }
-            statement
-                .finalizer
-                .as_ref()
-                .map_or(completion, |finalizer| {
-                    completion.finalized_by(sequence(finalizer))
-                })
+            Task::Sequence(statements, depth) => {
+                pending.push(Task::Fold(statements.len()));
+                for statement in statements.iter().rev() {
+                    pending.push(Task::Statement(statement, depth));
+                }
+            }
+            Task::Fold(count) => {
+                let start = values.len() - count;
+                let mut completion = Completion::NORMAL;
+                for child in values.drain(start..) {
+                    completion = completion.then(child);
+                }
+                values.push(completion);
+            }
+            Task::Union | Task::CaughtBy | Task::FinalizedBy => {
+                let right = values.pop().expect("right completion");
+                let left = values.pop().expect("left completion");
+                values.push(match task {
+                    Task::Union => left.union(right),
+                    Task::CaughtBy => left.caught_by(right),
+                    Task::FinalizedBy => left.finalized_by(right),
+                    _ => unreachable!(),
+                });
+            }
+            Task::PretestLoop => {
+                let body = values.pop().expect("pretest body");
+                values.push(body.pretest_loop());
+            }
+            Task::DoLoop => {
+                let body = values.pop().expect("posttest body");
+                values.push(body.do_loop());
+            }
         }
-        _ => Completion::NORMAL,
     }
+    values.pop().expect("one completed shape")
 }
+
 
 pub(super) fn arrow_returns<'n, 'a: 'n>(
     arrow: &'n oxc_ast::ast::ArrowFunctionExpression<'a>,
@@ -1033,5 +1088,41 @@ pub(crate) fn general_mutable_bindings(
         settled_results,
         async_results,
         general_functions,
+    }
+}
+
+#[cfg(test)]
+mod completion_stack_tests {
+    use super::*;
+
+    #[test]
+    fn completion_shape_keeps_admission_boundary_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                for depth in [128, 129] {
+                    let source = format!("{}throw 1;{}", "{".repeat(depth), "}".repeat(depth));
+                    let allocator = oxc_allocator::Allocator::default();
+                    let parsed = oxc_parser::Parser::new(
+                        &allocator,
+                        &source,
+                        oxc_span::SourceType::default(),
+                    )
+                    .parse();
+                    assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+                    let completion = completion_shape(&parsed.program.body[0], 0);
+                    assert_eq!(
+                        completion,
+                        if depth == 128 {
+                            Completion::THROW
+                        } else {
+                            Completion::NORMAL
+                        }
+                    );
+                }
+            })
+            .expect("stack probe thread")
+            .join()
+            .expect("stack probe completed");
     }
 }
