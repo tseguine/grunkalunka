@@ -1,0 +1,12 @@
+#!/bin/sh
+# Opt-in repository hook: fail before creating an unformatted Rust commit.
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+echo "Checking workspace Rust formatting..."
+cargo fmt --all --check
+
+echo "Checking frontend spike Rust formatting..."
+cargo fmt --manifest-path spikes/001-frontend-semantics/Cargo.toml --check
