@@ -220,6 +220,9 @@ pub(super) struct Lowering<'s, 'a> {
     pub return_type: Type,
     pub semantic: &'s Semantic<'a>,
     pub functions: &'s [NumericFunction],
+    /// Only present in the explicitly selected A1 scalar-import compiler mode.
+    /// Resolved by Oxc semantic symbol identity, never identifier spelling.
+    pub ui_import: Option<SymbolId>,
     pub general_bindings: &'s std::collections::BTreeSet<SymbolId>,
     pub general_parameters: &'s std::collections::BTreeSet<SymbolId>,
     pub number_calls: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
