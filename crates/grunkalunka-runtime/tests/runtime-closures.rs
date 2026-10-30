@@ -2531,10 +2531,7 @@ fn function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack() 
         }
         let source = format!("export function run(a,b){{return {expression};}}");
         let result = std::thread::Builder::new()
-            .name(
-                "function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack"
-                    .to_owned(),
-            )
+            .name(format!("truthiness_depth_{depth}"))
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -2555,10 +2552,7 @@ fn function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack() 
             "a?0:".repeat(regions)
         );
         let result = std::thread::Builder::new()
-            .name(
-                "function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack"
-                    .to_owned(),
-            )
+            .name(format!("truthiness_regions_{regions}"))
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
