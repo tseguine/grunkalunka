@@ -68,8 +68,20 @@ limits, job budgets and terminal Wasmtime fuel failures. Compiler IR tests rejec
 four malformed reason visibility/type cases.
 
 Represented Promise reasons now pass through source throw, caught/rethrown async
-rejection and suspended finally cleanup. Conservative module-level inference may
-still reject numeric operations in an unrelated catch in such a module. Precise
-per-handler inference remains follow-up work. Intrinsic Promise.reject(p) now
+rejection and suspended finally cleanup. Lexical handler and call-context facts
+keep proved primitive reasons separate; unknown and mutable incoming domains
+can still prevent numeric operations. Intrinsic Promise.reject(p) now
 uses the same raw reason domain; see
 [the source and host contract](async-promise-objects.md).
+
+## Call-context precision for rethrows
+
+Unwritten catch bindings preserve current-call primitive provenance through
+explicit throw sources and represented intrinsic rejection inputs. Local aliases,
+nested rethrows and forwarding through Promise.reject retain the same raw value;
+throwing never adopts a Promise. The handler still uses its existing physical
+carrier, and mixed or written cells remain conservative. The source query excludes
+throws owned by an inner catch and nested function definitions. Maintained JS/TS
+Node-Wasm/Wasmtime differentials check native-JS values, reaction traces, raw
+identity, erased types, capture activation safety and original admission limits.
+See [the precision limits](async-promise-objects.md#primitive-catch-bindings-at-local-calls).
