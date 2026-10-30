@@ -787,7 +787,6 @@ impl Engine<'_> {
         self.frame.boxes[node] = Some(geometry);
         Ok(margin_height)
     }
-
 }
 
 /// Arrange a flat, parent-before-child tree from the viewport origin.
