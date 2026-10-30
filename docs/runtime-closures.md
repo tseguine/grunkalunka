@@ -641,3 +641,11 @@ argument that reassigns it, and keeps async prefixes, captures and primitive bit
 JS/TS native-JS/Node-Wasm/Wasmtime tests cover those effects, active numeric input
 consumers, callbacks, mixed results, unused factories, typed byte identity,
 1,000-parameter last-position inputs, source limits and incompatible signatures.
+
+## Function.call invocations
+
+Represented function values also support direct `f.call(thisArg, ...args)` calls.
+The existing cursor saves the target before evaluating and discarding `thisArg`,
+then forwards the remaining arguments using the same complete signature. Callback,
+factory, capture and Promise domains keep their existing checks. See
+[the source contract and limits](function-call.md).

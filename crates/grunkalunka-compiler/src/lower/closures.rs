@@ -407,7 +407,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 "at most 1000 ordinary local call arguments are admitted",
             ));
         }
-        if call.arguments.len() < self.arrow(closure.arrow).params.items.len() {
+        if invocation::arguments(call).len() < self.arrow(closure.arrow).params.items.len() {
             return Err(unsupported(
                 call,
                 "local call is missing declared arguments",
@@ -437,7 +437,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
         else {
             return Ok(None);
         };
-        let Some(mut factory) = self.closure_target(&call.callee, call_depth + 1) else {
+        let Some(mut factory) = self.closure_target(
+            invocation::callee(call),
+            invocation::depth(call, call_depth + 1),
+        ) else {
             return Ok(None);
         };
         if !factory.checked {
@@ -463,9 +466,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // replace the caller's. Every specialization gets fresh parameter slots.
         let mut arguments = Vec::new();
         for (index, argument) in call.arguments.iter().enumerate() {
+            let offset = invocation::offset(call);
             let argument = argument.as_expression().ok_or_else(|| {
                 unsupported(call.as_ref(), "spread call arguments are not admitted")
             })?;
+            if index < offset {
+                self.evaluate(argument, region, call_depth + 1, evaluate::Mode::Discard)?;
+                continue;
+            }
+            let index = index - offset;
             if index >= self.arrow(factory.arrow).params.items.len() {
                 self.evaluate(argument, region, call_depth + 1, evaluate::Mode::Discard)?;
                 continue;

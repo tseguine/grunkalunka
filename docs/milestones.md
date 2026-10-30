@@ -973,3 +973,14 @@ physical carriers and argument proofs are unchanged. Maintained JS/TS native-JS,
 Node-Wasm and Wasmtime cases include the original saved-alias arithmetic example,
 raw identity, primitive tags, loop and activation guards, typed bytes and limits.
 See [the source contract](async-promise-objects.md#early-snapshots-of-mutable-promise-variables).
+
+## Represented Function.call invocation (2026-10-30)
+
+Existing local/runtime functions and numeric module helpers support direct
+`f.call(thisArg, ...args)` syntax. Shared source queries exclude the ignored
+receiver from the forwarded signature; the cursor still evaluates it after
+saving the callee, before ordinary arguments. Maintained JS/TS native-JS,
+Node-Wasm and Wasmtime tests cover effects, callbacks, returned functions, Promise
+identity, async timing/failures, notifications, typed bytes and resource guards.
+This adds no runtime ABI or general function-object/`this` representation; see
+[the bounded contract](function-call.md).
