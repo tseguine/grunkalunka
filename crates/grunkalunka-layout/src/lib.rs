@@ -500,7 +500,8 @@ impl Engine<'_> {
                         current.containing_height,
                     )
                 };
-                pending.push(PlaceFrame::new(child, x, current.next_y, width, height));
+                let next_y = current.next_y;
+                pending.push(PlaceFrame::new(child, x, next_y, width, height));
             } else {
                 let height = if current.contents {
                     current.next_y - current.cursor_y
@@ -738,7 +739,11 @@ impl Engine<'_> {
             padding_y,
         } = *prepared;
         let natural_height = (next_y - content_y).max(intrinsic_height);
-        let content_height = definite_height.unwrap_or_else(|| apply_bounds(natural_height));
+        let content_height = definite_height.unwrap_or_else(|| {
+            natural_height
+                .min(max_content.unwrap_or(u32::MAX))
+                .max(min_content.unwrap_or(0))
+        });
         let padding_width = add(content_width, padding_x)?;
         let padding_height = add(content_height, padding_y)?;
         let border_height = add(padding_height, border_y)?;
