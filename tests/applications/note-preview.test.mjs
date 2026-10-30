@@ -11,6 +11,7 @@ import { parseArguments, runPreview } from '../../examples/note-preview/run.mjs'
 import { buildCommands } from '../../examples/note-preview/build.mjs';
 import { packageNotePreview, parsePackageArguments } from '../../examples/note-preview/package.mjs';
 import { prepareNoteScene } from '../../examples/note-preview/scene.mjs';
+import { activateNoteHeading } from '../../examples/note-preview/interaction.mjs';
 
 const bytes = Buffer.from('# Root\r\n## 子😀\n', 'utf8');
 const headings = [
@@ -283,6 +284,37 @@ test('real Markdown/WIT guest drives native-parity granted and denied HTML throu
       assert.equal(hit(nativeDenied, 24, 40), 'A1HIT1\tnone\n');
       assert.equal(hit(nativeExpanded, 320, 40), 'A1HIT1\tnone\n');
 
+      const action = await activateNoteHeading({
+        executable: layoutDriver, wasm, document, expanded: 1, x: 24, y: 40,
+      });
+      assert.deepEqual(action.heading, {
+        index: 0, start: headings[0].start, end: headings[0].end,
+        level: headings[0].level,
+      });
+      assert.equal(action.activated, true);
+      assert.equal(action.after.visibleCount, 0);
+      assert.equal(action.after.html, collapsed);
+      assert.notDeepEqual(action.previousPixels, action.pixels,
+        'native heading activation must repaint actual pixels');
+      assert.deepEqual(action.pixels, checkedScenePpm(layoutDriver, nativeCollapsed.input));
+      for (const request of [
+        { expanded: 1, x: 24, y: 0 },
+        { expanded: 0, x: 24, y: 40 },
+      ]) {
+        const miss = await activateNoteHeading({
+          executable: layoutDriver, wasm, document, ...request,
+        });
+        assert.equal(miss.activated, false);
+        assert.deepEqual(miss.previousPixels, miss.pixels);
+      }
+      const deniedAction = await activateNoteHeading({
+        executable: layoutDriver, wasm,
+        document: { profile: 'denied', sourceBytes: Buffer.alloc(0),
+          headings: [], backingReads: denied.backingReads },
+        expanded: 1, x: 24, y: 40,
+      });
+      assert.equal(deniedAction.activated, false);
+      assert.equal(deniedAction.after.visibleCount, 0);
       const expandedPpm = checkedScenePpm(layoutDriver, nativeExpanded.input);
       const collapsedPpm = checkedScenePpm(layoutDriver, nativeCollapsed.input);
       const deniedPpm = checkedScenePpm(layoutDriver, nativeDenied.input);
