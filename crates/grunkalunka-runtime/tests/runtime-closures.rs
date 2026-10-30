@@ -946,7 +946,8 @@ fn nested_callback_argument_constructors_have_an_observed_small_stack_bound() {
             format!("export function run(a,b){{const apply=fn=>fn();return apply({callback});}}");
         let result = std::thread::Builder::new()
             .name(
-                "nested_callback_argument_constructors_have_an_observed_small_stack_bound".to_owned(),
+                "nested_callback_argument_constructors_have_an_observed_small_stack_bound"
+                    .to_owned(),
             )
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
@@ -1182,7 +1183,8 @@ fn function_assignment_cursor_crossings_are_bounded_on_a_small_native_stack() {
         let source = format!("export function run(a,b){{let f=()=>a;f={value};return f();}}");
         let result = std::thread::Builder::new()
             .name(
-                "function_assignment_cursor_crossings_are_bounded_on_a_small_native_stack".to_owned(),
+                "function_assignment_cursor_crossings_are_bounded_on_a_small_native_stack"
+                    .to_owned(),
             )
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
