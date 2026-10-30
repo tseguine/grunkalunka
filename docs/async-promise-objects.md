@@ -200,3 +200,22 @@ Written catch bindings and unknown incoming domains retain conservative facts.
 An awaited arbitrary helper in a catch input is not specialized by this value
 query; broader interprocedural catch-flow precision remains separate. Captures
 from prior activations keep the existing call-context safeguards.
+
+## Early snapshots of mutable Promise variables
+
+A stable alias retains the handle read when it was initialized. The rejection
+query can follow a variable's initializer for that saved read when the initializer
+finished before a non-repeating read and every write is later in the same
+function invocation. A later loop may write the variable; the saved read must
+remain outside that repeating region. Later assignments do not change
+the alias's Promise identity or rejection reason. Direct awaits before such
+writes use the same proof. Existing carrier and runtime snapshot rules are
+unchanged, including Promise/primitive storage and ordered effects.
+
+Textual order is not a reaching-definition proof across loop backedges, captured
+reads/writes or writes preceding the read. Those cases keep module-wide facts.
+This query refines the rejection of a saved value; it does not establish a new
+primitive-argument proof for mutable call arguments, change capture activation
+identity, or provide general mutable-cell flow analysis. Maintained JS/TS native
+JS, Node-Wasm and Wasmtime tests cover saved aliases, later assignments, earlier
+writes, callbacks, loop iterations, primitive bits, type erasure and source limits.
