@@ -8,6 +8,8 @@ mod closures;
 mod layout;
 mod materialization;
 mod relational;
+#[cfg(test)]
+mod iterative_emitter_tests;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -213,9 +215,8 @@ impl Emitter<'_> {
         self.set(result);
     }
 
-    fn operations(&mut self, operations: &[ir::Operation]) {
-        for operation in operations {
-            match &operation.kind {
+    fn atomic_operation(&mut self, operation: &ir::Operation) {
+        match &operation.kind {
                 Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
                 Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
                 Op::FulfillPromise { result, input }
@@ -254,32 +255,8 @@ impl Emitter<'_> {
                     callee,
                     arguments,
                 } => self.call_closure(*result, *callee, arguments),
-                Op::InlineCall { result, body } => {
-                    let outer = self.inline_return.replace(body.id.0);
-                    let result_types = layout::value(self.function.values[result.0]).wat;
-                    writeln!(
-                        self.output,
-                        "block $call{} (result {result_types})",
-                        body.id.0
-                    )
-                    .unwrap();
-                    self.region(body);
-                    self.output.push_str("unreachable\nend\n");
-                    self.inline_return = outer;
-                    self.set(*result);
-                }
-                Op::SettlePromise { result, body } => {
-                    let outer_return = self.inline_return.replace(body.id.0);
-                    let outer_throw = self.throw_to.replace(ThrowTarget::Settlement(body.id.0));
-                    let outer_loop = self.loop_label.take();
-                    writeln!(self.output, "block $call{} (result i32 f64)", body.id.0).unwrap();
-                    self.region(body);
-                    self.output.push_str("unreachable\nend\n");
-                    self.inline_return = outer_return;
-                    self.throw_to = outer_throw;
-                    self.loop_label = outer_loop;
-                    self.set(*result);
-                }
+                Op::InlineCall { .. } => unreachable!("structured operation"),
+                Op::SettlePromise { .. } => unreachable!("structured operation"),
                 Op::SettledValue { result, input } => {
                     writeln!(
                         self.output,
@@ -301,27 +278,7 @@ impl Emitter<'_> {
                     .unwrap();
                     self.set(*result);
                 }
-                Op::TryCatch {
-                    body,
-                    reason,
-                    handler,
-                } => {
-                    let label = body.id.0;
-                    writeln!(
-                        self.output,
-                        "block $try_done{label}\nblock $try_catch{label}"
-                    )
-                    .unwrap();
-                    let outer = self.throw_to.replace(ThrowTarget::Catch {
-                        label,
-                        reason: *reason,
-                    });
-                    self.region(body);
-                    writeln!(self.output, "br $try_done{label}\nend").unwrap();
-                    self.throw_to = outer;
-                    self.region(handler);
-                    self.output.push_str("end\n");
-                }
+                Op::TryCatch { .. } => unreachable!("structured operation"),
                 Op::Await { .. }
                 | Op::AwaitSettled { .. }
                 | Op::AwaitCall { .. }
@@ -379,17 +336,7 @@ impl Emitter<'_> {
                     writeln!(self.output, "i32.const {}", i32::from(*value)).unwrap();
                     self.set(*result);
                 }
-                Op::DoWhile { body, condition } => {
-                    let label = body.id.0;
-                    writeln!(self.output, "block $exit{label}\nloop $do{label}").unwrap();
-                    let outer = self.loop_label.replace(label);
-                    writeln!(self.output, "block $continue{label}").unwrap();
-                    self.region(body);
-                    self.output.push_str("end\n");
-                    self.loop_label = outer;
-                    self.region(condition);
-                    writeln!(self.output, "br_if $do{label}\nend\nend").unwrap();
-                }
+                Op::DoWhile { .. } => unreachable!("structured operation"),
                 Op::Constant { result, value } => {
                     let literal = if value.is_nan() {
                         "nan".to_string()
@@ -407,7 +354,7 @@ impl Emitter<'_> {
                     if let Some(pointer) = self.cell_offsets[slot.0] {
                         self.load_cell(*slot, pointer);
                         self.set(*result);
-                        continue;
+                        return;
                     }
                     let offset = self.slot_offsets[slot.0];
                     writeln!(self.output, "local.get {offset}").unwrap();
@@ -424,7 +371,7 @@ impl Emitter<'_> {
                             pointer,
                             matches!(operation.kind, Op::Initialize { .. }),
                         );
-                        continue;
+                        return;
                     }
                     self.get(*value);
                     let offset = self.slot_offsets[slot.0];
@@ -599,60 +546,165 @@ impl Emitter<'_> {
                     self.output.push_str("f64.abs\nf64.const 0\nf64.gt\n");
                     self.set(*result);
                 }
-                Op::Block(child) => self.region(child),
-                Op::If {
-                    result,
-                    condition,
-                    consequent,
-                    alternate,
-                } => {
-                    self.get(*condition);
-                    if let Some(result) = result {
+                Op::Block(_) | Op::If { .. } | Op::While { .. } => {
+                    unreachable!("structured operation")
+                }
+        }
+    }
+
+    fn region(&mut self, root: &Region) {
+        // Explicit continuations preserve WAT byte order and the lexical
+        // context of nested blocks without allocating native stack frames.
+        enum Work<'a> {
+            Region(&'a Region),
+            Operation(&'a ir::Operation),
+            Exit(Exit),
+            Text(String),
+            Set(ValueId),
+            RestoreInline(Option<usize>),
+            RestoreThrow(Option<ThrowTarget>),
+            RestoreLoop(Option<usize>),
+            WhileAfterCondition {
+                label: usize,
+                body: &'a Region,
+                step: Option<&'a Region>,
+            },
+        }
+
+        let mut pending = vec![Work::Region(root)];
+        while let Some(task) = pending.pop() {
+            match task {
+                Work::Region(region) => {
+                    pending.push(Work::Exit(region.exit));
+                    for operation in region.operations.iter().rev() {
+                        pending.push(Work::Operation(operation));
+                    }
+                }
+                Work::Exit(exit) => self.emit_exit(exit),
+                Work::Text(text) => self.output.push_str(&text),
+                Work::Set(value) => self.set(value),
+                Work::RestoreInline(previous) => self.inline_return = previous,
+                Work::RestoreThrow(previous) => self.throw_to = previous,
+                Work::RestoreLoop(previous) => self.loop_label = previous,
+                Work::WhileAfterCondition { label, body, step } => {
+                    writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
+                    let previous = self.loop_label.replace(label);
+                    writeln!(self.output, "block $continue{label}").unwrap();
+                    pending.push(Work::Text(format!("br $loop{label}\nend\nend\n")));
+                    if let Some(step) = step {
+                        pending.push(Work::Region(step));
+                    }
+                    pending.push(Work::RestoreLoop(previous));
+                    pending.push(Work::Text("end\n".into()));
+                    pending.push(Work::Region(body));
+                }
+                Work::Operation(operation) => match &operation.kind {
+                    Op::InlineCall { result, body } => {
+                        let previous = self.inline_return.replace(body.id.0);
+                        let result_types = layout::value(self.function.values[result.0]).wat;
                         writeln!(
                             self.output,
-                            "if (result {})",
-                            layout::value(self.function.values[result.0]).wat
+                            "block $call{} (result {result_types})",
+                            body.id.0
                         )
                         .unwrap();
-                    } else {
-                        self.output.push_str("if\n");
+                        pending.push(Work::Set(*result));
+                        pending.push(Work::RestoreInline(previous));
+                        pending.push(Work::Text("unreachable\nend\n".into()));
+                        pending.push(Work::Region(body));
                     }
-                    self.region(consequent);
-                    self.output.push_str("else\n");
-                    self.region(alternate);
-                    self.output.push_str("end\n");
-                    if let Some(result) = result {
-                        self.set(*result);
+                    Op::SettlePromise { result, body } => {
+                        let previous_return = self.inline_return.replace(body.id.0);
+                        let previous_throw = self.throw_to.replace(ThrowTarget::Settlement(body.id.0));
+                        let previous_loop = self.loop_label.take();
+                        writeln!(self.output, "block $call{} (result i32 f64)", body.id.0).unwrap();
+                        pending.push(Work::Set(*result));
+                        pending.push(Work::RestoreLoop(previous_loop));
+                        pending.push(Work::RestoreThrow(previous_throw));
+                        pending.push(Work::RestoreInline(previous_return));
+                        pending.push(Work::Text("unreachable\nend\n".into()));
+                        pending.push(Work::Region(body));
                     }
-                }
-                Op::While {
-                    condition,
-                    body,
-                    step,
-                } => {
-                    let label = condition.id.0;
-                    writeln!(self.output, "block $exit{label}\nloop $loop{label}").unwrap();
-                    // The entire condition region executes on every visit, including
-                    // the final failed test. Its values never escape to the body or step.
-                    self.region(condition);
-                    writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
-                    let outer = self.loop_label.replace(label);
-                    writeln!(self.output, "block $continue{label}").unwrap();
-                    self.region(body);
-                    self.output.push_str("end\n");
-                    self.loop_label = outer;
-                    if let Some(step) = step {
-                        self.region(step);
+                    Op::TryCatch {
+                        body,
+                        reason,
+                        handler,
+                    } => {
+                        let label = body.id.0;
+                        writeln!(
+                            self.output,
+                            "block $try_done{label}\nblock $try_catch{label}"
+                        )
+                        .unwrap();
+                        let previous = self.throw_to.replace(ThrowTarget::Catch {
+                            label,
+                            reason: *reason,
+                        });
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(handler));
+                        pending.push(Work::RestoreThrow(previous));
+                        pending.push(Work::Text(format!("br $try_done{label}\nend\n")));
+                        pending.push(Work::Region(body));
                     }
-                    writeln!(self.output, "br $loop{label}\nend\nend").unwrap();
-                }
+                    Op::DoWhile { body, condition } => {
+                        let label = body.id.0;
+                        writeln!(self.output, "block $exit{label}\nloop $do{label}").unwrap();
+                        let previous = self.loop_label.replace(label);
+                        writeln!(self.output, "block $continue{label}").unwrap();
+                        pending.push(Work::Text(format!("br_if $do{label}\nend\nend\n")));
+                        pending.push(Work::Region(condition));
+                        pending.push(Work::RestoreLoop(previous));
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(body));
+                    }
+                    Op::Block(child) => pending.push(Work::Region(child)),
+                    Op::If {
+                        result,
+                        condition,
+                        consequent,
+                        alternate,
+                    } => {
+                        self.get(*condition);
+                        if let Some(result) = result {
+                            writeln!(
+                                self.output,
+                                "if (result {})",
+                                layout::value(self.function.values[result.0]).wat
+                            )
+                            .unwrap();
+                        } else {
+                            self.output.push_str("if\n");
+                        }
+                        if let Some(result) = result {
+                            pending.push(Work::Set(*result));
+                        }
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(alternate));
+                        pending.push(Work::Text("else\n".into()));
+                        pending.push(Work::Region(consequent));
+                    }
+                    Op::While {
+                        condition,
+                        body,
+                        step,
+                    } => {
+                        let label = condition.id.0;
+                        writeln!(self.output, "block $exit{label}\nloop $loop{label}").unwrap();
+                        pending.push(Work::WhileAfterCondition {
+                            label,
+                            body,
+                            step: step.as_ref(),
+                        });
+                        pending.push(Work::Region(condition));
+                    }
+                    _ => self.atomic_operation(operation),
+                },
             }
         }
     }
 
-    fn region(&mut self, region: &Region) {
-        self.operations(&region.operations);
-        match region.exit {
+    fn emit_exit(&mut self, exit: Exit) {
+        match exit {
             Exit::Fallthrough => {}
             Exit::Throw(value) => match self.throw_to.expect("verified closed primitive throw") {
                 ThrowTarget::Settlement(label) => {
