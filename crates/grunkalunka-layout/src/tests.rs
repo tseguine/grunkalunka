@@ -205,3 +205,32 @@ fn checked_dimensions_reject_wraparound() {
     }];
     assert_eq!(layout(&blocks, 100, 100), Err(LayoutError::Overflow));
 }
+
+#[test]
+fn mixed_depth_limit_uses_heap_frames_and_keeps_natural_height() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let mut blocks = vec![Block::default()];
+            for level in 1..=MAX_DEPTH {
+                let mut child = Block::child(level - 1, u32::from(level == MAX_DEPTH));
+                if level % 2 == 0 {
+                    child.style.display = Display::Contents;
+                }
+                blocks.push(child);
+            }
+            let frame = layout(&blocks, 10, 10).unwrap();
+            assert_eq!(frame.boxes[0].unwrap().content.height, 1);
+            assert_eq!(frame.boxes[MAX_DEPTH].is_none(), MAX_DEPTH % 2 == 0);
+            blocks.push(Block::child(MAX_DEPTH, 1));
+            assert_eq!(
+                layout(&blocks, 10, 10),
+                Err(LayoutError::TooDeep {
+                    node: MAX_DEPTH + 1
+                })
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

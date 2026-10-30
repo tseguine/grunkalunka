@@ -227,3 +227,27 @@ fn caps_allocation_and_rejects_bad_viewports_or_excessive_depth() {
         })
     );
 }
+
+#[test]
+fn deep_mixed_contents_paint_stays_ordered_on_a_small_stack() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let mut blocks = vec![Block::default()];
+            let mut colors = vec![painted(None, Some(RED), None)];
+            for level in 1..=MAX_DEPTH {
+                let mut child = Block::child(level - 1, u32::from(level == MAX_DEPTH));
+                if level % 2 == 0 && level < MAX_DEPTH {
+                    child.style.display = Display::Contents;
+                }
+                blocks.push(child);
+                colors.push(painted(Some(level - 1), Some(BLUE), None));
+            }
+            let frame = layout(&blocks, 4, 4).unwrap();
+            let canvas = paint(&frame, &colors, Rgb::WHITE).unwrap();
+            assert_eq!(canvas.pixel(0, 0), Some(BLUE));
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

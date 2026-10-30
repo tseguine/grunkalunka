@@ -162,20 +162,21 @@ fn paint_node(
     canvas: &mut Canvas,
     ancestor_clip: Option<Rect>,
 ) -> Result<(), PaintError> {
-    if frame.contents[index] && frame.boxes[index].is_some() {
-        return Err(PaintError::InvalidBox { node: index });
-    }
-    let Some(geometry) = frame.boxes[index] else {
-        // A boxless display:contents wrapper retains its children in normal
-        // painting order. It has no own background, border, padding clip,
-        // or principal box to paint, even when caller paint metadata exists.
-        if frame.contents[index] {
-            for &child in &children[index] {
-                paint_node(child, children, frame, nodes, canvas, ancestor_clip)?;
-            }
+    // Reverse-push children so the LIFO worklist reproduces the original
+    // preorder, including display:contents and overlapping sibling paints.
+    let mut pending = vec![(index, ancestor_clip)];
+    while let Some((index, ancestor_clip)) = pending.pop() {
+        if frame.contents[index] && frame.boxes[index].is_some() {
+            return Err(PaintError::InvalidBox { node: index });
         }
-        return Ok(());
-    };
+        let Some(geometry) = frame.boxes[index] else {
+            if frame.contents[index] {
+                for &child in children[index].iter().rev() {
+                    pending.push((child, ancestor_clip));
+                }
+            }
+            continue;
+        };
     if !contains(geometry.margin, geometry.border)?
         || !contains(geometry.border, geometry.padding)?
         || !contains(geometry.padding, geometry.content)?
@@ -254,10 +255,9 @@ fn paint_node(
     } else {
         ancestor_clip
     };
-    // Explicit depth-first sibling order, even if the flat input is not preorder.
-    // This is a toy painter's order, not an implementation of CSS stacking contexts.
-    for &child in &children[index] {
-        paint_node(child, children, frame, nodes, canvas, child_clip)?;
+        for &child in children[index].iter().rev() {
+            pending.push((child, child_clip));
+        }
     }
     Ok(())
 }
