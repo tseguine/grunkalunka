@@ -799,48 +799,56 @@ fn region_has_await(region: &Region) -> bool {
 }
 
 fn region_has_control(region: &Region, starts: bool) -> bool {
-    if matches!(region.exit, Exit::Throw(_)) {
-        return true;
+    // The scan must not consume native stack proportional to nested source or
+    // generated regions. Settlement bodies deliberately do not participate:
+    // their primitive exceptions and awaits are closed within the snapshot.
+    let mut pending = vec![region];
+    while let Some(region) = pending.pop() {
+        if matches!(region.exit, Exit::Throw(_)) {
+            return true;
+        }
+        for operation in &region.operations {
+            match &operation.kind {
+                Op::Await { .. }
+                | Op::AsyncClosureEntry { .. }
+                | Op::AwaitPromise { .. }
+                | Op::AdoptPromise { .. }
+                | Op::AwaitClosureCall { .. }
+                | Op::AwaitSettled { .. }
+                | Op::AwaitCall { .. }
+                | Op::TryCatch { .. }
+                | Op::TryFinally { .. } => return true,
+                Op::StartAsyncClosure { .. } if starts => return true,
+                Op::SettlePromise { .. } => (),
+                Op::InlineCall { body, .. } | Op::Block(body) => pending.push(body),
+                Op::If {
+                    consequent,
+                    alternate,
+                    ..
+                } => {
+                    pending.push(alternate);
+                    pending.push(consequent);
+                }
+                Op::While {
+                    condition,
+                    body,
+                    step,
+                } => {
+                    if let Some(step) = step {
+                        pending.push(step);
+                    }
+                    pending.push(body);
+                    pending.push(condition);
+                }
+                Op::DoWhile { body, condition } => {
+                    pending.push(condition);
+                    pending.push(body);
+                }
+                _ => (),
+            }
+        }
     }
-    region
-        .operations
-        .iter()
-        .any(|operation| match &operation.kind {
-            Op::Await { .. }
-            | Op::AsyncClosureEntry { .. }
-            | Op::AwaitPromise { .. }
-            | Op::AdoptPromise { .. }
-            | Op::AwaitClosureCall { .. }
-            | Op::AwaitSettled { .. }
-            | Op::AwaitCall { .. }
-            | Op::TryCatch { .. }
-            | Op::TryFinally { .. } => true,
-            Op::StartAsyncClosure { .. } => starts,
-            // Verified settlement bodies close primitive throws and cannot await.
-            Op::SettlePromise { .. } => false,
-            Op::InlineCall { body, .. } => region_has_control(body, starts),
-            Op::Block(child) => region_has_control(child, starts),
-            Op::If {
-                consequent,
-                alternate,
-                ..
-            } => region_has_control(consequent, starts) || region_has_control(alternate, starts),
-            Op::While {
-                condition,
-                body,
-                step,
-            } => {
-                region_has_control(condition, starts)
-                    || region_has_control(body, starts)
-                    || step
-                        .as_ref()
-                        .is_some_and(|step| region_has_control(step, starts))
-            }
-            Op::DoWhile { body, condition } => {
-                region_has_control(body, starts) || region_has_control(condition, starts)
-            }
-            _ => false,
-        })
+    false
 }
 
 /// Emit one ordinary activation; coroutine frames use a separate storage mapping.
@@ -906,4 +914,126 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
     // nested void branches whose arms return; it supplies no source semantics.
     emitter.output.push_str("unreachable\n)");
     (emitter.output, emitter.needs_remainder)
+}
+
+#[cfg(test)]
+mod control_scan_tests {
+    use super::*;
+    use oxc_span::Span;
+
+    fn region(operations: Vec<Op>, exit: Exit) -> Region {
+        let span = Span::new(0, 0);
+        Region {
+            id: ir::RegionId(0),
+            span,
+            operations: operations
+                .into_iter()
+                .map(|kind| ir::Operation { span, kind })
+                .collect(),
+            exit,
+        }
+    }
+
+    fn idle() -> Region {
+        region(Vec::new(), Exit::Fallthrough)
+    }
+
+    #[test]
+    fn control_scan_preserves_nested_exits_and_settlement_exclusion() {
+        let selected = region(
+            vec![Op::If {
+                result: None,
+                condition: ValueId(0),
+                consequent: region(Vec::new(), Exit::Throw(ValueId(0))),
+                alternate: idle(),
+            }],
+            Exit::Fallthrough,
+        );
+        assert!(region_has_control(&selected, false));
+
+        let wrapped = region(
+            vec![Op::While {
+                condition: idle(),
+                body: region(
+                    vec![Op::DoWhile {
+                        body: idle(),
+                        condition: region(
+                            vec![Op::Await {
+                                result: ValueId(0),
+                                input: ValueId(0),
+                                rejected: false,
+                            }],
+                            Exit::Fallthrough,
+                        ),
+                    }],
+                    Exit::Fallthrough,
+                ),
+                step: Some(idle()),
+            }],
+            Exit::Fallthrough,
+        );
+        assert!(region_has_control(&wrapped, false));
+
+        let started = region(
+            vec![Op::Block(region(
+                vec![Op::StartAsyncClosure {
+                    result: ValueId(0),
+                    callee: ValueId(0),
+                    arguments: Vec::new(),
+                }],
+                Exit::Fallthrough,
+            ))],
+            Exit::Fallthrough,
+        );
+        assert!(!region_has_control(&started, false));
+        assert!(region_has_control(&started, true));
+
+        let settled = region(
+            vec![Op::SettlePromise {
+                result: ValueId(0),
+                body: region(
+                    vec![Op::Await {
+                        result: ValueId(0),
+                        input: ValueId(0),
+                        rejected: true,
+                    }],
+                    Exit::Throw(ValueId(0)),
+                ),
+            }],
+            Exit::Fallthrough,
+        );
+        // Scanner-only synthetic IR: settlement bodies are excluded regardless
+        // of whether the separately enforced verifier contract would admit them.
+        assert!(!region_has_control(&settled, true));
+    }
+
+    #[test]
+    fn control_scan_deep_region_chain_uses_bounded_native_stack() {
+        const DEPTH: usize = 4096;
+        let mut root = idle();
+        for _ in 0..DEPTH {
+            root = region(vec![Op::Block(root)], Exit::Fallthrough);
+        }
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                assert!(!region_has_control(&root, false));
+                assert!(!region_has_control(&root, true));
+
+                // Drop this intentionally out-of-contract IR tree iteratively
+                // so the test isolates the inspection path, not destruction.
+                let mut current = root;
+                for _ in 0..DEPTH {
+                    let operation = current.operations.pop().expect("nested block");
+                    let Op::Block(child) = operation.kind else {
+                        panic!("nested block");
+                    };
+                    current = child;
+                }
+                assert!(current.operations.is_empty());
+            })
+            .expect("small-stack scan thread")
+            .join()
+            .expect("small-stack scan completed");
+    }
 }
