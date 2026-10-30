@@ -24,7 +24,7 @@ enum YieldTarget {
     Test { yes: usize, no: usize },
 }
 
-enum End {
+enum End<'a> {
     AdoptPromise {
         subscription: usize,
     },
@@ -49,7 +49,7 @@ enum End {
     },
     InvokeClosure {
         callee: ValueId,
-        arguments: Vec<ValueId>,
+        arguments: &'a [ValueId],
         returned: usize,
     },
     EnterClosure {
@@ -90,7 +90,7 @@ struct State<'a> {
     function: usize,
     operations: &'a [ir::Operation],
     resumed: Option<ValueId>,
-    end: End,
+    end: End<'a>,
 }
 
 #[derive(Default)]
@@ -134,7 +134,7 @@ impl<'a> Splitter<'a> {
         &mut self,
         operations: &'a [ir::Operation],
         resumed: Option<ValueId>,
-        end: End,
+        end: End<'a>,
     ) -> Result<usize, String> {
         if self.states.len() == MAX_STATES {
             return Err("async continuation graph exceeds 4096 states".into());
@@ -149,7 +149,7 @@ impl<'a> Splitter<'a> {
         Ok(id)
     }
 
-    fn terminal(&mut self, end: End) -> Result<usize, String> {
+    fn terminal(&mut self, end: End<'a>) -> Result<usize, String> {
         self.state(&[], None, end)
     }
 
@@ -167,6 +167,9 @@ impl<'a> Splitter<'a> {
         Ok((caught.is_none() && self.function == 0, resume))
     }
 
+    // Invocation arguments borrow the original verified IR ValueId slice. It
+    // remains valid through splitting, including repeated finally continuations,
+    // and avoids allocating a new vector for each emitted call.
     // Build backwards from the suffix. Every internal edge stays in the current
     // host job; only Suspend returns to the scheduler. Loop targets are lexical.
     fn region(
@@ -227,7 +230,7 @@ impl<'a> Splitter<'a> {
                     })?;
                     self.terminal(End::InvokeClosure {
                         callee: *callee,
-                        arguments: arguments.clone(),
+                        arguments,
                         returned,
                     })?
                 }
@@ -291,7 +294,7 @@ impl<'a> Splitter<'a> {
                     };
                     self.terminal(End::InvokeClosure {
                         callee: *callee,
-                        arguments: arguments.clone(),
+                        arguments,
                         returned,
                     })?
                 }
