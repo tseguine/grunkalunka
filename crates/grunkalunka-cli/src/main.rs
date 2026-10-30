@@ -196,7 +196,9 @@ fn execute(diagnostics: bool) -> Result<(), Box<dyn Error>> {
 }
 
 fn main() {
-    if let Err(error) = execute(matches!(env::var("GRUNKALUNKA_DIAGNOSTICS"), Ok(value) if value == "1")) {
+    if let Err(error) =
+        execute(matches!(env::var("GRUNKALUNKA_DIAGNOSTICS"), Ok(value) if value == "1"))
+    {
         eprintln!("ERROR: {error}");
         std::process::exit(1);
     }

@@ -78,15 +78,24 @@ fn compile_diagnostics_are_opt_in_and_preserve_wat_output() {
     let log = stderr(&traced);
     assert!(log.contains("DIAG phase=source event=start"), "{log}");
     assert!(log.contains("DIAG phase=source event=ok bytes="), "{log}");
-    assert!(log.contains("DIAG phase=compile event=start profile=numeric language=js"), "{log}");
-    assert!(log.contains("DIAG phase=compile event=ok elapsed_ms="), "{log}");
+    assert!(
+        log.contains("DIAG phase=compile event=start profile=numeric language=js"),
+        "{log}"
+    );
+    assert!(
+        log.contains("DIAG phase=compile event=ok elapsed_ms="),
+        "{log}"
+    );
 
     let rejected = Fixture::new("js", b"export function run(a,b){ return a.foo; }");
     let failed = invoke(&["wat", rejected.path()], true, b"");
     assert!(!failed.status.success());
     assert!(failed.stdout.is_empty());
     let log = stderr(&failed);
-    assert!(log.contains("DIAG phase=compile event=error elapsed_ms="), "{log}");
+    assert!(
+        log.contains("DIAG phase=compile event=error elapsed_ms="),
+        "{log}"
+    );
     assert!(log.contains("ERROR:"), "{log}");
 }
 
@@ -114,7 +123,10 @@ fn instantiate_and_input_failures_identify_the_phase_without_spamming_values() {
     assert!(traced.status.success(), "{traced:?}");
     assert_eq!(traced.stdout, quiet.stdout);
     let log = stderr(&traced);
-    assert!(log.contains("DIAG phase=instantiate event=ok elapsed_ms="), "{log}");
+    assert!(
+        log.contains("DIAG phase=instantiate event=ok elapsed_ms="),
+        "{log}"
+    );
     assert!(log.contains("DIAG phase=execute event=ok pairs=1"), "{log}");
     assert!(!log.contains("a_bits="), "{log}");
 
@@ -122,6 +134,9 @@ fn instantiate_and_input_failures_identify_the_phase_without_spamming_values() {
     assert!(!rejected.status.success());
     assert!(rejected.stdout.is_empty());
     let log = stderr(&rejected);
-    assert!(log.contains("DIAG phase=input event=error line=1 reason=shape"), "{log}");
+    assert!(
+        log.contains("DIAG phase=input event=error line=1 reason=shape"),
+        "{log}"
+    );
     assert!(log.contains("ERROR:"), "{log}");
 }
