@@ -81,29 +81,19 @@ fn lower_source_profile(
     entry_type: ir::Type,
     async_entry: bool,
 ) -> Result<ir::Module, String> {
-    lower_source_profile_with_identities(source, typescript, entry_type, async_entry, async_entry)
+    lower_source_profile_with_identities(
+        source,
+        typescript,
+        entry_type,
+        async_entry,
+        async_entry,
+        false,
+    )
 }
 
 // Snapshot IR fixtures can exercise the logical completion operations without
 // depending on the public async frontend's constructor normalization.
 fn lower_source_profile_with_identities(
-    source: &str,
-    typescript: bool,
-    entry_type: ir::Type,
-    async_entry: bool,
-    identities: bool,
-) -> Result<ir::Module, String> {
-    lower_source_profile_with_service(
-        source,
-        typescript,
-        entry_type,
-        async_entry,
-        identities,
-        false,
-    )
-}
-
-fn lower_source_profile_with_service(
     source: &str,
     typescript: bool,
     entry_type: ir::Type,
@@ -568,7 +558,7 @@ fn lower_source_profile_with_service(
 /// import. The caller must explicitly link a capability provider; ordinary
 /// compile() continues to reject every runtime source import.
 pub fn compile_ui_import(source: &str, typescript: bool) -> Result<Artifact, String> {
-    let module = lower_source_profile_with_service(
+    let module = lower_source_profile_with_identities(
         source,
         typescript,
         ir::Type::Number,
