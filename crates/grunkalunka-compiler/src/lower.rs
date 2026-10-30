@@ -157,9 +157,7 @@ fn discarded_boolean_shape(expression: &Expression<'_>, depth: usize) -> bool {
         }
         match expression {
             Expression::BooleanLiteral(_) => return true,
-            Expression::UnaryExpression(unary)
-                if unary.operator == UnaryOperator::LogicalNot =>
-            {
+            Expression::UnaryExpression(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 return true;
             }
             Expression::BinaryExpression(binary)
@@ -200,7 +198,6 @@ fn discarded_boolean_shape(expression: &Expression<'_>, depth: usize) -> bool {
     }
     false
 }
-
 
 // Resolve only the original reference; never evaluate a write target as a value.
 // Oxc discards outer target parentheses, but retained inner nodes each cost depth.
