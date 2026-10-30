@@ -327,6 +327,13 @@ enum Work<'e, 'a> {
         arguments: Vec<ValueId>,
         depth: usize,
     },
+    UiCall {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        index: usize,
+        arguments: Vec<ValueId>,
+        depth: usize,
+    },
     MathCall {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
@@ -774,6 +781,158 @@ impl Lowering<'_, '_> {
         }
         work.push(Work::Eval(argument, operand.depth, Mode::AsyncValue));
         Ok(true)
+    }
+
+    // Named-call resolution also belongs outside the re-entrant cursor frame.
+    #[inline(never)]
+    fn schedule_direct_call<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        depth: usize,
+        mode: Mode,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        let Expression::Identifier(identifier) = &call.callee else {
+            return Err(unsupported(
+                node,
+                "expression is outside the numeric experiment",
+            ));
+        };
+        let symbol = identifier
+            .reference_id
+            .get()
+            .and_then(|reference| self.semantic.scoping().get_reference(reference).symbol_id());
+        let function = self
+            .functions
+            .iter()
+            .find(|function| Some(function.symbol) == symbol)
+            .ok_or_else(|| unsupported(node, "expression is outside the numeric experiment"))?;
+        if call.optional {
+            return Err(unsupported(node, "optional calls are not admitted"));
+        }
+        if call.arguments.len() > 1000 {
+            return Err(unsupported(
+                node,
+                "at most 1000 ordinary direct call arguments are admitted",
+            ));
+        }
+        if call.arguments.len() < function.parameter_count {
+            return Err(unsupported(node, "call is missing declared arguments"));
+        }
+        if function.return_type == Type::General && !matches!(mode, Mode::General) {
+            return Err(unsupported(
+                node,
+                "value-returning calls require a General result position",
+            ));
+        }
+        work.push(Work::Call {
+            node,
+            call,
+            function: function.id,
+            index: 0,
+            arguments: Vec::new(),
+            depth: depth + 1,
+        });
+        Ok(())
+    }
+
+    // Isolate A1-only planning from ordinary source evaluation as well.
+    #[inline(never)]
+    fn schedule_ui_call<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        mode: Mode,
+        depth: usize,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<bool, String> {
+        let imported = match &call.callee {
+            Expression::Identifier(identifier) => {
+                identifier.reference_id.get().and_then(|reference| {
+                    self.semantic.scoping().get_reference(reference).symbol_id()
+                }) == self.ui_import
+                    && self.ui_import.is_some()
+            }
+            _ => false,
+        };
+        if !imported {
+            return Ok(false);
+        }
+        if call.optional || call.arguments.len() < 2 || call.arguments.len() > 1000 {
+            return Err(unsupported(
+                node,
+                "A1 UI import needs two ordinary Number arguments",
+            ));
+        }
+        call_result(work, node, mode, Type::Number, true)?;
+        work.push(Work::UiCall {
+            node,
+            call,
+            index: 0,
+            arguments: Vec::new(),
+            depth: depth + 1,
+        });
+        Ok(true)
+    }
+
+    // Keep A1 continuation temporaries out of every evaluator activation.
+    // Constructor validation can re-enter the evaluator on a 2 MiB native stack.
+    #[inline(never)]
+    fn resume_ui_call<'e, 'a>(
+        &mut self,
+        task: Work<'e, 'a>,
+        regions: &mut Regions<'_>,
+        work: &mut Vec<Work<'e, 'a>>,
+        values: &mut Vec<Value>,
+    ) -> Result<(), String> {
+        let Work::UiCall {
+            node,
+            call,
+            index,
+            mut arguments,
+            depth,
+        } = task
+        else {
+            unreachable!("UI call continuation");
+        };
+        if index != 0 && index <= 2 {
+            arguments.push(values.pop().expect("UI import argument").number());
+        }
+        if index == call.arguments.len() {
+            let result = self.value(Type::Number);
+            Self::push(
+                regions.current(),
+                node,
+                Op::UiSelectVisible {
+                    result,
+                    expanded: arguments[0],
+                    count: arguments[1],
+                },
+            );
+            values.push(Value::Number(result));
+        } else {
+            let argument = call.arguments[index]
+                .as_expression()
+                .ok_or_else(|| unsupported(node, "spread UI service arguments are not admitted"))?;
+            work.push(Work::UiCall {
+                node,
+                call,
+                index: index + 1,
+                arguments,
+                depth,
+            });
+            work.push(Work::Eval(
+                argument,
+                depth,
+                if index < 2 {
+                    Mode::Number
+                } else {
+                    Mode::Discard
+                },
+            ));
+        }
+        Ok(())
     }
 
     pub(super) fn evaluate<'e, 'a>(
@@ -1946,6 +2105,9 @@ impl Lowering<'_, '_> {
                         },
                     );
                     values.push(Value::Number(value));
+                }
+                task @ Work::UiCall { .. } => {
+                    self.resume_ui_call(task, &mut regions, &mut work, &mut values)?;
                 }
                 Work::Call {
                     node,
@@ -3413,6 +3575,9 @@ impl Lowering<'_, '_> {
                             values.push(Value::Number(result));
                         }
                         Expression::CallExpression(call) => {
+                            if self.schedule_ui_call(node, call, mode, depth, &mut work)? {
+                                continue;
+                            }
                             if let Some((operator, _)) = math_unary(call, self.semantic) {
                                 if call.arguments.is_empty() {
                                     let result = self.value(Type::Number);
@@ -3442,59 +3607,7 @@ impl Lowering<'_, '_> {
                                     depth: depth + 1,
                                 });
                             } else {
-                                let Expression::Identifier(identifier) = &call.callee else {
-                                    return Err(unsupported(
-                                        node,
-                                        "expression is outside the numeric experiment",
-                                    ));
-                                };
-                                let symbol = identifier.reference_id.get().and_then(|reference| {
-                                    self.semantic.scoping().get_reference(reference).symbol_id()
-                                });
-                                let function = self
-                                    .functions
-                                    .iter()
-                                    .find(|function| Some(function.symbol) == symbol)
-                                    .ok_or_else(|| {
-                                        unsupported(
-                                            node,
-                                            "expression is outside the numeric experiment",
-                                        )
-                                    })?;
-                                if call.optional {
-                                    return Err(unsupported(
-                                        node,
-                                        "optional calls are not admitted",
-                                    ));
-                                }
-                                if call.arguments.len() > 1000 {
-                                    return Err(unsupported(
-                                        node,
-                                        "at most 1000 ordinary direct call arguments are admitted",
-                                    ));
-                                }
-                                if call.arguments.len() < function.parameter_count {
-                                    return Err(unsupported(
-                                        node,
-                                        "call is missing declared arguments",
-                                    ));
-                                }
-                                if function.return_type == Type::General
-                                    && !matches!(mode, Mode::General)
-                                {
-                                    return Err(unsupported(
-                                        node,
-                                        "value-returning calls require a General result position",
-                                    ));
-                                }
-                                work.push(Work::Call {
-                                    node,
-                                    call,
-                                    function: function.id,
-                                    index: 0,
-                                    arguments: Vec::new(),
-                                    depth: depth + 1,
-                                });
+                                self.schedule_direct_call(node, call, depth, mode, &mut work)?;
                             }
                         }
                         Expression::AssignmentExpression(assignment) => {

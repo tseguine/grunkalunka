@@ -249,6 +249,16 @@ impl Emitter<'_> {
                 function,
                 captures,
             } => self.make_closure(*result, *function, captures),
+            Op::UiSelectVisible {
+                result,
+                expanded,
+                count,
+            } => {
+                self.get(*expanded);
+                self.get(*count);
+                self.output.push_str("call $ui_select_visible\n");
+                self.set(*result);
+            }
             Op::ClosureCall {
                 result,
                 callee,
@@ -768,7 +778,14 @@ impl Emitter<'_> {
 
 pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
     ir::verify_module(module)?;
-    emit_verified(module, Type::Number)
+    emit_verified(module, Type::Number, false)
+}
+
+/// Opt-in A1 service code generation. Ordinary source compilation must not
+/// incur the import scan or change function indices.
+pub(crate) fn emit_ui_import(module: &ir::Module) -> Result<String, String> {
+    ir::verify_module(module)?;
+    emit_verified(module, Type::Number, true)
 }
 
 pub(crate) fn emit_with_entry_type(
@@ -776,10 +793,14 @@ pub(crate) fn emit_with_entry_type(
     entry_type: Type,
 ) -> Result<String, String> {
     ir::verify_module_with_entry_type(module, entry_type)?;
-    emit_verified(module, entry_type)
+    emit_verified(module, entry_type, false)
 }
 
-fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String> {
+fn emit_verified(
+    module: &ir::Module,
+    entry_type: Type,
+    ui_profile: bool,
+) -> Result<String, String> {
     if module_materializes_promises(module) {
         return Err("Promise materialization requires the async runtime profile".into());
     }
@@ -791,6 +812,21 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         return Err("await IR requires the async emitter".into());
     }
     let mut output = String::from("(module ");
+    // This scan is needed only by the explicit capability profile. Standard
+    // numeric/primitive compilation keeps its prior work and stack behavior.
+    let mut has_ui_import = false;
+    let mut has_direct_call = false;
+    if ui_profile {
+        for function in &module.functions {
+            ir::visit_operations(&function.body, &mut |op| {
+                has_ui_import |= matches!(op, Op::UiSelectVisible { .. });
+                has_direct_call |= matches!(op, Op::Call { .. });
+            });
+        }
+        if !has_ui_import {
+            return Err("A1 UI profile requires a source call to the imported service".into());
+        }
+    }
     let has_closures = module
         .functions
         .iter()
@@ -802,6 +838,19 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             .any(|f| !ir::captured_cells(&f.body).is_empty());
     if has_cells {
         output.push_str(cells::MEMORY);
+    }
+    if has_ui_import {
+        // Importing a function prepends its core-Wasm function index. This
+        // first profile disallows all internal numeric calls and lifted functions;
+        // expanding either requires named/index-independent internal references.
+        if module.functions.len() != 1 || has_cells || has_direct_call {
+            return Err(
+                "A1 scalar import cannot yet compose with local functions or captured cells".into(),
+            );
+        }
+        output.push_str(
+            "(import \"grunkalunka:a1/ui\" \"select-visible\" (func $ui_select_visible (param f64 f64) (result f64)))\n",
+        );
     }
     if has_closures {
         output.push_str(&closures::table(module, false, false));

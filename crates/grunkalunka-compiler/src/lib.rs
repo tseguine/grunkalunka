@@ -12,7 +12,7 @@ use lower::{Lowering, NumericBinding, NumericFunction};
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     BindingPattern, Declaration, ExportDefaultDeclarationKind, FormalParameterKind, FunctionType,
-    ImportOrExportKind, Statement,
+    ImportDeclarationSpecifier, ImportOrExportKind, ModuleExportName, Statement,
 };
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
@@ -63,6 +63,71 @@ fn is_type_module_item(statement: &Statement<'_>) -> bool {
         }
 }
 
+// Keep A1-only import validation out of the ordinary compiler's stack frame.
+// Deep-source admission tests deliberately run with a 2 MiB native stack.
+#[inline(never)]
+fn resolve_a1_ui_import(
+    program: &oxc_ast::ast::Program<'_>,
+    semantic: &oxc_semantic::Semantic<'_>,
+) -> Result<oxc_semantic::SymbolId, String> {
+    // This is an explicit build-time registry with precisely one runtime
+    // binding, NOT general ES module resolution or an ambient host grant.
+    let imports: Vec<_> = program
+        .body
+        .iter()
+        .filter_map(|statement| match statement {
+            Statement::ImportDeclaration(import)
+                if import.import_kind == ImportOrExportKind::Value =>
+            {
+                Some(import.as_ref())
+            }
+            _ => None,
+        })
+        .collect();
+    if imports.len() != 1 {
+        return Err(unsupported(
+            program,
+            "A1 UI profile needs exactly one runtime import",
+        ));
+    }
+    let import = imports[0];
+    if import.source.value.as_str() != Some("grunkalunka:a1/ui")
+        || import.with_clause.is_some()
+        || import.phase.is_some()
+    {
+        return Err(unsupported(import, "unknown A1 UI service import"));
+    }
+    let specifiers = import
+        .specifiers
+        .as_ref()
+        .ok_or_else(|| unsupported(import, "expected one named A1 UI import"))?;
+    let [ImportDeclarationSpecifier::ImportSpecifier(specifier)] = specifiers.as_slice() else {
+        return Err(unsupported(import, "expected one named A1 UI import"));
+    };
+    let ModuleExportName::IdentifierName(name) = &specifier.imported else {
+        return Err(unsupported(import, "expected selectVisible binding"));
+    };
+    if name.name.as_str() != "selectVisible" || specifier.import_kind != ImportOrExportKind::Value {
+        return Err(unsupported(import, "expected selectVisible binding"));
+    }
+    let symbol = specifier
+        .local
+        .symbol_id
+        .get()
+        .ok_or("missing A1 service import binding")?;
+    if semantic
+        .scoping()
+        .get_resolved_references(symbol)
+        .any(|reference| reference.is_write())
+    {
+        return Err(unsupported(
+            import,
+            "writes to A1 service bindings are not admitted",
+        ));
+    }
+    Ok(symbol)
+}
+
 fn lower_source(source: &str, typescript: bool) -> Result<ir::Module, String> {
     lower_source_with_entry_type(source, typescript, ir::Type::Number)
 }
@@ -81,7 +146,14 @@ fn lower_source_profile(
     entry_type: ir::Type,
     async_entry: bool,
 ) -> Result<ir::Module, String> {
-    lower_source_profile_with_identities(source, typescript, entry_type, async_entry, async_entry)
+    lower_source_profile_with_identities(
+        source,
+        typescript,
+        entry_type,
+        async_entry,
+        async_entry,
+        false,
+    )
 }
 
 // Snapshot IR fixtures can exercise the logical completion operations without
@@ -92,6 +164,7 @@ fn lower_source_profile_with_identities(
     entry_type: ir::Type,
     async_entry: bool,
     identities: bool,
+    ui_service: bool,
 ) -> Result<ir::Module, String> {
     if source.len() > 16_384 {
         return Err("source exceeds this experiment's 16 KiB limit".into());
@@ -113,12 +186,20 @@ fn lower_source_profile_with_identities(
         return Err(format!("semantic diagnostics: {:?}", built.diagnostics));
     }
     let program = &parsed.program;
+    let ui_import = if ui_service {
+        Some(resolve_a1_ui_import(program, &built.semantic)?)
+    } else {
+        None
+    };
     // The original annotated AST stays available through lowering. Type syntax
     // is unvalidated metadata; the ABI and runtime operands determine admission.
     let runtime: Vec<_> = program
         .body
         .iter()
-        .filter(|statement| !is_type_module_item(statement))
+        .filter(|statement| {
+            !is_type_module_item(statement)
+                && !(ui_import.is_some() && matches!(statement, Statement::ImportDeclaration(_)))
+        })
         .collect();
     if runtime.is_empty() {
         return Err(unsupported(
@@ -396,6 +477,7 @@ fn lower_source_profile_with_identities(
             return_type: signatures[index].return_type,
             semantic: &built.semantic,
             functions: &signatures,
+            ui_import,
             general_bindings: &general_bindings.storage,
             general_parameters: &general_bindings.inputs,
             number_calls: &general_bindings.number_calls,
@@ -432,11 +514,10 @@ fn lower_source_profile_with_identities(
             for directive in &program.directives {
                 lowering.charge_statement(directive)?;
             }
-            for declaration in program
-                .body
-                .iter()
-                .filter(|statement| is_type_module_item(statement))
-            {
+            for declaration in program.body.iter().filter(|statement| {
+                is_type_module_item(statement)
+                    || (ui_import.is_some() && matches!(statement, Statement::ImportDeclaration(_)))
+            }) {
                 lowering.charge_statement(declaration)?;
             }
         } else {
@@ -487,6 +568,23 @@ fn lower_source_profile_with_identities(
         functions,
         closure_signatures: closure_signatures.into_inner(),
     })
+}
+
+/// Compile the first statically registered A1 UI import into a real core-Wasm
+/// import. The caller must explicitly link a capability provider; ordinary
+/// compile() continues to reject every runtime source import.
+pub fn compile_ui_import(source: &str, typescript: bool) -> Result<Artifact, String> {
+    let module = lower_source_profile_with_identities(
+        source,
+        typescript,
+        ir::Type::Number,
+        false,
+        false,
+        true,
+    )?;
+    let wat = emit::emit_ui_import(&module)?;
+    let wasm = wat::parse_str(&wat).map_err(|error| format!("WAT encoding: {error}"))?;
+    Ok(Artifact { wat, wasm })
 }
 
 pub fn compile(source: &str, typescript: bool) -> Result<Artifact, String> {

@@ -1,0 +1,12 @@
+package grunkalunka:a1;
+
+// First A1 scalar service boundary. The host owns grant and view state;
+// the compiled JS/TS guest receives no direct document or OS access.
+interface ui {
+    select-visible: func(expanded: f64, count: f64) -> f64;
+}
+
+world outline {
+    import ui;
+    export run: func(expanded: f64, count: f64) -> f64;
+}
