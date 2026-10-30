@@ -30,6 +30,13 @@ const CATCH_CELL_SOURCES: &[&str] = &[
     "export async function run(a,b){const p=Promise.reject(b);try{throw a;}catch(e){e=p;try{await e;}catch(x){return x===b&&e===p;}}}",
 ];
 
+const DISCARDED_LOGICAL_SOURCES: &[&str] = &[
+    "export async function run(a,b){a&&Promise.reject(b);return a;}",
+    "export async function run(a,b){const p=Promise.reject(b);p||(await a);return a;}",
+    "export async function run(a,b){const p=Promise.reject(b);p??(await a);try{await p;}catch(e){return e;}}",
+    "export async function run(a,b){let q=Promise.resolve(a);a&&(q=Promise.reject(b));try{await q;}catch(e){return e;}}",
+];
+
 fn promoted_identity_case(source: &str, typescript: bool) -> String {
     fn bits(value: Value) -> String {
         match value {
@@ -303,6 +310,7 @@ fn node_reports_detached_child_rejections_like_native_promises() {
         .chain(promise_type_arguments_notifications::SOURCES)
         .chain(promise_resolve_notifications::SOURCES)
         .chain(CATCH_CELL_SOURCES)
+        .chain(DISCARDED_LOGICAL_SOURCES)
     {
         for typescript in [false, true] {
             cases.push(promoted_identity_case(source, typescript));

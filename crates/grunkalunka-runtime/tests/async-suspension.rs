@@ -91,11 +91,20 @@ mod sync_call_reasons;
 #[path = "async-suspension/call_argument_reasons.rs"]
 mod call_argument_reasons;
 
+#[path = "async-suspension/discarded_logical.rs"]
+mod discarded_logical;
+
+#[path = "async-suspension/module_primitive_results.rs"]
+mod module_primitive_results;
+
 #[path = "async-suspension/catch_rethrow_context.rs"]
 mod catch_rethrow_context;
 
 #[path = "async-suspension/promise_alias_snapshot_reasons.rs"]
 mod promise_alias_snapshot_reasons;
+
+#[path = "async-suspension/assigned_promise_snapshots.rs"]
+mod assigned_promise_snapshots;
 
 #[path = "async-suspension/async_body_reasons.rs"]
 mod async_body_reasons;

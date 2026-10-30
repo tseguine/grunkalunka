@@ -8,6 +8,8 @@ pub(super) enum Mode {
     Number,
     Predicate,
     Discard,
+    // Use the common depth/aggregate guards before splitting a discarded logical.
+    DiscardLogical,
     Arithmetic,
     Numeric,
     General,
@@ -463,6 +465,68 @@ fn schedule_selection<'e, 'a>(
 }
 
 impl Lowering<'_, '_> {
+    fn schedule_discarded_logical<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        depth: usize,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) {
+        let Expression::LogicalExpression(logical) = node else {
+            unreachable!("checked discarded logical after wrappers");
+        };
+        let left = &logical.left;
+        let left_mode = if logical.operator != LogicalOperator::Coalesce
+            || self.function_arity(left, depth + 1).is_some()
+            || self.pending_promise_shape(left, depth + 1)
+            || self.fulfilled_promise_shape(left, depth + 1)
+        {
+            // Known functions and Promises are also non-nullish. Predicate mode
+            // retains their construction/read effects without adopting them.
+            Mode::Predicate
+        } else if self.has_promise_choice(left, depth + 1) {
+            Mode::AsyncValue
+        } else {
+            Mode::General
+        };
+        work.push(Work::LogicalLeft {
+            node,
+            left: &logical.left,
+            right: &logical.right,
+            operator: logical.operator,
+            depth: depth + 1,
+            mode: Mode::Discard,
+        });
+        work.push(Work::Eval(&logical.left, depth + 1, left_mode));
+    }
+
+    // Region temporaries must stay outside evaluate's frame: constructor checks
+    // can re-enter that cursor on the existing two-MiB native-stack budget.
+    fn finish_discarded_logical(
+        &mut self,
+        node: &Expression<'_>,
+        left_node: &Expression<'_>,
+        condition: ValueId,
+        operator: LogicalOperator,
+        regions: &mut Regions<'_>,
+    ) {
+        let selected = regions.children.pop().expect("discarded logical branch");
+        let skipped = self.region(left_node);
+        let (consequent, alternate) = if operator == LogicalOperator::And {
+            (selected, skipped)
+        } else {
+            (skipped, selected)
+        };
+        Self::push(
+            regions.current(),
+            node,
+            Op::If {
+                result: None,
+                condition,
+                consequent,
+                alternate,
+            },
+        );
+    }
     // Logical assignment validates and captures the target before entering its RHS.
     // All RHS work stays in the selected owned child; no old assignment route changes.
     fn schedule_logical_assignment<'e, 'a>(
@@ -717,6 +781,60 @@ impl Lowering<'_, '_> {
         }
         work.push(Work::Eval(argument, operand.depth, Mode::AsyncValue));
         Ok(true)
+    }
+
+    // Named-call resolution also belongs outside the re-entrant cursor frame.
+    #[inline(never)]
+    fn schedule_direct_call<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        depth: usize,
+        mode: Mode,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        let Expression::Identifier(identifier) = &call.callee else {
+            return Err(unsupported(
+                node,
+                "expression is outside the numeric experiment",
+            ));
+        };
+        let symbol = identifier
+            .reference_id
+            .get()
+            .and_then(|reference| self.semantic.scoping().get_reference(reference).symbol_id());
+        let function = self
+            .functions
+            .iter()
+            .find(|function| Some(function.symbol) == symbol)
+            .ok_or_else(|| unsupported(node, "expression is outside the numeric experiment"))?;
+        if call.optional {
+            return Err(unsupported(node, "optional calls are not admitted"));
+        }
+        if call.arguments.len() > 1000 {
+            return Err(unsupported(
+                node,
+                "at most 1000 ordinary direct call arguments are admitted",
+            ));
+        }
+        if call.arguments.len() < function.parameter_count {
+            return Err(unsupported(node, "call is missing declared arguments"));
+        }
+        if function.return_type == Type::General && !matches!(mode, Mode::General) {
+            return Err(unsupported(
+                node,
+                "value-returning calls require a General result position",
+            ));
+        }
+        work.push(Work::Call {
+            node,
+            call,
+            function: function.id,
+            index: 0,
+            arguments: Vec::new(),
+            depth: depth + 1,
+        });
+        Ok(())
     }
 
     // Isolate A1-only planning from ordinary source evaluation as well.
@@ -2294,6 +2412,16 @@ impl Lowering<'_, '_> {
                     operator,
                     mode,
                 } => {
+                    if matches!(mode, Mode::Discard) {
+                        self.finish_discarded_logical(
+                            node,
+                            left_node,
+                            condition,
+                            operator,
+                            &mut regions,
+                        );
+                        continue;
+                    }
                     let right = values.pop().expect("logical right").id();
                     let selected = regions.finish(right);
                     let mut skipped = self.region(left_node);
@@ -2359,6 +2487,13 @@ impl Lowering<'_, '_> {
                     values.push(Value::Number(result));
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
+                    if matches!(
+                        closures::unwrapped_at(node, depth),
+                        Some((Expression::LogicalExpression(_), _))
+                    ) {
+                        work.push(Work::Eval(node, depth, Mode::DiscardLogical));
+                        continue;
+                    }
                     if self.async_value_slot(node, depth).is_some()
                         || self.async_value_assignment_slot(node, depth).is_some()
                         || self.mixed_call(node)
@@ -2464,6 +2599,10 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if matches!(mode, Mode::DiscardLogical) {
+                        self.schedule_discarded_logical(node, depth, &mut work);
                         continue;
                     }
                     if let Some(result) =
@@ -3468,59 +3607,7 @@ impl Lowering<'_, '_> {
                                     depth: depth + 1,
                                 });
                             } else {
-                                let Expression::Identifier(identifier) = &call.callee else {
-                                    return Err(unsupported(
-                                        node,
-                                        "expression is outside the numeric experiment",
-                                    ));
-                                };
-                                let symbol = identifier.reference_id.get().and_then(|reference| {
-                                    self.semantic.scoping().get_reference(reference).symbol_id()
-                                });
-                                let function = self
-                                    .functions
-                                    .iter()
-                                    .find(|function| Some(function.symbol) == symbol)
-                                    .ok_or_else(|| {
-                                        unsupported(
-                                            node,
-                                            "expression is outside the numeric experiment",
-                                        )
-                                    })?;
-                                if call.optional {
-                                    return Err(unsupported(
-                                        node,
-                                        "optional calls are not admitted",
-                                    ));
-                                }
-                                if call.arguments.len() > 1000 {
-                                    return Err(unsupported(
-                                        node,
-                                        "at most 1000 ordinary direct call arguments are admitted",
-                                    ));
-                                }
-                                if call.arguments.len() < function.parameter_count {
-                                    return Err(unsupported(
-                                        node,
-                                        "call is missing declared arguments",
-                                    ));
-                                }
-                                if function.return_type == Type::General
-                                    && !matches!(mode, Mode::General)
-                                {
-                                    return Err(unsupported(
-                                        node,
-                                        "value-returning calls require a General result position",
-                                    ));
-                                }
-                                work.push(Work::Call {
-                                    node,
-                                    call,
-                                    function: function.id,
-                                    index: 0,
-                                    arguments: Vec::new(),
-                                    depth: depth + 1,
-                                });
+                                self.schedule_direct_call(node, call, depth, mode, &mut work)?;
                             }
                         }
                         Expression::AssignmentExpression(assignment) => {

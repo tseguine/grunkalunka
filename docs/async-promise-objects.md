@@ -219,3 +219,22 @@ primitive-argument proof for mutable call arguments, change capture activation
 identity, or provide general mutable-cell flow analysis. Maintained JS/TS native
 JS, Node-Wasm and Wasmtime tests cover saved aliases, later assignments, earlier
 writes, callbacks, loop iterations, primitive bits, type erasure and source limits.
+
+## Saved reads after plain assignments
+
+Rejection inference also follows the most recent completed plain assignment when
+its standalone statement is in a block containing the read. The assignment must
+follow the variable declaration in the same invocation. Any intervening write,
+captured writer or repeating read keeps the existing module-wide facts. An earlier
+conditional or loop write may be overwritten by a later dominating assignment;
+a conditional assignment alone does not establish that proof.
+
+The saved read retains that assignment's value even when later writes change the
+variable. This refines the reason domain without changing handle identity, jobs,
+handling, effects, carriers or parameter/capture proofs. Ancestor and write queries
+are iterative. This is not a general reaching-definition analysis: mutually
+exclusive branches can still lose precision, and Promise assignment in a scalar
+logical-expression position remains a separate admission gap. Maintained JS/TS
+native-JS/Node-Wasm/Wasmtime tests cover overwrites, contained blocks, raw identity,
+primitive payloads, conditional writes, loops, captured writers, prior activations,
+RHS self-reads, erased types and existing source limits.

@@ -106,6 +106,96 @@ fn snapshot_initializer<'a>(
     Some(initializer)
 }
 
+// A completed standalone assignment dominates a later read in its own block
+// or a contained block. Conditional expressions and loop backedges do not.
+fn assigned_snapshot<'a>(
+    identifier: &oxc_ast::ast::IdentifierReference<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<&'a Expression<'a>> {
+    let reference = semantic
+        .scoping()
+        .get_reference(identifier.reference_id.get()?);
+    let symbol = reference.symbol_id()?;
+    let owner = source_owner(reference.node_id(), semantic, false)?;
+    let declaration =
+        semantic
+            .scoping()
+            .symbol_declarations(symbol)
+            .find_map(|node| match semantic.nodes().kind(node) {
+                AstKind::VariableDeclarator(declaration)
+                    if source_owner(node, semantic, false) == Some(owner) =>
+                {
+                    Some(declaration)
+                }
+                _ => None,
+            })?;
+    let containers: BTreeSet<_> = semantic
+        .nodes()
+        .ancestor_kinds(reference.node_id())
+        .filter_map(|kind| match kind {
+            AstKind::BlockStatement(block) => Some(block.node_id.get()),
+            AstKind::FunctionBody(body) => Some(body.node_id.get()),
+            _ => None,
+        })
+        .collect();
+    let writes: Vec<_> = semantic
+        .scoping()
+        .get_resolved_references(symbol)
+        .filter(|reference| reference.is_write())
+        .collect();
+    if writes
+        .iter()
+        .any(|write| source_owner(write.node_id(), semantic, true) != Some(owner))
+    {
+        return None;
+    }
+    let mut latest = None;
+    for write in &writes {
+        let mut ancestors = semantic.nodes().ancestor_kinds(write.node_id());
+        let Some(AstKind::AssignmentExpression(assignment)) = ancestors.next() else {
+            continue;
+        };
+        if assignment.operator != AssignmentOperator::Assign
+            || assignment.span.end > identifier.span.start
+            || declaration.span.end > assignment.span.start
+        {
+            continue;
+        }
+        let Some(AstKind::ExpressionStatement(statement)) = ancestors.next() else {
+            continue;
+        };
+        if !matches!(&statement.expression, Expression::AssignmentExpression(value)
+            if value.node_id.get() == assignment.node_id.get())
+        {
+            continue;
+        }
+        let container = match ancestors.next() {
+            Some(AstKind::BlockStatement(block)) => block.node_id.get(),
+            Some(AstKind::FunctionBody(body)) => body.node_id.get(),
+            _ => continue,
+        };
+        if containers.contains(&container)
+            && latest.is_none_or(
+                |(_, previous): (NodeId, &oxc_ast::ast::AssignmentExpression<'a>)| {
+                    previous.span.end < assignment.span.end
+                },
+            )
+        {
+            latest = Some((write.node_id(), assignment));
+        }
+    }
+    let (write, assignment) = latest?;
+    if writes.iter().any(|other| {
+        other.node_id() != write && {
+            let span = semantic.nodes().kind(other.node_id()).span();
+            assignment.span.start <= span.start && span.start <= identifier.span.start
+        }
+    }) {
+        return None;
+    }
+    Some(&assignment.right)
+}
+
 // A stored/factory closure can capture the same source symbol in another activation.
 // Only a stable binding chain to a local constructor preserves incoming capture proofs.
 fn current_capture_callee(expression: &Expression<'_>, semantic: &Semantic<'_>) -> bool {
@@ -326,6 +416,7 @@ fn may_reject_raw(
                     .and_then(|symbol| {
                         unwritten_initializer(symbol, semantic)
                             .or_else(|| snapshot_initializer(identifier, semantic))
+                            .or_else(|| assigned_snapshot(identifier, semantic))
                             .map(|initializer| (symbol, initializer))
                     });
                 if let Some((symbol, initializer)) = initializer {
