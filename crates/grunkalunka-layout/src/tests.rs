@@ -214,14 +214,14 @@ fn mixed_depth_limit_uses_heap_frames_and_keeps_natural_height() {
             let mut blocks = vec![Block::default()];
             for level in 1..=MAX_DEPTH {
                 let mut child = Block::child(level - 1, u32::from(level == MAX_DEPTH));
-                if level % 2 == 0 {
+                if level % 2 == 0 && level < MAX_DEPTH {
                     child.style.display = Display::Contents;
                 }
                 blocks.push(child);
             }
             let frame = layout(&blocks, 10, 10).unwrap();
             assert_eq!(frame.boxes[0].unwrap().content.height, 1);
-            assert_eq!(frame.boxes[MAX_DEPTH].is_none(), MAX_DEPTH % 2 == 0);
+            assert_eq!(frame.boxes[MAX_DEPTH].unwrap().content.height, 1);
             blocks.push(Block::child(MAX_DEPTH, 1));
             assert_eq!(
                 layout(&blocks, 10, 10),
