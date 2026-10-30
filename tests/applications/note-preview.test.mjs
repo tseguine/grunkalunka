@@ -272,6 +272,17 @@ test('real Markdown/WIT guest drives native-parity granted and denied HTML throu
       }
       assert.equal(expandedFrame.anchors[1].x, 24 + (headings[0].level - 1) * 8);
       assert.equal(expandedFrame.anchors[1].y, 40);
+      // Actual native hit testing selects a WIT heading row, never a
+      // host title, inaccessible document, or collapsed status panel.
+      const hit = (scene, x, y) => checkedCommand(layoutDriver,
+        ['--hit', String(x), String(y)], scene.input);
+      assert.equal(hit(nativeExpanded, 24, 40),
+        ['A1HIT1', 0, headings[0].start, headings[0].end, headings[0].level].join('\t') + '\n');
+      assert.equal(hit(nativeExpanded, 24, 0), 'A1HIT1\tnone\n');
+      assert.equal(hit(nativeCollapsed, 24, 40), 'A1HIT1\tnone\n');
+      assert.equal(hit(nativeDenied, 24, 40), 'A1HIT1\tnone\n');
+      assert.equal(hit(nativeExpanded, 320, 40), 'A1HIT1\tnone\n');
+
       const expandedPpm = checkedScenePpm(layoutDriver, nativeExpanded.input);
       const collapsedPpm = checkedScenePpm(layoutDriver, nativeCollapsed.input);
       const deniedPpm = checkedScenePpm(layoutDriver, nativeDenied.input);
