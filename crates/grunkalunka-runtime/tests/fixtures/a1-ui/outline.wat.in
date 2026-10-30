@@ -1,0 +1,16 @@
+(component
+  (import "grunkalunka:a1/ui" (instance $ui
+    (export "select-visible" (func (param "expanded" f64) (param "count" f64) (result f64)))
+  ))
+  (core func $select-visible (canon lower (func $ui "select-visible")))
+
+  ;; The actual compiler output contains a core import of this service.
+  {{COMPILED_MODULE}}
+  (core instance $guest (instantiate 0
+    (with "grunkalunka:a1/ui" (instance
+      (export "select-visible" (func $select-visible))
+    ))
+  ))
+  (func (export "run") (param "expanded" f64) (param "count" f64) (result f64)
+    (canon lift (core func $guest "run")))
+)
