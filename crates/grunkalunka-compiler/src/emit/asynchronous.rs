@@ -750,7 +750,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
 
             End::InvokeClosure {
                 callee,
-                ref arguments,
+                arguments,
                 returned,
             } => {
                 frame.spill(&mut output);
