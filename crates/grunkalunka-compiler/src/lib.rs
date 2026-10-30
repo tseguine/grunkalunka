@@ -107,9 +107,7 @@ fn resolve_a1_ui_import(
     let ModuleExportName::IdentifierName(name) = &specifier.imported else {
         return Err(unsupported(import, "expected selectVisible binding"));
     };
-    if name.name.as_str() != "selectVisible"
-        || specifier.import_kind != ImportOrExportKind::Value
-    {
+    if name.name.as_str() != "selectVisible" || specifier.import_kind != ImportOrExportKind::Value {
         return Err(unsupported(import, "expected selectVisible binding"));
     }
     let symbol = specifier
