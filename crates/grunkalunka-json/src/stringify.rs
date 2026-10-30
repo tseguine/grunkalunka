@@ -157,12 +157,14 @@ impl Writer {
                                         return Err(StringifyError::DuplicateKey);
                                     }
                                 }
-                                ordered.push((array_index(key).map_or((1, 0), |n| (0, n)), &entries[index]));
+                                let order = array_index(key).map_or((1, 0), |n| (0, n));
+                                ordered.push((order, &entries[index]));
                             }
                             ordered.sort_by_key(|(order, _)| *order);
                             self.emit(&[123])?;
                             pending.push(Work::Unit(125));
-                            for (index, (_, (key, child))) in ordered.into_iter().enumerate().rev() {
+                            let reverse_order = ordered.into_iter().enumerate().rev();
+                            for (index, (_, (key, child))) in reverse_order {
                                 pending.push(Work::Value(child, depth + 1));
                                 pending.push(Work::Unit(58));
                                 pending.push(Work::Quote(key));
