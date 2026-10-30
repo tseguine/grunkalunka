@@ -227,9 +227,7 @@ impl Emitter<'_> {
                     self.set(*result);
                 }
             }
-            Op::MaterializePromise { result, input } => {
-                self.materialize_promise(*result, *input)
-            }
+            Op::MaterializePromise { result, input } => self.materialize_promise(*result, *input),
             Op::ToAsyncValue { result, input } => self.lift_async_value(*result, *input),
             Op::AsyncValueIsPromise { result, input } => {
                 self.async_value_is_promise(*result, *input)
@@ -237,9 +235,7 @@ impl Emitter<'_> {
             Op::AsyncValuePrimitive { result, input } => {
                 self.project_async_primitive(*result, *input)
             }
-            Op::AsyncValuePromise { result, input } => {
-                self.project_async_promise(*result, *input)
-            }
+            Op::AsyncValuePromise { result, input } => self.project_async_promise(*result, *input),
             Op::MakeClosure {
                 result,
                 function,
@@ -524,9 +520,7 @@ impl Emitter<'_> {
                 });
                 self.set(*result);
             }
-            Op::NumberFromGeneral { result, input } => {
-                self.number_from_general(*result, *input)
-            }
+            Op::NumberFromGeneral { result, input } => self.number_from_general(*result, *input),
             Op::GeneralIsNullish { result, input } => {
                 // Only the canonical Undefined (0) and Null (1) tags are nullish.
                 writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
