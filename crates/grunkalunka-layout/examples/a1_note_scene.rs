@@ -172,7 +172,9 @@ fn parse(input: &str) -> Result<Note, String> {
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
-    let output = args.next().ok_or("usage: a1_note_scene --report|--ppm|--hit X Y")?;
+    let output = args
+        .next()
+        .ok_or("usage: a1_note_scene --report|--ppm|--hit X Y")?;
     let hit = if output == "--hit" {
         let x: u32 = decimal(&args.next().ok_or("missing hit X")?, "hit X")?;
         let y: u32 = decimal(&args.next().ok_or("missing hit Y")?, "hit Y")?;
@@ -253,17 +255,24 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     if let Some((x, y)) = hit {
         // Only the WIT-derived heading rows can become activation targets.
         // The title, main container and denial/collapsed panel are inert.
-        let targets: Vec<_> = elements.iter().enumerate().map(|(index, node)| HitNode {
-            parent: node.parent,
-            targetable: index >= 4 && index < 4 + note.headings.len(),
-        }).collect();
+        let targets: Vec<_> = elements
+            .iter()
+            .enumerate()
+            .map(|(index, node)| HitNode {
+                parent: node.parent,
+                targetable: index >= 4 && index < 4 + note.headings.len(),
+            })
+            .collect();
         let selected = hit_test(&semantic.frame, &targets, x, y)
             .map_err(|error| io::Error::other(format!("native A1 hit test: {error:?}")))?;
         if let Some(node) = selected {
             let heading_index = node - 4;
             let heading = &note.headings[heading_index];
-            writeln!(stdout, "A1HIT1\t{heading_index}\t{}\t{}\t{}",
-                heading.start, heading.end, heading.level)?;
+            writeln!(
+                stdout,
+                "A1HIT1\t{heading_index}\t{}\t{}\t{}",
+                heading.start, heading.end, heading.level
+            )?;
         } else {
             writeln!(stdout, "A1HIT1\tnone")?;
         }
