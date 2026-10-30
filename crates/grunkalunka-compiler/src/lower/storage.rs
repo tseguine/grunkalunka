@@ -1108,7 +1108,7 @@ mod completion_stack_tests {
                         oxc_span::SourceType::default(),
                     )
                     .parse();
-                    assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+                    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
                     let completion = completion_shape(&parsed.program.body[0], 0);
                     assert_eq!(
                         completion,
