@@ -47,6 +47,65 @@ fn unwritten_initializer<'a>(
         })
 }
 
+// A single-pass read can precede writes in a later loop in the same activation.
+fn source_owner(node: NodeId, semantic: &Semantic<'_>, allow_loops: bool) -> Option<NodeId> {
+    for ancestor in semantic.nodes().ancestor_kinds(node) {
+        match ancestor {
+            AstKind::ForStatement(_)
+            | AstKind::ForInStatement(_)
+            | AstKind::ForOfStatement(_)
+            | AstKind::WhileStatement(_)
+            | AstKind::DoWhileStatement(_)
+                if !allow_loops =>
+            {
+                return None;
+            }
+            AstKind::ArrowFunctionExpression(arrow) => return Some(arrow.node_id.get()),
+            AstKind::Function(function) => return Some(function.node_id.get()),
+            _ => (),
+        }
+    }
+    None
+}
+
+// A saved read precedes later writes even when the saved Promise is awaited later.
+// Captured writes and loop backedges cannot use textual order as a reaching proof.
+fn snapshot_initializer<'a>(
+    identifier: &oxc_ast::ast::IdentifierReference<'a>,
+    semantic: &Semantic<'a>,
+) -> Option<&'a Expression<'a>> {
+    let reference = semantic
+        .scoping()
+        .get_reference(identifier.reference_id.get()?);
+    let symbol = reference.symbol_id()?;
+    let owner = source_owner(reference.node_id(), semantic, false)?;
+    let initializer =
+        semantic
+            .scoping()
+            .symbol_declarations(symbol)
+            .find_map(|node| match semantic.nodes().kind(node) {
+                AstKind::VariableDeclarator(declaration)
+                    if source_owner(node, semantic, false) == Some(owner) =>
+                {
+                    declaration.init.as_ref()
+                }
+                _ => None,
+            })?;
+    if initializer.span().end > identifier.span.start
+        || semantic
+            .scoping()
+            .get_resolved_references(symbol)
+            .filter(|reference| reference.is_write())
+            .any(|reference| {
+                semantic.nodes().kind(reference.node_id()).span().start <= identifier.span.start
+                    || source_owner(reference.node_id(), semantic, true) != Some(owner)
+            })
+    {
+        return None;
+    }
+    Some(initializer)
+}
+
 // A stored/factory closure can capture the same source symbol in another activation.
 // Only a stable binding chain to a local constructor preserves incoming capture proofs.
 fn current_capture_callee(expression: &Expression<'_>, semantic: &Semantic<'_>) -> bool {
@@ -266,6 +325,7 @@ fn may_reject_raw(
                     .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
                     .and_then(|symbol| {
                         unwritten_initializer(symbol, semantic)
+                            .or_else(|| snapshot_initializer(identifier, semantic))
                             .map(|initializer| (symbol, initializer))
                     });
                 if let Some((symbol, initializer)) = initializer {

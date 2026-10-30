@@ -962,3 +962,14 @@ the existing frame and cursor, retaining callee snapshots and argument effects.
 Maintained JS/TS native-JS/Node-Wasm/Wasmtime differentials cover values, reaction
 traces, async prefixes, typed bytes and 1,000-parameter last-position inputs.
 See [the closure contract](runtime-closures.md#shared-scalar-promise-inputs).
+
+## Early Promise-alias rejection snapshots (2026-10-29)
+
+A saved Promise alias can keep its original rejection-domain proof even when the
+source variable is later assigned a Promise with a different reason. Initializer,
+read and writes must satisfy the same-invocation, non-repeating source-order
+proof; captured, loop-carried and earlier writes remain conservative. Existing
+physical carriers and argument proofs are unchanged. Maintained JS/TS native-JS,
+Node-Wasm and Wasmtime cases include the original saved-alias arithmetic example,
+raw identity, primitive tags, loop and activation guards, typed bytes and limits.
+See [the source contract](async-promise-objects.md#early-snapshots-of-mutable-promise-variables).
