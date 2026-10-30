@@ -129,7 +129,7 @@ fn input_pairs(
             }
             return Err("at most 4096 input pairs are admitted".into());
         }
-        let line = line.inspect_err(|error| {
+        let line = line.inspect_err(|_| {
             if diagnostics {
                 eprintln!("DIAG phase=input event=error line={line_number} reason=read");
             }
@@ -141,12 +141,12 @@ fn input_pairs(
             }
             return Err("expected two 16-digit hexadecimal binary64 bit patterns per line".into());
         }
-        let a_bits = u64::from_str_radix(inputs[0], 16).inspect_err(|error| {
+        let a_bits = u64::from_str_radix(inputs[0], 16).inspect_err(|_| {
             if diagnostics {
                 eprintln!("DIAG phase=input event=error line={line_number} reason=hex-a");
             }
         })?;
-        let b_bits = u64::from_str_radix(inputs[1], 16).inspect_err(|error| {
+        let b_bits = u64::from_str_radix(inputs[1], 16).inspect_err(|_| {
             if diagnostics {
                 eprintln!("DIAG phase=input event=error line={line_number} reason=hex-b");
             }
