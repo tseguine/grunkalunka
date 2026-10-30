@@ -184,7 +184,6 @@ pub(super) fn complete(output: &mut String, rejected: bool) {
     writeln!(output,"global.set $async_payload\nglobal.set $async_tag\ni32.const {}\nglobal.set $async_rejected\nglobal.get $async_frame\ni32.load offset=4\nglobal.set $pc\nglobal.get $async_frame\ni32.load\nglobal.set $async_frame\nbr $dispatch",u8::from(rejected)).unwrap();
 }
 
- 
 // The atomic emitter renders instructions against numeric-indexed locals.
 // Coroutine frames store the same value lanes in globals. Copy the instructions
 // directly into the destination, changing only those two instruction mnemonics.
