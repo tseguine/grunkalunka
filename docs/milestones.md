@@ -951,3 +951,14 @@ Writes, unknown inputs and older-activation captures retain conservative checks.
 Maintained JS/TS differentials cover nested handlers, aliases, forwarding, async
 cleanup, primitive tags, typed bytes and original argument/await limits.
 See [the contract and remaining precision limits](async-promise-objects.md#primitive-catch-bindings-at-local-calls).
+## Shared scalar Promise input interfaces (2026-10-29)
+
+Source-known arrow constructors stored in or selected for one value now join
+compatible Promise/primitive scalar inputs before complete signature checks.
+Different direct-call input histories and unused peer formals no longer prevent
+assignment; callback positions, arity, result kinds and body guards stay separate.
+Aliases, inline selections, overlapping families and returned constructors reuse
+the existing frame and cursor, retaining callee snapshots and argument effects.
+Maintained JS/TS native-JS/Node-Wasm/Wasmtime differentials cover values, reaction
+traces, async prefixes, typed bytes and 1,000-parameter last-position inputs.
+See [the closure contract](runtime-closures.md#shared-scalar-promise-inputs).

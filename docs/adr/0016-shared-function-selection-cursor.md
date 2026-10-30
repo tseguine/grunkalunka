@@ -141,3 +141,28 @@ Boolean contexts convert the selected value afterwards, preserving false/0/NaN.
 This also admits the exact constructor-free selector above, specializing only from
 actual function argument kinds. Mixed function/primitive joins remain excluded.
 This feature adds no runtime ABI, layout, dependency or broader architecture.
+
+## Shared Promise/primitive scalar inputs (2026-10-29)
+
+Extend input-interface planning for the existing async identity profile. Arrow
+constructors sharing one value require compatible scalar carriers at corresponding
+positions, even when only one receives a Promise at a direct call. Collect stored,
+selected and returned constructor families, align equal-arity scalar positions,
+and saturate their may-Promise/mixed facts before interning complete signatures.
+Unseen primitive possibilities select the existing mixed carrier; fully proven
+Promise families keep their homogeneous proof. Callback formals remain on their
+separate signature path, and bodies/results still pass the existing checks.
+
+This follows the primitive-input joins already used by storage planning. Joining
+before the cursor avoids per-target ABI adapters or relaxing function assignment
+validation. The tradeoff is conservative input precision: a joined body can still
+require an operator or value domain this experiment does not support. Broader
+logical-input specialization and a universal value representation remain separate.
+Returned-family discovery shares the existing eight-frame bound.
+
+The initial paired regression rejects assignment for mismatched input profiles
+and passes when both profiles already match; a standalone assignment reproduces
+the same defect. Maintained source differentials then exercise saved callees,
+ordered effects, active numeric consumers, callbacks, mixed returns, async prefix
+timing, unused factories, typed erasure and wide frames. No cursor, IR operation,
+runtime frame/ABI, dependency or source limit changes are required.

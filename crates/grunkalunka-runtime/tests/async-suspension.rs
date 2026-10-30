@@ -97,6 +97,9 @@ mod catch_rethrow_context;
 #[path = "async-suspension/async_body_reasons.rs"]
 mod async_body_reasons;
 
+#[path = "async-suspension/shared_promise_inputs.rs"]
+mod shared_promise_inputs;
+
 #[path = "async-suspension/promise_reject_reasons.rs"]
 mod promise_reject_reasons;
 
