@@ -853,7 +853,6 @@ fn region_has_control(region: &Region, starts: bool) -> bool {
     false
 }
 
-
 /// Emit one ordinary activation; coroutine frames use a separate storage mapping.
 fn emit_function(function: &Function, header: String, errors: bool) -> (String, bool) {
     let environment = ir::closure_environment(function);
