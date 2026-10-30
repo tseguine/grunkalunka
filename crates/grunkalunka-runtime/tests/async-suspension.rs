@@ -91,6 +91,9 @@ mod sync_call_reasons;
 #[path = "async-suspension/call_argument_reasons.rs"]
 mod call_argument_reasons;
 
+#[path = "async-suspension/catch_rethrow_context.rs"]
+mod catch_rethrow_context;
+
 #[path = "async-suspension/async_body_reasons.rs"]
 mod async_body_reasons;
 
