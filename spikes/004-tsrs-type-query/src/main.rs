@@ -152,9 +152,9 @@ fn find_tsrs_expression(
     let mut pending = vec![node];
     while let Some(node) = pending.pop() {
         if node.kind() == Kind::BinaryExpression {
-            let start = node
-                .pos()
-                .expect_source("parsed node has a source position") as usize;
+            let start =
+                node.pos()
+                    .expect_source("parsed node has a source position") as usize;
             let end = node.end().expect_source("parsed node has a source end") as usize;
             if source
                 .get(start..end)
