@@ -279,3 +279,69 @@ mod globalize_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod spill_lane_tests {
+    use super::*;
+    use crate::ir::{Operation, RegionId};
+    use oxc_span::Span;
+
+    fn function(aliased: bool) -> ir::Function {
+        let span = Span::new(0, 0);
+        let operations = if aliased {
+            vec![Operation {
+                span,
+                kind: Op::FulfillPromise {
+                    result: ValueId(1),
+                    input: ValueId(0),
+                },
+            }]
+        } else {
+            Vec::new()
+        };
+        ir::Function {
+            return_type: Type::General,
+            parameter_count: 0,
+            slots: Vec::new(),
+            values: vec![Type::General, Type::FulfilledPromise, Type::Number],
+            body: Region {
+                id: RegionId(0),
+                span,
+                operations,
+                exit: Exit::Fallthrough,
+            },
+        }
+    }
+
+    #[test]
+    fn fulfilled_snapshot_alias_skips_only_unreferenced_physical_lanes() {
+        let function = function(true);
+        let frame = Frame::new(&function, 5, true, false, true);
+        assert_eq!(frame.lanes.len(), 5);
+        assert_eq!(frame.spill_lanes, vec![0, 1, 4]);
+        assert_eq!(frame.emitter.value_offsets, vec![5, 5, 9]);
+
+        let mut spill = String::new();
+        frame.spill(&mut spill);
+        let mut restore = String::new();
+        frame.restore(&mut restore);
+        for index in [5, 6, 9] {
+            assert!(spill.contains(&format!("global.get {index}\\n")));
+            assert!(restore.contains(&format!("global.set {index}\\n")));
+        }
+        for index in [7, 8] {
+            assert!(!spill.contains(&format!("global.get {index}\\n")));
+            assert!(!restore.contains(&format!("global.set {index}\\n")));
+        }
+        // Keeping the original frame allocation offsets preserves the
+        // private ABI for values after a shared completion snapshot.
+        assert_eq!(frame.bytes(), (32 + 5 * 8_usize).div_ceil(16) * 16);
+    }
+
+    #[test]
+    fn distinct_values_keep_all_physical_lanes() {
+        let function = function(false);
+        let frame = Frame::new(&function, 0, false, false, true);
+        assert_eq!(frame.spill_lanes, vec![0, 1, 2, 3, 4]);
+    }
+}
