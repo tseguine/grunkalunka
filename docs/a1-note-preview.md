@@ -228,9 +228,9 @@ and does not bundle the user's Markdown document. This is a **local
 host-specific runnable distribution experiment**, not a platform-neutral
 installer or an accepted public distribution format. Cross-host execution of
 the *Wasm modules* does not imply that the bundled native binaries can run on
-another OS/architecture. The remaining A1 goals include real text/glyph rendering, an **integrated
-source-import-driven** application interaction, and product-level usability and
-packaging. A1 stays **Planned**.
+another OS/architecture. The remaining A1 goals include real text/glyph
+rendering, an **integrated source-import-driven** application interaction, and
+product-level usability and packaging. A1 stays **Planned**.
 
 
 ## Candidate next A1 acceptance and compiler priorities (steering, 2026-10-30)
