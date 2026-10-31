@@ -55,7 +55,7 @@ fn while_step_and_nearest_loop_break_continue_targets_are_preserved() {
             .iter()
             .position(|state| {
                 state.operations.len() == 1
-                    && matches!(state.operations[0].kind, Op::Constant { .. })
+                    && matches!(&state.operations[0].kind, Op::Constant { .. })
             })
             .expect("step atomic state");
         assert_eq!(body, if continued { step } else { done });
@@ -120,6 +120,7 @@ fn deeply_nested_while_bodies_split_without_native_recursion() {
             let normal = split.terminal(End::Trap).unwrap();
             let mut entry = split.region(&source, normal, None, None).unwrap();
             assert_eq!(split.states.len(), DEPTH * 2 + 2);
+            let mut loop_exit = normal;
             for _ in 0..DEPTH {
                 let End::Jump(test) = &split.states[entry].end else {
                     panic!("while entry must branch through its loop condition");
@@ -128,7 +129,8 @@ fn deeply_nested_while_bodies_split_without_native_recursion() {
                     panic!("while condition must select the next nested body");
                 };
                 assert_eq!(*condition, ValueId(1));
-                assert_eq!(*no, normal);
+                assert_eq!(*no, loop_exit);
+                loop_exit = entry;
                 entry = *yes;
             }
             assert!(matches!(&split.states[entry].end, End::Return(ValueId(7))));
