@@ -346,6 +346,11 @@ impl Lowering<'_, '_> {
                             work.push(Shape::Expr(&c.alternate, depth + 1));
                             work.push(Shape::Expr(&c.consequent, depth + 1));
                         }
+                        Expression::LogicalExpression(l) => {
+                            work.push(Shape::Join);
+                            work.push(Shape::Expr(&l.right, depth + 1));
+                            work.push(Shape::Expr(&l.left, depth + 1));
+                        }
                         Expression::AssignmentExpression(a) => {
                             match a.left.as_simple_assignment_target() {
                                 Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => {

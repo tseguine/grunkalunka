@@ -324,6 +324,13 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_truthy\n");
                 self.set(*result);
             }
+            Op::ManagedIsNullish { result, input } => {
+                self.get(*input);
+                // Shared managed tags 0/1 denote undefined/null respectively.
+                self.output
+                    .push_str("struct.get $gc_value 0\ni32.const 1\ni32.le_u\n");
+                self.set(*result);
+            }
             Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
             Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
             Op::FulfillPromise { result, input }

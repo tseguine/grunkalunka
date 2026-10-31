@@ -4,13 +4,14 @@ use super::*;
 use oxc_ast::{AstKind, ast::Function};
 use std::collections::{BTreeMap, BTreeSet};
 
-// Number/Boolean/nullish share the non-object alternative here. Their existing
-// primitive planners still choose concrete fast paths; only object-bearing flow
-// changes a signature. String flow also requires a managed carrier; functions
-// remain subject to source rejection.
+// Number inputs retain their fast path. Non-Number primitive arguments need the
+// managed carrier when a helper also transports managed values: ordinary source
+// parameter signatures do not admit the General pair. Other profiles retain the
+// existing primitive-result planner. Function values remain subject to rejection.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Kind {
     Primitive,
+    GeneralPrimitive,
     Object,
     Array,
     String,
@@ -97,6 +98,37 @@ fn kinds(
                     Expression::ObjectExpression(_) => values.push([Kind::Object].into()),
                     Expression::ArrayExpression(_) => values.push([Kind::Array].into()),
                     Expression::StringLiteral(_) => values.push([Kind::String].into()),
+                    Expression::NullLiteral(_) | Expression::BooleanLiteral(_) => {
+                        values.push([Kind::GeneralPrimitive].into());
+                    }
+                    Expression::UnaryExpression(u)
+                        if matches!(
+                            u.operator,
+                            UnaryOperator::Void | UnaryOperator::LogicalNot
+                        ) =>
+                    {
+                        values.push([Kind::GeneralPrimitive].into());
+                    }
+                    Expression::BinaryExpression(b)
+                        if matches!(
+                            b.operator,
+                            BinaryOperator::Equality
+                                | BinaryOperator::Inequality
+                                | BinaryOperator::StrictEquality
+                                | BinaryOperator::StrictInequality
+                                | BinaryOperator::LessThan
+                                | BinaryOperator::LessEqualThan
+                                | BinaryOperator::GreaterThan
+                                | BinaryOperator::GreaterEqualThan
+                        ) =>
+                    {
+                        values.push([Kind::GeneralPrimitive].into());
+                    }
+                    Expression::Identifier(i)
+                        if i.name == "undefined" && symbol(i, semantic).is_none() =>
+                    {
+                        values.push([Kind::GeneralPrimitive].into());
+                    }
                     Expression::Identifier(identifier) => values.push(
                         symbol(identifier, semantic)
                             .and_then(|symbol| bindings.get(&symbol).cloned())
@@ -279,23 +311,41 @@ pub(crate) fn infer(
             break;
         }
     }
+    let numeric_entry = functions[0].return_type == Type::Number;
     for (index, f) in functions.iter_mut().enumerate().skip(1) {
         if f.async_signature.is_some() {
             continue;
         }
+        // Numeric-entry profiles forbid General helper results. The managed
+        // result lane retains Boolean/nullish kinds there; other profiles keep
+        // their original primitive-result planner.
+        let managed_return = managed_type(&returns[index]).or_else(|| {
+            (numeric_entry && returns[index].contains(&Kind::GeneralPrimitive))
+                .then_some(Type::ManagedValue)
+        });
+        let managed_signature = managed_return.is_some()
+            || parameters[index]
+                .iter()
+                .flatten()
+                .any(|s| bindings.get(s).and_then(managed_type).is_some());
         let types: Vec<_> = parameters[index]
             .iter()
             .map(|symbol| {
                 symbol
                     .and_then(|s| bindings.get(&s))
-                    .and_then(managed_type)
+                    .and_then(|kinds| {
+                        managed_type(kinds).or_else(|| {
+                            (managed_signature && kinds.contains(&Kind::GeneralPrimitive))
+                                .then_some(Type::ManagedValue)
+                        })
+                    })
                     .unwrap_or(Type::Number)
             })
             .collect();
-        if types.iter().any(|t| t.is_managed()) {
+        if managed_signature {
             f.parameter_types = types;
         }
-        if let Some(ty) = managed_type(&returns[index]) {
+        if let Some(ty) = managed_return {
             f.return_type = ty;
         }
     }
