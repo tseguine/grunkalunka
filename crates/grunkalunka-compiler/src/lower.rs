@@ -30,6 +30,8 @@ pub(super) use managed_calls::infer as infer_managed_calls;
 mod pending;
 mod promises;
 mod storage;
+#[cfg(test)]
+mod source_block_tests;
 pub(super) use callbacks::infer_callback_parameters;
 pub(super) use promises::parameters as infer_promise_parameters;
 pub(super) use storage::general_mutable_bindings;
