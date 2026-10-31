@@ -25,6 +25,8 @@ mod evaluate;
 mod finalizers;
 mod function_values;
 mod invocation;
+mod managed_calls;
+pub(super) use managed_calls::infer as infer_managed_calls;
 mod pending;
 mod promises;
 mod storage;
@@ -43,8 +45,19 @@ pub(super) struct NumericFunction {
     pub symbol: SymbolId,
     pub id: ir::FunctionId,
     pub parameter_count: usize,
+    // Empty retains the ordinary all-Number signature without a parallel vector.
+    pub parameter_types: Vec<Type>,
     pub return_type: Type,
     pub async_signature: Option<usize>,
+}
+
+impl NumericFunction {
+    pub(super) fn parameter_type(&self, index: usize) -> Type {
+        self.parameter_types
+            .get(index)
+            .copied()
+            .unwrap_or(Type::Number)
+    }
 }
 
 fn numeric_binding<'b>(
@@ -1114,6 +1127,18 @@ impl Lowering<'_, '_> {
                 } else if self.return_type == Type::FulfilledPromise {
                     self.evaluate(expression, region, 0, evaluate::Mode::Promise)?
                         .expect("fulfilled Promise return")
+                } else if self.return_type.is_managed() {
+                    self.evaluate(
+                        expression,
+                        region,
+                        0,
+                        if self.return_type == Type::ManagedObject {
+                            evaluate::Mode::Object
+                        } else {
+                            evaluate::Mode::Managed
+                        },
+                    )?
+                    .expect("managed return")
                 } else if self.return_type == Type::General {
                     if self.allow_await {
                         self.async_result(expression, region, 0)?

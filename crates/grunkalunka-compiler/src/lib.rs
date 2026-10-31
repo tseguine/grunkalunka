@@ -316,6 +316,7 @@ fn lower_source_profile_with_identities(
             symbol,
             id: ir::FunctionId(index),
             parameter_count: function.params.items.len(),
+            parameter_types: Vec::new(),
             return_type: if index == 0 || function.r#async {
                 entry_type
             } else {
@@ -328,6 +329,7 @@ fn lower_source_profile_with_identities(
             }),
         });
     }
+    lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures);
     let promise_parameters =
         lower::infer_promise_parameters(&built.semantic, identities, &signatures);
     for (index, function) in signatures.iter_mut().enumerate() {
@@ -467,7 +469,7 @@ fn lower_source_profile_with_identities(
                             .borrow()
                             .parameter(signature, slots.len())
                     })
-                    .unwrap_or(ir::Type::Number),
+                    .unwrap_or_else(|| signatures[index].parameter_type(slots.len())),
                 owner: ir::RegionId(0),
                 mutable: true,
                 parameter: true,
