@@ -28,14 +28,14 @@ These tests are part of normal canonical/selected checks rather than separate
 per-feature Actions jobs. [CI](ci.md) describes what Linux/Windows partial PR
 selection and the native macOS baseline actually execute.
 
-Local block-arrow checks live in `grunkalunka-runtime/tests/local-arrows.rs`:
+Local block-arrow checks live in `crates/grunkalunka-runtime/tests/local-arrows.rs`:
 Node and Wasmtime compare shared captures, fresh locals, early/loop returns,
 caller continuation and argument order with native JS. Additional checks cover
 the primitive return tag, TypeScript metadata, unused-body/source-budget charging,
 aliases, repeated specialization and bounded nesting on a 2 MiB thread stack.
 `async-suspension.rs` checks awaited block-call results through the same async
-job-order oracle. Rejection totals are revision-specific; consult the executable numeric corpus
-and its recorded report instead of treating older totals as current.
+job-order oracle. Rejection totals are revision-specific; consult the executable
+numeric corpus and its recorded report instead of treating older totals as current.
 Async tests also compare retained primitive kinds, rejection reasons, strict versus
 loose comparisons, numeric coercion and malformed tags at start/resume boundaries.
 
