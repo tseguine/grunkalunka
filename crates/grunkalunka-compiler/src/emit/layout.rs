@@ -135,7 +135,7 @@ pub(super) fn value(ty: Type) -> Layout {
     }
 }
 
-// Only modules with traced captures change their private closure layout.
+// Only modules using traced closure storage change their private closure layout.
 pub(super) fn closure_value(ty: Type, gc: bool) -> Layout {
     if gc && matches!(ty, Type::Closure(_)) {
         Layout {
