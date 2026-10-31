@@ -17,6 +17,8 @@ mod finally_split_tests;
 mod frames;
 #[cfg(test)]
 mod loop_split_tests;
+#[cfg(test)]
+mod mixed_split_tests;
 mod promises;
 mod starters;
 #[cfg(test)]
