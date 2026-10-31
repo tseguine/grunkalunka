@@ -13,6 +13,8 @@ mod branch_split_tests;
 mod call_split_tests;
 mod errors;
 mod frames;
+#[cfg(test)]
+mod loop_split_tests;
 mod promises;
 mod starters;
 #[cfg(test)]
