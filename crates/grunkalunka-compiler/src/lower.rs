@@ -792,6 +792,12 @@ impl Lowering<'_, '_> {
                     Type::Number
                 };
                 let value = match ty {
+                    Type::ManagedValue | Type::ManagedObject => {
+                        return Err(unsupported(
+                            initializer,
+                            "managed source values are not yet admitted",
+                        ));
+                    }
                     Type::General => self
                         .evaluate(initializer, region, 0, evaluate::Mode::General)?
                         .expect("General initializer"),

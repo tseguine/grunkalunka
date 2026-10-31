@@ -227,6 +227,53 @@ impl Emitter<'_> {
 
     fn atomic_operation(&mut self, operation: &ir::Operation) {
         match &operation.kind {
+            Op::ManagedGetOwn {
+                result,
+                object,
+                key,
+            } => {
+                self.get(*object);
+                self.managed_key(key);
+                self.output.push_str("call $gc_get\n");
+                self.set(*result);
+            }
+            Op::ManagedSetOwn { object, key, value } => {
+                self.get(*object);
+                self.managed_key(key);
+                self.get(*value);
+                self.output.push_str("call $gc_set\n");
+            }
+            Op::ManagedObjectNew { result } => {
+                self.output.push_str("call $gc_object_new\n");
+                self.set(*result);
+            }
+            Op::ManagedFromObject { result, input } => {
+                self.output.push_str("i32.const 4\nf64.const 0\n");
+                self.get(*input);
+                self.output.push_str("struct.new $gc_value\n");
+                self.set(*result);
+            }
+            Op::ManagedPrimitive { result, input } => {
+                writeln!(
+                    self.output,
+                    "local.get {}\ni32.const 3\ni32.gt_u\nif unreachable end",
+                    self.value_offsets[input.0]
+                )
+                .unwrap();
+                self.get(*input);
+                self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
+                self.set(*result);
+            }
+            Op::ManagedEqual {
+                result,
+                left,
+                right,
+            } => {
+                self.get(*left);
+                self.get(*right);
+                self.output.push_str("call $gc_equal\n");
+                self.set(*result);
+            }
             Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
             Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
             Op::FulfillPromise { result, input }
@@ -570,6 +617,13 @@ impl Emitter<'_> {
         self.emit_walk(Some(root), &[]);
     }
 
+    fn managed_key(&mut self, key: &[u16]) {
+        for unit in key {
+            writeln!(self.output, "i32.const {unit}").unwrap();
+        }
+        writeln!(self.output, "array.new_fixed $gc_key {}", key.len()).unwrap();
+    }
+
     fn emit_walk<'a>(&mut self, root: Option<&'a Region>, operations: &'a [ir::Operation]) {
         // Explicit continuations preserve WAT byte order and the lexical
         // context of nested blocks without allocating native stack frames.
@@ -814,6 +868,7 @@ fn emit_verified(
         return Err("await IR requires the async emitter".into());
     }
     let mut output = String::from("(module ");
+    let managed = module_has_managed(module);
     // This scan is needed only by the explicit capability profile. Standard
     // numeric/primitive compilation keeps its prior work and stack behavior.
     let mut has_ui_import = false;
@@ -869,8 +924,9 @@ fn emit_verified(
             header.push_str(" (param i32 i32)");
         } else if function.parameter_count > 0 {
             header.push_str(" (param");
-            for _ in 0..function.parameter_count {
-                header.push_str(" f64");
+            for slot in function.slots.iter().take(function.parameter_count) {
+                header.push(' ');
+                header.push_str(layout::value(slot.ty).wat);
             }
             header.push(')');
         }
@@ -897,8 +953,22 @@ fn emit_verified(
     if has_closures {
         output.push_str(closures::FRAME_ALLOCATOR);
     }
+    if managed {
+        output.push_str(include_str!("emit/managed.wat"));
+    }
     output.push_str(")\n");
     Ok(output)
+}
+
+pub(crate) fn module_has_managed(module: &ir::Module) -> bool {
+    module.functions.iter().any(|function| {
+        function
+            .slots
+            .iter()
+            .map(|slot| slot.ty)
+            .chain(function.values.iter().copied())
+            .any(Type::is_managed)
+    })
 }
 
 fn module_materializes_promises(module: &ir::Module) -> bool {

@@ -547,6 +547,9 @@ fn jump(output: &mut String, target: usize) {
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     ir::verify_async_module(module)?;
+    if super::module_has_managed(module) {
+        return Err("managed values require reference-aware async frames".into());
+    }
     let starters = starters::needed(module);
     let queued = module.functions.iter().any(|function| {
         let mut pending = false;

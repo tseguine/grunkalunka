@@ -935,6 +935,57 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
+    // Keep completed branch regions and type dispatch outside the re-entrant
+    // cursor frame, whose constructor crossings have a 2 MiB stack contract.
+    #[inline(never)]
+    fn finish_selection(
+        &mut self,
+        node: &Expression<'_>,
+        condition: ValueId,
+        branches: (Region, Region),
+        mode: Mode,
+        region: &mut Region,
+    ) -> Result<Value, String> {
+        let ty = match mode {
+            Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
+            Mode::AsyncValue => Type::AsyncValue,
+            Mode::Predicate => Type::Predicate,
+            Mode::Function(signature) => Type::Closure(signature),
+            Mode::Pending => Type::Promise,
+            Mode::Promise => Type::FulfilledPromise,
+            Mode::Settled => Type::SettledPromise,
+            _ => Type::Number,
+        };
+        let result = self.value(ty);
+        let (consequent, alternate) = branches;
+        Self::push(
+            region,
+            node,
+            Op::If {
+                result: Some(result),
+                condition,
+                consequent,
+                alternate,
+            },
+        );
+        Ok(match ty {
+            Type::ManagedValue | Type::ManagedObject => {
+                return Err(unsupported(
+                    node,
+                    "managed source values are not yet admitted",
+                ));
+            }
+            Type::General => Value::General(result),
+            Type::AsyncValue => Value::Selection(result),
+            Type::Predicate => Value::Predicate(result),
+            Type::Number => Value::Number(result),
+            Type::Closure(_) => Value::Function(result),
+            Type::FulfilledPromise => Value::Promise(result),
+            Type::SettledPromise => Value::Settled(result),
+            Type::Promise => Value::Pending(result),
+        })
+    }
+
     pub(super) fn evaluate<'e, 'a>(
         &mut self,
         expression: &'e Expression<'a>,
@@ -2286,37 +2337,13 @@ impl Lowering<'_, '_> {
                 } => {
                     let value = values.pop().expect("alternate result").id();
                     let alternate = regions.finish(value);
-                    let ty = match mode {
-                        Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
-                        Mode::AsyncValue => Type::AsyncValue,
-                        Mode::Predicate => Type::Predicate,
-                        Mode::Function(signature) => Type::Closure(signature),
-                        Mode::Pending => Type::Promise,
-                        Mode::Promise => Type::FulfilledPromise,
-                        Mode::Settled => Type::SettledPromise,
-                        _ => Type::Number,
-                    };
-                    let result = self.value(ty);
-                    Self::push(
-                        regions.current(),
+                    values.push(self.finish_selection(
                         node,
-                        Op::If {
-                            result: Some(result),
-                            condition,
-                            consequent,
-                            alternate,
-                        },
-                    );
-                    values.push(match ty {
-                        Type::General => Value::General(result),
-                        Type::AsyncValue => Value::Selection(result),
-                        Type::Predicate => Value::Predicate(result),
-                        Type::Number => Value::Number(result),
-                        Type::Closure(_) => Value::Function(result),
-                        Type::FulfilledPromise => Value::Promise(result),
-                        Type::SettledPromise => Value::Settled(result),
-                        Type::Promise => Value::Pending(result),
-                    });
+                        condition,
+                        (consequent, alternate),
+                        mode,
+                        regions.current(),
+                    )?);
                 }
                 Work::LogicalLeft {
                     node,
@@ -2462,37 +2489,13 @@ impl Lowering<'_, '_> {
                     } else {
                         (skipped, selected)
                     };
-                    let ty = match mode {
-                        Mode::General | Mode::Awaited(_) | Mode::AsyncReturn => Type::General,
-                        Mode::AsyncValue => Type::AsyncValue,
-                        Mode::Predicate => Type::Predicate,
-                        Mode::Function(signature) => Type::Closure(signature),
-                        Mode::Pending => Type::Promise,
-                        Mode::Promise => Type::FulfilledPromise,
-                        Mode::Settled => Type::SettledPromise,
-                        _ => Type::Number,
-                    };
-                    let result = self.value(ty);
-                    Self::push(
-                        regions.current(),
+                    values.push(self.finish_selection(
                         node,
-                        Op::If {
-                            result: Some(result),
-                            condition,
-                            consequent,
-                            alternate,
-                        },
-                    );
-                    values.push(match ty {
-                        Type::General => Value::General(result),
-                        Type::AsyncValue => Value::Selection(result),
-                        Type::Predicate => Value::Predicate(result),
-                        Type::Number => Value::Number(result),
-                        Type::Closure(_) => Value::Function(result),
-                        Type::FulfilledPromise => Value::Promise(result),
-                        Type::SettledPromise => Value::Settled(result),
-                        Type::Promise => Value::Pending(result),
-                    });
+                        condition,
+                        (consequent, alternate),
+                        mode,
+                        regions.current(),
+                    )?);
                 }
                 Work::FunctionLength(node, count) => {
                     let result = self.function_length_number(node, count, regions.current());

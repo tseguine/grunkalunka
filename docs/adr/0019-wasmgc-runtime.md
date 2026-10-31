@@ -104,6 +104,41 @@ It does not implement general JavaScript heap values. The next independently
 observable slice is source object/array construction, property mutation, reference
 passing and identity through the shared frontend/IR, compared in all three engines.
 
+## First shared-IR representation increment (2026-10-31)
+
+The object/property prerequisite extends the shared IR with `ManagedValue` and
+`ManagedObject`, each lowered to one traced reference. An immutable carrier stores
+a language-kind tag, an f64 payload and a nullable GC reference. Its current domain
+is the four canonical primitive kinds plus ordinary objects. Known Number values
+retain their direct f64 representation; the existing primitive wire pair is separate.
+Object equality compares the wrapped object reference, preserving identity across
+multiple carriers. Mutable GC property entries preserve earlier value snapshots.
+
+This is a local, revisable representation decision, not acceptance of a complete
+eight-kind union. A raw `eqref` alone would not retain primitive kind distinctions
+or distinguish future by-value String/BigInt comparisons from identity comparisons.
+An unboxed multi-lane union remains a possible optimization, but would spread kind
+and reference-lane bookkeeping through calls and containers before the first source
+slice. Boxing only at managed boundaries provides a simpler initial implementation
+without changing known-number arithmetic. No performance claim selects it permanently.
+
+Own data-property operations use lossless UTF-16 key arrays and linear GC-backed
+entry storage. Shape/hash caches are deferred until executable source behavior is
+established. Own lookup is not a substitute for prototype-aware JavaScript lookup;
+source admission must provide the required semantics or reject the case. Arrays,
+strings, symbols, functions and coercions require further implementation.
+
+Ordinary internal helpers pass/return traced references. Exported signatures retain
+the current profiles. GC captures, private closure signatures and async byte-spill
+modules reject until their storage can trace references. The kernel is appended
+after source functions to preserve internal call indices and emitted only when used.
+
+Maintained typed-IR tests compare emitted modules with native JS in Node. Wasmtime
+tests execute the shared helper kernel, including a live self-cycle across forced
+copying collections. A separate manual check executes an actual emitted mixed-helper
+artifact in both engines. Source object compilation remains the next increment.
+See [the representation contract](../managed-values.md) for precise boundaries.
+
 ## Related work and follow-up
 
 - [Shared backend layout](0014-backend-value-layout.md).
