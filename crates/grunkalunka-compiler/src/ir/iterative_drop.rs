@@ -1,7 +1,7 @@
 //! Release owned structured IR without native call depth proportional to
 //! region nesting. Verification and code generation already have separate
 //! iterative traversals; they cannot protect the implicit Rust drop glue.
-use crate::ir::{Op, Operation, Region};
+use crate::ir::{Op, Region};
 
 impl Drop for Region {
     fn drop(&mut self) {
@@ -66,7 +66,7 @@ impl Drop for Region {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Exit, RegionId, ValueId};
+    use crate::ir::{Exit, Operation, RegionId, ValueId};
     use oxc_span::Span;
 
     fn empty() -> Region {
