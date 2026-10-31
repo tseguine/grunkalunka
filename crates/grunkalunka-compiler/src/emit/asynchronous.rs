@@ -131,6 +131,18 @@ enum PendingSplit<'a> {
         condition: ValueId,
         yes: usize,
     },
+    TryHandler {
+        parent: &'a Region,
+        remaining: usize,
+        body: &'a Region,
+        reason: ValueId,
+        normal: usize,
+    },
+    TryBody {
+        parent: &'a Region,
+        remaining: usize,
+        outer_catch: Option<(ValueId, usize)>,
+    },
 }
 
 impl<'a> Splitter<'a> {
@@ -254,6 +266,24 @@ impl<'a> Splitter<'a> {
         yielded: Option<YieldTarget>,
         loops: Option<LoopTargets>,
     ) -> Result<usize, String> {
+        // Nested try/catch changes the lexical exception target. An early
+        // graph-budget failure must not leak that dynamic binding to the next
+        // attempted split on this same builder.
+        let outer_return = self.return_to;
+        let outer_catch = self.catch_to;
+        let result = self.region_inner(region, normal, yielded, loops);
+        self.return_to = outer_return;
+        self.catch_to = outer_catch;
+        result
+    }
+
+    fn region_inner(
+        &mut self,
+        region: &'a Region,
+        normal: usize,
+        yielded: Option<YieldTarget>,
+        loops: Option<LoopTargets>,
+    ) -> Result<usize, String> {
         // A fallthrough Region containing only a Block is a transparent
         // continuation edge. Follow these wrappers iteratively before
         // descending into the ordinary splitter, which otherwise recurses
@@ -314,6 +344,32 @@ impl<'a> Splitter<'a> {
                         region = parent;
                         end = remaining;
                     }
+                    Some(PendingSplit::TryHandler {
+                        parent,
+                        remaining,
+                        body,
+                        reason,
+                        normal,
+                    }) => {
+                        let outer_catch = self.catch_to.replace((reason, next));
+                        pending.push(PendingSplit::TryBody {
+                            parent,
+                            remaining,
+                            outer_catch,
+                        });
+                        next = self.exit_entry(body, normal, None, loops)?;
+                        region = body;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::TryBody {
+                        parent,
+                        remaining,
+                        outer_catch,
+                    }) => {
+                        self.catch_to = outer_catch;
+                        region = parent;
+                        end = remaining;
+                    }
                     None => return Ok(next),
                 }
                 continue;
@@ -347,6 +403,27 @@ impl<'a> Splitter<'a> {
                 });
                 next = self.exit_entry(consequent, next, yielded, loops)?;
                 region = consequent;
+                end = region.operations.len();
+                continue;
+            }
+            if let Op::TryCatch {
+                body,
+                reason,
+                handler,
+            } = &operation.kind
+            {
+                // Build the handler under the outer lexical target. Only after
+                // that child completes does the protected body inherit the
+                // newly established exception continuation.
+                pending.push(PendingSplit::TryHandler {
+                    parent: region,
+                    remaining: end - 1,
+                    body,
+                    reason: *reason,
+                    normal: next,
+                });
+                next = self.exit_entry(handler, next, None, loops)?;
+                region = handler;
                 end = region.operations.len();
                 continue;
             }
@@ -460,18 +537,7 @@ impl<'a> Splitter<'a> {
                     self.catch_to = outer_catch;
                     entry?
                 }
-                Op::TryCatch {
-                    body,
-                    reason,
-                    handler,
-                } => {
-                    // The handler itself belongs to the enclosing protected scope.
-                    let handler = self.region(handler, next, None, loops)?;
-                    let outer = self.catch_to.replace((*reason, handler));
-                    let entry = self.region(body, next, None, loops);
-                    self.catch_to = outer;
-                    entry?
-                }
+                Op::TryCatch { .. } => unreachable!("catch continuations use the explicit stack"),
                 Op::TryFinally {
                     body,
                     finalizer,
