@@ -12,6 +12,8 @@ mod branch_split_tests;
 #[cfg(test)]
 mod call_split_tests;
 mod errors;
+#[cfg(test)]
+mod finally_split_tests;
 mod frames;
 #[cfg(test)]
 mod loop_split_tests;
