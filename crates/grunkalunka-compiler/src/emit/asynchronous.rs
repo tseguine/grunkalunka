@@ -145,6 +145,19 @@ enum PendingSplit<'a> {
         remaining: usize,
         outer_catch: Option<(ValueId, usize)>,
     },
+    InlineBody {
+        parent: &'a Region,
+        remaining: usize,
+        outer_return: Option<(ValueId, usize)>,
+        outer_loops: Option<LoopTargets>,
+    },
+    AwaitBody {
+        parent: &'a Region,
+        remaining: usize,
+        outer_return: Option<(ValueId, usize)>,
+        outer_catch: Option<(ValueId, usize)>,
+        outer_loops: Option<LoopTargets>,
+    },
 }
 
 impl<'a> Splitter<'a> {
@@ -301,7 +314,8 @@ impl<'a> Splitter<'a> {
             yielded = None;
         }
 
-        let mut next = self.exit_entry(region, normal, yielded, loops)?;
+        let mut active_loops = loops;
+        let mut next = self.exit_entry(region, normal, yielded, active_loops)?;
         // Block and If child continuations now keep their parent region,
         // remaining prefix and branch targets in an explicit heap-owned stack,
         // independent of arbitrary source-generated nesting depth.
@@ -328,7 +342,7 @@ impl<'a> Splitter<'a> {
                             condition,
                             yes: next,
                         });
-                        next = self.exit_entry(alternate, normal, yielded, loops)?;
+                        next = self.exit_entry(alternate, normal, yielded, active_loops)?;
                         region = alternate;
                         end = region.operations.len();
                     }
@@ -359,7 +373,7 @@ impl<'a> Splitter<'a> {
                             remaining,
                             outer_catch,
                         });
-                        next = self.exit_entry(body, normal, None, loops)?;
+                        next = self.exit_entry(body, normal, None, active_loops)?;
                         region = body;
                         end = region.operations.len();
                     }
@@ -369,6 +383,30 @@ impl<'a> Splitter<'a> {
                         outer_catch,
                     }) => {
                         self.catch_to = outer_catch;
+                        region = parent;
+                        end = remaining;
+                    }
+                    Some(PendingSplit::InlineBody {
+                        parent,
+                        remaining,
+                        outer_return,
+                        outer_loops,
+                    }) => {
+                        self.return_to = outer_return;
+                        active_loops = outer_loops;
+                        region = parent;
+                        end = remaining;
+                    }
+                    Some(PendingSplit::AwaitBody {
+                        parent,
+                        remaining,
+                        outer_return,
+                        outer_catch,
+                        outer_loops,
+                    }) => {
+                        self.return_to = outer_return;
+                        self.catch_to = outer_catch;
+                        active_loops = outer_loops;
                         region = parent;
                         end = remaining;
                     }
@@ -382,7 +420,7 @@ impl<'a> Splitter<'a> {
                     parent: region,
                     remaining: end - 1,
                 });
-                next = self.exit_entry(child, next, None, loops)?;
+                next = self.exit_entry(child, next, None, active_loops)?;
                 region = child;
                 end = region.operations.len();
                 continue;
@@ -403,7 +441,7 @@ impl<'a> Splitter<'a> {
                     normal: next,
                     yielded,
                 });
-                next = self.exit_entry(consequent, next, yielded, loops)?;
+                next = self.exit_entry(consequent, next, yielded, active_loops)?;
                 region = consequent;
                 end = region.operations.len();
                 continue;
@@ -424,8 +462,53 @@ impl<'a> Splitter<'a> {
                     reason: *reason,
                     normal: next,
                 });
-                next = self.exit_entry(handler, next, None, loops)?;
+                next = self.exit_entry(handler, next, None, active_loops)?;
                 region = handler;
+                end = region.operations.len();
+                continue;
+            }
+            if let Op::InlineCall { result, body } = &operation.kind {
+                let outer_return = self.return_to.replace((*result, next));
+                pending.push(PendingSplit::InlineBody {
+                    parent: region,
+                    remaining: end - 1,
+                    outer_return,
+                    outer_loops: active_loops,
+                });
+                active_loops = None;
+                next = self.exit_entry(body, next, None, active_loops)?;
+                region = body;
+                end = region.operations.len();
+                continue;
+            }
+            if let Op::AwaitCall { result, body } = &operation.kind {
+                // Capture the caller's two settlement continuations before
+                // entering the callee, exactly as with the recursive splitter.
+                self.charge_await(&region.operations, end - 1)?;
+                let fulfilled_resume = self.state(&[], Some(*result), End::Jump(next))?;
+                let fulfilled = self.terminal(End::Suspend {
+                    input: *result,
+                    rejected: false,
+                    resume: fulfilled_resume,
+                })?;
+                let (uncaught, rejected_resume) = self.rejection_resume(*result, next)?;
+                let rejected = self.terminal(End::Suspend {
+                    input: *result,
+                    rejected: uncaught,
+                    resume: rejected_resume,
+                })?;
+                let outer_return = self.return_to.replace((*result, fulfilled));
+                let outer_catch = self.catch_to.replace((*result, rejected));
+                pending.push(PendingSplit::AwaitBody {
+                    parent: region,
+                    remaining: end - 1,
+                    outer_return,
+                    outer_catch,
+                    outer_loops: active_loops,
+                });
+                active_loops = None;
+                next = self.exit_entry(body, fulfilled, None, active_loops)?;
+                region = body;
                 end = region.operations.len();
                 continue;
             }
@@ -510,34 +593,8 @@ impl<'a> Splitter<'a> {
                         returned,
                     })?
                 }
-                Op::InlineCall { result, body } => {
-                    let outer = self.return_to.replace((*result, next));
-                    let entry = self.region(body, next, None, None);
-                    self.return_to = outer;
-                    entry?
-                }
-                Op::AwaitCall { result, body } => {
-                    // Two possible settlements share one logical await site.
-                    // The body runs now; only the caller reaction suspends here.
-                    self.charge_await(&region.operations, end - 1)?;
-                    let fulfilled_resume = self.state(&[], Some(*result), End::Jump(next))?;
-                    let fulfilled = self.terminal(End::Suspend {
-                        input: *result,
-                        rejected: false,
-                        resume: fulfilled_resume,
-                    })?;
-                    let (uncaught, rejected_resume) = self.rejection_resume(*result, next)?;
-                    let rejected = self.terminal(End::Suspend {
-                        input: *result,
-                        rejected: uncaught,
-                        resume: rejected_resume,
-                    })?;
-                    let outer_return = self.return_to.replace((*result, fulfilled));
-                    let outer_catch = self.catch_to.replace((*result, rejected));
-                    let entry = self.region(body, fulfilled, None, None);
-                    self.return_to = outer_return;
-                    self.catch_to = outer_catch;
-                    entry?
+                Op::InlineCall { .. } | Op::AwaitCall { .. } => {
+                    unreachable!("call bodies use the explicit continuation stack")
                 }
                 Op::TryCatch { .. } => unreachable!("catch continuations use the explicit stack"),
                 Op::TryFinally {
@@ -549,12 +606,12 @@ impl<'a> Splitter<'a> {
                 } => {
                     let outer_return = self.return_to;
                     let outer_catch = self.catch_to;
-                    let resume_return = self.region(continuation, next, None, loops)?;
+                    let resume_return = self.region(continuation, next, None, active_loops)?;
                     self.return_to = Some((*returned, resume_return));
                     let entries = (|| {
                         // Cleanup belongs to the outer lexical scope. A return in
                         // it overrides the pending completion through resume_return.
-                        let on_return = self.region(finalizer, resume_return, None, loops)?;
+                        let on_return = self.region(finalizer, resume_return, None, active_loops)?;
                         let rethrow = self.terminal(match outer_catch {
                             Some((result, next)) => End::Copy {
                                 input: *reason,
@@ -563,12 +620,12 @@ impl<'a> Splitter<'a> {
                             },
                             None => End::Reject(*reason),
                         })?;
-                        let on_throw = self.region(finalizer, rethrow, None, loops)?;
-                        let normal = self.region(finalizer, next, None, loops)?;
-                        let protected_loops = if let Some(targets) = loops {
+                        let on_throw = self.region(finalizer, rethrow, None, active_loops)?;
+                        let normal = self.region(finalizer, next, None, active_loops)?;
+                        let protected_loops = if let Some(targets) = active_loops {
                             Some(LoopTargets {
-                                exit: self.region(finalizer, targets.exit, None, loops)?,
-                                next: self.region(finalizer, targets.next, None, loops)?,
+                                exit: self.region(finalizer, targets.exit, None, active_loops)?,
+                                next: self.region(finalizer, targets.next, None, active_loops)?,
                             })
                         } else {
                             None
@@ -629,7 +686,7 @@ impl<'a> Splitter<'a> {
                 } => {
                     let test = self.terminal(End::Trap)?;
                     let step = match step {
-                        Some(step) => self.region(step, test, None, loops)?,
+                        Some(step) => self.region(step, test, None, active_loops)?,
                         None => test,
                     };
                     let body = self.region(
@@ -648,7 +705,7 @@ impl<'a> Splitter<'a> {
                             yes: body,
                             no: next,
                         }),
-                        loops,
+                        active_loops,
                     )?;
                     self.states[test].end = End::Jump(condition);
                     test
@@ -662,7 +719,7 @@ impl<'a> Splitter<'a> {
                             yes: first,
                             no: next,
                         }),
-                        loops,
+                        active_loops,
                     )?;
                     let body = self.region(
                         body,
