@@ -2550,7 +2550,7 @@ mod tests {
             panic!()
         };
         body.exit = Exit::Fallthrough;
-        body.operations = region(
+        let mut replacement = region(
             vec![
                 Op::Block(child),
                 Op::Load {
@@ -2559,8 +2559,8 @@ mod tests {
                 },
             ],
             Exit::Fallthrough,
-        )
-        .operations;
+        );
+        body.operations = std::mem::take(&mut replacement.operations);
         f.values.push(Type::Number);
         assert!(
             verify(&f)

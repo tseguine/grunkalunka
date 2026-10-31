@@ -844,7 +844,7 @@ fn promoted_module() -> Module {
     let f = &mut module.functions[0];
     let span = f.body.span;
     let operation = f.body.operations.remove(0);
-    let Op::SettlePromise { result, body } = operation.kind else {
+    let Op::SettlePromise { result, mut body } = operation.kind else {
         unreachable!()
     };
     let Exit::Return(input) = body.exit else {
@@ -852,7 +852,7 @@ fn promoted_module() -> Module {
     };
     let fulfilled = ValueId(f.values.len());
     f.values.push(Type::FulfilledPromise);
-    let mut ops = body.operations;
+    let mut ops = std::mem::take(&mut body.operations);
     ops.push(Operation {
         span,
         kind: Op::FulfillPromise {
