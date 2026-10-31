@@ -107,6 +107,30 @@ struct Splitter<'a> {
     catch_to: Option<(ValueId, usize)>,
 }
 
+// The explicit splitter stack suspends a parent while one child Region is
+// built. Each If first builds the consequent, then the alternate, preserving
+// the previous state IDs, continuation targets and branch evaluation order.
+enum PendingSplit<'a> {
+    Block {
+        parent: &'a Region,
+        remaining: usize,
+    },
+    IfConsequent {
+        parent: &'a Region,
+        remaining: usize,
+        alternate: &'a Region,
+        condition: ValueId,
+        normal: usize,
+        yielded: Option<YieldTarget>,
+    },
+    IfAlternate {
+        parent: &'a Region,
+        remaining: usize,
+        condition: ValueId,
+        yes: usize,
+    },
+}
+
 impl<'a> Splitter<'a> {
     fn charge_await(&mut self, operations: &[ir::Operation], index: usize) -> Result<(), String> {
         // A finalizer's one IR await can be emitted under several pending exits.
@@ -244,25 +268,83 @@ impl<'a> Splitter<'a> {
         }
 
         let mut next = self.exit_entry(region, normal, yielded, loops)?;
-        // A block containing actual operations on either side of a nested
-        // Block was previously recursive. Retain its remaining prefix on the
-        // heap while processing the child under the same lexical loop targets.
-        let mut pending_blocks: Vec<(&'a Region, usize)> = Vec::new();
+        // Block and If child continuations now keep their parent region,
+        // remaining prefix and branch targets in an explicit heap-owned stack,
+        // independent of arbitrary source-generated nesting depth.
+        let mut pending: Vec<PendingSplit<'a>> = Vec::new();
         let mut end = region.operations.len();
         loop {
             if end == 0 {
-                if let Some((parent, remaining)) = pending_blocks.pop() {
-                    region = parent;
-                    end = remaining;
-                    continue;
+                match pending.pop() {
+                    Some(PendingSplit::Block { parent, remaining }) => {
+                        region = parent;
+                        end = remaining;
+                    }
+                    Some(PendingSplit::IfConsequent {
+                        parent,
+                        remaining,
+                        alternate,
+                        condition,
+                        normal,
+                        yielded,
+                    }) => {
+                        pending.push(PendingSplit::IfAlternate {
+                            parent,
+                            remaining,
+                            condition,
+                            yes: next,
+                        });
+                        next = self.exit_entry(alternate, normal, yielded, loops)?;
+                        region = alternate;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::IfAlternate {
+                        parent,
+                        remaining,
+                        condition,
+                        yes,
+                    }) => {
+                        next = self.terminal(End::Test {
+                            condition,
+                            yes,
+                            no: next,
+                        })?;
+                        region = parent;
+                        end = remaining;
+                    }
+                    None => return Ok(next),
                 }
-                return Ok(next);
+                continue;
             }
             let operation = &region.operations[end - 1];
             if let Op::Block(child) = &operation.kind {
-                pending_blocks.push((region, end - 1));
+                pending.push(PendingSplit::Block {
+                    parent: region,
+                    remaining: end - 1,
+                });
                 next = self.exit_entry(child, next, None, loops)?;
                 region = child;
+                end = region.operations.len();
+                continue;
+            }
+            if let Op::If {
+                result,
+                condition,
+                consequent,
+                alternate,
+            } = &operation.kind
+            {
+                let yielded = result.map(|result| YieldTarget::Copy { result, next });
+                pending.push(PendingSplit::IfConsequent {
+                    parent: region,
+                    remaining: end - 1,
+                    alternate,
+                    condition: *condition,
+                    normal: next,
+                    yielded,
+                });
+                next = self.exit_entry(consequent, next, yielded, loops)?;
+                region = consequent;
                 end = region.operations.len();
                 continue;
             }
@@ -469,21 +551,7 @@ impl<'a> Splitter<'a> {
                     })?
                 }
                 Op::Block(_) => unreachable!("block is scheduled on the explicit stack"),
-                Op::If {
-                    result,
-                    condition,
-                    consequent,
-                    alternate,
-                } => {
-                    let yielded = result.map(|result| YieldTarget::Copy { result, next });
-                    let yes = self.region(consequent, next, yielded, loops)?;
-                    let no = self.region(alternate, next, yielded, loops)?;
-                    self.terminal(End::Test {
-                        condition: *condition,
-                        yes,
-                        no,
-                    })?
-                }
+                Op::If { .. } => unreachable!("If continuations use the explicit stack"),
                 Op::While {
                     condition,
                     body,
