@@ -440,3 +440,43 @@ fn source_results_still_require_frontend_inference_and_async_frames_stay_guarded
         }
     }
 }
+
+#[test]
+fn managed_inline_body_results_keep_exact_private_types_and_await_guards() {
+    for ty in [Type::ManagedObject, Type::ManagedArray, Type::ManagedValue] {
+        let mut m = round_trip(ty);
+        let f = &mut m.functions[1];
+        let body = Region {
+            id: RegionId(1),
+            span: f.body.span,
+            operations: f.body.operations.split_off(1),
+            exit: std::mem::replace(&mut f.body.exit, Exit::Fallthrough),
+        };
+        let result = value(f, ty, |result| Op::InlineCall { result, body });
+        f.body.exit = Exit::Return(result);
+        let native = match ty {
+            Type::ManagedObject => {
+                "(()=>{const x={};const f=x=>{return x;};return Number(f(x)===x);})()"
+            }
+            Type::ManagedArray => {
+                "(()=>{const x=[];const f=x=>{return x;};return Number(f(x)===x);})()"
+            }
+            _ => {
+                "(()=>{const x=String.fromCharCode(0xd800,0,0xdc00);const f=x=>{return x;};return Number(f(x)===x);})()"
+            }
+        };
+        check(&m, native);
+        m.functions[1].values[result.0] = Type::Number;
+        assert!(verify_module(&m).is_err(), "mismatched inline return kind");
+        m.functions[1].values[result.0] = ty;
+        let op = &mut m.functions[1].body.operations[1].kind;
+        let Op::InlineCall { result, body } =
+            std::mem::replace(op, Op::CaptureCells { cells: vec![] })
+        else {
+            unreachable!()
+        };
+        *op = Op::AwaitCall { result, body };
+        let error = verify_module(&m).unwrap_err();
+        assert!(error.contains("awaited calls require General"), "{error}");
+    }
+}

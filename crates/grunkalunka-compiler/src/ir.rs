@@ -1748,7 +1748,10 @@ impl Verifier<'_> {
                     }
                     if !matches!(
                         ty,
-                        Type::Number
+                        Type::ManagedObject
+                            | Type::ManagedArray
+                            | Type::ManagedValue
+                            | Type::Number
                             | Type::General
                             | Type::AsyncValue
                             | Type::Closure(_)
@@ -1758,7 +1761,7 @@ impl Verifier<'_> {
                     ) {
                         return Err(invalid(
                             span,
-                            "inline calls require Number, General, function or fulfilled Promise results",
+                            "inline calls require Number, General, managed, function or fulfilled Promise results",
                         ));
                     }
                     frame.pending = PendingRegion::Inline(ty);

@@ -303,7 +303,9 @@ instrumentation is removed afterward. This does not establish source admission.
 
 Synchronous private IR closures can also return `ManagedObject`, `ManagedArray`
 or `ManagedValue`, including through callback and returned-function signatures.
-Logical signatures still match the exact result type. The private Wasm call uses
+Logical signatures and inline function-body regions still match the exact result
+type. The inline-body gate admits these existing managed types; awaited inline
+calls retain their separate General-only result check. The private Wasm call uses
 one nullable `eqref` result, then casts to the IR-proven reference type before
 assigning the caller's typed local. Objects and arrays retain identity; String and
 primitive carriers keep their language kind. No numeric handle or byte spill is
