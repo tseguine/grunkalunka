@@ -599,8 +599,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                                 && let Some(kind) = bindings.get(&symbol)
                             {
                                 results.push(*kind);
-                            } else if let Some((_, arity)) =
-                                self.named_async_function(node, depth)
+                            } else if let Some((_, arity)) = self.named_async_function(node, depth)
                             {
                                 results.push(Some(arity));
                             } else if let Some((_, arity)) =
@@ -608,15 +607,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
                             {
                                 results.push(Some(arity));
                             } else {
-                                results.push(
-                                    self.closure_target(node, depth).and_then(|closure| {
+                                results.push(self.closure_target(node, depth).and_then(
+                                    |closure| {
                                         self.arrow_signature_at(
                                             self.arrow(closure.arrow),
                                             calls,
                                             &bindings,
                                         )
-                                    }),
-                                );
+                                    },
+                                ));
                             }
                         }
                     }
