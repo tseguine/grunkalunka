@@ -18,7 +18,8 @@ pub(super) struct ReturnOrigins<'s, 'n, 'a> {
 impl<'s, 'n, 'a> ReturnOrigins<'s, 'n, 'a> {
     // Follow source-known concise and block results. Actual argument origins are
     // computed before shadowing formals; no call effects or argument bindings
-    // escape this read-only query. The same eight-call bound limits    pub(super) fn expression<'e>(
+    // escape this read-only query. The same eight-call bound limits recursion.
+    pub(super) fn expression<'e>(
         &'e self,
         expression: &'e Expression<'a>,
         bindings: &BTreeMap<SymbolId, Origins>,
@@ -285,8 +286,6 @@ impl<'s, 'n, 'a> ReturnOrigins<'s, 'n, 'a> {
             }
         }
         results.pop().expect("root return origins")
-    }
-result
     }
 }
 
