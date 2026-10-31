@@ -111,7 +111,7 @@ fn awaited_call_return_and_throw_keep_distinct_settlement_continuations() {
 fn deep_inline_calls_split_on_two_megabyte_native_stacks() {
     // Every level owns its own return continuation. Keep the synthetic graph
     // below the real MAX_STATES bound while exceeding native recursive depth.
-    const DEPTH: usize = 1800;
+    const DEPTH: usize = 3000;
     std::thread::Builder::new()
         .stack_size(2 * 1024 * 1024)
         .spawn(|| {
@@ -130,7 +130,7 @@ fn deep_inline_calls_split_on_two_megabyte_native_stacks() {
             let normal = split.terminal(End::Trap).unwrap();
             let entry = split.region(&source, normal, None, None).unwrap();
             assert!(matches!(&split.states[entry].end, End::Copy { .. }));
-            assert_eq!(split.states.len(), DEPTH * 2 + 2);
+            assert_eq!(split.states.len(), DEPTH + 2);
             assert!(split.return_to.is_none());
             assert!(split.catch_to.is_none());
         })
