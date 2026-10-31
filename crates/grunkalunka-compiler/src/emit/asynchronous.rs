@@ -24,7 +24,7 @@ enum YieldTarget {
     Test { yes: usize, no: usize },
 }
 
-enum End {
+enum End<'a> {
     AdoptPromise {
         subscription: usize,
     },
@@ -49,7 +49,7 @@ enum End {
     },
     InvokeClosure {
         callee: ValueId,
-        arguments: Vec<ValueId>,
+        arguments: &'a [ValueId],
         returned: usize,
     },
     EnterClosure {
@@ -90,7 +90,7 @@ struct State<'a> {
     function: usize,
     operations: &'a [ir::Operation],
     resumed: Option<ValueId>,
-    end: End,
+    end: End<'a>,
 }
 
 #[derive(Default)]
@@ -134,7 +134,7 @@ impl<'a> Splitter<'a> {
         &mut self,
         operations: &'a [ir::Operation],
         resumed: Option<ValueId>,
-        end: End,
+        end: End<'a>,
     ) -> Result<usize, String> {
         if self.states.len() == MAX_STATES {
             return Err("async continuation graph exceeds 4096 states".into());
@@ -149,7 +149,7 @@ impl<'a> Splitter<'a> {
         Ok(id)
     }
 
-    fn terminal(&mut self, end: End) -> Result<usize, String> {
+    fn terminal(&mut self, end: End<'a>) -> Result<usize, String> {
         self.state(&[], None, end)
     }
 
@@ -167,6 +167,9 @@ impl<'a> Splitter<'a> {
         Ok((caught.is_none() && self.function == 0, resume))
     }
 
+    // Invocation arguments borrow the original verified IR ValueId slice. It
+    // remains valid through splitting, including repeated finally continuations,
+    // and avoids allocating a new vector for each emitted call.
     // Build backwards from the suffix. Every internal edge stays in the current
     // host job; only Suspend returns to the scheduler. Loop targets are lexical.
     fn region(
@@ -227,7 +230,7 @@ impl<'a> Splitter<'a> {
                     })?;
                     self.terminal(End::InvokeClosure {
                         callee: *callee,
-                        arguments: arguments.clone(),
+                        arguments,
                         returned,
                     })?
                 }
@@ -291,7 +294,7 @@ impl<'a> Splitter<'a> {
                     };
                     self.terminal(End::InvokeClosure {
                         callee: *callee,
-                        arguments: arguments.clone(),
+                        arguments,
                         returned,
                     })?
                 }
@@ -747,7 +750,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
 
             End::InvokeClosure {
                 callee,
-                ref arguments,
+                arguments,
                 returned,
             } => {
                 frame.spill(&mut output);
@@ -984,6 +987,54 @@ fn primitive(output: &mut String, emitter: &Emitter<'_>, value: ValueId) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn async_split_states_borrow_their_original_argument_snapshots() {
+        use oxc_span::Span;
+
+        // Both immediate child startup and awaited closure invocation share the
+        // source-owned argument slice; no per-state copy is needed.
+        for awaited in [false, true] {
+            let span = Span::new(0, 0);
+            let arguments = vec![ValueId(7), ValueId(3), ValueId(11)];
+            let kind = if awaited {
+                Op::AwaitClosureCall {
+                    result: ValueId(12),
+                    callee: ValueId(5),
+                    arguments,
+                }
+            } else {
+                Op::StartAsyncClosure {
+                    result: ValueId(12),
+                    callee: ValueId(5),
+                    arguments,
+                }
+            };
+            let region = Region {
+                id: ir::RegionId(0),
+                span,
+                operations: vec![ir::Operation { span, kind }],
+                exit: Exit::Fallthrough,
+            };
+            let source_arguments = match &region.operations[0].kind {
+                Op::StartAsyncClosure { arguments, .. }
+                | Op::AwaitClosureCall { arguments, .. } => arguments.as_slice(),
+                _ => unreachable!(),
+            };
+            let mut split = Splitter::default();
+            let done = split.terminal(End::Trap).unwrap();
+            let entry = split.region(&region, done, None, None).unwrap();
+            match &split.states[entry].end {
+                End::InvokeClosure {
+                    arguments: saved, ..
+                } => {
+                    assert_eq!(*saved, source_arguments);
+                    assert_eq!(saved.as_ptr(), source_arguments.as_ptr());
+                }
+                _ => panic!("async invocation must use the source argument list"),
+            }
+        }
+    }
 
     #[test]
     fn async_targets_cannot_use_the_source_entry_as_an_ordinary_call() {
