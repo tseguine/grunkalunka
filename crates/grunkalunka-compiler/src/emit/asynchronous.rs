@@ -170,31 +170,16 @@ impl<'a> Splitter<'a> {
     // Invocation arguments borrow the original verified IR ValueId slice. It
     // remains valid through splitting, including repeated finally continuations,
     // and avoids allocating a new vector for each emitted call.
-    // Build backwards from the suffix. Every internal edge stays in the current
-    // host job; only Suspend returns to the scheduler. Loop targets are lexical.
-    fn region(
+    // Construct an entry for a Region's exit without recursing into children.
+    // Block continuations share this rule with ordinary recursive calls.
+    fn exit_entry(
         &mut self,
-        region: &'a Region,
+        region: &Region,
         normal: usize,
         yielded: Option<YieldTarget>,
         loops: Option<LoopTargets>,
     ) -> Result<usize, String> {
-        // A fallthrough Region containing only a Block is a transparent
-        // continuation edge. Follow these wrappers iteratively before
-        // descending into the ordinary splitter, which otherwise recurses
-        // once for every nested Block even though no state is created.
-        let mut region = region;
-        let mut yielded = yielded;
-        while matches!(region.exit, Exit::Fallthrough) && region.operations.len() == 1 {
-            let Op::Block(child) = &region.operations[0].kind else {
-                break;
-            };
-            region = child;
-            // Op::Block passes no yield target to its nested statement.
-            yielded = None;
-        }
-
-        let mut next = match region.exit {
+        let next = match region.exit {
             Exit::Fallthrough => normal,
             Exit::Return(input) => self.terminal(match self.return_to {
                 Some((result, next)) => End::Copy {
@@ -229,9 +214,56 @@ impl<'a> Splitter<'a> {
                 })?
             }
         };
+        Ok(next)
+    }
+
+    // Build backwards from the suffix. Every internal edge stays in the current
+    // host job; only Suspend returns to the scheduler. Loop targets are lexical.
+    fn region(
+        &mut self,
+        region: &'a Region,
+        normal: usize,
+        yielded: Option<YieldTarget>,
+        loops: Option<LoopTargets>,
+    ) -> Result<usize, String> {
+        // A fallthrough Region containing only a Block is a transparent
+        // continuation edge. Follow these wrappers iteratively before
+        // descending into the ordinary splitter, which otherwise recurses
+        // once for every nested Block even though no state is created.
+        let mut region = region;
+        let mut yielded = yielded;
+        while matches!(region.exit, Exit::Fallthrough) && region.operations.len() == 1 {
+            let Op::Block(child) = &region.operations[0].kind else {
+                break;
+            };
+            region = child;
+            // Op::Block passes no yield target to its nested statement.
+            yielded = None;
+        }
+
+        let mut next = self.exit_entry(region, normal, yielded, loops)?;
+        // A block containing actual operations on either side of a nested
+        // Block was previously recursive. Retain its remaining prefix on the
+        // heap while processing the child under the same lexical loop targets.
+        let mut pending_blocks: Vec<(&'a Region, usize)> = Vec::new();
         let mut end = region.operations.len();
-        while end > 0 {
+        loop {
+            if end == 0 {
+                if let Some((parent, remaining)) = pending_blocks.pop() {
+                    region = parent;
+                    end = remaining;
+                    continue;
+                }
+                return Ok(next);
+            }
             let operation = &region.operations[end - 1];
+            if let Op::Block(child) = &operation.kind {
+                pending_blocks.push((region, end - 1));
+                next = self.exit_entry(child, next, None, loops)?;
+                region = child;
+                end = region.operations.len();
+                continue;
+            }
             next = match &operation.kind {
                 Op::AwaitSite { .. } => next,
                 Op::StartAsyncClosure {
@@ -434,7 +466,7 @@ impl<'a> Splitter<'a> {
                         resume,
                     })?
                 }
-                Op::Block(child) => self.region(child, next, None, loops)?,
+                Op::Block(_) => unreachable!("block is scheduled on the explicit stack"),
                 Op::If {
                     result,
                     condition,
@@ -516,7 +548,6 @@ impl<'a> Splitter<'a> {
             };
             end -= 1;
         }
-        Ok(next)
     }
 }
 
