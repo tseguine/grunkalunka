@@ -283,15 +283,17 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     let mut region = check.region(arrow);
                     let mut arguments = Vec::new();
                     for parameter in &arrow.params.items {
-                        let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                        let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        else {
                             unreachable!("checked parameter");
                         };
-                        if let Some(arity) =
-                            parent.callback_parameters
-                                .get(&arrow.node_id.get())
-                                .and_then(|parameters| {
-                                    parameters.get(&identifier.symbol_id.get().expect("parameter symbol"))
-                                })
+                        if let Some(arity) = parent
+                            .callback_parameters
+                            .get(&arrow.node_id.get())
+                            .and_then(|parameters| {
+                                parameters
+                                    .get(&identifier.symbol_id.get().expect("parameter symbol"))
+                            })
                         {
                             // A type-only input to disposable definition checking. This SSA
                             // value has no runtime target and never reaches published IR;
@@ -299,7 +301,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                             arguments.push(check.value(Type::Closure(*arity)));
                             continue;
                         }
-                        if let Some(ty) = self
+                        if let Some(ty) = parent
                             .promise_parameters
                             .parameter(&identifier.symbol_id.get().expect("parameter symbol"))
                         {
@@ -425,16 +427,18 @@ impl<'s, 'a> Lowering<'s, 'a> {
                         region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
                         closure.factory = true;
                     } else {
-                        let inferred = check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
-                        closure.result = if arrow.r#async && awaited::owns_finally(arrow, parent.semantic) {
-                            Type::General
-                        } else if inferred == Type::Promise {
-                            inferred
-                        } else if check.arrow_fulfilled_promise_result(arrow) {
-                            Type::FulfilledPromise
-                        } else {
-                            inferred
-                        };
+                        let inferred =
+                            check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
+                        closure.result =
+                            if arrow.r#async && awaited::owns_finally(arrow, parent.semantic) {
+                                Type::General
+                            } else if inferred == Type::Promise {
+                                inferred
+                            } else if check.arrow_fulfilled_promise_result(arrow) {
+                                Type::FulfilledPromise
+                            } else {
+                                inferred
+                            };
                         region = check.arrow_block_result(arrow, 0, closure.result)?;
                     }
                     finish(&mut parent, &check, &mut closure, &region);
