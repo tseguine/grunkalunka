@@ -179,6 +179,21 @@ impl<'a> Splitter<'a> {
         yielded: Option<YieldTarget>,
         loops: Option<LoopTargets>,
     ) -> Result<usize, String> {
+        // A fallthrough Region containing only a Block is a transparent
+        // continuation edge. Follow these wrappers iteratively before
+        // descending into the ordinary splitter, which otherwise recurses
+        // once for every nested Block even though no state is created.
+        let mut region = region;
+        let mut yielded = yielded;
+        while matches!(region.exit, Exit::Fallthrough) && region.operations.len() == 1 {
+            let Op::Block(child) = &region.operations[0].kind else {
+                break;
+            };
+            region = child;
+            // Op::Block passes no yield target to its nested statement.
+            yielded = None;
+        }
+
         let mut next = match region.exit {
             Exit::Fallthrough => normal,
             Exit::Return(input) => self.terminal(match self.return_to {
@@ -987,6 +1002,107 @@ fn primitive(output: &mut String, emitter: &Emitter<'_>, value: ValueId) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transparent_block_wrappers_split_on_a_small_native_stack() {
+        use crate::ir::{Operation, RegionId};
+        use oxc_span::Span;
+
+        const DEPTH: usize = 8192;
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                let span = Span::new(0, 0);
+                let mut root = Region {
+                    id: RegionId(DEPTH),
+                    span,
+                    operations: Vec::new(),
+                    exit: Exit::Return(ValueId(7)),
+                };
+                for level in 0..DEPTH {
+                    root = Region {
+                        id: RegionId(level),
+                        span,
+                        operations: vec![Operation {
+                            span,
+                            kind: Op::Block(root),
+                        }],
+                        exit: Exit::Fallthrough,
+                    };
+                }
+                let mut split = Splitter::default();
+                let unreachable = split.terminal(End::Trap).unwrap();
+                let first = split.region(&root, unreachable, None, None).unwrap();
+                assert!(matches!(split.states[first].end, End::Return(ValueId(7))));
+                assert_eq!(split.states.len(), 2);
+
+                // Keep this test independent of the separate iterative
+                // Region destructor change: manually release synthetic IR.
+                let mut current = root;
+                for _ in 0..DEPTH {
+                    let operation = current.operations.pop().expect("nested block");
+                    let Op::Block(child) = operation.kind else {
+                        panic!("expected block");
+                    };
+                    current = child;
+                }
+                assert!(current.operations.is_empty());
+            })
+            .expect("small-stack async splitter thread")
+            .join()
+            .expect("stack-independent block splitting completed");
+    }
+
+    #[test]
+    fn transparent_blocks_retain_yield_and_loop_boundaries() {
+        use crate::ir::{Operation, RegionId};
+        use oxc_span::Span;
+
+        let span = Span::new(0, 0);
+        let block = |exit| Region {
+            id: RegionId(0),
+            span,
+            operations: vec![Operation {
+                span,
+                kind: Op::Block(Region {
+                    id: RegionId(1),
+                    span,
+                    operations: Vec::new(),
+                    exit,
+                }),
+            }],
+            exit: Exit::Fallthrough,
+        };
+        let mut split = Splitter::default();
+        let normal = split.terminal(End::Trap).unwrap();
+        let error = split
+            .region(
+                &block(Exit::Yield(ValueId(0))),
+                normal,
+                Some(YieldTarget::Copy {
+                    result: ValueId(1),
+                    next: normal,
+                }),
+                None,
+            )
+            .expect_err("a statement block must not inherit an enclosing yield target");
+        assert!(error.contains("async yield lacks a target"), "{error}");
+        let target = 9;
+        assert_eq!(
+            split
+                .region(
+                    &block(Exit::Continue),
+                    normal,
+                    None,
+                    Some(LoopTargets {
+                        exit: 8,
+                        next: target,
+                    }),
+                )
+                .unwrap(),
+            target
+        );
+    }
 
     #[test]
     fn async_split_states_borrow_their_original_argument_snapshots() {
