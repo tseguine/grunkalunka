@@ -9,9 +9,10 @@ the existing async contract are preserved.
 
 ## Logical operations and representation
 
-`ManagedValue` currently carries Undefined, Null, Boolean, Number or an ordinary
-object reference. `ManagedObject` denotes a known ordinary object. Each has one
-traced WasmGC reference lane; neither is a numeric handle into linear memory.
+`ManagedValue` currently carries Undefined, Null, Boolean, Number, String or an
+object reference. `ManagedObject` denotes a known ordinary object, and
+`ManagedArray` a known array. Each has one traced WasmGC reference lane rather than
+a numeric handle into linear memory.
 Known Number computations still use f64, and the existing `General` primitive pair
 is separate. `ManagedPrimitive` bridges its four canonical primitive kinds;
 extended async Error/Promise tags cannot be copied into this private tag space.
@@ -20,12 +21,14 @@ The immutable value carrier has a kind, numeric payload and nullable GC referenc
 Ordinary objects have mutable GC-backed property storage. Boxing an object keeps
 the object's identity: two carriers for one object compare equal, while fresh
 objects remain distinct. Primitive comparisons retain kind differences, NaN and
-signed-zero rules. Future String/BigInt equality must compare values rather than
-carrier references; Symbols, functions and other object kinds need their own
+signed-zero rules. String equality compares lossless UTF-16 code units, never
+carrier/array identity or Unicode-normalized text. Future BigInt equality also needs value comparison;
+Symbols, functions and other object kinds need their own
 construction/identity operations before admission.
 
 | Operation | Contract |
 | --- | --- |
+| `ManagedString` | Construct an immutable String value from lossless UTF-16 units. |
 | `ManagedObjectNew` | Allocate a fresh ordinary object. |
 | `ManagedPrimitive` | Copy a canonical four-kind primitive into an immutable managed carrier. |
 | `ManagedFromObject` | Wrap an existing object without changing its identity. |
@@ -34,6 +37,44 @@ construction/identity operations before admission.
 | `ManagedEqual` | Strict equality in the currently admitted managed domain. |
 | `ManagedTruthy` | ECMAScript truthiness for the currently admitted managed domain. |
 
+## Array backend foundation
+
+The private IR also has `ManagedArray`, a traced reference with a mutable unsigned
+32-bit logical length and a private ordinary-object property holder. It reuses the
+existing sparse property kernel rather than allocating an element for every index.
+This permits an empty array of length 2^32-1 and a write at index 2^32-2 without
+storage proportional to length. The extra property-holder allocation is a simple
+initial implementation, not a permanent allocation strategy.
+
+`ManagedArrayNew` creates holes, `ManagedArrayLength` returns the length as Number,
+and `ManagedFromArray` boxes the existing identity as the same Object kind used for
+ordinary objects. Empty arrays are truthy; reboxing preserves identity and fresh
+arrays remain distinct from each other and ordinary objects. Typed internal helper
+arguments/results can carry array references.
+
+`ManagedArrayGetOwn` and `ManagedArraySetOwn` use UTF-16 keys and immutable value
+snapshots. Reads of `length` produce a managed Number. Canonical decimal indices
+0 through 2^32-2 grow length when necessary; keys such as `01`, `-0`, `1e2` and
+`4294967295` are named properties and do not. Missing entries are holes, distinct
+in storage from explicitly stored Undefined. Both read as Undefined through these
+own-property operations.
+
+`ManagedArrayResize` accepts an already validated immediate `u32` length. Shrinking
+removes indexed own properties at or above that length while retaining named
+properties; growing creates holes and does not restore deleted entries. Generic
+property writes to `length` reject in the IR verifier so they cannot bypass length
+validation. Dynamic coercion, RangeError completion, property descriptors and
+prototype lookup are not implemented by these operations.
+
+This is **IR/backend support**, not source array admission. Source literals,
+indexing and length syntax still reject until the separate frontend unit supplies
+the required receiver/key/length proofs. Managed captures, public reference exports
+and suspended async frames retain their existing guards. Compiler tests execute
+emitted IR in Node against native JS; runtime kernel tests exercise Wasmtime,
+holes, sparse storage, cycles, text edges and repeated forced copying collections.
+
+## Ordinary-object property storage
+
 Property keys are lossless UTF-16 vectors, including NUL and lone surrogates.
 The initial implementation compares GC-backed packed key arrays and stores entries
 in a GC array. Replacing an existing entry preserves its position; appending a new
@@ -41,8 +82,8 @@ entry copies the reference array and updates the object's storage. This delibera
 simple implementation has linear lookup/append costs. It is not a chosen long-term
 shape/cache/hash-table strategy or an ECMAScript enumeration implementation.
 
-These are explicitly **own data-property** operations. They do not implement JS
-prototype lookup, getters/setters, proxies, `__proto__` initializer semantics or
+The ordinary-object operations are explicitly **own data-property** operations.
+They do not implement JS prototype lookup, getters/setters, proxies, `__proto__` initializer semantics or
 array exotic behavior. Future source lowering must implement the necessary semantic
 operation or reject a case; it must not translate arbitrary `o[k]` into own-only
 lookup and silently discard inherited behavior.
@@ -51,7 +92,7 @@ lookup and silently discard inherited behavior.
 
 Fresh object literals admit ordinary initializer/shorthand properties with static
 identifier or String keys, including computed String literals. Values can contain
-the four primitive kinds or other constructed objects. Properties evaluate left to
+the four primitive kinds, Strings or other constructed objects. Properties evaluate left to
 right; duplicate keys retain the last value. Static reads/writes preserve aliases,
 receiver snapshots, RHS results and prior saved reads. Known-object bindings can be
 reassigned to other known objects, and managed property snapshots can hold changing
@@ -83,17 +124,34 @@ Dynamic property keys, optional access, unknown-kind receivers, accessors, metho
 spread and numeric literal keys reject. Implicit managed coercions, loose equality,
 managed logical-value joins, managed captures and reference-aware async frames
 remain separate work. Managed properties cannot be returned directly through
-the primitive ABI; observations must produce a supported primitive result. General
-String/array/function values are not admitted by this increment. Unsupported branches
+the primitive ABI; observations must produce a supported primitive result. Arrays
+and function values remain unimplemented. String methods, indexing, length,
+concatenation and coercions remain separate work. Unsupported branches
 are checked even when a particular input would not execute them.
+
+String literals, including empty text, NUL, non-BMP characters and lone surrogates,
+flow through traced local snapshots, properties and ordinary helper arguments/results.
+Strict equality uses content; only the empty String is falsy. Properties and local
+stores replace carriers without changing a previously saved String value.
+The legacy linear-memory String/JSON wire representation remains a separate
+boundary: its tags/pointers cannot be reinterpreted as this GC value carrier.
+Exported String results and general JSON composition need explicit conversion work.
+
+Packed UTF-16 arrays are mutable only during private literal construction. Short
+literals use `array.new_fixed`; above V8's 10,000-element instruction limit they
+use a private traced temporary and array initialization. Neither property keys nor
+String contents can be mutated by admitted source. This fixes large static keys
+through the same construction path. Source-size and production fuel limits are
+unchanged. Large semantic probes use an explicit bounded core-engine fuel budget
+and separately assert controlled exhaustion at the public runtime's normal budget.
 
 ## Calls, cells and lifetime boundaries
 
 Ordinary synchronous named source helpers can accept/return managed references,
-including mixed primitive/reference arguments and property-value results. A finite
+including String values, mixed primitive/reference arguments and property-value results. A finite
 source-flow query joins actual arguments, local initializers/writes and returns by
 resolved symbol identity until no kind facts change. Object-only flow uses a known
-object reference; mixed object/non-object flow uses the managed carrier. TS type
+object reference; String-bearing or mixed object/non-object flow uses the managed carrier. TS type
 annotations supply no runtime facts. Existing primitive planning remains responsible
 for calls with no object-bearing flow, so ordinary numeric helpers retain f64.
 
@@ -146,8 +204,9 @@ checks without increasing native stacks or source limits.
 
 Runtime tests include the actual shared GC helper fragment and execute it in
 Wasmtime. They check Number bits, property snapshots and a self-referencing object
-graph through repeated copying collections. A separate recorded verification ran
-an actual emitted mixed-helper IR artifact in both Node and Wasmtime. That manual
+graph through repeated copying collections. String content reachable through
+object properties is also checked across forced collections. A separate recorded
+verification ran an actual emitted mixed-helper IR artifact in both Node and Wasmtime. That manual
 artifact check does not substitute for maintained source differential tests.
 
 Node requires standard WasmGC support; the project already selects Node 24. Use
@@ -157,7 +216,8 @@ No new package version, host authority, public reference ABI or dedicated CI
 workflow is introduced. Ordinary Cargo tests and existing package dependencies
 select the compiler and runtime consumers of the shared helper file.
 
-Arrays, strings, general function identities, managed captures, suspended GC
-frames, public heap ownership and full coercion/prototype behavior remain work under the original general-purpose JavaScript goal.
+Arrays, broader String operations, general function identities, managed captures,
+suspended GC frames, public heap ownership and full coercion/prototype behavior
+remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting
 rejected programs as supported.

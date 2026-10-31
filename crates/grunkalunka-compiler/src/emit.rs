@@ -16,6 +16,9 @@ pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
 
+// Pinned Node/V8 limit for one array.new_fixed instruction.
+const MAX_FIXED_TEXT_UNITS: usize = 10_000;
+
 // Original integer-significand implementation of ECMAScript Number::remainder.
 // After classification, r < my < 2^53. Each nonzero reduction advances at least
 // min(d, 11) exponent bits, bounding the loop by ceil(2045 / 11) = 186 reductions.
@@ -243,11 +246,53 @@ impl Emitter<'_> {
                 self.get(*value);
                 self.output.push_str("call $gc_set\n");
             }
+            Op::ManagedString { result, units } => {
+                self.output.push_str("i32.const 5\nf64.const 0\n");
+                self.managed_key(units);
+                self.output.push_str("struct.new $gc_value\n");
+                self.set(*result);
+            }
+            Op::ManagedArrayNew { result, length } => {
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_array_new",
+                    *length as i32
+                )
+                .unwrap();
+                self.set(*result);
+            }
+            Op::ManagedArrayLength { result, array } => {
+                self.get(*array);
+                self.output
+                    .push_str("struct.get $gc_array 0\nf64.convert_i32_u\n");
+                self.set(*result);
+            }
+            Op::ManagedArrayGetOwn { result, array, key } => {
+                self.get(*array);
+                self.managed_key(key);
+                self.output.push_str("call $gc_array_get\n");
+                self.set(*result);
+            }
+            Op::ManagedArraySetOwn { array, key, value } => {
+                self.get(*array);
+                self.managed_key(key);
+                self.get(*value);
+                self.output.push_str("call $gc_array_set\n");
+            }
             Op::ManagedObjectNew { result } => {
                 self.output.push_str("call $gc_object_new\n");
                 self.set(*result);
             }
-            Op::ManagedFromObject { result, input } => {
+            Op::ManagedArrayResize { array, length } => {
+                self.get(*array);
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_array_resize",
+                    *length as i32
+                )
+                .unwrap();
+            }
+            Op::ManagedFromObject { result, input } | Op::ManagedFromArray { result, input } => {
                 self.output.push_str("i32.const 4\nf64.const 0\n");
                 self.get(*input);
                 self.output.push_str("struct.new $gc_value\n");
@@ -623,10 +668,29 @@ impl Emitter<'_> {
     }
 
     fn managed_key(&mut self, key: &[u16]) {
-        for unit in key {
-            writeln!(self.output, "i32.const {unit}").unwrap();
+        // V8's fixed constructor accepts at most 10,000 elements. Larger
+        // literals initialize an internal array before publishing its reference.
+        if key.len() > MAX_FIXED_TEXT_UNITS {
+            writeln!(
+                self.output,
+                "i32.const {}\narray.new_default $gc_key\nlocal.set $gc_literal",
+                key.len()
+            )
+            .unwrap();
+            for (index, unit) in key.iter().enumerate() {
+                writeln!(
+                    self.output,
+                    "local.get $gc_literal\ni32.const {index}\ni32.const {unit}\narray.set $gc_key"
+                )
+                .unwrap();
+            }
+            self.output.push_str("local.get $gc_literal\n");
+        } else {
+            for unit in key {
+                writeln!(self.output, "i32.const {unit}").unwrap();
+            }
+            writeln!(self.output, "array.new_fixed $gc_key {}", key.len()).unwrap();
         }
-        writeln!(self.output, "array.new_fixed $gc_key {}", key.len()).unwrap();
     }
 
     fn emit_walk<'a>(&mut self, root: Option<&'a Region>, operations: &'a [ir::Operation]) {
@@ -1098,6 +1162,22 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
     }
     if arena_temp.is_some() {
         emitter.output.push_str("(local i32)\n");
+    }
+    let mut large_literal = false;
+    ir::visit_operations(&function.body, &mut |op| {
+        large_literal |= match op {
+            Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
+            Op::ManagedGetOwn { key, .. }
+            | Op::ManagedSetOwn { key, .. }
+            | Op::ManagedArrayGetOwn { key, .. }
+            | Op::ManagedArraySetOwn { key, .. } => key.len() > MAX_FIXED_TEXT_UNITS,
+            _ => false,
+        };
+    });
+    if large_literal {
+        emitter
+            .output
+            .push_str("(local $gc_literal (ref null $gc_key))\n");
     }
     emitter.init_environment();
     emitter.init_cell_parameters();

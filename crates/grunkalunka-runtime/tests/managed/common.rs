@@ -2,6 +2,12 @@ use grunkalunka_compiler::compile;
 use grunkalunka_runtime::NumericInstance;
 
 pub fn compare_sources(js: &str, ts: &str) {
+    compare_sources_with_fuel(js, ts, None);
+}
+
+// Large literal semantic oracles can use a bounded core-engine budget. None
+// retains the public NumericInstance path and its production per-call limit.
+pub fn compare_sources_with_fuel(js: &str, ts: &str, fuel: Option<u64>) {
     use std::{
         io::Write,
         process::{Command, Stdio},
@@ -22,7 +28,8 @@ pub fn compare_sources(js: &str, ts: &str) {
         let script = format!(
             r#"const assert=require('node:assert/strict');
 const native=new Function({native:?})();
-const run=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({wasm:?}))).exports.run;
+const bytes=new Uint8Array({wasm:?});
+const run=new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports.run;
 const inputs=[0,-0,1,-7,Infinity,-Infinity,NaN,Number.MIN_VALUE];
 const bits=x=>{{if(Number.isNaN(x))return 'NaN';const v=new DataView(new ArrayBuffer(8));v.setFloat64(0,x);return v.getBigUint64(0).toString(16);}};
 for(const a of inputs)for(const b of inputs){{const expected=native(a,b);assert.equal(bits(run(a,b)),bits(expected));console.log(bits(expected));}}"#,
@@ -63,10 +70,28 @@ for(const a of inputs)for(const b of inputs){{const expected=native(a,b);assert.
         );
         let output = String::from_utf8(output.stdout).unwrap();
         let mut expected = output.lines();
-        let mut instance = NumericInstance::new(&artifact.wasm).unwrap();
+        let mut run: Box<dyn FnMut(f64, f64) -> wasmtime::Result<f64>> = if let Some(fuel) = fuel {
+            let mut config = wasmtime::Config::new();
+            config.consume_fuel(true);
+            let engine = wasmtime::Engine::new(&config).unwrap();
+            let module = wasmtime::Module::from_binary(&engine, &artifact.wasm).unwrap();
+            let mut store = wasmtime::Store::new(&engine, ());
+            store.set_fuel(fuel).unwrap();
+            let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
+            let function = instance
+                .get_typed_func::<(f64, f64), f64>(&mut store, "run")
+                .unwrap();
+            Box::new(move |a, b| {
+                store.set_fuel(fuel)?;
+                function.call(&mut store, (a, b))
+            })
+        } else {
+            let mut instance = NumericInstance::new(&artifact.wasm).unwrap();
+            Box::new(move |a, b| instance.run(a, b))
+        };
         for a in inputs {
             for b in inputs {
-                let actual = instance.run(a, b).unwrap();
+                let actual = run(a, b).unwrap();
                 let expected = expected.next().unwrap();
                 if expected == "NaN" {
                     assert!(actual.is_nan(), "{source}");

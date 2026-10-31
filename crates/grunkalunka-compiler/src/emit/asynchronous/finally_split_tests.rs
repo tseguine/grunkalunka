@@ -45,22 +45,20 @@ fn finalizer_preserves_pending_return_and_throw_channels() {
         let normal = split.terminal(End::Trap).unwrap();
         let entry = split.region(&source, normal, None, None).unwrap();
         let target = match &split.states[entry].end {
-            End::Copy { input, result, next } => {
+            End::Copy {
+                input,
+                result,
+                next,
+            } => {
                 assert_eq!((*input, *result), (ValueId(7), expected_result));
                 *next
             }
             _ => panic!("protected completion must save the original value"),
         };
         if matches!(exit, Exit::Return(_)) {
-            assert!(matches!(
-                &split.states[target].end,
-                End::Return(ValueId(3))
-            ));
+            assert!(matches!(&split.states[target].end, End::Return(ValueId(3))));
         } else {
-            assert!(matches!(
-                &split.states[target].end,
-                End::Reject(ValueId(4))
-            ));
+            assert!(matches!(&split.states[target].end, End::Reject(ValueId(4))));
         }
         assert!(split.return_to.is_none());
         assert!(split.catch_to.is_none());
@@ -103,11 +101,7 @@ fn nested_finally_regions_use_bounded_native_stack() {
                     level,
                     vec![Op::TryFinally {
                         body: source,
-                        finalizer: region(
-                            DEPTH + level + 1,
-                            vec![],
-                            Exit::Fallthrough,
-                        ),
+                        finalizer: region(DEPTH + level + 1, vec![], Exit::Fallthrough),
                         returned: ValueId(3),
                         reason: ValueId(4),
                         continuation: Box::new(region(

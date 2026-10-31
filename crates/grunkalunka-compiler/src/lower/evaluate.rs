@@ -1072,6 +1072,12 @@ impl Lowering<'_, '_> {
             },
         );
         Ok(match ty {
+            Type::ManagedArray => {
+                return Err(unsupported(
+                    node,
+                    "source array lowering is not implemented",
+                ));
+            }
             Type::ManagedValue => Value::Managed(result),
             Type::ManagedObject => Value::Object(result),
             Type::General => Value::General(result),

@@ -1,12 +1,42 @@
 # External tests and benchmarks
 
-Local block-arrow checks live in `grunkalunka-runtime/tests/local-arrows.rs`:
+## Current verification map (2026-10-31)
+
+The canonical check catalog under [`scripts/checks/`](../scripts/checks/README.md)
+and the [executable compatibility corpus](../tests/compatibility/corpus.mjs)
+are authoritative for today's commands, fixture membership and counts.
+The corpus currently declares version **86**. The older numeric-pair and
+rejection totals retained in historical paragraphs below describe their
+named **past** revisions, not current percentages or suite totals.
+
+The synchronous [WasmGC object increment](managed-values.md) has maintained
+compiler typed-IR tests and runtime source differential suites, including
+`managed-source`, `managed-calls`, `managed-strings` and `managed-values`. Their asserted
+domain is the admitted fresh-object/static-own-property/helper subset and
+String construction, content equality and truthiness,
+not prototype compliance or all JavaScript objects. The
+[A1 source import](a1-ui-source-import.md) has a dedicated real-provider
+`a1_ui_import` Rust integration test. The
+[A1 note preview](a1-note-preview.md) uses the ordinary Node application
+test for authorized WIT data, native scene output and host-managed input/repaint;
+the two A1 paths are not yet a single source-import-driven app.
+
+Native-stack-depth regressions now cover deeply nested structured IR and
+selected iterative frontend, JSON and layout walks on constrained thread stacks.
+They do not establish a recursive-call-free Rust codebase; see
+[stack-depth steering](https://github.com/tseguine/grunkalunka/issues/281).
+These tests are part of normal canonical/selected checks rather than separate
+per-feature Actions jobs. [CI](ci.md) describes what Linux/Windows partial PR
+selection and the native macOS baseline actually execute.
+
+Local block-arrow checks live in `crates/grunkalunka-runtime/tests/local-arrows.rs`:
 Node and Wasmtime compare shared captures, fresh locals, early/loop returns,
 caller continuation and argument order with native JS. Additional checks cover
 the primitive return tag, TypeScript metadata, unused-body/source-budget charging,
 aliases, repeated specialization and bounded nesting on a 2 MiB thread stack.
 `async-suspension.rs` checks awaited block-call results through the same async
-job-order oracle. The numeric corpus's 919 rejection sources remain unchanged.
+job-order oracle. Rejection totals are revision-specific; consult the executable
+numeric corpus and its recorded report instead of treating older totals as current.
 Async tests also compare retained primitive kinds, rejection reasons, strict versus
 loose comparisons, numeric coercion and malformed tags at start/resume boundaries.
 

@@ -114,37 +114,44 @@ export function compareSysrootReceipts(producer, receiver) {
 async function collectFiles(directory) {
   const output = [];
   let total = 0;
-  async function visit(folder, depth) {
-    required(depth <= 4, 'bounded library directory depth');
-    const entries = await readdir(folder, { withFileTypes: true });
-    required(entries.length <= MAX_FILES, 'bounded library directory entries');
-    for (const entry of entries) {
-      const full = join(folder, entry.name);
-      const meta = await lstat(full);
-      required(!meta.isSymbolicLink(), 'no symlink target library inputs');
-      if (meta.isDirectory()) {
-        await visit(full, depth + 1);
-      } else if (meta.isFile() && allowed.test(entry.name)) {
-        const path = relative(directory, full).split(sep).join('/');
-        required(validPath(path), 'relative target library path');
-        required(meta.size > 0 && meta.size <= MAX_FILE_BYTES,
-          'bounded target archive ' + path);
-        total += meta.size;
-        required(total <= MAX_TOTAL_BYTES && output.length < MAX_FILES,
-          'bounded total target libraries');
-        const digest = createHash('sha256');
-        let counted = 0;
-        for await (const chunk of createReadStream(full)) {
-          counted += chunk.length;
-          required(counted <= MAX_FILE_BYTES, 'streamed archive length');
-          digest.update(chunk);
-        }
-        required(counted === meta.size, 'unchanged target archive size');
-        output.push({ path, bytes: counted, sha256: digest.digest('hex') });
+  // Preserve entry order and depth/quota diagnostics without async recursion.
+  const pending = [{ folder: directory, depth: 0, entries: null, index: 0 }];
+  while (pending.length) {
+    const frame = pending[pending.length - 1];
+    if (frame.entries === null) {
+      required(frame.depth <= 4, 'bounded library directory depth');
+      frame.entries = await readdir(frame.folder, { withFileTypes: true });
+      required(frame.entries.length <= MAX_FILES, 'bounded library directory entries');
+    }
+    if (frame.index === frame.entries.length) {
+      pending.pop();
+      continue;
+    }
+    const entry = frame.entries[frame.index++];
+    const full = join(frame.folder, entry.name);
+    const meta = await lstat(full);
+    required(!meta.isSymbolicLink(), 'no symlink target library inputs');
+    if (meta.isDirectory()) {
+      pending.push({ folder: full, depth: frame.depth + 1, entries: null, index: 0 });
+    } else if (meta.isFile() && allowed.test(entry.name)) {
+      const path = relative(directory, full).split(sep).join('/');
+      required(validPath(path), 'relative target library path');
+      required(meta.size > 0 && meta.size <= MAX_FILE_BYTES,
+        'bounded target archive ' + path);
+      total += meta.size;
+      required(total <= MAX_TOTAL_BYTES && output.length < MAX_FILES,
+        'bounded total target libraries');
+      const digest = createHash('sha256');
+      let counted = 0;
+      for await (const chunk of createReadStream(full)) {
+        counted += chunk.length;
+        required(counted <= MAX_FILE_BYTES, 'streamed archive length');
+        digest.update(chunk);
       }
+      required(counted === meta.size, 'unchanged target archive size');
+      output.push({ path, bytes: counted, sha256: digest.digest('hex') });
     }
   }
-  await visit(directory, 0);
   output.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   return { files: output, totalBytes: total };
 }

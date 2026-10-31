@@ -11,18 +11,19 @@ const folders = ['tests/browser-oracles', 'tools/browser-oracles'];
 
 export function browserOfflineTestFiles(repositoryRoot = root) {
   const files = [];
-  function discover(directory) {
+  const pending = folders.map(folder => join(repositoryRoot, folder));
+  while (pending.length) {
+    const directory = pending.pop();
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const location = join(directory, entry.name);
       if (entry.isDirectory() && !['hosted', 'node_modules'].includes(entry.name)) {
-        discover(location);
+        pending.push(location);
       }
       if (entry.isFile() && entry.name.endsWith('.test.mjs')) {
         files.push(relative(repositoryRoot, location).split(sep).join('/'));
       }
     }
   }
-  for (const folder of folders) discover(join(repositoryRoot, folder));
   return files.sort();
 }
 

@@ -772,3 +772,25 @@ fn parameter_storage_worklist_propagates_seeds_but_retains_number_cycles() {
         );
     }
 }
+
+#[test]
+fn nested_function_signature_queries_keep_source_call_limits_on_small_stack() {
+    for depth in [0, 1, 4, 7, 8] {
+        let mut callback = String::from("()=>a");
+        for _ in 0..depth {
+            callback = format!("id({callback})");
+        }
+        let source =
+            format!("export function run(a,b){{const id=fn=>fn;const f={callback};return f();}}");
+        for typescript in [false, true] {
+            let source = source.clone();
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || crate::compile(&source, typescript))
+                .expect("small-stack compiler thread")
+                .join()
+                .expect("native compiler thread must not overflow");
+            assert_eq!(result.is_ok(), depth <= 7, "{depth} nested calls");
+        }
+    }
+}

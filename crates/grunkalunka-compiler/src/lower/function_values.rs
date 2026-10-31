@@ -3,7 +3,7 @@
 use super::*;
 use std::collections::BTreeMap;
 
-impl Lowering<'_, '_> {
+impl<'s, 'a> Lowering<'s, 'a> {
     pub(super) fn named_async_function(
         &self,
         expression: &Expression<'_>,
@@ -323,180 +323,322 @@ impl Lowering<'_, '_> {
     // This is a type query, not specialization: source arguments, conditions and
     // comma effects are not executed. None in a bound formal explicitly means
     // scalar, so another call's callback binding cannot leak into this scope.
-    pub(super) fn function_arity_in(
-        &self,
-        expression: &Expression<'_>,
+    pub(super) fn function_arity_in<'e>(
+        &'e self,
+        expression: &'e Expression<'a>,
         depth: usize,
         bindings: &BTreeMap<SymbolId, Option<usize>>,
         calls: usize,
     ) -> Option<usize> {
-        let mut pending = vec![(expression, depth)];
-        let mut arity = None;
-        while let Some((node, depth)) = pending.pop() {
-            if depth > 128 {
-                return None;
-            }
-            if let Some(inner) = erased_inner(node) {
-                pending.push((inner, depth + 1));
-                continue;
-            }
-            let next = match node {
-                Expression::ParenthesizedExpression(wrapper) => {
-                    pending.push((&wrapper.expression, depth + 1));
-                    continue;
-                }
-                Expression::ConditionalExpression(conditional) => {
-                    pending.push((&conditional.alternate, depth + 1));
-                    pending.push((&conditional.consequent, depth + 1));
-                    continue;
-                }
-                Expression::LogicalExpression(logical) => {
-                    pending.push((&logical.right, depth + 1));
-                    pending.push((&logical.left, depth + 1));
-                    continue;
-                }
-                Expression::SequenceExpression(sequence) => {
-                    pending.push((sequence.expressions.last()?, depth + 1));
-                    continue;
-                }
-                Expression::AssignmentExpression(assignment)
-                    if matches!(
-                        assignment.operator,
-                        AssignmentOperator::Assign
-                            | AssignmentOperator::LogicalAnd
-                            | AssignmentOperator::LogicalOr
-                            | AssignmentOperator::LogicalNullish
-                    ) =>
-                {
-                    let identifier =
-                        target_identifier(assignment.left.as_simple_assignment_target()?, depth)
-                            .ok()??;
-                    let symbol = self
-                        .semantic
-                        .scoping()
-                        .get_reference(identifier.reference_id.get()?)
-                        .symbol_id()?;
-                    let target_arity = match bindings.get(&symbol) {
-                        Some(kind) => (*kind)?,
-                        None => self.function_assignment_target(assignment, depth)?.1,
-                    };
-                    if arity.is_some_and(|expected| expected != target_arity) {
-                        return None;
-                    }
-                    arity = Some(target_arity);
-                    pending.push((&assignment.right, depth + 1));
-                    continue;
-                }
-                Expression::CallExpression(call) => {
-                    if self
-                        .closure_target(
-                            invocation::callee(call),
-                            invocation::depth(call, depth + 1),
-                        )
-                        .is_none()
-                    {
-                        if calls >= 8 {
-                            return None;
-                        }
-                        let callee = self.function_arity_in(
-                            invocation::callee(call),
-                            invocation::depth(call, depth + 1),
-                            bindings,
-                            calls + 1,
-                        )?;
-                        let Type::Closure(result) =
-                            self.closure_signatures.borrow().result(callee)?
-                        else {
-                            return None;
-                        };
-                        if arity.is_some_and(|expected| expected != result) {
-                            return None;
-                        }
-                        arity = Some(result);
-                        continue;
-                    }
-                    let factory = self.closure_target(
-                        invocation::callee(call),
-                        invocation::depth(call, depth + 1),
-                    )?;
-                    let arrow = self.arrow(factory.arrow);
-                    let body = arrow.get_expression();
-                    // Preserve the old known-arrow factory recognition, including
-                    // its source-depth behavior and specialization path.
-                    if factory.factory
-                        && let Some(body) = body
-                        && let Some(returned) = self.closure_target(body, 0)
-                    {
-                        self.arrow_signature_at(self.arrow(returned.arrow), calls, bindings)?
-                    } else {
-                        if calls >= 8
-                            || arrow.params.items.len() > invocation::arguments(call).len()
-                        {
-                            return None;
-                        }
-                        let mut parameters = BTreeMap::new();
-                        for capture in &factory.captures {
-                            parameters.insert(
-                                capture.symbol,
-                                match self.slots[capture.slot.0].ty {
-                                    Type::Closure(arity) => Some(arity),
-                                    _ => None,
-                                },
-                            );
-                        }
-                        for (parameter, argument) in
-                            arrow.params.items.iter().zip(invocation::arguments(call))
-                        {
-                            let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
-                            else {
-                                return None;
-                            };
-                            let argument = argument.as_expression()?;
-                            parameters.insert(
-                                identifier.symbol_id.get()?,
-                                self.function_arity_in(argument, depth + 1, bindings, calls + 1),
-                            );
-                        }
-                        if let Some(body) = body {
-                            self.function_arity_in(body, 0, &parameters, calls + 1)?
-                        } else {
-                            self.block_function_arity_in(arrow, 0, &parameters, calls + 1)?
-                        }
-                    }
-                }
-                _ => {
-                    if let Expression::Identifier(identifier) = node
-                        && let Some(symbol) = identifier.reference_id.get().and_then(|reference| {
-                            self.semantic.scoping().get_reference(reference).symbol_id()
-                        })
-                        && let Some(kind) = bindings.get(&symbol)
-                    {
-                        let next = (*kind)?;
-                        if arity.is_some_and(|expected| expected != next) {
-                            return None;
-                        }
-                        arity = Some(next);
-                        continue;
-                    }
-                    if let Some((_, arity)) = self.named_async_function(node, depth) {
-                        arity
-                    } else if let Some((_, arity)) = self.runtime_closure_callee(node, depth) {
-                        arity
-                    } else {
-                        self.arrow_signature_at(
-                            self.arrow(self.closure_target(node, depth)?.arrow),
-                            calls,
-                            bindings,
-                        )?
-                    }
-                }
-            };
-            if arity.is_some_and(|expected| expected != next) {
-                return None;
-            }
-            arity = Some(next);
+        // A signature query can traverse source wrappers, callees, actuals
+        // and returned factory bodies. Neither the 128 AST-depth limit nor
+        // the eight-call limit bounds the size of the native Rust frames.
+        type Bindings = std::rc::Rc<BTreeMap<SymbolId, Option<usize>>>;
+        enum Work<'e, 'a> {
+            Expression {
+                node: &'e Expression<'a>,
+                bindings: Bindings,
+                depth: usize,
+                calls: usize,
+            },
+            Same(usize),
+            Require(usize),
+            CalleeResult,
+            FactoryArguments {
+                arrow: &'e oxc_ast::ast::ArrowFunctionExpression<'a>,
+                parameters: BTreeMap<SymbolId, Option<usize>>,
+                symbols: Vec<SymbolId>,
+                calls: usize,
+            },
         }
-        arity
+
+        let mut work = vec![Work::Expression {
+            node: expression,
+            bindings: std::rc::Rc::new(bindings.clone()),
+            depth,
+            calls,
+        }];
+        let mut results: Vec<Option<usize>> = Vec::new();
+        while let Some(task) = work.pop() {
+            match task {
+                Work::Same(count) => {
+                    let mut matched = None;
+                    let mut valid = true;
+                    for _ in 0..count {
+                        match results.pop().expect("scheduled signature query") {
+                            Some(next) if matched.is_none_or(|expected| expected == next) => {
+                                matched = Some(next);
+                            }
+                            _ => valid = false,
+                        }
+                    }
+                    results.push(if valid { matched } else { None });
+                }
+                Work::Require(expected) => {
+                    let actual = results.pop().expect("scheduled assignment signature");
+                    results.push((actual == Some(expected)).then_some(expected));
+                }
+                Work::CalleeResult => {
+                    let signature = results.pop().expect("scheduled callee signature");
+                    let result = signature
+                        .and_then(|callee| self.closure_signatures.borrow().result(callee))
+                        .and_then(|ty| match ty {
+                            Type::Closure(result) => Some(result),
+                            _ => None,
+                        });
+                    results.push(result);
+                }
+                Work::FactoryArguments {
+                    arrow,
+                    mut parameters,
+                    symbols,
+                    calls,
+                } => {
+                    for symbol in symbols.into_iter().rev() {
+                        parameters.insert(
+                            symbol,
+                            results.pop().expect("scheduled factory argument signature"),
+                        );
+                    }
+                    if let Some(body) = arrow.get_expression() {
+                        work.push(Work::Expression {
+                            node: body,
+                            bindings: std::rc::Rc::new(parameters),
+                            depth: 0,
+                            calls: calls + 1,
+                        });
+                    } else {
+                        results.push(self.block_function_arity_in(
+                            arrow,
+                            0,
+                            &parameters,
+                            calls + 1,
+                        ));
+                    }
+                }
+                Work::Expression {
+                    node,
+                    bindings,
+                    depth,
+                    calls,
+                } => {
+                    if depth > 128 {
+                        results.push(None);
+                        continue;
+                    }
+                    if let Some(inner) = erased_inner(node) {
+                        work.push(Work::Expression {
+                            node: inner,
+                            bindings,
+                            depth: depth + 1,
+                            calls,
+                        });
+                        continue;
+                    }
+                    match node {
+                        Expression::ParenthesizedExpression(wrapper) => {
+                            work.push(Work::Expression {
+                                node: &wrapper.expression,
+                                bindings,
+                                depth: depth + 1,
+                                calls,
+                            });
+                        }
+                        Expression::ConditionalExpression(conditional) => {
+                            work.push(Work::Same(2));
+                            work.push(Work::Expression {
+                                node: &conditional.alternate,
+                                bindings: bindings.clone(),
+                                depth: depth + 1,
+                                calls,
+                            });
+                            work.push(Work::Expression {
+                                node: &conditional.consequent,
+                                bindings,
+                                depth: depth + 1,
+                                calls,
+                            });
+                        }
+                        Expression::LogicalExpression(logical) => {
+                            work.push(Work::Same(2));
+                            work.push(Work::Expression {
+                                node: &logical.right,
+                                bindings: bindings.clone(),
+                                depth: depth + 1,
+                                calls,
+                            });
+                            work.push(Work::Expression {
+                                node: &logical.left,
+                                bindings,
+                                depth: depth + 1,
+                                calls,
+                            });
+                        }
+                        Expression::SequenceExpression(sequence) => {
+                            if let Some(last) = sequence.expressions.last() {
+                                work.push(Work::Expression {
+                                    node: last,
+                                    bindings,
+                                    depth: depth + 1,
+                                    calls,
+                                });
+                            } else {
+                                results.push(None);
+                            }
+                        }
+                        Expression::AssignmentExpression(assignment)
+                            if matches!(
+                                assignment.operator,
+                                AssignmentOperator::Assign
+                                    | AssignmentOperator::LogicalAnd
+                                    | AssignmentOperator::LogicalOr
+                                    | AssignmentOperator::LogicalNullish
+                            ) =>
+                        {
+                            // A failed nested query supplies None to its
+                            // caller; it must not abort the root worklist.
+                            let expected: Option<usize> = (|| {
+                                let target = target_identifier(
+                                    assignment.left.as_simple_assignment_target()?,
+                                    depth,
+                                )
+                                .ok()
+                                .flatten()?;
+                                let symbol = self
+                                    .semantic
+                                    .scoping()
+                                    .get_reference(target.reference_id.get()?)
+                                    .symbol_id()?;
+                                let expected = match bindings.get(&symbol) {
+                                    Some(kind) => (*kind)?,
+                                    None => self.function_assignment_target(assignment, depth)?.1,
+                                };
+                                Some(expected)
+                            })();
+                            if let Some(expected) = expected {
+                                work.push(Work::Require(expected));
+                                work.push(Work::Expression {
+                                    node: &assignment.right,
+                                    bindings,
+                                    depth: depth + 1,
+                                    calls,
+                                });
+                            } else {
+                                results.push(None);
+                            }
+                        }
+                        Expression::CallExpression(call) => {
+                            let callee = invocation::callee(call);
+                            let callee_depth = invocation::depth(call, depth + 1);
+                            if let Some(factory) = self.closure_target(callee, callee_depth) {
+                                let arrow = self.arrow(factory.arrow);
+                                let body = arrow.get_expression();
+                                if factory.factory
+                                    && let Some(body) = body
+                                    && let Some(returned) = self.closure_target(body, 0)
+                                {
+                                    results.push(self.arrow_signature_at(
+                                        self.arrow(returned.arrow),
+                                        calls,
+                                        &bindings,
+                                    ));
+                                    continue;
+                                }
+                                if calls >= 8
+                                    || arrow.params.items.len() > invocation::arguments(call).len()
+                                {
+                                    results.push(None);
+                                    continue;
+                                }
+                                let mut parameters = BTreeMap::new();
+                                for capture in &factory.captures {
+                                    parameters.insert(
+                                        capture.symbol,
+                                        match self.slots[capture.slot.0].ty {
+                                            Type::Closure(arity) => Some(arity),
+                                            _ => None,
+                                        },
+                                    );
+                                }
+                                let inputs = (|| {
+                                    let mut arguments = Vec::new();
+                                    let mut symbols = Vec::new();
+                                    for (parameter, argument) in
+                                        arrow.params.items.iter().zip(invocation::arguments(call))
+                                    {
+                                        let BindingPattern::BindingIdentifier(identifier) =
+                                            &parameter.pattern
+                                        else {
+                                            return None;
+                                        };
+                                        arguments.push(argument.as_expression()?);
+                                        symbols.push(identifier.symbol_id.get()?);
+                                    }
+                                    Some((arguments, symbols))
+                                })();
+                                if let Some((arguments, symbols)) = inputs {
+                                    work.push(Work::FactoryArguments {
+                                        arrow,
+                                        parameters,
+                                        symbols,
+                                        calls,
+                                    });
+                                    for argument in arguments.into_iter().rev() {
+                                        work.push(Work::Expression {
+                                            node: argument,
+                                            bindings: bindings.clone(),
+                                            depth: depth + 1,
+                                            calls: calls + 1,
+                                        });
+                                    }
+                                } else {
+                                    results.push(None);
+                                }
+                            } else if calls >= 8 {
+                                results.push(None);
+                            } else {
+                                work.push(Work::CalleeResult);
+                                work.push(Work::Expression {
+                                    node: callee,
+                                    bindings,
+                                    depth: callee_depth,
+                                    calls: calls + 1,
+                                });
+                            }
+                        }
+                        _ => {
+                            if let Expression::Identifier(identifier) = node
+                                && let Some(symbol) =
+                                    identifier.reference_id.get().and_then(|reference| {
+                                        self.semantic.scoping().get_reference(reference).symbol_id()
+                                    })
+                                && let Some(kind) = bindings.get(&symbol)
+                            {
+                                results.push(*kind);
+                            } else if let Some((_, arity)) = self.named_async_function(node, depth)
+                            {
+                                results.push(Some(arity));
+                            } else if let Some((_, arity)) =
+                                self.runtime_closure_callee(node, depth)
+                            {
+                                results.push(Some(arity));
+                            } else {
+                                results.push(self.closure_target(node, depth).and_then(
+                                    |closure| {
+                                        self.arrow_signature_at(
+                                            self.arrow(closure.arrow),
+                                            calls,
+                                            &bindings,
+                                        )
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        results.pop().expect("root signature query")
     }
 
     pub(super) fn function_value(

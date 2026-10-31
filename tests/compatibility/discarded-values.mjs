@@ -45,8 +45,6 @@ const expression='expression is outside the numeric experiment';
 const binary='only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted';
 const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
-  ['string','("x"); return a;',expression],
-  ['asserted-string','("x") as boolean; return a;',expression,'ts'],
   ['global','clock; return a;',reference],
   ['call','Math.random(); return a;',expression],
   ['number-return','return true;',expression],

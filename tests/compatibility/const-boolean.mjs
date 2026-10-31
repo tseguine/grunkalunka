@@ -77,7 +77,6 @@ const negatives=[
   ['scope-leak','{ const flag=true; } return flag?a:b;',reference],
   ['dead-unsupported','if(false) { const flag=!Math.random(); } return a;',expression],
   ['unselected-unsupported','const flag=!(true?true:Math.random()); return a;',expression],
-  ['asserted-string','const flag=("x" as boolean); return a;',expression,'ts'],
   ['depth-limit',`const flag=${'('.repeat(129)}true${')'.repeat(129)}; return a;`,'expression nesting exceeds'],
   ['not-depth-limit',`const flag=${'!'.repeat(129)}a; return a;`,'predicate nesting exceeds'],
   ['ts-depth-limit',`const flag=true${'!'.repeat(129)}; return a;`,'expression nesting exceeds','ts'],
