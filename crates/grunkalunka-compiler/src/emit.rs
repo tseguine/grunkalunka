@@ -1032,3 +1032,125 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
     emitter.output.push_str("unreachable\n)");
     (emitter.output, emitter.needs_remainder)
 }
+
+#[cfg(test)]
+mod control_scan_tests {
+    use super::*;
+    use oxc_span::Span;
+
+    fn region(operations: Vec<Op>, exit: Exit) -> Region {
+        let span = Span::new(0, 0);
+        Region {
+            id: ir::RegionId(0),
+            span,
+            operations: operations
+                .into_iter()
+                .map(|kind| ir::Operation { span, kind })
+                .collect(),
+            exit,
+        }
+    }
+
+    fn idle() -> Region {
+        region(Vec::new(), Exit::Fallthrough)
+    }
+
+    #[test]
+    fn control_scan_preserves_nested_exits_and_settlement_exclusion() {
+        let selected = region(
+            vec![Op::If {
+                result: None,
+                condition: ValueId(0),
+                consequent: region(Vec::new(), Exit::Throw(ValueId(0))),
+                alternate: idle(),
+            }],
+            Exit::Fallthrough,
+        );
+        assert!(region_has_control(&selected, false));
+
+        let wrapped = region(
+            vec![Op::While {
+                condition: idle(),
+                body: region(
+                    vec![Op::DoWhile {
+                        body: idle(),
+                        condition: region(
+                            vec![Op::Await {
+                                result: ValueId(0),
+                                input: ValueId(0),
+                                rejected: false,
+                            }],
+                            Exit::Fallthrough,
+                        ),
+                    }],
+                    Exit::Fallthrough,
+                ),
+                step: Some(idle()),
+            }],
+            Exit::Fallthrough,
+        );
+        assert!(region_has_control(&wrapped, false));
+
+        let started = region(
+            vec![Op::Block(region(
+                vec![Op::StartAsyncClosure {
+                    result: ValueId(0),
+                    callee: ValueId(0),
+                    arguments: Vec::new(),
+                }],
+                Exit::Fallthrough,
+            ))],
+            Exit::Fallthrough,
+        );
+        assert!(!region_has_control(&started, false));
+        assert!(region_has_control(&started, true));
+
+        let settled = region(
+            vec![Op::SettlePromise {
+                result: ValueId(0),
+                body: region(
+                    vec![Op::Await {
+                        result: ValueId(0),
+                        input: ValueId(0),
+                        rejected: true,
+                    }],
+                    Exit::Throw(ValueId(0)),
+                ),
+            }],
+            Exit::Fallthrough,
+        );
+        // Scanner-only synthetic IR: settlement bodies are excluded regardless
+        // of whether the separately enforced verifier contract would admit them.
+        assert!(!region_has_control(&settled, true));
+    }
+
+    #[test]
+    fn control_scan_deep_region_chain_uses_bounded_native_stack() {
+        const DEPTH: usize = 4096;
+        let mut root = idle();
+        for _ in 0..DEPTH {
+            root = region(vec![Op::Block(root)], Exit::Fallthrough);
+        }
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                assert!(!region_has_control(&root, false));
+                assert!(!region_has_control(&root, true));
+
+                // Drop this intentionally out-of-contract IR tree iteratively
+                // so the test isolates the inspection path, not destruction.
+                let mut current = root;
+                for _ in 0..DEPTH {
+                    let operation = current.operations.pop().expect("nested block");
+                    let Op::Block(child) = operation.kind else {
+                        panic!("nested block");
+                    };
+                    current = child;
+                }
+                assert!(current.operations.is_empty());
+            })
+            .expect("small-stack scan thread")
+            .join()
+            .expect("small-stack scan completed");
+    }
+}
