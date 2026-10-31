@@ -5,6 +5,8 @@ use super::{Emitter, NUMBER_REMAINDER, cells, closures, emit_function, layout};
 use crate::ir::{self, Exit, Op, Region, Type, ValueId};
 use std::fmt::Write;
 
+#[cfg(test)]
+mod block_split_tests;
 mod errors;
 mod frames;
 mod promises;
