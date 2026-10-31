@@ -157,9 +157,28 @@ change the intended general JavaScript target.
 
 Managed property values are usable for identity/equality/truthiness and managed
 storage, not implicitly projected into the primitive export or numeric coercions.
-Arrays, source helper reference inference, managed frames, unknown receivers and
-full coercions remain explicit follow-ups. See the representation contract for
+Arrays, managed frames, unknown receivers and full coercions remain explicit
+follow-ups. See the representation contract for
 the source subset and maintained three-engine differential evidence.
+
+## Source helper reference transport
+
+Ordinary synchronous named helpers now choose reference parameters/results from
+finite source-flow facts over resolved actual arguments, local initializers/writes
+and owned returns. Object-only flow keeps the known-object reference; mixed flow
+uses the immutable managed carrier. Primitive-only helpers keep their existing
+planning and f64 specialization. Annotations are not evidence of runtime kinds.
+The query uses heap worklists and monotone finite sets, including recursive call
+cycles; it does not replace complete source validation or prove prototype safety.
+
+The alternative of boxing every helper parameter would simplify signature choice
+but needlessly replace existing numeric fast paths. A full JS type solver or
+per-call monomorphization is not required to execute the present reference slice;
+those may be revisited when this conservative whole-helper signature loses useful
+specialization. Unknown receivers/coercions still reject instead of trusting a
+narrowed observation. Shared IR/backend transport needs no new runtime API or host
+operation. Maintained native-JS/Node-Wasm/Wasmtime tests exercise mutation, identity,
+forwarding/recursion, mixed values, call order and explicit boundaries.
 
 ## Related work and follow-up
 

@@ -166,6 +166,11 @@ impl Lowering<'_, '_> {
                             work.push(Shape::Expr(&w.expression, depth + 1))
                         }
                         Expression::ObjectExpression(_) => values.push(Some(Type::ManagedObject)),
+                        Expression::CallExpression(call) => values.push(
+                            managed_calls::function(call, self.semantic, self.functions)
+                                .map(|f| f.return_type)
+                                .filter(|t| t.is_managed()),
+                        ),
                         Expression::Identifier(i) => values.push(
                             numeric_binding(i, self.semantic, &self.bindings)
                                 .ok()
@@ -342,6 +347,10 @@ impl Lowering<'_, '_> {
                     }));
                     return Ok(true);
                 }
+                Expression::CallExpression(call) => {
+                    self.schedule_direct_call(node, call, depth, mode, work)?;
+                    return Ok(true);
+                }
                 Expression::Identifier(identifier) => {
                     let slot = numeric_binding(identifier, self.semantic, &self.bindings)?.slot;
                     if self.slots[slot.0].ty != Type::ManagedObject {
@@ -362,6 +371,12 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if matches!(mode, Mode::Managed) {
+            if let Expression::CallExpression(call) = node
+                && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
+            {
+                self.schedule_direct_call(node, call, depth, mode, work)?;
+                return Ok(true);
+            }
             if schedule_selection(work, node, depth, mode)? {
                 return Ok(true);
             }

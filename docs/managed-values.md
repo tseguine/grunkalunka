@@ -81,17 +81,34 @@ object model or a replacement for prototype-aware lookup.
 
 Dynamic property keys, optional access, unknown-kind receivers, accessors, methods,
 spread and numeric literal keys reject. Implicit managed coercions, loose equality,
-managed logical-value joins, source helper reference parameters, managed captures
-and reference-aware async frames remain separate work. Managed properties cannot be returned directly through
+managed logical-value joins, managed captures and reference-aware async frames
+remain separate work. Managed properties cannot be returned directly through
 the primitive ABI; observations must produce a supported primitive result. General
 String/array/function values are not admitted by this increment. Unsupported branches
 are checked even when a particular input would not execute them.
 
 ## Calls, cells and lifetime boundaries
 
-Ordinary internal helper functions can accept/return managed references. Logical
-argument checks use the callee's typed slots, and the Wasm header uses the shared
-backend layout. Existing ordinary Number calls retain f64 signatures. Exported
+Ordinary synchronous named source helpers can accept/return managed references,
+including mixed primitive/reference arguments and property-value results. A finite
+source-flow query joins actual arguments, local initializers/writes and returns by
+resolved symbol identity until no kind facts change. Object-only flow uses a known
+object reference; mixed object/non-object flow uses the managed carrier. TS type
+annotations supply no runtime facts. Existing primitive planning remains responsible
+for calls with no object-bearing flow, so ordinary numeric helpers retain f64.
+
+For example, `function set(o,v){o.x=v;return o;}` can mutate a caller's object and
+return the same reference. Forwarding, mutually recursive helpers, fresh-object
+results, mixed-value identity functions and `.call` use the same typed transport.
+Ignored `thisArg` and surplus arguments still evaluate in source order. Captured
+function values and async helper frames are not admitted by this increment.
+The flow query does not establish source validity: unknown-kind property receivers,
+unsupported operations and every source branch still undergo ordinary validation.
+A helper seen with both object and numeric callers cannot silently treat all inputs
+as objects. Function aliases and public reference exports remain unsupported.
+
+Logical argument checks use the callee's typed slots, and the Wasm header uses the
+shared backend layout. Existing ordinary Number calls retain f64 signatures. Exported
 inputs/results remain in the existing admitted profiles, and private closure
 signatures still reject managed values.
 
@@ -119,7 +136,9 @@ async byte-spill boundaries have rejection tests.
 Maintained runtime tests also compile JS and TS source and compare native JS,
 Node-Wasm and Wasmtime over Number boundary inputs. They cover literal order,
 aliases, overwrites, saved property/reference snapshots, receiver/RHS mutation,
-conditional reference values, truthiness, UTF-16 keys and rejection boundaries.
+conditional reference values, truthiness, UTF-16 keys, source helper reference
+transport, recursive forwarding, call effects, misleading annotations and rejection
+boundaries.
 The canonical compatibility corpus includes source object programs and preserves
 the exact formerly rejected object-discard sources as executed evidence.
 Small-stack probes exercise both source depth diagnostics and existing constructor
@@ -138,8 +157,7 @@ No new package version, host authority, public reference ABI or dedicated CI
 workflow is introduced. Ordinary Cargo tests and existing package dependencies
 select the compiler and runtime consumers of the shared helper file.
 
-Source helper reference passing, arrays, strings, general function identities,
-managed captures, suspended GC frames, public heap ownership and full coercion/
-prototype behavior remain work under the original general-purpose JavaScript goal.
+Arrays, strings, general function identities, managed captures, suspended GC
+frames, public heap ownership and full coercion/prototype behavior remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting
 rejected programs as supported.

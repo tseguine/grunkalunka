@@ -844,6 +844,16 @@ impl Lowering<'_, '_> {
                 "value-returning calls require a General result position",
             ));
         }
+        if (function.return_type == Type::ManagedObject && !matches!(mode, Mode::Object))
+            || (function.return_type == Type::ManagedValue && !matches!(mode, Mode::Managed))
+            || (matches!(mode, Mode::Object) && function.return_type != Type::ManagedObject)
+            || (matches!(mode, Mode::Managed) && function.return_type != Type::ManagedValue)
+        {
+            return Err(unsupported(
+                node,
+                "managed helper result requires a matching reference position",
+            ));
+        }
         work.push(Work::Call {
             node,
             call,
@@ -852,6 +862,79 @@ impl Lowering<'_, '_> {
             arguments: Vec::new(),
             depth: depth + 1,
         });
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn resume_direct_call<'e, 'a>(
+        &mut self,
+        task: Work<'e, 'a>,
+        regions: &mut Regions<'_>,
+        work: &mut Vec<Work<'e, 'a>>,
+        values: &mut Vec<Value>,
+    ) -> Result<(), String> {
+        let Work::Call {
+            node,
+            call,
+            function,
+            index,
+            mut arguments,
+            depth,
+        } = task
+        else {
+            unreachable!("direct call continuation")
+        };
+        let offset = invocation::offset(call);
+        let actual_index = index.saturating_sub(offset);
+        let parameter_count = self.functions[function.0].parameter_count;
+        if actual_index != 0 && actual_index <= parameter_count {
+            arguments.push(values.pop().expect("call argument").id());
+        }
+        if index == call.arguments.len() {
+            let ty = self.functions[function.0].return_type;
+            let result = self.value(ty);
+            Self::push(
+                regions.current(),
+                node,
+                Op::Call {
+                    result,
+                    function,
+                    arguments,
+                },
+            );
+            values.push(match ty {
+                Type::General => Value::General(result),
+                Type::ManagedObject => Value::Object(result),
+                Type::ManagedValue => Value::Managed(result),
+                _ => Value::Number(result),
+            });
+        } else {
+            // Validate a later spread only after earlier arguments finish.
+            let Some(argument) = call.arguments[index].as_expression() else {
+                return Err(unsupported(node, "spread call arguments are not admitted"));
+            };
+            work.push(Work::Call {
+                node,
+                call,
+                function,
+                index: index + 1,
+                arguments,
+                depth,
+            });
+            work.push(Work::Eval(
+                argument,
+                depth,
+                if index >= offset && actual_index < parameter_count {
+                    match self.functions[function.0].parameter_type(actual_index) {
+                        Type::ManagedObject => Mode::Object,
+                        Type::ManagedValue => Mode::Managed,
+                        _ => Mode::Number,
+                    }
+                } else {
+                    Mode::Discard
+                },
+            ));
+        }
         Ok(())
     }
 
@@ -2300,63 +2383,8 @@ impl Lowering<'_, '_> {
                 task @ Work::UiCall { .. } => {
                     self.resume_ui_call(task, &mut regions, &mut work, &mut values)?;
                 }
-                Work::Call {
-                    node,
-                    call,
-                    function,
-                    index,
-                    mut arguments,
-                    depth,
-                } => {
-                    let offset = invocation::offset(call);
-                    let actual_index = index.saturating_sub(offset);
-                    let parameter_count = self.functions[function.0].parameter_count;
-                    if actual_index != 0 && actual_index <= parameter_count {
-                        arguments.push(values.pop().expect("call argument").number());
-                    }
-                    if index == call.arguments.len() {
-                        let ty = self.functions[function.0].return_type;
-                        let result = self.value(ty);
-                        Self::push(
-                            regions.current(),
-                            node,
-                            Op::Call {
-                                result,
-                                function,
-                                arguments,
-                            },
-                        );
-                        values.push(if ty == Type::General {
-                            Value::General(result)
-                        } else {
-                            Value::Number(result)
-                        });
-                    } else {
-                        // Validate a later spread only after earlier arguments finish.
-                        let Some(argument) = call.arguments[index].as_expression() else {
-                            return Err(unsupported(
-                                node,
-                                "spread call arguments are not admitted",
-                            ));
-                        };
-                        work.push(Work::Call {
-                            node,
-                            call,
-                            function,
-                            index: index + 1,
-                            arguments,
-                            depth,
-                        });
-                        work.push(Work::Eval(
-                            argument,
-                            depth,
-                            if index >= offset && actual_index < parameter_count {
-                                Mode::Number
-                            } else {
-                                Mode::Discard
-                            },
-                        ));
-                    }
+                task @ Work::Call { .. } => {
+                    self.resume_direct_call(task, &mut regions, &mut work, &mut values)?;
                 }
                 Work::MathCall {
                     node,
