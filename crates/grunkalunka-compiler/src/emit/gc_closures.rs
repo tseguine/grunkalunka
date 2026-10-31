@@ -1,4 +1,4 @@
-//! One traced cell domain for synchronous modules that capture managed values.
+//! One traced cell domain for synchronous managed captures and closure arguments.
 //! Environments retain cells, not snapshots; argument entries hold fresh cells.
 use super::*;
 
@@ -6,9 +6,14 @@ pub(super) const TYPES: &str = include_str!("gc_closures.wat");
 
 pub(super) fn needed(module: &ir::Module) -> bool {
     module.functions.iter().any(|f| {
-        ir::captured_cells(&f.body)
-            .into_iter()
-            .any(|slot| f.slots[slot.0].ty.is_managed())
+        (ir::closure_environment(f).is_some()
+            && f.slots
+                .iter()
+                .take(f.parameter_count)
+                .any(|slot| slot.ty.is_managed()))
+            || ir::captured_cells(&f.body)
+                .into_iter()
+                .any(|slot| f.slots[slot.0].ty.is_managed())
     })
 }
 

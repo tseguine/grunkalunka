@@ -283,10 +283,14 @@ Alternatives considered:
   the simpler correct initial implementation.
 
 The verifier now accepts typed synchronous managed captures while retaining capture
-initialization, mutability and exact-type checks. Source capture guards, managed
-closure parameter/result guards, public reference boundaries and async GC spill
-rejection remain in force. Private function identity in the managed value carrier
-and a shared application heap are not introduced.
+initialization, mutability and exact-type checks. Synchronous private IR parameters
+also admit managed values through the same argument entries, including callback
+and returned-function signatures. This activates traced closure storage even
+without captures; source argument inference and managed results remain separate.
+At this backend-only stage, source capture/argument guards, managed-result guards,
+public reference boundaries and async GC spill rejection remain in force. Private
+function identity in the managed value carrier and a shared application heap are
+not introduced.
 
 Emitted typed-IR/native-JS/Node tests cover rebinding, shared mutation, nested and
 returned closures, primitive/callback frames, lexical iteration cells and argument

@@ -11,6 +11,8 @@ mod finally_tests;
 #[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
+mod gc_closure_argument_tests;
+#[cfg(test)]
 mod gc_closure_tests;
 #[cfg(test)]
 mod managed_array_tests;
@@ -158,10 +160,15 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if (signature.asynchronous && signature.result != Type::General)
+            if (signature.asynchronous
+                && (signature.result != Type::General
+                    || signature.parameters.iter().any(|ty| ty.is_managed())))
                 || signature.parameters.len() > 1000
                 || signature.parameters.iter().any(|ty| match ty {
-                    Type::Number
+                    Type::ManagedValue
+                    | Type::ManagedObject
+                    | Type::ManagedArray
+                    | Type::Number
                     | Type::General
                     | Type::AsyncValue
                     | Type::FulfilledPromise
@@ -200,7 +207,9 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if (signature.asynchronous && signature.result != Type::General)
+            if (signature.asynchronous
+                && (signature.result != Type::General
+                    || signature.parameters.iter().any(|ty| ty.is_managed())))
                 || !matches!(
                     signature.result,
                     Type::Number
@@ -216,7 +225,10 @@ impl ClosureSignatures {
             }
             for parameter in &signature.parameters {
                 match parameter {
-                    Type::Number
+                    Type::ManagedValue
+                    | Type::ManagedObject
+                    | Type::ManagedArray
+                    | Type::Number
                     | Type::General
                     | Type::AsyncValue
                     | Type::FulfilledPromise
@@ -2156,13 +2168,18 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
         return Err("internal IR: entry profile must return Number or General".into());
     }
     for (index, signature) in module.closure_signatures.higher.iter().enumerate() {
-        if (signature.asynchronous && signature.result != Type::General)
+        if (signature.asynchronous
+            && (signature.result != Type::General
+                || signature.parameters.iter().any(|ty| ty.is_managed())))
             || signature.parameters.len() > 1000
             || (signature.result == Type::Number
                 && !signature.parameters.iter().any(|ty| {
                     matches!(
                         ty,
-                        Type::General
+                        Type::ManagedValue
+                            | Type::ManagedObject
+                            | Type::ManagedArray
+                            | Type::General
                             | Type::AsyncValue
                             | Type::Closure(_)
                             | Type::FulfilledPromise
@@ -2171,7 +2188,10 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
                     )
                 }))
             || signature.parameters.iter().any(|ty| match ty {
-                Type::Number
+                Type::ManagedValue
+                | Type::ManagedObject
+                | Type::ManagedArray
+                | Type::Number
                 | Type::General
                 | Type::AsyncValue
                 | Type::FulfilledPromise
@@ -2309,7 +2329,10 @@ fn verify_function(
             && !(closure_environment(function).is_some()
                 && (matches!(
                     slot.ty,
-                    Type::General
+                    Type::ManagedValue
+                        | Type::ManagedObject
+                        | Type::ManagedArray
+                        | Type::General
                         | Type::AsyncValue
                         | Type::FulfilledPromise
                         | Type::SettledPromise
