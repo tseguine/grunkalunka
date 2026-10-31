@@ -77,7 +77,8 @@ Capability profiles should describe authority without unnecessarily tying an
 application to one host. Native implementations may vary behind those interfaces.
 Do not make a runtime-specific precompiled cache the sole distributable artifact;
 retain portable Wasm and treat host caches as derived outputs. Avoid a single-host
-assumption unless evidence shows a worthwhile tradeoff. Verify other OS/architecture combinations before claiming them. Maintained
+assumption unless evidence shows a worthwhile tradeoff. Verify other
+OS/architecture combinations before claiming them. Maintained
 Linux/Windows PR checks and full master verification, with independent native
 macOS baseline/fallback checks, do not establish every supported host/runtime
 combination; see [CI](ci.md). Native Node-Wasm and Wasmtime differential tests
