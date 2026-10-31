@@ -500,7 +500,7 @@
     {
       "id": "closures",
       "kind": "open-requirement",
-      "assessment": "Local non-escaping concise arrows share captured cells; nested declarations and escaping/recursive closure environments remain open.",
+      "assessment": "Synchronous local arrows and supported factories/callbacks share captured primitive and WasmGC object/array/String bindings, including rebinding, mutation, per-iteration cells and closure use after a factory returns. Maintained source differential tests and a test-only rooted generated-closure adapter exercise copying-GC lifetime. Nested function declarations, managed private arguments/results, general function identities/escape boundaries and reference-aware async frames remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-functions-and-classes.html#sec-function-definitions",

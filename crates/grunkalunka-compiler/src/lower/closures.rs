@@ -397,16 +397,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         closure
             .captures
             .retain(|binding| referenced.contains(&binding.slot));
-        if closure
-            .captures
-            .iter()
-            .any(|binding| self.slots[binding.slot.0].ty.is_managed())
-        {
-            return Err(unsupported(
-                arrow,
-                "managed captures require GC-aware environments",
-            ));
-        }
         // Source body costs are paid at its definition (including unused bodies),
         // never once per generated specialization.
         self.local_count = check.local_count;

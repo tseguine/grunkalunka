@@ -120,8 +120,6 @@ fn unsupported_array_semantics_reject_before_ir_validation() {
         "const x=[];x.length++;return a;",
         "const x=[...[a]];return a;",
         "const x=[a];return x;",
-        "const x=[a];const f=()=>x.length;return f();",
-        "const x=[a];const f=()=>()=>x.length;return f()();",
         "const x=[a];return x[0].length;",
         "if(0){const x=[];x.map(a);}return a;",
     ] {

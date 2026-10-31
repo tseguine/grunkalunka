@@ -297,6 +297,29 @@ artifact through the production Wasmtime numeric adapter; it is not the maintain
 lifetime fixture. Exact revision/check counts belong in the implementation PR. Source capture admission
 and reference-aware async suspension are the next distinct integration steps.
 
+## Synchronous source capture admission
+
+Source closures now admit captured object/array/String bindings and managed property
+snapshots through the existing typed capture mapping and traced backend. Removing
+the former unconditional source guard requires no new IR operation, dependency or
+ABI. A load remains a snapshot, environment entries retain shared cells, and a
+factory's returned closure keeps the binding live after the factory returns.
+
+The existing supported selection, callback and factory contracts retain primitive
+arguments/results and function-pair transport. This increment does not admit managed
+closure arguments/results, general function identities in containers, public
+references, prototype/coercion semantics or suspended managed frames. Unsupported
+operations in unused bodies still reject; TS metadata supplies no runtime proof.
+This supersedes the backend-only source-capture boundary in the preceding section.
+
+Maintained source comparisons run native JS, Node-Wasm and Wasmtime, including
+shared rebinding/mutation, saved values, per-iteration cells and factory lifetimes.
+A test-only generated-WAT root/observer retains an actual constructed closure pair
+past source return, then forces copying collections before calling its unchanged
+generated body. The adapter changes test observability only; production artifacts
+gain no reference export or shared host heap. Clearing roots is tested without
+claiming a measured reclamation/latency bound.
+
 ## Related work and follow-up
 
 - [Shared backend layout](0014-backend-value-layout.md).

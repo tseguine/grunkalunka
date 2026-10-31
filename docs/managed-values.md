@@ -69,9 +69,10 @@ validation. Dynamic coercion, RangeError completion, property descriptors and
 prototype lookup are not implemented by these operations.
 
 The source cursor now supplies the receiver/key/length proofs described below.
-Managed captures, public reference exports and suspended async frames retain their
-existing guards. Compiler tests execute
-emitted IR in Node against native JS; runtime kernel tests exercise Wasmtime,
+Public reference exports and suspended async frames retain their existing guards.
+Synchronous captures use the traced closure storage described below. Compiler
+tests execute emitted IR in Node against native JS; runtime kernel tests exercise
+Wasmtime,
 holes, sparse storage, cycles, text edges and repeated forced copying collections.
 
 ## Ordinary-object property storage
@@ -122,10 +123,9 @@ keys return Undefined. This temporary admission boundary is not a chosen permane
 object model or a replacement for prototype-aware lookup.
 
 Dynamic property keys, optional access, unknown-kind receivers, accessors, methods,
-spread and numeric literal keys reject. Implicit managed coercions, loose equality,
-managed logical-value joins, managed captures and reference-aware async frames
-remain separate work. Managed properties cannot be returned directly through
-the primitive ABI; observations must produce a supported primitive result.
+spread and numeric literal keys reject. Implicit managed coercions, loose equality
+and reference-aware async frames remain separate work. Managed properties cannot
+be returned directly through the primitive ABI; observations must produce a supported primitive result.
 Function values in managed containers remain unimplemented. String methods, indexing, length,
 concatenation and coercions remain separate work. Unsupported branches
 are checked even when a particular input would not execute them.
@@ -174,8 +174,8 @@ or dynamic length writes and optional access still reject. Element snapshots use
 the general carrier: returning `items[1]` directly through a Number export still
 requires a primitive-result proof/projection, and exporting an array requires a
 reference-aware boundary. Those existing gap fixtures remain rejected; construction
-and equality tests do not claim those gaps are closed. Managed captures and async
-frames remain unsupported, with source-level capture diagnostics.
+and equality tests do not claim those gaps are closed. Synchronous array captures
+are supported; suspended managed async frames remain unsupported.
 
 ## Short-circuit values and defaults
 
@@ -195,8 +195,8 @@ entry profiles use the same carrier when needed to retain their kind; other entr
 profiles retain the original primitive-result planning. Metadata supplies no kind
 proof. This does not add primitive projection from arbitrary managed results.
 
-Managed logical assignments, function values in the carrier, captures/suspended
-frames and public managed exports remain outside this increment. Unsupported
+Managed logical assignments, function values in the carrier, suspended frames and
+public managed exports remain outside this increment. Unsupported
 operations in an unselected branch remain rejected.
 
 ## Source type inspection
@@ -237,8 +237,8 @@ for calls with no object-bearing flow, so ordinary numeric helpers retain f64.
 For example, `function set(o,v){o.x=v;return o;}` can mutate a caller's object and
 return the same reference. Forwarding, mutually recursive helpers, fresh-object
 results, mixed-value identity functions and `.call` use the same typed transport.
-Ignored `thisArg` and surplus arguments still evaluate in source order. Captured
-function values and async helper frames are not admitted by this increment.
+Ignored `thisArg` and surplus arguments still evaluate in source order. Managed
+private closure signatures and async helper frames are not admitted by this increment.
 The flow query does not establish source validity: unknown-kind property receivers,
 unsupported operations and every source branch still undergo ordinary validation.
 A helper seen with both object and numeric callers cannot silently treat all inputs
@@ -251,8 +251,9 @@ signatures still reject managed values.
 
 Uncaptured source cells and computed-value snapshots use traced locals. A cell
 store changes the binding, not an earlier loaded snapshot. The private IR now
-supports traced captured cells and closure environments as described below. Source capture admission and async spill migration remain separate
-steps; their source guards still reject managed captures/async modules explicitly.
+supports traced captured cells and closure environments as described below. Source
+captures now use that storage; async spill migration remains a separate step and
+managed async modules still reject explicitly.
 
 The object/String GC kernel is emitted only for modules using managed kinds and
 appended after source functions. Closure storage types precede closure function
@@ -282,9 +283,13 @@ Modules without managed captured cells retain their existing numeric arena, clos
 layout and async behavior. Modules using the traced path need no numeric arena reset
 wrapper. Ordinary Number arithmetic and locals retain f64 in both paths.
 
-This is a backend prerequisite: source managed captures remain explicitly rejected.
-Managed values still cannot enter the old async byte-spill frames. Traced suspension,
-source capture admission, general function values in containers and public reference
+Synchronous source closures now use this storage for captured objects, arrays,
+Strings and managed property snapshots, including shared rebinding and mutation.
+Selected closures, callbacks and supported factories retain their existing primitive
+arguments/results and function-pair transport. Capture pruning still validates
+unused bodies and excludes erased metadata/unreferenced cells. Managed values
+cannot enter the old async byte-spill frames. Traced suspension, managed closure
+arguments/results, general function values in containers and public reference
 ownership remain follow-up work. This implementation does not add a shared heap
 across runtime instances or promise reclamation latency/throughput.
 
@@ -298,6 +303,24 @@ and saved object/String snapshot. That hand-built lifetime fixture is not eviden
 of source capture admission. A separate manual verification executes an actual
 emitted managed-capture IR artifact through the production Wasmtime numeric adapter;
 it does not replace the maintained lifetime fixture or establish source admission.
+
+## Source capture lifetime evidence
+
+`managed-captures` compares actual JS/TS source against native JS in Node-Wasm and
+Wasmtime. It covers captured objects, arrays, Strings and changing-kind snapshots;
+shared binding writes, property updates, receiver evaluation order, factory results,
+callbacks, lexical iteration cells, shadowing and erased annotations. The exact
+former object-truthiness, array-length and returned-array-reader guards execute
+unchanged as positive tests. Private managed arguments/results, invalid writes,
+unsupported prototype operations and async frames remain explicit rejection tests.
+
+For forced collection after a defining call returns, the lifetime test adds a
+**test-only** root/observer to generated WAT. It copies an actual constructed
+closure's code/environment pair into traced globals without replacing its generated
+functions, cells or environments. After the source entry returns, repeated Wasmtime
+copying collections precede calls through that saved closure. Native JS and the
+unmodified artifact are compared separately. Clearing the test root releases it;
+the test makes no measured reclamation or public-reference-ABI claim.
 
 ## Evidence and remaining work
 
@@ -334,7 +357,7 @@ No new package version, host authority, public reference ABI or dedicated CI
 workflow is introduced. Ordinary Cargo tests and existing package dependencies
 select the compiler and runtime consumers of the shared helper file.
 
-Arrays, broader String operations, general function identities, managed captures,
+Broader String operations, general function identities, managed closure signatures,
 suspended GC frames, public heap ownership and full coercion/prototype behavior
 remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting
