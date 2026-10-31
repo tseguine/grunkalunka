@@ -1,9 +1,11 @@
 # Typed region IR
 
-The numeric compiler lowers admitted Oxc syntax into an internal typed, structured
-region representation, verifies that representation, then emits WAT and encodes
-Wasm. The public `compile(source, typescript)` API still returns `Artifact { wat,
-wasm }`. The [source admission contract](compiler.md) remains authoritative.
+The maintained compiler lowers admitted Oxc syntax into an internal typed,
+structured region representation, verifies that representation, then emits WAT
+and encodes Wasm. The original numeric `compile(source, typescript)` API still
+returns `Artifact { wat, wasm }`. The [source admission contract](compiler.md)
+remains authoritative across the numeric, primitive, async and experimental
+managed-value source paths.
 
 The original Oxc AST, including parameter/return/local annotations and expression
 wrapper types, remains available through compilation. Annotation syntax is
@@ -20,8 +22,23 @@ The verifier keeps pending regions, lexical visibility and child-completion
 continuations on an explicit stack. Its checks retain source order without native
 recursion through region nesting. CLI regressions exercise the default executable
 stack at the 64-statement limit, including a body with 128 nested expressions;
-65 statements retain their depth diagnostic. This does not remove recursion from
-parsing, source classification, emission or destruction.
+65 statements retain their depth diagnostic. Recent hardening also made verifier
+ancestry persistent, synchronous structured WAT emission iterative, nested
+`Region` destruction iterative, and selected source/async scanners and
+continuation splits iterative. The independent deep-region tests use small native
+thread stacks without changing source admission budgets. This **does not**
+establish that parsing, all frontend passes, every runtime operation, or guest
+Wasm execution have constant native-stack depth. See
+[stack-depth steering #281](https://github.com/tseguine/grunkalunka/issues/281).
+
+The newer [managed-value contract](managed-values.md) adds traced WasmGC
+`ManagedValue` / `ManagedObject` kinds, typed source helper reference transport
+and static own-property operations **to this shared IR**. They coexist with
+specialized direct-f64 operations; they do not turn the original numeric
+entrypoint into a general JavaScript ABI. The initial paragraphs and many
+historical sections below describe the numeric and primitive subsets. The
+managed-value contract and [ADR 0019](adr/0019-wasmgc-runtime.md) define the
+newer source boundaries, exports and GC lifetime exclusions.
 
 ## Modules and direct numeric calls
 
@@ -47,8 +64,10 @@ bytes. Internal calls share runtime fuel and the engine's existing stack guard.
 
 ## Source cells and computed values
 
-A `SlotId` names a fixed-type cell (`Number`, `Predicate`, `General` or `Closure(signature)`). Each slot records
-its type, owning lexical region, mutability, parameter status and source span.
+A `SlotId` names a fixed-type cell. Primitive and closure paths use `Number`,
+`Predicate`, `General` and `Closure(signature)`; the managed source path also
+uses traced `ManagedValue` / `ManagedObject` cells. Each slot records its type,
+owning lexical region, mutability, parameter status and source span.
 Source lowering constructs scalar `Number` slots, immutable `Predicate` const slots,
 and immutable/mutable `General` local slots.
 Initialized runtime function bindings additionally use `Closure(signature)` slots and
