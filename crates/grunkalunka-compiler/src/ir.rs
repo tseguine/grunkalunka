@@ -421,55 +421,35 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 
 #[derive(Debug)]
 pub(crate) enum Op {
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     ManagedObjectNew {
         result: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     ManagedFromObject {
         result: ValueId,
         input: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     ManagedGetOwn {
         result: ValueId,
         object: ValueId,
         key: Vec<u16>,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     ManagedSetOwn {
         object: ValueId,
         key: Vec<u16>,
         value: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     ManagedPrimitive {
         result: ValueId,
         input: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "IR prerequisite; source admission follows")
-    )]
     ManagedEqual {
         result: ValueId,
         left: ValueId,
         right: ValueId,
+    },
+    ManagedTruthy {
+        result: ValueId,
+        input: ValueId,
     },
     // Adjacent await operations can be alternative continuations of one source
     // site. Explicit provenance shares only their logical budget, never values.
@@ -1105,6 +1085,10 @@ impl Verifier<'_> {
             } => {
                 self.value(*left, Type::ManagedValue, visible, span)?;
                 self.value(*right, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::ManagedTruthy { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::AwaitSite { .. } => (),

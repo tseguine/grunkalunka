@@ -82,3 +82,16 @@
       local.get $right struct.get $gc_value 1 f64.eq
     end
   end)
+
+(func $gc_truthy (param $value (ref null $gc_value)) (result i32)
+  local.get $value struct.get $gc_value 0 i32.const 2 i32.lt_u
+  if (result i32) i32.const 0
+  else
+    local.get $value struct.get $gc_value 0 i32.const 4 i32.eq
+    if (result i32) i32.const 1
+    else
+      local.get $value struct.get $gc_value 1 f64.const 0 f64.ne
+      local.get $value struct.get $gc_value 1
+      local.get $value struct.get $gc_value 1 f64.eq i32.and
+    end
+  end)

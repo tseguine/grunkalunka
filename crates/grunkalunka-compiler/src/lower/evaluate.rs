@@ -1,7 +1,8 @@
-//! Explicit control for Number/Predicate/General/Function/Promise/Discard evaluation.
+//! Explicit control for primitive, function, Promise, managed and discard evaluation.
 //! Requests borrow original AST nodes. Only this cursor owns unfinished regions;
 //! continuations own completed children until their parent operation is emitted.
 use super::*;
+mod managed;
 
 #[derive(Clone, Copy)]
 pub(super) enum Mode {
@@ -13,6 +14,8 @@ pub(super) enum Mode {
     Arithmetic,
     Numeric,
     General,
+    Managed,
+    Object,
     Function(usize),
     Promise,
     Pending,
@@ -27,6 +30,8 @@ enum Value {
     Number(ValueId),
     Predicate(ValueId),
     General(ValueId),
+    Managed(ValueId),
+    Object(ValueId),
     Selection(ValueId),
     Function(ValueId),
     Promise(ValueId),
@@ -39,6 +44,8 @@ impl Value {
             Self::Number(id)
             | Self::Predicate(id)
             | Self::General(id)
+            | Self::Managed(id)
+            | Self::Object(id)
             | Self::Selection(id)
             | Self::Function(id)
             | Self::Pending(id)
@@ -76,6 +83,16 @@ impl Value {
         };
         id
     }
+}
+
+struct LogicalLeft<'e, 'a> {
+    node: &'e Expression<'a>,
+    left_node: &'e Expression<'a>,
+    right: &'e Expression<'a>,
+    operator: LogicalOperator,
+    depth: usize,
+    mode: Mode,
+    left: Value,
 }
 
 struct Regions<'r> {
@@ -188,6 +205,7 @@ enum ClosureEffect {
 }
 
 enum Work<'e, 'a> {
+    Managed(managed::ManagedWork<'e, 'a>),
     Eval(&'e Expression<'a>, usize, Mode),
     AwaitOperand {
         node: &'e Expression<'a>,
@@ -954,6 +972,8 @@ impl Lowering<'_, '_> {
             Mode::Pending => Type::Promise,
             Mode::Promise => Type::FulfilledPromise,
             Mode::Settled => Type::SettledPromise,
+            Mode::Managed => Type::ManagedValue,
+            Mode::Object => Type::ManagedObject,
             _ => Type::Number,
         };
         let result = self.value(ty);
@@ -969,12 +989,8 @@ impl Lowering<'_, '_> {
             },
         );
         Ok(match ty {
-            Type::ManagedValue | Type::ManagedObject => {
-                return Err(unsupported(
-                    node,
-                    "managed source values are not yet admitted",
-                ));
-            }
+            Type::ManagedValue => Value::Managed(result),
+            Type::ManagedObject => Value::Object(result),
             Type::General => Value::General(result),
             Type::AsyncValue => Value::Selection(result),
             Type::Predicate => Value::Predicate(result),
@@ -984,6 +1000,111 @@ impl Lowering<'_, '_> {
             Type::SettledPromise => Value::Settled(result),
             Type::Promise => Value::Pending(result),
         })
+    }
+
+    // Logical leaf operations must not inflate the re-entrant cursor frame.
+    #[inline(never)]
+    fn finish_logical_left<'e, 'a>(
+        &mut self,
+        input: LogicalLeft<'e, 'a>,
+        regions: &mut Regions<'_>,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<(), String> {
+        let LogicalLeft {
+            node,
+            left_node,
+            right,
+            operator,
+            depth,
+            mode,
+            left,
+        } = input;
+        let condition = match left {
+            Value::Managed(_) | Value::Object(_) => {
+                return Err(unsupported(
+                    node,
+                    "managed logical selection is not yet admitted",
+                ));
+            }
+            Value::Selection(input) => {
+                self.async_value_condition(left_node, input, operator, regions.current())
+            }
+            Value::General(input) if operator == LogicalOperator::Coalesce => {
+                let nullish = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::GeneralIsNullish {
+                        result: nullish,
+                        input,
+                    },
+                );
+                let result = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::Not {
+                        result,
+                        input: nullish,
+                    },
+                );
+                result
+            }
+            Value::Number(_) | Value::Predicate(_) if operator == LogicalOperator::Coalesce => {
+                let result = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::Boolean {
+                        result,
+                        value: true,
+                    },
+                );
+                result
+            }
+            Value::General(input) => {
+                let result = self.value(Type::Predicate);
+                Self::push(regions.current(), node, Op::GeneralTruthy { result, input });
+                result
+            }
+            Value::Predicate(id) => id,
+            Value::Number(input) => {
+                let result = self.value(Type::Predicate);
+                Self::push(regions.current(), node, Op::Truthy { result, input });
+                result
+            }
+            Value::Settled(_) => {
+                return Err(unsupported(
+                    node,
+                    "settled Promise logical selection requires rejection tracking",
+                ));
+            }
+            Value::Function(_) | Value::Promise(_) | Value::Pending(_) => {
+                // Functions and Promises are truthy and non-nullish,
+                // so || and ?? keep this evaluated left snapshot.
+                let result = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::Boolean {
+                        result,
+                        value: true,
+                    },
+                );
+                result
+            }
+        };
+        regions.children.push(self.region(right));
+        work.push(Work::LogicalRight {
+            node,
+            left_node,
+            left,
+            condition,
+            operator,
+            mode,
+        });
+        work.push(Work::Eval(right, depth, mode));
+        Ok(())
     }
 
     pub(super) fn evaluate<'e, 'a>(
@@ -1005,6 +1126,9 @@ impl Lowering<'_, '_> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
+                Work::Managed(task) => {
+                    self.complete_managed(task, &mut regions, &mut values, &mut work)?;
+                }
                 Work::AwaitOperand {
                     node,
                     depth,
@@ -2083,6 +2207,12 @@ impl Lowering<'_, '_> {
                 Work::StoreGeneral { node, slot } => {
                     let value = values.pop().expect("General assignment RHS");
                     let stored = match value {
+                        Value::Managed(_) | Value::Object(_) => {
+                            return Err(unsupported(
+                                node,
+                                "managed values require managed assignment",
+                            ));
+                        }
                         Value::General(id) => id,
                         Value::Number(input) => {
                             let result = self.value(Type::General);
@@ -2354,94 +2484,19 @@ impl Lowering<'_, '_> {
                     mode,
                 } => {
                     let left = values.pop().expect("logical left");
-                    let condition = match left {
-                        Value::Selection(input) => self.async_value_condition(
+                    self.finish_logical_left(
+                        LogicalLeft {
+                            node,
                             left_node,
-                            input,
+                            right,
                             operator,
-                            regions.current(),
-                        ),
-                        Value::General(input) if operator == LogicalOperator::Coalesce => {
-                            let nullish = self.value(Type::Predicate);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::GeneralIsNullish {
-                                    result: nullish,
-                                    input,
-                                },
-                            );
-                            let result = self.value(Type::Predicate);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Not {
-                                    result,
-                                    input: nullish,
-                                },
-                            );
-                            result
-                        }
-                        Value::Number(_) | Value::Predicate(_)
-                            if operator == LogicalOperator::Coalesce =>
-                        {
-                            let result = self.value(Type::Predicate);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Boolean {
-                                    result,
-                                    value: true,
-                                },
-                            );
-                            result
-                        }
-                        Value::General(input) => {
-                            let result = self.value(Type::Predicate);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::GeneralTruthy { result, input },
-                            );
-                            result
-                        }
-                        Value::Predicate(id) => id,
-                        Value::Number(input) => {
-                            let result = self.value(Type::Predicate);
-                            Self::push(regions.current(), node, Op::Truthy { result, input });
-                            result
-                        }
-                        Value::Settled(_) => {
-                            return Err(unsupported(
-                                node,
-                                "settled Promise logical selection requires rejection tracking",
-                            ));
-                        }
-                        Value::Function(_) | Value::Promise(_) | Value::Pending(_) => {
-                            // Functions and Promises are truthy and non-nullish,
-                            // so || and ?? keep this evaluated left snapshot.
-                            let result = self.value(Type::Predicate);
-                            Self::push(
-                                regions.current(),
-                                node,
-                                Op::Boolean {
-                                    result,
-                                    value: true,
-                                },
-                            );
-                            result
-                        }
-                    };
-                    regions.children.push(self.region(right));
-                    work.push(Work::LogicalRight {
-                        node,
-                        left_node,
-                        left,
-                        condition,
-                        operator,
-                        mode,
-                    });
-                    work.push(Work::Eval(right, depth, mode));
+                            depth,
+                            mode,
+                            left,
+                        },
+                        &mut regions,
+                        &mut work,
+                    )?;
                 }
                 Work::LogicalRight {
                     node,
@@ -2502,6 +2557,11 @@ impl Lowering<'_, '_> {
                     values.push(Value::Number(result));
                 }
                 Work::Eval(node, depth, Mode::Discard) => {
+                    if self.managed_source_type(node, depth).is_some() {
+                        work.push(Work::Forget);
+                        work.push(Work::Eval(node, depth, Mode::Managed));
+                        continue;
+                    }
                     if matches!(
                         closures::unwrapped_at(node, depth),
                         Some((Expression::LogicalExpression(_), _))
@@ -2618,6 +2678,16 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::ParenthesizedExpression(wrapper) = node {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
+                        continue;
+                    }
+                    if self.schedule_managed(
+                        node,
+                        depth,
+                        mode,
+                        &mut regions,
+                        &mut values,
+                        &mut work,
+                    )? {
                         continue;
                     }
                     if matches!(mode, Mode::DiscardLogical) {

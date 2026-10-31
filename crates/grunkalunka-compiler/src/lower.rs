@@ -774,7 +774,9 @@ impl Lowering<'_, '_> {
             } else if let Some(value) = promise {
                 (Type::FulfilledPromise, value)
             } else if let Some(initializer) = local.init.as_ref() {
-                let ty = if !mutable
+                let ty = if let Some(ty) = self.managed_source_type(initializer, 0) {
+                    ty
+                } else if !mutable
                     && self.promise_parameters.identities
                     && self.has_promise_choice(initializer, 0)
                 {
@@ -792,12 +794,18 @@ impl Lowering<'_, '_> {
                     Type::Number
                 };
                 let value = match ty {
-                    Type::ManagedValue | Type::ManagedObject => {
-                        return Err(unsupported(
+                    Type::ManagedValue | Type::ManagedObject => self
+                        .evaluate(
                             initializer,
-                            "managed source values are not yet admitted",
-                        ));
-                    }
+                            region,
+                            0,
+                            if ty == Type::ManagedObject {
+                                evaluate::Mode::Object
+                            } else {
+                                evaluate::Mode::Managed
+                            },
+                        )?
+                        .expect("managed initializer"),
                     Type::General => self
                         .evaluate(initializer, region, 0, evaluate::Mode::General)?
                         .expect("General initializer"),

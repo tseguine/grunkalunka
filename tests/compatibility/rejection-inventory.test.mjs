@@ -1,4 +1,5 @@
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
+import { managedObjects } from './managed-objects.mjs';
 import { numericBitNot } from './numeric-bit-not.mjs';
 import { primitiveBitwise } from './primitive-bitwise.mjs';
 import { numericMathAbs } from './numeric-math-abs.mjs';
@@ -234,9 +235,22 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 841);
+  assert.equal(inventory.records.size, 839);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
+});
+
+test('managed objects execute both exact original discard rejection sources', () => {
+  for (const [id, origin, hash] of [
+    ['managed-object-discard-original', 'comma-unsupported-5', '6999e32069dcbb91db764658f7be2e60974599f0f2dc058bc6a96635c32210f4'],
+    ['managed-object-statement-original', 'discarded-object', 'c8ed307ab3dc05d402f8ca03ba73de131a69e5cfa1482809417ad7f6005a47e6'],
+  ]) {
+    const source = programSources(managedObjects.find(program => program[0] === id));
+    assert.equal(createHash('sha256').update(source.sourceJS).digest('hex'), hash);
+    assert.equal(source.sourceTS, source.sourceJS);
+    assert.equal(source.oracleSource, source.sourceJS);
+    assert.ok(!rejected.some(row => row[0] === origin));
+  }
 });
 
 test('local arrows execute the two exact original curated capture/call sources', () => {
