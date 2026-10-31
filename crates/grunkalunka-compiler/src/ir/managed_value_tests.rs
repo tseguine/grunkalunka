@@ -446,7 +446,7 @@ fn managed_primitives_keep_nullish_boolean_and_number_kinds() {
 }
 
 #[test]
-fn managed_values_cannot_enter_numeric_capture_cells() {
+fn managed_values_use_traced_capture_cells() {
     let mut module = primitive_comparison();
     let function = &mut module.functions[0];
     let span = function.body.span;
@@ -470,7 +470,11 @@ fn managed_values_cannot_enter_numeric_capture_cells() {
             cells: vec![SlotId(2)],
         },
     });
-    assert!(verify_module(&module).unwrap_err().contains("managed"));
+    verify_module(&module).unwrap();
+    let wat = crate::emit::emit(&module).unwrap();
+    assert!(wat.contains("$gc_cell"));
+    assert!(!wat.contains("$cell_top"));
+    wat::parse_str(wat).unwrap();
 }
 
 #[test]

@@ -224,16 +224,54 @@ inputs/results remain in the existing admitted profiles, and private closure
 signatures still reject managed values.
 
 Uncaptured source cells and computed-value snapshots use traced locals. A cell
-store changes the binding, not an earlier loaded snapshot. The current captured
-cell/environment and async spill formats are numeric linear-memory storage;
-managed captures and async modules therefore reject explicitly. Supporting them
-requires reference-aware GC frames/environments and lifetime tests, not merely a
-new lane count or a numeric surrogate.
+store changes the binding, not an earlier loaded snapshot. The private IR now
+supports traced captured cells and closure environments as described below. Source capture admission and async spill migration remain separate
+steps; their source guards still reject managed captures/async modules explicitly.
 
-The GC type/helper fragment is emitted only for modules using managed kinds and
-appended after source functions. This keeps source call indices stable. Existing
+The object/String GC kernel is emitted only for modules using managed kinds and
+appended after source functions. Closure storage types precede closure function
+types and add no functions. This keeps source call indices stable. Existing
 numeric/primitive modules do not acquire GC types or runtime helpers merely from
 this implementation being available.
+
+## Traced closure backend
+
+The synchronous private IR admits captured `ManagedValue`, `ManagedObject` and
+`ManagedArray` cells. A module with any managed captured cell uses one GC cell
+domain for all its captured bindings and closures. This matters when both numeric
+and managed closures refer to the same mutable binding: both environments must
+retain the same cell. A load still creates a value snapshot; storing a new reference
+updates the binding without changing an earlier loaded value.
+
+Each cell has unboxed i32/f64 fields and a traced reference field. An environment
+is a GC array of cell references. The private closure pair contains a table index
+and a traced environment reference; call arguments use fresh cell entries in a GC
+frame array. Closure parameters/results retain their existing logical contracts,
+including primitive pairs and returned/callback closures. Managed closure parameter
+and result signatures remain rejected in this unit.
+
+GC types precede explicit closure function types so type references do not cross
+forward into a later recursion group. The source function indices remain stable.
+Modules without managed captured cells retain their existing numeric arena, closure
+layout and async behavior. Modules using the traced path need no numeric arena reset
+wrapper. Ordinary Number arithmetic and locals retain f64 in both paths.
+
+This is a backend prerequisite: source managed captures remain explicitly rejected.
+Managed values still cannot enter the old async byte-spill frames. Traced suspension,
+source capture admission, general function values in containers and public reference
+ownership remain follow-up work. This implementation does not add a shared heap
+across runtime instances or promise reclamation latency/throughput.
+
+Maintained typed-IR tests execute actual emitted modules in Node against independent
+native-JS observations. They cover object/array/String rebinding, writes from a
+closure, primitive and callback lanes, nested returned closures, per-iteration cells,
+the 1,000-argument boundary and 70,000 calls beyond the legacy bump-arena capacity.
+The runtime test executes the shared storage type fragment in Wasmtime and forces
+copying collections before and after alias mutation, checking a cyclic environment
+and saved object/String snapshot. That hand-built lifetime fixture is not evidence
+of source capture admission. A separate manual verification executes an actual
+emitted managed-capture IR artifact through the production Wasmtime numeric adapter;
+it does not replace the maintained lifetime fixture or establish source admission.
 
 ## Evidence and remaining work
 
@@ -241,8 +279,9 @@ Ordinary compiler tests construct typed IR and execute the emitted module in Nod
 against independent native-JS observations. They cover all four primitive kinds,
 object identity under reboxing, multiple UTF-16 keys, missing values, overwritten
 properties, saved snapshots, mixed reference/Number helper parameters and local
-binding stores. Malformed IR, exported/private-closure signatures, captures and
-async byte-spill boundaries have rejection tests.
+binding stores. Malformed IR, exported/private-closure signatures and async
+byte-spill boundaries have rejection tests; typed managed captures have positive
+backend tests.
 
 Maintained runtime tests also compile JS and TS source and compare native JS,
 Node-Wasm and Wasmtime over Number boundary inputs. They cover literal order,

@@ -1,5 +1,5 @@
-//! Stable typed cells for captured bindings. The arena belongs to one external
-//! invocation, not to a helper's Wasm stack frame; no references escape that ABI.
+//! Stable typed cells for captured bindings. Numeric-only modules use an
+//! invocation arena; managed-capture modules use traced GC cells throughout.
 use super::*;
 
 pub(super) const MEMORY: &str = "(memory 1 16)\n(global $cell_top (mut i32) (i32.const 0))\n";
@@ -32,16 +32,32 @@ impl Emitter<'_> {
             if let Some(pointer) = self.cell_offsets[slot] {
                 self.new_cell(pointer);
                 let local = self.slot_offsets[slot];
-                self.store_memory(pointer, local, self.function.slots[slot].ty, 0, false);
+                if self.gc_closures {
+                    self.store_gc_cell(pointer, local, self.function.slots[slot].ty);
+                } else {
+                    self.store_memory(pointer, local, self.function.slots[slot].ty, 0, false);
+                }
             }
         }
     }
 
     fn new_cell(&mut self, pointer: usize) {
-        writeln!(self.output, "call $cell_new\nlocal.set {pointer}").unwrap();
+        if self.gc_closures {
+            writeln!(
+                self.output,
+                "struct.new_default $gc_cell\nlocal.set {pointer}"
+            )
+            .unwrap();
+        } else {
+            writeln!(self.output, "call $cell_new\nlocal.set {pointer}").unwrap();
+        }
     }
 
     pub(super) fn load_cell(&mut self, slot: ir::SlotId, pointer: usize) {
+        if self.gc_closures {
+            self.load_gc_cell(pointer, self.function.slots[slot.0].ty);
+            return;
+        }
         for part in layout::value(self.function.slots[slot.0].ty).parts {
             write!(self.output, "local.get {pointer}\n{}.load", part.lane.wat()).unwrap();
             if part.byte_offset != 0 {
@@ -62,7 +78,11 @@ impl Emitter<'_> {
             self.new_cell(pointer);
         }
         let offset = self.value_offsets[value.0];
-        self.store_memory(pointer, offset, self.function.slots[slot.0].ty, 0, false);
+        if self.gc_closures {
+            self.store_gc_cell(pointer, offset, self.function.slots[slot.0].ty);
+        } else {
+            self.store_memory(pointer, offset, self.function.slots[slot.0].ty, 0, false);
+        }
     }
 
     // Explicit zero offsets retain the existing argument-frame WAT spelling;

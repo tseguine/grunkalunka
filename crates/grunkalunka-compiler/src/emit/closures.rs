@@ -1,4 +1,4 @@
-//! Private function values carry a table index and an environment address.
+//! Private function values carry a table index and an environment address or GC edge.
 //! Calls use (environment, typed argument frame) and a verified logical result.
 use super::*;
 
@@ -16,9 +16,14 @@ pub(super) const FRAME_ALLOCATOR: &str = r#"(func $closure_frame (param $bytes i
   local.get $old)
 "#;
 
-pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool) -> String {
+pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool, gc: bool) -> String {
+    let params = if gc {
+        "(ref null $gc_frame) (ref null $gc_frame)"
+    } else {
+        "i32 i32"
+    };
     let mut output = format!(
-        "(type $closure (func (param i32 i32) (result {})))\n(table {} funcref)\n",
+        "(type $closure (func (param {params}) (result {})))\n(table {} funcref)\n",
         layout::value(Type::Number).wat,
         module.functions.len()
     );
@@ -29,8 +34,8 @@ pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool) -> Stri
     {
         writeln!(
             output,
-            "(type $closure_pair (func (param i32 i32) (result {})))",
-            layout::value(Type::Closure(0)).wat
+            "(type $closure_pair (func (param {params}) (result {})))",
+            layout::closure_value(Type::Closure(0), gc).wat
         )
         .unwrap();
     }
@@ -42,7 +47,7 @@ pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool) -> Stri
     }) {
         writeln!(
             output,
-            "(type $closure_general (func (param i32 i32) (result {})))",
+            "(type $closure_general (func (param {params}) (result {})))",
             layout::value(Type::General).wat
         )
         .unwrap();
@@ -52,7 +57,11 @@ pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool) -> Stri
         .iter()
         .any(|f| f.return_type == Type::Promise || (starters && ir::is_async_closure(f)))
     {
-        output.push_str("(type $closure_promise (func (param i32 i32) (result i32)))\n");
+        writeln!(
+            output,
+            "(type $closure_promise (func (param {params}) (result i32)))"
+        )
+        .unwrap();
     }
     for (i, function) in module.functions.iter().enumerate() {
         if ir::closure_environment(function).is_some() {
@@ -78,6 +87,10 @@ pub(super) fn temporary(function: &Function, offset: usize, starts: bool) -> Opt
 
 impl Emitter<'_> {
     pub(super) fn init_environment(&mut self) {
+        if self.gc_closures {
+            self.init_gc_environment();
+            return;
+        }
         if let Some(captures) = ir::closure_environment(self.function) {
             let mut offset = 0;
             for parameter in 0..self.function.parameter_count {
@@ -124,6 +137,10 @@ impl Emitter<'_> {
         function: ir::FunctionId,
         captures: &[ir::SlotId],
     ) {
+        if self.gc_closures {
+            self.make_gc_closure(result, function, captures);
+            return;
+        }
         let temp = self.frame(captures.len() * 4);
         for (index, slot) in captures.iter().enumerate() {
             writeln!(
@@ -139,6 +156,10 @@ impl Emitter<'_> {
     }
 
     pub(super) fn call_closure(&mut self, result: ValueId, callee: ValueId, arguments: &[ValueId]) {
+        if self.gc_closures {
+            self.call_gc_closure(result, callee, arguments);
+            return;
+        }
         let bytes = arguments
             .iter()
             .map(|value| layout::argument_bytes(self.function.values[value.0]))

@@ -77,6 +77,7 @@ impl<'a> Frame<'a> {
                 throw_to: None,
                 needs_remainder: false,
                 errors,
+                gc_closures: false,
             },
             lanes,
             spill_lanes,
