@@ -104,7 +104,10 @@ fn callback_return_origin_calls_keep_union_and_binding_semantics_on_small_stack(
         for typescript in [false, true] {
             let source = format!("export function run(a,b){{{body}}}");
             let artifact = std::thread::Builder::new()
-                .name("callback_return_origin_calls_keep_union_and_binding_semantics_on_small_stack".to_owned())
+                .name(
+                    "callback_return_origin_calls_keep_union_and_binding_semantics_on_small_stack"
+                        .to_owned(),
+                )
                 .stack_size(2 * 1024 * 1024)
                 .spawn(move || compile(&source, typescript))
                 .unwrap()
