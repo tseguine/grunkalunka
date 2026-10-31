@@ -1073,11 +1073,12 @@ mod tests {
             }],
             exit: Exit::Fallthrough,
         };
+        let yielded_region = block(Exit::Yield(ValueId(0)));
         let mut split = Splitter::default();
         let normal = split.terminal(End::Trap).unwrap();
         let error = split
             .region(
-                &block(Exit::Yield(ValueId(0))),
+                &yielded_region,
                 normal,
                 Some(YieldTarget::Copy {
                     result: ValueId(1),
