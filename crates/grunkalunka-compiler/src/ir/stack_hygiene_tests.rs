@@ -209,3 +209,89 @@ fn deep_synthetic_verification_is_stack_independent_and_rejects_duplicate_region
         .join()
         .expect("small-stack verifier completed");
 }
+
+#[test]
+fn verifier_scope_paths_preserve_ancestor_access_and_reject_siblings() {
+    let span = Span::new(0, 0);
+    for (read_slot, accepted) in [(SlotId(0), true), (SlotId(2), false)] {
+        let body = Region {
+            id: RegionId(0),
+            span,
+            operations: vec![
+                Operation {
+                    span,
+                    kind: Op::Load {
+                        result: ValueId(0),
+                        slot: SlotId(0),
+                    },
+                },
+                Operation {
+                    span,
+                    kind: Op::Block(Region {
+                        id: RegionId(1),
+                        span,
+                        operations: vec![Operation {
+                            span,
+                            kind: Op::Initialize {
+                                slot: SlotId(2),
+                                value: ValueId(0),
+                            },
+                        }],
+                        exit: Exit::Fallthrough,
+                    }),
+                },
+                Operation {
+                    span,
+                    kind: Op::Block(Region {
+                        id: RegionId(2),
+                        span,
+                        operations: vec![Operation {
+                            span,
+                            kind: Op::Load {
+                                result: ValueId(1),
+                                slot: read_slot,
+                            },
+                        }],
+                        exit: Exit::Fallthrough,
+                    }),
+                },
+            ],
+            exit: Exit::Return(ValueId(0)),
+        };
+        let mut slots = (0..2)
+            .map(|_| Slot {
+                ty: Type::Number,
+                owner: RegionId(0),
+                mutable: true,
+                parameter: true,
+                span,
+            })
+            .collect::<Vec<_>>();
+        slots.push(Slot {
+            ty: Type::Number,
+            owner: RegionId(1),
+            mutable: false,
+            parameter: false,
+            span,
+        });
+        let module = Module {
+            closure_signatures: ClosureSignatures::default(),
+            functions: vec![Function {
+                return_type: Type::Number,
+                parameter_count: 2,
+                slots,
+                values: vec![Type::Number, Type::Number],
+                body,
+            }],
+        };
+        let result = verify_module(&module);
+        if accepted {
+            result.expect("root-owned parameter remains visible in sibling region");
+        } else {
+            assert!(
+                result.unwrap_err().contains("slot owner is outside the lexical region"),
+                "sibling-owned cell must be rejected"
+            );
+        }
+    }
+}
