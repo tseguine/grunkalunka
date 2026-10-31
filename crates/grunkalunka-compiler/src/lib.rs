@@ -484,6 +484,7 @@ fn lower_source_profile_with_identities(
             ui_import,
             general_bindings: &general_bindings.storage,
             general_parameters: &general_bindings.inputs,
+            managed_parameters: &general_bindings.managed_inputs,
             number_calls: &general_bindings.number_calls,
             general_results: &general_bindings.general_results,
             settled_results: &general_bindings.settled_results,

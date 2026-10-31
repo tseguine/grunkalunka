@@ -292,9 +292,9 @@ managed-result guards and asynchronous frame rejection remain unchanged.
 
 Maintained emitted-IR/native-JS/Node tests cover alias mutation and prior snapshots,
 arrays, lossless String and Number carriers, nested capture of a managed parameter,
-callback/returned-function signatures and the 1,000-argument boundary. These are
-backend tests; source private argument inference remains unsupported. No new
-physical frame format, public reference ABI, dependency or workflow is introduced.
+callback/returned-function signatures and the 1,000-argument boundary. These
+directly test the backend; source argument inference is covered separately below.
+No new physical frame format, public reference ABI, dependency or workflow is introduced.
 A separate manual run executes an actual emitted object-argument artifact through
 the production Wasmtime numeric adapter over 64 input pairs; temporary capture
 instrumentation is removed afterward. This does not establish source admission.
@@ -307,11 +307,12 @@ path need no numeric arena reset wrapper. Ordinary Number arithmetic and locals 
 
 Synchronous source closures now use this storage for captured objects, arrays,
 Strings and managed property snapshots, including shared rebinding and mutation.
-Selected closures, callbacks and supported factories retain their existing primitive
-arguments/results and function-pair transport. Capture pruning still validates
+Selected closures, callbacks and supported factories retain primitive results and
+function-pair transport. Their synchronous managed arguments are described below.
+Capture pruning still validates
 unused bodies and excludes erased metadata/unreferenced cells. Managed values
 cannot enter the old async byte-spill frames. Traced suspension, managed closure
-arguments/results, general function values in containers and public reference
+results, general function values in containers and public reference
 ownership remain follow-up work. This implementation does not add a shared heap
 across runtime instances or promise reclamation latency/throughput.
 
@@ -326,6 +327,26 @@ of source capture admission. A separate manual verification executes an actual
 emitted managed-capture IR artifact through the production Wasmtime numeric adapter;
 it does not replace the maintained lifetime fixture or establish source admission.
 
+## Source managed closure arguments
+
+Known synchronous arrows now infer object, array and String/carrier parameters from
+actual argument flow. The existing constructor graph supplies local, alias,
+selected-callback and supported factory call edges; a finite value-kind union also
+accounts for assignments and corresponding formals of selected constructors.
+Unresolved facts start empty rather than inventing a Number origin. Object-only and
+array-only inputs retain their specialized lanes, mixed managed/primitive values
+use the managed carrier, and Number-only inputs retain their existing path.
+
+The evaluator snapshots actual arguments left to right before binding fresh formal
+cells. A returned closure may capture a managed formal, preserving identity and
+mutation after the factory returns. TS annotations do not determine these kinds.
+`managed-closure-inputs` compares source in native JS, Node-Wasm and Wasmtime,
+including callback/factory composition, mixed kinds, argument effects, property
+writes, array cycles and erased contradictory annotations. Private managed results,
+unknown property receivers, prototype/coercion operations and suspended managed
+frames remain explicitly unsupported. No public reference ABI or new frame format
+is introduced.
+
 ## Source capture lifetime evidence
 
 `managed-captures` compares actual JS/TS source against native JS in Node-Wasm and
@@ -333,7 +354,7 @@ Wasmtime. It covers captured objects, arrays, Strings and changing-kind snapshot
 shared binding writes, property updates, receiver evaluation order, factory results,
 callbacks, lexical iteration cells, shadowing and erased annotations. The exact
 former object-truthiness, array-length and returned-array-reader guards execute
-unchanged as positive tests. Private managed arguments/results, invalid writes,
+unchanged as positive tests. Private managed results, invalid writes,
 unsupported prototype operations and async frames remain explicit rejection tests.
 
 For forced collection after a defining call returns, the lifetime test adds a
@@ -379,7 +400,7 @@ No new package version, host authority, public reference ABI or dedicated CI
 workflow is introduced. Ordinary Cargo tests and existing package dependencies
 select the compiler and runtime consumers of the shared helper file.
 
-Broader String operations, general function identities, managed closure signatures,
+Broader String operations, general function identities, managed closure results,
 suspended GC frames, public heap ownership and full coercion/prototype behavior
 remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting

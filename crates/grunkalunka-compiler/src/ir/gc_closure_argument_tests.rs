@@ -442,18 +442,20 @@ fn managed_parameters_keep_exact_types_counts_and_async_result_boundaries() {
     let result = value(f, Type::General, |result| Op::Pack { result, input });
     f.body.exit = Exit::Return(result);
     assert!(crate::emit::emit_async(&m).unwrap_err().contains("managed"));
-    for source in [
+    let promoted = crate::compile(
         "export function run(a,b){const o={x:a};const f=x=>x.x===a?a:b;return f(o);}",
-        "export function run(a,b){const f=x=>x;return f('text')==='text'?a:b;}",
-    ] {
-        let error = crate::compile(source, false)
-            .err()
-            .unwrap_or_else(|| panic!("source inference admitted: {source}"));
-        assert!(
-            error.contains("unsupported") && !error.contains("internal IR"),
-            "{source}: {error}"
-        );
-    }
+        false,
+    )
+    .unwrap();
+    super::managed_value_tests::node(&promoted.wasm, "a===a?a:b");
+    let source = "export function run(a,b){const f=x=>x;return f('text')==='text'?a:b;}";
+    let error = crate::compile(source, false)
+        .err()
+        .unwrap_or_else(|| panic!("managed result admitted: {source}"));
+    assert!(
+        error.contains("unsupported") && !error.contains("internal IR"),
+        "{source}: {error}"
+    );
 }
 #[test]
 fn managed_parameter_frames_keep_the_thousand_argument_boundary() {

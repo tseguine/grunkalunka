@@ -694,6 +694,31 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
+    pub(super) fn local_arrow_argument_mode(
+        &self,
+        arrow: oxc_syntax::node::NodeId,
+        index: usize,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> Mode {
+        let managed = self
+            .arrow(arrow)
+            .params
+            .items
+            .get(index)
+            .and_then(|p| match &p.pattern {
+                BindingPattern::BindingIdentifier(i) => i.symbol_id.get(),
+                _ => None,
+            })
+            .and_then(|symbol| self.managed_parameters.get(&symbol));
+        match managed {
+            Some(Type::ManagedObject) => Mode::Object,
+            Some(Type::ManagedArray) => Mode::Array,
+            Some(Type::ManagedValue) => Mode::Managed,
+            _ => self.local_scalar_argument_mode(expression, depth),
+        }
+    }
+
     pub(super) fn local_scalar_argument_mode(
         &self,
         expression: &Expression<'_>,
@@ -1690,7 +1715,12 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(argument, depth, Mode::Discard));
                             continue;
                         }
-                        let scalar_mode = self.local_scalar_argument_mode(argument, depth);
+                        let scalar_mode = self.local_arrow_argument_mode(
+                            closure.arrow,
+                            actual_index,
+                            argument,
+                            depth,
+                        );
                         let function = self.function_arity(argument, depth);
                         if let Some(arity) = function {
                             let outer = self.function_result_depth;
@@ -1869,7 +1899,13 @@ impl Lowering<'_, '_> {
                             site,
                         });
                         if !callback {
-                            let mode = if parameter == Type::AsyncValue {
+                            let mode = if parameter == Type::ManagedObject {
+                                Mode::Object
+                            } else if parameter == Type::ManagedArray {
+                                Mode::Array
+                            } else if parameter == Type::ManagedValue {
+                                Mode::Managed
+                            } else if parameter == Type::AsyncValue {
                                 Mode::AsyncValue
                             } else if parameter == Type::Promise {
                                 Mode::Pending

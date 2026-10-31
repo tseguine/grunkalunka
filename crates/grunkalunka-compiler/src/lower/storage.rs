@@ -368,6 +368,7 @@ pub(super) fn number_result_shape<'a>(
 pub(crate) struct BindingKinds {
     pub(crate) storage: BTreeSet<SymbolId>,
     pub(crate) inputs: BTreeSet<SymbolId>,
+    pub(crate) managed_inputs: BTreeMap<SymbolId, Type>,
     // Source-local computed calls proven Number under all incoming scalar facts.
     pub(crate) number_calls: BTreeSet<NodeId>,
     // Physical scalar result interfaces; source-local Number proofs stay separate.
@@ -831,6 +832,15 @@ pub(crate) fn general_mutable_bindings(
         }
         frontier = next;
     }
+    let managed_inputs = managed_calls::closure_inputs(
+        semantic,
+        functions,
+        &definitions,
+        &writes,
+        &parameters,
+        &constructor_groups,
+        &arrows,
+    );
     // A candidate stays Number exactly when its initial value and every plain/logical RHS write
     // have Number shape and all symbol dependencies stay Number. Start with the
     // greatest candidate set, then propagate removals through reverse edges once.
@@ -1101,6 +1111,7 @@ pub(crate) fn general_mutable_bindings(
     BindingKinds {
         storage,
         inputs,
+        managed_inputs,
         number_calls,
         general_results,
         settled_results,
