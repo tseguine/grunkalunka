@@ -674,6 +674,7 @@ fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
         let source =
             format!("export function run(a,b){{const id=fn=>fn;const f={value};return f();}}");
         let result = std::thread::Builder::new()
+            .name("function_results_keep_wide_leaf_calls_and_small_stack_limits".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -696,6 +697,7 @@ fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
         let source =
             format!("export function run(a,b){{{declarations}const f=get{depth}();return f();}}");
         let result = std::thread::Builder::new()
+            .name("function_results_keep_wide_leaf_calls_and_small_stack_limits".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -777,6 +779,7 @@ fn function_result_nesting_counts_across_bodies_and_numeric_prefixes() {
         let source =
             format!("export function run(a,b){{{declarations}const f=get3();return f();}}");
         let result = std::thread::Builder::new()
+            .name("function_result_nesting_counts_across_bodies_and_numeric_prefixes".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -799,6 +802,7 @@ fn function_result_nesting_counts_across_bodies_and_numeric_prefixes() {
         "a?(()=>a):".repeat(64)
     );
     let result = std::thread::Builder::new()
+        .name("function_result_nesting_counts_across_bodies_and_numeric_prefixes".to_owned())
         .stack_size(2 * 1024 * 1024)
         .spawn(move || compile(&source, false))
         .unwrap()
@@ -944,6 +948,10 @@ fn nested_callback_argument_constructors_have_an_observed_small_stack_bound() {
         let source =
             format!("export function run(a,b){{const apply=fn=>fn();return apply({callback});}}");
         let result = std::thread::Builder::new()
+            .name(
+                "nested_callback_argument_constructors_have_an_observed_small_stack_bound"
+                    .to_owned(),
+            )
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -1177,6 +1185,10 @@ fn function_assignment_cursor_crossings_are_bounded_on_a_small_native_stack() {
         }
         let source = format!("export function run(a,b){{let f=()=>a;f={value};return f();}}");
         let result = std::thread::Builder::new()
+            .name(
+                "function_assignment_cursor_crossings_are_bounded_on_a_small_native_stack"
+                    .to_owned(),
+            )
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -1288,6 +1300,7 @@ fn runtime_constructor_lowering_has_an_observed_small_stack_bound() {
         }
         let source = format!("export function run(a,b){{const f=a?{arrow}:()=>b;return f();}}");
         let result = std::thread::Builder::new()
+            .name("runtime_constructor_lowering_has_an_observed_small_stack_bound".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -1754,6 +1767,7 @@ fn runtime_callback_arguments_keep_the_parent_generated_region_budget() {
         // failed assertion rather than exhausting the test runner's native stack.
         let source_for_thread = source.clone();
         let result = std::thread::Builder::new()
+            .name("runtime_callback_arguments_keep_the_parent_generated_region_budget".to_owned())
             .stack_size(16 * 1024 * 1024)
             .spawn(move || compile(&source_for_thread, false))
             .unwrap()
@@ -1769,6 +1783,9 @@ fn runtime_callback_arguments_keep_the_parent_generated_region_budget() {
                 .expect("parent and callback bodies must share the generated region budget");
             assert!(error.contains("128"), "{error}");
             let error = std::thread::Builder::new()
+                .name(
+                    "runtime_callback_arguments_keep_the_parent_generated_region_budget".to_owned(),
+                )
                 .stack_size(2 * 1024 * 1024)
                 .spawn(move || {
                     compile(&source, false)
@@ -1837,6 +1854,7 @@ fn block_function_results_keep_return_kind_and_export_boundaries() {
 #[test]
 fn block_function_results_keep_small_native_stack_and_expansion_limits() {
     let outcomes = std::thread::Builder::new()
+        .name("block_function_results_keep_small_native_stack_and_expansion_limits".to_owned())
         .stack_size(2 * 1024 * 1024)
         .spawn(|| {
             (0..11)
@@ -1879,6 +1897,7 @@ fn block_function_results_keep_small_native_stack_and_expansion_limits() {
         }
         let source = format!("export function run(a,b){{{body}const f=get3();return f();}}");
         let result = std::thread::Builder::new()
+            .name("block_function_results_keep_small_native_stack_and_expansion_limits".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -1992,6 +2011,7 @@ fn runtime_block_factory_result_cursors_remain_bounded_on_a_small_stack() {
             "export function run(a,b){{let make=x=>{{return ()=>x;}};return {expression};}}"
         );
         let result = std::thread::Builder::new()
+            .name("runtime_block_factory_result_cursors_remain_bounded_on_a_small_stack".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -2048,6 +2068,7 @@ fn nested_runtime_factory_signatures_keep_small_stack_and_width_bounds() {
             "()".repeat(depth)
         );
         let result = std::thread::Builder::new()
+            .name("nested_runtime_factory_signatures_keep_small_stack_and_width_bounds".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -2185,6 +2206,7 @@ fn runtime_factory_calls_bound_native_cursor_reentry() {
         }
         let source = format!("export function run(a,b){{let make=x=>()=>x;return {expression};}}");
         let result = std::thread::Builder::new()
+            .name("runtime_factory_calls_bound_native_cursor_reentry".to_owned())
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -2364,6 +2386,9 @@ fn logical_function_results_keep_source_depth_limits_on_a_small_stack() {
                 "export function run(a,b){{const f=()=>a;const h={expression};return h();}}"
             );
             let result = std::thread::Builder::new()
+                .name(
+                    "logical_function_results_keep_source_depth_limits_on_a_small_stack".to_owned(),
+                )
                 .stack_size(2 * 1024 * 1024)
                 .spawn(move || compile(&source, false))
                 .unwrap()
@@ -2509,6 +2534,7 @@ fn function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack() 
         }
         let source = format!("export function run(a,b){{return {expression};}}");
         let result = std::thread::Builder::new()
+            .name(format!("truthiness_depth_{depth}"))
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()
@@ -2529,6 +2555,7 @@ fn function_truthiness_constructor_checks_are_bounded_on_a_small_native_stack() 
             "a?0:".repeat(regions)
         );
         let result = std::thread::Builder::new()
+            .name(format!("truthiness_regions_{regions}"))
             .stack_size(2 * 1024 * 1024)
             .spawn(move || compile(&source, false))
             .unwrap()

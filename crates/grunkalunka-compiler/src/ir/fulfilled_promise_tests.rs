@@ -6,7 +6,14 @@ fn snapshot_profile(
     entry_type: Type,
     async_entry: bool,
 ) -> Result<Module, String> {
-    crate::lower_source_profile_with_identities(source, typescript, entry_type, async_entry, false)
+    crate::lower_source_profile_with_identities(
+        source,
+        typescript,
+        entry_type,
+        async_entry,
+        false,
+        false,
+    )
 }
 
 #[test]

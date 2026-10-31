@@ -269,3 +269,33 @@ fn work_bills_values_output_strings_key_search_and_ordering() {
         assert!(stringify(&value, bound).is_ok());
     }
 }
+
+#[test]
+fn mixed_depth_boundary_serializes_on_small_native_stack() {
+    let mut value = JsonValue::Null;
+    for level in (0..128).rev() {
+        value = if level % 2 == 0 {
+            JsonValue::Object(vec![(vec![110], value)])
+        } else {
+            JsonValue::Array(vec![value])
+        };
+    }
+
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || {
+            let output = stringify(&value, limits()).unwrap();
+            let text = String::from_utf16(&output).unwrap();
+            assert!(text.starts_with("{\"n\":["));
+            assert!(text.ends_with("]}"));
+            let mut bound = limits();
+            bound.max_depth = 127;
+            assert_eq!(
+                stringify(&value, bound),
+                Err(StringifyError::Limit(StringifyLimit::Depth))
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

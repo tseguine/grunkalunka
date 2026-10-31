@@ -122,3 +122,90 @@ fn deep_operation_walk_stays_on_a_small_native_stack() {
         .join()
         .expect("stack probe completed");
 }
+
+fn nested_verifier_module(depth: usize) -> Module {
+    let span = Span::new(0, 0);
+    let mut body = Region {
+        id: RegionId(depth),
+        span,
+        operations: vec![Operation {
+            span,
+            kind: marker(0),
+        }],
+        exit: Exit::Return(ValueId(0)),
+    };
+    for level in (0..depth).rev() {
+        body = Region {
+            id: RegionId(level),
+            span,
+            operations: vec![Operation {
+                span,
+                kind: Op::Block(body),
+            }],
+            exit: Exit::Fallthrough,
+        };
+    }
+    Module {
+        closure_signatures: ClosureSignatures::default(),
+        functions: vec![Function {
+            return_type: Type::Number,
+            parameter_count: 2,
+            slots: (0..2)
+                .map(|_| Slot {
+                    ty: Type::Number,
+                    owner: RegionId(0),
+                    mutable: true,
+                    parameter: true,
+                    span,
+                })
+                .collect(),
+            values: vec![Type::Number],
+            body,
+        }],
+    }
+}
+
+fn discard_nested_module(mut module: Module, depth: usize) {
+    // Deep synthetic IR destruction is deliberately not the subject of this
+    // verifier test. Unwrap one owned child per iteration rather than dropping
+    // a linked chain through Rust's derived Drop recursion.
+    let mut current = module.functions.pop().expect("entry").body;
+    for _ in 0..depth {
+        let operation = current.operations.pop().expect("nested block");
+        let Op::Block(child) = operation.kind else {
+            panic!("expected nested block");
+        };
+        current = child;
+    }
+    assert!(matches!(
+        current.operations.pop().expect("leaf").kind,
+        Op::Constant { .. }
+    ));
+}
+
+#[test]
+fn deep_synthetic_verification_is_stack_independent_and_rejects_duplicate_regions() {
+    // The parser/lowerer retain their own smaller admission budgets. This
+    // deliberately non-source-originating region chain tests only the IR
+    // verifier's iterative continuation algorithm under a small native stack.
+    const DEPTH: usize = 1024;
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || {
+            let module = nested_verifier_module(DEPTH);
+            verify_module(&module).expect("deep, structurally valid numeric IR");
+            discard_nested_module(module, DEPTH);
+
+            let mut malformed = nested_verifier_module(DEPTH);
+            let Op::Block(first) = &mut malformed.functions[0].body.operations[0].kind else {
+                panic!("expected outer block");
+            };
+            first.id = RegionId(0);
+            let error = verify_module(&malformed).expect_err("repeated region ID");
+            assert!(error.contains("region ID is not unique"), "{error}");
+            discard_nested_module(malformed, DEPTH);
+        })
+        .expect("small-stack verifier thread")
+        .join()
+        .expect("small-stack verifier completed");
+}

@@ -390,6 +390,7 @@ fn materialized_snapshots_keep_intrinsic_error_identity_and_settlement() {
         Type::General,
         true,
         false,
+        false,
     )
     .unwrap();
     let mut changed = 0;
