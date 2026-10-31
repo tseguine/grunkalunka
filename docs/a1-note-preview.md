@@ -66,7 +66,7 @@ Tests use only existing canonical check registration and dependencies. Changes t
 the Markdown parser or WIT/runtime package must select this integration test as
 well as native package tests; the A1 impact target declares those dependencies.
 
-## Native semantic layout and RGB scene (next A1 integration unit)
+## Native semantic layout and RGB scene (implemented preparation)
 
 The host now also uses `prepareNoteScene` with the **actual** WIT record list
 and JS-compiled Wasm selector to produce an explicit, bounded scene protocol.
@@ -228,16 +228,20 @@ and does not bundle the user's Markdown document. This is a **local
 host-specific runnable distribution experiment**, not a platform-neutral
 installer or an accepted public distribution format. Cross-host execution of
 the *Wasm modules* does not imply that the bundled native binaries can run on
-another OS/architecture. The remaining A1 goals include real text/glyph
-rendering, application interaction, and product-level usability and packaging.
-A1 stays **Planned**.
+another OS/architecture. The remaining A1 goals include real text/glyph rendering, an **integrated
+source-import-driven** application interaction, and product-level usability and
+packaging. A1 stays **Planned**.
 
 
 ## Candidate next A1 acceptance and compiler priorities (steering, 2026-10-30)
 
-This section is **proposed next-slice steering**, not an implemented feature, a
-completed A1 claim, or an assignment of every workstream. The architectural
-extension discussion lives separately in [proposed ADR 0018](adr/0018-component-composed-environments.md);
+This section originated as **proposed next-slice steering** on 2026-10-30.
+The first source-to-WIT compiler prerequisite has since been implemented in a
+separate [opt-in experiment](a1-ui-source-import.md) by
+[#280](https://github.com/tseguine/grunkalunka/pull/280). It is **not** a
+completed A1 application, a general runtime-import facility, or an assignment
+of every workstream. The architectural extension discussion lives separately
+in [proposed ADR 0018](adr/0018-component-composed-environments.md);
 A1 should exercise the smallest relevant seam rather than build the full platform first.
 Current integration evidence remains the rest of this document; [steering #52](https://github.com/tseguine/grunkalunka/issues/52)
 coordinates cross-stream acceptance.
@@ -250,28 +254,35 @@ fresh disposable Node worker, projects inert HTML, sends private `A1SCENE1` reco
 to native Rust layout/paint, and packages the portable Wasm plus host binaries.
 The two profiles preserve grant/denial semantics; denial performs no protected
 backing read. Native layout, RGB painting, text anchors and independent headless
-hit-test/reflow primitives exist.
+hit-test/reflow primitives exist. [#277](https://github.com/tseguine/grunkalunka/pull/277)
+adds native pointer-coordinate selection of authorized headings; the
+[#279 headless action adapter](https://github.com/tseguine/grunkalunka/pull/279)
+uses the source-compiled numeric selector output to update native state and
+repaint. This is a **host-managed** event/state/paint proof, not a source-compiled
+service-import integration or real window/device event loop.
 
-What is **not** demonstrated: the A1 scene does not consume user-originated input;
-a guest event does not invoke a JS-defined UI service; no public JS/Rust shared
-view contract exists; text labels are not actually measured/rasterized as glyphs;
-there is no persistent update/repaint loop, DOM/CSS parsing or window system.
-The source compiler does not admit general runtime imports. The
-[compiled-capability probe](compiled-capability.md) calls generated numeric code
-from a handwritten WIT adapter; it does not lower a JS source call **to** WIT.
+What is **not** demonstrated: an A1 input activation does not call a
+**source-compiled JS/TS WIT UI service** and drive the same state/render path;
+no public JS/Rust shared view contract exists; text labels are not actually
+measured/rasterized as glyphs; there is no persistent application loop, DOM/CSS
+parsing or window system. Ordinary source profiles continue to reject general
+runtime imports. The separate [opt-in scalar import proof](a1-ui-source-import.md)
+does emit a real WIT service call and execute it against a Rust provider, but is
+not yet wired into this A1 preview. The older
+[compiled-capability probe](compiled-capability.md) remains distinct: its
+handwritten adapter calls import-free compiled code.
 
 ### Proposed independently testable gates
 
-1. **Compiler/lowering: a real source-compiled WIT import (first prerequisite).**
-   At the next IR workstream boundary, after preserving its already active PRs,
-   prioritize an explicitly bound, statically known imported operation with
-   bounded scalar parameters/result and actual generated call/import. A narrow
-   registered import is acceptable before full JS modules, general strings,
-   heap objects or native component emission. Require paired JS/TS fixtures,
-   executable Rust/Wasmtime provider and supported Node-Wasm host path,
-   source-side evaluation order, missing/denied imports, unchanged host authority
-   and negative unsupported-module diagnostics. The compiled source must **call
-   the imported service**: a host adapter calling a pure `run` function doesn't pass.
+1. **Compiler/lowering: a real source-compiled WIT import — prerequisite demonstrated.**
+   [#280](https://github.com/tseguine/grunkalunka/pull/280) implements the narrow
+   `compile_ui_import` API and `selectVisible(Number, Number) -> Number` service
+   with explicit binding identity, generated core-Wasm import, paired JS/TS
+   sources, Node-Wasm checks and a Rust/Wasmtime WIT provider. Authorized and
+   denied providers, source evaluation order and unsupported-import diagnostics
+   have targeted tests. This is **not** generic module resolution, a public ABI,
+   or proof that A1's event handler uses this imported service. See the
+   [bounded import contract](a1-ui-source-import.md).
 2. **Application-facing service: one small view/action WIT boundary.** Extend
    from scalar import to the minimum owned typed record/validated resource needed
    to set A1 outline expansion or visible count through a Rust-implemented service.
@@ -280,10 +291,12 @@ from a handwritten WIT adapter; it does not lower a JS source call **to** WIT.
    generated JS/TS bindings. Do not standardize DOM or final public API names based
    on the private A1 wire format. Use per-operation WIT calls or coarse-grained
    updates only as justified by measured marshalling cost.
-3. **Rendering/input: a genuine update cycle.** A headless event source (optionally
-   a thin viewer forwarding real pointer/keyboard input) targets an element via
-   existing native hit testing; a queued activation runs compiled JS logic; the
-   agreed UI service changes state; Rust reflows and paints the changed scene.
+3. **Rendering/input: integrate the source service into the update cycle.**
+   The existing host-managed hit/selector/state/repaint test supplies a useful
+   control. A headless event source (optionally a thin viewer forwarding real
+   pointer/keyboard input) must target an element via native hit testing; a
+   source-compiled JS activation must call the agreed WIT UI service, mutate
+   authorized state, and drive Rust reflow/paint of the changed scene.
    Add an explicit text measurement/glyph rasterization service so actual note
    headings are readable, with declared font/Unicode limits and consistent
    measure-versus-paint geometry. Verify pixels, text content/positions,
@@ -304,11 +317,11 @@ not intrinsically require them. In particular, ordinary `async` does **not**
 authorize parallel execution: the proposed opt-in parallel-isolate task model is
 a separate future extension.
 
-**Ownership/priority:** The maintainer requested that the **IR/lowering stream**
-be steered toward concrete missing A1 prerequisites. Finishing the current
-independent IR PRs remains appropriate; prioritize the source-to-WIT call as a
-bounded next implementation candidate and coordinate the exact service with the
-A1/runtime and browser/layout owners before fixing an ABI. This document is
-not authorization to commandeer another stream or merge its PRs. A1 remains
-`Planned` until the observed integrated interaction and developer-facing
+**Ownership/priority:** The maintainer requested the first source-to-WIT
+prerequisite, now implemented as an isolated experiment. Further A1 integration
+remains cross-stream work: connect a source-compiled service activation to the
+existing authorized state and headless repaint loop, then establish readable
+glyphs and application-facing evidence. This document does not commandeer
+other streams or turn the private experiment into an accepted public API. A1
+remains `Planned` until the integrated interaction and developer-facing
 acceptance are demonstrated.
