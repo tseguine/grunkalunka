@@ -27,6 +27,8 @@ pub(super) const ASYNC_PROMISE_TAG: u32 = 5;
 pub(super) enum Lane {
     I32,
     F64,
+    ManagedRef,
+    ObjectRef,
 }
 
 impl Lane {
@@ -34,6 +36,8 @@ impl Lane {
         match self {
             Self::I32 => "i32",
             Self::F64 => "f64",
+            Self::ManagedRef => "(ref null $gc_value)",
+            Self::ObjectRef => "(ref null $gc_object)",
         }
     }
 }
@@ -54,6 +58,22 @@ pub(super) struct Layout {
 pub(super) fn value(ty: Type) -> Layout {
     use Lane::{F64, I32};
     match ty {
+        Type::ManagedObject => Layout {
+            parts: &[Part {
+                lane: Lane::ObjectRef,
+                byte_offset: 0,
+            }],
+            wat: "(ref null $gc_object)",
+            local: "(local (ref null $gc_object))\n",
+        },
+        Type::ManagedValue => Layout {
+            parts: &[Part {
+                lane: Lane::ManagedRef,
+                byte_offset: 0,
+            }],
+            wat: "(ref null $gc_value)",
+            local: "(local (ref null $gc_value))\n",
+        },
         Type::Number => Layout {
             parts: &[Part {
                 lane: F64,
@@ -109,5 +129,8 @@ pub(super) fn argument_bytes(ty: Type) -> usize {
         Type::Number | Type::Closure(_) | Type::Promise => 8,
         Type::General | Type::FulfilledPromise | Type::SettledPromise | Type::AsyncValue => 16,
         Type::Predicate => unreachable!("Predicate closure parameters are not admitted"),
+        Type::ManagedValue | Type::ManagedObject => {
+            unreachable!("managed closure parameters need GC frames")
+        }
     }
 }

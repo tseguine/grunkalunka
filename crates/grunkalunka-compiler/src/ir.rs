@@ -11,6 +11,8 @@ mod finally_tests;
 #[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
+mod managed_value_tests;
+#[cfg(test)]
 mod promise_equality_tests;
 #[cfg(test)]
 mod relational_tests;
@@ -35,6 +37,9 @@ pub(crate) enum Type {
     Number,
     Predicate,
     General,
+    // Internal GC-managed language value; distinct from the primitive wire pair.
+    ManagedValue,
+    ManagedObject,
     // Internal General value or represented Promise. Never a host completion.
     AsyncValue,
     // A nonescaping fulfilled primitive Promise; distinct from its completion.
@@ -45,6 +50,12 @@ pub(crate) enum Type {
     Promise,
     // Module-local signature ID; numeric leaf IDs equal their arity.
     Closure(usize),
+}
+
+impl Type {
+    pub(crate) fn is_managed(self) -> bool {
+        matches!(self, Self::ManagedValue | Self::ManagedObject)
+    }
 }
 
 // Numeric leaf signatures keep their arity as the ID. Other IDs intern a
@@ -410,6 +421,56 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    ManagedObjectNew {
+        result: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    ManagedFromObject {
+        result: ValueId,
+        input: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    ManagedGetOwn {
+        result: ValueId,
+        object: ValueId,
+        key: Vec<u16>,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    ManagedSetOwn {
+        object: ValueId,
+        key: Vec<u16>,
+        value: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    ManagedPrimitive {
+        result: ValueId,
+        input: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "IR prerequisite; source admission follows")
+    )]
+    ManagedEqual {
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
     // Adjacent await operations can be alternative continuations of one source
     // site. Explicit provenance shares only their logical budget, never values.
     AwaitSite {
@@ -1010,6 +1071,42 @@ impl Verifier<'_> {
     ) -> Result<(), String> {
         let span = operation.span;
         match &operation.kind {
+            Op::ManagedGetOwn {
+                result,
+                object,
+                key,
+            } => {
+                self.value(*object, Type::ManagedObject, visible, span)?;
+                u32::try_from(key.len())
+                    .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedSetOwn { object, key, value } => {
+                self.value(*object, Type::ManagedObject, visible, span)?;
+                self.value(*value, Type::ManagedValue, visible, span)?;
+                u32::try_from(key.len())
+                    .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+            }
+            Op::ManagedObjectNew { result } => {
+                self.define(*result, Type::ManagedObject, visible, span)?;
+            }
+            Op::ManagedFromObject { result, input } => {
+                self.value(*input, Type::ManagedObject, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedPrimitive { result, input } => {
+                self.value(*input, Type::General, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedEqual {
+                result,
+                left,
+                right,
+            } => {
+                self.value(*left, Type::ManagedValue, visible, span)?;
+                self.value(*right, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
+            }
             Op::AwaitSite { .. } => (),
             Op::ClosureEntry { captures } | Op::AsyncClosureEntry { captures } => {
                 if region_id != self.function.body.id || operation_index != 0 {
@@ -1020,6 +1117,12 @@ impl Verifier<'_> {
                 }
                 for slot in captures {
                     let cell = self.slot(*slot, scope_index, span)?;
+                    if cell.ty.is_managed() {
+                        return Err(invalid(
+                            span,
+                            "managed captures require GC-aware environments",
+                        ));
+                    }
                     if cell.owner != region_id || cell.parameter || !initialized.insert(*slot) {
                         return Err(invalid(
                             span,
@@ -1044,6 +1147,12 @@ impl Verifier<'_> {
                 }
                 for (source, destination) in captures.iter().zip(imported) {
                     let cell = self.slot(*source, scope_index, span)?;
+                    if cell.ty.is_managed() {
+                        return Err(invalid(
+                            span,
+                            "managed captures require GC-aware environments",
+                        ));
+                    }
                     if !initialized.contains(source)
                         || target
                             .slots
@@ -1135,7 +1244,12 @@ impl Verifier<'_> {
             }
             Op::CaptureCells { cells } => {
                 for slot in cells {
-                    self.slot(*slot, scope_index, span)?;
+                    if self.slot(*slot, scope_index, span)?.ty.is_managed() {
+                        return Err(invalid(
+                            span,
+                            "managed captures require GC-aware environments",
+                        ));
+                    }
                     if !initialized.contains(slot) {
                         return Err(invalid(span, "captured slot is not initialized"));
                     }
@@ -1242,8 +1356,13 @@ impl Verifier<'_> {
                         "call argument count does not match signature",
                     ));
                 }
-                for argument in arguments {
-                    self.value(*argument, Type::Number, visible, span)?;
+                for (index, argument) in arguments.iter().enumerate() {
+                    let ty = target
+                        .slots
+                        .get(index)
+                        .ok_or_else(|| invalid(span, "callee parameter metadata is incomplete"))?
+                        .ty;
+                    self.value(*argument, ty, visible, span)?;
                 }
                 let ty = if function.0 == 0 {
                     self.entry_type
@@ -2067,8 +2186,9 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
             function.return_type
         } else if index == 0 {
             entry_type
-        } else if entry_type == Type::General
-            && matches!(function.return_type, Type::Number | Type::General)
+        } else if function.return_type.is_managed()
+            || (entry_type == Type::General
+                && matches!(function.return_type, Type::Number | Type::General))
         {
             function.return_type
         } else {
@@ -2086,6 +2206,7 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
             result,
             profile,
             &module.closure_signatures,
+            index == 0,
         )?;
     }
     Ok(())
@@ -2102,6 +2223,7 @@ fn verify(function: &Function) -> Result<(), String> {
             rejection_type: Type::General,
         },
         &ClosureSignatures::default(),
+        true,
     )
 }
 
@@ -2111,6 +2233,7 @@ fn verify_function(
     return_type: Type,
     profile: VerificationProfile,
     closure_signatures: &ClosureSignatures,
+    is_entry: bool,
 ) -> Result<(), String> {
     if function.parameter_count > 1000 {
         return Err(invalid(
@@ -2128,6 +2251,7 @@ fn verify_function(
         }
         if slot.parameter
             && slot.ty != Type::Number
+            && !(!is_entry && closure_environment(function).is_none() && slot.ty.is_managed())
             && !(closure_environment(function).is_some()
                 && (matches!(
                     slot.ty,

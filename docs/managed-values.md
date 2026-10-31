@@ -1,0 +1,95 @@
+# Managed values and ordinary-object IR
+
+The private structured IR now has a GC-backed value carrier and a known-object
+reference kind. This is a backend prerequisite for the source object/array slice
+in [#300](https://github.com/tseguine/grunkalunka/issues/300), not source object
+admission. Numeric, primitive and async compiler entry points retain their existing
+source contracts and exported Number/primitive signatures.
+
+## Logical operations and representation
+
+`ManagedValue` currently carries Undefined, Null, Boolean, Number or an ordinary
+object reference. `ManagedObject` denotes a known ordinary object. Each has one
+traced WasmGC reference lane; neither is a numeric handle into linear memory.
+Known Number computations still use f64, and the existing `General` primitive pair
+is separate. `ManagedPrimitive` bridges its four canonical primitive kinds;
+extended async Error/Promise tags cannot be copied into this private tag space.
+
+The immutable value carrier has a kind, numeric payload and nullable GC reference.
+Ordinary objects have mutable GC-backed property storage. Boxing an object keeps
+the object's identity: two carriers for one object compare equal, while fresh
+objects remain distinct. Primitive comparisons retain kind differences, NaN and
+signed-zero rules. Future String/BigInt equality must compare values rather than
+carrier references; Symbols, functions and other object kinds need their own
+construction/identity operations before admission.
+
+| Operation | Contract |
+| --- | --- |
+| `ManagedObjectNew` | Allocate a fresh ordinary object. |
+| `ManagedPrimitive` | Copy a canonical four-kind primitive into an immutable managed carrier. |
+| `ManagedFromObject` | Wrap an existing object without changing its identity. |
+| `ManagedGetOwn` | Snapshot one own data-property value, or Undefined if absent. |
+| `ManagedSetOwn` | Replace/create one own data property while preserving object identity and prior value snapshots. |
+| `ManagedEqual` | Strict equality in the currently admitted managed domain. |
+
+Property keys are lossless UTF-16 vectors, including NUL and lone surrogates.
+The initial implementation compares GC-backed packed key arrays and stores entries
+in a GC array. Replacing an existing entry preserves its position; appending a new
+entry copies the reference array and updates the object's storage. This deliberately
+simple implementation has linear lookup/append costs. It is not a chosen long-term
+shape/cache/hash-table strategy or an ECMAScript enumeration implementation.
+
+These are explicitly **own data-property** operations. They do not implement JS
+prototype lookup, getters/setters, proxies, `__proto__` initializer semantics or
+array exotic behavior. Future source lowering must implement the necessary semantic
+operation or reject a case; it must not translate arbitrary `o[k]` into own-only
+lookup and silently discard inherited behavior.
+
+## Calls, cells and lifetime boundaries
+
+Ordinary internal helper functions can accept/return managed references. Logical
+argument checks use the callee's typed slots, and the Wasm header uses the shared
+backend layout. Existing ordinary Number calls retain f64 signatures. Exported
+inputs/results remain in the existing admitted profiles, and private closure
+signatures still reject managed values.
+
+Uncaptured source cells and computed-value snapshots use traced locals. A cell
+store changes the binding, not an earlier loaded snapshot. The current captured
+cell/environment and async spill formats are numeric linear-memory storage;
+managed captures and async modules therefore reject explicitly. Supporting them
+requires reference-aware GC frames/environments and lifetime tests, not merely a
+new lane count or a numeric surrogate.
+
+The GC type/helper fragment is emitted only for modules using managed kinds and
+appended after source functions. This keeps source call indices stable. Existing
+numeric/primitive modules do not acquire GC types or runtime helpers merely from
+this implementation being available.
+
+## Evidence and remaining work
+
+Ordinary compiler tests construct typed IR and execute the emitted module in Node
+against independent native-JS observations. They cover all four primitive kinds,
+object identity under reboxing, multiple UTF-16 keys, missing values, overwritten
+properties, saved snapshots, mixed reference/Number helper parameters and local
+binding stores. Malformed IR, exported/private-closure signatures, captures and
+async byte-spill boundaries have rejection tests.
+
+Runtime tests include the actual shared GC helper fragment and execute it in
+Wasmtime. They check Number bits, property snapshots and a self-referencing object
+graph through repeated copying collections. A separate recorded verification ran
+an actual emitted mixed-helper IR artifact in both Node and Wasmtime. That manual
+artifact check does not substitute for maintained source differential tests.
+
+Node requires standard WasmGC support; the project already selects Node 24. Use
+the pinned Wasmtime copying collector from
+[the runtime prerequisite](https://github.com/tseguine/grunkalunka/pull/301).
+No new package version, host authority, public reference ABI or dedicated CI
+workflow is introduced. Ordinary Cargo tests and existing package dependencies
+select the compiler and runtime consumers of the shared helper file.
+
+The next unit connects source object literals and admitted property accesses to
+these operations through the existing evaluator and verifier. Arrays, strings,
+general function identities, managed captures, suspended GC frames, public heap
+ownership and full coercion/prototype behavior remain work under the original
+general-purpose JavaScript goal. Adding this representation does not complete
+the value domain or justify counting rejected source programs as supported.
