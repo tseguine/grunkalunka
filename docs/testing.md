@@ -5,14 +5,15 @@
 The canonical check catalog under [`scripts/checks/`](../scripts/checks/README.md)
 and the [executable compatibility corpus](../tests/compatibility/corpus.mjs)
 are authoritative for today's commands, fixture membership and counts.
-The corpus currently declares version **85**. The older numeric-pair and
+The corpus currently declares version **86**. The older numeric-pair and
 rejection totals retained in historical paragraphs below describe their
 named **past** revisions, not current percentages or suite totals.
 
 The synchronous [WasmGC object increment](managed-values.md) has maintained
 compiler typed-IR tests and runtime source differential suites, including
-`managed-source`, `managed-calls` and `managed-values`. Their asserted
-domain is the admitted fresh-object/static-own-property/helper subset,
+`managed-source`, `managed-calls`, `managed-strings` and `managed-values`. Their asserted
+domain is the admitted fresh-object/static-own-property/helper subset and
+String construction, content equality and truthiness,
 not prototype compliance or all JavaScript objects. The
 [A1 source import](a1-ui-source-import.md) has a dedicated real-provider
 `a1_ui_import` Rust integration test. The

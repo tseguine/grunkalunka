@@ -33,7 +33,6 @@ const reference = 'reference is not an initialized numeric parameter or local';
 const afterReturn = 'statements after a guaranteed return are not admitted';
 const negatives = [
   ['do-unsupported-test-after-return', 'do { return a; } while(Math.random());', expression],
-  ['do-string-test', 'do { a=b; } while("x"); return a;', expression],
   ['do-unsupported-body', 'do { a=Math.random(); } while(0); return a;', expression],
   ['do-body-local-test', 'do { const x=0; } while(x); return a;', reference],
   ['do-body-local-leak', 'do { const x=0; } while(0); return x;', reference],

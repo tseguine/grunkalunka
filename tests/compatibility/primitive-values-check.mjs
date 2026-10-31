@@ -173,7 +173,8 @@ for (const {id,sourceJS,sourceTS,standards,resourceOutcomes=['fuel-exhausted']} 
   }
   assert.deepEqual(pairedWasm[0],pairedWasm[1],id+' JS/TS resource-case bytes');
 }
-assert.equal(report.terminationCases.length,4);
+assert.equal(report.terminationCases.length,6);
+report.controls.push('admitted String condition loop exhausts fuel');
 report.controls.push('admitted recursive General numeric result exhausts fuel');
 report.controls.push('generic entry recursion remains termination-only evidence');
 assert.equal(report.pairedPrograms, 175); assert.equal(report.numericOriginCases,16); assert.equal(report.rejections.length, 6);

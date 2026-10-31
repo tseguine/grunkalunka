@@ -166,6 +166,7 @@ impl Lowering<'_, '_> {
                             work.push(Shape::Expr(&w.expression, depth + 1))
                         }
                         Expression::ObjectExpression(_) => values.push(Some(Type::ManagedObject)),
+                        Expression::StringLiteral(_) => values.push(Some(Type::ManagedValue)),
                         Expression::CallExpression(call) => values.push(
                             managed_calls::function(call, self.semantic, self.functions)
                                 .map(|f| f.return_type)
@@ -371,6 +372,19 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if matches!(mode, Mode::Managed) {
+            if let Expression::StringLiteral(literal) = node {
+                let result = self.value(Type::ManagedValue);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedString {
+                        result,
+                        units: literal.value.encode_utf16().collect(),
+                    },
+                );
+                values.push(Value::Managed(result));
+                return Ok(true);
+            }
             if let Expression::CallExpression(call) = node
                 && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
             {
