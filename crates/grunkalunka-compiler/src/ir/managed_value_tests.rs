@@ -542,7 +542,7 @@ fn managed_operations_reject_wrong_receivers_values_and_results() {
 }
 
 #[test]
-fn managed_references_stay_out_of_exported_and_private_closure_signatures() {
+fn managed_exports_and_private_results_remain_guarded_while_parameters_are_typed() {
     for ty in [Type::ManagedValue, Type::ManagedObject, Type::ManagedArray] {
         let mut module = object_identity();
         module.functions[0].slots[0].ty = ty;
@@ -554,7 +554,9 @@ fn managed_references_stay_out_of_exported_and_private_closure_signatures() {
             result: Type::Number,
             asynchronous: false,
         });
-        assert!(verify_module(&module).is_err());
+        verify_module(&module).unwrap();
+        assert!(module.closure_signatures.is_callback_signature(1001));
+        assert!(module.closure_signatures.is_returned_function(1001));
         let mut module = object_identity();
         module.closure_signatures.higher.push(ClosureSignature {
             parameters: vec![Type::Number],

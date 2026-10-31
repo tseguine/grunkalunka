@@ -246,8 +246,9 @@ as objects. Function aliases and public reference exports remain unsupported.
 
 Logical argument checks use the callee's typed slots, and the Wasm header uses the
 shared backend layout. Existing ordinary Number calls retain f64 signatures. Exported
-inputs/results remain in the existing admitted profiles, and private closure
-signatures still reject managed values.
+inputs/results remain in the existing admitted profiles. Source private-closure
+planning still rejects managed arguments/results; typed IR parameters are described
+below.
 
 Uncaptured source cells and computed-value snapshots use traced locals. A cell
 store changes the binding, not an earlier loaded snapshot. The private IR now
@@ -264,9 +265,10 @@ this implementation being available.
 ## Traced closure backend
 
 The synchronous private IR admits captured `ManagedValue`, `ManagedObject` and
-`ManagedArray` cells. A module with any managed captured cell uses one GC cell
-domain for all its captured bindings and closures. This matters when both numeric
-and managed closures refer to the same mutable binding: both environments must
+`ManagedArray` cells. A module with a managed captured cell or a managed private
+closure parameter uses one GC cell domain for all its captured bindings and
+closures. This matters when both numeric and managed closures refer to the same
+mutable binding: both environments must
 retain the same cell. A load still creates a value snapshot; storing a new reference
 updates the binding without changing an earlier loaded value.
 
@@ -274,14 +276,34 @@ Each cell has unboxed i32/f64 fields and a traced reference field. An environmen
 is a GC array of cell references. The private closure pair contains a table index
 and a traced environment reference; call arguments use fresh cell entries in a GC
 frame array. Closure parameters/results retain their existing logical contracts,
-including primitive pairs and returned/callback closures. Managed closure parameter
-and result signatures remain rejected in this unit.
+including primitive pairs and returned/callback closures. Private synchronous IR
+parameters also admit known object/array references and the managed value carrier,
+with exact argument types and counts. Managed results and asynchronous managed
+parameters remain rejected. Source argument inference is separate.
+
+### Typed managed closure arguments
+
+The backend's traced argument entries already store the reference lane. The IR
+verifier now admits `ManagedObject`, `ManagedArray` and `ManagedValue` as synchronous
+private closure parameters, including callback and returned-function signatures.
+GC closure storage is selected even when such a function captures no values.
+Argument count/type checks, parameter initialization, exported numeric inputs,
+managed-result guards and asynchronous frame rejection remain unchanged.
+
+Maintained emitted-IR/native-JS/Node tests cover alias mutation and prior snapshots,
+arrays, lossless String and Number carriers, nested capture of a managed parameter,
+callback/returned-function signatures and the 1,000-argument boundary. These are
+backend tests; source private argument inference remains unsupported. No new
+physical frame format, public reference ABI, dependency or workflow is introduced.
+A separate manual run executes an actual emitted object-argument artifact through
+the production Wasmtime numeric adapter over 64 input pairs; temporary capture
+instrumentation is removed afterward. This does not establish source admission.
 
 GC types precede explicit closure function types so type references do not cross
 forward into a later recursion group. The source function indices remain stable.
-Modules without managed captured cells retain their existing numeric arena, closure
-layout and async behavior. Modules using the traced path need no numeric arena reset
-wrapper. Ordinary Number arithmetic and locals retain f64 in both paths.
+Modules without managed captured cells or managed closure parameters retain their
+existing numeric arena, closure layout and async behavior. Modules using the traced
+path need no numeric arena reset wrapper. Ordinary Number arithmetic and locals retain f64 in both paths.
 
 Synchronous source closures now use this storage for captured objects, arrays,
 Strings and managed property snapshots, including shared rebinding and mutation.

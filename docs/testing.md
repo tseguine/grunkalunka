@@ -433,8 +433,8 @@ Store or invert branch selection. Compatibility accounting retains eight exact
 diagnostic advances and two unchanged numeric rejection sources as Value origins;
 neither diagnostic movement nor Value execution is counted as numeric promotion.
 
-The compiler's `ir::gc_closure_tests` exercises the traced closure backend independently
-of source managed-capture admission. `managed-closure-storage` in the runtime package
+The compiler's `ir::gc_closure_tests` and `ir::gc_closure_argument_tests` exercise
+the traced closure backend independently of source managed-capture admission. `managed-closure-storage` in the runtime package
 checks the shared GC cell/frame type fragment across forced Wasmtime copying
 collections. These tests distinguish emitted-IR/Node behavior from hand-built
 Wasmtime lifetime evidence. Source captures are covered by `managed-captures`;
