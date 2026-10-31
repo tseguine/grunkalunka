@@ -301,6 +301,28 @@ artifact through the production Wasmtime numeric adapter; it is not the maintain
 lifetime fixture. Exact revision/check counts belong in the implementation PR. Source capture admission
 and reference-aware async suspension are the next distinct integration steps.
 
+## Typed synchronous private managed results
+
+Private IR closure signatures now admit object, array and managed-carrier results,
+including callback and returned-function signatures. The common physical Wasm
+result is a nullable `eqref`; the caller casts to its precise IR-checked type.
+Results remain traced references throughout the call. This extends the existing
+GC call domain even for a fresh result with no managed arguments or captures.
+Primitive results and modules without the new result kind keep their prior path.
+
+An alternative was three explicit function-result types referring directly to the
+managed structs. That would require moving their declarations ahead of the closure
+function types. The common reference lane keeps existing declaration ordering;
+logical result validation retains object/array/carrier distinctions and rejects
+forged signatures. No collector, frame format, dependency or public ABI changes.
+
+Maintained emitted-IR/native-JS/Node tests cover reference identity, array mutation,
+text/numeric carriers, callbacks/factories and strict result/arity/async boundaries.
+An actual emitted fresh-result module separately passes 64 production Wasmtime
+input pairs, without a forced-collection claim. This supersedes the earlier private
+IR result restriction; source result planning, public reference ownership and
+suspended managed frames remain separate work.
+
 ## Synchronous source capture admission
 
 Source closures now admit captured object/array/String bindings and managed property

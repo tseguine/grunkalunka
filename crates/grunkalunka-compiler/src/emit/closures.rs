@@ -63,6 +63,19 @@ pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool, gc: boo
         )
         .unwrap();
     }
+    if gc
+        && module
+            .functions
+            .iter()
+            .any(|f| ir::closure_environment(f).is_some() && f.return_type.is_managed())
+    {
+        // eqref avoids a forward reference into managed.wat's later type group.
+        writeln!(
+            output,
+            "(type $closure_managed (func (param {params}) (result (ref null eq))))"
+        )
+        .unwrap();
+    }
     for (i, function) in module.functions.iter().enumerate() {
         if ir::closure_environment(function).is_some() {
             let target = if outlined {

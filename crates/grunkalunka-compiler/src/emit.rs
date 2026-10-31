@@ -1055,12 +1055,12 @@ fn emit_verified(
             }
             header.push(')');
         }
-        writeln!(
-            header,
-            " (result {})",
+        let result_wat = if environment.is_some() && function.return_type.is_managed() {
+            "(ref null eq)"
+        } else {
             layout::closure_value(function.return_type, gc_closures).wat
-        )
-        .unwrap();
+        };
+        writeln!(header, " (result {})", result_wat).unwrap();
         let (body, remainder) = emit_function(function, header, false, gc_closures);
         needs_remainder |= remainder;
         output.push_str(&body);
