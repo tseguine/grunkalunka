@@ -37,6 +37,13 @@ const DISCARDED_LOGICAL_SOURCES: &[&str] = &[
     "export async function run(a,b){let q=Promise.resolve(a);a&&(q=Promise.reject(b));try{await q;}catch(e){return e;}}",
 ];
 
+// Evaluating a Promise as Function.call's ignored thisArg must not handle it.
+const FUNCTION_CALL_SOURCES: &[&str] = &[
+    "export async function run(a,b){const p=Promise.reject(b),f=x=>x;f.call(p,a);return a;}",
+    "export async function run(a,b){const p=Promise.reject(b),f=x=>x;f.call(p,a);await a;try{await p;}catch(e){}return a;}",
+    "export async function run(a,b){const f=a?async x=>{await a;return x;}:async x=>{await b;return x;};f.call(Promise.reject(b),a);return a;}",
+];
+
 fn promoted_identity_case(source: &str, typescript: bool) -> String {
     fn bits(value: Value) -> String {
         match value {
@@ -310,6 +317,7 @@ fn node_reports_detached_child_rejections_like_native_promises() {
         .chain(promise_type_arguments_notifications::SOURCES)
         .chain(promise_resolve_notifications::SOURCES)
         .chain(CATCH_CELL_SOURCES)
+        .chain(FUNCTION_CALL_SOURCES)
         .chain(DISCARDED_LOGICAL_SOURCES)
     {
         for typescript in [false, true] {

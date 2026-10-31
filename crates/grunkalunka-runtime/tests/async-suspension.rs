@@ -91,6 +91,9 @@ mod sync_call_reasons;
 #[path = "async-suspension/call_argument_reasons.rs"]
 mod call_argument_reasons;
 
+#[path = "async-suspension/function_call.rs"]
+mod function_call;
+
 #[path = "async-suspension/discarded_logical.rs"]
 mod discarded_logical;
 

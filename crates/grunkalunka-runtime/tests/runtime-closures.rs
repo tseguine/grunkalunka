@@ -9,6 +9,9 @@ use wasmtime::{Engine, Instance, Module, Store, Trap};
 #[path = "runtime-closures/function_length.rs"]
 mod function_length;
 
+#[path = "runtime-closures/function_call.rs"]
+mod function_call;
+
 #[path = "runtime-closures/discarded_logical.rs"]
 mod discarded_logical;
 

@@ -76,7 +76,8 @@ function bad(id,helpers,body,diagnostic,extension='js') { reject(id,`${helpers} 
 bad('missing',identity,'return identity();','call is missing declared arguments');
 bad('spread', identity, 'return identity(...a);', 'spread call arguments');
 bad('optional', identity, 'return identity?.(a);', expression);
-bad('property', identity, 'return identity.call(a);', expression);
+// The receiver supplies thisArg; identity still has no forwarded input.
+bad('property', identity, 'return identity.call(a);', 'call is missing declared arguments');
 bad('wrapped-callee', identity, 'return (identity)(a);', expression);
 full('generic-call',"function identity(x) { return x; } export function run(a,b) { return identity(a); }","function identity(x) { return x; } export function run(a,b) { return identity<number>(a); }");
 bad('numeric-shadow-call', identity, 'let identity=a; return identity(b);', expression);

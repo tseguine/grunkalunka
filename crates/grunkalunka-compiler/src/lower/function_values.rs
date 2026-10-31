@@ -388,12 +388,22 @@ impl Lowering<'_, '_> {
                     continue;
                 }
                 Expression::CallExpression(call) => {
-                    if self.closure_target(&call.callee, depth + 1).is_none() {
+                    if self
+                        .closure_target(
+                            invocation::callee(call),
+                            invocation::depth(call, depth + 1),
+                        )
+                        .is_none()
+                    {
                         if calls >= 8 {
                             return None;
                         }
-                        let callee =
-                            self.function_arity_in(&call.callee, depth + 1, bindings, calls + 1)?;
+                        let callee = self.function_arity_in(
+                            invocation::callee(call),
+                            invocation::depth(call, depth + 1),
+                            bindings,
+                            calls + 1,
+                        )?;
                         let Type::Closure(result) =
                             self.closure_signatures.borrow().result(callee)?
                         else {
@@ -405,7 +415,10 @@ impl Lowering<'_, '_> {
                         arity = Some(result);
                         continue;
                     }
-                    let factory = self.closure_target(&call.callee, depth + 1)?;
+                    let factory = self.closure_target(
+                        invocation::callee(call),
+                        invocation::depth(call, depth + 1),
+                    )?;
                     let arrow = self.arrow(factory.arrow);
                     let body = arrow.get_expression();
                     // Preserve the old known-arrow factory recognition, including
@@ -416,7 +429,9 @@ impl Lowering<'_, '_> {
                     {
                         self.arrow_signature_at(self.arrow(returned.arrow), calls, bindings)?
                     } else {
-                        if calls >= 8 || arrow.params.items.len() > call.arguments.len() {
+                        if calls >= 8
+                            || arrow.params.items.len() > invocation::arguments(call).len()
+                        {
                             return None;
                         }
                         let mut parameters = BTreeMap::new();
@@ -429,7 +444,8 @@ impl Lowering<'_, '_> {
                                 },
                             );
                         }
-                        for (parameter, argument) in arrow.params.items.iter().zip(&call.arguments)
+                        for (parameter, argument) in
+                            arrow.params.items.iter().zip(invocation::arguments(call))
                         {
                             let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                             else {
@@ -514,7 +530,10 @@ impl Lowering<'_, '_> {
         depth: usize,
     ) -> Result<ValueId, String> {
         if let Expression::CallExpression(call) = node {
-            if self.closure_target(&call.callee, depth + 1).is_none() {
+            if self
+                .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
+                .is_none()
+            {
                 self.runtime_function_result(call, region, arity, depth)
             } else if let Some(closure) = self.factory_result(node, region, depth)? {
                 self.materialize_closure(closure, region, node, arity)
@@ -555,7 +574,7 @@ impl Lowering<'_, '_> {
         self.active_function_results += 1;
         let result = (|| {
             let signature = self
-                .function_arity(&call.callee, depth + 1)
+                .function_arity(invocation::callee(call), invocation::depth(call, depth + 1))
                 .ok_or_else(|| unsupported(call, "runtime factory requires a function callee"))?;
             let (parameter_count, result_type) = {
                 let signatures = self.closure_signatures.borrow();
@@ -567,7 +586,7 @@ impl Lowering<'_, '_> {
                 )
             };
             if call.optional
-                || call.arguments.len() < parameter_count
+                || invocation::arguments(call).len() < parameter_count
                 || call.arguments.len() > 1000
             {
                 return Err(unsupported(
@@ -581,12 +600,23 @@ impl Lowering<'_, '_> {
                     "runtime factory result signature mismatch",
                 ));
             }
-            let callee = self.function_value(&call.callee, region, signature, depth + 1)?;
+            let callee = self.function_value(
+                invocation::callee(call),
+                region,
+                signature,
+                invocation::depth(call, depth + 1),
+            )?;
             let mut arguments = Vec::new();
             for (index, argument) in call.arguments.iter().enumerate() {
+                let offset = invocation::offset(call);
                 let expression = argument
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
+                if index < offset {
+                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
+                    continue;
+                }
+                let index = index - offset;
                 if index >= parameter_count {
                     self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
                     continue;
@@ -648,7 +678,7 @@ impl Lowering<'_, '_> {
         self.active_function_results += 1;
         let result = (|| {
             let mut closure = self
-                .closure_target(&call.callee, depth + 1)
+                .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
                 .ok_or_else(|| {
                     unsupported(call, "function results require a known local callee")
                 })?;
@@ -661,9 +691,15 @@ impl Lowering<'_, '_> {
             let arrow = self.arrow(closure.arrow);
             let mut arguments = Vec::new();
             for (index, argument) in call.arguments.iter().enumerate() {
+                let offset = invocation::offset(call);
                 let expression = argument
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
+                if index < offset {
+                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
+                    continue;
+                }
+                let index = index - offset;
                 if index >= arrow.params.items.len() {
                     self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
                     continue;

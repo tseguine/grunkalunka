@@ -471,14 +471,15 @@ fn may_reject_raw(
                     if !return_adopts(expression, semantic, returns, inputs) {
                         continue;
                     }
-                    if let Some(bodies) = callees(&call.callee, returns) {
+                    if let Some(bodies) = callees(invocation::callee(call), returns) {
                         for body in bodies {
                             let arrow = returns.arrows[&body];
-                            let mut primitive = if current_capture_callee(&call.callee, semantic) {
-                                contexts[context].clone()
-                            } else {
-                                BTreeSet::new()
-                            };
+                            let mut primitive =
+                                if current_capture_callee(invocation::callee(call), semantic) {
+                                    contexts[context].clone()
+                                } else {
+                                    BTreeSet::new()
+                                };
                             for parameter in &arrow.params.items {
                                 if let BindingPattern::BindingIdentifier(binding) =
                                     &parameter.pattern
@@ -488,7 +489,7 @@ fn may_reject_raw(
                                 }
                             }
                             for (parameter, argument) in
-                                arrow.params.items.iter().zip(&call.arguments)
+                                arrow.params.items.iter().zip(invocation::arguments(call))
                             {
                                 if let BindingPattern::BindingIdentifier(binding) =
                                     &parameter.pattern

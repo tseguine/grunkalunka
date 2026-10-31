@@ -70,7 +70,7 @@ impl ReturnOrigins<'_, '_, '_> {
                     return Origins::default();
                 }
                 let (sources, mut bodies) =
-                    self.expression(&call.callee, bindings, depth + 1, calls + 1);
+                    self.expression(invocation::callee(call), bindings, depth + 1, calls + 1);
                 for source in sources {
                     if let Some(known) = self.targets.get(&source) {
                         bodies.extend(known);
@@ -79,7 +79,7 @@ impl ReturnOrigins<'_, '_, '_> {
                 let mut result = Origins::default();
                 for body in bodies {
                     let arrow = self.arrows[&body];
-                    if arrow.params.items.len() > call.arguments.len() {
+                    if arrow.params.items.len() > invocation::arguments(call).len() {
                         continue;
                     }
                     let expressions = if let Some(expression) = arrow.get_expression() {
@@ -91,7 +91,9 @@ impl ReturnOrigins<'_, '_, '_> {
                             .collect()
                     };
                     let mut parameters = bindings.clone();
-                    for (parameter, argument) in arrow.params.items.iter().zip(&call.arguments) {
+                    for (parameter, argument) in
+                        arrow.params.items.iter().zip(invocation::arguments(call))
+                    {
                         if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                             && let Some(id) = identifier.symbol_id.get()
                             && let Some(argument) = argument.as_expression()
@@ -150,7 +152,8 @@ pub(super) fn named_async_targets(
             .map(|(symbol, expression)| (*symbol, origins(expression)))
             .collect::<Vec<_>>();
         for call in calls {
-            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            let (sources, mut bodies) =
+                returns.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
             for source in sources {
                 if let Some(known) = returns.targets.get(&source) {
                     bodies.extend(known);
@@ -161,7 +164,7 @@ pub(super) fn named_async_targets(
                     .params
                     .items
                     .iter()
-                    .zip(&call.arguments)
+                    .zip(invocation::arguments(call))
                 {
                     if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                         && let Some(symbol) = identifier.symbol_id.get()
@@ -287,10 +290,13 @@ pub(crate) fn infer_callback_parameters(
             }
             AstKind::CallExpression(call) => {
                 if let Some(Expression::Identifier(identifier)) =
-                    closures::unwrapped(&call.callee, 0)
+                    closures::unwrapped(invocation::callee(call), invocation::depth(call, 0))
                     && let Some(id) = symbol(identifier, semantic)
                 {
-                    demands.entry(id).or_default().insert(call.arguments.len());
+                    demands
+                        .entry(id)
+                        .or_default()
+                        .insert(invocation::arguments(call).len());
                 }
                 calls.push(call);
             }
@@ -385,7 +391,7 @@ pub(crate) fn infer_callback_parameters(
     loop {
         let mut additions = Vec::new();
         for call in &calls {
-            let (sources, mut bodies) = origins(&call.callee, semantic);
+            let (sources, mut bodies) = origins(invocation::callee(call), semantic);
             let mut pending = sources.into_iter().collect::<Vec<_>>();
             let mut seen = BTreeSet::new();
             while let Some(source) = pending.pop() {
@@ -400,7 +406,11 @@ pub(crate) fn infer_callback_parameters(
                 }
             }
             for body in bodies {
-                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                for (parameter, argument) in arrows[&body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(invocation::arguments(call))
                 {
                     if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                         && let Some(id) = identifier.symbol_id.get()
@@ -474,7 +484,8 @@ pub(crate) fn infer_callback_parameters(
         };
         let mut peers = targets.values().cloned().collect::<Vec<_>>();
         for call in &calls {
-            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            let (sources, mut bodies) =
+                returns.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
             for source in sources {
                 if let Some(known) = targets.get(&source) {
                     bodies.extend(known);
@@ -611,8 +622,12 @@ fn refine_shapes<'a>(
                                     .map(|_| true)
                             },
                             |call, _| {
-                                let (sources, mut bodies) =
-                                    returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+                                let (sources, mut bodies) = returns.expression(
+                                    invocation::callee(call),
+                                    &BTreeMap::new(),
+                                    0,
+                                    0,
+                                );
                                 let mut proven = !bodies.is_empty();
                                 let mut results = Vec::new();
                                 for source in sources {
@@ -668,8 +683,12 @@ fn refine_shapes<'a>(
                                 {
                                     return Some(Type::FulfilledPromise);
                                 }
-                                let (sources, mut bodies) =
-                                    returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+                                let (sources, mut bodies) = returns.expression(
+                                    invocation::callee(call),
+                                    &BTreeMap::new(),
+                                    0,
+                                    0,
+                                );
                                 let mut result_kinds = Vec::new();
                                 for source in sources {
                                     if let Some(signature) =
@@ -810,7 +829,7 @@ fn refine_shapes<'a>(
             demands.clear();
             for call in calls {
                 let (sources, mut bodies) =
-                    returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+                    returns.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
                 let mut pending = sources.into_iter().collect::<Vec<_>>();
                 let mut seen = BTreeSet::new();
                 while let Some(source) = pending.pop() {
@@ -825,8 +844,11 @@ fn refine_shapes<'a>(
                     }
                 }
                 for body in bodies {
-                    for (parameter, argument) in
-                        arrows[&body].params.items.iter().zip(&call.arguments)
+                    for (parameter, argument) in arrows[&body]
+                        .params
+                        .items
+                        .iter()
+                        .zip(invocation::arguments(call))
                     {
                         let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                         else {
@@ -886,15 +908,14 @@ fn refine_shapes<'a>(
             promise_parameters,
         );
         for call in calls {
-            let (sources, _) = origins(&call.callee, semantic);
-            let expected = function_kind(&call.callee, &working, false, &general);
+            let (sources, _) = origins(invocation::callee(call), semantic);
+            let expected = function_kind(invocation::callee(call), &working, false, &general);
             let mut arguments = Vec::new();
             let declared =
                 expected.and_then(|signature| signatures.borrow().parameter_count(signature));
-            for (index, argument) in call
-                .arguments
+            for (index, argument) in invocation::arguments(call)
                 .iter()
-                .take(declared.unwrap_or(call.arguments.len()))
+                .take(declared.unwrap_or(invocation::arguments(call).len()))
                 .enumerate()
             {
                 let Some(expression) = argument.as_expression() else {

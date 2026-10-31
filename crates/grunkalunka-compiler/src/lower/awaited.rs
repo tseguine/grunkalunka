@@ -165,7 +165,10 @@ impl Lowering<'_, '_> {
                 }
                 Expression::CallExpression(call) => {
                     asynchronous |= self
-                        .function_arity(&call.callee, depth + 1)
+                        .function_arity(
+                            invocation::callee(call),
+                            invocation::depth(call, depth + 1),
+                        )
                         .is_some_and(|id| self.closure_signatures.borrow().is_async(id));
                 }
                 _ => (),
@@ -205,8 +208,13 @@ impl Lowering<'_, '_> {
             expression,
             depth,
             |call, depth| {
-                self.function_arity_in(&call.callee, depth + 1, bindings, calls + 1)
-                    .and_then(|signature| self.closure_signatures.borrow().result(signature))
+                self.function_arity_in(
+                    invocation::callee(call),
+                    invocation::depth(call, depth + 1),
+                    bindings,
+                    calls + 1,
+                )
+                .and_then(|signature| self.closure_signatures.borrow().result(signature))
             },
             |expression, depth| self.fulfilled_promise_shape_in(expression, depth, bindings, calls),
         )
@@ -285,7 +293,9 @@ impl Lowering<'_, '_> {
                     })
             },
             |call, depth| {
-                if let Some(closure) = self.closure_target(&call.callee, depth + 1) {
+                if let Some(closure) = self
+                    .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
+                {
                     let arrow = self.arrow(closure.arrow);
                     if arrow.r#async {
                         return eager_async_arrow(arrow, self.semantic).then(Vec::new);
@@ -299,8 +309,8 @@ impl Lowering<'_, '_> {
                 if calls >= 8 {
                     return None;
                 }
-                let mut callee = &call.callee;
-                let mut depth = depth + 1;
+                let mut callee = invocation::callee(call);
+                let mut depth = invocation::depth(call, depth + 1);
                 while let Some((node, unwrapped_depth)) = closures::unwrapped_at(callee, depth) {
                     if let Some(signature) =
                         self.function_arity_in(node, unwrapped_depth, bindings, calls + 1)

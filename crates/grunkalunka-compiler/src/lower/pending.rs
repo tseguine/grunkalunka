@@ -66,7 +66,12 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if !self
-                        .function_arity_in(&call.callee, depth + 1, bindings, calls + 1)
+                        .function_arity_in(
+                            invocation::callee(call),
+                            invocation::depth(call, depth + 1),
+                            bindings,
+                            calls + 1,
+                        )
                         .is_some_and(|s| {
                             let signatures = self.closure_signatures.borrow();
                             signatures.is_async(s) || signatures.result(s) == Some(Type::Promise)

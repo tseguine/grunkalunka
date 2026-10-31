@@ -793,7 +793,7 @@ impl Lowering<'_, '_> {
         mode: Mode,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
-        let Expression::Identifier(identifier) = &call.callee else {
+        let Expression::Identifier(identifier) = invocation::callee(call) else {
             return Err(unsupported(
                 node,
                 "expression is outside the numeric experiment",
@@ -817,7 +817,7 @@ impl Lowering<'_, '_> {
                 "at most 1000 ordinary direct call arguments are admitted",
             ));
         }
-        if call.arguments.len() < function.parameter_count {
+        if invocation::arguments(call).len() < function.parameter_count {
             return Err(unsupported(node, "call is missing declared arguments"));
         }
         if function.return_type == Type::General && !matches!(mode, Mode::General) {
@@ -1012,9 +1012,10 @@ impl Lowering<'_, '_> {
                     let rejected = operand.rejected;
                     let known_async = closures::unwrapped_at(argument, argument_depth)
                         .and_then(|(node, depth)| match node {
-                            Expression::CallExpression(call) => {
-                                self.closure_target(&call.callee, depth + 1)
-                            }
+                            Expression::CallExpression(call) => self.closure_target(
+                                invocation::callee(call),
+                                invocation::depth(call, depth + 1),
+                            ),
                             _ => None,
                         })
                         .is_some_and(|closure| {
@@ -1030,8 +1031,10 @@ impl Lowering<'_, '_> {
                     if !known_async
                         && operand.extras.is_empty()
                         && let Some(private) = awaited::private_call(argument, argument_depth)
-                        && let Some(signature) =
-                            self.function_arity(&private.call.callee, private.depth + 1)
+                        && let Some(signature) = self.function_arity(
+                            invocation::callee(private.call),
+                            invocation::depth(private.call, private.depth + 1),
+                        )
                         && self.closure_signatures.borrow().is_async(signature)
                     {
                         if rejected || !operand.extras.is_empty() {
@@ -1140,7 +1143,10 @@ impl Lowering<'_, '_> {
                     work.push(Work::Await(node, rejected, ty, site));
                     if let Some((Expression::CallExpression(call), call_depth)) =
                         closures::unwrapped_at(argument, argument_depth)
-                        && let Some(mut closure) = self.closure_target(&call.callee, call_depth + 1)
+                        && let Some(mut closure) = self.closure_target(
+                            invocation::callee(call),
+                            invocation::depth(call, call_depth + 1),
+                        )
                         && self.arrow(closure.arrow).r#async
                     {
                         if !operand.extras.is_empty() {
@@ -1362,15 +1368,17 @@ impl Lowering<'_, '_> {
                 } => {
                     // Only declared inputs need values. Surplus expressions use
                     // Discard, which consumes its own temporary scalar result.
+                    let offset = invocation::offset(call);
+                    let actual_index = index.saturating_sub(offset);
                     let parameter_count = self.arrow(closure.arrow).params.items.len();
-                    if index <= parameter_count && arguments.len() < index {
+                    if actual_index <= parameter_count && arguments.len() < actual_index {
                         arguments.push(values.pop().expect("local call argument").id());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
                             unsupported(node, "spread call arguments are not admitted")
                         })?;
-                        if index >= parameter_count {
+                        if index < offset || actual_index >= parameter_count {
                             work.push(Work::LocalCall {
                                 node,
                                 call,
@@ -1501,19 +1509,21 @@ impl Lowering<'_, '_> {
                     let Type::Closure(signature) = self.values[callee.0] else {
                         unreachable!()
                     };
+                    let offset = invocation::offset(call);
+                    let actual_index = index.saturating_sub(offset);
                     let parameter_count = self
                         .closure_signatures
                         .borrow()
                         .parameter_count(signature)
                         .expect("checked signature");
-                    if index <= parameter_count && arguments.len() < index {
+                    if actual_index <= parameter_count && arguments.len() < actual_index {
                         arguments.push(values.pop().expect("runtime closure argument").id());
                     }
                     if index < call.arguments.len() {
                         let argument = call.arguments[index].as_expression().ok_or_else(|| {
                             unsupported(node, "spread call arguments are not admitted")
                         })?;
-                        if index >= parameter_count {
+                        if index < offset || actual_index >= parameter_count {
                             work.push(Work::ClosureCall {
                                 node,
                                 call,
@@ -1530,7 +1540,7 @@ impl Lowering<'_, '_> {
                         let parameter = self
                             .closure_signatures
                             .borrow()
-                            .parameter(signature, index)
+                            .parameter(signature, actual_index)
                             .expect("checked signature");
                         let callback = if let Type::Closure(signature) = parameter {
                             let outer = self.function_result_depth;
@@ -2117,8 +2127,10 @@ impl Lowering<'_, '_> {
                     mut arguments,
                     depth,
                 } => {
+                    let offset = invocation::offset(call);
+                    let actual_index = index.saturating_sub(offset);
                     let parameter_count = self.functions[function.0].parameter_count;
-                    if index != 0 && index <= parameter_count {
+                    if actual_index != 0 && actual_index <= parameter_count {
                         arguments.push(values.pop().expect("call argument").number());
                     }
                     if index == call.arguments.len() {
@@ -2157,7 +2169,7 @@ impl Lowering<'_, '_> {
                         work.push(Work::Eval(
                             argument,
                             depth,
-                            if index < parameter_count {
+                            if index >= offset && actual_index < parameter_count {
                                 Mode::Number
                             } else {
                                 Mode::Discard
@@ -2583,7 +2595,11 @@ impl Lowering<'_, '_> {
                             "local arrow expansion exceeds 128 nested expression regions",
                         ));
                     }
-                    if depth > 128 {
+                    if depth > 128
+                        || matches!(node, Expression::CallExpression(call)
+                            if invocation::is_method(call)
+                                && invocation::depth(call, depth + 1) > 128)
+                    {
                         return Err(unsupported(
                             node,
                             if matches!(mode, Mode::Predicate) {
@@ -2783,7 +2799,10 @@ impl Lowering<'_, '_> {
                                 continue;
                             }
                             let signature = self
-                                .function_arity(&call.callee, depth + 1)
+                                .function_arity(
+                                    invocation::callee(call),
+                                    invocation::depth(call, depth + 1),
+                                )
                                 .ok_or_else(|| {
                                     unsupported(
                                         node,
@@ -2998,7 +3017,7 @@ impl Lowering<'_, '_> {
                             }
                             continue;
                         }
-                        if !matches!(node, Expression::CallExpression(call) if self.closure_target(&call.callee, depth + 1).is_some() || self.function_arity(&call.callee, depth + 1).is_some_and(|signature| self.closure_signatures.borrow().result(signature) == Some(Type::FulfilledPromise)))
+                        if !matches!(node, Expression::CallExpression(call) if self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1)).is_some() || self.function_arity(invocation::callee(call), invocation::depth(call, depth + 1)).is_some_and(|signature| self.closure_signatures.borrow().result(signature) == Some(Type::FulfilledPromise)))
                         {
                             return Err(unsupported(
                                 node,
@@ -3146,14 +3165,20 @@ impl Lowering<'_, '_> {
                     }
                     if let Expression::CallExpression(call) = node
                         && self
-                            .closure_target(&call.callee, depth + 1)
+                            .closure_target(
+                                invocation::callee(call),
+                                invocation::depth(call, depth + 1),
+                            )
                             .is_none_or(|closure| {
                                 awaited::immediate_async_arrow(
                                     self.arrow(closure.arrow),
                                     self.semantic,
                                 )
                             })
-                        && let Some(arity) = self.function_arity(&call.callee, depth + 1)
+                        && let Some(arity) = self.function_arity(
+                            invocation::callee(call),
+                            invocation::depth(call, depth + 1),
+                        )
                     {
                         if self.closure_signatures.borrow().is_async(arity) {
                             return Err(unsupported(
@@ -3208,7 +3233,10 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
-                        && let Some(mut closure) = self.closure_target(&call.callee, depth + 1)
+                        && let Some(mut closure) = self.closure_target(
+                            invocation::callee(call),
+                            invocation::depth(call, depth + 1),
+                        )
                     {
                         let arrow = self.arrow(closure.arrow);
                         self.check_arrow(arrow)?;
@@ -3277,7 +3305,7 @@ impl Lowering<'_, '_> {
                         };
                         // Resolve the original callee symbol, never its spelling or a TS annotation.
                         let general_call = match node {
-                            Expression::CallExpression(call) => match &call.callee {
+                            Expression::CallExpression(call) => match invocation::callee(call) {
                                 Expression::Identifier(identifier) => {
                                     let symbol =
                                         identifier.reference_id.get().and_then(|reference| {
@@ -4034,7 +4062,7 @@ impl Lowering<'_, '_> {
                 "at most 1000 ordinary runtime closure arguments are admitted",
             ));
         }
-        if call.arguments.len()
+        if invocation::arguments(call).len()
             < self
                 .closure_signatures
                 .borrow()
@@ -4046,7 +4074,9 @@ impl Lowering<'_, '_> {
                 "runtime closure call is missing declared arguments",
             ));
         }
-        let callee = if let Some((slot, _)) = self.runtime_closure_callee(&call.callee, depth) {
+        let callee = if let Some((slot, _)) =
+            self.runtime_closure_callee(invocation::callee(call), invocation::depth(call, depth))
+        {
             let value = self.value(Type::Closure(signature));
             Self::push(
                 region,
@@ -4061,7 +4091,12 @@ impl Lowering<'_, '_> {
             let outer = self.function_result_depth;
             self.function_result_depth =
                 (self.inline_depth + self.statement_depth).max(outer) + region_depth;
-            let value = self.function_value(&call.callee, region, signature, depth);
+            let value = self.function_value(
+                invocation::callee(call),
+                region,
+                signature,
+                invocation::depth(call, depth),
+            );
             self.function_result_depth = outer;
             value?
         };

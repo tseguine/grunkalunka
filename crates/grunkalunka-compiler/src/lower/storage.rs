@@ -283,11 +283,13 @@ pub(super) fn number_result_shape<'a>(
             Expression::CallExpression(call) => {
                 // Module signatures take precedence over the optimistic local
                 // callback proof used while closure bindings are still converging.
-                if let Some(Expression::Identifier(identifier)) =
-                    closures::unwrapped(&call.callee, depth + 1)
-                    && let Some(symbol) = identifier.reference_id.get().and_then(|reference| {
-                        semantic.scoping().get_reference(reference).symbol_id()
-                    })
+                if let Some(Expression::Identifier(identifier)) = closures::unwrapped(
+                    invocation::callee(call),
+                    invocation::depth(call, depth + 1),
+                ) && let Some(symbol) = identifier
+                    .reference_id
+                    .get()
+                    .and_then(|reference| semantic.scoping().get_reference(reference).symbol_id())
                     && let Some(function) = functions.iter().find(|function| {
                         function.symbol == symbol && function.async_signature.is_none()
                     })
@@ -315,7 +317,10 @@ pub(super) fn number_result_shape<'a>(
                     pending.extend(results.iter().map(|result| (*result, depth + 1)));
                     continue;
                 }
-                if let Some(callee) = closures::unwrapped(&call.callee, depth + 1) {
+                if let Some(callee) = closures::unwrapped(
+                    invocation::callee(call),
+                    invocation::depth(call, depth + 1),
+                ) {
                     if let Expression::ArrowFunctionExpression(arrow) = callee {
                         if let Some(body) = arrow.get_expression() {
                             pending.push((body, depth + 1));
@@ -340,7 +345,7 @@ pub(super) fn number_result_shape<'a>(
                     }
                 }
                 if math_unary(call, semantic).is_none() {
-                    let Expression::Identifier(identifier) = &call.callee else {
+                    let Expression::Identifier(identifier) = invocation::callee(call) else {
                         return false;
                     };
                     let symbol = identifier.reference_id.get().and_then(|reference| {
@@ -504,14 +509,19 @@ pub(crate) fn general_mutable_bindings(
             let AstKind::CallExpression(call) = node.kind() else {
                 continue;
             };
-            let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            let (sources, mut bodies) =
+                returns.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
             for source in sources {
                 if let Some(known) = targets.get(&source) {
                     bodies.extend(known);
                 }
             }
             for body in bodies {
-                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                for (parameter, argument) in arrows[&body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(invocation::arguments(call))
                 {
                     let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                         continue;
@@ -571,7 +581,7 @@ pub(crate) fn general_mutable_bindings(
                 let Expression::CallExpression(call) = closures::unwrapped(initializer, 0)? else {
                     return None;
                 };
-                let creator = static_constructor(&call.callee, &static_targets)?;
+                let creator = static_constructor(invocation::callee(call), &static_targets)?;
                 static_constructor(arrows[&creator].get_expression()?, &static_targets)
             });
             if let Some(target) = target {
@@ -624,13 +634,14 @@ pub(crate) fn general_mutable_bindings(
             continue;
         };
         if matches!(
-            closures::unwrapped(&call.callee, 0),
+            closures::unwrapped(invocation::callee(call), invocation::depth(call, 0)),
             Some(Expression::Identifier(_) | Expression::ArrowFunctionExpression(_))
         ) || math_unary(call, semantic).is_some()
         {
             continue;
         }
-        let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+        let (sources, mut bodies) =
+            returns.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
         for source in sources {
             if let Some(known) = targets.get(&source) {
                 bodies.extend(known);
@@ -686,7 +697,7 @@ pub(crate) fn general_mutable_bindings(
                 && !fulfilled
                 && !awaited_intrinsics.contains(&call.node_id.get())
                 && !matches!(
-                    closures::unwrapped(&call.callee, 0),
+                    closures::unwrapped(invocation::callee(call), invocation::depth(call, 0)),
                     Some(Expression::Identifier(_) | Expression::ArrowFunctionExpression(_))
                 )
                 && math_unary(call, semantic).is_none())
@@ -703,9 +714,9 @@ pub(crate) fn general_mutable_bindings(
         let AstKind::CallExpression(call) = node.kind() else {
             continue;
         };
-        let runtime_input = static_constructor(&call.callee, &static_targets)
+        let runtime_input = static_constructor(invocation::callee(call), &static_targets)
             .is_none_or(|body| arrows[&body].r#async || promises.results.contains(&body))
-            || call.arguments.iter().any(|argument| {
+            || invocation::arguments(call).iter().any(|argument| {
                 argument.as_expression().is_some_and(|actual| {
                     returns
                         .expression(actual, &BTreeMap::new(), 0, 0)
@@ -714,14 +725,17 @@ pub(crate) fn general_mutable_bindings(
                         .any(|source| named_targets.contains_key(source))
                 })
             });
-        let (sources, mut bodies) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+        let (sources, mut bodies) =
+            returns.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
         for target in sources
             .iter()
             .filter_map(|source| named_targets.get(source))
             .flatten()
         {
             if let Some(parameters) = named_parameters.get(target) {
-                for (parameter, argument) in parameters.items.iter().zip(&call.arguments) {
+                for (parameter, argument) in
+                    parameters.items.iter().zip(invocation::arguments(call))
+                {
                     if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                         && let Some(symbol) = identifier.symbol_id.get()
                         && let Some(actual) = argument.as_expression()
@@ -741,7 +755,12 @@ pub(crate) fn general_mutable_bindings(
             constructor_groups.insert(bodies.clone());
         }
         for body in bodies {
-            for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments) {
+            for (parameter, argument) in arrows[&body]
+                .params
+                .items
+                .iter()
+                .zip(invocation::arguments(call))
+            {
                 let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                     continue;
                 };

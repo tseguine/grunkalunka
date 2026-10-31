@@ -128,7 +128,7 @@ fn pending_shape(
                 }
             }
             Expression::CallExpression(call) => {
-                if inputs.identities && inputs.named_async_call(&call.callee, returns) {
+                if inputs.identities && inputs.named_async_call(invocation::callee(call), returns) {
                     continue;
                 }
                 if let Some(intrinsic) = awaited::intrinsic(call, semantic).ok().flatten()
@@ -141,7 +141,7 @@ fn pending_shape(
                         return false;
                     };
                     work.push((argument, depth + 1));
-                } else if !callees(&call.callee, returns).is_some_and(|bodies| {
+                } else if !callees(invocation::callee(call), returns).is_some_and(|bodies| {
                     bodies.iter().all(|body| {
                         inputs.results.contains(body) && !inputs.mixed_results.contains(body)
                     })
@@ -225,7 +225,7 @@ fn return_adopts(
         };
         match node {
             Expression::CallExpression(call)
-                if callees(&call.callee, returns)
+                if callees(invocation::callee(call), returns)
                     .is_some_and(|bodies| !bodies.is_disjoint(&inputs.mixed_results)) =>
             {
                 return true;
@@ -375,13 +375,19 @@ pub(crate) fn parameters(
             }
         }
         for call in &calls {
-            let Some(bodies) =
-                input_callees(&call.callee, &returns, identities.then_some(&named_async))
-            else {
+            let Some(bodies) = input_callees(
+                invocation::callee(call),
+                &returns,
+                identities.then_some(&named_async),
+            ) else {
                 continue;
             };
             for body in bodies {
-                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                for (parameter, argument) in arrows[&body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(invocation::arguments(call))
                 {
                     if let BindingPattern::BindingIdentifier(binding) = &parameter.pattern
                         && let (Some(symbol), Some(expression)) =
@@ -415,9 +421,11 @@ pub(crate) fn parameters(
         .cloned()
         .collect();
     for call in &calls {
-        if let Some(bodies) =
-            input_callees(&call.callee, &returns, identities.then_some(&named_async))
-            && bodies.len() > 1
+        if let Some(bodies) = input_callees(
+            invocation::callee(call),
+            &returns,
+            identities.then_some(&named_async),
+        ) && bodies.len() > 1
         {
             constructor_groups.insert(bodies);
         }
@@ -490,14 +498,16 @@ pub(crate) fn parameters(
         // Actual inputs join the same original-source provenance graph as local
         // initializers/writes. Resolving targets never evaluates an argument.
         for call in &calls {
-            let (sources, _) = returns.expression(&call.callee, &BTreeMap::new(), 0, 0);
+            let (sources, _) = returns.expression(invocation::callee(call), &BTreeMap::new(), 0, 0);
             for target in sources
                 .iter()
                 .filter_map(|source| named_targets.get(source))
                 .flatten()
             {
                 if let Some(parameters) = named_parameters.get(target) {
-                    for (parameter, argument) in parameters.items.iter().zip(&call.arguments) {
+                    for (parameter, argument) in
+                        parameters.items.iter().zip(invocation::arguments(call))
+                    {
                         if let BindingPattern::BindingIdentifier(binding) = &parameter.pattern
                             && let (Some(symbol), Some(expression)) =
                                 (binding.symbol_id.get(), argument.as_expression())
@@ -508,11 +518,17 @@ pub(crate) fn parameters(
                     }
                 }
             }
-            let Some(bodies) = input_callees(&call.callee, &returns, Some(&named_async)) else {
+            let Some(bodies) =
+                input_callees(invocation::callee(call), &returns, Some(&named_async))
+            else {
                 continue;
             };
             for body in bodies {
-                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                for (parameter, argument) in arrows[&body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(invocation::arguments(call))
                 {
                     if let BindingPattern::BindingIdentifier(binding) = &parameter.pattern
                         && let (Some(symbol), Some(expression)) =
@@ -528,13 +544,19 @@ pub(crate) fn parameters(
     loop {
         let mut additions = Vec::new();
         for call in &calls {
-            let Some(bodies) =
-                input_callees(&call.callee, &returns, identities.then_some(&named_async))
-            else {
+            let Some(bodies) = input_callees(
+                invocation::callee(call),
+                &returns,
+                identities.then_some(&named_async),
+            ) else {
                 continue;
             };
             for body in bodies {
-                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                for (parameter, argument) in arrows[&body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(invocation::arguments(call))
                 {
                     let BindingPattern::BindingIdentifier(binding) = &parameter.pattern else {
                         continue;
@@ -560,7 +582,7 @@ pub(crate) fn parameters(
                         },
                         |call, _| {
                             let mut results = Vec::new();
-                            for body in callees(&call.callee, &returns)? {
+                            for body in callees(invocation::callee(call), &returns)? {
                                 let arrow = arrows[&body];
                                 if arrow.r#async {
                                     if awaited::eager_async_arrow(arrow, semantic) {
@@ -652,14 +674,18 @@ pub(crate) fn parameters(
         }
         for call in &calls {
             let Some(bodies) = input_callees(
-                &call.callee,
+                invocation::callee(call),
                 &returns,
                 inputs.identities.then_some(&inputs.named_async),
             ) else {
                 continue;
             };
             for body in bodies {
-                for (parameter, argument) in arrows[&body].params.items.iter().zip(&call.arguments)
+                for (parameter, argument) in arrows[&body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(invocation::arguments(call))
                 {
                     if let BindingPattern::BindingIdentifier(binding) = &parameter.pattern
                         && let (Some(symbol), Some(expression)) =
@@ -863,7 +889,7 @@ pub(crate) fn parameters(
                     }
                 }
                 inputs.mixed_calls.extend(calls.iter().filter_map(|call| {
-                    callees(&call.callee, &returns)
+                    callees(invocation::callee(call), &returns)
                         .is_some_and(|bodies| !bodies.is_disjoint(&inputs.mixed_results))
                         .then_some(call.node_id.get())
                 }));

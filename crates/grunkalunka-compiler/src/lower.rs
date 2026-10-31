@@ -24,6 +24,7 @@ mod closures;
 mod evaluate;
 mod finalizers;
 mod function_values;
+mod invocation;
 mod pending;
 mod promises;
 mod storage;
@@ -406,7 +407,7 @@ impl Lowering<'_, '_> {
     fn numeric_result_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
         if let Expression::CallExpression(call) = expression
             && self
-                .closure_target(&call.callee, depth + 1)
+                .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
                 .is_some_and(|closure| {
                     if closure.checked {
                         !closure.factory && closure.result == Type::Number
@@ -571,7 +572,7 @@ impl Lowering<'_, '_> {
                 }
             }
             Expression::CallExpression(call) => {
-                let Expression::Identifier(identifier) = &call.callee else {
+                let Expression::Identifier(identifier) = invocation::callee(call) else {
                     return false;
                 };
                 let symbol = identifier.reference_id.get().and_then(|reference| {
