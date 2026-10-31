@@ -7,6 +7,7 @@ pub(super) const GLOBALS: &str = "(global $async_frame (mut i32) (i32.const 0))\
 pub(super) struct Frame<'a> {
     pub emitter: Emitter<'a>,
     pub lanes: Vec<&'static str>,
+    spill_lanes: Vec<usize>,
     start: usize,
     header: usize,
     needs_spills: bool,
@@ -37,6 +38,31 @@ impl<'a> Frame<'a> {
         lanes.resize(offset - start + usize::from(arena_temp.is_some()), "i32");
         let mut value_offsets = offsets[function.slots.len()..].to_vec();
         layout::share_fulfilled_storage(function, &mut value_offsets);
+        // Fulfilled Promise snapshots may share their original General
+        // value's two physical lanes. The unneeded reserved lanes stay in
+        // the stable physical frame layout but need no save/restore traffic.
+        let mut used = vec![false; lanes.len()];
+        for (index, slot) in function.slots.iter().enumerate() {
+            for part in 0..layout::value(slot.ty).parts.len() {
+                used[offsets[index] - start + part] = true;
+            }
+        }
+        for (index, ty) in function.values.iter().enumerate() {
+            for part in 0..layout::value(*ty).parts.len() {
+                used[value_offsets[index] - start + part] = true;
+            }
+        }
+        for pointer in cell_offsets.iter().flatten() {
+            used[pointer - start] = true;
+        }
+        if let Some(pointer) = arena_temp {
+            used[pointer - start] = true;
+        }
+        let spill_lanes = used
+            .iter()
+            .enumerate()
+            .filter_map(|(index, present)| present.then_some(index))
+            .collect();
         Self {
             emitter: Emitter {
                 function,
@@ -53,6 +79,7 @@ impl<'a> Frame<'a> {
                 errors,
             },
             lanes,
+            spill_lanes,
             start,
             header: if queued { 32 } else { HEADER },
             needs_spills,
@@ -77,7 +104,8 @@ impl<'a> Frame<'a> {
         if !self.needs_spills {
             return;
         }
-        for (index, lane) in self.lanes.iter().enumerate() {
+        for &index in &self.spill_lanes {
+            let lane = self.lanes[index];
             writeln!(
                 output,
                 "global.get $async_frame\nglobal.get {}\n{lane}.store offset={}",
@@ -92,7 +120,8 @@ impl<'a> Frame<'a> {
         if !self.needs_spills {
             return;
         }
-        for (index, lane) in self.lanes.iter().enumerate() {
+        for &index in &self.spill_lanes {
+            let lane = self.lanes[index];
             writeln!(
                 output,
                 "global.get $async_frame\n{lane}.load offset={}\nglobal.set {}",
