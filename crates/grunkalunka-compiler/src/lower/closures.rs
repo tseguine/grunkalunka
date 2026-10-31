@@ -449,7 +449,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     mut closure,
                     mut region,
                 } => {
-                    let (mut check, returned) = results.pop().expect("checked nested factory");
+                    let (check, returned) = results.pop().expect("checked nested factory");
                     check.capture_cells(&returned, &mut region);
                     closure.factory = true;
                     finish(&mut parent, &check, &mut closure, &region);
