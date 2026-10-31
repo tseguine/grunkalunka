@@ -74,12 +74,8 @@ impl ReturnOrigins<'_, '_, '_> {
                     if calls >= 8 {
                         continue;
                     }
-                    let (sources, mut bodies) = self.expression(
-                        invocation::callee(call),
-                        bindings,
-                        depth + 1,
-                        calls + 1,
-                    );
+                    let (sources, mut bodies) =
+                        self.expression(invocation::callee(call), bindings, depth + 1, calls + 1);
                     for source in sources {
                         if let Some(known) = self.targets.get(&source) {
                             bodies.extend(known);
@@ -102,7 +98,8 @@ impl ReturnOrigins<'_, '_, '_> {
                         for (parameter, argument) in
                             arrow.params.items.iter().zip(invocation::arguments(call))
                         {
-                            if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                            if let BindingPattern::BindingIdentifier(identifier) =
+                                &parameter.pattern
                                 && let Some(id) = identifier.symbol_id.get()
                                 && let Some(argument) = argument.as_expression()
                             {
@@ -1133,8 +1130,7 @@ mod return_origin_stack_tests {
                 }
                 let source = format!("{expression};");
                 let allocator = Allocator::default();
-                let parsed =
-                    Parser::new(&allocator, &source, SourceType::mjs()).parse();
+                let parsed = Parser::new(&allocator, &source, SourceType::mjs()).parse();
                 assert!(!parsed.fatal_error && parsed.diagnostics.is_empty());
                 let built = SemanticBuilder::new_compiler()
                     .with_build_nodes(true)
