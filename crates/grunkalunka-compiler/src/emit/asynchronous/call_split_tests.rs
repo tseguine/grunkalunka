@@ -38,7 +38,11 @@ fn inline_return_routes_to_its_caller_and_restores_loop_scope() {
         )
         .unwrap();
     let target = match &split.states[entry].end {
-        End::Copy { input, result, next } => {
+        End::Copy {
+            input,
+            result,
+            next,
+        } => {
             assert_eq!((*input, *result), (ValueId(7), ValueId(3)));
             *next
         }
@@ -63,7 +67,10 @@ fn inline_return_routes_to_its_caller_and_restores_loop_scope() {
             Some(LoopTargets { exit: 8, next: 9 }),
         )
         .expect_err("inline call must not inherit the source loop target");
-    assert!(error.contains("async continue lacks a loop target"), "{error}");
+    assert!(
+        error.contains("async continue lacks a loop target"),
+        "{error}"
+    );
     assert!(split.return_to.is_none());
 }
 
@@ -85,7 +92,11 @@ fn awaited_call_return_and_throw_keep_distinct_settlement_continuations() {
         let normal = split.terminal(End::Trap).unwrap();
         let entry = split.region(&source, normal, None, None).unwrap();
         let suspended = match &split.states[entry].end {
-            End::Copy { input, result, next } => {
+            End::Copy {
+                input,
+                result,
+                next,
+            } => {
                 assert_eq!((*input, *result), (ValueId(7), ValueId(3)));
                 *next
             }

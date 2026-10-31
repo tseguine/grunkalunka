@@ -31,6 +31,7 @@ import { numericUpdates } from './numeric-updates.mjs';
 import { typescriptErasurePrograms, typescriptErasureRejected } from './typescript-erasure.mjs';
 import { commaSequences } from './comma-sequences.mjs';
 import { managedObjects } from './managed-objects.mjs';
+import { managedStrings } from './managed-strings.mjs';
 import { numericLogical } from './numeric-logical.mjs';
 import { numericForPrograms, numericForRejected } from './numeric-for.mjs';
 import { booleanLiterals } from './boolean-literals.mjs';
@@ -81,7 +82,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 85;
+export const corpusVersion = 86;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -128,6 +129,7 @@ programs.push(...numericUpdates);
 programs.push(...typescriptErasurePrograms);
 programs.push(...commaSequences);
 programs.push(...managedObjects);
+programs.push(...managedStrings);
 programs.push(...numericLogical);
 programs.push(...numericForPrograms);
 programs.push(...booleanLiterals);
@@ -345,7 +347,6 @@ export const rejected = [
   ['predicate-or-unselected-call', 'export function run(a,b) { if(true || Math.random()) return a; return b; }'],
   ['predicate-logical-unselected-const', 'export function run(a,b) { const x=a; if(true || (x=b)) return a; return b; }'],
   ['predicate-logical-unselected-global', 'export function run(a,b) { if(true || clock) return a; return b; }'],
-  ['predicate-logical-string', 'export function run(a,b) { if(a && "x") return a; return b; }'],
   ['predicate-logical-numeric-local', 'export function run(a,b) { const x=true && a; return x; }', 'js', 'General bindings require a primitive value position'],
   ['predicate-logical-depth', `export function run(a,b) { if(${Array(130).fill('a').join('&&')}) return a; return b; }`],
   ['boolean-literal-depth', `export function run(a,b) { if(${'('.repeat(129)}true${')'.repeat(129)}) return a; return b; }`],
@@ -357,7 +358,7 @@ export const rejected = [
   ['logical-unselected-const', 'export function run(a,b) { const x=a; return 1 || (x=b); }'],
   ['comparison', 'export function run(a,b) { return a < b; }'],
   ...['Math.random(),a', 'a,Math.random(),b', 'a,Math.random()', '"4",a', 'a,"4"',
-    '{x:a},a', 'a,{x:a}', 'a<b,a', 'a,a<b'].flatMap((body, index) => index===5||index===7?[]:
+    '{x:a},a', 'a,{x:a}', 'a<b,a', 'a,a<b'].flatMap((body, index) => index===3||index===5||index===7?[]:
     [[`comma-unsupported-${index}`, `export function run(a,b) { return (${body}); }`]]),
   ['comma-const-write', 'export function run(a,b) { const x=a; return (x=b,x); }'],
   ['comma-forward', 'export function run(a,b) { const x=(y=a,b); let y=b; return x; }'],

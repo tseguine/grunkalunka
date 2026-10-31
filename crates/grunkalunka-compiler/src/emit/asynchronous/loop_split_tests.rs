@@ -105,11 +105,7 @@ fn deeply_nested_while_bodies_split_without_native_recursion() {
                 source = region(
                     level,
                     vec![Op::While {
-                        condition: region(
-                            DEPTH + level + 1,
-                            vec![],
-                            Exit::Yield(ValueId(1)),
-                        ),
+                        condition: region(DEPTH + level + 1, vec![], Exit::Yield(ValueId(1))),
                         body: source,
                         step: None,
                     }],

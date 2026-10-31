@@ -11,6 +11,8 @@ mod finally_tests;
 #[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
+mod managed_array_tests;
+#[cfg(test)]
 mod managed_value_tests;
 #[cfg(test)]
 mod promise_equality_tests;
@@ -40,6 +42,7 @@ pub(crate) enum Type {
     // Internal GC-managed language value; distinct from the primitive wire pair.
     ManagedValue,
     ManagedObject,
+    ManagedArray,
     // Internal General value or represented Promise. Never a host completion.
     AsyncValue,
     // A nonescaping fulfilled primitive Promise; distinct from its completion.
@@ -54,7 +57,10 @@ pub(crate) enum Type {
 
 impl Type {
     pub(crate) fn is_managed(self) -> bool {
-        matches!(self, Self::ManagedValue | Self::ManagedObject)
+        matches!(
+            self,
+            Self::ManagedValue | Self::ManagedObject | Self::ManagedArray
+        )
     }
 }
 
@@ -421,6 +427,60 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Source array admission follows the backend unit")
+    )]
+    ManagedArrayNew {
+        result: ValueId,
+        length: u32,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Source array admission follows the backend unit")
+    )]
+    ManagedArrayLength {
+        result: ValueId,
+        array: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Source array admission follows the backend unit")
+    )]
+    ManagedArrayGetOwn {
+        result: ValueId,
+        array: ValueId,
+        key: Vec<u16>,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Source array admission follows the backend unit")
+    )]
+    ManagedArraySetOwn {
+        array: ValueId,
+        key: Vec<u16>,
+        value: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Source array admission follows the backend unit")
+    )]
+    ManagedArrayResize {
+        array: ValueId,
+        length: u32,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Source array admission follows the backend unit")
+    )]
+    ManagedFromArray {
+        result: ValueId,
+        input: ValueId,
+    },
+    ManagedString {
+        result: ValueId,
+        units: Vec<u16>,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1051,6 +1111,38 @@ impl Verifier<'_> {
     ) -> Result<(), String> {
         let span = operation.span;
         match &operation.kind {
+            Op::ManagedArrayNew { result, .. } => {
+                self.define(*result, Type::ManagedArray, visible, span)?;
+            }
+            Op::ManagedArrayLength { result, array } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::ManagedArrayResize { array, .. } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+            }
+            Op::ManagedFromArray { result, input } => {
+                self.value(*input, Type::ManagedArray, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedArrayGetOwn { result, array, key } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                u32::try_from(key.len())
+                    .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedArraySetOwn { array, key, value } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                self.value(*value, Type::ManagedValue, visible, span)?;
+                u32::try_from(key.len())
+                    .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+                if key.as_slice() == [108, 101, 110, 103, 116, 104] {
+                    return Err(invalid(
+                        span,
+                        "array length writes require validated resize",
+                    ));
+                }
+            }
             Op::ManagedGetOwn {
                 result,
                 object,
@@ -1066,6 +1158,11 @@ impl Verifier<'_> {
                 self.value(*value, Type::ManagedValue, visible, span)?;
                 u32::try_from(key.len())
                     .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+            }
+            Op::ManagedString { result, units } => {
+                u32::try_from(units.len())
+                    .map_err(|_| invalid(span, "managed String exceeds Wasm32 length"))?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;

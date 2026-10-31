@@ -817,7 +817,8 @@ impl<'a> Splitter<'a> {
                     let entries = (|| {
                         // Cleanup belongs to the outer lexical scope. A return in
                         // it overrides the pending completion through resume_return.
-                        let on_return = self.region(finalizer, resume_return, None, active_loops)?;
+                        let on_return =
+                            self.region(finalizer, resume_return, None, active_loops)?;
                         let rethrow = self.terminal(match outer_catch {
                             Some((result, next)) => End::Copy {
                                 input: *reason,

@@ -48,7 +48,6 @@ const negatives=[
  ['scope','{const flag=true;} return flag===true?1:0;',reference,'binding-errors'],
  ['unselected-call','return false?(true===!Math.random()?1:0):a;',expression,'function-calls'],
  ['const-write','const flag=true; return (!flag++)===false?1:0;','update to a const binding is not admitted','const-errors'],
- ['asserted-string','return ("x" as boolean)===true?1:0;',expression,'string-values','ts'],
  ['js-depth129',`return ${'('.repeat(127)}true===false${')'.repeat(127)}?a:b;`,'expression nesting exceeds','expression-depth'],
  ['ts-depth129',`return true${'!'.repeat(127)} ===false?a:b;`,'expression nesting exceeds','expression-depth','ts'],
 ];

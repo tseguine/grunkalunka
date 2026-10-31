@@ -29,6 +29,7 @@ pub(super) enum Lane {
     F64,
     ManagedRef,
     ObjectRef,
+    ArrayRef,
 }
 
 impl Lane {
@@ -38,6 +39,7 @@ impl Lane {
             Self::F64 => "f64",
             Self::ManagedRef => "(ref null $gc_value)",
             Self::ObjectRef => "(ref null $gc_object)",
+            Self::ArrayRef => "(ref null $gc_array)",
         }
     }
 }
@@ -58,6 +60,14 @@ pub(super) struct Layout {
 pub(super) fn value(ty: Type) -> Layout {
     use Lane::{F64, I32};
     match ty {
+        Type::ManagedArray => Layout {
+            parts: &[Part {
+                lane: Lane::ArrayRef,
+                byte_offset: 0,
+            }],
+            wat: "(ref null $gc_array)",
+            local: "(local (ref null $gc_array))\n",
+        },
         Type::ManagedObject => Layout {
             parts: &[Part {
                 lane: Lane::ObjectRef,
@@ -129,7 +139,7 @@ pub(super) fn argument_bytes(ty: Type) -> usize {
         Type::Number | Type::Closure(_) | Type::Promise => 8,
         Type::General | Type::FulfilledPromise | Type::SettledPromise | Type::AsyncValue => 16,
         Type::Predicate => unreachable!("Predicate closure parameters are not admitted"),
-        Type::ManagedValue | Type::ManagedObject => {
+        Type::ManagedValue | Type::ManagedObject | Type::ManagedArray => {
             unreachable!("managed closure parameters need GC frames")
         }
     }

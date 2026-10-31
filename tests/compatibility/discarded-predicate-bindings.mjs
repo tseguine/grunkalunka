@@ -63,7 +63,6 @@ const negatives=[
  ['unresolved','clock; return a;',reference,'binding-errors'],
  ['const-write','const flag=true; flag=false; return a;','assignment to a const binding','const-errors'],
  ['for-update-dead-call','const flag=true; for(;false;(flag,Math.random())) {} return a;',expression,'function-calls'],
- ['string','("x" as boolean); return a;',expression,'string-values','ts'],
  ['local129',`const ${Array.from({length:129},(_,i)=>`f${i}=true`).join(',')}; f128; return a;`,'at most 128 source locals','local-count'],
  ['statement257',`const flag=true;flag;${'0;'.repeat(254)}return a;`,'at most 256 statements','statement-count'],
 ];
