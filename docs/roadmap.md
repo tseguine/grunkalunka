@@ -15,6 +15,35 @@ a promise that any prototype will become the architecture.
 The [external testing plan](testing.md) tracks all six adopted conformance,
 reference and performance suites, their pinned sources and execution prerequisites.
 
+## Current implementation snapshot (2026-10-31)
+
+The maintained compiler now has several **distinct, bounded** executable paths:
+numeric and primitive-return profiles, specialized async/closure support, and a
+[shared-IR WasmGC data-object increment](managed-values.md). The latter constructs
+fresh ordinary objects, reads/writes admitted static own-data properties, preserves
+aliases/identity, and passes traced references through synchronous named helpers.
+Known Number operations remain f64. Full prototype behavior, general Strings/arrays,
+coercion, captured managed values, suspended GC frames and public reference exports
+are **not** established. [ADR 0019](adr/0019-wasmgc-runtime.md) records the
+**selected** WasmGC direction; representation optimizations remain revisable.
+
+The A1 host already has an authorized headless note/paint/hit/repaint experiment.
+A [separate opt-in source-to-WIT scalar import](a1-ui-source-import.md) now calls a
+Rust UI service from compiled JS/TS, but **is not yet wired** into the A1
+interactive application. [A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
+still requires an integrated service-driven interaction, readable text and
+cross-language/application evidence. Native-stack-sensitive IR verification,
+emission, traversal, cleanup and selected source/JSON/layout paths have received
+iterative implementations; [steering #281](https://github.com/tseguine/grunkalunka/issues/281)
+tracks remaining audit scope. Low-volume CLI diagnostics are
+[opt-in](observability.md).
+
+The historical experiments and dated measurements below record what each
+*particular profile and revision* established. They are not an exhaustive feature
+matrix for the current compiler. Use [milestones](milestones.md) and the
+[executable corpus](../tests/compatibility/corpus.mjs) for current status and
+test inventory.
+
 ## Direction
 
 Product framing: a web application framework that makes building, running,
@@ -34,7 +63,8 @@ provider/shim extensibility, window/view/surface separation, worker/async/opt-in
 parallel execution, explicit trust/process placement and reduced cross-boundary
 marshalling. These are proposed principles, **not** adopted public APIs or
 new implementation assignments. The near-term [A1 acceptance gate](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
-selects a small source-compiled WIT UI call and real interaction before generalizing.
+uses a now-executed opt-in scalar source-compiled WIT call as a **prerequisite**,
+not a finished interactive application or general-purpose module interface.
 
 Type annotations cannot by themselves justify changing observable JavaScript
 behavior. A narrow lowering experiment may reject features it cannot implement;
@@ -47,9 +77,11 @@ Capability profiles should describe authority without unnecessarily tying an
 application to one host. Native implementations may vary behind those interfaces.
 Do not make a runtime-specific precompiled cache the sole distributable artifact;
 retain portable Wasm and treat host caches as derived outputs. Avoid a single-host
-assumption unless evidence shows a worthwhile tradeoff. Verify other OS/architecture
-combinations before claiming them; the current PoC has two-engine coverage on
-Windows, not demonstrated cross-platform tooling support.
+assumption unless evidence shows a worthwhile tradeoff. Verify other OS/architecture combinations before claiming them. Maintained
+Linux/Windows PR checks and full master verification, with independent native
+macOS baseline/fallback checks, do not establish every supported host/runtime
+combination; see [CI](ci.md). Native Node-Wasm and Wasmtime differential tests
+likewise establish only their admitted programs.
 
 ## Build support
 
@@ -207,8 +239,10 @@ components yet.
 
 ## Runtime and performance questions to preserve
 
-- Decide JS value representation, strings, objects/prototypes, closures, exceptions,
-  dynamic features and async/event-loop behavior from representative workloads.
+- Extend the **selected WasmGC** general-value direction beyond its admitted
+  object subset; evaluate strings, objects/prototypes, closures, exceptions,
+  dynamic features and async/event-loop behavior on representative workloads.
+  Measure GC and marshalling costs before fixing long-term physical layouts.
   Static TS types do not remove runtime coercions or reflective behavior.
 - Treat unresolved identifier scanning as discovery. Aliases, dynamic property
   access and `eval` mean it cannot enforce capabilities. Specify and test authority
@@ -278,8 +312,9 @@ not quietly prevent independent contexts, untrusted sites or browser user contro
 The final renderer architecture, compatibility target, UI toolkit and full
 browser feature set remain unselected. An independent, experimental Rust
 [headless layout core and semantic adapter](block-layout.md) now provide bounded
-block geometry and inert text anchors. They do **not** parse HTML, resolve CSS,
-shape text, paint pixels or run script, and are not an A1 application. Profile
+block geometry, inert text anchors and bounded RGB box painting/bitmap ink. They
+do **not** parse HTML, resolve general CSS, shape/rasterize text glyphs or provide
+a script-driven DOM, and are not a complete A1 application. Profile
 composition, individual grants and defaults still need concrete experiments.
 Start with a useful embedded application slice once the platform seams can
 support it, and demonstrate that changing the profile changes authority without
