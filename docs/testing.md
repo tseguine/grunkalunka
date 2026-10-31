@@ -5,7 +5,7 @@
 The canonical check catalog under [`scripts/checks/`](../scripts/checks/README.md)
 and the [executable compatibility corpus](../tests/compatibility/corpus.mjs)
 are authoritative for today's commands, fixture membership and counts.
-The corpus currently declares version **89**. The older numeric-pair and
+The corpus currently declares version **90**. The older numeric-pair and
 rejection totals retained in historical paragraphs below describe their
 named **past** revisions, not current percentages or suite totals.
 
@@ -437,4 +437,11 @@ The compiler's `ir::gc_closure_tests` exercises the traced closure backend indep
 of source managed-capture admission. `managed-closure-storage` in the runtime package
 checks the shared GC cell/frame type fragment across forced Wasmtime copying
 collections. These tests distinguish emitted-IR/Node behavior from hand-built
-Wasmtime lifetime evidence; source captures and suspended GC frames remain rejected.
+Wasmtime lifetime evidence. Source captures are covered by `managed-captures`;
+suspended GC frames remain rejected.
+
+`managed-captures` compiles synchronous source closures over objects, arrays and
+Strings, compares JS/TS in native JS, Node-Wasm and Wasmtime, and preserves the
+remaining private-signature/async/prototype boundaries. Its copying-GC test adds
+only a test-time root/observer to an actual generated closure: source functions and
+cell/frame code remain generated, while the public artifact gains no reference ABI.
