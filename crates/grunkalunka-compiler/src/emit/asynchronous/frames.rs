@@ -7,6 +7,7 @@ pub(super) const GLOBALS: &str = "(global $async_frame (mut i32) (i32.const 0))\
 pub(super) struct Frame<'a> {
     pub emitter: Emitter<'a>,
     pub lanes: Vec<&'static str>,
+    spill_lanes: Vec<usize>,
     start: usize,
     header: usize,
     needs_spills: bool,
@@ -37,6 +38,31 @@ impl<'a> Frame<'a> {
         lanes.resize(offset - start + usize::from(arena_temp.is_some()), "i32");
         let mut value_offsets = offsets[function.slots.len()..].to_vec();
         layout::share_fulfilled_storage(function, &mut value_offsets);
+        // Fulfilled Promise snapshots may share their original General
+        // value's two physical lanes. The unneeded reserved lanes stay in
+        // the stable physical frame layout but need no save/restore traffic.
+        let mut used = vec![false; lanes.len()];
+        for (index, slot) in function.slots.iter().enumerate() {
+            for part in 0..layout::value(slot.ty).parts.len() {
+                used[offsets[index] - start + part] = true;
+            }
+        }
+        for (index, ty) in function.values.iter().enumerate() {
+            for part in 0..layout::value(*ty).parts.len() {
+                used[value_offsets[index] - start + part] = true;
+            }
+        }
+        for pointer in cell_offsets.iter().flatten() {
+            used[*pointer - start] = true;
+        }
+        if let Some(pointer) = arena_temp {
+            used[pointer - start] = true;
+        }
+        let spill_lanes = used
+            .iter()
+            .enumerate()
+            .filter_map(|(index, present)| present.then_some(index))
+            .collect();
         Self {
             emitter: Emitter {
                 function,
@@ -53,6 +79,7 @@ impl<'a> Frame<'a> {
                 errors,
             },
             lanes,
+            spill_lanes,
             start,
             header: if queued { 32 } else { HEADER },
             needs_spills,
@@ -77,7 +104,8 @@ impl<'a> Frame<'a> {
         if !self.needs_spills {
             return;
         }
-        for (index, lane) in self.lanes.iter().enumerate() {
+        for &index in &self.spill_lanes {
+            let lane = self.lanes[index];
             writeln!(
                 output,
                 "global.get $async_frame\nglobal.get {}\n{lane}.store offset={}",
@@ -92,7 +120,8 @@ impl<'a> Frame<'a> {
         if !self.needs_spills {
             return;
         }
-        for (index, lane) in self.lanes.iter().enumerate() {
+        for &index in &self.spill_lanes {
+            let lane = self.lanes[index];
             writeln!(
                 output,
                 "global.get $async_frame\n{lane}.load offset={}\nglobal.set {}",
@@ -248,5 +277,71 @@ mod globalize_tests {
                 .replace("local.get ", "global.get ")
                 .replace("local.set ", "global.set ")
         );
+    }
+}
+
+#[cfg(test)]
+mod spill_lane_tests {
+    use super::*;
+    use crate::ir::{Operation, RegionId};
+    use oxc_span::Span;
+
+    fn function(aliased: bool) -> ir::Function {
+        let span = Span::new(0, 0);
+        let operations = if aliased {
+            vec![Operation {
+                span,
+                kind: Op::FulfillPromise {
+                    result: ValueId(1),
+                    input: ValueId(0),
+                },
+            }]
+        } else {
+            Vec::new()
+        };
+        ir::Function {
+            return_type: Type::General,
+            parameter_count: 0,
+            slots: Vec::new(),
+            values: vec![Type::General, Type::FulfilledPromise, Type::Number],
+            body: Region {
+                id: RegionId(0),
+                span,
+                operations,
+                exit: Exit::Fallthrough,
+            },
+        }
+    }
+
+    #[test]
+    fn fulfilled_snapshot_alias_skips_only_unreferenced_physical_lanes() {
+        let function = function(true);
+        let frame = Frame::new(&function, 5, true, false, true);
+        assert_eq!(frame.lanes.len(), 5);
+        assert_eq!(frame.spill_lanes, vec![0, 1, 4]);
+        assert_eq!(frame.emitter.value_offsets, vec![5, 5, 9]);
+
+        let mut spill = String::new();
+        frame.spill(&mut spill);
+        let mut restore = String::new();
+        frame.restore(&mut restore);
+        for index in [5, 6, 9] {
+            assert!(spill.contains(&format!("global.get {index}\n")));
+            assert!(restore.contains(&format!("global.set {index}\n")));
+        }
+        for index in [7, 8] {
+            assert!(!spill.contains(&format!("global.get {index}\n")));
+            assert!(!restore.contains(&format!("global.set {index}\n")));
+        }
+        // Keeping the original frame allocation offsets preserves the
+        // private ABI for values after a shared completion snapshot.
+        assert_eq!(frame.bytes(), (32 + 5 * 8_usize).div_ceil(16) * 16);
+    }
+
+    #[test]
+    fn distinct_values_keep_all_physical_lanes() {
+        let function = function(false);
+        let frame = Frame::new(&function, 0, false, false, true);
+        assert_eq!(frame.spill_lanes, vec![0, 1, 2, 3, 4]);
     }
 }
