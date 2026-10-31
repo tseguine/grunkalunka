@@ -11,6 +11,8 @@ mod finally_tests;
 #[cfg(test)]
 mod fulfilled_promise_tests;
 #[cfg(test)]
+mod gc_closure_tests;
+#[cfg(test)]
 mod managed_array_tests;
 #[cfg(test)]
 mod managed_value_tests;
@@ -65,7 +67,7 @@ impl Type {
 }
 
 // Numeric leaf signatures keep their arity as the ID. Other IDs intern a
-// logical parameter list; the private physical ABI remains two pointers.
+// logical parameter list; the backend chooses numeric or traced private frames.
 #[derive(Debug, PartialEq)]
 pub(crate) struct ClosureSignature {
     pub parameters: Vec<Type>,
@@ -1186,12 +1188,6 @@ impl Verifier<'_> {
                 }
                 for slot in captures {
                     let cell = self.slot(*slot, scope_index, span)?;
-                    if cell.ty.is_managed() {
-                        return Err(invalid(
-                            span,
-                            "managed captures require GC-aware environments",
-                        ));
-                    }
                     if cell.owner != region_id || cell.parameter || !initialized.insert(*slot) {
                         return Err(invalid(
                             span,
@@ -1216,12 +1212,6 @@ impl Verifier<'_> {
                 }
                 for (source, destination) in captures.iter().zip(imported) {
                     let cell = self.slot(*source, scope_index, span)?;
-                    if cell.ty.is_managed() {
-                        return Err(invalid(
-                            span,
-                            "managed captures require GC-aware environments",
-                        ));
-                    }
                     if !initialized.contains(source)
                         || target
                             .slots
@@ -1313,12 +1303,7 @@ impl Verifier<'_> {
             }
             Op::CaptureCells { cells } => {
                 for slot in cells {
-                    if self.slot(*slot, scope_index, span)?.ty.is_managed() {
-                        return Err(invalid(
-                            span,
-                            "managed captures require GC-aware environments",
-                        ));
-                    }
+                    self.slot(*slot, scope_index, span)?;
                     if !initialized.contains(slot) {
                         return Err(invalid(span, "captured slot is not initialized"));
                     }

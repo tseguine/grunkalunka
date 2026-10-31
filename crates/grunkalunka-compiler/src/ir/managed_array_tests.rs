@@ -400,7 +400,7 @@ fn arrays_reject_wrong_types_and_unvalidated_length_writes() {
 }
 
 #[test]
-fn arrays_cannot_enter_untraced_cells_or_async_frames() {
+fn arrays_use_traced_capture_cells_but_still_reject_async_frames() {
     let mut m = module();
     let f = &mut m.functions[0];
     let array = value(f, Type::ManagedArray, |result| Op::ManagedArrayNew {
@@ -433,7 +433,11 @@ fn arrays_cannot_enter_untraced_cells_or_async_frames() {
             cells: vec![SlotId(2)],
         },
     );
-    assert!(verify_module(&m).unwrap_err().contains("managed"));
+    verify_module(&m).unwrap();
+    let wat = crate::emit::emit(&m).unwrap();
+    assert!(wat.contains("$gc_cell"));
+    assert!(!wat.contains("$cell_top"));
+    wat::parse_str(wat).unwrap();
     m.functions[0].body.operations.pop();
     verify_module(&m).unwrap();
     let f = &mut m.functions[0];

@@ -5,6 +5,7 @@ use std::fmt::Write;
 mod asynchronous;
 mod cells;
 mod closures;
+mod gc_closures;
 #[cfg(test)]
 mod iterative_emitter_tests;
 mod layout;
@@ -83,6 +84,7 @@ struct Emitter<'a> {
     throw_to: Option<ThrowTarget>,
     needs_remainder: bool,
     errors: bool,
+    gc_closures: bool,
 }
 
 // Ordinary helpers use Wasm locals. A coroutine caller additionally preserves
@@ -93,14 +95,18 @@ struct CallBoundary {
 }
 
 impl Emitter<'_> {
+    fn value_layout(&self, ty: Type) -> layout::Layout {
+        layout::closure_value(ty, self.gc_closures)
+    }
+
     fn get(&mut self, value: ValueId) {
         writeln!(self.output, "local.get {}", self.value_offsets[value.0]).unwrap();
-        if layout::value(self.function.values[value.0]).parts.len() == 2 {
+        if self.value_layout(self.function.values[value.0]).parts.len() == 2 {
             writeln!(self.output, "local.get {}", self.value_offsets[value.0] + 1).unwrap();
         }
     }
     fn set(&mut self, value: ValueId) {
-        if layout::value(self.function.values[value.0]).parts.len() == 2 {
+        if self.value_layout(self.function.values[value.0]).parts.len() == 2 {
             writeln!(self.output, "local.set {}", self.value_offsets[value.0] + 1).unwrap();
         }
         writeln!(self.output, "local.set {}", self.value_offsets[value.0]).unwrap();
@@ -503,7 +509,12 @@ impl Emitter<'_> {
                 }
                 let offset = self.slot_offsets[slot.0];
                 writeln!(self.output, "local.get {offset}").unwrap();
-                if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
+                if self
+                    .value_layout(self.function.slots[slot.0].ty)
+                    .parts
+                    .len()
+                    == 2
+                {
                     writeln!(self.output, "local.get {}", offset + 1).unwrap();
                 }
                 self.set(*result);
@@ -520,7 +531,12 @@ impl Emitter<'_> {
                 }
                 self.get(*value);
                 let offset = self.slot_offsets[slot.0];
-                if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
+                if self
+                    .value_layout(self.function.slots[slot.0].ty)
+                    .parts
+                    .len()
+                    == 2
+                {
                     writeln!(self.output, "local.set {}", offset + 1).unwrap();
                 }
                 writeln!(self.output, "local.set {offset}").unwrap();
@@ -781,7 +797,7 @@ impl Emitter<'_> {
                 Work::Operation(operation) => match &operation.kind {
                     Op::InlineCall { result, body } => {
                         let previous = self.inline_return.replace(body.id.0);
-                        let result_types = layout::value(self.function.values[result.0]).wat;
+                        let result_types = self.value_layout(self.function.values[result.0]).wat;
                         writeln!(
                             self.output,
                             "block $call{} (result {result_types})",
@@ -850,7 +866,7 @@ impl Emitter<'_> {
                             writeln!(
                                 self.output,
                                 "if (result {})",
-                                layout::value(self.function.values[result.0]).wat
+                                self.value_layout(self.function.values[result.0]).wat
                             )
                             .unwrap();
                         } else {
@@ -970,6 +986,7 @@ fn emit_verified(
     }
     let mut output = String::from("(module ");
     let managed = module_has_managed(module);
+    let gc_closures = gc_closures::needed(module);
     // This scan is needed only by the explicit capability profile. Standard
     // numeric/primitive compilation keeps its prior work and stack behavior.
     let mut has_ui_import = false;
@@ -994,7 +1011,7 @@ fn emit_verified(
             .functions
             .iter()
             .any(|f| !ir::captured_cells(&f.body).is_empty());
-    if has_cells {
+    if has_cells && !gc_closures {
         output.push_str(cells::MEMORY);
     }
     if has_ui_import {
@@ -1010,34 +1027,41 @@ fn emit_verified(
             "(import \"grunkalunka:a1/ui\" \"select-visible\" (func $ui_select_visible (param f64 f64) (result f64)))\n",
         );
     }
+    if gc_closures {
+        output.push_str(gc_closures::TYPES);
+    }
     if has_closures {
-        output.push_str(&closures::table(module, false, false));
+        output.push_str(&closures::table(module, false, false, gc_closures));
     }
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {
         let environment = ir::closure_environment(function);
-        let mut header = if index == 0 && !has_cells {
+        let mut header = if index == 0 && (!has_cells || gc_closures) {
             String::from("(func (export \"run\")")
         } else {
             String::from("(func")
         };
         if environment.is_some() {
-            header.push_str(" (param i32 i32)");
+            header.push_str(if gc_closures {
+                " (param (ref null $gc_frame) (ref null $gc_frame))"
+            } else {
+                " (param i32 i32)"
+            });
         } else if function.parameter_count > 0 {
             header.push_str(" (param");
             for slot in function.slots.iter().take(function.parameter_count) {
                 header.push(' ');
-                header.push_str(layout::value(slot.ty).wat);
+                header.push_str(layout::closure_value(slot.ty, gc_closures).wat);
             }
             header.push(')');
         }
         writeln!(
             header,
             " (result {})",
-            layout::value(function.return_type).wat
+            layout::closure_value(function.return_type, gc_closures).wat
         )
         .unwrap();
-        let (body, remainder) = emit_function(function, header, false);
+        let (body, remainder) = emit_function(function, header, false, gc_closures);
         needs_remainder |= remainder;
         output.push_str(&body);
     }
@@ -1045,13 +1069,13 @@ fn emit_verified(
         output.push('\n');
         output.push_str(NUMBER_REMAINDER);
     }
-    if has_cells {
+    if has_cells && !gc_closures {
         output.push_str(cells::ALLOCATOR);
         output.push_str("(func (export \"run\") (param f64 f64)");
         writeln!(output, " (result {})", layout::value(entry_type).wat).unwrap();
         output.push_str("i32.const 0 global.set $cell_top\nlocal.get 0 local.get 1 call 0)\n");
     }
-    if has_closures {
+    if has_closures && !gc_closures {
         output.push_str(closures::FRAME_ALLOCATOR);
     }
     if managed {
@@ -1140,7 +1164,12 @@ fn region_has_control(region: &Region, starts: bool) -> bool {
 }
 
 /// Emit one ordinary activation; coroutine frames use a separate storage mapping.
-fn emit_function(function: &Function, header: String, errors: bool) -> (String, bool) {
+fn emit_function(
+    function: &Function,
+    header: String,
+    errors: bool,
+    gc_closures: bool,
+) -> (String, bool) {
     let environment = ir::closure_environment(function);
     let mut offset = if environment.is_some() { 2 } else { 0 };
     let slot_offsets = function
@@ -1148,7 +1177,7 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
         .iter()
         .map(|slot| {
             let current = offset;
-            offset += layout::value(slot.ty).parts.len();
+            offset += layout::closure_value(slot.ty, gc_closures).parts.len();
             current
         })
         .collect();
@@ -1157,7 +1186,7 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
         .iter()
         .map(|ty| {
             let current = offset;
-            offset += layout::value(*ty).parts.len();
+            offset += layout::closure_value(*ty, gc_closures).parts.len();
             current
         })
         .collect();
@@ -1176,6 +1205,7 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
         throw_to: None,
         needs_remainder: false,
         errors,
+        gc_closures,
         output: header,
     };
     // Source cells and typed value snapshots occupy disjoint physical locals.
@@ -1184,16 +1214,28 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
     } else {
         function.parameter_count
     }) {
-        emitter.output.push_str(layout::value(slot.ty).local);
+        emitter
+            .output
+            .push_str(layout::closure_value(slot.ty, gc_closures).local);
     }
     for ty in &function.values {
-        emitter.output.push_str(layout::value(*ty).local);
+        emitter
+            .output
+            .push_str(layout::closure_value(*ty, gc_closures).local);
     }
     for _ in emitter.cell_offsets.iter().flatten() {
-        emitter.output.push_str("(local i32)\n");
+        emitter.output.push_str(if gc_closures {
+            "(local (ref null $gc_cell))\n"
+        } else {
+            "(local i32)\n"
+        });
     }
     if arena_temp.is_some() {
-        emitter.output.push_str("(local i32)\n");
+        emitter.output.push_str(if gc_closures {
+            "(local (ref null $gc_frame))\n"
+        } else {
+            "(local i32)\n"
+        });
     }
     let mut large_literal = false;
     ir::visit_operations(&function.body, &mut |op| {

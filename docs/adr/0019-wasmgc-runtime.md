@@ -252,6 +252,51 @@ erased metadata and explicit guards. Small-stack tests exercise source and key
 depth. The previous backend-only boundary described above is superseded by this
 source increment; the backend's own-property scope and lifetime exclusions remain.
 
+## Traced synchronous closure storage increment
+
+A synchronous typed-IR module that captures managed values uses GC struct cells
+and GC reference-array environment/call frames. All captured cells in that module
+share this domain, including numeric cells and cells holding closure pairs. A
+closure's private environment lane becomes a traced reference; its code lane
+remains an i32 table index. Numeric/primitive locals and arithmetic retain their
+specialized lanes. Modules without managed captures retain their prior encoding.
+This is an implementation decision within the maintainer's WasmGC direction.
+
+This module-wide choice prevents a mutable binding captured by two kinds of
+closure from splitting into independent linear-memory and GC cells. Cells retain
+unboxed i32/f64 fields plus a nullable traced edge. Environment entries refer to
+shared cells; argument entries are fresh value cells. This simple representation
+allocates an array and per-argument cells, leaving typed frame structs and allocation
+optimization for measured follow-up. No throughput or reclamation-latency claim is
+made. The engine traces cycles and environments after a defining call returns.
+
+Alternatives considered:
+
+- A rooted reference-table handle bridge preserves the numeric closure ABI, but
+  adds manual root scope, release, trap/reentrancy and cycle-lifetime rules. It is
+  deferred in favor of directly traced edges.
+- Migrating every numeric closure and suspended async frame simultaneously would
+  remove the dual backend sooner, but expands the change across independent
+  semantics and obscures regressions. Retaining legacy modules limits that risk.
+- Per-closure storage selection would preserve more old layouts inside a mixed
+  module, but requires a separate shared-cell bridge. A module-wide cell domain is
+  the simpler correct initial implementation.
+
+The verifier now accepts typed synchronous managed captures while retaining capture
+initialization, mutability and exact-type checks. Source capture guards, managed
+closure parameter/result guards, public reference boundaries and async GC spill
+rejection remain in force. Private function identity in the managed value carrier
+and a shared application heap are not introduced.
+
+Emitted typed-IR/native-JS/Node tests cover rebinding, shared mutation, nested and
+returned closures, primitive/callback frames, lexical iteration cells and argument
+limits. A shared-fragment Wasmtime fixture checks aliasing, cycles and an old
+object/String snapshot across forced copying collection; it does not establish
+source capture support. A separate manual check runs an actual emitted closure IR
+artifact through the production Wasmtime numeric adapter; it is not the maintained
+lifetime fixture. Exact revision/check counts belong in the implementation PR. Source capture admission
+and reference-aware async suspension are the next distinct integration steps.
+
 ## Related work and follow-up
 
 - [Shared backend layout](0014-backend-value-layout.md).

@@ -1174,7 +1174,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(cells::MEMORY);
     }
     if has_closures {
-        output.push_str(&closures::table(module, true, starters));
+        output.push_str(&closures::table(module, true, starters, false));
     }
     if has_async || queued {
         output.push_str(frames::GLOBALS);
@@ -1472,7 +1472,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             layout::value(function.return_type).wat
         )
         .unwrap();
-        let (body, remainder) = emit_function(function, header, errors);
+        let (body, remainder) = emit_function(function, header, errors, false);
         output.push_str(&body);
         needs_remainder |= remainder;
     }

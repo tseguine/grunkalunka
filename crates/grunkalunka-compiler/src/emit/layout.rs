@@ -30,6 +30,7 @@ pub(super) enum Lane {
     ManagedRef,
     ObjectRef,
     ArrayRef,
+    EnvironmentRef,
 }
 
 impl Lane {
@@ -40,6 +41,7 @@ impl Lane {
             Self::ManagedRef => "(ref null $gc_value)",
             Self::ObjectRef => "(ref null $gc_object)",
             Self::ArrayRef => "(ref null $gc_array)",
+            Self::EnvironmentRef => "(ref null $gc_frame)",
         }
     }
 }
@@ -130,6 +132,28 @@ pub(super) fn value(ty: Type) -> Layout {
             wat: "i32 i32",
             local: "(local i32 i32)\n",
         },
+    }
+}
+
+// Only modules with traced captures change their private closure layout.
+pub(super) fn closure_value(ty: Type, gc: bool) -> Layout {
+    if gc && matches!(ty, Type::Closure(_)) {
+        Layout {
+            parts: &[
+                Part {
+                    lane: Lane::I32,
+                    byte_offset: 0,
+                },
+                Part {
+                    lane: Lane::EnvironmentRef,
+                    byte_offset: 0,
+                },
+            ],
+            wat: "i32 (ref null $gc_frame)",
+            local: "(local i32 (ref null $gc_frame))\n",
+        }
+    } else {
+        value(ty)
     }
 }
 
