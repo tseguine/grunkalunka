@@ -495,28 +495,37 @@ impl<'s, 'a> Lowering<'s, 'a> {
                                     | AssignmentOperator::LogicalNullish
                             ) =>
                         {
-                            let target = target_identifier(
-                                assignment.left.as_simple_assignment_target()?,
-                                depth,
-                            )
-                            .ok()
-                            .flatten()?;
-                            let symbol = self
-                                .semantic
-                                .scoping()
-                                .get_reference(target.reference_id.get()?)
-                                .symbol_id()?;
-                            let expected = match bindings.get(&symbol) {
-                                Some(kind) => (*kind)?,
-                                None => self.function_assignment_target(assignment, depth)?.1,
-                            };
-                            work.push(Work::Require(expected));
-                            work.push(Work::Expression {
-                                node: &assignment.right,
-                                bindings,
-                                depth: depth + 1,
-                                calls,
-                            });
+                            // A failed nested query supplies None to its
+                            // caller; it must not abort the root worklist.
+                            let expected: Option<usize> = (|| {
+                                let target = target_identifier(
+                                    assignment.left.as_simple_assignment_target()?,
+                                    depth,
+                                )
+                                .ok()
+                                .flatten()?;
+                                let symbol = self
+                                    .semantic
+                                    .scoping()
+                                    .get_reference(target.reference_id.get()?)
+                                    .symbol_id()?;
+                                let expected = match bindings.get(&symbol) {
+                                    Some(kind) => (*kind)?,
+                                    None => self.function_assignment_target(assignment, depth)?.1,
+                                };
+                                Some(expected)
+                            })();
+                            if let Some(expected) = expected {
+                                work.push(Work::Require(expected));
+                                work.push(Work::Expression {
+                                    node: &assignment.right,
+                                    bindings,
+                                    depth: depth + 1,
+                                    calls,
+                                });
+                            } else {
+                                results.push(None);
+                            }
                         }
                         Expression::CallExpression(call) => {
                             let callee = invocation::callee(call);
@@ -551,32 +560,39 @@ impl<'s, 'a> Lowering<'s, 'a> {
                                         },
                                     );
                                 }
-                                let mut arguments = Vec::new();
-                                let mut symbols = Vec::new();
-                                for (parameter, argument) in
-                                    arrow.params.items.iter().zip(invocation::arguments(call))
-                                {
-                                    let BindingPattern::BindingIdentifier(identifier) =
-                                        &parameter.pattern
-                                    else {
-                                        return None;
-                                    };
-                                    arguments.push(argument.as_expression()?);
-                                    symbols.push(identifier.symbol_id.get()?);
-                                }
-                                work.push(Work::FactoryArguments {
-                                    arrow,
-                                    parameters,
-                                    symbols,
-                                    calls,
-                                });
-                                for argument in arguments.into_iter().rev() {
-                                    work.push(Work::Expression {
-                                        node: argument,
-                                        bindings: bindings.clone(),
-                                        depth: depth + 1,
-                                        calls: calls + 1,
+                                let inputs = (|| {
+                                    let mut arguments = Vec::new();
+                                    let mut symbols = Vec::new();
+                                    for (parameter, argument) in
+                                        arrow.params.items.iter().zip(invocation::arguments(call))
+                                    {
+                                        let BindingPattern::BindingIdentifier(identifier) =
+                                            &parameter.pattern
+                                        else {
+                                            return None;
+                                        };
+                                        arguments.push(argument.as_expression()?);
+                                        symbols.push(identifier.symbol_id.get()?);
+                                    }
+                                    Some((arguments, symbols))
+                                })();
+                                if let Some((arguments, symbols)) = inputs {
+                                    work.push(Work::FactoryArguments {
+                                        arrow,
+                                        parameters,
+                                        symbols,
+                                        calls,
                                     });
+                                    for argument in arguments.into_iter().rev() {
+                                        work.push(Work::Expression {
+                                            node: argument,
+                                            bindings: bindings.clone(),
+                                            depth: depth + 1,
+                                            calls: calls + 1,
+                                        });
+                                    }
+                                } else {
+                                    results.push(None);
                                 }
                             } else if calls >= 8 {
                                 results.push(None);
