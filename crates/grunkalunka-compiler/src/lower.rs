@@ -29,6 +29,8 @@ mod managed_calls;
 pub(super) use managed_calls::infer as infer_managed_calls;
 mod pending;
 mod promises;
+#[cfg(test)]
+mod source_block_tests;
 mod storage;
 pub(super) use callbacks::infer_callback_parameters;
 pub(super) use promises::parameters as infer_promise_parameters;
@@ -889,8 +891,58 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
-        let outer = std::mem::replace(&mut self.statement_depth, depth);
-        let result = self.statement_inner(statement, region, depth);
+        // Single-statement source blocks have no sibling continuation; peel
+        // them on a heap work stack. The 64-level source limit, statement
+        // charging, binding scopes and generated Region/Op::Block sequence
+        // are deliberately identical to the recursive sequence path.
+        if !matches!(statement, Statement::BlockStatement(block) if block.body.len() == 1) {
+            let outer = std::mem::replace(&mut self.statement_depth, depth);
+            let result = self.statement_inner(statement, region, depth);
+            self.statement_depth = outer;
+            return result;
+        }
+
+        let outer = self.statement_depth;
+        let result = (|| {
+            let mut current = statement;
+            let mut current_depth = depth;
+            let mut blocks = Vec::new();
+            while let Statement::BlockStatement(block) = current {
+                if block.body.len() != 1 {
+                    break;
+                }
+                self.statement_depth = current_depth;
+                if self.active_block_calls != 0 && self.inline_depth + current_depth > 128 {
+                    return Err(unsupported(
+                        current,
+                        "block-arrow expansion exceeds 128 nested regions",
+                    ));
+                }
+                if current_depth > 64 {
+                    return Err(unsupported(current, "statement nesting exceeds 64"));
+                }
+                self.charge_statement(current)?;
+                let visible = self.bindings.len();
+                blocks.push((current, self.region(block.as_ref()), visible));
+                current = &block.body[0];
+                current_depth += 1;
+            }
+
+            // Only the innermost ordinary statement enters the Rust stack.
+            // Its wrapper still restores statement_depth on an error.
+            let (_, innermost, _) = blocks.last_mut().expect("peeled source block");
+            let completion = self.statement(current, innermost, current_depth)?;
+
+            while let Some((block, child, visible)) = blocks.pop() {
+                self.bindings.truncate(visible);
+                if let Some((_, parent, _)) = blocks.last_mut() {
+                    Self::push(parent, block, Op::Block(child));
+                } else {
+                    Self::push(region, block, Op::Block(child));
+                }
+            }
+            Ok(completion)
+        })();
         self.statement_depth = outer;
         result
     }

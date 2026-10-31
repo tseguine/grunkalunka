@@ -1,3 +1,4 @@
+import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
 import { managedObjects } from './managed-objects.mjs';
 import { numericBitNot } from './numeric-bit-not.mjs';
@@ -235,7 +236,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 839);
+  assert.equal(inventory.records.size, 823);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });
@@ -726,4 +727,43 @@ test('unary Math call-site type erasure preserves five exact TS sources and JS o
     assert.equal(sourceJS,sourceTS.replace('<number>',''),id);
     assert.equal(oracleSource,sourceJS,id);
   }
+});
+
+test('String values promote exact originals with separate nonterminating-loop evidence',()=>{
+ const pins={
+  "do-string-test": "ff9fb88568a52b4b82c871e234eab2e77d50d66b3be5d6fb1307e523bd34a6b6",
+  "statement-string": "3c4da174eb7511c8b413c8df118039c4125db879323da7feda1b3c3662026ceb",
+  "statement-asserted-string": "06c3609fda021daff6ebff5682c0472e401b8ecb003a07327c55e0bf0af58604",
+  "declarators-later-string": "3774ff2405fa1891566dd43175e92f8fce87998c39b6e16f0061be83a5fdc0af",
+  "directive-nonprologue": "035fea659bf657c903ad75c0dc2300a79154cdac7cb25d348a22ba4af6b08a56",
+  "directive-parenthesized": "21ff8f54238bf46a925eba453ff03cd966ef74399dbe3f5b13f7424d96c17a43",
+  "directive-nested-block": "88679bbefbc9a522d50ae74defc37ea25add51d9e02736c971099114477e71d5",
+  "directive-ts-wrapped": "df418ae5526b5e27ff6c319dc815affe615cc6410e5f67db246cdaafec85578d",
+  "direct-call-unused-unsupported": "908cd397bcd62589d46868fab6f0763284ce4c63b7533968fd164831344a0f3d",
+  "discarded-string": "3c4da174eb7511c8b413c8df118039c4125db879323da7feda1b3c3662026ceb",
+  "discarded-asserted-string": "f353a3ac4e130e4c4633ba6c3bd1f3f01d0f48ba5a8f449f7cc5b4406052a6e1",
+  "const-boolean-asserted-string": "c8a998f49d6f128d3f51e8236910a21618852a0dc33076c0cdd260ea13895414",
+  "discarded-predicate-binding-reject-string": "cc2e7ccdf2600267d4a18735c35124cce6a4eab92c51625dd445f47d025ee836",
+  "strict-boolean-equality-reject-asserted-string": "b1657a22efde4adc90c7a188c452de6ffc3e1ddd38ae3178fc21995123be2213",
+  "predicate-logical-string": "065e0954a014ea57da82aaf8ab109d84161f386cdbd1161cda25b1821ce474f5",
+  "comma-unsupported-3": "7fb89db8138c039adb129d43d5584256a230c8256fae45b4d255b1bc99455d92"
+};
+ for(const [id,hash] of Object.entries(pins)) {
+   assert.ok(!rejected.some(row=>row[0]===id),id);
+   assert.ok(!catalog.records.some(row=>row.id===id),id);
+   const p=id==='do-string-test'?managedStringFuel:managedStringPromotions.find(p=>p.id===id);
+   assert.ok(p,id);
+   const original=p.extension==='ts'?p.sourceTS:p.sourceJS;
+   assert.equal(createHash('sha256').update(original).digest('hex'),hash,id);
+   if(id==='do-string-test') {
+     assert.ok(valueFuelCases.includes(managedStringFuel));
+     assert.deepEqual(p.resourceOutcomes,['fuel-exhausted']);
+     assert.ok(!managedStrings.some(row=>row[0]===id));
+   } else {
+     assert.equal(p.sourceSha256,hash,id);
+     const sources=programSources(managedStrings.find(row=>row[0]===id));
+     assert.equal(sources.sourceJS,p.sourceJS);assert.equal(sources.sourceTS,p.sourceTS);
+     assert.equal(sources.oracleSource,p.sourceJS);
+   }
+ }
 });

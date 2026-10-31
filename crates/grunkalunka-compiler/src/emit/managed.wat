@@ -1,7 +1,8 @@
 ;; Private GC values preserve their language kind independently of the carrier.
 ;; Helpers append after source functions, preserving source function indices.
 (type $gc_value (struct (field i32) (field f64) (field (ref null eq))))
-(type $gc_key (array i16))
+;; Packed text is mutable only while its private literal is constructed.
+(type $gc_key (array (mut i16)))
 (type $gc_entry (struct (field (ref null $gc_key)) (field (mut (ref null $gc_value)))))
 (type $gc_props (array (mut (ref null $gc_entry))))
 (type $gc_object (struct (field (mut (ref null $gc_props)))))
@@ -78,8 +79,15 @@
       local.get $left struct.get $gc_value 2
       local.get $right struct.get $gc_value 2 ref.eq
     else
-      local.get $left struct.get $gc_value 1
-      local.get $right struct.get $gc_value 1 f64.eq
+      local.get $left struct.get $gc_value 0 i32.const 5 i32.eq
+      if (result i32)
+        local.get $left struct.get $gc_value 2 ref.cast (ref $gc_key)
+        local.get $right struct.get $gc_value 2 ref.cast (ref $gc_key)
+        call $gc_key_equal
+      else
+        local.get $left struct.get $gc_value 1
+        local.get $right struct.get $gc_value 1 f64.eq
+      end
     end
   end)
 
@@ -90,8 +98,14 @@
     local.get $value struct.get $gc_value 0 i32.const 4 i32.eq
     if (result i32) i32.const 1
     else
-      local.get $value struct.get $gc_value 1 f64.const 0 f64.ne
-      local.get $value struct.get $gc_value 1
-      local.get $value struct.get $gc_value 1 f64.eq i32.and
+      local.get $value struct.get $gc_value 0 i32.const 5 i32.eq
+      if (result i32)
+        local.get $value struct.get $gc_value 2 ref.cast (ref $gc_key)
+        array.len i32.const 0 i32.ne
+      else
+        local.get $value struct.get $gc_value 1 f64.const 0 f64.ne
+        local.get $value struct.get $gc_value 1
+        local.get $value struct.get $gc_value 1 f64.eq i32.and
+      end
     end
   end)

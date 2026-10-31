@@ -11,7 +11,7 @@ pub use stringify::{StringifyError, StringifyLimit, StringifyLimits, stringify};
 /// Object entries retain first insertion order, with duplicate values replaced.
 /// This metadata is not JavaScript property enumeration order: integer index keys
 /// must be ordered separately when exposing an object to JavaScript operations.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum JsonValue {
     Null,
     Boolean(bool),
@@ -19,6 +19,55 @@ pub enum JsonValue {
     String(Vec<u16>),
     Array(Vec<JsonValue>),
     Object(Vec<(Vec<u16>, JsonValue)>),
+}
+
+// Derived Clone walks owned children recursively and can overflow the native
+// stack on manually assembled trees (parsing is separately limited to 128).
+// Assemble copies in postorder on the heap while preserving input order.
+impl Clone for JsonValue {
+    fn clone(&self) -> Self {
+        enum Work<'a> {
+            Value(&'a JsonValue),
+            Array(usize),
+            Object(Vec<Vec<u16>>),
+        }
+
+        let mut work = vec![Work::Value(self)];
+        let mut done = Vec::new();
+        while let Some(task) = work.pop() {
+            match task {
+                Work::Value(value) => match value {
+                    JsonValue::Null => done.push(JsonValue::Null),
+                    JsonValue::Boolean(value) => done.push(JsonValue::Boolean(*value)),
+                    JsonValue::Number(value) => done.push(JsonValue::Number(*value)),
+                    JsonValue::String(units) => done.push(JsonValue::String(units.clone())),
+                    JsonValue::Array(elements) => {
+                        work.push(Work::Array(elements.len()));
+                        for element in elements.iter().rev() {
+                            work.push(Work::Value(element));
+                        }
+                    }
+                    JsonValue::Object(entries) => {
+                        work.push(Work::Object(
+                            entries.iter().map(|(key, _)| key.clone()).collect(),
+                        ));
+                        for (_, value) in entries.iter().rev() {
+                            work.push(Work::Value(value));
+                        }
+                    }
+                },
+                Work::Array(count) => {
+                    let children = done.split_off(done.len() - count);
+                    done.push(JsonValue::Array(children));
+                }
+                Work::Object(keys) => {
+                    let children = done.split_off(done.len() - keys.len());
+                    done.push(JsonValue::Object(keys.into_iter().zip(children).collect()));
+                }
+            }
+        }
+        done.pop().expect("the root JSON value was cloned")
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

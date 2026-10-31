@@ -31,7 +31,6 @@ const binary = 'only binary +, -, *, /, %, &, |, ^, <<, >> and >>> are admitted'
 const unary = 'only unary +, - and ~ are admitted';
 const reference = 'reference is not an initialized numeric parameter or local';
 const negatives = [
-  ['statement-string', '("x"); return a;', expression],
   ['statement-call', 'Math.random(); return a;', expression],
   ['statement-global', 'clock; return a;', reference],
   ['statement-unselected-conditional-call', '0?Math.random():a; return a;', expression],
@@ -41,7 +40,6 @@ const negatives = [
   ['statement-after-return', 'return a; a+b;', 'statements after a guaranteed return are not admitted'],
   ['statement-expression-depth-limit', `${'('.repeat(129)}a${')'.repeat(129)}; return a;`, 'expression nesting exceeds'],
   ['statement-count-limit', `${'a;'.repeat(256)} return a;`, 'at most 256 statements'],
-  ['statement-asserted-string', '("x") satisfies number; return a;', expression, 'ts'],
 ];
 export const numericStatementRejected = negatives.map(([id, body, diagnostic, extension='js']) => [id,
   `export function run(a,b) { ${body} }`, extension, diagnostic]);

@@ -6,22 +6,24 @@ use std::collections::{BTreeMap, BTreeSet};
 
 // Number/Boolean/nullish share the non-object alternative here. Their existing
 // primitive planners still choose concrete fast paths; only object-bearing flow
-// changes a signature. Strings/functions remain subject to source rejection.
+// changes a signature. String flow also requires a managed carrier; functions
+// remain subject to source rejection.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Kind {
     Primitive,
     Object,
+    String,
 }
 type Kinds = BTreeSet<Kind>;
 
 fn managed_type(kinds: &Kinds) -> Option<Type> {
-    kinds
-        .contains(&Kind::Object)
-        .then_some(if kinds.len() == 1 {
+    (kinds.contains(&Kind::Object) || kinds.contains(&Kind::String)).then_some(
+        if kinds.len() == 1 && kinds.contains(&Kind::Object) {
             Type::ManagedObject
         } else {
             Type::ManagedValue
-        })
+        },
+    )
 }
 
 fn symbol(identifier: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
@@ -68,7 +70,7 @@ fn kinds(
             Task::Member => {
                 let receiver = values.pop().expect("receiver source kinds");
                 values.push(if receiver.contains(&Kind::Object) {
-                    [Kind::Primitive, Kind::Object].into()
+                    [Kind::Primitive, Kind::Object, Kind::String].into()
                 } else {
                     [Kind::Primitive].into()
                 });
@@ -87,6 +89,7 @@ fn kinds(
                         work.push(Task::Expr(&w.expression, depth + 1));
                     }
                     Expression::ObjectExpression(_) => values.push([Kind::Object].into()),
+                    Expression::StringLiteral(_) => values.push([Kind::String].into()),
                     Expression::Identifier(identifier) => values.push(
                         symbol(identifier, semantic)
                             .and_then(|symbol| bindings.get(&symbol).cloned())
@@ -159,11 +162,12 @@ pub(crate) fn infer(
 ) {
     // The only public inputs are Numbers. Without a construction there is no
     // managed reference origin, so ordinary modules keep the old planning path.
-    if !semantic
-        .nodes()
-        .iter()
-        .any(|n| matches!(n.kind(), AstKind::ObjectExpression(_)))
-    {
+    if !semantic.nodes().iter().any(|n| {
+        matches!(
+            n.kind(),
+            AstKind::ObjectExpression(_) | AstKind::StringLiteral(_)
+        )
+    }) {
         return;
     }
     let parameters: Vec<Vec<_>> = declarations

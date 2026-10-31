@@ -65,18 +65,29 @@ fn if_branches_preserve_snapshot_order_and_yield_continuations() {
     };
     let consequent_copy = constant_then(&split, yes, 1);
     let suffix_state = match &split.states[consequent_copy].end {
-        End::Copy { input, result, next } => {
+        End::Copy {
+            input,
+            result,
+            next,
+        } => {
             assert_eq!((*input, *result), (ValueId(7), ValueId(4)));
             *next
         }
         _ => panic!("consequent must copy its yielded result"),
     };
     let returned = constant_then(&split, suffix_state, 9);
-    assert!(matches!(&split.states[returned].end, End::Return(ValueId(4))));
+    assert!(matches!(
+        &split.states[returned].end,
+        End::Return(ValueId(4))
+    ));
 
     let alternate_copy = constant_then(&split, no, 2);
     match &split.states[alternate_copy].end {
-        End::Copy { input, result, next } => {
+        End::Copy {
+            input,
+            result,
+            next,
+        } => {
             assert_eq!((*input, *result), (ValueId(8), ValueId(4)));
             assert_eq!(*next, suffix_state);
         }

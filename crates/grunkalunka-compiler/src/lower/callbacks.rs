@@ -15,116 +15,275 @@ pub(super) struct ReturnOrigins<'s, 'n, 'a> {
     pub arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
 }
 
-impl ReturnOrigins<'_, '_, '_> {
+impl<'s, 'n, 'a> ReturnOrigins<'s, 'n, 'a> {
     // Follow source-known concise and block results. Actual argument origins are
     // computed before shadowing formals; no call effects or argument bindings
-    // escape this read-only query. The same eight-call bound limits recursion.
-    pub(super) fn expression(
-        &self,
-        expression: &Expression<'_>,
+    // escape this read-only query. The eight-call admission bound is unchanged.
+    pub(super) fn expression<'e>(
+        &'e self,
+        expression: &'e Expression<'a>,
         bindings: &BTreeMap<SymbolId, Origins>,
         depth: usize,
         calls: usize,
     ) -> Origins {
-        // Structural expression nesting is source-dependent, so own it on the
-        // heap rather than the native call stack. The only recursive queries
-        // below cross an actual source call, whose eight-level budget is
-        // unchanged. Unioning origins is order-independent and has no effects.
-        let mut result = Origins::default();
-        let mut pending = vec![(expression, depth)];
-        while let Some((expression, depth)) = pending.pop() {
-            if depth > 128 {
-                continue;
-            }
-            if let Some(inner) = erased_inner(expression) {
-                pending.push((inner, depth + 1));
-                continue;
-            }
-            match expression {
-                Expression::ParenthesizedExpression(wrapper) => {
-                    pending.push((&wrapper.expression, depth + 1));
-                }
-                Expression::Identifier(identifier) => {
-                    let found = symbol(identifier, self.semantic)
-                        .and_then(|id| bindings.get(&id))
-                        .cloned()
-                        .unwrap_or_else(|| origins(expression, self.semantic));
-                    result.0.extend(found.0);
-                    result.1.extend(found.1);
-                }
-                Expression::SequenceExpression(sequence) => {
-                    if let Some(last) = sequence.expressions.last() {
-                        pending.push((last, depth + 1));
+        // A source call can lead through a callee, actual arguments and one or
+        // more source-known returned arrows. Keep all of those continuations on
+        // the heap: limiting call *depth* to eight never bounded native frames.
+        enum Work<'e, 'a> {
+            Expression {
+                node: &'e Expression<'a>,
+                bindings: std::rc::Rc<BTreeMap<SymbolId, Origins>>,
+                depth: usize,
+                calls: usize,
+            },
+            Union(usize),
+            Callee {
+                call: &'e CallExpression<'a>,
+                bindings: std::rc::Rc<BTreeMap<SymbolId, Origins>>,
+                depth: usize,
+                calls: usize,
+            },
+            Body {
+                body: NodeId,
+                call: &'e CallExpression<'a>,
+                bindings: std::rc::Rc<BTreeMap<SymbolId, Origins>>,
+                depth: usize,
+                calls: usize,
+            },
+            BindArguments {
+                symbols: Vec<SymbolId>,
+                returns: Vec<&'e Expression<'a>>,
+                bindings: std::rc::Rc<BTreeMap<SymbolId, Origins>>,
+                depth: usize,
+                calls: usize,
+            },
+        }
+
+        let mut work = vec![Work::Expression {
+            node: expression,
+            bindings: std::rc::Rc::new(bindings.clone()),
+            depth,
+            calls,
+        }];
+        let mut results = Vec::new();
+        while let Some(task) = work.pop() {
+            match task {
+                Work::Union(count) => {
+                    let mut joined = Origins::default();
+                    for _ in 0..count {
+                        let found: Origins = results.pop().expect("scheduled return origins");
+                        joined.0.extend(found.0);
+                        joined.1.extend(found.1);
                     }
+                    results.push(joined);
                 }
-                Expression::AssignmentExpression(assignment)
-                    if assignment.operator == AssignmentOperator::Assign =>
-                {
-                    pending.push((&assignment.right, depth + 1));
-                }
-                Expression::ConditionalExpression(conditional) => {
-                    pending.push((&conditional.alternate, depth + 1));
-                    pending.push((&conditional.consequent, depth + 1));
-                }
-                Expression::LogicalExpression(logical) => {
-                    pending.push((&logical.right, depth + 1));
-                    pending.push((&logical.left, depth + 1));
-                }
-                Expression::CallExpression(call) => {
-                    if calls >= 8 {
+                Work::Expression {
+                    node,
+                    bindings,
+                    depth,
+                    calls,
+                } => {
+                    if depth > 128 {
+                        results.push(Origins::default());
                         continue;
                     }
-                    let (sources, mut bodies) =
-                        self.expression(invocation::callee(call), bindings, depth + 1, calls + 1);
+                    if let Some(inner) = erased_inner(node) {
+                        work.push(Work::Expression {
+                            node: inner,
+                            bindings,
+                            depth: depth + 1,
+                            calls,
+                        });
+                        continue;
+                    }
+                    match node {
+                        Expression::ParenthesizedExpression(wrapper) => {
+                            work.push(Work::Expression {
+                                node: &wrapper.expression,
+                                bindings,
+                                depth: depth + 1,
+                                calls,
+                            });
+                        }
+                        Expression::Identifier(identifier) => {
+                            results.push(
+                                symbol(identifier, self.semantic)
+                                    .and_then(|id| bindings.get(&id))
+                                    .cloned()
+                                    .unwrap_or_else(|| origins(node, self.semantic)),
+                            );
+                        }
+                        Expression::SequenceExpression(sequence) => {
+                            if let Some(last) = sequence.expressions.last() {
+                                work.push(Work::Expression {
+                                    node: last,
+                                    bindings,
+                                    depth: depth + 1,
+                                    calls,
+                                });
+                            } else {
+                                results.push(Origins::default());
+                            }
+                        }
+                        Expression::AssignmentExpression(assignment)
+                            if assignment.operator == AssignmentOperator::Assign =>
+                        {
+                            work.push(Work::Expression {
+                                node: &assignment.right,
+                                bindings,
+                                depth: depth + 1,
+                                calls,
+                            });
+                        }
+                        Expression::ConditionalExpression(conditional) => {
+                            work.push(Work::Union(2));
+                            work.push(Work::Expression {
+                                node: &conditional.alternate,
+                                bindings: bindings.clone(),
+                                depth: depth + 1,
+                                calls,
+                            });
+                            work.push(Work::Expression {
+                                node: &conditional.consequent,
+                                bindings,
+                                depth: depth + 1,
+                                calls,
+                            });
+                        }
+                        Expression::LogicalExpression(logical) => {
+                            work.push(Work::Union(2));
+                            work.push(Work::Expression {
+                                node: &logical.right,
+                                bindings: bindings.clone(),
+                                depth: depth + 1,
+                                calls,
+                            });
+                            work.push(Work::Expression {
+                                node: &logical.left,
+                                bindings,
+                                depth: depth + 1,
+                                calls,
+                            });
+                        }
+                        Expression::CallExpression(call) if calls < 8 => {
+                            work.push(Work::Callee {
+                                call,
+                                bindings: bindings.clone(),
+                                depth,
+                                calls,
+                            });
+                            work.push(Work::Expression {
+                                node: invocation::callee(call),
+                                bindings,
+                                depth: depth + 1,
+                                calls: calls + 1,
+                            });
+                        }
+                        Expression::CallExpression(_) => {
+                            results.push(Origins::default());
+                        }
+                        _ => results.push(origins(node, self.semantic)),
+                    }
+                }
+                Work::Callee {
+                    call,
+                    bindings,
+                    depth,
+                    calls,
+                } => {
+                    let (sources, mut bodies): Origins =
+                        results.pop().expect("scheduled callee origins");
                     for source in sources {
                         if let Some(known) = self.targets.get(&source) {
                             bodies.extend(known);
                         }
                     }
-                    for body in bodies {
-                        let arrow = self.arrows[&body];
-                        if arrow.params.items.len() > invocation::arguments(call).len() {
-                            continue;
-                        }
-                        let expressions = if let Some(expression) = arrow.get_expression() {
-                            vec![expression]
-                        } else {
-                            block_results::return_statements(self.semantic, body)
-                                .into_iter()
-                                .filter_map(|statement| statement.argument.as_ref())
-                                .collect()
-                        };
-                        let mut parameters = bindings.clone();
-                        for (parameter, argument) in
-                            arrow.params.items.iter().zip(invocation::arguments(call))
-                        {
-                            if let BindingPattern::BindingIdentifier(identifier) =
-                                &parameter.pattern
-                                && let Some(id) = identifier.symbol_id.get()
-                                && let Some(argument) = argument.as_expression()
-                            {
-                                parameters.insert(
-                                    id,
-                                    self.expression(argument, bindings, depth + 1, calls + 1),
-                                );
-                            }
-                        }
-                        for expression in expressions {
-                            let returned =
-                                self.expression(expression, &parameters, depth + 1, calls + 1);
-                            result.0.extend(returned.0);
-                            result.1.extend(returned.1);
-                        }
+                    work.push(Work::Union(bodies.len()));
+                    for body in bodies.into_iter().rev() {
+                        work.push(Work::Body {
+                            body,
+                            call,
+                            bindings: bindings.clone(),
+                            depth,
+                            calls,
+                        });
                     }
                 }
-                _ => {
-                    let found = origins(expression, self.semantic);
-                    result.0.extend(found.0);
-                    result.1.extend(found.1);
+                Work::Body {
+                    body,
+                    call,
+                    bindings,
+                    depth,
+                    calls,
+                } => {
+                    let arrow = self.arrows[&body];
+                    if arrow.params.items.len() > invocation::arguments(call).len() {
+                        results.push(Origins::default());
+                        continue;
+                    }
+                    let returns = if let Some(expression) = arrow.get_expression() {
+                        vec![expression]
+                    } else {
+                        block_results::return_statements(self.semantic, body)
+                            .into_iter()
+                            .filter_map(|statement| statement.argument.as_ref())
+                            .collect()
+                    };
+                    let mut arguments = Vec::new();
+                    for (parameter, argument) in
+                        arrow.params.items.iter().zip(invocation::arguments(call))
+                    {
+                        if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                            && let Some(symbol) = identifier.symbol_id.get()
+                            && let Some(argument) = argument.as_expression()
+                        {
+                            arguments.push((symbol, argument));
+                        }
+                    }
+                    work.push(Work::BindArguments {
+                        symbols: arguments.iter().map(|(symbol, _)| *symbol).collect(),
+                        returns,
+                        bindings: bindings.clone(),
+                        depth,
+                        calls,
+                    });
+                    for (_, argument) in arguments.into_iter().rev() {
+                        work.push(Work::Expression {
+                            node: argument,
+                            bindings: bindings.clone(),
+                            depth: depth + 1,
+                            calls: calls + 1,
+                        });
+                    }
+                }
+                Work::BindArguments {
+                    symbols,
+                    returns,
+                    bindings,
+                    depth,
+                    calls,
+                } => {
+                    let mut parameters = (*bindings).clone();
+                    // Actuals were evaluated under the caller bindings, before
+                    // any formal is shadowed, exactly as in the source query.
+                    for symbol in symbols.into_iter().rev() {
+                        parameters
+                            .insert(symbol, results.pop().expect("scheduled argument origins"));
+                    }
+                    let parameters = std::rc::Rc::new(parameters);
+                    work.push(Work::Union(returns.len()));
+                    for expression in returns.into_iter().rev() {
+                        work.push(Work::Expression {
+                            node: expression,
+                            bindings: parameters.clone(),
+                            depth: depth + 1,
+                            calls: calls + 1,
+                        });
+                    }
                 }
             }
         }
-        result
+        results.pop().expect("root return origins")
     }
 }
 

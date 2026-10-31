@@ -55,6 +55,7 @@ fn void_keeps_operand_effects_and_primitive_results_in_both_engines() {
         ("return +((void(a=b))??a);", true),
         ("return void(a?null:false);", false),
         ("return void({});", false),
+        ("return void 'text';", false),
         ("let undefined=a;return void b;", false),
         ("const f=x=>void(x+a);return f(b);", false),
         (
@@ -169,7 +170,6 @@ fn void_does_not_hide_invalid_operands_and_keeps_depth_limits() {
         "void x;let x=a;return a;",
         "const x=a;return void(x=b);",
         "return void [];",
-        "return void 'text';",
         "return void(()=>[]);",
         "const f=()=>a;return void f?.();",
     ] {
