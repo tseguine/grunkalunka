@@ -122,7 +122,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
         "const f=()=>a;const o={x:f};return a;",
         "const o={x:Promise.resolve(a)};return o.x===a?a:b;",
         "const p=Promise.resolve(a);const o={x:p};return o.x===a?a:b;",
-        "const o={x:[]};return a;",
         "const o={x:1n};return a;",
         "const o=true?{}:{get x(){return a;}};return a;",
         "const o={x:a};return o.x;",

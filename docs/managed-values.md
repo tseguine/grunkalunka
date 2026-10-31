@@ -1,7 +1,7 @@
 # Managed values and source data objects
 
-The private structured IR now has a GC-backed value carrier and a known-object
-reference kind. Synchronous source lowering now constructs ordinary data objects
+The private structured IR now has a GC-backed value carrier and known object/array
+reference kinds. Synchronous source lowering constructs ordinary data objects and arrays
 and uses their references, properties, equality and truthiness through this IR.
 This is an increment toward [#300](https://github.com/tseguine/grunkalunka/issues/300),
 not complete source object/array support. Exported Number/primitive signatures and
@@ -66,10 +66,9 @@ property writes to `length` reject in the IR verifier so they cannot bypass leng
 validation. Dynamic coercion, RangeError completion, property descriptors and
 prototype lookup are not implemented by these operations.
 
-This is **IR/backend support**, not source array admission. Source literals,
-indexing and length syntax still reject until the separate frontend unit supplies
-the required receiver/key/length proofs. Managed captures, public reference exports
-and suspended async frames retain their existing guards. Compiler tests execute
+The source cursor now supplies the receiver/key/length proofs described below.
+Managed captures, public reference exports and suspended async frames retain their
+existing guards. Compiler tests execute
 emitted IR in Node against native JS; runtime kernel tests exercise Wasmtime,
 holes, sparse storage, cycles, text edges and repeated forced copying collections.
 
@@ -92,7 +91,7 @@ lookup and silently discard inherited behavior.
 
 Fresh object literals admit ordinary initializer/shorthand properties with static
 identifier or String keys, including computed String literals. Values can contain
-the four primitive kinds, Strings or other constructed objects. Properties evaluate left to
+the four primitive kinds, Strings or other constructed objects and arrays. Properties evaluate left to
 right; duplicate keys retain the last value. Static reads/writes preserve aliases,
 receiver snapshots, RHS results and prior saved reads. Known-object bindings can be
 reassigned to other known objects, and managed property snapshots can hold changing
@@ -124,8 +123,8 @@ Dynamic property keys, optional access, unknown-kind receivers, accessors, metho
 spread and numeric literal keys reject. Implicit managed coercions, loose equality,
 managed logical-value joins, managed captures and reference-aware async frames
 remain separate work. Managed properties cannot be returned directly through
-the primitive ABI; observations must produce a supported primitive result. Arrays
-and function values remain unimplemented. String methods, indexing, length,
+the primitive ABI; observations must produce a supported primitive result.
+Function values in managed containers remain unimplemented. String methods, indexing, length,
 concatenation and coercions remain separate work. Unsupported branches
 are checked even when a particular input would not execute them.
 
@@ -145,13 +144,44 @@ through the same construction path. Source-size and production fuel limits are
 unchanged. Large semantic probes use an explicit bounded core-engine fuel budget
 and separately assert controlled exhaustion at the public runtime's normal budget.
 
+## Synchronous source arrays
+
+Array literals construct traced references on the same expression cursor as
+objects and primitive values. Elements evaluate left to right; holes remain absent
+entries and trailing commas retain their JavaScript length. Arrays can contain
+the four existing primitive kinds, Strings, objects and other arrays, including cycles. Aliases,
+rebinding, saved element reads and the receiver snapshot before an assignment RHS
+retain their identity/value semantics. Empty arrays are truthy.
+
+Known-array reads and plain writes admit static String keys and unsigned integer
+Number literals through 2^32-1. The backend distinguishes actual array indices
+from named properties. `length` reads, including computed static text, produce
+known Numbers and preserve existing numeric layouts. Plain length writes accept
+valid unsigned integer literals through 2^32-1, retain the assigned Number result,
+remove truncated elements and leave holes on subsequent growth. Erased TS wrappers
+and parentheses are checked under the existing expression-depth budget.
+
+Every Object.prototype intrinsic key and every Array.prototype String key except
+the array's own `length` rejects for an array receiver, including shadowed keys.
+Tests compare this boundary with the native intrinsic names. The additional Array
+guard does not restrict ordinary objects' own keys such as `map` or `push`.
+Prototype mutation and foreign references remain unavailable in this profile.
+
+Dynamic keys, other numeric keys, spread, methods, descriptors, coercions, invalid
+or dynamic length writes and optional access still reject. Element snapshots use
+the general carrier: returning `items[1]` directly through a Number export still
+requires a primitive-result proof/projection, and exporting an array requires a
+reference-aware boundary. Those existing gap fixtures remain rejected; construction
+and equality tests do not claim those gaps are closed. Managed captures and async
+frames remain unsupported, with source-level capture diagnostics.
+
 ## Calls, cells and lifetime boundaries
 
 Ordinary synchronous named source helpers can accept/return managed references,
-including String values, mixed primitive/reference arguments and property-value results. A finite
+including arrays, String values, mixed primitive/reference arguments and property-value results. A finite
 source-flow query joins actual arguments, local initializers/writes and returns by
 resolved symbol identity until no kind facts change. Object-only flow uses a known
-object reference; String-bearing or mixed object/non-object flow uses the managed carrier. TS type
+object reference and array-only flow a known array reference; String-bearing or mixed flow uses the managed carrier. TS type
 annotations supply no runtime facts. Existing primitive planning remains responsible
 for calls with no object-bearing flow, so ordinary numeric helpers retain f64.
 

@@ -427,52 +427,28 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 
 #[derive(Debug)]
 pub(crate) enum Op {
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Source array admission follows the backend unit")
-    )]
     ManagedArrayNew {
         result: ValueId,
         length: u32,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Source array admission follows the backend unit")
-    )]
     ManagedArrayLength {
         result: ValueId,
         array: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Source array admission follows the backend unit")
-    )]
     ManagedArrayGetOwn {
         result: ValueId,
         array: ValueId,
         key: Vec<u16>,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Source array admission follows the backend unit")
-    )]
     ManagedArraySetOwn {
         array: ValueId,
         key: Vec<u16>,
         value: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Source array admission follows the backend unit")
-    )]
     ManagedArrayResize {
         array: ValueId,
         length: u32,
     },
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Source array admission follows the backend unit")
-    )]
     ManagedFromArray {
         result: ValueId,
         input: ValueId,
