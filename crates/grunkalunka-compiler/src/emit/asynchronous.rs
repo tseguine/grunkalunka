@@ -160,6 +160,43 @@ enum PendingSplit<'a> {
         outer_catch: Option<(ValueId, usize)>,
         outer_loops: Option<LoopTargets>,
     },
+    WhileStep {
+        parent: &'a Region,
+        remaining: usize,
+        body: &'a Region,
+        condition: &'a Region,
+        test: usize,
+        normal: usize,
+        outer_loops: Option<LoopTargets>,
+    },
+    WhileBody {
+        parent: &'a Region,
+        remaining: usize,
+        condition: &'a Region,
+        test: usize,
+        normal: usize,
+        outer_loops: Option<LoopTargets>,
+    },
+    WhileCondition {
+        parent: &'a Region,
+        remaining: usize,
+        test: usize,
+        outer_loops: Option<LoopTargets>,
+    },
+    DoCondition {
+        parent: &'a Region,
+        remaining: usize,
+        body: &'a Region,
+        first: usize,
+        normal: usize,
+        outer_loops: Option<LoopTargets>,
+    },
+    DoBody {
+        parent: &'a Region,
+        remaining: usize,
+        first: usize,
+        outer_loops: Option<LoopTargets>,
+    },
 }
 
 impl<'a> Splitter<'a> {
@@ -412,6 +449,110 @@ impl<'a> Splitter<'a> {
                         region = parent;
                         end = remaining;
                     }
+                    Some(PendingSplit::WhileStep {
+                        parent,
+                        remaining,
+                        body,
+                        condition,
+                        test,
+                        normal,
+                        outer_loops,
+                    }) => {
+                        // Step is the nearest-loop continue target. Build the
+                        // body under that target, keeping the outer loop only
+                        // for the separate condition and step regions.
+                        let step = next;
+                        pending.push(PendingSplit::WhileBody {
+                            parent,
+                            remaining,
+                            condition,
+                            test,
+                            normal,
+                            outer_loops,
+                        });
+                        active_loops = Some(LoopTargets {
+                            exit: normal,
+                            next: step,
+                        });
+                        next = self.exit_entry(body, step, None, active_loops)?;
+                        region = body;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::WhileBody {
+                        parent,
+                        remaining,
+                        condition,
+                        test,
+                        normal,
+                        outer_loops,
+                    }) => {
+                        let body = next;
+                        pending.push(PendingSplit::WhileCondition {
+                            parent,
+                            remaining,
+                            test,
+                            outer_loops,
+                        });
+                        active_loops = outer_loops;
+                        next = self.exit_entry(
+                            condition,
+                            normal,
+                            Some(YieldTarget::Test {
+                                yes: body,
+                                no: normal,
+                            }),
+                            active_loops,
+                        )?;
+                        region = condition;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::WhileCondition {
+                        parent,
+                        remaining,
+                        test,
+                        outer_loops,
+                    }) => {
+                        self.states[test].end = End::Jump(next);
+                        next = test;
+                        active_loops = outer_loops;
+                        region = parent;
+                        end = remaining;
+                    }
+                    Some(PendingSplit::DoCondition {
+                        parent,
+                        remaining,
+                        body,
+                        first,
+                        normal,
+                        outer_loops,
+                    }) => {
+                        let condition = next;
+                        pending.push(PendingSplit::DoBody {
+                            parent,
+                            remaining,
+                            first,
+                            outer_loops,
+                        });
+                        active_loops = Some(LoopTargets {
+                            exit: normal,
+                            next: condition,
+                        });
+                        next = self.exit_entry(body, condition, None, active_loops)?;
+                        region = body;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::DoBody {
+                        parent,
+                        remaining,
+                        first,
+                        outer_loops,
+                    }) => {
+                        self.states[first].end = End::Jump(next);
+                        next = first;
+                        active_loops = outer_loops;
+                        region = parent;
+                        end = remaining;
+                    }
                     None => return Ok(next),
                 }
                 continue;
@@ -511,6 +652,67 @@ impl<'a> Splitter<'a> {
                 active_loops = None;
                 next = self.exit_entry(body, fulfilled, None, active_loops)?;
                 region = body;
+                end = region.operations.len();
+                continue;
+            }
+            if let Op::While {
+                condition,
+                body,
+                step,
+            } = &operation.kind
+            {
+                let test = self.terminal(End::Trap)?;
+                if let Some(step) = step {
+                    pending.push(PendingSplit::WhileStep {
+                        parent: region,
+                        remaining: end - 1,
+                        body,
+                        condition,
+                        test,
+                        normal: next,
+                        outer_loops: active_loops,
+                    });
+                    next = self.exit_entry(step, test, None, active_loops)?;
+                    region = step;
+                } else {
+                    pending.push(PendingSplit::WhileBody {
+                        parent: region,
+                        remaining: end - 1,
+                        condition,
+                        test,
+                        normal: next,
+                        outer_loops: active_loops,
+                    });
+                    active_loops = Some(LoopTargets {
+                        exit: next,
+                        next: test,
+                    });
+                    next = self.exit_entry(body, test, None, active_loops)?;
+                    region = body;
+                }
+                end = region.operations.len();
+                continue;
+            }
+            if let Op::DoWhile { body, condition } = &operation.kind {
+                let first = self.terminal(End::Trap)?;
+                pending.push(PendingSplit::DoCondition {
+                    parent: region,
+                    remaining: end - 1,
+                    body,
+                    first,
+                    normal: next,
+                    outer_loops: active_loops,
+                });
+                next = self.exit_entry(
+                    condition,
+                    next,
+                    Some(YieldTarget::Test {
+                        yes: first,
+                        no: next,
+                    }),
+                    active_loops,
+                )?;
+                region = condition;
                 end = region.operations.len();
                 continue;
             }
@@ -681,59 +883,8 @@ impl<'a> Splitter<'a> {
                 }
                 Op::Block(_) => unreachable!("block is scheduled on the explicit stack"),
                 Op::If { .. } => unreachable!("If continuations use the explicit stack"),
-                Op::While {
-                    condition,
-                    body,
-                    step,
-                } => {
-                    let test = self.terminal(End::Trap)?;
-                    let step = match step {
-                        Some(step) => self.region(step, test, None, active_loops)?,
-                        None => test,
-                    };
-                    let body = self.region(
-                        body,
-                        step,
-                        None,
-                        Some(LoopTargets {
-                            exit: next,
-                            next: step,
-                        }),
-                    )?;
-                    let condition = self.region(
-                        condition,
-                        next,
-                        Some(YieldTarget::Test {
-                            yes: body,
-                            no: next,
-                        }),
-                        active_loops,
-                    )?;
-                    self.states[test].end = End::Jump(condition);
-                    test
-                }
-                Op::DoWhile { body, condition } => {
-                    let first = self.terminal(End::Trap)?;
-                    let condition = self.region(
-                        condition,
-                        next,
-                        Some(YieldTarget::Test {
-                            yes: first,
-                            no: next,
-                        }),
-                        active_loops,
-                    )?;
-                    let body = self.region(
-                        body,
-                        condition,
-                        None,
-                        Some(LoopTargets {
-                            exit: next,
-                            next: condition,
-                        }),
-                    )?;
-                    self.states[first].end = End::Jump(body);
-                    first
+                Op::While { .. } | Op::DoWhile { .. } => {
+                    unreachable!("loop continuations use the explicit stack")
                 }
                 _ => {
                     let mut start = end - 1;
