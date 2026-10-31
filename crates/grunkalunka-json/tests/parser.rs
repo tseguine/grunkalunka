@@ -315,3 +315,55 @@ fn resource_failure_does_not_certify_valid_syntax() {
         ErrorKind::Syntax
     );
 }
+
+#[test]
+fn mixed_depth_boundary_parses_without_recursive_native_frames() {
+    let mut source = String::new();
+    let mut closing = String::new();
+    let mut overflow_offset = 0;
+    for level in 0..128 {
+        if level % 2 == 0 {
+            source.push_str("{\"n\":");
+            closing.push('}');
+        } else {
+            source.push('[');
+            closing.push(']');
+        }
+        if level == 127 {
+            overflow_offset = source.encode_utf16().count();
+        }
+    }
+    source.push_str("null");
+    source.extend(closing.chars().rev());
+    let text: Vec<u16> = source.encode_utf16().collect();
+
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || {
+            let value = parse(&text, limits()).unwrap();
+            let mut cursor = &value;
+            for level in 0..128 {
+                cursor = if level % 2 == 0 {
+                    let JsonValue::Object(entries) = cursor else {
+                        panic!("expected object at {level}")
+                    };
+                    &entries[0].1
+                } else {
+                    let JsonValue::Array(items) = cursor else {
+                        panic!("expected array at {level}")
+                    };
+                    &items[0]
+                };
+            }
+            assert!(matches!(cursor, JsonValue::Null));
+
+            let mut bound = limits();
+            bound.max_depth = 127;
+            let error = parse(&text, bound).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Limit(Limit::Depth));
+            assert_eq!(error.offset, overflow_offset);
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

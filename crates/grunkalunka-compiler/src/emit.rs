@@ -5,6 +5,8 @@ use std::fmt::Write;
 mod asynchronous;
 mod cells;
 mod closures;
+#[cfg(test)]
+mod iterative_emitter_tests;
 mod layout;
 mod materialization;
 mod relational;
@@ -213,446 +215,520 @@ impl Emitter<'_> {
         self.set(result);
     }
 
+    // Async states are already flattened into sequences of atomic operations.
+    // Retain the shared interface without reintroducing region recursion.
+    // Async states may contain structured operations too. Schedule them with
+    // the same iterative walker, but without adding a region exit.
     fn operations(&mut self, operations: &[ir::Operation]) {
-        for operation in operations {
-            match &operation.kind {
-                Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
-                Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
-                Op::FulfillPromise { result, input }
-                | Op::PromiseValue { result, input }
-                | Op::PromotePromise { result, input } => {
-                    if self.value_offsets[result.0] != self.value_offsets[input.0] {
-                        self.get(*input);
-                        self.set(*result);
-                    }
-                }
-                Op::MaterializePromise { result, input } => {
-                    self.materialize_promise(*result, *input)
-                }
-                Op::ToAsyncValue { result, input } => self.lift_async_value(*result, *input),
-                Op::AsyncValueIsPromise { result, input } => {
-                    self.async_value_is_promise(*result, *input)
-                }
-                Op::AsyncValuePrimitive { result, input } => {
-                    self.project_async_primitive(*result, *input)
-                }
-                Op::AsyncValuePromise { result, input } => {
-                    self.project_async_promise(*result, *input)
-                }
-                Op::MakeClosure {
-                    result,
-                    function,
-                    captures,
-                } => self.make_closure(*result, *function, captures),
-                Op::ClosureCall {
-                    result,
-                    callee,
-                    arguments,
-                }
-                | Op::StartAsyncClosure {
-                    result,
-                    callee,
-                    arguments,
-                } => self.call_closure(*result, *callee, arguments),
-                Op::InlineCall { result, body } => {
-                    let outer = self.inline_return.replace(body.id.0);
-                    let result_types = layout::value(self.function.values[result.0]).wat;
-                    writeln!(
-                        self.output,
-                        "block $call{} (result {result_types})",
-                        body.id.0
-                    )
-                    .unwrap();
-                    self.region(body);
-                    self.output.push_str("unreachable\nend\n");
-                    self.inline_return = outer;
-                    self.set(*result);
-                }
-                Op::SettlePromise { result, body } => {
-                    let outer_return = self.inline_return.replace(body.id.0);
-                    let outer_throw = self.throw_to.replace(ThrowTarget::Settlement(body.id.0));
-                    let outer_loop = self.loop_label.take();
-                    writeln!(self.output, "block $call{} (result i32 f64)", body.id.0).unwrap();
-                    self.region(body);
-                    self.output.push_str("unreachable\nend\n");
-                    self.inline_return = outer_return;
-                    self.throw_to = outer_throw;
-                    self.loop_label = outer_loop;
-                    self.set(*result);
-                }
-                Op::SettledValue { result, input } => {
-                    writeln!(
-                        self.output,
-                        "local.get {}\ni32.const {}\ni32.and\nlocal.get {}",
-                        self.value_offsets[input.0],
-                        layout::SETTLED_TAG_MASK,
-                        self.value_offsets[input.0] + 1
-                    )
-                    .unwrap();
-                    self.set(*result);
-                }
-                Op::PromiseRejected { result, input } => {
-                    writeln!(
-                        self.output,
-                        "local.get {}\ni32.const {}\ni32.and\ni32.eqz\ni32.eqz",
-                        self.value_offsets[input.0],
-                        layout::SETTLED_REJECTED_BIT
-                    )
-                    .unwrap();
-                    self.set(*result);
-                }
-                Op::TryCatch {
-                    body,
-                    reason,
-                    handler,
-                } => {
-                    let label = body.id.0;
-                    writeln!(
-                        self.output,
-                        "block $try_done{label}\nblock $try_catch{label}"
-                    )
-                    .unwrap();
-                    let outer = self.throw_to.replace(ThrowTarget::Catch {
-                        label,
-                        reason: *reason,
-                    });
-                    self.region(body);
-                    writeln!(self.output, "br $try_done{label}\nend").unwrap();
-                    self.throw_to = outer;
-                    self.region(handler);
-                    self.output.push_str("end\n");
-                }
-                Op::Await { .. }
-                | Op::AwaitSettled { .. }
-                | Op::AwaitCall { .. }
-                | Op::AwaitClosureCall { .. }
-                | Op::AwaitPromise { .. }
-                | Op::AdoptPromise { .. } => {
-                    unreachable!("async control uses the async emitter")
-                }
-                Op::TryFinally { .. } => unreachable!("finally uses the async emitter"),
-                Op::Nullish { result, value } => {
-                    let tag = match value {
-                        ir::Nullish::Undefined => 0,
-                        ir::Nullish::Null => 1,
-                    };
-                    writeln!(self.output, "i32.const {tag}\nf64.const 0").unwrap();
-                    self.set(*result);
-                }
-                Op::Pack { result, input } => {
-                    let boolean = self.function.values[input.0] == Type::Predicate;
-                    writeln!(self.output, "i32.const {}", if boolean { 2 } else { 3 }).unwrap();
+        self.emit_walk(None, operations);
+    }
+
+    fn atomic_operation(&mut self, operation: &ir::Operation) {
+        match &operation.kind {
+            Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
+            Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
+            Op::FulfillPromise { result, input }
+            | Op::PromiseValue { result, input }
+            | Op::PromotePromise { result, input } => {
+                if self.value_offsets[result.0] != self.value_offsets[input.0] {
                     self.get(*input);
-                    if boolean {
-                        self.output.push_str("f64.convert_i32_u\n");
-                    }
                     self.set(*result);
                 }
-                Op::Call {
-                    result,
-                    function,
-                    arguments,
-                } => {
-                    for argument in arguments {
-                        self.get(*argument);
-                    }
-                    if let Some(boundary) = &self.call_boundary {
-                        self.output.push_str(&boundary.spill);
-                    }
-                    writeln!(self.output, "call {}", function.0).unwrap();
-                    if let Some(boundary) = &self.call_boundary {
-                        self.output.push_str(&boundary.restore);
-                    }
-                    self.set(*result);
-                }
-                Op::NumberFromPredicate { result, input } => {
-                    self.get(*input);
+            }
+            Op::MaterializePromise { result, input } => self.materialize_promise(*result, *input),
+            Op::ToAsyncValue { result, input } => self.lift_async_value(*result, *input),
+            Op::AsyncValueIsPromise { result, input } => {
+                self.async_value_is_promise(*result, *input)
+            }
+            Op::AsyncValuePrimitive { result, input } => {
+                self.project_async_primitive(*result, *input)
+            }
+            Op::AsyncValuePromise { result, input } => self.project_async_promise(*result, *input),
+            Op::MakeClosure {
+                result,
+                function,
+                captures,
+            } => self.make_closure(*result, *function, captures),
+            Op::UiSelectVisible {
+                result,
+                expanded,
+                count,
+            } => {
+                self.get(*expanded);
+                self.get(*count);
+                self.output.push_str("call $ui_select_visible\n");
+                self.set(*result);
+            }
+            Op::ClosureCall {
+                result,
+                callee,
+                arguments,
+            }
+            | Op::StartAsyncClosure {
+                result,
+                callee,
+                arguments,
+            } => self.call_closure(*result, *callee, arguments),
+            Op::InlineCall { .. } => unreachable!("structured operation"),
+            Op::SettlePromise { .. } => unreachable!("structured operation"),
+            Op::SettledValue { result, input } => {
+                writeln!(
+                    self.output,
+                    "local.get {}\ni32.const {}\ni32.and\nlocal.get {}",
+                    self.value_offsets[input.0],
+                    layout::SETTLED_TAG_MASK,
+                    self.value_offsets[input.0] + 1
+                )
+                .unwrap();
+                self.set(*result);
+            }
+            Op::PromiseRejected { result, input } => {
+                writeln!(
+                    self.output,
+                    "local.get {}\ni32.const {}\ni32.and\ni32.eqz\ni32.eqz",
+                    self.value_offsets[input.0],
+                    layout::SETTLED_REJECTED_BIT
+                )
+                .unwrap();
+                self.set(*result);
+            }
+            Op::TryCatch { .. } => unreachable!("structured operation"),
+            Op::Await { .. }
+            | Op::AwaitSettled { .. }
+            | Op::AwaitCall { .. }
+            | Op::AwaitClosureCall { .. }
+            | Op::AwaitPromise { .. }
+            | Op::AdoptPromise { .. } => {
+                unreachable!("async control uses the async emitter")
+            }
+            Op::TryFinally { .. } => unreachable!("finally uses the async emitter"),
+            Op::Nullish { result, value } => {
+                let tag = match value {
+                    ir::Nullish::Undefined => 0,
+                    ir::Nullish::Null => 1,
+                };
+                writeln!(self.output, "i32.const {tag}\nf64.const 0").unwrap();
+                self.set(*result);
+            }
+            Op::Pack { result, input } => {
+                let boolean = self.function.values[input.0] == Type::Predicate;
+                writeln!(self.output, "i32.const {}", if boolean { 2 } else { 3 }).unwrap();
+                self.get(*input);
+                if boolean {
                     self.output.push_str("f64.convert_i32_u\n");
+                }
+                self.set(*result);
+            }
+            Op::Call {
+                result,
+                function,
+                arguments,
+            } => {
+                for argument in arguments {
+                    self.get(*argument);
+                }
+                if let Some(boundary) = &self.call_boundary {
+                    self.output.push_str(&boundary.spill);
+                }
+                writeln!(self.output, "call {}", function.0).unwrap();
+                if let Some(boundary) = &self.call_boundary {
+                    self.output.push_str(&boundary.restore);
+                }
+                self.set(*result);
+            }
+            Op::NumberFromPredicate { result, input } => {
+                self.get(*input);
+                self.output.push_str("f64.convert_i32_u\n");
+                self.set(*result);
+            }
+            Op::Not { result, input } => {
+                self.get(*input);
+                self.output.push_str("i32.eqz\n");
+                self.set(*result);
+            }
+            Op::Boolean { result, value } => {
+                writeln!(self.output, "i32.const {}", i32::from(*value)).unwrap();
+                self.set(*result);
+            }
+            Op::DoWhile { .. } => unreachable!("structured operation"),
+            Op::Constant { result, value } => {
+                let literal = if value.is_nan() {
+                    "nan".to_string()
+                } else if *value == f64::INFINITY {
+                    "inf".to_string()
+                } else if *value == f64::NEG_INFINITY {
+                    "-inf".to_string()
+                } else {
+                    value.to_string()
+                };
+                writeln!(self.output, "f64.const {literal}").unwrap();
+                self.set(*result);
+            }
+            Op::Load { result, slot } => {
+                if let Some(pointer) = self.cell_offsets[slot.0] {
+                    self.load_cell(*slot, pointer);
                     self.set(*result);
+                    return;
                 }
-                Op::Not { result, input } => {
-                    self.get(*input);
-                    self.output.push_str("i32.eqz\n");
-                    self.set(*result);
+                let offset = self.slot_offsets[slot.0];
+                writeln!(self.output, "local.get {offset}").unwrap();
+                if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
+                    writeln!(self.output, "local.get {}", offset + 1).unwrap();
                 }
-                Op::Boolean { result, value } => {
-                    writeln!(self.output, "i32.const {}", i32::from(*value)).unwrap();
-                    self.set(*result);
+                self.set(*result);
+            }
+            Op::Initialize { slot, value } | Op::Store { slot, value } => {
+                if let Some(pointer) = self.cell_offsets[slot.0] {
+                    self.store_cell(
+                        *slot,
+                        *value,
+                        pointer,
+                        matches!(operation.kind, Op::Initialize { .. }),
+                    );
+                    return;
                 }
-                Op::DoWhile { body, condition } => {
-                    let label = body.id.0;
-                    writeln!(self.output, "block $exit{label}\nloop $do{label}").unwrap();
-                    let outer = self.loop_label.replace(label);
-                    writeln!(self.output, "block $continue{label}").unwrap();
-                    self.region(body);
-                    self.output.push_str("end\n");
-                    self.loop_label = outer;
-                    self.region(condition);
-                    writeln!(self.output, "br_if $do{label}\nend\nend").unwrap();
+                self.get(*value);
+                let offset = self.slot_offsets[slot.0];
+                if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
+                    writeln!(self.output, "local.set {}", offset + 1).unwrap();
                 }
-                Op::Constant { result, value } => {
-                    let literal = if value.is_nan() {
-                        "nan".to_string()
-                    } else if *value == f64::INFINITY {
-                        "inf".to_string()
-                    } else if *value == f64::NEG_INFINITY {
-                        "-inf".to_string()
-                    } else {
-                        value.to_string()
-                    };
-                    writeln!(self.output, "f64.const {literal}").unwrap();
-                    self.set(*result);
-                }
-                Op::Load { result, slot } => {
-                    if let Some(pointer) = self.cell_offsets[slot.0] {
-                        self.load_cell(*slot, pointer);
-                        self.set(*result);
-                        continue;
+                writeln!(self.output, "local.set {offset}").unwrap();
+            }
+            Op::Unary {
+                result,
+                operator,
+                input,
+            } => {
+                match operator {
+                    Unary::Abs => {
+                        self.get(*input);
+                        self.output.push_str("f64.abs\n");
                     }
-                    let offset = self.slot_offsets[slot.0];
-                    writeln!(self.output, "local.get {offset}").unwrap();
-                    if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
-                        writeln!(self.output, "local.get {}", offset + 1).unwrap();
+                    Unary::Sqrt => {
+                        self.get(*input);
+                        self.output.push_str("f64.sqrt\n");
                     }
-                    self.set(*result);
-                }
-                Op::Initialize { slot, value } | Op::Store { slot, value } => {
-                    if let Some(pointer) = self.cell_offsets[slot.0] {
-                        self.store_cell(
-                            *slot,
-                            *value,
-                            pointer,
-                            matches!(operation.kind, Op::Initialize { .. }),
-                        );
-                        continue;
+                    Unary::Floor => {
+                        self.get(*input);
+                        self.output.push_str("f64.floor\n");
                     }
-                    self.get(*value);
-                    let offset = self.slot_offsets[slot.0];
-                    if layout::value(self.function.slots[slot.0].ty).parts.len() == 2 {
-                        writeln!(self.output, "local.set {}", offset + 1).unwrap();
+                    Unary::Ceil => {
+                        self.get(*input);
+                        self.output.push_str("f64.ceil\n");
                     }
-                    writeln!(self.output, "local.set {offset}").unwrap();
-                }
-                Op::Unary {
-                    result,
-                    operator,
-                    input,
-                } => {
-                    match operator {
-                        Unary::Abs => {
-                            self.get(*input);
-                            self.output.push_str("f64.abs\n");
-                        }
-                        Unary::Sqrt => {
-                            self.get(*input);
-                            self.output.push_str("f64.sqrt\n");
-                        }
-                        Unary::Floor => {
-                            self.get(*input);
-                            self.output.push_str("f64.floor\n");
-                        }
-                        Unary::Ceil => {
-                            self.get(*input);
-                            self.output.push_str("f64.ceil\n");
-                        }
-                        Unary::Trunc => {
-                            self.get(*input);
-                            self.output.push_str("f64.trunc\n");
-                        }
-                        Unary::Plus => self.get(*input),
-                        Unary::Negate => {
-                            self.get(*input);
-                            self.output.push_str("f64.neg\n");
-                        }
-                        Unary::BitNot => {
-                            self.int32_bits(*input);
-                            self.output
-                                .push_str("i32.const -1\ni32.xor\nf64.convert_i32_s\n");
-                        }
+                    Unary::Trunc => {
+                        self.get(*input);
+                        self.output.push_str("f64.trunc\n");
                     }
-                    self.set(*result);
-                }
-                Op::Binary {
-                    result,
-                    operator,
-                    left,
-                    right,
-                } => {
-                    let (instruction, bitwise) = match operator {
-                        Binary::Add => ("f64.add\n", false),
-                        Binary::Subtract => ("f64.sub\n", false),
-                        Binary::Multiply => ("f64.mul\n", false),
-                        Binary::Divide => ("f64.div\n", false),
-                        Binary::Remainder => {
-                            self.needs_remainder = true;
-                            ("call $number_remainder\n", false)
-                        }
-                        Binary::BitAnd => ("i32.and\n", true),
-                        Binary::BitOr => ("i32.or\n", true),
-                        Binary::BitXor => ("i32.xor\n", true),
-                        Binary::ShiftLeft => ("i32.shl\n", true),
-                        Binary::ShiftRight => ("i32.shr_s\n", true),
-                        Binary::ShiftRightUnsigned => ("i32.shr_u\n", true),
-                    };
-                    if bitwise {
-                        self.int32_bits(*left);
-                        self.int32_bits(*right);
-                    } else {
-                        self.get(*left);
-                        self.get(*right);
+                    Unary::Plus => self.get(*input),
+                    Unary::Negate => {
+                        self.get(*input);
+                        self.output.push_str("f64.neg\n");
                     }
-                    self.output.push_str(instruction);
-                    if bitwise {
+                    Unary::BitNot => {
+                        self.int32_bits(*input);
                         self.output
-                            .push_str(if matches!(operator, Binary::ShiftRightUnsigned) {
-                                "f64.convert_i32_u\n"
-                            } else {
-                                "f64.convert_i32_s\n"
-                            });
+                            .push_str("i32.const -1\ni32.xor\nf64.convert_i32_s\n");
                     }
-                    self.set(*result);
                 }
-                Op::PrimitiveLooseEqual {
-                    result,
-                    left,
-                    right,
-                    negated,
-                } => self.primitive_loose_equal(*result, *left, *right, *negated),
-                Op::PromiseIdentityEqual {
-                    result,
-                    left,
-                    right,
-                    negated,
-                } => {
+                self.set(*result);
+            }
+            Op::Binary {
+                result,
+                operator,
+                left,
+                right,
+            } => {
+                let (instruction, bitwise) = match operator {
+                    Binary::Add => ("f64.add\n", false),
+                    Binary::Subtract => ("f64.sub\n", false),
+                    Binary::Multiply => ("f64.mul\n", false),
+                    Binary::Divide => ("f64.div\n", false),
+                    Binary::Remainder => {
+                        self.needs_remainder = true;
+                        ("call $number_remainder\n", false)
+                    }
+                    Binary::BitAnd => ("i32.and\n", true),
+                    Binary::BitOr => ("i32.or\n", true),
+                    Binary::BitXor => ("i32.xor\n", true),
+                    Binary::ShiftLeft => ("i32.shl\n", true),
+                    Binary::ShiftRight => ("i32.shr_s\n", true),
+                    Binary::ShiftRightUnsigned => ("i32.shr_u\n", true),
+                };
+                if bitwise {
+                    self.int32_bits(*left);
+                    self.int32_bits(*right);
+                } else {
                     self.get(*left);
                     self.get(*right);
+                }
+                self.output.push_str(instruction);
+                if bitwise {
                     self.output
-                        .push_str(if *negated { "i32.ne\n" } else { "i32.eq\n" });
-                    self.set(*result);
+                        .push_str(if matches!(operator, Binary::ShiftRightUnsigned) {
+                            "f64.convert_i32_u\n"
+                        } else {
+                            "f64.convert_i32_s\n"
+                        });
                 }
-                Op::RelationalCompare {
-                    result,
-                    operator,
-                    left,
-                    right,
-                } => {
-                    self.relational_compare(*result, *operator, *left, *right);
+                self.set(*result);
+            }
+            Op::PrimitiveLooseEqual {
+                result,
+                left,
+                right,
+                negated,
+            } => self.primitive_loose_equal(*result, *left, *right, *negated),
+            Op::PromiseIdentityEqual {
+                result,
+                left,
+                right,
+                negated,
+            } => {
+                self.get(*left);
+                self.get(*right);
+                self.output
+                    .push_str(if *negated { "i32.ne\n" } else { "i32.eq\n" });
+                self.set(*result);
+            }
+            Op::RelationalCompare {
+                result,
+                operator,
+                left,
+                right,
+            } => {
+                self.relational_compare(*result, *operator, *left, *right);
+            }
+            Op::PrimitiveStrictEqual {
+                result,
+                left,
+                right,
+                negated,
+            } => {
+                let left = self.value_offsets[left.0];
+                let right = self.value_offsets[right.0];
+                writeln!(self.output, "local.get {left}\nlocal.get {right}\ni32.eq").unwrap();
+                writeln!(
+                    self.output,
+                    "local.get {}\nlocal.get {}\nf64.eq\ni32.and",
+                    left + 1,
+                    right + 1
+                )
+                .unwrap();
+                if *negated {
+                    self.output.push_str("i32.eqz\n");
                 }
-                Op::PrimitiveStrictEqual {
-                    result,
-                    left,
-                    right,
-                    negated,
-                } => {
-                    let left = self.value_offsets[left.0];
-                    let right = self.value_offsets[right.0];
-                    writeln!(self.output, "local.get {left}\nlocal.get {right}\ni32.eq").unwrap();
-                    writeln!(
-                        self.output,
-                        "local.get {}\nlocal.get {}\nf64.eq\ni32.and",
-                        left + 1,
-                        right + 1
-                    )
-                    .unwrap();
-                    if *negated {
-                        self.output.push_str("i32.eqz\n");
-                    }
-                    self.set(*result);
-                }
-                Op::Compare {
-                    result,
-                    operator,
-                    left,
-                    right,
-                } => {
-                    self.get(*left);
-                    self.get(*right);
-                    self.output.push_str(match operator {
-                        Compare::Less => "f64.lt\n",
-                        Compare::LessEqual => "f64.le\n",
-                        Compare::Greater => "f64.gt\n",
-                        Compare::GreaterEqual => "f64.ge\n",
-                        Compare::Equal => "f64.eq\n",
-                        Compare::NotEqual => "f64.ne\n",
-                    });
-                    self.set(*result);
-                }
-                Op::NumberFromGeneral { result, input } => {
-                    self.number_from_general(*result, *input)
-                }
-                Op::GeneralIsNullish { result, input } => {
-                    // Only the canonical Undefined (0) and Null (1) tags are nullish.
-                    writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
-                    self.output.push_str("i32.const 1\ni32.le_u\n");
-                    self.set(*result);
-                }
-                Op::GeneralTruthy { result, input } => {
-                    // Canonical nullish payloads are zero, Boolean payloads are 0/1;
-                    // Number payloads keep their value. This implements all four kinds.
-                    writeln!(self.output, "local.get {}", self.value_offsets[input.0] + 1).unwrap();
-                    self.output.push_str("f64.abs\nf64.const 0\nf64.gt\n");
-                    self.set(*result);
-                }
-                Op::Truthy { result, input } => {
-                    self.get(*input);
-                    // abs(x) > 0 is false exactly for +/-0 and NaN.
-                    self.output.push_str("f64.abs\nf64.const 0\nf64.gt\n");
-                    self.set(*result);
-                }
-                Op::Block(child) => self.region(child),
-                Op::If {
-                    result,
-                    condition,
-                    consequent,
-                    alternate,
-                } => {
-                    self.get(*condition);
-                    if let Some(result) = result {
-                        writeln!(
-                            self.output,
-                            "if (result {})",
-                            layout::value(self.function.values[result.0]).wat
-                        )
-                        .unwrap();
-                    } else {
-                        self.output.push_str("if\n");
-                    }
-                    self.region(consequent);
-                    self.output.push_str("else\n");
-                    self.region(alternate);
-                    self.output.push_str("end\n");
-                    if let Some(result) = result {
-                        self.set(*result);
-                    }
-                }
-                Op::While {
-                    condition,
-                    body,
-                    step,
-                } => {
-                    let label = condition.id.0;
-                    writeln!(self.output, "block $exit{label}\nloop $loop{label}").unwrap();
-                    // The entire condition region executes on every visit, including
-                    // the final failed test. Its values never escape to the body or step.
-                    self.region(condition);
-                    writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
-                    let outer = self.loop_label.replace(label);
-                    writeln!(self.output, "block $continue{label}").unwrap();
-                    self.region(body);
-                    self.output.push_str("end\n");
-                    self.loop_label = outer;
-                    if let Some(step) = step {
-                        self.region(step);
-                    }
-                    writeln!(self.output, "br $loop{label}\nend\nend").unwrap();
-                }
+                self.set(*result);
+            }
+            Op::Compare {
+                result,
+                operator,
+                left,
+                right,
+            } => {
+                self.get(*left);
+                self.get(*right);
+                self.output.push_str(match operator {
+                    Compare::Less => "f64.lt\n",
+                    Compare::LessEqual => "f64.le\n",
+                    Compare::Greater => "f64.gt\n",
+                    Compare::GreaterEqual => "f64.ge\n",
+                    Compare::Equal => "f64.eq\n",
+                    Compare::NotEqual => "f64.ne\n",
+                });
+                self.set(*result);
+            }
+            Op::NumberFromGeneral { result, input } => self.number_from_general(*result, *input),
+            Op::GeneralIsNullish { result, input } => {
+                // Only the canonical Undefined (0) and Null (1) tags are nullish.
+                writeln!(self.output, "local.get {}", self.value_offsets[input.0]).unwrap();
+                self.output.push_str("i32.const 1\ni32.le_u\n");
+                self.set(*result);
+            }
+            Op::GeneralTruthy { result, input } => {
+                // Canonical nullish payloads are zero, Boolean payloads are 0/1;
+                // Number payloads keep their value. This implements all four kinds.
+                writeln!(self.output, "local.get {}", self.value_offsets[input.0] + 1).unwrap();
+                self.output.push_str("f64.abs\nf64.const 0\nf64.gt\n");
+                self.set(*result);
+            }
+            Op::Truthy { result, input } => {
+                self.get(*input);
+                // abs(x) > 0 is false exactly for +/-0 and NaN.
+                self.output.push_str("f64.abs\nf64.const 0\nf64.gt\n");
+                self.set(*result);
+            }
+            Op::Block(_) | Op::If { .. } | Op::While { .. } => {
+                unreachable!("structured operation")
             }
         }
     }
 
-    fn region(&mut self, region: &Region) {
-        self.operations(&region.operations);
-        match region.exit {
+    fn region(&mut self, root: &Region) {
+        self.emit_walk(Some(root), &[]);
+    }
+
+    fn emit_walk<'a>(&mut self, root: Option<&'a Region>, operations: &'a [ir::Operation]) {
+        // Explicit continuations preserve WAT byte order and the lexical
+        // context of nested blocks without allocating native stack frames.
+        enum Work<'a> {
+            Region(&'a Region),
+            Operation(&'a ir::Operation),
+            Exit(Exit),
+            Text(String),
+            Set(ValueId),
+            RestoreInline(Option<usize>),
+            RestoreThrow(Option<ThrowTarget>),
+            RestoreLoop(Option<usize>),
+            WhileAfterCondition {
+                label: usize,
+                body: &'a Region,
+                step: Option<&'a Region>,
+            },
+        }
+
+        let mut pending = Vec::new();
+        if let Some(root) = root {
+            pending.push(Work::Region(root));
+        } else {
+            for operation in operations.iter().rev() {
+                pending.push(Work::Operation(operation));
+            }
+        }
+        while let Some(task) = pending.pop() {
+            match task {
+                Work::Region(region) => {
+                    pending.push(Work::Exit(region.exit));
+                    for operation in region.operations.iter().rev() {
+                        pending.push(Work::Operation(operation));
+                    }
+                }
+                Work::Exit(exit) => self.emit_exit(exit),
+                Work::Text(text) => self.output.push_str(&text),
+                Work::Set(value) => self.set(value),
+                Work::RestoreInline(previous) => self.inline_return = previous,
+                Work::RestoreThrow(previous) => self.throw_to = previous,
+                Work::RestoreLoop(previous) => self.loop_label = previous,
+                Work::WhileAfterCondition { label, body, step } => {
+                    writeln!(self.output, "i32.eqz\nbr_if $exit{label}").unwrap();
+                    let previous = self.loop_label.replace(label);
+                    writeln!(self.output, "block $continue{label}").unwrap();
+                    pending.push(Work::Text(format!("br $loop{label}\nend\nend\n")));
+                    if let Some(step) = step {
+                        pending.push(Work::Region(step));
+                    }
+                    pending.push(Work::RestoreLoop(previous));
+                    pending.push(Work::Text("end\n".into()));
+                    pending.push(Work::Region(body));
+                }
+                Work::Operation(operation) => match &operation.kind {
+                    Op::InlineCall { result, body } => {
+                        let previous = self.inline_return.replace(body.id.0);
+                        let result_types = layout::value(self.function.values[result.0]).wat;
+                        writeln!(
+                            self.output,
+                            "block $call{} (result {result_types})",
+                            body.id.0
+                        )
+                        .unwrap();
+                        pending.push(Work::Set(*result));
+                        pending.push(Work::RestoreInline(previous));
+                        pending.push(Work::Text("unreachable\nend\n".into()));
+                        pending.push(Work::Region(body));
+                    }
+                    Op::SettlePromise { result, body } => {
+                        let previous_return = self.inline_return.replace(body.id.0);
+                        let previous_throw =
+                            self.throw_to.replace(ThrowTarget::Settlement(body.id.0));
+                        let previous_loop = self.loop_label.take();
+                        writeln!(self.output, "block $call{} (result i32 f64)", body.id.0).unwrap();
+                        pending.push(Work::Set(*result));
+                        pending.push(Work::RestoreLoop(previous_loop));
+                        pending.push(Work::RestoreThrow(previous_throw));
+                        pending.push(Work::RestoreInline(previous_return));
+                        pending.push(Work::Text("unreachable\nend\n".into()));
+                        pending.push(Work::Region(body));
+                    }
+                    Op::TryCatch {
+                        body,
+                        reason,
+                        handler,
+                    } => {
+                        let label = body.id.0;
+                        writeln!(
+                            self.output,
+                            "block $try_done{label}\nblock $try_catch{label}"
+                        )
+                        .unwrap();
+                        let previous = self.throw_to.replace(ThrowTarget::Catch {
+                            label,
+                            reason: *reason,
+                        });
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(handler));
+                        pending.push(Work::RestoreThrow(previous));
+                        pending.push(Work::Text(format!("br $try_done{label}\nend\n")));
+                        pending.push(Work::Region(body));
+                    }
+                    Op::DoWhile { body, condition } => {
+                        let label = body.id.0;
+                        writeln!(self.output, "block $exit{label}\nloop $do{label}").unwrap();
+                        let previous = self.loop_label.replace(label);
+                        writeln!(self.output, "block $continue{label}").unwrap();
+                        pending.push(Work::Text(format!("br_if $do{label}\nend\nend\n")));
+                        pending.push(Work::Region(condition));
+                        pending.push(Work::RestoreLoop(previous));
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(body));
+                    }
+                    Op::Block(child) => pending.push(Work::Region(child)),
+                    Op::If {
+                        result,
+                        condition,
+                        consequent,
+                        alternate,
+                    } => {
+                        self.get(*condition);
+                        if let Some(result) = result {
+                            writeln!(
+                                self.output,
+                                "if (result {})",
+                                layout::value(self.function.values[result.0]).wat
+                            )
+                            .unwrap();
+                        } else {
+                            self.output.push_str("if\n");
+                        }
+                        if let Some(result) = result {
+                            pending.push(Work::Set(*result));
+                        }
+                        pending.push(Work::Text("end\n".into()));
+                        pending.push(Work::Region(alternate));
+                        pending.push(Work::Text("else\n".into()));
+                        pending.push(Work::Region(consequent));
+                    }
+                    Op::While {
+                        condition,
+                        body,
+                        step,
+                    } => {
+                        let label = condition.id.0;
+                        writeln!(self.output, "block $exit{label}\nloop $loop{label}").unwrap();
+                        pending.push(Work::WhileAfterCondition {
+                            label,
+                            body,
+                            step: step.as_ref(),
+                        });
+                        pending.push(Work::Region(condition));
+                    }
+                    _ => self.atomic_operation(operation),
+                },
+            }
+        }
+    }
+
+    fn emit_exit(&mut self, exit: Exit) {
+        match exit {
             Exit::Fallthrough => {}
             Exit::Throw(value) => match self.throw_to.expect("verified closed primitive throw") {
                 ThrowTarget::Settlement(label) => {
@@ -702,7 +778,14 @@ impl Emitter<'_> {
 
 pub(crate) fn emit(module: &ir::Module) -> Result<String, String> {
     ir::verify_module(module)?;
-    emit_verified(module, Type::Number)
+    emit_verified(module, Type::Number, false)
+}
+
+/// Opt-in A1 service code generation. Ordinary source compilation must not
+/// incur the import scan or change function indices.
+pub(crate) fn emit_ui_import(module: &ir::Module) -> Result<String, String> {
+    ir::verify_module(module)?;
+    emit_verified(module, Type::Number, true)
 }
 
 pub(crate) fn emit_with_entry_type(
@@ -710,10 +793,14 @@ pub(crate) fn emit_with_entry_type(
     entry_type: Type,
 ) -> Result<String, String> {
     ir::verify_module_with_entry_type(module, entry_type)?;
-    emit_verified(module, entry_type)
+    emit_verified(module, entry_type, false)
 }
 
-fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String> {
+fn emit_verified(
+    module: &ir::Module,
+    entry_type: Type,
+    ui_profile: bool,
+) -> Result<String, String> {
     if module_materializes_promises(module) {
         return Err("Promise materialization requires the async runtime profile".into());
     }
@@ -725,6 +812,21 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
         return Err("await IR requires the async emitter".into());
     }
     let mut output = String::from("(module ");
+    // This scan is needed only by the explicit capability profile. Standard
+    // numeric/primitive compilation keeps its prior work and stack behavior.
+    let mut has_ui_import = false;
+    let mut has_direct_call = false;
+    if ui_profile {
+        for function in &module.functions {
+            ir::visit_operations(&function.body, &mut |op| {
+                has_ui_import |= matches!(op, Op::UiSelectVisible { .. });
+                has_direct_call |= matches!(op, Op::Call { .. });
+            });
+        }
+        if !has_ui_import {
+            return Err("A1 UI profile requires a source call to the imported service".into());
+        }
+    }
     let has_closures = module
         .functions
         .iter()
@@ -736,6 +838,19 @@ fn emit_verified(module: &ir::Module, entry_type: Type) -> Result<String, String
             .any(|f| !ir::captured_cells(&f.body).is_empty());
     if has_cells {
         output.push_str(cells::MEMORY);
+    }
+    if has_ui_import {
+        // Importing a function prepends its core-Wasm function index. This
+        // first profile disallows all internal numeric calls and lifted functions;
+        // expanding either requires named/index-independent internal references.
+        if module.functions.len() != 1 || has_cells || has_direct_call {
+            return Err(
+                "A1 scalar import cannot yet compose with local functions or captured cells".into(),
+            );
+        }
+        output.push_str(
+            "(import \"grunkalunka:a1/ui\" \"select-visible\" (func $ui_select_visible (param f64 f64) (result f64)))\n",
+        );
     }
     if has_closures {
         output.push_str(&closures::table(module, false, false));

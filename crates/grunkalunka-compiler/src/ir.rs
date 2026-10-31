@@ -432,6 +432,13 @@ pub(crate) enum Op {
         callee: ValueId,
         arguments: Vec<ValueId>,
     },
+    /// Explicit A1 scalar capability import. Two Number snapshots, one Number
+    /// result; never a general source-language module graph or ambient host call.
+    UiSelectVisible {
+        result: ValueId,
+        expanded: ValueId,
+        count: ValueId,
+    },
     AwaitClosureCall {
         result: ValueId,
         callee: ValueId,
@@ -1330,6 +1337,15 @@ impl Verifier<'_> {
                     self.value(*operand, ty, visible, span)?;
                 }
                 self.define(*result, Type::Predicate, visible, span)?;
+            }
+            Op::UiSelectVisible {
+                result,
+                expanded,
+                count,
+            } => {
+                self.value(*expanded, Type::Number, visible, span)?;
+                self.value(*count, Type::Number, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
             }
             Op::Binary {
                 result,

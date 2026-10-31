@@ -554,6 +554,7 @@ fn settled_seed(body: &str, rejected: bool, typescript: bool) -> Module {
         Type::General,
         true,
         false,
+        false,
     )
     .unwrap();
     let settle_type = |ty: &mut Type| {
