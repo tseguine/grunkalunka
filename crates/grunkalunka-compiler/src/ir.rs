@@ -487,6 +487,10 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    ManagedIsNullish {
+        result: ValueId,
+        input: ValueId,
+    },
     // Adjacent await operations can be alternative continuations of one source
     // site. Explicit provenance shares only their logical budget, never values.
     AwaitSite {
@@ -1160,7 +1164,7 @@ impl Verifier<'_> {
                 self.value(*right, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }
-            Op::ManagedTruthy { result, input } => {
+            Op::ManagedTruthy { result, input } | Op::ManagedIsNullish { result, input } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Predicate, visible, span)?;
             }

@@ -809,3 +809,26 @@ fn string_construction_requires_a_managed_result() {
     function.body.exit = Exit::Return(ValueId(0));
     assert!(verify_module(&module).is_err());
 }
+
+#[test]
+fn managed_nullish_predicate_keeps_the_carrier_type_boundary() {
+    let mut module = primitive_comparison();
+    module.functions[0].body.operations[6].kind = Op::ManagedIsNullish {
+        result: ValueId(6),
+        input: ValueId(4),
+    };
+    verify_module(&module).unwrap();
+    let wasm = wat::parse_str(crate::emit::emit(&module).unwrap()).unwrap();
+    node(&wasm, "Number(a===null||a===undefined)");
+    module.functions[0].body.operations[6].kind = Op::ManagedIsNullish {
+        result: ValueId(6),
+        input: ValueId(1),
+    };
+    assert!(verify_module(&module).is_err());
+    module.functions[0].body.operations[6].kind = Op::ManagedIsNullish {
+        result: ValueId(6),
+        input: ValueId(4),
+    };
+    module.functions[0].values[6] = Type::Number;
+    assert!(verify_module(&module).is_err());
+}

@@ -1112,11 +1112,43 @@ impl Lowering<'_, '_> {
             left,
         } = input;
         let condition = match left {
-            Value::Managed(_) | Value::Object(_) | Value::Array(_) => {
-                return Err(unsupported(
+            Value::Managed(input) if operator != LogicalOperator::Coalesce => {
+                let result = self.value(Type::Predicate);
+                Self::push(regions.current(), node, Op::ManagedTruthy { result, input });
+                result
+            }
+            Value::Managed(input) => {
+                let nullish = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
                     node,
-                    "managed logical selection is not yet admitted",
-                ));
+                    Op::ManagedIsNullish {
+                        result: nullish,
+                        input,
+                    },
+                );
+                let result = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::Not {
+                        result,
+                        input: nullish,
+                    },
+                );
+                result
+            }
+            Value::Object(_) | Value::Array(_) => {
+                let result = self.value(Type::Predicate);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::Boolean {
+                        result,
+                        value: true,
+                    },
+                );
+                result
             }
             Value::Selection(input) => {
                 self.async_value_condition(left_node, input, operator, regions.current())

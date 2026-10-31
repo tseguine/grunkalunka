@@ -36,6 +36,7 @@ construction/identity operations before admission.
 | `ManagedSetOwn` | Replace/create one own data property while preserving object identity and prior value snapshots. |
 | `ManagedEqual` | Strict equality in the currently admitted managed domain. |
 | `ManagedTruthy` | ECMAScript truthiness for the currently admitted managed domain. |
+| `ManagedIsNullish` | True only for Undefined or Null, independently of truthiness. |
 
 ## Array backend foundation
 
@@ -174,6 +175,28 @@ requires a primitive-result proof/projection, and exporting an array requires a
 reference-aware boundary. Those existing gap fixtures remain rejected; construction
 and equality tests do not claim those gaps are closed. Managed captures and async
 frames remain unsupported, with source-level capture diagnostics.
+
+## Short-circuit values and defaults
+
+Source `&&`, `||` and `??` select actual managed operands through the existing
+ordered expression cursor and typed branch regions. The left operand is evaluated
+once and retained as a snapshot. The right operand is validated as source in all
+cases, but runs only when selected. Objects are truthy; String truthiness uses its
+length; `??` tests only Undefined/Null, preserving empty text, false, zero and NaN.
+`ManagedIsNullish` produces a predicate from the managed language-kind tag.
+
+Logical results work in data properties, local bindings and ordinary helpers,
+including mixed primitive/reference helpers and discarded expressions. Static
+Number-only arguments retain f64. A Boolean/nullish argument to a helper that also
+transports managed values uses the existing carrier, since ordinary source helper
+parameters exclude the `General` pair. Boolean/nullish helper results in numeric
+entry profiles use the same carrier when needed to retain their kind; other entry
+profiles retain the original primitive-result planning. Metadata supplies no kind
+proof. This does not add primitive projection from arbitrary managed results.
+
+Managed logical assignments, function values in the carrier, captures/suspended
+frames and public managed exports remain outside this increment. Unsupported
+operations in an unselected branch remain rejected.
 
 ## Calls, cells and lifetime boundaries
 
