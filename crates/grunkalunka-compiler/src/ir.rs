@@ -818,6 +818,14 @@ struct Verifier<'a> {
     rejection_type: Type,
     defined: BTreeSet<ValueId>,
     regions: BTreeSet<RegionId>,
+    // Stable path nodes replace a fresh Vec<RegionId> at each nested frame.
+    scopes: Vec<ScopeNode>,
+}
+
+#[derive(Clone, Copy)]
+struct ScopeNode {
+    region: RegionId,
+    parent: Option<usize>,
 }
 
 #[derive(Clone, Copy)]
@@ -845,7 +853,8 @@ struct RegionFrame<'a> {
     contract: Contract,
     visible: BTreeSet<ValueId>,
     initialized: BTreeSet<SlotId>,
-    ancestors: Vec<RegionId>,
+    parent_scope: Option<usize>,
+    scope_index: Option<usize>,
     allow_loop_control: bool,
     settlement: bool,
     raw_completion: bool,
@@ -871,7 +880,8 @@ impl<'a> RegionFrame<'a> {
             contract,
             visible: self.visible.clone(),
             initialized: self.initialized.clone(),
-            ancestors: self.ancestors.iter().copied().chain([region.id]).collect(),
+            parent_scope: self.scope_index,
+            scope_index: None,
             allow_loop_control,
             settlement: self.settlement,
             raw_completion: self.raw_completion,
@@ -970,16 +980,21 @@ impl Verifier<'_> {
         Ok(())
     }
 
-    fn slot(&self, slot: SlotId, ancestors: &[RegionId], span: Span) -> Result<&Slot, String> {
+    fn slot(&self, slot: SlotId, scope_index: usize, span: Span) -> Result<&Slot, String> {
         let slot = self
             .function
             .slots
             .get(slot.0)
             .ok_or_else(|| invalid(span, "invalid slot ID"))?;
-        if !ancestors.contains(&slot.owner) {
-            return Err(invalid(span, "slot owner is outside the lexical region"));
+        let mut current = Some(scope_index);
+        while let Some(index) = current {
+            let scope = &self.scopes[index];
+            if scope.region == slot.owner {
+                return Ok(slot);
+            }
+            current = scope.parent;
         }
-        Ok(slot)
+        Err(invalid(span, "slot owner is outside the lexical region"))
     }
 
     // Leaf operations share the same operand and lexical-scope checks while
@@ -991,7 +1006,7 @@ impl Verifier<'_> {
         operation_index: usize,
         visible: &mut BTreeSet<ValueId>,
         initialized: &mut BTreeSet<SlotId>,
-        ancestors: &[RegionId],
+        scope_index: usize,
     ) -> Result<(), String> {
         let span = operation.span;
         match &operation.kind {
@@ -1004,7 +1019,7 @@ impl Verifier<'_> {
                     ));
                 }
                 for slot in captures {
-                    let cell = self.slot(*slot, ancestors, span)?;
+                    let cell = self.slot(*slot, scope_index, span)?;
                     if cell.owner != region_id || cell.parameter || !initialized.insert(*slot) {
                         return Err(invalid(
                             span,
@@ -1028,7 +1043,7 @@ impl Verifier<'_> {
                     return Err(invalid(span, "closure environment size mismatch"));
                 }
                 for (source, destination) in captures.iter().zip(imported) {
-                    let cell = self.slot(*source, ancestors, span)?;
+                    let cell = self.slot(*source, scope_index, span)?;
                     if !initialized.contains(source)
                         || target
                             .slots
@@ -1120,7 +1135,7 @@ impl Verifier<'_> {
             }
             Op::CaptureCells { cells } => {
                 for slot in cells {
-                    self.slot(*slot, ancestors, span)?;
+                    self.slot(*slot, scope_index, span)?;
                     if !initialized.contains(slot) {
                         return Err(invalid(span, "captured slot is not initialized"));
                     }
@@ -1256,14 +1271,14 @@ impl Verifier<'_> {
             Op::Boolean { result, .. } => self.define(*result, Type::Predicate, visible, span)?,
             Op::Constant { result, .. } => self.define(*result, Type::Number, visible, span)?,
             Op::Load { result, slot } => {
-                let ty = self.slot(*slot, ancestors, span)?.ty;
+                let ty = self.slot(*slot, scope_index, span)?.ty;
                 if !initialized.contains(slot) {
                     return Err(invalid(span, "slot is not initialized"));
                 }
                 self.define(*result, ty, visible, span)?;
             }
             Op::Initialize { slot, value } => {
-                let cell = self.slot(*slot, ancestors, span)?;
+                let cell = self.slot(*slot, scope_index, span)?;
                 self.value(*value, cell.ty, visible, span)?;
                 if cell.owner != region_id || cell.parameter {
                     return Err(invalid(
@@ -1276,7 +1291,7 @@ impl Verifier<'_> {
                 }
             }
             Op::Store { slot, value } => {
-                let cell = self.slot(*slot, ancestors, span)?;
+                let cell = self.slot(*slot, scope_index, span)?;
                 self.value(*value, cell.ty, visible, span)?;
                 if !cell.mutable {
                     return Err(invalid(span, "store to immutable source cell"));
@@ -1405,7 +1420,6 @@ impl Verifier<'_> {
         contract: Contract,
         outer_values: &BTreeSet<ValueId>,
         outer_cells: &BTreeSet<SlotId>,
-        ancestors: &[RegionId],
         allow_loop_control: bool,
     ) -> Result<Completion, String> {
         let mut frames = vec![RegionFrame {
@@ -1413,7 +1427,8 @@ impl Verifier<'_> {
             contract,
             visible: outer_values.clone(),
             initialized: outer_cells.clone(),
-            ancestors: ancestors.iter().copied().chain([region.id]).collect(),
+            parent_scope: None,
+            scope_index: None,
             allow_loop_control,
             settlement: false,
             raw_completion: false,
@@ -1447,6 +1462,11 @@ impl Verifier<'_> {
             if !self.regions.insert(frame.region.id) {
                 return Err(invalid(frame.region.span, "region ID is not unique"));
             }
+            frame.scope_index = Some(self.scopes.len());
+            self.scopes.push(ScopeNode {
+                region: frame.region.id,
+                parent: frame.parent_scope,
+            });
             frame.entered = true;
         }
         while let Some(operation) = frame.region.operations.get(frame.index) {
@@ -1833,7 +1853,7 @@ impl Verifier<'_> {
                         frame.index,
                         &mut frame.visible,
                         &mut frame.initialized,
-                        &frame.ancestors,
+                        frame.scope_index.expect("entered region has a scope"),
                     )?;
                     Completion::NORMAL
                 }
@@ -2147,13 +2167,13 @@ fn verify_function(
         rejection_type: profile.rejection_type,
         defined: BTreeSet::new(),
         regions: BTreeSet::new(),
+        scopes: Vec::new(),
     };
     verifier.region(
         &function.body,
         Contract::Function,
         &BTreeSet::new(),
         &initialized,
-        &[],
         false,
     )?;
     for slot in &function.slots {
