@@ -5,6 +5,8 @@ mod emit;
 mod evaluator_tests;
 mod heap;
 mod ir;
+#[path = "ir/iterative_drop.rs"]
+mod ir_iterative_drop;
 mod lower;
 
 use lower::{Lowering, NumericBinding, NumericFunction};
