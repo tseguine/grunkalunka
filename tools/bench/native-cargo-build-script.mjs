@@ -90,38 +90,47 @@ export function parseCargoScriptEvents(output){
 async function fileFingerprints(folder){
   const records=[];
   let total=0;
-  async function visit(dir,depth){
-    required(depth<=6,'bounded build-script output directory depth');
-    const entries=await readdir(dir,{withFileTypes:true});
-    required(entries.length<=MAX_FILES,'bounded build-script directory entries');
-    for(const item of entries){
-      const full=join(dir,item.name);
-      const info=await lstat(full);
-      required(!info.isSymbolicLink(),'no symlink generated build-script files');
-      if(info.isDirectory()){
-        await visit(full,depth+1);
-      }else if(info.isFile()){
-        const path=relative(folder,full).split(sep).join('/');
-        required(safePath(path)&&info.size<=MAX_FILE_BYTES&&
-          total+info.size<=MAX_TOTAL_BYTES&&records.length<MAX_FILES,
-        'bounded build-script file bytes/path');
-        const digest=createHash('sha256');
-        let length=0;
-        for await(const chunk of createReadStream(full)){
-          length+=chunk.length;
-          required(length<=MAX_FILE_BYTES,'bounded generated data stream');
-          digest.update(chunk);
-        }
-        required(length===info.size,'stable generated file size');
-        records.push({path,bytes:length,sha256:digest.digest('hex')});
-        total+=length;
+  // Keep the exact recursive DFS order (including quota failures), but own
+  // the directory continuation on the heap rather than the JS call stack.
+  const pending=[{dir:folder,depth:0,entries:null,index:0}];
+  while(pending.length){
+    const frame=pending[pending.length-1];
+    if(frame.entries===null){
+      required(frame.depth<=6,'bounded build-script output directory depth');
+      frame.entries=await readdir(frame.dir,{withFileTypes:true});
+      required(frame.entries.length<=MAX_FILES,'bounded build-script directory entries');
+    }
+    if(frame.index===frame.entries.length){
+      pending.pop();
+      continue;
+    }
+    const item=frame.entries[frame.index++];
+    const full=join(frame.dir,item.name);
+    const info=await lstat(full);
+    required(!info.isSymbolicLink(),'no symlink generated build-script files');
+    if(info.isDirectory()){
+      pending.push({dir:full,depth:frame.depth+1,entries:null,index:0});
+    }else if(info.isFile()){
+      const path=relative(folder,full).split(sep).join('/');
+      required(safePath(path)&&info.size<=MAX_FILE_BYTES&&
+        total+info.size<=MAX_TOTAL_BYTES&&records.length<MAX_FILES,
+      'bounded build-script file bytes/path');
+      const digest=createHash('sha256');
+      let length=0;
+      for await(const chunk of createReadStream(full)){
+        length+=chunk.length;
+        required(length<=MAX_FILE_BYTES,'bounded generated data stream');
+        digest.update(chunk);
       }
+      required(length===info.size,'stable generated file size');
+      records.push({path,bytes:length,sha256:digest.digest('hex')});
+      total+=length;
     }
   }
-  await visit(folder,0);
   records.sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
   return {files:records,totalBytes:total};
 }
+
 export function compareScriptOutputs(producer,receiver){
   const validate=report=>{
     required(report&&report.schemaVersion===1&&
