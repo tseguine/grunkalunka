@@ -326,12 +326,12 @@ mod spill_lane_tests {
         let mut restore = String::new();
         frame.restore(&mut restore);
         for index in [5, 6, 9] {
-            assert!(spill.contains(&format!("global.get {index}\\n")));
-            assert!(restore.contains(&format!("global.set {index}\\n")));
+            assert!(spill.contains(&format!("global.get {index}\n")));
+            assert!(restore.contains(&format!("global.set {index}\n")));
         }
         for index in [7, 8] {
-            assert!(!spill.contains(&format!("global.get {index}\\n")));
-            assert!(!restore.contains(&format!("global.set {index}\\n")));
+            assert!(!spill.contains(&format!("global.get {index}\n")));
+            assert!(!restore.contains(&format!("global.set {index}\n")));
         }
         // Keeping the original frame allocation offsets preserves the
         // private ABI for values after a shared completion snapshot.
