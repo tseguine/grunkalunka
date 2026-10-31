@@ -174,14 +174,18 @@ fn ordinary_helpers_pass_and_return_managed_object_references() {
     node(&wasm, "1");
 }
 
-fn value(function: &mut Function, ty: Type, operation: impl FnOnce(ValueId) -> Op) -> ValueId {
+pub(super) fn value(
+    function: &mut Function,
+    ty: Type,
+    operation: impl FnOnce(ValueId) -> Op,
+) -> ValueId {
     let id = ValueId(function.values.len());
     function.values.push(ty);
     effect(function, operation(id));
     id
 }
 
-fn effect(function: &mut Function, kind: Op) {
+pub(super) fn effect(function: &mut Function, kind: Op) {
     function.body.operations.push(Operation {
         span: function.body.span,
         kind,
@@ -535,7 +539,7 @@ fn managed_operations_reject_wrong_receivers_values_and_results() {
 
 #[test]
 fn managed_references_stay_out_of_exported_and_private_closure_signatures() {
-    for ty in [Type::ManagedValue, Type::ManagedObject] {
+    for ty in [Type::ManagedValue, Type::ManagedObject, Type::ManagedArray] {
         let mut module = object_identity();
         module.functions[0].slots[0].ty = ty;
         assert!(verify_module(&module).is_err());
@@ -745,7 +749,7 @@ fn mixed_reference_and_number_helper_parameters_preserve_mutation() {
     );
 }
 
-fn node(wasm: &[u8], expected: &str) {
+pub(super) fn node(wasm: &[u8], expected: &str) {
     use std::{
         io::Write,
         process::{Command, Stdio},

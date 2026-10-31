@@ -252,11 +252,47 @@ impl Emitter<'_> {
                 self.output.push_str("struct.new $gc_value\n");
                 self.set(*result);
             }
+            Op::ManagedArrayNew { result, length } => {
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_array_new",
+                    *length as i32
+                )
+                .unwrap();
+                self.set(*result);
+            }
+            Op::ManagedArrayLength { result, array } => {
+                self.get(*array);
+                self.output
+                    .push_str("struct.get $gc_array 0\nf64.convert_i32_u\n");
+                self.set(*result);
+            }
+            Op::ManagedArrayGetOwn { result, array, key } => {
+                self.get(*array);
+                self.managed_key(key);
+                self.output.push_str("call $gc_array_get\n");
+                self.set(*result);
+            }
+            Op::ManagedArraySetOwn { array, key, value } => {
+                self.get(*array);
+                self.managed_key(key);
+                self.get(*value);
+                self.output.push_str("call $gc_array_set\n");
+            }
             Op::ManagedObjectNew { result } => {
                 self.output.push_str("call $gc_object_new\n");
                 self.set(*result);
             }
-            Op::ManagedFromObject { result, input } => {
+            Op::ManagedArrayResize { array, length } => {
+                self.get(*array);
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_array_resize",
+                    *length as i32
+                )
+                .unwrap();
+            }
+            Op::ManagedFromObject { result, input } | Op::ManagedFromArray { result, input } => {
                 self.output.push_str("i32.const 4\nf64.const 0\n");
                 self.get(*input);
                 self.output.push_str("struct.new $gc_value\n");
@@ -1131,9 +1167,10 @@ fn emit_function(function: &Function, header: String, errors: bool) -> (String, 
     ir::visit_operations(&function.body, &mut |op| {
         large_literal |= match op {
             Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
-            Op::ManagedGetOwn { key, .. } | Op::ManagedSetOwn { key, .. } => {
-                key.len() > MAX_FIXED_TEXT_UNITS
-            }
+            Op::ManagedGetOwn { key, .. }
+            | Op::ManagedSetOwn { key, .. }
+            | Op::ManagedArrayGetOwn { key, .. }
+            | Op::ManagedArraySetOwn { key, .. } => key.len() > MAX_FIXED_TEXT_UNITS,
             _ => false,
         };
     });

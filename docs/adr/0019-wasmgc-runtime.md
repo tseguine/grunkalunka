@@ -206,6 +206,30 @@ reference-aware closure/async frames remain explicit work. Maintained JS/TS test
 compare native JS, Node-Wasm and Wasmtime, and forced copying collections retain
 String content through object-property edges.
 
+## Sparse array backend operations
+
+The next private reference kind is an array header with an unsigned 32-bit length
+and an immutable reference to an ordinary-object property holder. This reuses the
+verified sparse own-property kernel and its traced entries. Canonical array-index
+keys grow length, and a validated immediate resize filters indexed entries on
+shrink. Holes remain absent entries; explicit Undefined remains a stored value.
+Array boxing uses the existing Object identity kind, not a new JavaScript value
+kind. The header identity is distinct from the private property holder.
+
+A dense element vector was rejected for this first implementation because a single
+large index or length must not require a correspondingly large allocation. A shared
+property-table refactor would remove the extra holder allocation but would also
+change ordinary-object code in this unit; defer that optimization until useful.
+Descriptor semantics, prototype lookup and dynamic length conversion are separate
+operations. Generic writes to `length` are rejected rather than approximated.
+
+The foundation is deliberately separate from source array admission. Native-JS and
+Node execution of emitted IR check index boundaries, length, identity, snapshots and
+helper transport; Wasmtime kernel tests retain sparse entries, cycles and String
+edges through actual copying collections. Existing Number layouts and managed
+capture/async/public-boundary exclusions remain in force. See the
+[array contract](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-array-exotic-objects).
+
 ## Related work and follow-up
 
 - [Shared backend layout](0014-backend-value-layout.md).

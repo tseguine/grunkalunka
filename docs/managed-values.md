@@ -10,8 +10,9 @@ the existing async contract are preserved.
 ## Logical operations and representation
 
 `ManagedValue` currently carries Undefined, Null, Boolean, Number, String or an
-ordinary object reference. `ManagedObject` denotes a known ordinary object. Each has one
-traced WasmGC reference lane; neither is a numeric handle into linear memory.
+object reference. `ManagedObject` denotes a known ordinary object, and
+`ManagedArray` a known array. Each has one traced WasmGC reference lane rather than
+a numeric handle into linear memory.
 Known Number computations still use f64, and the existing `General` primitive pair
 is separate. `ManagedPrimitive` bridges its four canonical primitive kinds;
 extended async Error/Promise tags cannot be copied into this private tag space.
@@ -36,6 +37,44 @@ construction/identity operations before admission.
 | `ManagedEqual` | Strict equality in the currently admitted managed domain. |
 | `ManagedTruthy` | ECMAScript truthiness for the currently admitted managed domain. |
 
+## Array backend foundation
+
+The private IR also has `ManagedArray`, a traced reference with a mutable unsigned
+32-bit logical length and a private ordinary-object property holder. It reuses the
+existing sparse property kernel rather than allocating an element for every index.
+This permits an empty array of length 2^32-1 and a write at index 2^32-2 without
+storage proportional to length. The extra property-holder allocation is a simple
+initial implementation, not a permanent allocation strategy.
+
+`ManagedArrayNew` creates holes, `ManagedArrayLength` returns the length as Number,
+and `ManagedFromArray` boxes the existing identity as the same Object kind used for
+ordinary objects. Empty arrays are truthy; reboxing preserves identity and fresh
+arrays remain distinct from each other and ordinary objects. Typed internal helper
+arguments/results can carry array references.
+
+`ManagedArrayGetOwn` and `ManagedArraySetOwn` use UTF-16 keys and immutable value
+snapshots. Reads of `length` produce a managed Number. Canonical decimal indices
+0 through 2^32-2 grow length when necessary; keys such as `01`, `-0`, `1e2` and
+`4294967295` are named properties and do not. Missing entries are holes, distinct
+in storage from explicitly stored Undefined. Both read as Undefined through these
+own-property operations.
+
+`ManagedArrayResize` accepts an already validated immediate `u32` length. Shrinking
+removes indexed own properties at or above that length while retaining named
+properties; growing creates holes and does not restore deleted entries. Generic
+property writes to `length` reject in the IR verifier so they cannot bypass length
+validation. Dynamic coercion, RangeError completion, property descriptors and
+prototype lookup are not implemented by these operations.
+
+This is **IR/backend support**, not source array admission. Source literals,
+indexing and length syntax still reject until the separate frontend unit supplies
+the required receiver/key/length proofs. Managed captures, public reference exports
+and suspended async frames retain their existing guards. Compiler tests execute
+emitted IR in Node against native JS; runtime kernel tests exercise Wasmtime,
+holes, sparse storage, cycles, text edges and repeated forced copying collections.
+
+## Ordinary-object property storage
+
 Property keys are lossless UTF-16 vectors, including NUL and lone surrogates.
 The initial implementation compares GC-backed packed key arrays and stores entries
 in a GC array. Replacing an existing entry preserves its position; appending a new
@@ -43,8 +82,8 @@ entry copies the reference array and updates the object's storage. This delibera
 simple implementation has linear lookup/append costs. It is not a chosen long-term
 shape/cache/hash-table strategy or an ECMAScript enumeration implementation.
 
-These are explicitly **own data-property** operations. They do not implement JS
-prototype lookup, getters/setters, proxies, `__proto__` initializer semantics or
+The ordinary-object operations are explicitly **own data-property** operations.
+They do not implement JS prototype lookup, getters/setters, proxies, `__proto__` initializer semantics or
 array exotic behavior. Future source lowering must implement the necessary semantic
 operation or reject a case; it must not translate arbitrary `o[k]` into own-only
 lookup and silently discard inherited behavior.
