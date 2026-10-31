@@ -162,10 +162,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     "pending Promise parameters require Promise identity arguments",
                 ));
             }
-            let ty = if matches!(
-                input_type,
-                Type::Closure(_) | Type::FulfilledPromise | Type::Promise | Type::AsyncValue
-            ) {
+            let ty = if input_type.is_managed()
+                || matches!(
+                    input_type,
+                    Type::Closure(_) | Type::FulfilledPromise | Type::Promise | Type::AsyncValue
+                ) {
                 input_type
             } else if input_type == Type::General || self.general_bindings.contains(&symbol) {
                 Type::General
@@ -274,6 +275,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 arguments.push(check.value(ty));
                 continue;
             }
+            if !arrow.r#async
+                && let Some(ty) = self
+                    .managed_parameters
+                    .get(&identifier.symbol_id.get().expect("parameter symbol"))
+            {
+                arguments.push(check.value(*ty));
+                continue;
+            }
+
             let value = check.value(Type::Number);
             Self::push(
                 &mut region,
@@ -509,6 +519,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
                             arguments.push(check.value(ty));
                             continue;
                         }
+                        if !arrow.r#async
+                            && let Some(ty) = parent
+                                .managed_parameters
+                                .get(&identifier.symbol_id.get().expect("parameter symbol"))
+                        {
+                            arguments.push(check.value(*ty));
+                            continue;
+                        }
+
                         let value = check.value(Type::Number);
                         Self::push(
                             &mut region,
@@ -752,7 +771,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
             let value = if let Some(arity) = self.function_arity(argument, call_depth + 1) {
                 self.callback_argument(argument, region, arity, call_depth + 1)?
             } else {
-                let mode = self.local_scalar_argument_mode(argument, call_depth + 1);
+                let mode =
+                    self.local_arrow_argument_mode(factory.arrow, index, argument, call_depth + 1);
                 self.evaluate(argument, region, call_depth + 1, mode)?
                     .expect("factory scalar argument")
             };

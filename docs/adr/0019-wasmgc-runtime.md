@@ -324,6 +324,21 @@ generated body. The adapter changes test observability only; production artifact
 gain no reference export or shared host heap. Clearing roots is tested without
 claiming a measured reclamation/latency bound.
 
+## Source managed argument inference
+
+The synchronous source path now uses the existing call-target/constructor graph
+and finite kind unions for managed arrow formals. Actual arguments, formal writes
+and selected-constructor peers determine the representation; TS annotations do not.
+Local, callback and supported factory calls use that representation before fresh
+formal bindings are installed. Returned closures retain captured managed formals
+through traced cells. Primitive results and Number fast paths remain in place.
+
+This supersedes the source managed-argument restriction above. It reuses typed GC
+argument frames rather than adding a second transport. Native JS/Node-Wasm/Wasmtime
+source comparisons cover identity, mutations, snapshots, mixed values and callback
+composition. Managed private results, public references and suspended GC frames
+remain separate work; unknown receivers and unsupported coercions still reject.
+
 ## Related work and follow-up
 
 - [Shared backend layout](0014-backend-value-layout.md).

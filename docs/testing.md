@@ -445,3 +445,10 @@ Strings, compares JS/TS in native JS, Node-Wasm and Wasmtime, and preserves the
 remaining private-signature/async/prototype boundaries. Its copying-GC test adds
 only a test-time root/observer to an actual generated closure: source functions and
 cell/frame code remain generated, while the public artifact gains no reference ABI.
+
+`managed-closure-inputs` executes JS/TS object, array and String arguments through
+local/selected closures, callbacks and returned factories against native JS,
+Node-Wasm and Wasmtime. It tests argument snapshots/order, object mutation, array
+cycles, mixed-kind formal unions and erased annotations; rejection controls retain
+unknown receivers, private managed results and async storage boundaries. These
+sources also participate in the versioned compatibility corpus.

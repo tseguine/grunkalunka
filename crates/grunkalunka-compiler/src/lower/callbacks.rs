@@ -773,7 +773,10 @@ fn refine_shapes<'a>(
             return signatures.borrow_mut().intern_async(parameter_types(
                 arrow,
                 parameters,
-                &kinds.inputs,
+                ValueInputs {
+                    general: &kinds.inputs,
+                    managed: &kinds.managed_inputs,
+                },
                 promise_parameters,
             ));
         }
@@ -919,7 +922,15 @@ fn refine_shapes<'a>(
                 },
             );
         signatures.borrow_mut().intern(
-            parameter_types(arrow, parameters, &kinds.inputs, promise_parameters),
+            parameter_types(
+                arrow,
+                parameters,
+                ValueInputs {
+                    general: &kinds.inputs,
+                    managed: &kinds.managed_inputs,
+                },
+                promise_parameters,
+            ),
             if !arrow.r#async && promise_parameters.mixed_results.contains(&body) {
                 Type::AsyncValue
             } else if (promise_parameters.identities || !arrow.r#async)
@@ -1120,6 +1131,7 @@ fn refine_shapes<'a>(
                         None if expected == Some(Type::AsyncValue) => Type::AsyncValue,
                         None if expected == Some(Type::Promise) => Type::Promise,
                         None if expected == Some(Type::FulfilledPromise) => Type::FulfilledPromise,
+                        None if expected.is_some_and(Type::is_managed) => expected.unwrap(),
                         None if expected == Some(Type::General) => Type::General,
                         None => Type::Number,
                     });
@@ -1233,10 +1245,14 @@ fn refine_shapes<'a>(
 
 // Callback demands describe finite Number/General-result signatures. An arrow's own shape
 // follows parameter order, while source syntax and TypeScript names prove no kind.
+pub(super) struct ValueInputs<'s> {
+    pub general: &'s BTreeSet<SymbolId>,
+    pub managed: &'s BTreeMap<SymbolId, Type>,
+}
 pub(super) fn parameter_types(
     arrow: &oxc_ast::ast::ArrowFunctionExpression<'_>,
     parameters: &Parameters,
-    general: &BTreeSet<SymbolId>,
+    inputs: ValueInputs<'_>,
     promises: &super::promises::Inputs,
 ) -> Vec<Type> {
     arrow
@@ -1257,7 +1273,11 @@ pub(super) fn parameter_types(
                     || {
                         if let Some(ty) = promises.parameter(&symbol) {
                             ty
-                        } else if general.contains(&symbol) {
+                        } else if !arrow.r#async
+                            && let Some(ty) = inputs.managed.get(&symbol)
+                        {
+                            *ty
+                        } else if inputs.general.contains(&symbol) {
                             Type::General
                         } else {
                             Type::Number

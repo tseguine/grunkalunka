@@ -75,7 +75,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
         let parameters = callbacks::parameter_types(
             arrow,
             self.callback_parameters,
-            self.general_parameters,
+            callbacks::ValueInputs {
+                general: self.general_parameters,
+                managed: self.managed_parameters,
+            },
             self.promise_parameters,
         );
         if arrow.r#async && self.async_results.contains(&arrow.node_id.get()) {
@@ -770,6 +773,14 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     .expect("checked signature");
                 let value = if let Type::Closure(callback) = parameter {
                     self.callback_argument(expression, region, callback, depth + 1)?
+                } else if parameter.is_managed() {
+                    let mode = match parameter {
+                        Type::ManagedObject => evaluate::Mode::Object,
+                        Type::ManagedArray => evaluate::Mode::Array,
+                        _ => evaluate::Mode::Managed,
+                    };
+                    self.evaluate(expression, region, depth + 1, mode)?
+                        .expect("managed runtime factory argument")
                 } else if parameter == Type::AsyncValue {
                     self.evaluate(expression, region, depth + 1, evaluate::Mode::AsyncValue)?
                         .expect("mixed runtime factory argument")
@@ -849,7 +860,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 let value = if let Some(kind) = self.function_arity(expression, depth + 1) {
                     self.callback_argument(expression, region, kind, depth + 1)?
                 } else {
-                    let mode = self.local_scalar_argument_mode(expression, depth + 1);
+                    let mode =
+                        self.local_arrow_argument_mode(closure.arrow, index, expression, depth + 1);
                     self.evaluate(expression, region, depth + 1, mode)?
                         .expect("factory scalar argument")
                 };
@@ -953,7 +965,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
         let parameter_types = callbacks::parameter_types(
             arrow,
             self.callback_parameters,
-            self.general_parameters,
+            callbacks::ValueInputs {
+                general: self.general_parameters,
+                managed: self.managed_parameters,
+            },
             self.promise_parameters,
         );
         for (parameter, ty) in arrow.params.items.iter().zip(parameter_types) {

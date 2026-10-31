@@ -257,6 +257,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub ui_import: Option<SymbolId>,
     pub general_bindings: &'s std::collections::BTreeSet<SymbolId>,
     pub general_parameters: &'s std::collections::BTreeSet<SymbolId>,
+    pub managed_parameters: &'s std::collections::BTreeMap<SymbolId, Type>,
     pub number_calls: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub general_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub settled_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,

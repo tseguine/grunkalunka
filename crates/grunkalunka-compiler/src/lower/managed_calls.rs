@@ -353,3 +353,117 @@ pub(crate) fn infer(
         }
     }
 }
+
+// Reuse the finite value-kind lattice for arrow formal cells. Call targets and
+// actual-to-formal writes are supplied by storage's existing constructor graph.
+pub(super) fn closure_inputs<'a>(
+    semantic: &Semantic<'a>,
+    functions: &[NumericFunction],
+    definitions: &BTreeMap<SymbolId, Option<&Expression<'a>>>,
+    writes: &BTreeMap<SymbolId, Vec<&Expression<'a>>>,
+    parameters: &BTreeSet<SymbolId>,
+    groups: &BTreeSet<BTreeSet<oxc_syntax::node::NodeId>>,
+    arrows: &BTreeMap<oxc_syntax::node::NodeId, &oxc_ast::ast::ArrowFunctionExpression<'a>>,
+) -> BTreeMap<SymbolId, Type> {
+    if !semantic.nodes().iter().any(|n| {
+        matches!(
+            n.kind(),
+            AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
+        ) || matches!(n.kind(),AstKind::UnaryExpression(u) if u.operator==UnaryOperator::Typeof)
+    }) {
+        return BTreeMap::new();
+    }
+    let from_type = |ty: Type| -> Kinds {
+        match ty {
+            Type::ManagedObject => [Kind::Object].into(),
+            Type::ManagedArray => [Kind::Array].into(),
+            Type::ManagedValue => [
+                Kind::Primitive,
+                Kind::GeneralPrimitive,
+                Kind::Object,
+                Kind::Array,
+                Kind::String,
+            ]
+            .into(),
+            Type::General => [Kind::Primitive, Kind::GeneralPrimitive].into(),
+            _ => [Kind::Primitive].into(),
+        }
+    };
+    // Unresolved formal facts start at bottom, so forwarding does not invent an
+    // initial Number call before the actual object/array origin has propagated.
+    let mut bindings: BTreeMap<_, Kinds> = parameters.iter().map(|s| (*s, Kinds::new())).collect();
+    for symbol in definitions.keys().chain(writes.keys()) {
+        bindings.entry(*symbol).or_default();
+    }
+    for node in semantic.nodes().iter() {
+        let AstKind::Function(f) = node.kind() else {
+            continue;
+        };
+        let Some(function) =
+            f.id.as_ref()
+                .and_then(|i| i.symbol_id.get())
+                .and_then(|s| functions.iter().find(|f| f.symbol == s))
+        else {
+            continue;
+        };
+        for (index, p) in f.params.items.iter().enumerate() {
+            if let BindingPattern::BindingIdentifier(i) = &p.pattern
+                && let Some(s) = i.symbol_id.get()
+            {
+                bindings.insert(s, from_type(function.parameter_type(index)));
+            }
+        }
+    }
+    let returns = functions
+        .iter()
+        .map(|f| from_type(f.return_type))
+        .collect::<Vec<_>>();
+    loop {
+        let mut changed = false;
+        for (symbol, expression) in definitions {
+            let next = expression
+                .map(|e| kinds(e, semantic, functions, &bindings, &returns))
+                .unwrap_or_else(|| [Kind::GeneralPrimitive].into());
+            changed |= extend(&mut bindings, *symbol, next);
+        }
+        for (symbol, expressions) in writes {
+            for expression in expressions {
+                let next = kinds(expression, semantic, functions, &bindings, &returns);
+                changed |= extend(&mut bindings, *symbol, next);
+            }
+        }
+        for group in groups {
+            let count = group
+                .iter()
+                .map(|body| arrows[body].params.items.len())
+                .max()
+                .unwrap_or(0);
+            for index in 0..count {
+                let symbols = group
+                    .iter()
+                    .filter_map(|body| arrows[body].params.items.get(index))
+                    .filter_map(|p| match &p.pattern {
+                        BindingPattern::BindingIdentifier(i) => i.symbol_id.get(),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                let joined = symbols
+                    .iter()
+                    .filter_map(|s| bindings.get(s))
+                    .flatten()
+                    .copied()
+                    .collect::<Kinds>();
+                for symbol in symbols {
+                    changed |= extend(&mut bindings, symbol, joined.clone());
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    parameters
+        .iter()
+        .filter_map(|s| bindings.get(s).and_then(managed_type).map(|ty| (*s, ty)))
+        .collect()
+}
