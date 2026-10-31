@@ -289,7 +289,9 @@ fn verifier_scope_paths_preserve_ancestor_access_and_reject_siblings() {
             result.expect("root-owned parameter remains visible in sibling region");
         } else {
             assert!(
-                result.unwrap_err().contains("slot owner is outside the lexical region"),
+                result
+                    .unwrap_err()
+                    .contains("slot owner is outside the lexical region"),
                 "sibling-owned cell must be rejected"
             );
         }
