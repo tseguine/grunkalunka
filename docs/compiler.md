@@ -36,7 +36,8 @@ shared-IR managed values extend admitted source operations independently;
 see [managed values](managed-values.md).
 
 The [decision and alternatives](adr/0001-explicit-evaluator-control.md) distinguish
-this maintained implementation from the disposable feasibility study. Evaluator requests do not recursively enter the evaluator. Later
+this maintained implementation from the disposable feasibility study.
+Evaluator requests do not recursively enter the evaluator. Later
 [stack-depth hardening](https://github.com/tseguine/grunkalunka/issues/281)
 also changed selected statement/expression classification, IR verification and
 structured emission, owned-region teardown and async-control walks to iterative
