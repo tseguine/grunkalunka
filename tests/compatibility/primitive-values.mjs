@@ -1,3 +1,4 @@
+import { managedStringFuel } from './managed-strings.mjs';
 // Finite source evidence for the explicit primitive-return profile.
 // No fixture here changes the numeric corpus or claims full language coverage.
 const spec = 'https://tc39.es/ecma262/multipage/';
@@ -238,3 +239,5 @@ export const valueFuelCases = [{
   resourceOutcomes: ['fuel-exhausted','stack-exhausted'],
   standards: [returns, types, spec + 'ecmascript-language-expressions.html#sec-evaluatecall'],
 }];
+
+valueFuelCases.push(managedStringFuel);

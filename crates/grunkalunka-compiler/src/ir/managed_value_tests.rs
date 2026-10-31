@@ -789,3 +789,19 @@ for(const a of values)for(const b of values)assert.ok(Object.is(run(a,b),native(
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn string_construction_requires_a_managed_result() {
+    let mut module = crate::lower_source("export function run(a,b){return a;}", false).unwrap();
+    let function = &mut module.functions[0];
+    function.values = vec![Type::Number];
+    function.body.operations = vec![Operation {
+        span: function.body.span,
+        kind: Op::ManagedString {
+            result: ValueId(0),
+            units: vec![120],
+        },
+    }];
+    function.body.exit = Exit::Return(ValueId(0));
+    assert!(verify_module(&module).is_err());
+}

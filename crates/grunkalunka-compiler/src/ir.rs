@@ -421,6 +421,10 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 
 #[derive(Debug)]
 pub(crate) enum Op {
+    ManagedString {
+        result: ValueId,
+        units: Vec<u16>,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1066,6 +1070,11 @@ impl Verifier<'_> {
                 self.value(*value, Type::ManagedValue, visible, span)?;
                 u32::try_from(key.len())
                     .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+            }
+            Op::ManagedString { result, units } => {
+                u32::try_from(units.len())
+                    .map_err(|_| invalid(span, "managed String exceeds Wasm32 length"))?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;

@@ -83,3 +83,43 @@ fn managed_property_cycles_and_values_survive_copying_collection() {
         }
     }
 }
+
+#[test]
+fn string_content_and_object_edges_survive_copying_collection() {
+    let kernel = include_str!("../../grunkalunka-compiler/src/emit/managed.wat");
+    let wasm = wat::parse_str(format!(
+        r#"(module
+      (global $saved (mut (ref null $gc_object)) (ref.null $gc_object))
+      (func $text (result (ref null $gc_value))
+        i32.const 5 f64.const 0 i32.const 55296 i32.const 0 i32.const 97
+        array.new_fixed $gc_key 3 struct.new $gc_value)
+      (func $key (result (ref null $gc_key)) i32.const 120 array.new_fixed $gc_key 1)
+      (func (export "init")
+        call $gc_object_new global.set $saved
+        global.get $saved call $key call $text call $gc_set)
+      (func (export "read") (result i32)
+        global.get $saved call $key call $gc_get call $text call $gc_equal
+        global.get $saved call $key call $gc_get call $gc_truthy i32.and)
+      {kernel})"#
+    ))
+    .unwrap();
+    let mut config = Config::new();
+    config.consume_fuel(true).collector(Collector::Copying);
+    let engine = Engine::new(&config).unwrap();
+    let module = Module::from_binary(&engine, &wasm).unwrap();
+    let mut store = Store::new(&engine, ());
+    store.set_fuel(10_000).unwrap();
+    let instance = Instance::new(&mut store, &module, &[]).unwrap();
+    let init = instance
+        .get_typed_func::<(), ()>(&mut store, "init")
+        .unwrap();
+    let read = instance
+        .get_typed_func::<(), i32>(&mut store, "read")
+        .unwrap();
+    init.call(&mut store, ()).unwrap();
+    for _ in 0..6 {
+        store.gc(None).unwrap();
+        store.set_fuel(10_000).unwrap();
+        assert_eq!(read.call(&mut store, ()).unwrap(), 1);
+    }
+}
