@@ -18,7 +18,7 @@ pub(super) struct ReturnOrigins<'s, 'n, 'a> {
 impl<'s, 'n, 'a> ReturnOrigins<'s, 'n, 'a> {
     // Follow source-known concise and block results. Actual argument origins are
     // computed before shadowing formals; no call effects or argument bindings
-    // escape this read-only query. The same eight-call bound limits recursion.
+    // escape this read-only query. The eight-call admission bound is unchanged.
     pub(super) fn expression<'e>(
         &'e self,
         expression: &'e Expression<'a>,
@@ -267,10 +267,8 @@ impl<'s, 'n, 'a> ReturnOrigins<'s, 'n, 'a> {
                     // Actuals were evaluated under the caller bindings, before
                     // any formal is shadowed, exactly as in the source query.
                     for symbol in symbols.into_iter().rev() {
-                        parameters.insert(
-                            symbol,
-                            results.pop().expect("scheduled argument origins"),
-                        );
+                        parameters
+                            .insert(symbol, results.pop().expect("scheduled argument origins"));
                     }
                     let parameters = std::rc::Rc::new(parameters);
                     work.push(Work::Union(returns.len()));
