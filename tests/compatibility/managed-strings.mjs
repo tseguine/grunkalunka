@@ -60,7 +60,8 @@ export const managedStringPromotions = [
     "id": "directive-ts-wrapped",
     "extension": "ts",
     "sourceSha256": "df418ae5526b5e27ff6c319dc815affe615cc6410e5f67db246cdaafec85578d",
-    "sourceJS": "export function run(a,b) { \"hint\"; return a; }",
+    // Keep the erased expression out of the JS directive prologue.
+    "sourceJS": "export function run(a,b) { (\"hint\"); return a; }",
     "sourceTS": "export function run(a:number,b:number):number { \"hint\" as string; return a; }"
   },
   {
