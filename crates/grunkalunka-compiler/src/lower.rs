@@ -809,6 +809,12 @@ impl Lowering<'_, '_> {
                     Type::Number
                 };
                 let value = match ty {
+                    Type::ManagedArray => {
+                        return Err(unsupported(
+                            initializer,
+                            "source array lowering is not implemented",
+                        ));
+                    }
                     Type::ManagedValue | Type::ManagedObject => self
                         .evaluate(
                             initializer,
