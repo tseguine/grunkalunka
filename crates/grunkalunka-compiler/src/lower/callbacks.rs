@@ -26,95 +26,108 @@ impl ReturnOrigins<'_, '_, '_> {
         depth: usize,
         calls: usize,
     ) -> Origins {
-        if depth > 128 {
-            return Origins::default();
-        }
-        if let Some(inner) = erased_inner(expression) {
-            return self.expression(inner, bindings, depth + 1, calls);
-        }
-        match expression {
-            Expression::ParenthesizedExpression(wrapper) => {
-                self.expression(&wrapper.expression, bindings, depth + 1, calls)
+        // Structural expression nesting is source-dependent, so own it on the
+        // heap rather than the native call stack. The only recursive queries
+        // below cross an actual source call, whose eight-level budget is
+        // unchanged. Unioning origins is order-independent and has no effects.
+        let mut result = Origins::default();
+        let mut pending = vec![(expression, depth)];
+        while let Some((expression, depth)) = pending.pop() {
+            if depth > 128 {
+                continue;
             }
-            Expression::Identifier(identifier) => symbol(identifier, self.semantic)
-                .and_then(|id| bindings.get(&id))
-                .cloned()
-                .unwrap_or_else(|| origins(expression, self.semantic)),
-            Expression::SequenceExpression(sequence) => sequence
-                .expressions
-                .last()
-                .map(|last| self.expression(last, bindings, depth + 1, calls))
-                .unwrap_or_default(),
-            Expression::AssignmentExpression(assignment)
-                if assignment.operator == AssignmentOperator::Assign =>
-            {
-                self.expression(&assignment.right, bindings, depth + 1, calls)
+            if let Some(inner) = erased_inner(expression) {
+                pending.push((inner, depth + 1));
+                continue;
             }
-            Expression::ConditionalExpression(conditional) => {
-                let mut result =
-                    self.expression(&conditional.consequent, bindings, depth + 1, calls);
-                let other = self.expression(&conditional.alternate, bindings, depth + 1, calls);
-                result.0.extend(other.0);
-                result.1.extend(other.1);
-                result
-            }
-            Expression::LogicalExpression(logical) => {
-                let mut result = self.expression(&logical.left, bindings, depth + 1, calls);
-                let other = self.expression(&logical.right, bindings, depth + 1, calls);
-                result.0.extend(other.0);
-                result.1.extend(other.1);
-                result
-            }
-            Expression::CallExpression(call) => {
-                if calls >= 8 {
-                    return Origins::default();
+            match expression {
+                Expression::ParenthesizedExpression(wrapper) => {
+                    pending.push((&wrapper.expression, depth + 1));
                 }
-                let (sources, mut bodies) =
-                    self.expression(invocation::callee(call), bindings, depth + 1, calls + 1);
-                for source in sources {
-                    if let Some(known) = self.targets.get(&source) {
-                        bodies.extend(known);
+                Expression::Identifier(identifier) => {
+                    let found = symbol(identifier, self.semantic)
+                        .and_then(|id| bindings.get(&id))
+                        .cloned()
+                        .unwrap_or_else(|| origins(expression, self.semantic));
+                    result.0.extend(found.0);
+                    result.1.extend(found.1);
+                }
+                Expression::SequenceExpression(sequence) => {
+                    if let Some(last) = sequence.expressions.last() {
+                        pending.push((last, depth + 1));
                     }
                 }
-                let mut result = Origins::default();
-                for body in bodies {
-                    let arrow = self.arrows[&body];
-                    if arrow.params.items.len() > invocation::arguments(call).len() {
+                Expression::AssignmentExpression(assignment)
+                    if assignment.operator == AssignmentOperator::Assign =>
+                {
+                    pending.push((&assignment.right, depth + 1));
+                }
+                Expression::ConditionalExpression(conditional) => {
+                    pending.push((&conditional.alternate, depth + 1));
+                    pending.push((&conditional.consequent, depth + 1));
+                }
+                Expression::LogicalExpression(logical) => {
+                    pending.push((&logical.right, depth + 1));
+                    pending.push((&logical.left, depth + 1));
+                }
+                Expression::CallExpression(call) => {
+                    if calls >= 8 {
                         continue;
                     }
-                    let expressions = if let Some(expression) = arrow.get_expression() {
-                        vec![expression]
-                    } else {
-                        block_results::return_statements(self.semantic, body)
-                            .into_iter()
-                            .filter_map(|statement| statement.argument.as_ref())
-                            .collect()
-                    };
-                    let mut parameters = bindings.clone();
-                    for (parameter, argument) in
-                        arrow.params.items.iter().zip(invocation::arguments(call))
-                    {
-                        if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
-                            && let Some(id) = identifier.symbol_id.get()
-                            && let Some(argument) = argument.as_expression()
-                        {
-                            parameters.insert(
-                                id,
-                                self.expression(argument, bindings, depth + 1, calls + 1),
-                            );
+                    let (sources, mut bodies) = self.expression(
+                        invocation::callee(call),
+                        bindings,
+                        depth + 1,
+                        calls + 1,
+                    );
+                    for source in sources {
+                        if let Some(known) = self.targets.get(&source) {
+                            bodies.extend(known);
                         }
                     }
-                    for expression in expressions {
-                        let returned =
-                            self.expression(expression, &parameters, depth + 1, calls + 1);
-                        result.0.extend(returned.0);
-                        result.1.extend(returned.1);
+                    for body in bodies {
+                        let arrow = self.arrows[&body];
+                        if arrow.params.items.len() > invocation::arguments(call).len() {
+                            continue;
+                        }
+                        let expressions = if let Some(expression) = arrow.get_expression() {
+                            vec![expression]
+                        } else {
+                            block_results::return_statements(self.semantic, body)
+                                .into_iter()
+                                .filter_map(|statement| statement.argument.as_ref())
+                                .collect()
+                        };
+                        let mut parameters = bindings.clone();
+                        for (parameter, argument) in
+                            arrow.params.items.iter().zip(invocation::arguments(call))
+                        {
+                            if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                                && let Some(id) = identifier.symbol_id.get()
+                                && let Some(argument) = argument.as_expression()
+                            {
+                                parameters.insert(
+                                    id,
+                                    self.expression(argument, bindings, depth + 1, calls + 1),
+                                );
+                            }
+                        }
+                        for expression in expressions {
+                            let returned =
+                                self.expression(expression, &parameters, depth + 1, calls + 1);
+                            result.0.extend(returned.0);
+                            result.1.extend(returned.1);
+                        }
                     }
                 }
-                result
+                _ => {
+                    let found = origins(expression, self.semantic);
+                    result.0.extend(found.0);
+                    result.1.extend(found.1);
+                }
             }
-            _ => origins(expression, self.semantic),
         }
+        result
     }
 }
 
