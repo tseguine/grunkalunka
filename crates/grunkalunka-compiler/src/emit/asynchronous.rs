@@ -577,6 +577,95 @@ impl<'a> Splitter<'a> {
                         region = parent;
                         end = remaining;
                     }
+                    Some(PendingSplit::FinallyContinuation(frame)) => {
+                        let resume_return = next;
+                        self.return_to = Some((frame.returned, resume_return));
+                        pending.push(PendingSplit::FinallyReturn(frame));
+                        active_loops = frame.outer_loops;
+                        next = self.exit_entry(frame.finalizer, resume_return, None, active_loops)?;
+                        region = frame.finalizer;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::FinallyReturn(frame)) => {
+                        let on_return = next;
+                        let rethrow = self.terminal(match frame.outer_catch {
+                            Some((result, target)) => End::Copy {
+                                input: frame.reason,
+                                result,
+                                next: target,
+                            },
+                            None => End::Reject(frame.reason),
+                        })?;
+                        pending.push(PendingSplit::FinallyThrow { frame, on_return });
+                        active_loops = frame.outer_loops;
+                        next = self.exit_entry(frame.finalizer, rethrow, None, active_loops)?;
+                        region = frame.finalizer;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::FinallyThrow { frame, on_return }) => {
+                        let on_throw = next;
+                        pending.push(PendingSplit::FinallyNormal { frame, on_return, on_throw });
+                        active_loops = frame.outer_loops;
+                        next = self.exit_entry(frame.finalizer, frame.normal, None, active_loops)?;
+                        region = frame.finalizer;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::FinallyNormal { frame, on_return, on_throw }) => {
+                        let normal = next;
+                        if let Some(targets) = frame.outer_loops {
+                            pending.push(PendingSplit::FinallyLoopExit {
+                                frame, on_return, on_throw, normal,
+                            });
+                            active_loops = frame.outer_loops;
+                            next = self.exit_entry(
+                                frame.finalizer, targets.exit, None, active_loops,
+                            )?;
+                            region = frame.finalizer;
+                            end = region.operations.len();
+                        } else {
+                            self.return_to = Some((frame.returned, on_return));
+                            self.catch_to = Some((frame.reason, on_throw));
+                            pending.push(PendingSplit::FinallyBody(frame));
+                            active_loops = None;
+                            next = self.exit_entry(frame.body, normal, None, active_loops)?;
+                            region = frame.body;
+                            end = region.operations.len();
+                        }
+                    }
+                    Some(PendingSplit::FinallyLoopExit {
+                        frame, on_return, on_throw, normal,
+                    }) => {
+                        let exit = next;
+                        let targets = frame.outer_loops.expect("outer loop exists");
+                        pending.push(PendingSplit::FinallyLoopNext {
+                            frame, on_return, on_throw, normal, exit,
+                        });
+                        active_loops = frame.outer_loops;
+                        next = self.exit_entry(
+                            frame.finalizer, targets.next, None, active_loops,
+                        )?;
+                        region = frame.finalizer;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::FinallyLoopNext {
+                        frame, on_return, on_throw, normal, exit,
+                    }) => {
+                        let next_loop = next;
+                        self.return_to = Some((frame.returned, on_return));
+                        self.catch_to = Some((frame.reason, on_throw));
+                        pending.push(PendingSplit::FinallyBody(frame));
+                        active_loops = Some(LoopTargets { exit, next: next_loop });
+                        next = self.exit_entry(frame.body, normal, None, active_loops)?;
+                        region = frame.body;
+                        end = region.operations.len();
+                    }
+                    Some(PendingSplit::FinallyBody(frame)) => {
+                        self.return_to = frame.outer_return;
+                        self.catch_to = frame.outer_catch;
+                        active_loops = frame.outer_loops;
+                        region = frame.parent;
+                        end = frame.remaining;
+                    }
                     None => return Ok(next),
                 }
                 continue;
