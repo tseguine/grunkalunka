@@ -75,60 +75,57 @@ impl Lowering<'_, '_> {
         bindings: &BTreeMap<SymbolId, Option<usize>>,
         calls: usize,
     ) -> Option<usize> {
-        if depth > 128 {
-            return None;
-        }
-        if let Some(arity) = self.function_arity_in(expression, depth, bindings, calls) {
-            return Some(arity);
-        }
-        if let Some(inner) = erased_inner(expression) {
-            return self.block_expression_arity(inner, depth + 1, bindings, calls);
-        }
-        match expression {
-            Expression::ParenthesizedExpression(wrapper) => {
-                self.block_expression_arity(&wrapper.expression, depth + 1, bindings, calls)
+        // Each leaf must prove the same complete closure signature. Preserve
+        // the old per-node depth budget, but keep wrappers, branches and
+        // initializer aliases on a heap worklist rather than the Rust stack.
+        let mut pending = vec![(expression, depth)];
+        let mut arity = None;
+        while let Some((expression, depth)) = pending.pop() {
+            if depth > 128 {
+                return None;
             }
-            Expression::ConditionalExpression(conditional) => {
-                let yes = self.block_expression_arity(
-                    &conditional.consequent,
-                    depth + 1,
-                    bindings,
-                    calls,
-                )?;
-                let no = self.block_expression_arity(
-                    &conditional.alternate,
-                    depth + 1,
-                    bindings,
-                    calls,
-                )?;
-                (yes == no).then_some(yes)
-            }
-            Expression::SequenceExpression(sequence) => self.block_expression_arity(
-                sequence.expressions.last()?,
-                depth + 1,
-                bindings,
-                calls,
-            ),
-            Expression::AssignmentExpression(assignment)
-                if assignment.operator == AssignmentOperator::Assign =>
-            {
-                self.block_expression_arity(&assignment.right, depth + 1, bindings, calls)
-            }
-            Expression::Identifier(identifier) => {
-                let symbol = self
-                    .semantic
-                    .scoping()
-                    .get_reference(identifier.reference_id.get()?)
-                    .symbol_id()?;
-                if let Some(kind) = bindings.get(&symbol) {
-                    return *kind;
+            if let Some(next) = self.function_arity_in(expression, depth, bindings, calls) {
+                if arity.is_some_and(|expected| expected != next) {
+                    return None;
                 }
-                // Symbol identity preserves shadowing. Recognition may inspect a
-                // later initializer, but real lowering still enforces initialization.
-                self.semantic
-                    .nodes()
-                    .iter()
-                    .find_map(|node| {
+                arity = Some(next);
+                continue;
+            }
+            if let Some(inner) = erased_inner(expression) {
+                pending.push((inner, depth + 1));
+                continue;
+            }
+            match expression {
+                Expression::ParenthesizedExpression(wrapper) => {
+                    pending.push((&wrapper.expression, depth + 1));
+                }
+                Expression::ConditionalExpression(conditional) => {
+                    pending.push((&conditional.alternate, depth + 1));
+                    pending.push((&conditional.consequent, depth + 1));
+                }
+                Expression::SequenceExpression(sequence) => {
+                    pending.push((sequence.expressions.last()?, depth + 1));
+                }
+                Expression::AssignmentExpression(assignment)
+                    if assignment.operator == AssignmentOperator::Assign =>
+                {
+                    pending.push((&assignment.right, depth + 1));
+                }
+                Expression::Identifier(identifier) => {
+                    let symbol = self
+                        .semantic
+                        .scoping()
+                        .get_reference(identifier.reference_id.get()?)
+                        .symbol_id()?;
+                    if let Some(kind) = bindings.get(&symbol) {
+                        let next = (*kind)?;
+                        if arity.is_some_and(|expected| expected != next) {
+                            return None;
+                        }
+                        arity = Some(next);
+                        continue;
+                    }
+                    let initializer = self.semantic.nodes().iter().find_map(|node| {
                         let AstKind::VariableDeclarator(declaration) = node.kind() else {
                             return None;
                         };
@@ -138,12 +135,12 @@ impl Lowering<'_, '_> {
                         (binding.symbol_id.get() == Some(symbol))
                             .then_some(declaration.init.as_ref())
                             .flatten()
-                    })
-                    .and_then(|initializer| {
-                        self.block_expression_arity(initializer, depth + 1, bindings, calls)
-                    })
+                    })?;
+                    pending.push((initializer, depth + 1));
+                }
+                _ => return None,
             }
-            _ => None,
         }
+        arity
     }
 }

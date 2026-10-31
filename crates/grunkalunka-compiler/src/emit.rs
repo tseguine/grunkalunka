@@ -10,6 +10,8 @@ mod iterative_emitter_tests;
 mod layout;
 mod materialization;
 mod relational;
+#[cfg(test)]
+mod stack_hygiene_tests;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -914,48 +916,56 @@ fn region_has_await(region: &Region) -> bool {
 }
 
 fn region_has_control(region: &Region, starts: bool) -> bool {
-    if matches!(region.exit, Exit::Throw(_)) {
-        return true;
+    // The async routing decision is read-only. Traverse the same children in
+    // source order without consuming one native frame per nested region.
+    let mut pending = vec![region];
+    while let Some(region) = pending.pop() {
+        if matches!(region.exit, Exit::Throw(_)) {
+            return true;
+        }
+        for operation in region.operations.iter().rev() {
+            match &operation.kind {
+                Op::Await { .. }
+                | Op::AsyncClosureEntry { .. }
+                | Op::AwaitPromise { .. }
+                | Op::AdoptPromise { .. }
+                | Op::AwaitClosureCall { .. }
+                | Op::AwaitSettled { .. }
+                | Op::AwaitCall { .. }
+                | Op::TryCatch { .. }
+                | Op::TryFinally { .. } => return true,
+                Op::StartAsyncClosure { .. } if starts => return true,
+                // Settlement bodies close their own throws, and don't await.
+                Op::SettlePromise { .. } | Op::StartAsyncClosure { .. } => {}
+                Op::InlineCall { body, .. } | Op::Block(body) => pending.push(body),
+                Op::If {
+                    consequent,
+                    alternate,
+                    ..
+                } => {
+                    pending.push(alternate);
+                    pending.push(consequent);
+                }
+                Op::While {
+                    condition,
+                    body,
+                    step,
+                } => {
+                    if let Some(step) = step {
+                        pending.push(step);
+                    }
+                    pending.push(body);
+                    pending.push(condition);
+                }
+                Op::DoWhile { body, condition } => {
+                    pending.push(condition);
+                    pending.push(body);
+                }
+                _ => {}
+            }
+        }
     }
-    region
-        .operations
-        .iter()
-        .any(|operation| match &operation.kind {
-            Op::Await { .. }
-            | Op::AsyncClosureEntry { .. }
-            | Op::AwaitPromise { .. }
-            | Op::AdoptPromise { .. }
-            | Op::AwaitClosureCall { .. }
-            | Op::AwaitSettled { .. }
-            | Op::AwaitCall { .. }
-            | Op::TryCatch { .. }
-            | Op::TryFinally { .. } => true,
-            Op::StartAsyncClosure { .. } => starts,
-            // Verified settlement bodies close primitive throws and cannot await.
-            Op::SettlePromise { .. } => false,
-            Op::InlineCall { body, .. } => region_has_control(body, starts),
-            Op::Block(child) => region_has_control(child, starts),
-            Op::If {
-                consequent,
-                alternate,
-                ..
-            } => region_has_control(consequent, starts) || region_has_control(alternate, starts),
-            Op::While {
-                condition,
-                body,
-                step,
-            } => {
-                region_has_control(condition, starts)
-                    || region_has_control(body, starts)
-                    || step
-                        .as_ref()
-                        .is_some_and(|step| region_has_control(step, starts))
-            }
-            Op::DoWhile { body, condition } => {
-                region_has_control(body, starts) || region_has_control(condition, starts)
-            }
-            _ => false,
-        })
+    false
 }
 
 /// Emit one ordinary activation; coroutine frames use a separate storage mapping.
