@@ -47,7 +47,6 @@ const reference='reference is not an initialized numeric parameter or local';
 const negatives=[
   ['string','("x"); return a;',expression],
   ['asserted-string','("x") as boolean; return a;',expression,'ts'],
-  ['object','({}); return a;',expression],
   ['global','clock; return a;',reference],
   ['call','Math.random(); return a;',expression],
   ['number-return','return true;',expression],

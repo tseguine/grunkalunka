@@ -4254,13 +4254,6 @@
       "group": "string-values"
     },
     {
-      "id": "comma-unsupported-5",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "6999e32069dcbb91db764658f7be2e60974599f0f2dc058bc6a96635c32210f4",
-      "group": "object-values"
-    },
-    {
       "id": "comma-unsupported-6",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -5512,13 +5505,6 @@
       "sourceMode": "module-strict",
       "sourceSha256": "f353a3ac4e130e4c4633ba6c3bd1f3f01d0f48ba5a8f449f7cc5b4406052a6e1",
       "group": "string-values"
-    },
-    {
-      "id": "discarded-object",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "c8ed307ab3dc05d402f8ca03ba73de131a69e5cfa1482809417ad7f6005a47e6",
-      "group": "object-values"
     },
     {
       "id": "discarded-global",

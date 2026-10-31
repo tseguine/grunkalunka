@@ -274,6 +274,11 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_equal\n");
                 self.set(*result);
             }
+            Op::ManagedTruthy { result, input } => {
+                self.get(*input);
+                self.output.push_str("call $gc_truthy\n");
+                self.set(*result);
+            }
             Op::CaptureCells { .. } | Op::AwaitSite { .. } => (),
             Op::ClosureEntry { .. } | Op::AsyncClosureEntry { .. } => (),
             Op::FulfillPromise { result, input }

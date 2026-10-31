@@ -9,12 +9,19 @@ pass builds and verifies [typed numeric regions](ir.md), then emits WAT. `wat`
 encodes it into real Wasm bytes, and Wasmtime executes them.
 Node supplies an independent original-JS reference and a second Wasm engine.
 
-Private IR cells have a fixed `Number`, `Predicate` or `General` type. Source lowering
+The synchronous compiler also has an incremental [WasmGC data-object path](managed-values.md)
+through this same IR: literal construction, aliases, static property reads/writes,
+strict equality and truthiness, with the current numeric/primitive export boundary.
+Its documented prototype/coercion/capture restrictions remain explicit. Historical
+primitive-only descriptions below do not imply that this completes object support.
+
+Numeric/primitive IR cells retain a fixed `Number`, `Predicate` or `General` type. Source lowering
 keeps Number and immutable Boolean const cells scalar where admitted;
 General const/let cells hold the represented primitive kinds.
 In the default numeric profile, all entry/helper parameters and returns remain
-Number-only. This adds no dynamic
-type inference or boxing; see the [bounded source contract](#immutable-boolean-predicate-locals).
+Number-only. Known primitives retain those layouts; the separate managed-object
+path boxes values only at managed boundaries and adds traced reference cells.
+See the [bounded source contract](#immutable-boolean-predicate-locals).
 
 ## Expression evaluation control
 

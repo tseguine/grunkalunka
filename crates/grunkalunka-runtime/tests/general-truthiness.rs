@@ -122,6 +122,7 @@ console.log('PASS '+cases.length+' truthiness modules');
 #[test]
 fn direct_nullish_conditions_and_effects_match_original_js() {
     let cases = [
+        "if({}) return a; return b;",
         "const value=null; if(value) return 1; return 0;",
         "if(null) return a; return b;",
         "if(undefined) return a; return b;",
@@ -204,7 +205,7 @@ console.log('PASS '+cases.length+' effect modules');
 "#,
         records.join(",")
     );
-    node(&script, "PASS 48 effect modules");
+    node(&script, "PASS 52 effect modules");
 }
 
 #[test]
@@ -229,7 +230,6 @@ fn truthiness_preserves_remaining_scope_kind_and_depth_guards() {
     for ts in [false, true] {
         for body in [
             "if('x') return a; return b;",
-            "if({}) return a; return b;",
             "if(1n) return a; return b;",
             "if(null&&Math.random()) return a; return b;",
             "const value=null; if(value) value=1; return a;",

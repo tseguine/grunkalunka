@@ -164,6 +164,7 @@ fn discarded_primitive_forms_preserve_number_identity() {
 #[test]
 fn discarded_general_sequences_and_branches_evaluate_effects_once() {
     let bodies = [
+        "({}); return a;",
         "let x=0; (x++,null); return x;",
         "let x=0; a?(x++,null):(x+=2,undefined); return x;",
         "let x=0; for(let i=0;i<3;(i++,null))x+=1; return x;",
@@ -199,7 +200,6 @@ fn discarded_general_values_keep_scope_source_and_budget_guards() {
         "if(false){const x=1; x=2;} return a;",
         "null; return Math.random();",
         "a?null:Math.random(); return a;",
-        "({}); return a;",
         "a??Math.random(); return a;",
         "const value=null; value++; return a;",
         "return a; null;",

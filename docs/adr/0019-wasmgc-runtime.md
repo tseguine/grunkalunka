@@ -136,8 +136,30 @@ after source functions to preserve internal call indices and emitted only when u
 Maintained typed-IR tests compare emitted modules with native JS in Node. Wasmtime
 tests execute the shared helper kernel, including a live self-cycle across forced
 copying collections. A separate manual check executes an actual emitted mixed-helper
-artifact in both engines. Source object compilation remains the next increment.
+artifact in both engines. This IR-only increment preceded the source admission below.
 See [the representation contract](../managed-values.md) for precise boundaries.
+
+## Source data-object increment
+
+Synchronous literal/alias/property lowering uses the existing evaluator and these
+managed IR operations. Managed truthiness retains the four primitive kinds and
+truthy objects. Exports preserve the current Number/primitive interfaces.
+
+For this first source increment, every object originates in a fresh literal, host
+inputs are numeric, and prototype mutation is unsupported. Static keys matching
+any Object.prototype intrinsic reject, including shadowed keys; remaining static
+reads can faithfully use own-data lookup and return Undefined for missing keys.
+Native intrinsic-name tests exercise this premise. Full prototype lookup remains
+required future work. The alternative of implementing prototype/function intrinsics
+before any source execution was deferred; treating missing inherited values as
+Undefined was rejected as observably incorrect. This temporary guard does not
+change the intended general JavaScript target.
+
+Managed property values are usable for identity/equality/truthiness and managed
+storage, not implicitly projected into the primitive export or numeric coercions.
+Arrays, source helper reference inference, managed frames, unknown receivers and
+full coercions remain explicit follow-ups. See the representation contract for
+the source subset and maintained three-engine differential evidence.
 
 ## Related work and follow-up
 
