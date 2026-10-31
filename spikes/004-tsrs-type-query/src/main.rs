@@ -149,22 +149,29 @@ fn find_tsrs_expression(
     expression_text: &str,
     matches: &mut Vec<tsrs_core::P<tsrs_ast::Node>>,
 ) {
-    if node.kind() == Kind::BinaryExpression {
-        let start = node
-            .pos()
-            .expect_source("parsed node has a source position") as usize;
-        let end = node.end().expect_source("parsed node has a source end") as usize;
-        if source
-            .get(start..end)
-            .is_some_and(|text| text.trim() == expression_text)
-        {
-            matches.push(node);
+    let mut pending = vec![node];
+    while let Some(node) = pending.pop() {
+        if node.kind() == Kind::BinaryExpression {
+            let start = node
+                .pos()
+                .expect_source("parsed node has a source position") as usize;
+            let end = node.end().expect_source("parsed node has a source end") as usize;
+            if source
+                .get(start..end)
+                .is_some_and(|text| text.trim() == expression_text)
+            {
+                matches.push(node);
+            }
         }
+        // tsrs exposes immediate children via a callback. Collect and reverse
+        // them so our LIFO worklist retains recursive preorder.
+        let mut children = Vec::new();
+        node.for_each_child(&mut |child| {
+            children.push(child);
+            false
+        });
+        pending.extend(children.into_iter().rev());
     }
-    node.for_each_child(&mut |child| {
-        find_tsrs_expression(child, source, expression_text, matches);
-        false
-    });
 }
 
 fn check_with_tsrs(
