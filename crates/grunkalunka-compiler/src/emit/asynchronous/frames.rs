@@ -53,7 +53,7 @@ impl<'a> Frame<'a> {
             }
         }
         for pointer in cell_offsets.iter().flatten() {
-            used[pointer - start] = true;
+            used[*pointer - start] = true;
         }
         if let Some(pointer) = arena_temp {
             used[pointer - start] = true;
