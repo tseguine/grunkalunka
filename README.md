@@ -13,9 +13,14 @@ applications on that platform.
 The maintained implementation is at development version **0.0.1**. The project is
 still in PoC development: useful pieces are implemented and tested directly in
 the main workspace, while unresolved design questions may use disposable spikes.
-The current compiler admits an explicit numeric subset and a primitive-return
-profile; it does not yet implement full JavaScript/TypeScript, browser APIs or Node
-runtime compatibility.
+Compilation is deliberately profile-scoped: numeric and four-kind primitive
+entry points, experimental async/closure paths, and a synchronous
+[WasmGC-backed data-object slice](docs/managed-values.md). The object slice
+supports fresh literals, static own-property reads/writes, aliases,
+identity/truthiness and managed references through ordinary named helpers.
+Known Number operations retain direct f64 execution and public exports retain
+the current numeric/primitive contracts. This is **not** full JavaScript/TypeScript,
+a general object/prototype implementation, browser APIs, or Node compatibility.
 
 ## Build and run
 
@@ -44,9 +49,12 @@ Wasmtime, and the differential regression corpus. [CI](docs/ci.md) runs the cano
 pushes and on native macOS through its separate `master`-triggered workflow. This is coverage of those runner
 configurations, not every host/runtime combination.
 
-String and JSON source experiments have a separate, narrower
-[heap profile](docs/heap-literals.md); they do not establish general heap-value
-support in the numeric or four-kind primitive profiles.
+String and JSON source experiments still use a separate, narrower
+[heap profile](docs/heap-literals.md). The newer
+[managed-value path](docs/managed-values.md) instead uses the shared IR, while
+retaining narrow source admission and primitive host boundaries. Neither path
+implements general JS heap semantics, prototype lookup, arbitrary arrays or
+public reference-valued exports.
 To replay only the differential compiler/runtime demonstration:
 
 ```sh
@@ -95,7 +103,9 @@ separately; selected examples do not establish full language compatibility.
 Add `.exe` on Windows. See the compiler contract for the binary64 input protocol,
 admitted language, limits and diagnostics. Compilation refuses existing output
 files. The numeric runtime executes locally generated modules without ambient
-imports; it is not a hardened arbitrary-module service.
+imports; it is not a hardened arbitrary-module service. For opt-in phase/failure
+records on **stderr**, set `GRUNKALUNKA_DIAGNOSTICS=1`; see
+[observability](docs/observability.md).
 
 ### Programmatic builds and measurements
 
@@ -128,6 +138,17 @@ guest borrow. This is a test-driven component example, **not** a filesystem vaul
 editable notes app or JavaScript/TypeScript document API. See [milestones](docs/milestones.md)
 for the remaining P1 and A1 goals.
 
+### A1 application and source-to-service experiments
+
+The [runnable headless note preview](docs/a1-note-preview.md) combines an
+authorized Markdown/WIT guest, compiled JS selection, native semantic layout and
+RGB painting. Its host-managed hit/action/repaint proof is separate from the
+experimental [source-compiled WIT UI import](docs/a1-ui-source-import.md),
+which compiles a statically bound scalar JS/TS service call and executes against
+a Rust WIT provider. The two paths are **not yet joined** into a full
+event-to-source-import-to-render application. Text glyphs, a windowed UI,
+general module imports and a public UI contract remain open.
+
 ## Workspace
 
 - `crates/grunkalunka-compiler`: source text to portable typed Wasm; independent of Wasmtime.
@@ -140,8 +161,9 @@ for the remaining P1 and A1 goals.
 - `tests/compatibility`: maintained JS/TS differential fixtures and evidence reports.
 - `tools`: repository-local build, execution and measurement adapters.
 
-[Compiler contract](docs/compiler.md) | [Milestones](docs/milestones.md) ·
-[Research roadmap](docs/roadmap.md) | [Dependencies](docs/dependencies.md)
+[Documentation guide](docs/README.md) | [Compiler contract](docs/compiler.md) |
+[Milestones](docs/milestones.md) · [Research roadmap](docs/roadmap.md) |
+[Dependencies](docs/dependencies.md)
 
 See [Markdown inspection](docs/markdown.md) for the parsing API and its limits.
 

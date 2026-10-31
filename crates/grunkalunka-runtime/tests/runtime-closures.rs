@@ -84,6 +84,49 @@ fn selected_unused_callback_peers_preserve_numeric_inputs() {
 }
 
 #[test]
+fn callback_return_origin_calls_keep_union_and_binding_semantics_on_small_stack() {
+    // Callee, actual arguments and returned-arrow bodies can all contain
+    // nested calls. None should consume another native Rust stack frame.
+    for (body, expected) in [
+        (
+            "const make=()=>a?(fn,x)=>fn(x):(fn,x)=>x;const f=make();return f(y=>-y,b);",
+            -2.0,
+        ),
+        (
+            "const f=a?(fn,x)=>fn(x):(fn,x)=>x;const relay=(fn,x)=>f(fn,x);return relay(y=>-y,b);",
+            -2.0,
+        ),
+        (
+            "const id=fn=>fn;const f=id(id(id(x=>x+b)));return f(a);",
+            6.0,
+        ),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let artifact = std::thread::Builder::new()
+                .name(
+                    "callback_return_origin_calls_keep_union_and_binding_semantics_on_small_stack"
+                        .to_owned(),
+                )
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || compile(&source, typescript))
+                .unwrap()
+                .join()
+                .unwrap()
+                .unwrap_or_else(|error| panic!("{body}: {error}"));
+            assert_eq!(
+                NumericInstance::new(&artifact.wasm)
+                    .unwrap()
+                    .run(4.0, 2.0)
+                    .unwrap(),
+                expected,
+                "{body}",
+            );
+        }
+    }
+}
+
+#[test]
 fn unused_callback_peers_keep_complete_signature_guards() {
     for body in [
         "const f=a?(fn,x)=>fn(x):(fn,x)=>+fn+x;return f(y=>y,b);",

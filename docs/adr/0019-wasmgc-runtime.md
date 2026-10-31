@@ -109,7 +109,7 @@ passing and identity through the shared frontend/IR, compared in all three engin
 The object/property prerequisite extends the shared IR with `ManagedValue` and
 `ManagedObject`, each lowered to one traced reference. An immutable carrier stores
 a language-kind tag, an f64 payload and a nullable GC reference. Its current domain
-is the four canonical primitive kinds plus ordinary objects. Known Number values
+is the four canonical primitive kinds plus ordinary objects and Strings. Known Number values
 retain their direct f64 representation; the existing primitive wire pair is separate.
 Object equality compares the wrapped object reference, preserving identity across
 multiple carriers. Mutable GC property entries preserve earlier value snapshots.
@@ -126,7 +126,7 @@ Own data-property operations use lossless UTF-16 key arrays and linear GC-backed
 entry storage. Shape/hash caches are deferred until executable source behavior is
 established. Own lookup is not a substitute for prototype-aware JavaScript lookup;
 source admission must provide the required semantics or reject the case. Arrays,
-strings, symbols, functions and coercions require further implementation.
+symbols, functions and coercions require further implementation.
 
 Ordinary internal helpers pass/return traced references. Exported signatures retain
 the current profiles. GC captures, private closure signatures and async byte-spill
@@ -179,6 +179,56 @@ specialization. Unknown receivers/coercions still reject instead of trusting a
 narrowed observation. Shared IR/backend transport needs no new runtime API or host
 operation. Maintained native-JS/Node-Wasm/Wasmtime tests exercise mutation, identity,
 forwarding/recursion, mixed values, call order and explicit boundaries.
+
+## Strings in the shared managed value domain
+
+String literals now use the existing GC value carrier with a private String kind
+and a packed UTF-16 array. Equality compares code units, preserving NUL and lone
+surrogates without normalization; truthiness distinguishes empty from nonempty text.
+The source flow query carries Strings through ordinary helper parameters/results.
+Known Number paths remain specialized, and object identity still uses references.
+The older linear-memory String/JSON wire representation is distinct; public exports
+and composition require explicit conversion instead of tag/pointer reinterpretation.
+
+Reusing the packed-key array/equality code avoids a second text encoding or host
+String authority. Arrays are mutable during private construction only and are never
+exposed to source mutation. Literals over V8's 10,000-element fixed-constructor
+limit use default allocation plus initialization through a traced local; existing
+long property keys use that path too. A separate String array type, passive-data
+literal pooling and interning remain possible refinements. The present direct
+construction is simple and executable; no performance claim selects it permanently.
+The source-size and public fuel budgets remain unchanged. Heavy semantic tests use
+a bounded core-engine budget and verify that the normal public budget still traps
+cleanly. See the pinned [V8 limits](https://raw.githubusercontent.com/v8/v8/13.6.233.17/src/wasm/wasm-limits.h).
+
+Methods, length/index reads, concatenation, coercions, public String references and
+reference-aware closure/async frames remain explicit work. Maintained JS/TS tests
+compare native JS, Node-Wasm and Wasmtime, and forced copying collections retain
+String content through object-property edges.
+
+## Sparse array backend operations
+
+The next private reference kind is an array header with an unsigned 32-bit length
+and an immutable reference to an ordinary-object property holder. This reuses the
+verified sparse own-property kernel and its traced entries. Canonical array-index
+keys grow length, and a validated immediate resize filters indexed entries on
+shrink. Holes remain absent entries; explicit Undefined remains a stored value.
+Array boxing uses the existing Object identity kind, not a new JavaScript value
+kind. The header identity is distinct from the private property holder.
+
+A dense element vector was rejected for this first implementation because a single
+large index or length must not require a correspondingly large allocation. A shared
+property-table refactor would remove the extra holder allocation but would also
+change ordinary-object code in this unit; defer that optimization until useful.
+Descriptor semantics, prototype lookup and dynamic length conversion are separate
+operations. Generic writes to `length` are rejected rather than approximated.
+
+The foundation is deliberately separate from source array admission. Native-JS and
+Node execution of emitted IR check index boundaries, length, identity, snapshots and
+helper transport; Wasmtime kernel tests retain sparse entries, cycles and String
+edges through actual copying collections. Existing Number layouts and managed
+capture/async/public-boundary exclusions remain in force. See the
+[array contract](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-array-exotic-objects).
 
 ## Related work and follow-up
 

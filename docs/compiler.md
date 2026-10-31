@@ -30,15 +30,20 @@ Number, Predicate, discarded evaluation and arithmetic-operand conversion use on
 Requests borrow original AST nodes; a cursor owns unfinished child regions, and
 continuations own completed children until their parent operation is emitted.
 Evaluation modes, original depth charges, first diagnostics, snapshots and region
-allocation order retain their existing source contract. This changes control flow,
-not source admission, IR types or the public compile API.
+allocation order retain their existing source contract. This changes evaluator
+control flow, not source admission, IR types or the public compile API. Later
+shared-IR managed values extend admitted source operations independently;
+see [managed values](managed-values.md).
 
 The [decision and alternatives](adr/0001-explicit-evaluator-control.md) distinguish
-this maintained implementation from the disposable feasibility study. Evaluator
-requests do not recursively enter the evaluator. Parsing/semantic analysis,
-statements, shape classification, IR verification/emission, debug rendering and
-destruction retain separate recursion concerns; this is no whole-frontend liveness,
-heap bound, portability or performance claim.
+this maintained implementation from the disposable feasibility study.
+Evaluator requests do not recursively enter the evaluator. Later
+[stack-depth hardening](https://github.com/tseguine/grunkalunka/issues/281)
+also changed selected statement/expression classification, IR verification and
+structured emission, owned-region teardown and async-control walks to iterative
+execution. Parsing/semantic analysis, remaining special-case traversals, debug
+paths and guest execution still require separate review; this is no whole-frontend
+liveness, heap bound, portability or performance claim.
 
 ## Replay
 

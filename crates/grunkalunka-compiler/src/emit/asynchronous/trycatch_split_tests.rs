@@ -56,7 +56,11 @@ fn protected_throw_enters_its_handler_before_the_parent_suffix() {
     let entry = split.region(&source, normal, None, None).unwrap();
     let body = constant_then(&split, constant_then(&split, entry, 0), 1);
     let handler = match &split.states[body].end {
-        End::Copy { input, result, next } => {
+        End::Copy {
+            input,
+            result,
+            next,
+        } => {
             assert_eq!((*input, *result), (ValueId(11), ValueId(4)));
             *next
         }
