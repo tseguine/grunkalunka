@@ -9,6 +9,8 @@ use std::fmt::Write;
 mod block_split_tests;
 #[cfg(test)]
 mod branch_split_tests;
+#[cfg(test)]
+mod call_split_tests;
 mod errors;
 mod frames;
 mod promises;
