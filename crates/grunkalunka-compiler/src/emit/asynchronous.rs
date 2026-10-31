@@ -199,6 +199,28 @@ enum PendingSplit<'a> {
         first: usize,
         outer_loops: Option<LoopTargets>,
     },
+    FinallyContinuation(FinallyFrame<'a>),
+    FinallyReturn(FinallyFrame<'a>),
+    FinallyThrow { frame: FinallyFrame<'a>, on_return: usize },
+    FinallyNormal { frame: FinallyFrame<'a>, on_return: usize, on_throw: usize },
+    FinallyLoopExit { frame: FinallyFrame<'a>, on_return: usize, on_throw: usize, normal: usize },
+    FinallyLoopNext { frame: FinallyFrame<'a>, on_return: usize, on_throw: usize, normal: usize, exit: usize },
+    FinallyBody(FinallyFrame<'a>),
+}
+
+// All finalizer variants reuse one original Region with distinct continuations.
+#[derive(Clone, Copy)]
+struct FinallyFrame<'a> {
+    parent: &'a Region,
+    remaining: usize,
+    body: &'a Region,
+    finalizer: &'a Region,
+    returned: ValueId,
+    reason: ValueId,
+    normal: usize,
+    outer_return: Option<(ValueId, usize)>,
+    outer_catch: Option<(ValueId, usize)>,
+    outer_loops: Option<LoopTargets>,
 }
 
 impl<'a> Splitter<'a> {
@@ -718,6 +740,32 @@ impl<'a> Splitter<'a> {
                 end = region.operations.len();
                 continue;
             }
+            if let Op::TryFinally {
+                body,
+                finalizer,
+                returned,
+                reason,
+                continuation,
+            } = &operation.kind
+            {
+                let frame = FinallyFrame {
+                    parent: region,
+                    remaining: end - 1,
+                    body,
+                    finalizer,
+                    returned: *returned,
+                    reason: *reason,
+                    normal: next,
+                    outer_return: self.return_to,
+                    outer_catch: self.catch_to,
+                    outer_loops: active_loops,
+                };
+                pending.push(PendingSplit::FinallyContinuation(frame));
+                next = self.exit_entry(continuation, next, None, active_loops)?;
+                region = continuation;
+                end = region.operations.len();
+                continue;
+            }
             next = match &operation.kind {
                 Op::AwaitSite { .. } => next,
                 Op::StartAsyncClosure {
@@ -803,46 +851,8 @@ impl<'a> Splitter<'a> {
                     unreachable!("call bodies use the explicit continuation stack")
                 }
                 Op::TryCatch { .. } => unreachable!("catch continuations use the explicit stack"),
-                Op::TryFinally {
-                    body,
-                    finalizer,
-                    returned,
-                    reason,
-                    continuation,
-                } => {
-                    let outer_return = self.return_to;
-                    let outer_catch = self.catch_to;
-                    let resume_return = self.region(continuation, next, None, active_loops)?;
-                    self.return_to = Some((*returned, resume_return));
-                    let entries = (|| {
-                        // Cleanup belongs to the outer lexical scope. A return in
-                        // it overrides the pending completion through resume_return.
-                        let on_return = self.region(finalizer, resume_return, None, active_loops)?;
-                        let rethrow = self.terminal(match outer_catch {
-                            Some((result, next)) => End::Copy {
-                                input: *reason,
-                                result,
-                                next,
-                            },
-                            None => End::Reject(*reason),
-                        })?;
-                        let on_throw = self.region(finalizer, rethrow, None, active_loops)?;
-                        let normal = self.region(finalizer, next, None, active_loops)?;
-                        let protected_loops = if let Some(targets) = active_loops {
-                            Some(LoopTargets {
-                                exit: self.region(finalizer, targets.exit, None, active_loops)?,
-                                next: self.region(finalizer, targets.next, None, active_loops)?,
-                            })
-                        } else {
-                            None
-                        };
-                        self.return_to = Some((*returned, on_return));
-                        self.catch_to = Some((*reason, on_throw));
-                        self.region(body, normal, None, protected_loops)
-                    })();
-                    self.return_to = outer_return;
-                    self.catch_to = outer_catch;
-                    entries?
+                Op::TryFinally { .. } => {
+                    unreachable!("finally continuations use the explicit stack")
                 }
                 Op::AwaitSettled { result, input } => {
                     self.charge_await(&region.operations, end - 1)?;
