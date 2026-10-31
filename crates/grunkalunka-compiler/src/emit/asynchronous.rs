@@ -13,6 +13,8 @@ mod errors;
 mod frames;
 mod promises;
 mod starters;
+#[cfg(test)]
+mod trycatch_split_tests;
 
 const MAX_STATES: usize = 4096;
 
