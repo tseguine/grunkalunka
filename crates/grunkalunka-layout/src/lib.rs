@@ -372,8 +372,73 @@ struct Engine<'a> {
     frame: Frame,
 }
 
+// A normal-flow box has a pre-children geometry phase and a post-children
+// height/scroll phase. Keeping these values in heap frames prevents native
+// stack growth with layout tree depth.
+#[derive(Clone, Copy)]
+struct PreparedBox {
+    node: usize,
+    intrinsic_height: u32,
+    margin: Edges,
+    visual_x: u32,
+    visual_y: u32,
+    margin_left: u32,
+    margin_right: u32,
+    border_left: u32,
+    border_top: u32,
+    padding_left: u32,
+    padding_top: u32,
+    content_x: u32,
+    content_y: u32,
+    content_width: u32,
+    definite_height: Option<u32>,
+    max_content: Option<u32>,
+    min_content: Option<u32>,
+    border_width: u32,
+    border_y: u32,
+    padding_x: u32,
+    padding_y: u32,
+}
+
+struct PlaceFrame {
+    node: usize,
+    containing_x: u32,
+    cursor_y: u32,
+    available_width: u32,
+    containing_height: Option<u32>,
+    next_child: usize,
+    next_y: u32,
+    entered: bool,
+    contents: bool,
+    prepared: Option<PreparedBox>,
+}
+
+impl PlaceFrame {
+    fn new(
+        node: usize,
+        containing_x: u32,
+        cursor_y: u32,
+        available_width: u32,
+        containing_height: Option<u32>,
+    ) -> Self {
+        Self {
+            node,
+            containing_x,
+            cursor_y,
+            available_width,
+            containing_height,
+            next_child: 0,
+            next_y: cursor_y,
+            entered: false,
+            contents: false,
+            prepared: None,
+        }
+    }
+}
+
 impl Engine<'_> {
-    // Return the margin-box height occupied in the parent's vertical flow.
+    // Each frame carries one subtree's sibling cursor. Completed child heights
+    // flow back to the parent without calling place recursively.
     fn place(
         &mut self,
         node: usize,
@@ -382,31 +447,86 @@ impl Engine<'_> {
         available_width: u32,
         containing_height: Option<u32>,
     ) -> Result<u32, LayoutError> {
+        let mut pending = vec![PlaceFrame::new(
+            node,
+            containing_x,
+            cursor_y,
+            available_width,
+            containing_height,
+        )];
+        let mut completed = None;
+        while let Some(current) = pending.last_mut() {
+            if let Some(height) = completed.take() {
+                current.next_y = add(current.next_y, height)?;
+            }
+            if !current.entered {
+                current.entered = true;
+                match self.nodes[current.node].style.display {
+                    Display::None => {
+                        pending.pop();
+                        completed = Some(0);
+                        continue;
+                    }
+                    Display::Contents => {
+                        current.contents = true;
+                        current.next_y = current.cursor_y;
+                    }
+                    Display::Block => {
+                        let prepared = self.prepare(
+                            current.node,
+                            current.containing_x,
+                            current.cursor_y,
+                            current.available_width,
+                            current.containing_height,
+                        )?;
+                        current.next_y = prepared.content_y;
+                        current.prepared = Some(prepared);
+                    }
+                }
+            }
+            if let Some(&child) = self.children[current.node].get(current.next_child) {
+                current.next_child += 1;
+                let (x, width, height) = if let Some(prepared) = current.prepared {
+                    (
+                        prepared.content_x,
+                        prepared.content_width,
+                        prepared.definite_height,
+                    )
+                } else {
+                    (
+                        current.containing_x,
+                        current.available_width,
+                        current.containing_height,
+                    )
+                };
+                let next_y = current.next_y;
+                pending.push(PlaceFrame::new(child, x, next_y, width, height));
+            } else {
+                let height = if current.contents {
+                    current.next_y - current.cursor_y
+                } else {
+                    self.finish(
+                        &current.prepared.expect("entered normal-flow box"),
+                        current.next_y,
+                    )?
+                };
+                pending.pop();
+                completed = Some(height);
+            }
+        }
+        Ok(completed.expect("root placement completed"))
+    }
+
+    fn prepare(
+        &self,
+        node: usize,
+        containing_x: u32,
+        cursor_y: u32,
+        available_width: u32,
+        containing_height: Option<u32>,
+    ) -> Result<PreparedBox, LayoutError> {
         let block = self.nodes[node];
         let style = block.style;
-        if style.display == Display::None {
-            return Ok(0);
-        }
-        if style.display == Display::Contents {
-            // Flatten a boxless wrapper into its containing block's flow.
-            // Wrapper margins, padding, dimensions and intrinsic height have
-            // no used box to resolve; descendants retain normal tree identity
-            // and inherit the same containing width/definite height.
-            let mut next_y = cursor_y;
-            for index in 0..self.children[node].len() {
-                let child = self.children[node][index];
-                let consumed = self.place(
-                    child,
-                    containing_x,
-                    next_y,
-                    available_width,
-                    containing_height,
-                )?;
-                next_y = add(next_y, consumed)?;
-            }
-            return Ok(next_y - cursor_y);
-        }
-
         // Relative positioning changes the *visual* origin of this box and
         // its descendants, without consuming additional normal-flow space.
         // A boxless/hidden wrapper was returned above and has no offset.
@@ -566,14 +686,61 @@ impl Engine<'_> {
             )),
         };
         let definite_height = specified_height.map(apply_bounds);
-        let mut next_y = content_y;
-        for index in 0..self.children[node].len() {
-            let child = self.children[node][index];
-            let consumed = self.place(child, content_x, next_y, content_width, definite_height)?;
-            next_y = add(next_y, consumed)?;
-        }
-        let natural_height = (next_y - content_y).max(block.intrinsic_height);
-        let content_height = definite_height.unwrap_or_else(|| apply_bounds(natural_height));
+        Ok(PreparedBox {
+            node,
+            intrinsic_height: block.intrinsic_height,
+            margin,
+            visual_x,
+            visual_y,
+            margin_left,
+            margin_right,
+            border_left,
+            border_top,
+            padding_left,
+            padding_top,
+            content_x,
+            content_y,
+            content_width,
+            definite_height,
+            max_content,
+            min_content,
+            border_width,
+            border_y,
+            padding_x,
+            padding_y,
+        })
+    }
+
+    fn finish(&mut self, prepared: &PreparedBox, next_y: u32) -> Result<u32, LayoutError> {
+        let PreparedBox {
+            node,
+            intrinsic_height,
+            margin,
+            visual_x,
+            visual_y,
+            margin_left,
+            margin_right,
+            border_left,
+            border_top,
+            padding_left,
+            padding_top,
+            content_x,
+            content_y,
+            content_width,
+            definite_height,
+            max_content,
+            min_content,
+            border_width,
+            border_y,
+            padding_x,
+            padding_y,
+        } = *prepared;
+        let natural_height = (next_y - content_y).max(intrinsic_height);
+        let content_height = definite_height.unwrap_or_else(|| {
+            natural_height
+                .min(max_content.unwrap_or(u32::MAX))
+                .max(min_content.unwrap_or(0))
+        });
         let padding_width = add(content_width, padding_x)?;
         let padding_height = add(content_height, padding_y)?;
         let border_height = add(padding_height, border_y)?;
