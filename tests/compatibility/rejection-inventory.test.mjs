@@ -1,3 +1,4 @@
+import { managedTypeof, promotedTypeof } from './managed-typeof.mjs';
 import { managedStrings, managedStringPromotions, managedStringFuel } from './managed-strings.mjs';
 import { numericBitwiseCompounds } from './numeric-bitwise-compounds.mjs';
 import { managedObjects } from './managed-objects.mjs';
@@ -766,4 +767,17 @@ test('String values promote exact originals with separate nonterminating-loop ev
      assert.equal(sources.oracleSource,p.sourceJS);
    }
  }
+});
+
+test('typeof promotes its exact original while unresolved names keep the parent open',()=>{
+  const fixture=managedTypeof.find(row=>row[0]==='gap-typeof');
+  assert.ok(fixture);assert.ok(!rejected.some(row=>row[0]==='gap-typeof'));
+  const sources=programSources(fixture);
+  const hash='34e0f464195e83123a20d4854639000916133aa27bcb6d79b7b51cf8c361f23a';
+  assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'),hash);
+  assert.equal(promotedTypeof.sourceSha256,hash);
+  assert.equal(sources.sourceJS,sources.sourceTS);assert.equal(sources.oracleSource,sources.sourceJS);
+  assert.ok(rejected.some(row=>row[0]==='gap-typeof-unresolved'));
+  assert.equal(catalog.records.find(row=>row.id==='gap-typeof-unresolved').group,'typeof');
+  assert.ok(catalog.groups.find(group=>group.id==='typeof').observableDone.some(text=>text.includes('TDZ')));
 });

@@ -832,3 +832,26 @@ fn managed_nullish_predicate_keeps_the_carrier_type_boundary() {
     module.functions[0].values[6] = Type::Number;
     assert!(verify_module(&module).is_err());
 }
+
+#[test]
+fn managed_typeof_requires_a_managed_input_and_managed_text_result() {
+    let mut module = primitive_comparison();
+    module.functions[0].body.operations[5].kind = Op::ManagedTypeof {
+        result: ValueId(5),
+        input: ValueId(4),
+    };
+    verify_module(&module).unwrap();
+    let wasm = wat::parse_str(crate::emit::emit(&module).unwrap()).unwrap();
+    node(&wasm, "Number(a===typeof a)");
+    module.functions[0].body.operations[5].kind = Op::ManagedTypeof {
+        result: ValueId(5),
+        input: ValueId(1),
+    };
+    assert!(verify_module(&module).is_err());
+    module.functions[0].body.operations[5].kind = Op::ManagedTypeof {
+        result: ValueId(5),
+        input: ValueId(4),
+    };
+    module.functions[0].values[5] = Type::Predicate;
+    assert!(verify_module(&module).is_err());
+}

@@ -391,7 +391,7 @@
     {
       "id": "typeof",
       "kind": "open-requirement",
-      "assessment": "typeof expressions require String results and special unresolved-reference behavior.",
+      "assessment": "typeof is implemented for represented values and known functions. Unknown global namespace resolution and actual TDZ exception execution remain open; source rejection guards do not prove those semantics.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-typeof-operator",
@@ -1083,10 +1083,10 @@
       "group": "nullish-values"
     },
     {
-      "id": "gap-typeof",
+      "id": "gap-typeof-unresolved",
       "extension": "js",
       "sourceMode": "module-strict",
-      "sourceSha256": "34e0f464195e83123a20d4854639000916133aa27bcb6d79b7b51cf8c361f23a",
+      "sourceSha256": "4d3a52377056d2f8f3bd8ef1fb8d722c94461ce13008e8bbf84655b4321d443d",
       "group": "typeof"
     },
     {

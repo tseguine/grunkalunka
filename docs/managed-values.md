@@ -37,6 +37,7 @@ construction/identity operations before admission.
 | `ManagedEqual` | Strict equality in the currently admitted managed domain. |
 | `ManagedTruthy` | ECMAScript truthiness for the currently admitted managed domain. |
 | `ManagedIsNullish` | True only for Undefined or Null, independently of truthiness. |
+| `ManagedTypeof` | Inspect a represented value and return its language type as a String. |
 
 ## Array backend foundation
 
@@ -197,6 +198,31 @@ proof. This does not add primitive projection from arbitrary managed results.
 Managed logical assignments, function values in the carrier, captures/suspended
 frames and public managed exports remain outside this increment. Unsupported
 operations in an unselected branch remain rejected.
+
+## Source type inspection
+
+`typeof` inspects represented Undefined, Null, Boolean, Number, String, object and
+array values. Results use the existing String carrier: null reports `object`,
+arrays report `object`, and NaN/infinities remain `number`. Property snapshots,
+missing properties, local bindings, selections and ordinary helper arguments and
+results follow the same expression cursor. Operands evaluate once, including
+updates and comma effects; discarded results retain those effects.
+
+Known typed closures are evaluated without invoking the resulting function and
+report `function`. A directly referenced hoisted module function has no read or
+construction effects, so its result can be constant text; its complete body still
+undergoes normal validation. Symbol identity and initialization checks preserve
+shadowing and reject TDZ reads. Erased annotations supply no runtime kind facts.
+
+The current increment does not define an ambient global namespace. Unknown global
+names, including unrepresented built-ins, remain explicit source rejections rather
+than being assumed absent. That is an implementation gap: JavaScript's special
+unresolvable-reference result and actual TDZ exception execution remain open in
+the `typeof` rejection-inventory requirement. BigInt/Symbol operands, dynamic
+`Function` construction, Error/Promise carriers from other protocols, mixed
+function/primitive values, public String exports and managed async frames are not
+added here. Rejection tests establish those boundaries, not executed language
+semantics for those cases.
 
 ## Calls, cells and lifetime boundaries
 
