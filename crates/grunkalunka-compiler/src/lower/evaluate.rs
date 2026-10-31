@@ -3856,6 +3856,12 @@ impl Lowering<'_, '_> {
                                     "Promise bindings do not support numeric updates",
                                 ));
                             }
+                            if !matches!(self.slots[slot.0].ty, Type::Number | Type::General) {
+                                return Err(unsupported(
+                                    node,
+                                    "non-primitive bindings do not support numeric updates",
+                                ));
+                            }
                             let general = self.slots[slot.0].ty == Type::General;
                             let loaded =
                                 self.value(if general { Type::General } else { Type::Number });
