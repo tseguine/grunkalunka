@@ -16,6 +16,7 @@ pub(super) enum Mode {
     General,
     Managed,
     Object,
+    Array,
     Function(usize),
     Promise,
     Pending,
@@ -32,6 +33,7 @@ enum Value {
     General(ValueId),
     Managed(ValueId),
     Object(ValueId),
+    Array(ValueId),
     Selection(ValueId),
     Function(ValueId),
     Promise(ValueId),
@@ -46,6 +48,7 @@ impl Value {
             | Self::General(id)
             | Self::Managed(id)
             | Self::Object(id)
+            | Self::Array(id)
             | Self::Selection(id)
             | Self::Function(id)
             | Self::Pending(id)
@@ -844,7 +847,9 @@ impl Lowering<'_, '_> {
                 "value-returning calls require a General result position",
             ));
         }
-        if (function.return_type == Type::ManagedObject && !matches!(mode, Mode::Object))
+        if (function.return_type == Type::ManagedArray && !matches!(mode, Mode::Array))
+            || (matches!(mode, Mode::Array) && function.return_type != Type::ManagedArray)
+            || (function.return_type == Type::ManagedObject && !matches!(mode, Mode::Object))
             || (function.return_type == Type::ManagedValue && !matches!(mode, Mode::Managed))
             || (matches!(mode, Mode::Object) && function.return_type != Type::ManagedObject)
             || (matches!(mode, Mode::Managed) && function.return_type != Type::ManagedValue)
@@ -905,6 +910,7 @@ impl Lowering<'_, '_> {
             values.push(match ty {
                 Type::General => Value::General(result),
                 Type::ManagedObject => Value::Object(result),
+                Type::ManagedArray => Value::Array(result),
                 Type::ManagedValue => Value::Managed(result),
                 _ => Value::Number(result),
             });
@@ -927,6 +933,7 @@ impl Lowering<'_, '_> {
                 if index >= offset && actual_index < parameter_count {
                     match self.functions[function.0].parameter_type(actual_index) {
                         Type::ManagedObject => Mode::Object,
+                        Type::ManagedArray => Mode::Array,
                         Type::ManagedValue => Mode::Managed,
                         _ => Mode::Number,
                     }
@@ -1057,6 +1064,7 @@ impl Lowering<'_, '_> {
             Mode::Settled => Type::SettledPromise,
             Mode::Managed => Type::ManagedValue,
             Mode::Object => Type::ManagedObject,
+            Mode::Array => Type::ManagedArray,
             _ => Type::Number,
         };
         let result = self.value(ty);
@@ -1072,12 +1080,7 @@ impl Lowering<'_, '_> {
             },
         );
         Ok(match ty {
-            Type::ManagedArray => {
-                return Err(unsupported(
-                    node,
-                    "source array lowering is not implemented",
-                ));
-            }
+            Type::ManagedArray => Value::Array(result),
             Type::ManagedValue => Value::Managed(result),
             Type::ManagedObject => Value::Object(result),
             Type::General => Value::General(result),
@@ -1109,7 +1112,7 @@ impl Lowering<'_, '_> {
             left,
         } = input;
         let condition = match left {
-            Value::Managed(_) | Value::Object(_) => {
+            Value::Managed(_) | Value::Object(_) | Value::Array(_) => {
                 return Err(unsupported(
                     node,
                     "managed logical selection is not yet admitted",
@@ -2296,7 +2299,7 @@ impl Lowering<'_, '_> {
                 Work::StoreGeneral { node, slot } => {
                     let value = values.pop().expect("General assignment RHS");
                     let stored = match value {
-                        Value::Managed(_) | Value::Object(_) => {
+                        Value::Managed(_) | Value::Object(_) | Value::Array(_) => {
                             return Err(unsupported(
                                 node,
                                 "managed values require managed assignment",

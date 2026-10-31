@@ -230,6 +230,28 @@ edges through actual copying collections. Existing Number layouts and managed
 capture/async/public-boundary exclusions remain in force. See the
 [array contract](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-array-exotic-objects).
 
+## Source array increment
+
+The source-array increment now uses this backend through the existing expression
+cursor and finite helper-flow query. Known arrays retain their own reference kind;
+mixed values box without losing identity. Length reads and validated literal writes
+retain Number results. Array construction, element order and elisions use explicit
+continuations rather than native recursion. Static String/u32-literal keys reuse
+the shared UTF-16 kernel.
+
+Own-data operations remain faithful under fresh-reference admission and explicit
+exclusion of intrinsic prototype names, with Array-specific names guarded only
+for array receivers. Full prototype/property coercion support remains future work.
+Primitive element-result projection, public reference exports and GC-aware
+capture/async frames are still required; they are not implied by source arrays.
+Source capture validation now rejects managed captures before IR validation.
+
+Maintained source tests compare native JS, Node-Wasm and Wasmtime, including
+identity, receiver snapshots, helper transport, holes, index/length boundaries,
+erased metadata and explicit guards. Small-stack tests exercise source and key
+depth. The previous backend-only boundary described above is superseded by this
+source increment; the backend's own-property scope and lifetime exclusions remain.
+
 ## Related work and follow-up
 
 - [Shared backend layout](0014-backend-value-layout.md).

@@ -12,18 +12,20 @@ use std::collections::{BTreeMap, BTreeSet};
 enum Kind {
     Primitive,
     Object,
+    Array,
     String,
 }
 type Kinds = BTreeSet<Kind>;
 
 fn managed_type(kinds: &Kinds) -> Option<Type> {
-    (kinds.contains(&Kind::Object) || kinds.contains(&Kind::String)).then_some(
-        if kinds.len() == 1 && kinds.contains(&Kind::Object) {
+    (kinds.contains(&Kind::Object) || kinds.contains(&Kind::Array) || kinds.contains(&Kind::String))
+        .then_some(if kinds.len() == 1 && kinds.contains(&Kind::Object) {
             Type::ManagedObject
+        } else if kinds.len() == 1 && kinds.contains(&Kind::Array) {
+            Type::ManagedArray
         } else {
             Type::ManagedValue
-        },
-    )
+        })
 }
 
 fn symbol(identifier: &IdentifierReference<'_>, semantic: &Semantic<'_>) -> Option<SymbolId> {
@@ -57,7 +59,7 @@ fn kinds(
     enum Task<'e, 'a> {
         Expr(&'e Expression<'a>, usize),
         Join,
-        Member,
+        Member(bool),
     }
     let mut work = vec![Task::Expr(node, 0)];
     let mut values: Vec<Kinds> = Vec::new();
@@ -67,13 +69,17 @@ fn kinds(
                 let right = values.pop().expect("right source kinds");
                 values.last_mut().expect("left source kinds").extend(right);
             }
-            Task::Member => {
+            Task::Member(length) => {
                 let receiver = values.pop().expect("receiver source kinds");
-                values.push(if receiver.contains(&Kind::Object) {
-                    [Kind::Primitive, Kind::Object, Kind::String].into()
-                } else {
-                    [Kind::Primitive].into()
-                });
+                values.push(
+                    if receiver.contains(&Kind::Object)
+                        || (receiver.contains(&Kind::Array) && !length)
+                    {
+                        [Kind::Primitive, Kind::Object, Kind::Array, Kind::String].into()
+                    } else {
+                        [Kind::Primitive].into()
+                    },
+                );
             }
             Task::Expr(node, depth) => {
                 if depth > 128 {
@@ -89,6 +95,7 @@ fn kinds(
                         work.push(Task::Expr(&w.expression, depth + 1));
                     }
                     Expression::ObjectExpression(_) => values.push([Kind::Object].into()),
+                    Expression::ArrayExpression(_) => values.push([Kind::Array].into()),
                     Expression::StringLiteral(_) => values.push([Kind::String].into()),
                     Expression::Identifier(identifier) => values.push(
                         symbol(identifier, semantic)
@@ -118,11 +125,11 @@ fn kinds(
                         }
                     }
                     Expression::StaticMemberExpression(m) => {
-                        work.push(Task::Member);
+                        work.push(Task::Member(m.property.name == "length"));
                         work.push(Task::Expr(&m.object, depth + 1));
                     }
                     Expression::ComputedMemberExpression(m) => {
-                        work.push(Task::Member);
+                        work.push(Task::Member(closures::unwrapped_at(&m.expression,depth+1).is_some_and(|(key,_)|matches!(key,Expression::StringLiteral(s) if s.value=="length"))));
                         work.push(Task::Expr(&m.object, depth + 1));
                     }
                     Expression::AssignmentExpression(a) => {
@@ -130,11 +137,11 @@ fn kinds(
                         // even when their current RHS is a known primitive.
                         match a.left.as_simple_assignment_target() {
                             Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => {
-                                work.push(Task::Member);
+                                work.push(Task::Member(m.property.name == "length"));
                                 work.push(Task::Expr(&m.object, depth + 1));
                             }
                             Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => {
-                                work.push(Task::Member);
+                                work.push(Task::Member(closures::unwrapped_at(&m.expression,depth+1).is_some_and(|(key,_)|matches!(key,Expression::StringLiteral(s) if s.value=="length"))));
                                 work.push(Task::Expr(&m.object, depth + 1));
                             }
                             _ => work.push(Task::Expr(&a.right, depth + 1)),
@@ -165,7 +172,7 @@ pub(crate) fn infer(
     if !semantic.nodes().iter().any(|n| {
         matches!(
             n.kind(),
-            AstKind::ObjectExpression(_) | AstKind::StringLiteral(_)
+            AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
         )
     }) {
         return;

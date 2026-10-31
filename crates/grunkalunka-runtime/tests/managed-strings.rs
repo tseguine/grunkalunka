@@ -82,7 +82,6 @@ fn unimplemented_string_operations_and_reference_frames_reject_explicitly() {
         "const s='x';return s.toUpperCase();",
         "const s='x';const f=()=>s;return f();",
         "let s='x';s++;return a;",
-        "return (a?'x':[])===null?a:b;",
         "if(0){const s='x';s.unknown();}return a;",
     ] {
         let js = format!("export function run(a,b){{{body}}}");

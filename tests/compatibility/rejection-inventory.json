@@ -327,7 +327,7 @@
     {
       "id": "array-values",
       "kind": "open-requirement",
-      "assessment": "Array values and indexed access require runtime values and property semantics.",
+      "assessment": "Local arrays, static own properties, identity and length are supported through WasmGC. The mapped cases still require a proved primitive element-result projection or an exported reference representation.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-array-initializer",
@@ -341,7 +341,7 @@
         "value-representation"
       ],
       "observableDone": [
-        "Admit arrays and indexed reads with independent numeric/result and identity tests."
+        "Admit the mapped direct element-result and array-export programs without losing value kinds or identity; local construction alone does not satisfy these cases."
       ]
     },
     {

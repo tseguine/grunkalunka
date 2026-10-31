@@ -420,6 +420,9 @@ impl Lowering<'_, '_> {
     // A positive classification keeps existing scalar comparison paths unchanged.
     // This scan emits nothing; the evaluator still validates every source operand.
     fn numeric_result_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
+        if self.array_length_receiver(expression, depth).is_some() {
+            return true;
+        }
         if let Expression::CallExpression(call) = expression
             && self
                 .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
@@ -809,12 +812,9 @@ impl Lowering<'_, '_> {
                     Type::Number
                 };
                 let value = match ty {
-                    Type::ManagedArray => {
-                        return Err(unsupported(
-                            initializer,
-                            "source array lowering is not implemented",
-                        ));
-                    }
+                    Type::ManagedArray => self
+                        .evaluate(initializer, region, 0, evaluate::Mode::Array)?
+                        .expect("array initializer"),
                     Type::ManagedValue | Type::ManagedObject => self
                         .evaluate(
                             initializer,
@@ -1192,6 +1192,8 @@ impl Lowering<'_, '_> {
                         0,
                         if self.return_type == Type::ManagedObject {
                             evaluate::Mode::Object
+                        } else if self.return_type == Type::ManagedArray {
+                            evaluate::Mode::Array
                         } else {
                             evaluate::Mode::Managed
                         },

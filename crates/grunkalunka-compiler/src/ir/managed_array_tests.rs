@@ -446,5 +446,4 @@ fn arrays_cannot_enter_untraced_cells_or_async_frames() {
     verify_async_module(&m).unwrap();
     let error = crate::emit::emit_async(&m).unwrap_err();
     assert!(error.contains("managed"), "{error}");
-    assert!(crate::compile("export function run(a,b){const x=[];return a;}", false).is_err());
 }
