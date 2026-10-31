@@ -217,14 +217,14 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // about Rust frame size.
         enum Work<'s, 'a> {
             Enter {
-                parent: Lowering<'s, 'a>,
+                parent: Box<Lowering<'s, 'a>>,
                 closure: LocalClosure,
                 factory_depth: usize,
             },
             AfterChild {
-                parent: Lowering<'s, 'a>,
+                parent: Box<Lowering<'s, 'a>>,
                 closure: LocalClosure,
-                region: Region,
+                region: Box<Region>,
             },
         }
 
@@ -245,7 +245,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         };
 
         let mut work = vec![Work::Enter {
-            parent: self.clone(),
+            parent: Box::new(self.clone()),
             closure: closure.clone(),
             factory_depth,
         }];
@@ -272,7 +272,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     )?;
                     // Validate unused bodies too, without running effects or publishing their
                     // scratch values/slots in the real function's verified IR.
-                    let mut check = parent.clone();
+                    let mut check = Box::new(parent.as_ref().clone());
                     if arrow.r#async {
                         // AwaitCall owns the callee's return/rejection boundary and retains
                         // the caller's separate reaction job.
@@ -339,7 +339,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                                 work.push(Work::AfterChild {
                                     parent,
                                     closure,
-                                    region,
+                                    region: Box::new(region),
                                 });
                                 work.push(Work::Enter {
                                     parent: check,
