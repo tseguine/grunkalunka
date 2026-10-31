@@ -1112,3 +1112,53 @@ pub(super) fn parameter_types(
         })
         .collect()
 }
+
+#[cfg(test)]
+mod return_origin_stack_tests {
+    use super::*;
+    use oxc_allocator::Allocator;
+    use oxc_parser::Parser;
+    use oxc_semantic::SemanticBuilder;
+    use oxc_span::SourceType;
+
+    #[test]
+    fn nested_conditional_origins_have_bounded_native_stack_and_stable_union() {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                let mut expression = "(() => 1)".to_string();
+                const DEPTH: usize = 96;
+                for _ in 0..DEPTH {
+                    expression = format!("a ? {expression} : (() => 2)");
+                }
+                let source = format!("{expression};");
+                let allocator = Allocator::default();
+                let parsed =
+                    Parser::new(&allocator, &source, SourceType::mjs()).parse();
+                assert!(!parsed.fatal_error && parsed.diagnostics.is_empty());
+                let built = SemanticBuilder::new_compiler()
+                    .with_build_nodes(true)
+                    .build(&parsed.program);
+                assert!(built.diagnostics.is_empty());
+                let oxc_ast::ast::Statement::ExpressionStatement(statement) =
+                    &parsed.program.body[0]
+                else {
+                    panic!("expected expression statement");
+                };
+                let targets = BTreeMap::new();
+                let arrows = BTreeMap::new();
+                let returns = ReturnOrigins {
+                    semantic: &built.semantic,
+                    targets: &targets,
+                    arrows: &arrows,
+                };
+                let (symbols, bodies) =
+                    returns.expression(&statement.expression, &BTreeMap::new(), 0, 0);
+                assert!(symbols.is_empty());
+                assert_eq!(bodies.len(), DEPTH + 1);
+            })
+            .expect("small-stack callback-origin thread")
+            .join()
+            .expect("iterative return-origin query completed");
+    }
+}
