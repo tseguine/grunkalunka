@@ -98,6 +98,9 @@ fn kinds(
                     Expression::ObjectExpression(_) => values.push([Kind::Object].into()),
                     Expression::ArrayExpression(_) => values.push([Kind::Array].into()),
                     Expression::StringLiteral(_) => values.push([Kind::String].into()),
+                    Expression::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
+                        values.push([Kind::String].into());
+                    }
                     Expression::NullLiteral(_) | Expression::BooleanLiteral(_) => {
                         values.push([Kind::GeneralPrimitive].into());
                     }
@@ -205,7 +208,7 @@ pub(crate) fn infer(
         matches!(
             n.kind(),
             AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
-        )
+        ) || matches!(n.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
     }) {
         return;
     }

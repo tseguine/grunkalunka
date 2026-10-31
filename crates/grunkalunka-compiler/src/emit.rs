@@ -319,6 +319,31 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_equal\n");
                 self.set(*result);
             }
+            Op::ManagedTypeof { result, input } => {
+                self.output.push_str("i32.const 5\nf64.const 0\n");
+                // A constant-bounded dispatch over the shared language-kind tags.
+                let names = [
+                    "undefined",
+                    "object",
+                    "boolean",
+                    "number",
+                    "object",
+                    "string",
+                ];
+                for (tag, name) in names.iter().enumerate() {
+                    self.get(*input);
+                    writeln!(self.output, "struct.get $gc_value 0\ni32.const {tag}\ni32.eq\nif (result (ref null $gc_key))").unwrap();
+                    self.managed_key(&name.encode_utf16().collect::<Vec<_>>());
+                    self.output.push_str("else\n");
+                }
+                // Future carrier kinds require their own explicit typeof mapping.
+                self.output.push_str("unreachable\n");
+                for _ in names {
+                    self.output.push_str("end\n");
+                }
+                self.output.push_str("struct.new $gc_value\n");
+                self.set(*result);
+            }
             Op::ManagedTruthy { result, input } => {
                 self.get(*input);
                 self.output.push_str("call $gc_truthy\n");

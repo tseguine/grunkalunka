@@ -60,6 +60,8 @@ pub(super) enum ManagedWork<'e, 'a> {
         object: ValueId,
         key: Vec<u16>,
     },
+    Typeof(&'e Expression<'a>),
+    FunctionTypeof(&'e Expression<'a>),
     Truthy(&'e Expression<'a>),
     Store {
         node: &'e Expression<'a>,
@@ -315,6 +317,9 @@ impl Lowering<'_, '_> {
                         Expression::ObjectExpression(_) => values.push(Some(Type::ManagedObject)),
                         Expression::ArrayExpression(_) => values.push(Some(Type::ManagedArray)),
                         Expression::StringLiteral(_) => values.push(Some(Type::ManagedValue)),
+                        Expression::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
+                            values.push(Some(Type::ManagedValue));
+                        }
                         Expression::CallExpression(call) => values.push(
                             managed_calls::function(call, self.semantic, self.functions)
                                 .map(|f| f.return_type)
@@ -620,6 +625,31 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if matches!(mode, Mode::Managed) {
+            if let Expression::UnaryExpression(u) = node
+                && u.operator == UnaryOperator::Typeof
+            {
+                let named = closures::unwrapped_at(&u.argument, depth + 1)
+                    .and_then(|(argument, _)| match argument {
+                        Expression::Identifier(i) => i.reference_id.get(),
+                        _ => None,
+                    })
+                    .and_then(|reference| {
+                        self.semantic.scoping().get_reference(reference).symbol_id()
+                    })
+                    .is_some_and(|symbol| self.functions.iter().any(|f| f.symbol == symbol));
+                if named {
+                    // A hoisted module declaration has no read/construction effects.
+                    // Its complete source body is still validated independently.
+                    work.push(Work::Managed(ManagedWork::FunctionTypeof(node)));
+                } else if self.function_arity(&u.argument, depth + 1).is_some() {
+                    work.push(Work::Managed(ManagedWork::FunctionTypeof(node)));
+                    work.push(Work::Eval(&u.argument, depth + 1, Mode::Discard));
+                } else {
+                    work.push(Work::Managed(ManagedWork::Typeof(node)));
+                    work.push(Work::Eval(&u.argument, depth + 1, Mode::Managed));
+                }
+                return Ok(true);
+            }
             if let Expression::StringLiteral(literal) = node {
                 let result = self.value(Type::ManagedValue);
                 Self::push(
@@ -762,6 +792,24 @@ impl Lowering<'_, '_> {
                     Op::ManagedArrayLength { result, array },
                 );
                 values.push(Value::Number(result));
+            }
+            ManagedWork::FunctionTypeof(node) => {
+                let result = self.value(Type::ManagedValue);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedString {
+                        result,
+                        units: "function".encode_utf16().collect(),
+                    },
+                );
+                values.push(Value::Managed(result));
+            }
+            ManagedWork::Typeof(node) => {
+                let input = values.pop().expect("typeof operand").id();
+                let result = self.value(Type::ManagedValue);
+                Self::push(regions.current(), node, Op::ManagedTypeof { result, input });
+                values.push(Value::Managed(result));
             }
             ManagedWork::Truthy(node) => {
                 let input = values.pop().expect("managed truthiness").id();
