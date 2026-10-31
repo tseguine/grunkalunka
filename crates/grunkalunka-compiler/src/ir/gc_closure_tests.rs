@@ -1,4 +1,4 @@
-//! Typed-IR support precedes source capture admission.
+//! Typed-IR storage checks and source capture boundary regressions.
 use super::*;
 
 fn value(f: &mut Function, ty: Type, op: impl FnOnce(ValueId) -> Op) -> ValueId {
@@ -258,7 +258,7 @@ fn gc_cell_reinitialization_preserves_per_iteration_environments() {
     check(&m, &format!("(()=>{{{body}}})()"));
 }
 #[test]
-fn gc_capture_types_initialization_and_source_async_boundaries_remain_checked() {
+fn gc_capture_types_initialization_and_async_boundaries_remain_checked() {
     for change in 0..4 {
         let mut m = fixture();
         match change {
@@ -292,7 +292,8 @@ fn gc_capture_types_initialization_and_source_async_boundaries_remain_checked() 
         "export function run(a,b){let x=[];let f=()=>x===x?a:b;return f();}",
         "export function run(a,b){let x='text';let f=()=>x==='text'?a:b;return f();}",
     ] {
-        assert!(crate::compile(source, false).is_err(), "{source}");
+        let artifact = crate::compile(source, false).unwrap();
+        super::managed_value_tests::node(&artifact.wasm, "a");
     }
 }
 #[test]
