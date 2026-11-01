@@ -87,6 +87,41 @@ mod stack_hygiene_tests {
     }
 
     #[test]
+    fn interleaved_catch_finally_and_branch_controls_use_one_stack() {
+        for depth in [2, 4, 8, 24] {
+            let mut body = String::from("return a;");
+            for index in 0..depth {
+                body = match index % 3 {
+                    0 => format!("try{{{body}}}finally{{await b;}}"),
+                    1 => format!("if(a){{{body}}}else return b;"),
+                    _ => format!("try{{{body}}}catch(e){{return b;}}"),
+                };
+            }
+            let source = format!("export async function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile_async(&source, ts))
+                    .expect("small-stack mixed catch/finally lowering")
+                    .join()
+                    .expect("source cleanup and branches must not overflow native stack");
+                if depth <= 4 {
+                    assert!(result.is_ok(), "{depth} controls: {:?}", result.err());
+                } else if let Err(error) = result {
+                    assert!(
+                        error.contains("64")
+                            || error.contains("128")
+                            || error.contains("4096")
+                            || error.contains("nest"),
+                        "{depth} controls: {error}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn direct_nested_finalizers_keep_small_stack_and_original_depth_guards() {
         for depth in [1, 2, 4, 8, 33] {
             let mut body = String::from("return a;");
