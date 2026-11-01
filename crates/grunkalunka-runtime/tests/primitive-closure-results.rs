@@ -645,8 +645,6 @@ fn unused_eager_async_primitive_constructor_preserves_entry_result() {
 fn primitive_results_do_not_expand_other_closure_domains() {
     for body in [
         "const f=()=>{if(a)return ()=>b;return null;};return a;",
-        "const f=()=>{return '';};return a;",
-        "const f=()=>{return {};};return a;",
         "const f=()=>null;return f;",
         "const f=()=>null;const g=()=>()=>b;let h=a?f:g;return h();",
         "const f=()=>'';return f();",

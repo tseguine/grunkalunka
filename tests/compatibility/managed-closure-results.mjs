@@ -34,4 +34,6 @@ export const managedClosureResults = [
   ["managed-closure-result-erasure","","",undefined,undefined,{"sourceJS": "export function run(a,b){const f=n=>({x:n});return f(a).x===a?a:b;}", "sourceTS": "export function run(a:boolean,b:string):void{const f=(n:string):number=>({x:n});return f(a).x===a?a:b;}"}],
   ["managed-closure-result-returned-cycle-lifetime","","",undefined,undefined,{"sourceJS": "export function run(a,b){let make=n=>{const o={x:n};o.self=o;return o;};const o=make(a);const old=o.x;o.x=b;return old===a&&o.self===o&&o.x===b?a:b;}", "sourceTS": "export function run(a,b){let make=n=>{const o={x:n};o.self=o;return o;};const o=make(a);const old=o.x;o.x=b;return old===a&&o.self===o&&o.x===b?a:b;}"}],
   ["managed-closure-result-unused-capture", "const x='v'||'fallback';const f=()=>x;return a;", "const x='v'||'fallback';const f=()=>x;return a;"],
+  ["managed-closure-result-unused-empty-string", "const f=()=>{return '';};return a;", "const f=()=>{return '';};return a;"],
+  ["managed-closure-result-unused-object", "const f=()=>{return {};};return a;", "const f=()=>{return {};};return a;"],
 ];

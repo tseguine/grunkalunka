@@ -58,6 +58,8 @@ fn former_result_guards_have_positive_execution_and_annotations_erase() {
         "const text='x';let f=()=>text;return f()==='x'?a:b;",
         "let f=v=>v;return f({})===null?a:b;",
         "const x='v'||'fallback';const f=()=>x;return a;",
+        "const f=()=>{return '';};return a;",
+        "const f=()=>{return {};};return a;",
     ] {
         let js = format!("export function run(a,b){{{body}}}");
         common::compare_sources(&js, &js);
