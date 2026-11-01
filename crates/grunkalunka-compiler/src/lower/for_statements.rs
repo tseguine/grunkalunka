@@ -216,11 +216,7 @@ impl Lowering<'_, '_> {
                     // cannot alias closures from the first loop body.
                     for &slot in &renewal {
                         let result = self.value(self.slots[slot.0].ty);
-                        Self::push(
-                            &mut frame.header,
-                            frame.source,
-                            Op::Load { result, slot },
-                        );
+                        Self::push(&mut frame.header, frame.source, Op::Load { result, slot });
                         Self::push(
                             &mut frame.header,
                             frame.source,
@@ -237,11 +233,7 @@ impl Lowering<'_, '_> {
                     let updates = std::mem::take(&mut next.operations);
                     for &slot in &renewal {
                         let result = self.value(self.slots[slot.0].ty);
-                        Self::push(
-                            &mut next,
-                            frame.source,
-                            Op::Load { result, slot },
-                        );
+                        Self::push(&mut next, frame.source, Op::Load { result, slot });
                         Self::push(
                             &mut next,
                             frame.source,

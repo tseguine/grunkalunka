@@ -471,9 +471,7 @@ pub(crate) fn captured_cells(region: &Region) -> BTreeSet<SlotId> {
 pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
     let mut cells = BTreeSet::new();
     visit_operations(region, &mut |op| match op {
-        Op::Load { slot, .. }
-        | Op::Store { slot, .. }
-        | Op::RebindCell { slot, .. } => {
+        Op::Load { slot, .. } | Op::Store { slot, .. } | Op::RebindCell { slot, .. } => {
             cells.insert(*slot);
         }
         Op::CaptureCells { cells: captured }
