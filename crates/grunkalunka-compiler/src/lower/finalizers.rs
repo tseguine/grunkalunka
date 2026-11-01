@@ -16,6 +16,14 @@ impl Lowering<'_, '_> {
             ));
         }
         let Some(finalizer) = &statement.finalizer else {
+            // Direct nested catch chains are source-dependent. Schedule their
+            // lexical handlers without recursively reentering try_statement.
+            if matches!(
+                statement.block.body.as_slice(),
+                [Statement::TryStatement(inner)] if inner.finalizer.is_none()
+            ) {
+                return self.try_catch_chain(statement, region, depth);
+            }
             return self.try_catch(statement, region, depth);
         };
         let outer_type = self.return_type;
@@ -65,6 +73,141 @@ impl Lowering<'_, '_> {
             },
         );
         Ok(body_completion.finalized_by(finalizer_completion))
+    }
+
+
+    #[inline(never)]
+    fn try_catch_chain<'n, 'a>(
+        &mut self,
+        source: &'n TryStatement<'a>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<Completion, String> {
+        struct Frame<'n, 'a> {
+            source: &'n TryStatement<'a>,
+            body: Region,
+            depth: usize,
+            visible: usize,
+        }
+
+        let outer_depth = self.statement_depth;
+        let result = (|| {
+            let mut pending: Vec<Frame<'n, 'a>> = Vec::new();
+            let mut current = source;
+            let mut current_depth = depth;
+            while let [Statement::TryStatement(inner)] = current.block.body.as_slice() {
+                if inner.finalizer.is_some() {
+                    break;
+                }
+                // The original try_catch validates the handler first, then
+                // allocates and charges its source block before descending.
+                current
+                    .handler
+                    .as_ref()
+                    .ok_or_else(|| unsupported(current, "try requires a catch handler"))?;
+                let visible = self.bindings.len();
+                let body = self.region(current.block.as_ref());
+                self.charge_statement(current.block.as_ref())?;
+                pending.push(Frame {
+                    source: current,
+                    body,
+                    depth: current_depth,
+                    visible,
+                });
+                current = inner;
+                current_depth += 2;
+                self.statement_depth = current_depth;
+                if self.active_block_calls != 0 && self.inline_depth + current_depth > 128 {
+                    return Err(unsupported(
+                        current,
+                        "block-arrow expansion exceeds 128 nested regions",
+                    ));
+                }
+                if current_depth > 64 {
+                    return Err(unsupported(current, "statement nesting exceeds 64"));
+                }
+                self.charge_statement(current)?;
+            }
+
+            // This last source try has no direct nested catch-only child, so
+            // its established body/handler lowering is the trusted leaf.
+            let mut completion = self.try_catch(
+                current,
+                &mut pending.last_mut().expect("nested source catch").body,
+                current_depth,
+            )?;
+
+            while let Some(frame) = pending.pop() {
+                self.statement_depth = frame.depth;
+                self.bindings.truncate(frame.visible);
+                let statement = frame.source;
+                let handler = statement
+                    .handler
+                    .as_ref()
+                    .expect("validated source catch handler");
+                let mut caught = self.region(handler.body.as_ref());
+                self.charge_statement(handler.body.as_ref())?;
+                let reason_type = self.promise_parameters.catch_type(handler);
+                let reason = self.value(reason_type);
+                if let Some(parameter) = &handler.param {
+                    let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
+                        return Err(unsupported(
+                            parameter,
+                            "catch destructuring is not admitted",
+                        ));
+                    };
+                    if self.source_charging && self.local_count >= 128 {
+                        return Err(unsupported(
+                            parameter,
+                            "at most 128 source locals are admitted",
+                        ));
+                    }
+                    if self.source_charging {
+                        self.local_count += 1;
+                    }
+                    let slot = SlotId(self.slots.len());
+                    self.slots.push(Slot {
+                        ty: reason_type,
+                        owner: caught.id,
+                        mutable: true,
+                        parameter: false,
+                        span: parameter.span(),
+                    });
+                    Self::push(
+                        &mut caught,
+                        parameter,
+                        Op::Initialize {
+                            slot,
+                            value: reason,
+                        },
+                    );
+                    self.bindings.push(NumericBinding {
+                        symbol: identifier.symbol_id.get().ok_or("missing catch binding")?,
+                        slot,
+                        mutable: true,
+                    });
+                }
+                let handler_completion =
+                    self.sequence(&handler.body.body, &mut caught, frame.depth + 2)?;
+                self.bindings.truncate(frame.visible);
+                let output = pending
+                    .last_mut()
+                    .map_or(region, |parent| &mut parent.body);
+                Self::push(
+                    output,
+                    statement,
+                    Op::TryCatch {
+                        body: frame.body,
+                        reason,
+                        handler: caught,
+                    },
+                );
+                completion = completion.caught_by(handler_completion);
+            }
+            Ok(completion)
+        })();
+        self.statement_depth = outer_depth;
+        result
     }
 
     fn try_catch(
@@ -136,5 +279,38 @@ impl Lowering<'_, '_> {
             },
         );
         Ok(body_completion.caught_by(handler_completion))
+    }
+}
+
+#[cfg(test)]
+mod stack_hygiene_tests {
+    #[test]
+    fn direct_nested_try_catch_chain_obeys_small_stack_and_source_limits() {
+        for (depth, admitted) in [(1, true), (8, true), (16, true), (34, false)] {
+            let mut body = String::from("return a;");
+            for _ in 0..depth {
+                body = format!("try{{{body}}}catch(e){{return b;}}");
+            }
+            let source = format!("export async function run(a,b){{{body}}}");
+            for typescript in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile_async(&source, typescript))
+                    .expect("small-stack source try/catch thread")
+                    .join()
+                    .expect("nested try/catch must not overflow native stack");
+                if admitted {
+                    let artifact = result.unwrap_or_else(|error| panic!("{depth}: {error}"));
+                    assert!(!artifact.wasm.is_empty());
+                } else {
+                    let error = result.err().expect("excessive source nesting must reject");
+                    assert!(
+                        error.contains("64") || error.contains("128"),
+                        "{depth} nested try/catch: {error}"
+                    );
+                }
+            }
+        }
     }
 }
