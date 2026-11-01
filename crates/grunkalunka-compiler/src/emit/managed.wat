@@ -180,6 +180,7 @@
   if (result i32) i32.const 0
   else
     local.get $left struct.get $gc_value 0 i32.const 4 i32.eq
+    local.get $left struct.get $gc_value 0 i32.const 6 i32.eq i32.or
     if (result i32)
       local.get $left struct.get $gc_value 2
       local.get $right struct.get $gc_value 2 ref.eq
@@ -201,6 +202,7 @@
   if (result i32) i32.const 0
   else
     local.get $value struct.get $gc_value 0 i32.const 4 i32.eq
+    local.get $value struct.get $gc_value 0 i32.const 6 i32.eq i32.or
     if (result i32) i32.const 1
     else
       local.get $value struct.get $gc_value 0 i32.const 5 i32.eq

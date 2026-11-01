@@ -6,12 +6,19 @@ pub(super) const TYPES: &str = include_str!("gc_closures.wat");
 
 pub(super) fn needed(module: &ir::Module) -> bool {
     module.functions.iter().any(|f| {
-        (ir::closure_environment(f).is_some()
-            && (f.return_type.is_managed()
-                || f.slots
-                    .iter()
-                    .take(f.parameter_count)
-                    .any(|slot| slot.ty.is_managed())))
+        let mut boxed_function = false;
+        if f.values.contains(&Type::ManagedValue) {
+            ir::visit_operations(&f.body, &mut |op| {
+                boxed_function |= matches!(op, Op::ManagedFromClosure { .. });
+            });
+        }
+        boxed_function
+            || (ir::closure_environment(f).is_some()
+                && (f.return_type.is_managed()
+                    || f.slots
+                        .iter()
+                        .take(f.parameter_count)
+                        .any(|slot| slot.ty.is_managed())))
             || ir::captured_cells(&f.body)
                 .into_iter()
                 .any(|slot| f.slots[slot.0].ty.is_managed())
@@ -25,7 +32,7 @@ fn field(lane: layout::Lane) -> usize {
         layout::Lane::ManagedRef
         | layout::Lane::ObjectRef
         | layout::Lane::ArrayRef
-        | layout::Lane::EnvironmentRef => 2,
+        | layout::Lane::FunctionRef => 2,
     }
 }
 fn cast(lane: layout::Lane) -> &'static str {
@@ -33,7 +40,7 @@ fn cast(lane: layout::Lane) -> &'static str {
         layout::Lane::ManagedRef => "ref.cast (ref null $gc_value)\n",
         layout::Lane::ObjectRef => "ref.cast (ref null $gc_object)\n",
         layout::Lane::ArrayRef => "ref.cast (ref null $gc_array)\n",
-        layout::Lane::EnvironmentRef => "ref.cast (ref null $gc_frame)\n",
+        layout::Lane::FunctionRef => "ref.cast (ref null $gc_function)\n",
         layout::Lane::I32 | layout::Lane::F64 => "",
     }
 }
@@ -111,7 +118,12 @@ impl Emitter<'_> {
             )
             .unwrap();
         }
-        writeln!(self.output, "i32.const {}\nlocal.get {temp}", function.0).unwrap();
+        writeln!(
+            self.output,
+            "i32.const {}\nlocal.get {temp}\nstruct.new $gc_function",
+            function.0
+        )
+        .unwrap();
         self.set(result);
     }
     // Cells use separate unboxed fields for numeric lanes and one traced edge.
@@ -161,8 +173,7 @@ impl Emitter<'_> {
         assert!(self.call_boundary.is_none());
         writeln!(
             self.output,
-            "local.get {}\nlocal.get {temp}\nlocal.get {callee}\ncall_indirect (type {signature})",
-            callee + 1
+            "local.get {callee}\nstruct.get $gc_function 1\nlocal.get {temp}\nlocal.get {callee}\nstruct.get $gc_function 0\ncall_indirect (type {signature})"
         )
         .unwrap();
         let ty = self.function.values[result.0];

@@ -371,6 +371,31 @@ remain separate work; unknown receivers and unsupported coercions still reject.
   [pinned Wasmtime collectors](https://docs.rs/wasmtime/50.0.0/wasmtime/enum.Collector.html),
   and [ECMAScript value kinds](https://tc39.es/ecma262/multipage/ecmascript-data-types-and-values.html#sec-ecmascript-language-types).
 
+## Canonical synchronous function identity
+
+GC-profile `MakeClosure` now allocates one immutable function object containing its
+table index and traced environment. Typed closure values use that single reference;
+`ManagedFromClosure` boxes the same identity into the general carrier. Reboxing or
+copying retains identity, and separate creations remain distinct with or without
+captures. The function carrier has explicit equality, truthiness, nullishness and
+`typeof` behavior. Existing logical signatures and GC argument/environment frames
+continue to validate typed calls. Non-GC primitive closure pairs are unchanged.
+
+The alternative of allocating an identity wrapper at each boxing would split one
+function into several identities and obstruct coherent future function properties.
+Numeric handles would also need an additional root/ownership protocol. Canonical
+allocation at creation fits the existing WasmGC reference graph and lets a function
+retain captured cycles. It changes the private GC closure layout, with maintained
+callback/factory and source lifetime regressions; no public ABI, dependency,
+collector or async-frame migration is introduced.
+
+Emitted-IR/native-JS/Node tests cover identity, containers, snapshots and typed
+calls. A generated source function survives copying collection after its defining
+call returns; a separate shared-fragment fixture retains a boxed-function cycle.
+Source function storage, generic stored-function calls and declaration-binding
+identity still require explicit lowering work. This is a backend capability,
+not a claim that those source constructs have been implemented.
+
 ## Summary
 
 Use WasmGC for the general-value path, preserve specialized primitives, and grow

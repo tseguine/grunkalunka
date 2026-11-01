@@ -17,6 +17,8 @@ mod gc_closure_result_tests;
 #[cfg(test)]
 mod gc_closure_tests;
 #[cfg(test)]
+mod gc_function_tests;
+#[cfg(test)]
 mod managed_array_tests;
 #[cfg(test)]
 mod managed_value_tests;
@@ -483,6 +485,17 @@ pub(crate) enum Op {
         result: ValueId,
     },
     ManagedFromObject {
+        result: ValueId,
+        input: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "source function storage is a separate lowering unit"
+        )
+    )]
+    ManagedFromClosure {
         result: ValueId,
         input: ValueId,
     },
@@ -1175,6 +1188,25 @@ impl Verifier<'_> {
             }
             Op::ManagedFromObject { result, input } => {
                 self.value(*input, Type::ManagedObject, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedFromClosure { result, input } => {
+                let Some(Type::Closure(signature)) = self.function.values.get(input.0).copied()
+                else {
+                    return Err(invalid(
+                        span,
+                        "managed function boxing requires a function value",
+                    ));
+                };
+                if self.closure_signatures.is_async(signature)
+                    || !self.closure_signatures.is_returned_function(signature)
+                {
+                    return Err(invalid(
+                        span,
+                        "managed function boxing requires a known synchronous signature",
+                    ));
+                }
+                self.value(*input, Type::Closure(signature), visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedPrimitive { result, input } => {

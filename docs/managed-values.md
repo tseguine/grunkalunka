@@ -23,8 +23,8 @@ the object's identity: two carriers for one object compare equal, while fresh
 objects remain distinct. Primitive comparisons retain kind differences, NaN and
 signed-zero rules. String equality compares lossless UTF-16 code units, never
 carrier/array identity or Unicode-normalized text. Future BigInt equality also needs value comparison;
-Symbols, functions and other object kinds need their own
-construction/identity operations before admission.
+Synchronous private functions have the identity bridge described below. Source
+function storage, Symbols and other object kinds still require their own admission.
 
 | Operation | Contract |
 | --- | --- |
@@ -32,6 +32,7 @@ construction/identity operations before admission.
 | `ManagedObjectNew` | Allocate a fresh ordinary object. |
 | `ManagedPrimitive` | Copy a canonical four-kind primitive into an immutable managed carrier. |
 | `ManagedFromObject` | Wrap an existing object without changing its identity. |
+| `ManagedFromClosure` | Box an existing synchronous function identity, retaining its traced environment. |
 | `ManagedGetOwn` | Snapshot one own data-property value, or Undefined if absent. |
 | `ManagedSetOwn` | Replace/create one own data property while preserving object identity and prior value snapshots. |
 | `ManagedEqual` | Strict equality in the currently admitted managed domain. |
@@ -273,13 +274,14 @@ retain the same cell. A load still creates a value snapshot; storing a new refer
 updates the binding without changing an earlier loaded value.
 
 Each cell has unboxed i32/f64 fields and a traced reference field. An environment
-is a GC array of cell references. The private closure pair contains a table index
-and a traced environment reference; call arguments use fresh cell entries in a GC
+is a GC array of cell references. A private GC function object contains a table index
+and a traced environment reference; typed closure values retain this one identity.
+Call arguments use fresh cell entries in a GC
 frame array. Closure parameters/results retain their existing logical contracts,
 including primitive pairs and returned/callback closures. Private synchronous IR
 parameters also admit known object/array references and the managed value carrier,
-with exact argument types and counts. Managed results and asynchronous managed
-parameters remain rejected. Source argument inference is separate.
+with exact argument types and counts. Managed results use the typed path below;
+asynchronous managed parameters remain rejected. Source inference is covered separately.
 
 ### Typed managed closure arguments
 
@@ -310,7 +312,8 @@ one nullable `eqref` result, then casts to the IR-proven reference type before
 assigning the caller's typed local. Objects and arrays retain identity; String and
 primitive carriers keep their language kind. No numeric handle or byte spill is
 introduced. A managed result selects traced closure storage even without managed
-parameters or captures. Number, General and function-pair result paths are unchanged.
+parameters or captures. Number and General result paths are unchanged; GC function
+results use the canonical identity described below.
 
 A separate physical function type for each managed result was considered. The
 shared reference lane avoids forward references into the later managed type group
@@ -328,7 +331,7 @@ result inference, a public reference ABI or suspended managed frames.
 
 GC types precede explicit closure function types so type references do not cross
 forward into a later recursion group. The source function indices remain stable.
-Modules without managed captured cells or managed closure parameters/results retain their
+Modules without managed captured cells, managed closure parameters/results or function boxing retain their
 existing numeric arena, closure layout and async behavior. Modules using the traced
 path need no numeric arena reset wrapper. Ordinary Number arithmetic and locals retain f64 in both paths.
 
@@ -353,6 +356,32 @@ and saved object/String snapshot. That hand-built lifetime fixture is not eviden
 of source capture admission. A separate manual verification executes an actual
 emitted managed-capture IR artifact through the production Wasmtime numeric adapter;
 it does not replace the maintained lifetime fixture or establish source admission.
+
+## Canonical private function identities
+
+In the GC profile, each `MakeClosure` allocates one immutable function object with
+its code index and traced environment. Typed closure snapshots, cells, arguments
+and results carry that reference. `ManagedFromClosure` adds an immutable carrier
+around the same reference; aliases and repeated boxing remain equal, while two
+creations of the same code are distinct even without captures. The carrier uses
+private tag 6, with `typeof` equal to `"function"`, truthiness true and nullishness
+false. This tag is separate from the primitive wire and async protocols.
+
+Allocating a new function object on each boxing was rejected: it would split
+identity and complicate future properties on the function itself. Allocation at
+creation retains one object for those later operations. Existing non-GC numeric
+closure pairs keep their prior representation. GC calls still pass the same typed
+environment and argument frames; Number arithmetic and results remain unboxed.
+
+Maintained emitted-IR/native-JS/Node comparisons cover reboxing, fresh creations,
+object/array storage, saved property values, type inspection and subsequent typed
+calls. Validation requires a visible known synchronous closure and a managed
+result. The source GC observer now retains the actual generated function object
+after defining calls return. A separate shared-fragment Wasmtime test keeps a
+boxed function/environment/object cycle across forced copying collections and
+checks a cleared root. Neither test claims a public reference ABI or reclamation
+timing. Source function containers and arbitrary calls through stored values remain
+separate work; the backend bridge does not silently enable them.
 
 ## Source managed closure arguments
 

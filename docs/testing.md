@@ -441,6 +441,15 @@ mutation must fail engine type validation. A separate manual 64-pair Wasmtime ru
 executes an actual emitted result artifact; this is not forced-collection or source
 managed-result evidence.
 
+`ir::gc_function_tests` compares canonical private function identities against
+native JS in Node-Wasm: repeated boxing, fresh capturing/captureless creations,
+object/array snapshots, type inspection, typed calls and invalid inputs/results.
+`managed-function-storage` uses production type/kernel fragments to retain a boxed
+function/environment/object cycle across forced Wasmtime copying GC. The actual
+source-closure lifetime observer separately roots a generated canonical function
+object, calls its unchanged body after collection, and tests root clearing. Source
+function-container admission and arbitrary stored-function calls remain rejected.
+
 The compiler's `ir::gc_closure_tests` and `ir::gc_closure_argument_tests` exercise
 the traced closure backend independently of source managed-capture admission. `managed-closure-storage` in the runtime package
 checks the shared GC cell/frame type fragment across forced Wasmtime copying
