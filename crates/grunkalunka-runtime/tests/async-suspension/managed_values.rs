@@ -132,7 +132,6 @@ fn synchronous_managed_helpers_keep_reference_signatures_in_async_modules() {
 #[test]
 fn reference_bearing_multiple_frames_and_public_managed_values_still_reject() {
     for (index, body) in [
-        "const o={};const f=()=>o;await a;return f()===o?1:0;",
         "const o={};const f=async x=>{await b;return x;};const p=f(a);await p;return o?1:0;",
         "const f=async x=>{const o={x};await b;return o.x===x?1:0;};const p=f(a);return await p;",
         "const o={};await a;return o;",
@@ -151,7 +150,7 @@ fn reference_bearing_multiple_frames_and_public_managed_values_still_reject() {
             let error = result
                 .err()
                 .unwrap_or_else(|| panic!("unexpected admission: {source}"));
-            if index < 3 {
+            if index < 2 {
                 assert_eq!(
                     error, "managed values require reference-aware async frames",
                     "{source}"

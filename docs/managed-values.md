@@ -27,6 +27,14 @@ WasmGC globals with typed null initializers. These are engine-traced roots, not
 numeric handles or pointers stored in linear memory. Named synchronous helpers
 retain their actual reference parameter/result types in an async module.
 
+Synchronous closures can retain managed captures across these awaits. Reuse the
+existing traced function objects, shared captured cells and GC argument frames;
+the coroutine stores their actual references in typed globals. Captures retain
+bindings rather than frozen values, so later rebinding and alias mutation remain
+visible through the closure. Returned factory environments, function identities,
+callbacks, cycles and Strings use the same representation as synchronous code.
+Numeric-only modules retain their existing closure layout and arena.
+
 Aliases, cycles, replacement snapshots, array mutations and the existing
 handler/finalizer/job ordering are preserved. An immediate async call that the
 existing lowerer inlines into the same physical frame can use this path too.
@@ -39,9 +47,14 @@ microtask markers and concurrent independent invocations. Private runtime tests
 force copying collections while actual generated code is suspended, and observe
 terminal root clearing through test-only exports of the generated globals.
 This does not establish collection latency or a public reference ABI.
+Additional private tests remove unrelated mutable reference roots while pending,
+then collect and resume through a returned closure's environment. Generated
+activation roots clear on completion; immutable module-function identities remain
+for the instance's lifetime and disappear with its Store.
 
-Modules requiring traced closure environments or multiple reference-bearing
-coroutine frames still reject. Related child activations sharing a managed value
+Modules requiring multiple reference-bearing coroutine frames still reject,
+including modules using GC function identities without managed object carriers.
+Related child activations sharing a managed value
 need a separate frame/root bridge; host entry invocations retain their existing
 fresh Store/instance isolation. Managed await operands, settlements, rejection
 reasons and public reference results are not admitted by this increment.

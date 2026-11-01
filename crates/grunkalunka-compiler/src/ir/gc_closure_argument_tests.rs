@@ -441,7 +441,7 @@ fn managed_parameters_keep_exact_types_counts_and_async_result_boundaries() {
     };
     let result = value(f, Type::General, |result| Op::Pack { result, input });
     f.body.exit = Exit::Return(result);
-    assert!(crate::emit::emit_async(&m).unwrap_err().contains("managed"));
+    wat::parse_str(crate::emit::emit_async(&m).unwrap()).unwrap();
     let promoted = crate::compile(
         "export function run(a,b){const o={x:a};const f=x=>x.x===a?a:b;return f(o);}",
         false,

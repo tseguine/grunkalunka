@@ -10,6 +10,9 @@ const ORIGINAL: &str = "export async function run(a,b) { return a + await Promis
 #[path = "async-suspension/managed_values.rs"]
 mod managed_values;
 
+#[path = "async-suspension/managed_closures.rs"]
+mod managed_closures;
+
 #[path = "async-suspension/pending.rs"]
 mod pending;
 

@@ -26,8 +26,9 @@ those roots, and terminal host failures retain them only until Store teardown.
 Named synchronous helpers can transport these references without changing their
 signatures or adding jobs. Existing numeric-only modules retain their generated
 encoding. See [managed suspension](managed-values.md#managed-values-in-a-single-coroutine-frame).
-GC closure environments and multiple reference-bearing coroutine frames remain
-rejected pending their separate storage. This does not add managed Promise
+Synchronous GC closure environments share the same typed global roots and retain
+their captured cells across suspension. Multiple reference-bearing coroutine frames
+remain rejected pending their separate storage. This does not add managed Promise
 settlements, managed await operands, public reference exports or a shared heap
 across separately instantiated host invocations.
 

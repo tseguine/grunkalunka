@@ -383,7 +383,7 @@ fn module_functions_reject_invalid_targets_environments_and_signatures() {
 }
 
 #[test]
-fn module_function_references_cannot_enter_numeric_async_spills() {
+fn module_function_references_use_traced_single_frame_globals() {
     let mut module = fixture();
     let root = &mut module.functions[0];
     let callee = read(root, 1);
@@ -404,8 +404,7 @@ fn module_function_references_cannot_enter_numeric_async_spills() {
     root.body.exit = Exit::Return(result);
     verify_async_module(&module).unwrap();
     assert!(!crate::emit::module_has_managed(&module));
-    let error = crate::emit::emit_async(&module).unwrap_err();
-    assert!(error.contains("reference-aware async frames"), "{error}");
+    wat::parse_str(crate::emit::emit_async(&module).unwrap()).unwrap();
 }
 
 #[test]

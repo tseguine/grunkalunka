@@ -286,7 +286,7 @@ fn gc_capture_types_initialization_and_async_boundaries_remain_checked() {
     let result = value(f, Type::General, |result| Op::Pack { result, input });
     f.return_type = Type::General;
     f.body.exit = Exit::Return(result);
-    assert!(crate::emit::emit_async(&m).unwrap_err().contains("managed"));
+    wat::parse_str(crate::emit::emit_async(&m).unwrap()).unwrap();
     for source in [
         "export function run(a,b){let x={};let f=()=>x===x?a:b;return f();}",
         "export function run(a,b){let x=[];let f=()=>x===x?a:b;return f();}",

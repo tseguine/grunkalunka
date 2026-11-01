@@ -1081,9 +1081,7 @@ fn jump(output: &mut String, target: usize) {
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     ir::verify_async_module(module)?;
     let managed = super::module_has_managed(module);
-    if super::gc_closures::needed(module) {
-        return Err("managed values require reference-aware async frames".into());
-    }
+    let gc_closures = super::gc_closures::needed(module);
     let Some((function, outlined)) = module.functions.split_first() else {
         return Err("async profile currently requires a single entry function".into());
     };
@@ -1128,7 +1126,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     graph::verify(&split, &entries)?;
     graph::thread_empty_jumps(&mut split, fresh);
     let has_async = entries.iter().any(Option::is_some);
-    if managed && has_async {
+    if (managed || gc_closures) && has_async {
         return Err("managed values require reference-aware async frames".into());
     }
     let dispatch_targets = dispatch::targets(module);
@@ -1139,7 +1137,14 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             frames.push(None);
             continue;
         }
-        let mut frame = frames::Frame::new(function, types.len(), queued, errors, has_async);
+        let mut frame = frames::Frame::new(
+            function,
+            types.len(),
+            queued,
+            errors,
+            has_async,
+            gc_closures,
+        );
         if starters {
             let mut spill = String::new();
             let mut restore = String::new();
@@ -1157,13 +1162,19 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             .iter()
             .any(|function| !ir::captured_cells(&function.body).is_empty());
     let mut output = String::from("(module\n");
+    if gc_closures {
+        output.push_str(super::gc_closures::TYPES);
+    }
     let roots = managed_globals::Globals::new(&types);
     roots.declare(&mut output, &types);
-    if has_cells {
+    if has_cells && (!gc_closures || queued) {
         output.push_str(cells::MEMORY);
     }
     if has_closures {
-        output.push_str(&closures::table(module, true, starters, false));
+        output.push_str(&closures::table(module, true, starters, gc_closures));
+    }
+    if gc_closures {
+        output.push_str(&super::gc_closures::module_globals(module));
     }
     if has_async || queued {
         output.push_str(frames::GLOBALS);
@@ -1240,7 +1251,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         }
         let emitter = &mut frame.emitter;
         emitter.operations(state.operations);
-        // Atomic emission only reads/writes numeric-indexed locals. Private
+        // Atomic emission maps numeric-indexed locals to frame globals. Private
         // helpers retain their own locals and are appended separately below.
         frame.take_output(&mut output);
         let frame = frames[state.function].as_ref().expect("coroutine frame");
@@ -1339,7 +1350,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 result,
                 next,
             } => {
-                for part in 0..layout::value(emitter.function.values[input.0]).parts.len() {
+                for part in 0..emitter
+                    .value_layout(emitter.function.values[input.0])
+                    .parts
+                    .len()
+                {
                     writeln!(
                         output,
                         "global.get {}\nglobal.set {}",
@@ -1448,26 +1463,37 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             continue;
         }
         let mut header = if ir::closure_environment(function).is_some() {
-            format!("(func $closure_body{} (param i32 i32)", index + 1)
+            format!(
+                "(func $closure_body{} (param {})",
+                index + 1,
+                if gc_closures {
+                    "(ref null $gc_frame) (ref null $gc_frame)"
+                } else {
+                    "i32 i32"
+                }
+            )
         } else {
             let mut header = String::from("(func");
             if function.parameter_count > 0 {
                 header.push_str(" (param");
                 for slot in function.slots.iter().take(function.parameter_count) {
                     header.push(' ');
-                    header.push_str(layout::value(slot.ty).wat);
+                    header.push_str(layout::closure_value(slot.ty, gc_closures).wat);
                 }
                 header.push(')');
             }
             header
         };
-        writeln!(
-            header,
-            " (result {})",
-            layout::value(function.return_type).wat
-        )
-        .unwrap();
-        let (body, remainder) = emit_function(function, header, errors, false);
+        let result_wat = if gc_closures
+            && ir::closure_environment(function).is_some()
+            && function.return_type.is_managed()
+        {
+            "(ref null eq)"
+        } else {
+            layout::closure_value(function.return_type, gc_closures).wat
+        };
+        writeln!(header, " (result {result_wat})").unwrap();
+        let (body, remainder) = emit_function(function, header, errors, gc_closures);
         output.push_str(&body);
         needs_remainder |= remainder;
     }
@@ -1489,10 +1515,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     if needs_remainder {
         output.push_str(NUMBER_REMAINDER);
     }
-    if has_cells {
+    if has_cells && !gc_closures {
         output.push_str(cells::ALLOCATOR);
     }
-    if has_closures || queued {
+    if (has_closures && !gc_closures) || queued {
         output.push_str(closures::FRAME_ALLOCATOR);
     }
     if queued {
@@ -1501,6 +1527,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         } else {
             output.push_str(promises::RUNTIME);
         }
+    }
+    if gc_closures {
+        output.push_str(&super::gc_closures::projection_helpers(module));
     }
     if managed {
         output.push_str(include_str!("managed.wat"));
