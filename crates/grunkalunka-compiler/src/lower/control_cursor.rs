@@ -436,8 +436,7 @@ impl Lowering<'_, '_> {
                         let reason_type = self.promise_parameters.catch_type(handler);
                         let reason = self.value(reason_type);
                         if let Some(parameter) = &handler.param {
-                            let BindingPattern::BindingIdentifier(identifier) =
-                                &parameter.pattern
+                            let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
                             else {
                                 return Err(unsupported(
                                     parameter,
