@@ -15,6 +15,8 @@ pub(super) enum ControlNode<'n, 'a> {
     DoWhile(&'n DoWhileStatement<'a>),
     For(&'n ForStatement<'a>),
     Block(&'n BlockStatement<'a>),
+    /// A lexical statement sequence is a traversal boundary, not a source node.
+    Sequence(&'n [Statement<'a>]),
 }
 
 impl<'n, 'a> ControlNode<'n, 'a> {
@@ -74,6 +76,12 @@ enum Frame<'n, 'a> {
         index: usize,
         completion: Completion,
     },
+    Sequence {
+        statements: &'n [Statement<'a>],
+        index: usize,
+        depth: usize,
+        completion: Completion,
+    },
 }
 
 impl Frame<'_, '_> {
@@ -83,7 +91,8 @@ impl Frame<'_, '_> {
             | Self::While { depth, .. }
             | Self::DoWhile { depth, .. }
             | Self::For { depth, .. }
-            | Self::Block { depth, .. } => *depth,
+            | Self::Block { depth, .. }
+            | Self::Sequence { depth, .. } => *depth,
         }
     }
 }
@@ -140,10 +149,28 @@ impl Lowering<'_, '_> {
                                     ControlNode::Block(node) => {
                                         self.admit_source_statement(node, depth)?;
                                     }
+                                    ControlNode::Sequence(_) => {}
                                 }
                             }
 
                             match source {
+                                ControlNode::Sequence(statements) => {
+                                    if let Some(statement) = statements.first() {
+                                        pending.push(Frame::Sequence {
+                                            statements,
+                                            index: 0,
+                                            depth,
+                                            completion: Completion::NORMAL,
+                                        });
+                                        next = Some(Next::Statement {
+                                            source: statement,
+                                            output,
+                                            depth,
+                                        });
+                                    } else {
+                                        completed = Some((output, Completion::NORMAL));
+                                    }
+                                }
                                 ControlNode::Block(source) => {
                                     // The block's new Region is lexical, not
                                     // an additional source statement charge.
@@ -345,6 +372,43 @@ impl Lowering<'_, '_> {
 
                 self.statement_depth = frame.depth();
                 match frame {
+                    Frame::Sequence {
+                        statements,
+                        index,
+                        depth,
+                        completion: prefix,
+                    } => {
+                        let completion = prefix.then(completion);
+                        let next_index = index + 1;
+                        if let Some(statement) = statements.get(next_index) {
+                            // Mirror the original source sequence's first
+                            // diagnostic, while allowing erased TS declarations
+                            // to follow an otherwise terminal completion.
+                            if !completion.normal && !is_type_declaration(statement) {
+                                return Err(unsupported(
+                                    statement,
+                                    if completion == Completion::RETURN {
+                                        "statements after a guaranteed return are not admitted"
+                                    } else {
+                                        "statements after a guaranteed abrupt completion are not admitted"
+                                    },
+                                ));
+                            }
+                            pending.push(Frame::Sequence {
+                                statements,
+                                index: next_index,
+                                depth,
+                                completion,
+                            });
+                            next = Some(Next::Statement {
+                                source: statement,
+                                output: finished_region,
+                                depth,
+                            });
+                        } else {
+                            completed = Some((finished_region, completion));
+                        }
+                    }
                     Frame::Block {
                         source,
                         mut output,
