@@ -62,7 +62,6 @@ enum Frame<'n, 'a> {
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
         source: &'n IfStatement<'a>,
-        output: Region,
         depth: usize,
     },
     If {
