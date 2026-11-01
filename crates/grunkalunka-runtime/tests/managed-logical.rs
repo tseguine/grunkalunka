@@ -84,7 +84,6 @@ fn unselected_managed_branches_still_require_supported_source() {
     for source in [
         "export function run(a,b){const x={}||missing();return a;}",
         "export function run(a,b){const x={}||{[a]:b};return a;}",
-        "export function run(a,b){const x={}||(()=>a);return a;}",
         "export function run(a,b){let x='';x||='fallback';return a;}",
         "export function run(a,b){const x={}??{};return x;}",
         "export async function run(a,b){const x='v'||'fallback';await a;return a;}",

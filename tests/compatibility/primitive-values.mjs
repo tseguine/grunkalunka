@@ -9,6 +9,10 @@ const wrap = (body, ts) => ts
   ? `export function run(a:number,b:number):unknown {${body}}\n`
   : `export function run(a,b) {${body}}\n`;
 const rows = [
+  ['function-identity-selected', 'const f=a?()=>a:()=>b;return f===f;'],
+  ['function-identity-and', 'const f=()=>a;const g=()=>b;return (f&&g)===f;'],
+  ['function-identity-or', 'const f=()=>a;const g=()=>b;return (f||g)===f;'],
+  ['function-identity-nullish', 'const f=()=>a;const g=()=>b;return (f??g)===f;'],
   ['runtime-extra-selected','const f=a?(()=>null):(()=>false);return f(a,(a=b,null));'],
   ['runtime-extra-snapshot','let f=x=>x?null:b;return f(a,(f=x=>undefined,a=b,null));'],
   ['runtime-extra-callback','const invoke=fn=>fn(a,b);return invoke(x=>x?null:b);'],

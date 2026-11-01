@@ -76,7 +76,6 @@ fn typeof_keeps_global_tdz_and_unrepresented_operand_boundaries() {
         "export function run(a,b){return typeof new TypeError()==='object'?a:b;}",
         "function f(x){return missing(x);}export function run(a,b){return typeof f==='function'?a:b;}",
         "export function run(a,b){return typeof Promise.resolve(a)==='object'?a:b;}",
-        "export function run(a,b){return typeof(a?()=>a:b)==='function'?a:b;}",
         "export function run(a,b){const kind=typeof a;return kind;}",
         "export async function run(a,b){const kind=typeof a;await b;return kind==='number'?a:b;}",
     ] {

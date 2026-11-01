@@ -713,6 +713,41 @@ impl Lowering<'_, '_> {
                 None
             };
             if let Some(mut closure) = closure {
+                if self.managed_kinds.identity_bodies.contains(&closure.arrow)
+                    || identifier
+                        .symbol_id
+                        .get()
+                        .is_some_and(|s| self.managed_kinds.identity_symbols.contains(&s))
+                {
+                    let initializer = local.init.as_ref().expect("closure initializer");
+                    let arity =
+                        self.arrow_signature(self.arrow(closure.arrow))
+                            .ok_or_else(|| {
+                                unsupported(
+                                    initializer,
+                                    "function value requires a known signature",
+                                )
+                            })?;
+                    let value = self.materialize_closure(closure, region, initializer, arity)?;
+                    let slot = SlotId(self.slots.len());
+                    self.slots.push(Slot {
+                        ty: Type::Closure(arity),
+                        owner: region.id,
+                        mutable,
+                        parameter: false,
+                        span: local.span(),
+                    });
+                    Self::push(region, local, Op::Initialize { slot, value });
+                    self.bindings.push(NumericBinding {
+                        symbol: identifier
+                            .symbol_id
+                            .get()
+                            .ok_or("missing function binding")?,
+                        slot,
+                        mutable,
+                    });
+                    continue;
+                }
                 // An alias reuses an already validated source body and its cost.
                 if closure.symbol.is_none() {
                     if !closure.checked {

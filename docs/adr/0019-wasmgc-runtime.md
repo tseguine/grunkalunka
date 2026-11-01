@@ -414,9 +414,30 @@ collector or async-frame migration is introduced.
 Emitted-IR/native-JS/Node tests cover identity, containers, snapshots and typed
 calls. A generated source function survives copying collection after its defining
 call returns; a separate shared-fragment fixture retains a boxed-function cycle.
-Source function storage, generic stored-function calls and declaration-binding
-identity still require explicit lowering work. This is a backend capability,
-not a claim that those source constructs have been implemented.
+The source increment below connects this capability to known function storage.
+Generic stored-function calls and declaration-binding identity remain follow-ups.
+
+## Source function storage and creation identity
+
+Known typed source closures now box into object/array properties using that same
+function reference. The constructor graph propagates identity demand through
+aliases and known calls. Observed const bindings allocate once at definition;
+unobserved primitive closures keep static specialization. Factory metadata that
+already evaluated prefix effects is reused, rather than executing the initializer
+again. Existing typed calls and Number results retain their conventions.
+
+Materializing on every read would split one binding's identity. Lazy per-read
+caching would require branch/activation-aware storage and could move creation
+effects. Eager materialization of observed bindings fits existing typed cells and
+the engine's tracing graph without a new IR operation, public ABI or dependency.
+
+Native-JS/Node-Wasm/Wasmtime source tests cover identity, mixed storage, factories,
+callbacks, snapshots and cycles. A test-only root retains the actual generated
+carrier across copying collection after source calls return, with a cleared-root
+control. Direct for-let header captures newly exposed by identity storage reject
+pending #334; body-local snapshots remain supported. Opaque stored calls, general
+changing-kind inference, declaration identities and suspended GC frames remain
+explicit follow-ups.
 
 ## Summary
 

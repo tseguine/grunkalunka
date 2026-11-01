@@ -1157,7 +1157,7 @@ fn unsupported_runtime_function_kinds_and_profiles_remain_explicit() {
         let source = format!("export function run(a,b){{{body}}}");
         assert!(compile(&source, false).is_err(), "{source}");
     }
-    for expression in ["f", "f===f", "+f", "f+1"] {
+    for expression in ["f", "+f", "f+1"] {
         let source =
             format!("export function run(a,b){{const f=a?()=>a:()=>b;return {expression};}}");
         assert!(compile_value(&source, false).is_err(), "{source}");
@@ -2471,13 +2471,21 @@ fn logical_function_results_reject_mixed_signatures_kinds_and_host_transport() {
             format!("const f=()=>a;const h=b{operator}f;return h();"),
             format!("const f=()=>a;const g=()=>b;return f{operator}g;"),
             format!("const f=()=>a;const g=()=>b;return +(f{operator}g);"),
-            format!("const f=()=>a;const g=()=>b;return (f{operator}g)===f;"),
         ] {
             let source = format!("export function run(a,b){{{body}}}");
             for typescript in [false, true] {
                 assert!(compile(&source, typescript).is_err(), "{source}");
                 assert!(compile_value(&source, typescript).is_err(), "{source}");
             }
+        }
+        let source = format!(
+            "export function run(a,b){{const f=()=>a;const g=()=>b;return (f{operator}g)===f;}}"
+        );
+        for typescript in [false, true] {
+            assert!(
+                compile(&source, typescript).is_err(),
+                "numeric exports cannot return Boolean"
+            );
         }
     }
 }
@@ -2558,7 +2566,6 @@ fn function_negation_keeps_primitive_boolean_results_and_numeric_boundaries() {
     for body in [
         "const f=a?()=>a:()=>b;return +f;",
         "const f=a?()=>a:()=>b;return f+1;",
-        "const f=a?()=>a:()=>b;return f===f;",
         "const f=a?()=>a:()=>b;return f;",
         "const f=a?()=>a:()=>b;return f&&b;",
         "const f=a?()=>a:()=>b;return f||b;",

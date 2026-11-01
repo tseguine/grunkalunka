@@ -2,6 +2,25 @@ use grunkalunka_compiler::{compile, compile_value};
 use grunkalunka_runtime::{NumericInstance, Value, ValueInstance};
 
 #[test]
+fn function_identity_comparisons_keep_primitive_boolean_exports() {
+    let mut bodies = vec!["const f=a?()=>a:()=>b;return f===f;".to_owned()];
+    for operator in ["&&", "||", "??"] {
+        bodies.push(format!(
+            "const f=()=>a;const g=()=>b;return (f{operator}g)===f;"
+        ));
+    }
+    compare_primitive_closure_programs(&bodies.iter().map(String::as_str).collect::<Vec<_>>());
+    for body in bodies {
+        for ts in [false, true] {
+            assert!(
+                compile(&format!("export function run(a,b){{{body}}}"), ts).is_err(),
+                "numeric exports cannot return Boolean"
+            );
+        }
+    }
+}
+
+#[test]
 fn known_local_results_follow_primitive_inputs() {
     compare_primitive_closure_programs(&[
         "const f=x=>x;return f(null);",

@@ -91,7 +91,6 @@ fn managed_result_boundaries_reject_unsupported_uses_in_unused_bodies_too() {
         "export function run(a,b){const f=()=>({});return f();}",
         "export function run(a,b){const f=()=>({});return f()+a;}",
         "export function run(a,b){const f=()=>({x:Symbol()});return a;}",
-        "export function run(a,b){const f=()=>({x:()=>a});return a;}",
         "export function run(a,b){const f=()=>({x:a});return f()[b];}",
         "export function run(a,b){const f=()=>({});return f().toString();}",
         "export async function run(a,b){let f=()=>({x:a});await 0;return f().x===a?a:b;}",

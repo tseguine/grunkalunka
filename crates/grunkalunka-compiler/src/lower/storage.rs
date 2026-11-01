@@ -836,7 +836,7 @@ pub(crate) fn general_mutable_bindings(
         }
         frontier = next;
     }
-    let managed = managed_calls::closure_kinds(managed_calls::ClosureFlow {
+    let mut managed = managed_calls::closure_kinds(managed_calls::ClosureFlow {
         semantic,
         functions,
         definitions: &definitions,
@@ -846,6 +846,7 @@ pub(crate) fn general_mutable_bindings(
         arrows: &arrows,
         calls: &managed_call_targets,
     });
+    managed_calls::closure_identities(&mut managed, &returns, &managed_call_targets);
     // A candidate stays Number exactly when its initial value and every plain/logical RHS write
     // have Number shape and all symbol dependencies stay Number. Start with the
     // greatest candidate set, then propagate removals through reverse edges once.
