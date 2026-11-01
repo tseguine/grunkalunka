@@ -268,6 +268,8 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::ir::{Op, SlotId};
+
     #[test]
     fn nested_for_statements_keep_small_stack_and_generated_region_budget() {
         for (depth, admitted) in [(1, true), (8, true), (16, true), (65, false)] {
