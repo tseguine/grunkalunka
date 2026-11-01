@@ -190,7 +190,7 @@ impl Lowering<'_, '_> {
     pub(super) fn resume_expression<'n, 'a>(
         &mut self,
         frame: Frame<'n, 'a>,
-        mut output: Region,
+        output: Region,
         value: Option<ValueId>,
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
