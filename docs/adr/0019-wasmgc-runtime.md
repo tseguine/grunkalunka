@@ -501,6 +501,24 @@ tests cover identity and typed calls. Nested declaration environments, async
 declaration identities, opaque stored calls and GC coroutine frames remain outside
 this increment.
 
+## Recovering typed container receivers
+
+Boxing preserves a GC reference but erases the IR receiver type. Checked
+`ManagedToObject` / `ManagedToArray` operations recover that same nonnull nominal
+carrier, validating both its language object tag and its concrete ordinary-object
+or array type. Both containers share the language tag; a tag-only projection
+would confuse distinct property-storage layouts. Copying into another container
+would break identity and mutation, while weakening all typed property operations
+to accept arbitrary boxed values would conflate receiver admission with storage.
+
+The leaf projections retain the existing typed operations, specialized primitive
+paths, GC layouts and synchronous call frames. Wrong-kind internal traps do not
+supply JS TypeError completions. Source receiver admission and reference-aware
+coroutine frames remain independent follow-ups. Maintained emitted-IR/native-JS/
+Node tests and exact-artifact Wasmtime replay cover nested storage, snapshots,
+mutation, generated call/capture composition, wrong kinds and malformed payloads;
+existing modules without the new operations retain their previous artifacts.
+
 ## Managed callback input provenance
 
 Module helper signatures must be available before checked callback signatures, so

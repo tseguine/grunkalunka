@@ -315,6 +315,19 @@ impl Emitter<'_> {
                 self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
                 self.set(*result);
             }
+            Op::ManagedToObject { result, input } | Op::ManagedToArray { result, input } => {
+                self.get(*input);
+                self.output
+                    .push_str("struct.get $gc_value 0\ni32.const 4\ni32.ne\nif unreachable end\n");
+                self.get(*input);
+                self.output
+                    .push_str(if matches!(operation.kind, Op::ManagedToArray { .. }) {
+                        "struct.get $gc_value 2\nref.cast (ref $gc_array)\n"
+                    } else {
+                        "struct.get $gc_value 2\nref.cast (ref $gc_object)\n"
+                    });
+                self.set(*result);
+            }
             Op::ManagedToClosure { result, input } => {
                 let Type::Closure(signature) = self.function.values[result.0] else {
                     unreachable!("verified function projection result");

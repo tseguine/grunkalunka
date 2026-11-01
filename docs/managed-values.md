@@ -383,6 +383,31 @@ checks a cleared root. Neither test claims a public reference ABI or reclamation
 timing. The source increment below connects known function values to containers;
 arbitrary calls through stored values remain separate work.
 
+## Checked container projections in the IR
+
+`ManagedToObject` and `ManagedToArray` recover the same ordinary-object or array
+reference from a boxed value. The verifier requires a visible `ManagedValue`
+input and the exact typed result. Both carriers use language tag 4; the emitter
+therefore checks that tag **and** casts to the matching nonnull `$gc_object` or
+`$gc_array` payload. A tag alone cannot distinguish their different storage.
+Reboxing preserves identity, and typed property writes, reads and array length
+operations continue to use the original container. There is no new allocation or
+layout, and numeric-only artifacts do not acquire a GC dependency.
+
+Wrong kinds, wrong carriers and null payloads trap at this internal boundary.
+This does not implement JS TypeError completions or authorize unknown source
+receivers. Source admission remains a separate step; these operations supply the
+backend bridge for recovering proven receivers after general-value property
+reads. GC references in suspended async frames still require their own work.
+
+Maintained emitted-IR/native-JS/Node tests cover nested object/array storage,
+saved children after replacement, identity and mutation, sparse array lengths,
+and projections at actual generated helper/closure receiver boundaries. Negative
+tests distinguish valid language values of the wrong kind from deliberately
+malformed tag/payload controls. Exact WAT/Wasm and oracle expressions can be
+retained with `GRUNKALUNKA_IR_TEST_ARTIFACTS` for Wasmtime replay. The tests retain
+2 MiB native-stack traversal and explicit numeric async-frame rejection.
+
 ## Checked function projection in the IR
 
 `ManagedToClosure` projects a boxed managed value to a checked synchronous
