@@ -17,19 +17,7 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
-        enum Next<'n, 'a> {
-            Loop {
-                source: LoopNode<'n, 'a>,
-                output: Region,
-                depth: usize,
-                charged: bool,
-            },
-            Statement {
-                source: &'n Statement<'a>,
-                output: Region,
-                depth: usize,
-            },
-        }
+        type Next<'n, 'a> = source_control::StatementTask<'n, 'a, LoopNode<'n, 'a>>;
 
         enum Kind<'n, 'a> {
             While {
@@ -54,15 +42,10 @@ impl Lowering<'_, '_> {
         // while scheduling nested loop bodies without native recursion.
         let original_depth = self.statement_depth;
         let original_loop = self.in_loop_body;
-        let root_output = Region {
-            id: region.id,
-            span: region.span,
-            operations: std::mem::take(&mut region.operations),
-            exit: std::mem::replace(&mut region.exit, Exit::Fallthrough),
-        };
+        let root_output = Self::take_cursor_region(region);
         let result = (|| {
             let mut pending: Vec<Frame<'n, 'a>> = Vec::new();
-            let mut next = Some(Next::Loop {
+            let mut next = Some(Next::Enter {
                 source: root,
                 output: root_output,
                 depth,
@@ -73,7 +56,7 @@ impl Lowering<'_, '_> {
             loop {
                 if let Some(task) = next.take() {
                     match task {
-                        Next::Loop {
+                        Next::Enter {
                             source,
                             output,
                             depth,
@@ -85,16 +68,7 @@ impl Lowering<'_, '_> {
                                     LoopNode::While(node) => node.span(),
                                     LoopNode::DoWhile(node) => node.span(),
                                 };
-                                if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
-                                    return Err(unsupported(
-                                        &span,
-                                        "block-arrow expansion exceeds 128 nested regions",
-                                    ));
-                                }
-                                if depth > 64 {
-                                    return Err(unsupported(&span, "statement nesting exceeds 64"));
-                                }
-                                self.charge_statement(&span)?;
+                                self.admit_source_statement(&span, depth)?;
                             }
 
                             let old_loop = self.in_loop_body;
@@ -148,7 +122,7 @@ impl Lowering<'_, '_> {
                             depth,
                         } => match source {
                             Statement::WhileStatement(statement) => {
-                                next = Some(Next::Loop {
+                                next = Some(Next::Enter {
                                     source: LoopNode::While(statement),
                                     output,
                                     depth,
@@ -156,7 +130,7 @@ impl Lowering<'_, '_> {
                                 });
                             }
                             Statement::DoWhileStatement(statement) => {
-                                next = Some(Next::Loop {
+                                next = Some(Next::Enter {
                                     source: LoopNode::DoWhile(statement),
                                     output,
                                     depth,
