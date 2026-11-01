@@ -20,6 +20,7 @@ pub(super) enum ControlNode<'n, 'a> {
     /// A lexical statement sequence is a traversal boundary, not a source node.
     Sequence(&'n [Statement<'a>]),
     TryCatch(&'n TryStatement<'a>),
+    TryFinally(&'n TryStatement<'a>),
 }
 
 impl<'n, 'a> ControlNode<'n, 'a> {
@@ -30,8 +31,12 @@ impl<'n, 'a> ControlNode<'n, 'a> {
             Statement::DoWhileStatement(statement) => Some(Self::DoWhile(statement)),
             Statement::ForStatement(statement) => Some(Self::For(statement)),
             Statement::BlockStatement(statement) => Some(Self::Block(statement)),
-            Statement::TryStatement(statement) if statement.finalizer.is_none() => {
-                Some(Self::TryCatch(statement))
+            Statement::TryStatement(statement) => {
+                Some(if statement.finalizer.is_some() {
+                    Self::TryFinally(statement)
+                } else {
+                    Self::TryCatch(statement)
+                })
             }
             _ => None,
         }
@@ -101,6 +106,22 @@ enum Frame<'n, 'a> {
         body_completion: Completion,
         reason: ValueId,
     },
+    TryFinallyBody {
+        source: &'n TryStatement<'a>,
+        output: Region,
+        depth: usize,
+        visible: usize,
+        outer_type: Type,
+    },
+    TryFinallyCleanup {
+        source: &'n TryStatement<'a>,
+        output: Region,
+        depth: usize,
+        visible: usize,
+        outer_type: Type,
+        body: Region,
+        body_completion: Completion,
+    },
 }
 
 impl Frame<'_, '_> {
@@ -113,7 +134,9 @@ impl Frame<'_, '_> {
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
             | Self::TryCatchBody { depth, .. }
-            | Self::TryCatchHandler { depth, .. } => *depth,
+            | Self::TryCatchHandler { depth, .. }
+            | Self::TryFinallyBody { depth, .. }
+            | Self::TryFinallyCleanup { depth, .. } => *depth,
         }
     }
 }
@@ -132,6 +155,7 @@ impl Lowering<'_, '_> {
         // nested control node is charged exactly once when its Enter runs.
         let original_depth = self.statement_depth;
         let original_loop = self.in_loop_body;
+        let original_return_type = self.return_type;
         let root_output = Self::take_cursor_region(region);
         let result = (|| {
             let mut pending = Vec::<Frame<'n, 'a>>::new();
@@ -174,10 +198,55 @@ impl Lowering<'_, '_> {
                                     ControlNode::TryCatch(node) => {
                                         self.admit_source_statement(node, depth)?;
                                     }
+                                    ControlNode::TryFinally(node) => {
+                                        self.admit_source_statement(node, depth)?;
+                                    }
                                 }
                             }
 
                             match source {
+                                ControlNode::TryFinally(source) => {
+                                    if !self.allow_await {
+                                        return Err(unsupported(
+                                            source,
+                                            "statement is outside the numeric experiment",
+                                        ));
+                                    }
+                                    let outer_type = self.return_type;
+                                    if !matches!(outer_type, Type::General | Type::AsyncValue) {
+                                        return Err(unsupported(
+                                            source,
+                                            "finally requires an async primitive completion",
+                                        ));
+                                    }
+                                    let visible = self.bindings.len();
+                                    self.return_type = Type::AsyncValue;
+                                    let body = self.region(source.block.as_ref());
+                                    let has_handler = source.handler.is_some();
+                                    if !has_handler {
+                                        self.charge_statement(source.block.as_ref())?;
+                                    }
+                                    pending.push(Frame::TryFinallyBody {
+                                        source,
+                                        output,
+                                        depth,
+                                        visible,
+                                        outer_type,
+                                    });
+                                    next = Some(Next::Enter {
+                                        // Catch and finally have distinct
+                                        // completions. The protected body
+                                        // remains a raw source sequence.
+                                        source: if has_handler {
+                                            ControlNode::TryCatch(source)
+                                        } else {
+                                            ControlNode::Sequence(&source.block.body)
+                                        },
+                                        output: body,
+                                        depth: if has_handler { depth } else { depth + 2 },
+                                        charge: source_control::SourceCharge::Charged,
+                                    });
+                                }
                                 ControlNode::TryCatch(source) => {
                                     if !self.allow_await {
                                         return Err(unsupported(
@@ -420,6 +489,75 @@ impl Lowering<'_, '_> {
 
                 self.statement_depth = frame.depth();
                 match frame {
+                    Frame::TryFinallyBody {
+                        source,
+                        output,
+                        depth,
+                        visible,
+                        outer_type,
+                    } => {
+                        self.bindings.truncate(visible);
+                        let finalizer = source
+                            .finalizer
+                            .as_ref()
+                            .expect("TryFinally has a source finalizer");
+                        let cleanup = self.region(finalizer.as_ref());
+                        self.charge_statement(finalizer.as_ref())?;
+                        pending.push(Frame::TryFinallyCleanup {
+                            source,
+                            output,
+                            depth,
+                            visible,
+                            outer_type,
+                            body: finished_region,
+                            body_completion: completion,
+                        });
+                        next = Some(Next::Enter {
+                            source: ControlNode::Sequence(&finalizer.body),
+                            output: cleanup,
+                            depth: depth + 2,
+                            charge: source_control::SourceCharge::Charged,
+                        });
+                    }
+                    Frame::TryFinallyCleanup {
+                        source,
+                        mut output,
+                        visible,
+                        outer_type,
+                        body,
+                        body_completion,
+                        ..
+                    } => {
+                        self.return_type = outer_type;
+                        self.bindings.truncate(visible);
+                        let returned = self.value(Type::AsyncValue);
+                        let reason =
+                            self.value(self.promise_parameters.finally_type(source.span.start));
+                        let mut continuation = self.region(source);
+                        let result = if outer_type == Type::AsyncValue {
+                            returned
+                        } else {
+                            self.resolve_async_value(
+                                source,
+                                returned,
+                                &mut continuation,
+                            )
+                        };
+                        continuation.exit = Exit::Return(result);
+                        Self::push(
+                            &mut output,
+                            source,
+                            Op::TryFinally {
+                                body,
+                                finalizer: finished_region,
+                                returned,
+                                reason,
+                                continuation: Box::new(continuation),
+                            },
+                        );
+                        completed =
+                            Some((output, body_completion.finalized_by(completion)));
+                    }
                     Frame::TryCatchBody {
                         source,
                         output,
@@ -751,6 +889,7 @@ impl Lowering<'_, '_> {
         })();
         self.statement_depth = original_depth;
         self.in_loop_body = original_loop;
+        self.return_type = original_return_type;
         result
     }
 }
