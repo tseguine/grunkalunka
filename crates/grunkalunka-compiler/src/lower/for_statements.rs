@@ -337,6 +337,36 @@ mod tests {
     }
 
     #[test]
+    fn rebinding_cannot_target_a_parameter_instead_of_the_lexical_header() {
+        let source = "export function run(a,b){let first=()=>a,last=()=>b;for(let i=0;i<3;i++){const make=()=>i;if(i===0)first=make;last=make;}return first()*10+last();}";
+        let mut module = crate::lower_source(source, false).unwrap();
+        crate::ir::verify_module(&module).expect("source-lowered rebinding is valid");
+        let header = module.functions[0]
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| match &mut operation.kind {
+                Op::Block(region) => Some(region),
+                _ => None,
+            })
+            .expect("for-let header block");
+        let renewal = header
+            .operations
+            .iter_mut()
+            .find_map(|operation| match &mut operation.kind {
+                Op::RebindCell { slot, .. } => Some(slot),
+                _ => None,
+            })
+            .expect("captured header rebinding");
+        *renewal = SlotId(0);
+        assert!(
+            crate::ir::verify_module(&module)
+                .unwrap_err()
+                .contains("rebinding requires an initialized mutable lexical cell")
+        );
+    }
+
+    #[test]
     fn for_header_declarations_and_updates_retain_scope_and_effect_order() {
         for body in [
             "let n=0;for(let i=0;i<3;i++)n+=b;return n;",
