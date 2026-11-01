@@ -472,6 +472,11 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   typed local callbacks through [module-identity adapters](managed-values.md#source-module-declaration-values).
   Direct calls retain their fast path; the managed representation can carry
   checked managed inputs/results without treating TS annotations as proofs.
+  Calls through known own object/array fields use the same complete synchronous
+  signatures and preserve the actual field snapshot. The conservative
+  [stored-field contract](managed-values.md#calls-through-known-own-fields)
+  rejects missing, mixed or opaque alternatives rather than inferring callability
+  from a type annotation or one positive function origin.
   Nested declarations/captures and writes to module function bindings remain
   rejected, including writes in dead or unused code. Missing inputs, more than
   1,000 supplied arguments, spread, defaults, rest and optional calls stay outside

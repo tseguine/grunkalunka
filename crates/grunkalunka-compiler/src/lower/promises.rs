@@ -278,6 +278,7 @@ pub(crate) fn parameters(
     semantic: &Semantic<'_>,
     identities: bool,
     functions: &[NumericFunction],
+    stored: &stored_functions::Fields,
 ) -> Inputs {
     let mut named_async: BTreeSet<_> = functions
         .iter()
@@ -360,6 +361,7 @@ pub(crate) fn parameters(
     let named_targets = loop {
         let returns = callbacks::ReturnOrigins {
             semantic,
+            stored,
             targets: &targets,
             arrows: &arrows,
         };
@@ -410,6 +412,7 @@ pub(crate) fn parameters(
     };
     let returns = callbacks::ReturnOrigins {
         semantic,
+        stored,
         targets: &targets,
         arrows: &arrows,
     };

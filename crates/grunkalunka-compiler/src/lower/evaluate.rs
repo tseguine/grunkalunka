@@ -3259,6 +3259,9 @@ impl Lowering<'_, '_> {
                         if schedule_selection(&mut work, node, depth, mode)? {
                             continue;
                         }
+                        if self.schedule_function_member(node, depth, signature, &mut work)? {
+                            continue;
+                        }
                         if let Expression::AssignmentExpression(assignment) = node {
                             if matches!(
                                 assignment.operator,

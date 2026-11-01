@@ -47,8 +47,9 @@ valid synchronous `Closure(signature)`. It preserves the canonical function and
 environment, trapping on a wrong value kind or complete signature. The GC backend
 checks matching module table targets before exposing the typed callee: shared
 argument cells otherwise erase logical parameter types. It leaves ordinary typed
-`ClosureCall`, function storage and layouts unchanged. Source property calls and
-reference-aware coroutine frames require their own lowering work; an internal
+`ClosureCall`, function storage and layouts unchanged. Source calls through known
+uniformly callable own fields now use this projection. Reference-aware coroutine
+frames remain separate work; an internal
 projection trap is not a JS exception outcome. See [managed values](managed-values.md).
 
 ## Modules and direct numeric calls

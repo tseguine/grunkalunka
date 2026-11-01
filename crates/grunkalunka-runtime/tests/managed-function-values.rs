@@ -99,7 +99,6 @@ fn former_function_container_guards_execute_unchanged() {
 #[test]
 fn function_data_keeps_unimplemented_boundaries_explicit() {
     for body in [
-        "const f=()=>a;const o={f};return o.f();",
         "const f=()=>a;const o={f};return f;",
         "const o={f:()=>Symbol()};return a;",
         "const o={f:async()=>{await 0;return a;}};return a;",
@@ -186,48 +185,52 @@ fn rooted_function_carrier(original: &str) -> Vec<u8> {
 #[test]
 fn generated_stored_function_cycles_survive_copying_gc_after_source_returns() {
     use wasmtime::{Collector, Config, Engine, Instance, Module, Store};
-    let source = "export function run(a,b){const o={x:a};const f=()=>o.x===b?1:0;o.f=f;o.self=o;o.x=b;return f();}";
-    common::compare_sources(source, source);
-    let mut config = Config::new();
-    config.consume_fuel(true).collector(Collector::Copying);
-    let engine = Engine::new(&config).unwrap();
-    for ts in [false, true] {
-        let artifact = grunkalunka_compiler::compile(source, ts).unwrap();
-        let module = Module::new(&engine, rooted_function_carrier(&artifact.wat)).unwrap();
-        let mut store = Store::new(&engine, ());
-        store.set_fuel(100_000).unwrap();
-        let instance = Instance::new(&mut store, &module, &[]).unwrap();
-        let run = instance
-            .get_typed_func::<(f64, f64), f64>(&mut store, "run")
-            .unwrap();
-        let read = instance
-            .get_typed_func::<(), f64>(&mut store, "read_saved")
-            .unwrap();
-        let kind = instance
-            .get_typed_func::<(), i32>(&mut store, "saved_kind")
-            .unwrap();
-        let clear = instance
-            .get_typed_func::<(), ()>(&mut store, "clear_saved")
-            .unwrap();
-        for inputs in [
-            (0.0, -0.0),
-            (1.0, 7.0),
-            (f64::NAN, f64::NAN),
-            (f64::INFINITY, f64::NEG_INFINITY),
-        ] {
+    for source in [
+        "export function run(a,b){const o={x:a};const f=()=>o.x===b?1:0;o.f=f;o.self=o;o.x=b;return f();}",
+        "export function run(a,b){const state={x:a};const f=()=>state.x===b?1:0;const o={f};state.o=o;state.self=state;state.x=b;return o.f();}",
+    ] {
+        common::compare_sources(source, source);
+        let mut config = Config::new();
+        config.consume_fuel(true).collector(Collector::Copying);
+        let engine = Engine::new(&config).unwrap();
+        for ts in [false, true] {
+            let artifact = grunkalunka_compiler::compile(source, ts).unwrap();
+            let module = Module::new(&engine, rooted_function_carrier(&artifact.wat)).unwrap();
+            let mut store = Store::new(&engine, ());
             store.set_fuel(100_000).unwrap();
-            let expected = run.call(&mut store, inputs).unwrap();
-            for _ in 0..4 {
+            let instance = Instance::new(&mut store, &module, &[]).unwrap();
+            let run = instance
+                .get_typed_func::<(f64, f64), f64>(&mut store, "run")
+                .unwrap();
+            let read = instance
+                .get_typed_func::<(), f64>(&mut store, "read_saved")
+                .unwrap();
+            let kind = instance
+                .get_typed_func::<(), i32>(&mut store, "saved_kind")
+                .unwrap();
+            let clear = instance
+                .get_typed_func::<(), ()>(&mut store, "clear_saved")
+                .unwrap();
+            for inputs in [
+                (0.0, -0.0),
+                (1.0, 7.0),
+                (f64::NAN, f64::NAN),
+                (f64::INFINITY, f64::NEG_INFINITY),
+            ] {
+                store.set_fuel(100_000).unwrap();
+                let expected = run.call(&mut store, inputs).unwrap();
+                for _ in 0..4 {
+                    store.gc(None).unwrap();
+                    assert_eq!(kind.call(&mut store, ()).unwrap(), 6);
+                    assert_eq!(
+                        read.call(&mut store, ()).unwrap().to_bits(),
+                        expected.to_bits()
+                    );
+                }
+                clear.call(&mut store, ()).unwrap();
                 store.gc(None).unwrap();
-                assert_eq!(kind.call(&mut store, ()).unwrap(), 6);
-                assert_eq!(
-                    read.call(&mut store, ()).unwrap().to_bits(),
-                    expected.to_bits()
-                );
+                assert!(read.call(&mut store, ()).is_err());
             }
-            clear.call(&mut store, ()).unwrap();
-            store.gc(None).unwrap();
-            assert!(read.call(&mut store, ()).is_err());
         }
     }
 }

@@ -463,6 +463,37 @@ impl<'s, 'a> Lowering<'s, 'a> {
                         continue;
                     }
                     match node {
+                        Expression::StaticMemberExpression(_)
+                        | Expression::ComputedMemberExpression(_) => {
+                            let signature =
+                                self.stored.functions(node.node_id()).and_then(|origins| {
+                                    let mut expected = None;
+                                    for origin in origins {
+                                        let next = match origin {
+                                            stored_functions::Origin::Arrow(body) => self
+                                                .arrow_signature_at(
+                                                    self.arrow(*body),
+                                                    calls,
+                                                    &bindings,
+                                                ),
+                                            stored_functions::Origin::Named(symbol) => self
+                                                .functions
+                                                .iter()
+                                                .find(|f| f.symbol == *symbol)
+                                                .and_then(|f| {
+                                                    f.module_value.map(|(_, signature)| signature)
+                                                }),
+                                            _ => None,
+                                        }?;
+                                        if expected.is_some_and(|old| old != next) {
+                                            return None;
+                                        }
+                                        expected = Some(next);
+                                    }
+                                    expected
+                                });
+                            results.push(signature);
+                        }
                         Expression::ParenthesizedExpression(wrapper) => {
                             work.push(Work::Expression {
                                 node: &wrapper.expression,

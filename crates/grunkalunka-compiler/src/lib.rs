@@ -330,9 +330,10 @@ fn lower_source_profile_with_identities(
             module_value: None,
         });
     }
-    lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures);
+    let stored = lower::stored_functions::Fields::collect(&built.semantic, signatures[0].symbol);
+    lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures, &stored);
     let promise_parameters =
-        lower::infer_promise_parameters(&built.semantic, identities, &signatures);
+        lower::infer_promise_parameters(&built.semantic, identities, &signatures, &stored);
     for (index, function) in signatures.iter_mut().enumerate() {
         if function.async_signature.is_some() {
             let parameters = declarations[index]
@@ -359,6 +360,7 @@ fn lower_source_profile_with_identities(
         &signatures,
         &promise_parameters,
         &closure_signatures,
+        &stored,
     )?;
     let mut general_bindings = loop {
         let bindings = lower::general_mutable_bindings(
@@ -367,6 +369,7 @@ fn lower_source_profile_with_identities(
             &callback_parameters,
             &closure_signatures.borrow(),
             &promise_parameters,
+            &stored,
         );
         let mut changed = false;
         for (index, signature) in signatures.iter_mut().enumerate() {
@@ -423,6 +426,7 @@ fn lower_source_profile_with_identities(
             &signatures,
             &promise_parameters,
             &closure_signatures,
+            &stored,
         )?;
     };
     general_bindings
@@ -487,6 +491,7 @@ fn lower_source_profile_with_identities(
         let mut lowering = Lowering {
             return_type: signatures[index].return_type,
             semantic: &built.semantic,
+            stored: &stored,
             functions: &signatures,
             ui_import,
             general_bindings: &general_bindings.storage,

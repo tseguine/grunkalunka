@@ -11,6 +11,7 @@ type Origins = (BTreeSet<SymbolId>, BTreeSet<NodeId>);
 
 pub(super) struct ReturnOrigins<'s, 'n, 'a> {
     pub semantic: &'s Semantic<'a>,
+    pub stored: &'s stored_functions::Fields,
     pub targets: &'s BTreeMap<SymbolId, BTreeSet<NodeId>>,
     pub arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
 }
@@ -97,6 +98,10 @@ impl<'s, 'n, 'a> ReturnOrigins<'s, 'n, 'a> {
                         continue;
                     }
                     match node {
+                        Expression::StaticMemberExpression(_)
+                        | Expression::ComputedMemberExpression(_) => {
+                            results.push(self.stored.origins(node.node_id()));
+                        }
                         Expression::ParenthesizedExpression(wrapper) => {
                             work.push(Work::Expression {
                                 node: &wrapper.expression,
@@ -431,6 +436,7 @@ pub(crate) fn infer_callback_parameters(
     functions: &[NumericFunction],
     promise_parameters: &super::promises::Inputs,
     signatures: &std::cell::RefCell<ir::ClosureSignatures>,
+    stored: &stored_functions::Fields,
 ) -> Result<Parameters, String> {
     let mut aliases: BTreeMap<SymbolId, BTreeSet<SymbolId>> = BTreeMap::new();
     let mut targets: BTreeMap<SymbolId, BTreeSet<NodeId>> = BTreeMap::new();
@@ -507,6 +513,7 @@ pub(crate) fn infer_callback_parameters(
         }
         let returns = ReturnOrigins {
             semantic,
+            stored,
             targets: &targets,
             arrows: &arrows,
         };
@@ -537,6 +544,7 @@ pub(crate) fn infer_callback_parameters(
     // kinds. Block result joins independently compare complete signature IDs.
     let returns = ReturnOrigins {
         semantic,
+        stored,
         targets: &targets,
         arrows: &arrows,
     };
@@ -660,6 +668,7 @@ pub(crate) fn infer_callback_parameters(
         // argument constructors alone must not monomorphize identity arrows.
         let returns = ReturnOrigins {
             semantic,
+            stored,
             targets: &targets,
             arrows: &arrows,
         };
@@ -739,6 +748,7 @@ pub(crate) fn infer_callback_parameters(
     refine_shapes(
         ReturnOrigins {
             semantic,
+            stored,
             targets: &targets,
             arrows: &arrows,
         },
@@ -1021,6 +1031,7 @@ fn refine_shapes<'a>(
                 &working,
                 &signatures.borrow(),
                 promise_parameters,
+                returns.stored,
             );
             demands.clear();
             for call in calls {
@@ -1102,6 +1113,7 @@ fn refine_shapes<'a>(
             &working,
             &signatures.borrow(),
             promise_parameters,
+            returns.stored,
         );
         for call in calls {
             let (sources, _) = origins(invocation::callee(call), semantic);
@@ -1340,6 +1352,7 @@ mod return_origin_stack_tests {
                 let arrows = BTreeMap::new();
                 let returns = ReturnOrigins {
                     semantic: &built.semantic,
+                    stored: &stored_functions::Fields::default(),
                     targets: &targets,
                     arrows: &arrows,
                 };
