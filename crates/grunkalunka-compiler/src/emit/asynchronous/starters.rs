@@ -1,17 +1,6 @@
 //! Callable async entries for synchronous helpers; starting does not await.
 use super::*;
 
-pub(super) fn needed(module: &ir::Module) -> bool {
-    module.functions.iter().skip(1).any(|function| {
-        if ir::is_async_closure(function) {
-            return false;
-        }
-        ir::any_operation(&function.body, &mut |op| {
-            matches!(op, Op::StartAsyncClosure { .. })
-        })
-    })
-}
-
 pub(super) fn emit(output: &mut String, frame: &frames::Frame<'_>, id: usize, entry: usize) {
     // The Wasm call stack retains these values even when the child's prefix
     // calls another synchronous helper which starts a further child.
