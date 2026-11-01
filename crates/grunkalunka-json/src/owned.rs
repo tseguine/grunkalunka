@@ -21,10 +21,8 @@ impl OwnedJson {
     /// one. Mutable Deref is deliberately not exposed: an assignment through
     /// such a reference could invoke ordinary recursive enum destruction.
     pub fn replace(&mut self, value: JsonValue) {
-        self.0
-            .replace(value)
-            .expect("owned JSON value")
-            .drop_iteratively();
+        let old = self.0.replace(value).expect("owned JSON value");
+        old.drop_iteratively();
     }
 
     /// Returns the raw enum for ordinary by-value matching. Ownership then
