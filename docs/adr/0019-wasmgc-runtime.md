@@ -30,6 +30,42 @@ The narrow GC-aware suspension design gate must reconcile the still-**proposed**
 [activation/scheduling ADR 0013](0013-async-job-and-activation-ownership.md);
 nothing here accepts that proposal or changes the selected collector.
 
+## Single-frame managed suspension (2026-11-01)
+
+The existing single-coroutine lowering already keeps its live slots and snapshots
+in persistent instance globals, with no frame spill/restore traffic. Admit
+managed source values in that path using typed nullable WasmGC globals. Clear
+the generated reference globals on terminal success/rejection; a trapped
+invocation remains unusable until host Store teardown. Primitive result/reason
+protocols and modules without managed values keep their previous encoding.
+
+This is a storage increment inside the existing structured IR and scheduler.
+It does not store GC pointers in numeric frame bytes. Named synchronous helpers
+retain reference signatures; immediate async bodies inlined into the same
+physical coroutine frame use the same roots. Traced closure environments and
+multiple reference-bearing coroutine frames still reject before emission.
+
+Alternatives for the wider #356 frontier remain:
+
+- Full GC activation objects can trace parent/environment/value edges directly,
+  but require changing frame links, Promise/control-record addressing and their
+  lifetime rules together.
+- A checked root bridge can retain numeric control records and keep reference
+  lanes in engine-visible storage, but needs bounded root identities, release
+  and stale-resume checks for every physical activation.
+- Existing instance globals are sufficient for one physical coroutine frame.
+  Select this existing path now; do not infer multi-frame sharing from it or
+  introduce a root bridge before its ownership contract is implemented.
+
+The identity domain remains one generated instance. The current host adapters
+create fresh Stores/instances for independent entry invocations; no public
+reference ABI or application-wide shared heap is selected. ADR 0013 remains
+proposed, and #356 remains open for the related-activation integration proof.
+Source/native-JS/Node-Wasm/Wasmtime tests cover identity, aliases, snapshots and
+job order; private production-adapter tests force copying collections while
+genuinely suspended and check terminal root clearing through test-only exports.
+This is not evidence of bounded collection latency or general Promise support.
+
 ## Context
 
 The maintainer selected **WasmGC first** for the compiler's general-JavaScript

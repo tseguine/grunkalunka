@@ -18,6 +18,37 @@ remain useful fast paths, not a complete replacement for dynamic JavaScript
 semantics. [#334](https://github.com/tseguine/grunkalunka/issues/334)
 records a pre-existing loop-header closure mismatch.
 
+## Managed values in a single coroutine frame
+
+Objects, arrays, Strings and boxed property snapshots can survive primitive
+`await` operations when the module uses one physical coroutine frame. The existing
+instance globals persist across resume calls; reference lanes now use nullable
+WasmGC globals with typed null initializers. These are engine-traced roots, not
+numeric handles or pointers stored in linear memory. Named synchronous helpers
+retain their actual reference parameter/result types in an async module.
+
+Aliases, cycles, replacement snapshots, array mutations and the existing
+handler/finalizer/job ordering are preserved. An immediate async call that the
+existing lowerer inlines into the same physical frame can use this path too.
+Success or source rejection clears the generated reference globals after the
+return/throw expression has been evaluated. A trap makes the host invocation
+unusable; dropping its Store releases the remaining roots without guest cleanup.
+
+Maintained native-JS/Node-Wasm/production Wasmtime tests compare values, external
+microtask markers and concurrent independent invocations. Private runtime tests
+force copying collections while actual generated code is suspended, and observe
+terminal root clearing through test-only exports of the generated globals.
+This does not establish collection latency or a public reference ABI.
+
+Modules requiring traced closure environments or multiple reference-bearing
+coroutine frames still reject. Related child activations sharing a managed value
+need a separate frame/root bridge; host entry invocations retain their existing
+fresh Store/instance isolation. Managed await operands, settlements, rejection
+reasons and public reference results are not admitted by this increment.
+[Steering #356](https://github.com/tseguine/grunkalunka/issues/356) remains open.
+Earlier async exclusions below describe their named synchronous increments and
+are superseded only within this single-frame boundary.
+
 ## Logical operations and representation
 
 `ManagedValue` currently carries Undefined, Null, Boolean, Number, String or an
@@ -269,7 +300,8 @@ Uncaptured source cells and computed-value snapshots use traced locals. A cell
 store changes the binding, not an earlier loaded snapshot. The private IR now
 supports traced captured cells and closure environments as described below. Source
 captures now use that storage; async spill migration remains a separate step and
-managed async modules still reject explicitly.
+managed modules needing traced closure or multi-coroutine storage still reject
+explicitly. Single-frame suspension uses the rooted globals described above.
 
 The object/String GC kernel is emitted only for modules using managed kinds and
 appended after source functions. Closure storage types precede closure function

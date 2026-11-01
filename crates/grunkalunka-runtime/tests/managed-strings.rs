@@ -93,13 +93,6 @@ fn unimplemented_string_operations_and_reference_frames_reject_explicitly() {
             assert!(!error.contains("internal IR"), "{js}: {error}");
         }
     }
-    let error = grunkalunka_compiler::compile_async(
-        "export async function run(a,b){const s='x';return s==='x'?a:b;}",
-        false,
-    )
-    .err()
-    .unwrap();
-    assert_eq!(error, "managed values require reference-aware async frames");
     assert!(
         grunkalunka_compiler::compile_value("export function run(a,b){return 'x';}", false)
             .is_err()

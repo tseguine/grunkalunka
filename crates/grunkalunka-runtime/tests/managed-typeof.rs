@@ -166,8 +166,7 @@ fn typeof_comparisons_preserve_primitive_export_kinds() {
 #[test]
 fn typeof_does_not_admit_untraced_async_reference_frames() {
     for source in [
-        "export async function run(a,b){const kind=typeof a;await b;return kind==='number'?a:b;}",
-        "function kind(x){return typeof x==='number'?1:0;}export async function run(a,b){await a;return kind(b)?a+b:a;}",
+        "export async function run(a,b){const kind=typeof a;const f=async x=>{await b;return x;};const p=f(a);await p;return kind==='number'?a:b;}",
     ] {
         for ts in [false, true] {
             let result = grunkalunka_compiler::compile_async(source, ts);

@@ -1273,18 +1273,7 @@ fn emit_function(
             "(local i32)\n"
         });
     }
-    let mut large_literal = false;
-    ir::visit_operations(&function.body, &mut |op| {
-        large_literal |= match op {
-            Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
-            Op::ManagedGetOwn { key, .. }
-            | Op::ManagedSetOwn { key, .. }
-            | Op::ManagedArrayGetOwn { key, .. }
-            | Op::ManagedArraySetOwn { key, .. } => key.len() > MAX_FIXED_TEXT_UNITS,
-            _ => false,
-        };
-    });
-    if large_literal {
+    if needs_literal_scratch(function) {
         emitter
             .output
             .push_str("(local $gc_literal (ref null $gc_key))\n");
@@ -1296,6 +1285,21 @@ fn emit_function(
     // nested void branches whose arms return; it supplies no source semantics.
     emitter.output.push_str("unreachable\n)");
     (emitter.output, emitter.needs_remainder)
+}
+
+fn needs_literal_scratch(function: &ir::Function) -> bool {
+    let mut needed = false;
+    ir::visit_operations(&function.body, &mut |op| {
+        needed |= match op {
+            Op::ManagedString { units, .. } => units.len() > MAX_FIXED_TEXT_UNITS,
+            Op::ManagedGetOwn { key, .. }
+            | Op::ManagedSetOwn { key, .. }
+            | Op::ManagedArrayGetOwn { key, .. }
+            | Op::ManagedArraySetOwn { key, .. } => key.len() > MAX_FIXED_TEXT_UNITS,
+            _ => false,
+        };
+    });
+    needed
 }
 
 #[cfg(test)]

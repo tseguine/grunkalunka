@@ -477,7 +477,7 @@ fn projection_verifier_requires_visible_managed_inputs_and_exact_results() {
 }
 
 #[test]
-fn projections_keep_reference_aware_async_frames_explicitly_required() {
+fn projections_use_reference_globals_in_single_coroutine_frames() {
     for kind in Container::ALL {
         let mut m = module();
         let f = &mut m.functions[0];
@@ -491,10 +491,8 @@ fn projections_keep_reference_aware_async_frames_explicitly_required() {
         let result = value(f, Type::General, |result| Op::Pack { result, input: n });
         f.body.exit = Exit::Return(result);
         verify_async_module(&m).unwrap();
-        assert_eq!(
-            crate::emit::emit_async(&m).unwrap_err(),
-            "managed values require reference-aware async frames"
-        );
+        let wat = crate::emit::emit_async(&m).unwrap();
+        wat::parse_str(wat).unwrap();
     }
 }
 

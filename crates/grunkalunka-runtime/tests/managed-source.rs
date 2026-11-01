@@ -1,4 +1,4 @@
-use grunkalunka_compiler::{compile, compile_async, compile_value};
+use grunkalunka_compiler::{compile, compile_value};
 use grunkalunka_runtime::{Value, ValueInstance};
 
 #[path = "managed/common.rs"]
@@ -138,13 +138,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
     }
     for ts in [false, true] {
         assert!(compile("function get(o){return o.x;}export function run(a,b){const o={x:a};return get(o);}",ts).is_err());
-        let error = compile_async(
-            "export async function run(a,b){const o={x:a};return o.x?a:b;}",
-            ts,
-        )
-        .err()
-        .expect("managed async frames remain unsupported");
-        assert!(error.contains("managed"), "{error}");
     }
 }
 

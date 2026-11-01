@@ -20,6 +20,7 @@ mod graph;
 mod inspection;
 #[cfg(test)]
 mod loop_split_tests;
+mod managed_globals;
 #[cfg(test)]
 mod mixed_split_tests;
 mod promises;
@@ -1079,7 +1080,8 @@ fn jump(output: &mut String, target: usize) {
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     ir::verify_async_module(module)?;
-    if super::module_has_managed(module) || super::gc_closures::needed(module) {
+    let managed = super::module_has_managed(module);
+    if super::gc_closures::needed(module) {
         return Err("managed values require reference-aware async frames".into());
     }
     let Some((function, outlined)) = module.functions.split_first() else {
@@ -1126,6 +1128,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     graph::verify(&split, &entries)?;
     graph::thread_empty_jumps(&mut split, fresh);
     let has_async = entries.iter().any(Option::is_some);
+    if managed && has_async {
+        return Err("managed values require reference-aware async frames".into());
+    }
     let dispatch_targets = dispatch::targets(module);
     let mut types = Vec::new();
     let mut frames = Vec::new();
@@ -1152,9 +1157,8 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             .iter()
             .any(|function| !ir::captured_cells(&function.body).is_empty());
     let mut output = String::from("(module\n");
-    for ty in types {
-        writeln!(output, "(global (mut {ty}) ({ty}.const 0))").unwrap();
-    }
+    let roots = managed_globals::Globals::new(&types);
+    roots.declare(&mut output, &types);
     if has_cells {
         output.push_str(cells::MEMORY);
     }
@@ -1167,7 +1171,17 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     if queued {
         output.push_str(promises::GLOBALS);
     }
-    output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\nblock $invalid\nloop $dispatch\n");
+    output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\n");
+    if frames
+        .iter()
+        .flatten()
+        .any(|frame| super::needs_literal_scratch(frame.emitter.function))
+    {
+        // Construction is atomic within one state. The completed String/key
+        // moves to a traced value global before any suspension can occur.
+        output.push_str("(local $gc_literal (ref null $gc_key))\n");
+    }
+    output.push_str("block $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
     for id in 0..split.states.len() {
         writeln!(output, "block $state{id}").unwrap();
@@ -1371,6 +1385,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Return(value) => {
+                if state.function == 0 {
+                    roots.clear(&mut output);
+                }
                 if queued {
                     promises::complete(&mut output, emitter, value, state.function == 0, false);
                     continue;
@@ -1385,6 +1402,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Reject(value) => {
+                if state.function == 0 {
+                    roots.clear(&mut output);
+                }
                 if queued {
                     promises::complete(&mut output, emitter, value, state.function == 0, true);
                     continue;
@@ -1433,8 +1453,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             let mut header = String::from("(func");
             if function.parameter_count > 0 {
                 header.push_str(" (param");
-                for _ in 0..function.parameter_count {
-                    header.push_str(" f64");
+                for slot in function.slots.iter().take(function.parameter_count) {
+                    header.push(' ');
+                    header.push_str(layout::value(slot.ty).wat);
                 }
                 header.push(')');
             }
@@ -1481,6 +1502,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             output.push_str(promises::RUNTIME);
         }
     }
+    if managed {
+        output.push_str(include_str!("managed.wat"));
+    }
+    roots.finish(&mut output);
     output.push_str(")\n");
     Ok(output)
 }

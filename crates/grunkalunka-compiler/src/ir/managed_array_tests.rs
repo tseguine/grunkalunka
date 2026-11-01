@@ -400,7 +400,7 @@ fn arrays_reject_wrong_types_and_unvalidated_length_writes() {
 }
 
 #[test]
-fn arrays_use_traced_capture_cells_but_still_reject_async_frames() {
+fn arrays_use_traced_capture_cells_and_single_coroutine_globals() {
     let mut m = module();
     let f = &mut m.functions[0];
     let array = value(f, Type::ManagedArray, |result| Op::ManagedArrayNew {
@@ -448,6 +448,5 @@ fn arrays_use_traced_capture_cells_but_still_reject_async_frames() {
     });
     f.body.exit = Exit::Return(general);
     verify_async_module(&m).unwrap();
-    let error = crate::emit::emit_async(&m).unwrap_err();
-    assert!(error.contains("managed"), "{error}");
+    wat::parse_str(crate::emit::emit_async(&m).unwrap()).unwrap();
 }

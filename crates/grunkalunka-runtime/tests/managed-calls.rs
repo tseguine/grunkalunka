@@ -104,9 +104,6 @@ fn helper_source_queries_remain_bounded_on_a_small_native_stack() {
 
 #[test]
 fn helpers_keep_unimplemented_reference_boundaries_explicit() {
-    let error=grunkalunka_compiler::compile_async("function identity(o){return o;} export async function run(a,b){const o={};return identity(o)===o?a:b;}",false).err().unwrap();
-    assert_eq!(error, "managed values require reference-aware async frames");
-
     for source in [
         "function read(o){return o.x;} export function run(a,b){read({});return read(a);}",
         "function identity(o){return o;} export function run(a,b){return identity({});}",
