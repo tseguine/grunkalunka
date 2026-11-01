@@ -1,6 +1,7 @@
 //! Canonical synchronous function identities inside the managed value domain.
 use super::managed_value_tests::{effect, value};
 use super::*;
+mod projection;
 
 fn fixture(capture: bool) -> (Module, ValueId) {
     let mut module = crate::lower_source("export function run(a,b){return a;}", false).unwrap();

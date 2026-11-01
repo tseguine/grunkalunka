@@ -494,6 +494,18 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    // Checked projection; preserves identity and traps on a wrong kind/signature.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Backend bridge; source property-call lowering follows separately"
+        )
+    )]
+    ManagedToClosure {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedGetOwn {
         result: ValueId,
         object: ValueId,
@@ -1189,6 +1201,25 @@ impl Verifier<'_> {
             Op::ManagedFromObject { result, input } => {
                 self.value(*input, Type::ManagedObject, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedToClosure { result, input } => {
+                let Some(Type::Closure(signature)) = self.function.values.get(result.0).copied()
+                else {
+                    return Err(invalid(
+                        span,
+                        "managed function projection requires a function result",
+                    ));
+                };
+                if self.closure_signatures.is_async(signature)
+                    || !self.closure_signatures.is_returned_function(signature)
+                {
+                    return Err(invalid(
+                        span,
+                        "managed function projection requires a known synchronous signature",
+                    ));
+                }
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::Closure(signature), visible, span)?;
             }
             Op::ManagedFromClosure { result, input } => {
                 let Some(Type::Closure(signature)) = self.function.values.get(input.0).copied()

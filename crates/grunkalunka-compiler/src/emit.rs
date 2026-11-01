@@ -315,6 +315,14 @@ impl Emitter<'_> {
                 self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
                 self.set(*result);
             }
+            Op::ManagedToClosure { result, input } => {
+                let Type::Closure(signature) = self.function.values[result.0] else {
+                    unreachable!("verified function projection result");
+                };
+                self.get(*input);
+                writeln!(self.output, "call $gc_to_function{signature}").unwrap();
+                self.set(*result);
+            }
             Op::ManagedFromClosure { result, input } => {
                 self.output.push_str("i32.const 6\nf64.const 0\n");
                 self.get(*input);
@@ -1091,6 +1099,9 @@ fn emit_verified(
     }
     if has_closures && !gc_closures {
         output.push_str(closures::FRAME_ALLOCATOR);
+    }
+    if gc_closures {
+        output.push_str(&gc_closures::projection_helpers(module));
     }
     if managed {
         output.push_str(include_str!("emit/managed.wat"));

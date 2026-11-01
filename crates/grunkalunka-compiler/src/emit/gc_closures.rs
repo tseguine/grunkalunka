@@ -12,8 +12,12 @@ pub(super) fn needed(module: &ir::Module) -> bool {
             .any(|ty| matches!(ty, Type::ManagedValue | Type::Closure(_)))
         {
             ir::visit_operations(&f.body, &mut |op| {
-                function_identity |=
-                    matches!(op, Op::ManagedFromClosure { .. } | Op::ModuleClosure { .. });
+                function_identity |= matches!(
+                    op,
+                    Op::ManagedFromClosure { .. }
+                        | Op::ManagedToClosure { .. }
+                        | Op::ModuleClosure { .. }
+                );
             });
         }
         function_identity
@@ -49,6 +53,46 @@ pub(super) fn module_globals(module: &ir::Module) -> String {
     let mut output = String::new();
     for function in functions {
         writeln!(output,"(global $gc_module_function{function} (ref $gc_function) (struct.new $gc_function (i32.const {function}) (ref.null $gc_frame)))").unwrap();
+    }
+    output
+}
+
+// GC argument frames erase logical types. Check the complete signature before
+// exposing a typed callee; a core-Wasm call_indirect type check is insufficient.
+pub(super) fn projection_helpers(module: &ir::Module) -> String {
+    let mut signatures = std::collections::BTreeSet::new();
+    for function in &module.functions {
+        ir::visit_operations(&function.body, &mut |op| {
+            if let Op::ManagedToClosure { result, .. } = op
+                && let Type::Closure(signature) = function.values[result.0]
+            {
+                signatures.insert(signature);
+            }
+        });
+    }
+    let mut output = String::new();
+    for signature in signatures {
+        writeln!(output,"(func $gc_to_function{signature} (param $value (ref null $gc_value)) (result (ref $gc_function)) (local $function (ref null $gc_function))").unwrap();
+        output.push_str("local.get $value\nstruct.get $gc_value 0\ni32.const 6\ni32.ne\nif unreachable end\nlocal.get $value\nstruct.get $gc_value 2\nref.cast (ref $gc_function)\nlocal.set $function\ni32.const 0\n");
+        for (index, target) in module.functions.iter().enumerate() {
+            if ir::closure_environment(target).is_none() || ir::is_async_closure(target) {
+                continue;
+            }
+            let parameters = target
+                .slots
+                .iter()
+                .take(target.parameter_count)
+                .map(|slot| slot.ty)
+                .collect::<Vec<_>>();
+            if module
+                .closure_signatures
+                .id(&parameters, target.return_type)
+                == Some(signature)
+            {
+                writeln!(output,"local.get $function\nstruct.get $gc_function 0\ni32.const {index}\ni32.eq\ni32.or").unwrap();
+            }
+        }
+        output.push_str("i32.eqz\nif unreachable end\nlocal.get $function\nref.as_non_null)\n");
     }
     output
 }
