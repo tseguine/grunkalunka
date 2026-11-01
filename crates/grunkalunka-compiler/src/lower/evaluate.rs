@@ -5,110 +5,11 @@ use super::*;
 mod managed;
 mod own_keys;
 mod tasks;
+mod values;
 use tasks::Work;
+pub(super) use values::Mode;
+use values::Value;
 
-#[derive(Clone, Copy)]
-pub(super) enum Mode {
-    Number,
-    Predicate,
-    Discard,
-    // Use the common depth/aggregate guards before splitting a discarded logical.
-    DiscardLogical,
-    Arithmetic,
-    Numeric,
-    General,
-    Managed,
-    Object,
-    Array,
-    Function(usize),
-    Promise,
-    Pending,
-    Settled,
-    AsyncReturn,
-    AsyncValue,
-    Awaited(usize),
-}
-
-impl Mode {
-    pub(super) fn managed(ty: Type) -> Self {
-        match ty {
-            Type::ManagedObject => Self::Object,
-            Type::ManagedArray => Self::Array,
-            Type::ManagedValue => Self::Managed,
-            _ => unreachable!("managed result mode"),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum Value {
-    Number(ValueId),
-    Predicate(ValueId),
-    General(ValueId),
-    Managed(ValueId),
-    Object(ValueId),
-    Array(ValueId),
-    Selection(ValueId),
-    Function(ValueId),
-    Promise(ValueId),
-    Pending(ValueId),
-    Settled(ValueId),
-}
-impl Value {
-    fn managed(id: ValueId, ty: Type) -> Self {
-        match ty {
-            Type::ManagedObject => Self::Object(id),
-            Type::ManagedArray => Self::Array(id),
-            Type::ManagedValue => Self::Managed(id),
-            _ => unreachable!("managed result value"),
-        }
-    }
-    fn id(self) -> ValueId {
-        match self {
-            Self::Number(id)
-            | Self::Predicate(id)
-            | Self::General(id)
-            | Self::Managed(id)
-            | Self::Object(id)
-            | Self::Array(id)
-            | Self::Selection(id)
-            | Self::Function(id)
-            | Self::Pending(id)
-            | Self::Promise(id)
-            | Self::Settled(id) => id,
-        }
-    }
-    fn general(self) -> ValueId {
-        let Self::General(id) = self else {
-            unreachable!("General continuation")
-        };
-        id
-    }
-    fn promise(self) -> ValueId {
-        let Self::Promise(id) = self else {
-            unreachable!("Promise continuation")
-        };
-        id
-    }
-    fn pending(self) -> ValueId {
-        let Self::Pending(id) = self else {
-            unreachable!("pending Promise continuation")
-        };
-        id
-    }
-    fn number(self) -> ValueId {
-        let Self::Number(id) = self else {
-            unreachable!("Number continuation")
-        };
-        id
-    }
-    fn predicate(self) -> ValueId {
-        let Self::Predicate(id) = self else {
-            unreachable!("Predicate continuation")
-        };
-        id
-    }
-}
 
 struct LogicalLeft<'e, 'a> {
     node: &'e Expression<'a>,
