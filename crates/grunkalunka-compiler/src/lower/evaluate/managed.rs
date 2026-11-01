@@ -343,6 +343,14 @@ impl Lowering<'_, '_> {
                                 .filter(|t| t.is_managed())
                                 .or_else(|| {
                                     self.managed_kinds.calls.get(&call.node_id.get()).copied()
+                                })
+                                .or_else(|| {
+                                    self.runtime_closure_callee(
+                                        invocation::callee(call),
+                                        invocation::depth(call, depth + 1),
+                                    )
+                                    .and_then(|(_, id)| self.closure_signatures.borrow().result(id))
+                                    .filter(|ty| ty.is_managed())
                                 }),
                         ),
                         Expression::Identifier(i) => values.push(
@@ -360,6 +368,10 @@ impl Lowering<'_, '_> {
                                                 .contains(&binding.symbol))
                                         .then_some(Type::ManagedValue)
                                     }
+                                })
+                                .or_else(|| {
+                                    self.named_module_function(node, depth)
+                                        .map(|_| Type::ManagedValue)
                                 }),
                         ),
                         Expression::StaticMemberExpression(m) if !m.optional => {
@@ -564,7 +576,14 @@ impl Lowering<'_, '_> {
         if matches!(mode, Mode::Object | Mode::Array | Mode::Managed)
             && let Expression::CallExpression(call) = node
             && managed_calls::function(call, self.semantic, self.functions).is_none()
-            && self.managed_kinds.calls.contains_key(&call.node_id.get())
+            && (self.managed_kinds.calls.contains_key(&call.node_id.get())
+                || self
+                    .runtime_closure_callee(
+                        invocation::callee(call),
+                        invocation::depth(call, depth + 1),
+                    )
+                    .and_then(|(_, id)| self.closure_signatures.borrow().result(id))
+                    .is_some_and(Type::is_managed))
         {
             return Ok(false);
         }

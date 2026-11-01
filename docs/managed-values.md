@@ -540,5 +540,34 @@ IR and a 2 MiB native stack. A test-only observer retains an actual generated
 module-function read across separate call activations. A runtime fixture uses the
 production GC type fragment to compare per-instance identities against native
 JS/Node and to force Wasmtime copying collection between typed calls. These are backend tests;
-connecting source declarations through private adapters remains a separate unit.
-No source construct, public reference export or suspended GC frame is admitted here.
+source declaration integration is described below. The backend tests alone do not
+establish source compatibility, a public reference export or suspended GC frames.
+
+## Source module declaration values
+
+Top-level synchronous function declarations, including `run`, can be read as typed
+function values. A source-reference scan plans one capture-free adapter per
+declaration used as a value; plain direct calls retain their existing ABI and
+Number specialization. The adapter forwards the checked Number, General or managed
+parameters/result to the original body. Its `ModuleClosure` identity belongs to
+the module instance, so aliases, reads in different bodies, object/array storage,
+and typed local callbacks refer to the same declaration. Distinct declarations and
+fresh arrow creations remain distinct. Source order and erased TS annotations do
+not change binding identity.
+
+Representation planning follows declaration aliases when gathering managed input
+facts and carries checked callback result lanes into the existing finite flow
+planner. It does not evaluate source expressions or choose a runtime call target.
+Lowering checks the entire signature and preserves argument/receiver effects and
+callee snapshots. Managed property values keep their existing explicit consumer
+rules; transporting a function does not prove an arbitrary property is numeric.
+
+`module-declaration-values` executes source programs against native JS, Node-Wasm
+and Wasmtime, with primitive-profile cases also in the canonical primitive replay.
+It exercises hoisting, aliases, identity, callbacks, managed input/results, cycles,
+annotation erasure, zero/multiple parameters and a 2 MiB native stack. Nested or
+asynchronous declaration identities, writes to module function bindings, calls
+through opaque stored carriers and suspended GC references remain follow-ups.
+The 1,000-parameter frame control uses an explicit two-million-fuel engine budget;
+it does not increase the production per-call budget or promise that every admitted
+wide program fits that smaller budget.

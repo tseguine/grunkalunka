@@ -300,10 +300,25 @@ pub(super) fn named_async_targets(
     definitions: &[(SymbolId, &Expression<'_>)],
     calls: &[&CallExpression<'_>],
 ) -> BTreeMap<SymbolId, BTreeSet<SymbolId>> {
-    let mut named: BTreeMap<_, _> = functions
-        .iter()
-        .filter(|function| function.async_signature.is_some())
-        .map(|function| (function.symbol, BTreeSet::from([function.symbol])))
+    named_targets(
+        returns,
+        functions
+            .iter()
+            .filter(|function| function.async_signature.is_some())
+            .map(|function| function.symbol),
+        definitions,
+        calls,
+    )
+}
+
+pub(super) fn named_targets(
+    returns: &ReturnOrigins<'_, '_, '_>,
+    seeds: impl Iterator<Item = SymbolId>,
+    definitions: &[(SymbolId, &Expression<'_>)],
+    calls: &[&CallExpression<'_>],
+) -> BTreeMap<SymbolId, BTreeSet<SymbolId>> {
+    let mut named: BTreeMap<_, _> = seeds
+        .map(|symbol| (symbol, BTreeSet::from([symbol])))
         .collect();
     while !named.is_empty() {
         let origins = |expression| {
@@ -618,10 +633,7 @@ pub(crate) fn infer_callback_parameters(
                     .or_default()
                     .extend(bodies.iter().map(|body| arrows[body].params.items.len()));
             }
-            if let Some(function) = functions
-                .iter()
-                .find(|function| function.symbol == source && function.async_signature.is_some())
-            {
+            if let Some(function) = functions.iter().find(|function| function.symbol == source) {
                 demands
                     .entry(receiver)
                     .or_default()
@@ -976,7 +988,7 @@ fn refine_shapes<'a>(
                 if let Some(signature) = functions
                     .iter()
                     .find(|function| function.symbol == source)
-                    .and_then(|function| function.async_signature)
+                    .map(|function| function.closure_signature(signatures))
                 {
                     kinds.insert(signature);
                 }

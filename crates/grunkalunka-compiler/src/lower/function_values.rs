@@ -4,6 +4,25 @@ use super::*;
 use std::collections::BTreeMap;
 
 impl<'s, 'a> Lowering<'s, 'a> {
+    pub(super) fn named_module_function(
+        &self,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> Option<(ir::FunctionId, usize)> {
+        let Expression::Identifier(identifier) = closures::unwrapped(expression, depth)? else {
+            return None;
+        };
+        let symbol = self
+            .semantic
+            .scoping()
+            .get_reference(identifier.reference_id.get()?)
+            .symbol_id()?;
+        self.functions
+            .iter()
+            .find(|f| f.symbol == symbol)?
+            .module_value
+    }
+
     pub(super) fn named_async_function(
         &self,
         expression: &Expression<'_>,
@@ -623,7 +642,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                                 && let Some(kind) = bindings.get(&symbol)
                             {
                                 results.push(*kind);
-                            } else if let Some((_, arity)) = self.named_async_function(node, depth)
+                            } else if let Some((_, arity)) = self
+                                .named_module_function(node, depth)
+                                .or_else(|| self.named_async_function(node, depth))
                             {
                                 results.push(Some(arity));
                             } else if let Some((_, arity)) =
@@ -690,6 +711,16 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else {
                 self.local_function_result(call, region, arity, depth)
             }
+        } else if let Some((function, actual)) = self.named_module_function(node, depth) {
+            if actual != arity {
+                return Err(unsupported(
+                    node,
+                    "module function requires its complete signature",
+                ));
+            }
+            let result = self.value(Type::Closure(arity));
+            Self::push(region, node, Op::ModuleClosure { result, function });
+            Ok(result)
         } else if let Some((slot, actual)) = self.runtime_closure_callee(node, depth) {
             if actual != arity {
                 return Err(unsupported(node, "function value arity mismatch"));
@@ -920,7 +951,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if self.arrow_signature(arrow) != Some(arity) {
             return Err(unsupported(node, "function value signature mismatch"));
         }
-        if self.lifted_base + self.lifted.len() >= self.functions.len() + 256 {
+        if self.lifted_base + self.lifted.len() >= self.lifted_limit() {
             return Err(unsupported(
                 node,
                 "at most 256 lifted closure bodies are admitted",
@@ -1188,7 +1219,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         body.exit = Exit::Return(returned);
         self.lifted = std::mem::take(&mut child.lifted);
         // Nested construction may have consumed the remaining module capacity.
-        if self.lifted_base + self.lifted.len() >= self.functions.len() + 256 {
+        if self.lifted_base + self.lifted.len() >= self.lifted_limit() {
             return Err(unsupported(
                 node,
                 "at most 256 lifted closure bodies are admitted",

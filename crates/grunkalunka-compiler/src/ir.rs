@@ -538,13 +538,6 @@ pub(crate) enum Op {
         captures: Vec<SlotId>,
     },
     // One capture-free private function identity for the module instance.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "source declaration adapters are a separate lowering unit"
-        )
-    )]
     ModuleClosure {
         result: ValueId,
         function: FunctionId,

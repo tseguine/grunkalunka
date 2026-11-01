@@ -845,6 +845,8 @@ pub(crate) fn general_mutable_bindings(
         groups: &constructor_groups,
         arrows: &arrows,
         calls: &managed_call_targets,
+        callback_parameters,
+        closure_signatures: signatures,
     });
     managed_calls::closure_identities(&mut managed, &returns, &managed_call_targets);
     // A candidate stays Number exactly when its initial value and every plain/logical RHS write

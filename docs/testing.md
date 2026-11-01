@@ -500,3 +500,13 @@ An actual generated carrier is retained after source returns and exercised throu
 forced copying GC, with a cleared-root trap control. Two-megabyte native-stack
 and unsupported stored-call/public-reference/async/header-capture guards remain.
 Supported fixtures also participate in the versioned compatibility corpus.
+
+`module-declaration-values` adds source declaration adapters to that path. Native
+JS, Node-Wasm and Wasmtime compare hoisted/aliased declarations, distinct targets,
+fresh arrows, callback/data flow, managed inputs/results, snapshots, cycles and
+erased annotations. The primitive replay checks General results through the
+unchanged public tagged ABI. Direct numeric-only helpers remain specialized;
+explicit signature, nested-declaration, opaque-call and suspended-reference guards
+and a 2 MiB stack probe delimit this increment.
+The 1,000-parameter declaration control uses a bounded two-million-fuel core-engine
+test budget; ordinary cases use the unchanged production per-call budget.

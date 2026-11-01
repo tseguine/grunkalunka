@@ -41,6 +41,21 @@ import { readRejectionInventory, validateRejectionInventory, rejectionClassifica
 
 const catalog = readRejectionInventory();
 const clone = () => structuredClone(catalog);
+
+test('module declaration adapters execute two exact former call rejections', () => {
+  for (const [id, hash] of [
+    ['direct-call-wrapped-callee', '945842fbe97f9ae99792f5d1738cd9a679f3959a26bb13a66b772e2eeeeccc4d'],
+    ['direct-call-function-alias', '2e7da0df94a0dfd1ecad3bd328bd74d26c2943852c08796836ac7146b1106c58'],
+  ]) {
+    const sources=programSources(numericCalls.find(row=>row[0]===id));
+    assert.equal(createHash('sha256').update(sources.sourceJS).digest('hex'), hash);
+    assert.equal(sources.oracleSource, sources.sourceJS);
+    assert.ok(!rejected.some(row=>row[0]===id));
+    assert.ok(!catalog.records.some(row=>row.id===id));
+  }
+  assert.ok(rejected.some(row=>row[0]==='direct-call-function-value'));
+  assert.ok(rejected.some(row=>row[0]==='function-reference'));
+});
 const validate = data => validateRejectionInventory(rejected, data);
 
 test('direct call types promote three exact sources with separate recursive resource evidence',()=>{
@@ -237,7 +252,7 @@ test('every rejection has a source-bound assessment in the selected strict Modul
   const original = structuredClone(rejected);
   const inventory = validate(catalog);
   assert.equal(inventory.records.size, rejected.length);
-  assert.equal(inventory.records.size, 823);
+  assert.equal(inventory.records.size, 821);
   for (const record of inventory.records.values()) assert.equal(record.sourceMode, 'module-strict');
   assert.deepEqual(rejected, original, 'validation preserves all source/diagnostic/oracle tuples');
 });

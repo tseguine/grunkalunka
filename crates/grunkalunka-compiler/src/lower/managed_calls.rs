@@ -249,6 +249,7 @@ pub(crate) fn infer(
     }
     let mut definitions = Vec::new();
     let mut calls = Vec::new();
+    let mut all_calls = Vec::new();
     for node in semantic.nodes().iter() {
         match node.kind() {
             AstKind::VariableDeclarator(v) => {
@@ -270,6 +271,7 @@ pub(crate) fn infer(
                 }
             }
             AstKind::CallExpression(call) => {
+                all_calls.push(call);
                 if let Some(f) = function(call, semantic, functions)
                     && f.id.0 != 0
                     && f.async_signature.is_none()
@@ -278,6 +280,42 @@ pub(crate) fn infer(
                 }
             }
             _ => (),
+        }
+    }
+    let aliases = callbacks::named_targets(
+        &callbacks::ReturnOrigins {
+            semantic,
+            targets: &BTreeMap::new(),
+            arrows: &BTreeMap::new(),
+        },
+        functions
+            .iter()
+            .filter(|f| f.async_signature.is_none())
+            .map(|f| f.symbol),
+        &definitions
+            .iter()
+            .filter_map(|(symbol, value)| value.map(|value| (*symbol, value)))
+            .collect::<Vec<_>>(),
+        &all_calls,
+    );
+    for call in all_calls {
+        // Direct calls are already present. Every alias alternative contributes
+        // argument evidence; this does not choose a runtime target.
+        if function(call, semantic, functions).is_some() {
+            continue;
+        }
+        if let Some(Expression::Identifier(identifier)) =
+            closures::unwrapped(invocation::callee(call), 0)
+            && let Some(targets) = symbol(identifier, semantic).and_then(|s| aliases.get(&s))
+        {
+            for target in targets {
+                if let Some(f) = functions
+                    .iter()
+                    .find(|f| f.symbol == *target && f.id.0 != 0)
+                {
+                    calls.push((f.id.0, call));
+                }
+            }
         }
     }
     let results: Vec<_> = declarations
@@ -379,6 +417,8 @@ pub(super) struct ClosureFlow<'s, 'n, 'a> {
     pub groups: &'s BTreeSet<BTreeSet<NodeId>>,
     pub arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
     pub calls: &'s BTreeMap<NodeId, BTreeSet<NodeId>>,
+    pub callback_parameters: &'s callbacks::Parameters,
+    pub closure_signatures: &'s ir::ClosureSignatures,
 }
 pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
     let ClosureFlow {
@@ -390,6 +430,8 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         groups,
         arrows,
         calls,
+        callback_parameters,
+        closure_signatures,
     } = flow;
     if !semantic.nodes().iter().any(|n| {
         matches!(
@@ -461,6 +503,20 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
     let mut results: BTreeMap<_, Kinds> = bodies.keys().map(|body| (*body, Kinds::new())).collect();
     let mut call_kinds: BTreeMap<_, Kinds> =
         calls.keys().map(|call| (*call, Kinds::new())).collect();
+    // A checked callback signature is also positive evidence for its result
+    // lane, including a synchronous module function passed as the actual.
+    for node in semantic.nodes().iter() {
+        if let AstKind::CallExpression(call) = node.kind()
+            && let Some(Expression::Identifier(identifier)) =
+                closures::unwrapped(invocation::callee(call), 0)
+            && let Some(symbol) = symbol(identifier, semantic)
+            && let Some(signature) = callback_parameters.values().find_map(|p| p.get(&symbol))
+            && let Some(result) = closure_signatures.result(*signature)
+            && result.is_managed()
+        {
+            call_kinds.insert(call.node_id.get(), from_type(result));
+        }
+    }
     loop {
         let mut changed = false;
         for (symbol, expression) in definitions {
