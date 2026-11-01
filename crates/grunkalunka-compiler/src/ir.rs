@@ -2546,8 +2546,7 @@ mod tests {
 
     #[test]
     fn many_distinct_signatures_still_reject_a_late_duplicate() {
-        let mut module =
-            crate::lower_source("export function run(a,b){return a;}", false).unwrap();
+        let mut module = crate::lower_source("export function run(a,b){return a;}", false).unwrap();
         // Same parameters with different sync/async identity remain distinct.
         for asynchronous in [false, true] {
             for count in 0..96 {
@@ -2569,7 +2568,12 @@ mod tests {
                 .unwrap_err()
                 .contains("invalid closure signature")
         );
-        module.closure_signatures.higher.last_mut().unwrap().asynchronous = false;
+        module
+            .closure_signatures
+            .higher
+            .last_mut()
+            .unwrap()
+            .asynchronous = false;
         assert!(
             verify_module(&module)
                 .unwrap_err()
