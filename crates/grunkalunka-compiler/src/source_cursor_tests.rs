@@ -159,3 +159,27 @@ fn suspended_while_predicate_preserves_region_order_on_two_mib_stack() {
         }
     }
 }
+
+#[test]
+fn suspended_do_while_test_preserves_body_before_predicate_order_on_two_mib_stack() {
+    // Unlike while, a do-while test is lowered only after the body. This
+    // ordering must hold even if the body has an abrupt return completion.
+    for (body, admitted) in [
+        ("let n=a;do{n++;}while(n<b);return n;", true),
+        ("do{return a;}while(false);", true),
+        ("do{a+=b;}while(a ** b);return a;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
+                .expect("2 MiB do-while expression request thread")
+                .join()
+                .expect("do-while predicate must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
