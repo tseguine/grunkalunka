@@ -7,6 +7,7 @@ pub(super) const GLOBALS: &str = "(global $async_frame (mut i32) (i32.const 0))\
 pub(super) struct Frame<'a> {
     pub emitter: Emitter<'a>,
     pub lanes: Vec<&'static str>,
+    #[cfg(test)]
     spill_lanes: Vec<usize>,
     start: usize,
     header: usize,
@@ -118,6 +119,7 @@ impl<'a> Frame<'a> {
                 gc_closures: false,
             },
             lanes,
+            #[cfg(test)]
             spill_lanes,
             start,
             header,
@@ -351,6 +353,45 @@ mod spill_lane_tests {
         // Keeping the original frame allocation offsets preserves the
         // private ABI for values after a shared completion snapshot.
         assert_eq!(frame.bytes(), (32 + 5 * 8_usize).div_ceil(16) * 16);
+    }
+
+    #[test]
+    fn cached_spill_and_restore_match_previous_per_state_wat_byte_for_byte() {
+        let function = function(true);
+        let frame = Frame::new(&function, 5, true, false, true);
+        let mut expected_spill = String::new();
+        let mut expected_restore = String::new();
+        for &index in &frame.spill_lanes {
+            let lane = frame.lanes[index];
+            expected_spill.push_str(&format!(
+                "global.get $async_frame\nglobal.get {}\n{lane}.store offset={}\n",
+                frame.start + index,
+                frame.header + index * 8
+            ));
+            expected_restore.push_str(&format!(
+                "global.get $async_frame\n{lane}.load offset={}\nglobal.set {}\n",
+                frame.header + index * 8,
+                frame.start + index
+            ));
+        }
+        assert_eq!(frame.spill_template, expected_spill);
+        assert_eq!(frame.restore_template, expected_restore);
+        let mut repeated = String::new();
+        frame.spill(&mut repeated);
+        frame.spill(&mut repeated);
+        assert_eq!(repeated, expected_spill.repeat(2));
+        repeated.clear();
+        frame.restore(&mut repeated);
+        frame.restore(&mut repeated);
+        assert_eq!(repeated, expected_restore.repeat(2));
+
+        let unneeded = Frame::new(&function, 5, true, false, false);
+        let mut output = String::from("prefix");
+        unneeded.spill(&mut output);
+        unneeded.restore(&mut output);
+        assert_eq!(output, "prefix");
+        assert!(unneeded.spill_template.is_empty());
+        assert!(unneeded.restore_template.is_empty());
     }
 
     #[test]
