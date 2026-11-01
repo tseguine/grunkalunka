@@ -152,5 +152,4 @@ mod stack_hygiene_tests {
             }
         }
     }
-
 }
