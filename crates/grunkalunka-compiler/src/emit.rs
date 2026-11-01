@@ -388,6 +388,10 @@ impl Emitter<'_> {
                 self.project_async_primitive(*result, *input)
             }
             Op::AsyncValuePromise { result, input } => self.project_async_promise(*result, *input),
+            Op::ModuleClosure { result, function } => {
+                writeln!(self.output, "global.get $gc_module_function{}", function.0).unwrap();
+                self.set(*result);
+            }
             Op::MakeClosure {
                 result,
                 function,
@@ -1039,6 +1043,9 @@ fn emit_verified(
     }
     if has_closures {
         output.push_str(&closures::table(module, false, false, gc_closures));
+    }
+    if gc_closures {
+        output.push_str(&gc_closures::module_globals(module));
     }
     let mut needs_remainder = false;
     for (index, function) in module.functions.iter().enumerate() {

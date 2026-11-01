@@ -451,6 +451,16 @@ object, calls its unchanged body after collection, and tests root clearing. Sour
 function containers are covered by `managed-function-values` below, while
 arbitrary stored-function calls remain rejected.
 
+`ir::module_function_tests` exercises module-lifetime private function getters in
+actual emitted IR against native JS and Node-Wasm. It checks repeated and cross-body
+reads, an observed reference across call activations, distinct targets, fresh closures,
+typed Number/General/managed calls, invalid targets/signatures, numeric async-spill
+rejection and a 2 MiB native stack.
+`module-function-identities` separately uses production GC type fragments to check
+separate instances and retained identity across Wasmtime copying collections,
+with an independent native-JS/Node control. This backend prerequisite does not
+establish source declaration admission or a public reference ABI.
+
 The compiler's `ir::gc_closure_tests` and `ir::gc_closure_argument_tests` exercise
 the traced closure backend independently of source managed-capture admission. `managed-closure-storage` in the runtime package
 checks the shared GC cell/frame type fragment across forced Wasmtime copying
