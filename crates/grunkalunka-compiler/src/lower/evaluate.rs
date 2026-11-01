@@ -199,7 +199,6 @@ impl Lowering<'_, '_> {
     /// Preserve aggregate generated-region depth when a function or callback
     /// leaf crosses into its own lowering cursor. This crossing still needs
     /// eventual defunctionalization; the scope only centralizes its context.
-    #[inline(always)]
     fn with_function_result_context<T>(
         &mut self,
         region_depth: Option<usize>,
