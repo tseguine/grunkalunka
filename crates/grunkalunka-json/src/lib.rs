@@ -3,7 +3,9 @@
 //! This is an owned data tree, not a JavaScript heap or a source-lowering API.
 //! See `docs/json.md` for the resource accounting and integration boundary.
 
+mod owned;
 mod stringify;
+pub use owned::OwnedJson;
 pub use stringify::{StringifyError, StringifyLimit, StringifyLimits, stringify};
 
 /// Parsed JSON data. Strings and keys retain every UTF-16 code unit.
