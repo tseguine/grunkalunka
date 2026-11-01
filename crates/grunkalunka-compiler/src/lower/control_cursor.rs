@@ -94,6 +94,14 @@ enum Frame<'n, 'a> {
         visible: usize,
         old_loop: bool,
     },
+    /// The body has completed; the do-while test is now awaited.
+    DoWhilePredicate {
+        source: &'n DoWhileStatement<'a>,
+        output: Region,
+        depth: usize,
+        body: Region,
+        body_completion: Completion,
+    },
     For(ForFrame<'n, 'a>),
     Block {
         source: &'n BlockStatement<'a>,
@@ -148,6 +156,7 @@ impl Frame<'_, '_> {
             | Self::WhilePredicate { depth, .. }
             | Self::While { depth, .. }
             | Self::DoWhile { depth, .. }
+            | Self::DoWhilePredicate { depth, .. }
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
             | Self::TryCatchBody { depth, .. }
