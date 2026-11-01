@@ -28,7 +28,7 @@ pub(in crate::lower) enum Mode {
 }
 
 impl Mode {
-    pub(super) fn managed(ty: Type) -> Self {
+    pub(in crate::lower) fn managed(ty: Type) -> Self {
         match ty {
             Type::ManagedObject => Self::Object,
             Type::ManagedArray => Self::Array,
