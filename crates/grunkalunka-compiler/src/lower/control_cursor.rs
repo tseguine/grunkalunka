@@ -1,10 +1,9 @@
-//! One heap cursor for mixed if/while/do-while source nesting.
+//! The shared, heap-owned source-control lowering scheduler.
 //!
-//! Previously each control family had its own iterative cursor, but alternating
-//! families reentered the large Rust lowering frames through `statement`.
-//! Keep source-specific continuations as typed frames and dispatch every mixed
-//! child through this one loop. For statements, blocks and try/finally are still
-//! separate continuation families and can join this cursor incrementally.
+//! Source families enter the same loop through typed tasks and resumable frames.
+//! Semantic transitions live in steps.rs rather than making this scheduler a
+//! monolithic source-language interpreter. Expression/function lowering and
+//! effect-free fact queries keep their existing, separate boundaries.
 use super::*;
 use oxc_ast::ast::{
     BlockStatement, DoWhileStatement, ForStatement, IfStatement, TryStatement, WhileStatement,
