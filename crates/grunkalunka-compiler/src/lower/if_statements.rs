@@ -35,7 +35,7 @@ impl Lowering<'_, '_> {
                 source: root,
                 output: root_output,
                 depth,
-                charged: true,
+                charge: source_control::SourceCharge::Charged,
             });
             let mut completed: Option<(Region, Completion)> = None;
 
@@ -46,10 +46,10 @@ impl Lowering<'_, '_> {
                             source,
                             mut output,
                             depth,
-                            charged,
+                            charge,
                         } => {
                             self.statement_depth = depth;
-                            if !charged {
+                            if charge == source_control::SourceCharge::Uncharged {
                                 self.admit_source_statement(source, depth)?;
                             }
 
@@ -81,7 +81,7 @@ impl Lowering<'_, '_> {
                                     source: inner,
                                     output,
                                     depth,
-                                    charged: false,
+                                    charge: source_control::SourceCharge::Uncharged,
                                 });
                             } else {
                                 self.statement_depth =
