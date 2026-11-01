@@ -127,10 +127,12 @@ fn opted_in_raii_json_release_avoids_implicit_recursive_drop() {
                     JsonValue::Object(vec![(vec![0x0061], root)])
                 };
             }
-            let owned = OwnedJson::from(root);
+            let mut owned = OwnedJson::from(root);
             assert!(matches!(&*owned, JsonValue::Object(_)));
             let copy = owned.clone();
             assert!(format!("{copy:?}").contains("String([55296])"));
+            owned.replace(JsonValue::Null);
+            assert!(matches!(&*owned, JsonValue::Null));
             // Both deep owned trees drop automatically on a 2 MiB native
             // stack, with no explicit per-node teardown by the test.
         })
