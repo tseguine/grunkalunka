@@ -67,9 +67,7 @@ impl Lowering<'_, '_> {
                         } => {
                             self.statement_depth = depth;
                             if !charged {
-                                if self.active_block_calls != 0
-                                    && self.inline_depth + depth > 128
-                                {
+                                if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
                                     return Err(unsupported(
                                         source,
                                         "block-arrow expansion exceeds 128 nested regions",
@@ -115,9 +113,8 @@ impl Lowering<'_, '_> {
                                     charged: false,
                                 });
                             } else {
-                                self.statement_depth = pending
-                                    .last()
-                                    .map_or(original_depth, |frame| frame.depth);
+                                self.statement_depth =
+                                    pending.last().map_or(original_depth, |frame| frame.depth);
                                 let completion = self.statement(source, &mut output, depth)?;
                                 completed = Some((output, completion));
                             }
@@ -151,10 +148,7 @@ impl Lowering<'_, '_> {
                             alternate: finished_region,
                         },
                     );
-                    completed = Some((
-                        frame.output,
-                        consequent_returns.union(completion),
-                    ));
+                    completed = Some((frame.output, consequent_returns.union(completion)));
                     continue;
                 }
 
@@ -183,10 +177,7 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    completed = Some((
-                        frame.output,
-                        completion.union(Completion::NORMAL),
-                    ));
+                    completed = Some((frame.output, completion.union(Completion::NORMAL)));
                 }
             }
         })();
