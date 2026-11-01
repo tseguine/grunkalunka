@@ -135,13 +135,6 @@ fn unsupported_array_semantics_reject_before_ir_validation() {
             );
         }
     }
-    let error = grunkalunka_compiler::compile_async(
-        "export async function run(a,b){const x=[a];return x.length;}",
-        false,
-    )
-    .err()
-    .unwrap();
-    assert!(error.contains("reference-aware async frames"), "{error}");
 }
 
 #[test]

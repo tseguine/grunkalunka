@@ -1,5 +1,8 @@
 use wasmtime::{Config, Engine, Instance, Module, Store, TypedFunc};
 
+#[cfg(test)]
+mod managed_suspension_tests;
+
 /// Guest rejection tracking, in occurrence order at each invocation boundary.
 /// IDs are private to one invocation. An embedding reports rejected IDs still
 /// unhandled at its microtask checkpoint; a later Handled cancels that report
@@ -31,7 +34,9 @@ impl PreparedAsyncModule {
     /// Validate and compile once, rather than recompiling for each input vector.
     pub fn new(wasm: &[u8]) -> wasmtime::Result<Self> {
         let mut config = Config::new();
-        config.consume_fuel(true);
+        config
+            .consume_fuel(true)
+            .collector(wasmtime::Collector::Copying);
         let engine = Engine::new(&config)?;
         let module = Module::from_binary(&engine, wasm)?;
         if module.imports().len() != 0 {

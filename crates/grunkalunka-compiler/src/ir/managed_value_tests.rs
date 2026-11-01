@@ -478,16 +478,12 @@ fn managed_values_use_traced_capture_cells() {
 }
 
 #[test]
-fn managed_values_require_reference_aware_async_frames() {
+fn managed_values_use_reference_globals_in_single_coroutine_frames() {
     let mut module = primitive_comparison();
     module.functions[0].return_type = Type::General;
     module.functions[0].body.exit = Exit::Return(ValueId(1));
     verify_async_module(&module).unwrap();
-    assert!(
-        crate::emit::emit_async(&module)
-            .unwrap_err()
-            .contains("managed")
-    );
+    wat::parse_str(crate::emit::emit_async(&module).unwrap()).unwrap();
 }
 
 #[test]

@@ -19,6 +19,18 @@ binding identities and shared source limits. TypeScript annotations/wrappers do
 not coerce values. Existing numeric, primitive and heap entry points keep their
 contracts and reject async functions.
 
+Within that primitive settlement contract, a single physical coroutine frame may
+hold WasmGC objects, arrays, Strings and boxed snapshots across suspension.
+Typed reference globals keep them engine-traced; success or rejection releases
+those roots, and terminal host failures retain them only until Store teardown.
+Named synchronous helpers can transport these references without changing their
+signatures or adding jobs. Existing numeric-only modules retain their generated
+encoding. See [managed suspension](managed-values.md#managed-values-in-a-single-coroutine-frame).
+GC closure environments and multiple reference-bearing coroutine frames remain
+rejected pending their separate storage. This does not add managed Promise
+settlements, managed await operands, public reference exports or a shared heap
+across separately instantiated host invocations.
+
 The root async function fulfills intrinsic `undefined` for a bare `return;` or
 normal completion, including after awaits, loop exits and catches. Partial
 return/throw paths keep their original values and rejection reasons. Falling off

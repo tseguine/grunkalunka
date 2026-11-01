@@ -19,6 +19,7 @@ mod frames;
 mod graph;
 #[cfg(test)]
 mod loop_split_tests;
+mod managed_globals;
 #[cfg(test)]
 mod mixed_split_tests;
 mod promises;
@@ -1078,7 +1079,8 @@ fn jump(output: &mut String, target: usize) {
 
 pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     ir::verify_async_module(module)?;
-    if super::module_has_managed(module) || super::gc_closures::needed(module) {
+    let managed = super::module_has_managed(module);
+    if super::gc_closures::needed(module) {
         return Err("managed values require reference-aware async frames".into());
     }
     let starters = starters::needed(module);
@@ -1146,6 +1148,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     graph::verify(&split, &entries)?;
     graph::thread_empty_jumps(&mut split, fresh);
     let has_async = entries.iter().any(Option::is_some);
+    if managed && has_async {
+        return Err("managed values require reference-aware async frames".into());
+    }
     let dispatch_targets = dispatch::targets(module);
     let mut types = Vec::new();
     let mut frames = Vec::new();
@@ -1172,9 +1177,8 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             .iter()
             .any(|function| !ir::captured_cells(&function.body).is_empty());
     let mut output = String::from("(module\n");
-    for ty in types {
-        writeln!(output, "(global (mut {ty}) ({ty}.const 0))").unwrap();
-    }
+    let roots = managed_globals::Globals::new(&types);
+    roots.declare(&mut output, &types);
     if has_cells {
         output.push_str(cells::MEMORY);
     }
@@ -1391,6 +1395,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Return(value) => {
+                if state.function == 0 {
+                    roots.clear(&mut output);
+                }
                 if queued {
                     promises::complete(&mut output, emitter, value, state.function == 0, false);
                     continue;
@@ -1405,6 +1412,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Reject(value) => {
+                if state.function == 0 {
+                    roots.clear(&mut output);
+                }
                 if queued {
                     promises::complete(&mut output, emitter, value, state.function == 0, true);
                     continue;
@@ -1453,8 +1463,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             let mut header = String::from("(func");
             if function.parameter_count > 0 {
                 header.push_str(" (param");
-                for _ in 0..function.parameter_count {
-                    header.push_str(" f64");
+                for slot in function.slots.iter().take(function.parameter_count) {
+                    header.push(' ');
+                    header.push_str(layout::value(slot.ty).wat);
                 }
                 header.push(')');
             }
@@ -1501,6 +1512,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             output.push_str(promises::RUNTIME);
         }
     }
+    if managed {
+        output.push_str(include_str!("managed.wat"));
+    }
+    roots.finish(&mut output);
     output.push_str(")\n");
     Ok(output)
 }
