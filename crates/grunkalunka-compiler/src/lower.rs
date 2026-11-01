@@ -21,6 +21,7 @@ mod awaited;
 mod block_results;
 mod callbacks;
 mod closures;
+mod control_cursor;
 mod evaluate;
 mod finalizers;
 mod finally_chains;
