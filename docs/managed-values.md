@@ -338,7 +338,7 @@ path need no numeric arena reset wrapper. Ordinary Number arithmetic and locals 
 Synchronous source closures now use this storage for captured objects, arrays,
 Strings and managed property snapshots, including shared rebinding and mutation.
 Selected closures, callbacks and supported factories transport managed arguments
-and results alongside the existing primitive and function-pair lanes.
+and results alongside the existing primitive and typed function lanes.
 Capture pruning still validates
 unused bodies and excludes erased metadata/unreferenced cells. Managed values
 cannot enter the old async byte-spill frames. Traced suspension, general function
