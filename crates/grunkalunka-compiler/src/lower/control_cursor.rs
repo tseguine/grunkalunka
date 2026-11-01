@@ -186,7 +186,8 @@ impl Lowering<'_, '_> {
                                                 self.charge_statement(declaration.as_ref())?;
                                                 let start = self.bindings.len();
                                                 self.declaration(declaration, &mut header)?;
-                                                if declaration.kind == VariableDeclarationKind::Let {
+                                                if declaration.kind == VariableDeclarationKind::Let
+                                                {
                                                     let_slots.extend(
                                                         self.bindings[start..]
                                                             .iter()
@@ -436,16 +437,11 @@ impl Lowering<'_, '_> {
                                     },
                                 );
                             }
-                            let mut next_step =
-                                step.take().unwrap_or_else(|| self.region(source));
+                            let mut next_step = step.take().unwrap_or_else(|| self.region(source));
                             let updates = std::mem::take(&mut next_step.operations);
                             for &slot in &renewal {
                                 let result = self.value(self.slots[slot.0].ty);
-                                Self::push(
-                                    &mut next_step,
-                                    source,
-                                    Op::Load { result, slot },
-                                );
+                                Self::push(&mut next_step, source, Op::Load { result, slot });
                                 Self::push(
                                     &mut next_step,
                                     source,
