@@ -42,6 +42,17 @@ struct RootFrame {
     pins: BTreeSet<u32>,
 }
 
+// An aborted or abandoned guest may still own roots when its host handle
+// goes out of scope. Release those trees without recursive JsonValue drop
+// glue; explicit release() and frame collection use the same traversal.
+impl Drop for JsonGuest {
+    fn drop(&mut self) {
+        for value in std::mem::take(&mut self.roots).into_values() {
+            value.drop_iteratively();
+        }
+    }
+}
+
 impl Default for JsonGuest {
     fn default() -> Self {
         Self {
@@ -310,10 +321,8 @@ mod tests {
 
     #[test]
     fn terminal_frame_token_never_reuses_after_leave_or_abort() {
-        let mut guest = JsonGuest {
-            next_frame_id: Some(u32::MAX),
-            ..JsonGuest::default()
-        };
+        let mut guest = JsonGuest::default();
+        guest.next_frame_id = Some(u32::MAX);
         let frame = guest.heap_enter().unwrap();
         assert_eq!(frame, u32::MAX);
         assert_eq!(guest.heap_enter(), Err(GuestError::FrameExhausted));
@@ -325,10 +334,8 @@ mod tests {
 
     #[test]
     fn exhausted_root_ids_do_not_collect_existing_internal_values() {
-        let mut guest = JsonGuest {
-            next_id: Some(u32::MAX),
-            ..JsonGuest::default()
-        };
+        let mut guest = JsonGuest::default();
+        guest.next_id = Some(u32::MAX);
         let frame = guest.heap_enter().unwrap();
         let last = guest.heap_string_from_input(frame).unwrap();
         assert_eq!(last, u32::MAX);
@@ -363,10 +370,8 @@ mod tests {
 
     #[test]
     fn terminal_handle_is_valid_once_and_never_wraps() {
-        let mut guest = JsonGuest {
-            next_id: Some(u32::MAX),
-            ..JsonGuest::default()
-        };
+        let mut guest = JsonGuest::default();
+        guest.next_id = Some(u32::MAX);
         guest.input_buffer(1).unwrap()[0] = 48;
         let last = guest.parse_input().unwrap();
         assert_eq!(last, u32::MAX);
@@ -381,10 +386,8 @@ mod tests {
 
     #[test]
     fn strings_and_parsed_values_share_terminal_id_exhaustion() {
-        let mut guest = JsonGuest {
-            next_id: Some(u32::MAX - 1),
-            ..JsonGuest::default()
-        };
+        let mut guest = JsonGuest::default();
+        guest.next_id = Some(u32::MAX - 1);
         guest.input_buffer(1).unwrap()[0] = 48;
         let string = guest.string_from_input().unwrap();
         let number = guest.parse_input().unwrap();

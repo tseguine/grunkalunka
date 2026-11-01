@@ -232,3 +232,30 @@ fn deep_internal_and_explicit_roots_release_without_recursive_drop() {
         .join()
         .expect("iterative guest root release");
 }
+
+#[test]
+fn dropping_guest_with_live_nested_json_roots_is_stack_bounded() {
+    // Deliberately out of the parser's depth-128 source contract. Dropping
+    // an abandoned guest must not recurse through those owned Values.
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let mut guest = JsonGuest::default();
+            for id in 1..=8 {
+                let mut value = JsonValue::String(vec![0xd800]);
+                for level in 0..4096 {
+                    value = if level % 2 == 0 {
+                        JsonValue::Array(vec![value])
+                    } else {
+                        JsonValue::Object(vec![(vec![0x0061], value)])
+                    };
+                }
+                guest.roots.insert(id, value);
+            }
+            assert_eq!(guest.roots.len(), 8);
+            drop(guest);
+        })
+        .expect("small-stack JSON guest thread")
+        .join()
+        .expect("abandoned guest destructs without native recursion");
+}
