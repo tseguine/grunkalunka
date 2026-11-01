@@ -98,8 +98,7 @@ impl Lowering<'_, '_> {
                 self.bindings.truncate(frame.visible);
 
                 let returned = self.value(Type::AsyncValue);
-                let reason =
-                    self.value(self.promise_parameters.finally_type(statement.span.start));
+                let reason = self.value(self.promise_parameters.finally_type(statement.span.start));
                 let mut continuation = self.region(statement);
                 let result = if frame.outer_type == Type::AsyncValue {
                     returned
