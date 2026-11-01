@@ -15,6 +15,9 @@ mod function_call;
 #[path = "runtime-closures/discarded_logical.rs"]
 mod discarded_logical;
 
+#[path = "runtime-closures/for_let_cells.rs"]
+mod for_let_cells;
+
 #[test]
 fn eager_async_closures_keep_synchronous_prefix_effects() {
     compare_functions(&[
