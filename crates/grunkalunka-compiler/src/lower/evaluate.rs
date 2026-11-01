@@ -10,7 +10,6 @@ use tasks::Work;
 pub(super) use values::Mode;
 use values::Value;
 
-
 struct LogicalLeft<'e, 'a> {
     node: &'e Expression<'a>,
     left_node: &'e Expression<'a>,
@@ -144,7 +143,6 @@ enum ClosureEffect {
     Await,
     Start,
 }
-
 
 fn predicate_number<'e, 'a>(work: &mut Vec<Work<'e, 'a>>, node: &'e Expression<'a>, depth: usize) {
     work.push(Work::Convert(node));
@@ -1458,15 +1456,15 @@ impl Lowering<'_, '_> {
                         let function = self.function_arity(argument, depth);
                         if let Some(arity) = function {
                             let region_depth = regions.children.len();
-                            let value = self.with_function_result_context(
-                                Some(region_depth),
-                                |lower| lower.callback_argument(
-                                    argument,
-                                    regions.current(),
-                                    arity,
-                                    depth,
-                                ),
-                            )?;
+                            let value =
+                                self.with_function_result_context(Some(region_depth), |lower| {
+                                    lower.callback_argument(
+                                        argument,
+                                        regions.current(),
+                                        arity,
+                                        depth,
+                                    )
+                                })?;
                             arguments.push(value);
                         }
                         work.push(Work::LocalCall {
@@ -1614,15 +1612,15 @@ impl Lowering<'_, '_> {
                             .expect("checked signature");
                         let callback = if let Type::Closure(signature) = parameter {
                             let region_depth = regions.children.len();
-                            let value = self.with_function_result_context(
-                                Some(region_depth),
-                                |lower| lower.callback_argument(
-                                    argument,
-                                    regions.current(),
-                                    signature,
-                                    depth,
-                                ),
-                            )?;
+                            let value =
+                                self.with_function_result_context(Some(region_depth), |lower| {
+                                    lower.callback_argument(
+                                        argument,
+                                        regions.current(),
+                                        signature,
+                                        depth,
+                                    )
+                                })?;
                             arguments.push(value);
                             true
                         } else {
@@ -3004,12 +3002,7 @@ impl Lowering<'_, '_> {
                         let region_depth = matches!(node, Expression::CallExpression(_))
                             .then_some(regions.children.len());
                         let result = self.with_function_result_context(region_depth, |lower| {
-                            lower.function_value_leaf(
-                                node,
-                                regions.current(),
-                                signature,
-                                depth,
-                            )
+                            lower.function_value_leaf(node, regions.current(), signature, depth)
                         })?;
                         values.push(Value::Function(result));
                         continue;
