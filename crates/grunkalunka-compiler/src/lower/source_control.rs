@@ -30,7 +30,32 @@ pub(super) enum StatementTask<'n, 'a, N> {
     },
 }
 
+/// Dynamic source-control state whose value is local to one entry into the
+/// shared lowering cursor. Lexical binding visibility is deliberately *not*
+/// part of this checkpoint: block, catch and function frames own their own
+/// lexical boundaries, while a root sequence may publish declarations.
+#[derive(Clone, Copy)]
+pub(super) struct SourceContext {
+    statement_depth: usize,
+    in_loop_body: bool,
+    return_type: Type,
+}
+
 impl Lowering<'_, '_> {
+    pub(super) fn source_context(&self) -> SourceContext {
+        SourceContext {
+            statement_depth: self.statement_depth,
+            in_loop_body: self.in_loop_body,
+            return_type: self.return_type,
+        }
+    }
+
+    pub(super) fn restore_source_context(&mut self, context: SourceContext) {
+        self.statement_depth = context.statement_depth;
+        self.in_loop_body = context.in_loop_body;
+        self.return_type = context.return_type;
+    }
+
     /// Preserve the source-visible check order before charging a statement.
     /// Source depth and expansion limits are not native-stack or IR depth limits.
     pub(super) fn admit_source_statement(
