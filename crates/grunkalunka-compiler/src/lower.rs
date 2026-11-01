@@ -24,7 +24,6 @@ mod closures;
 mod control_cursor;
 mod evaluate;
 mod finalizers;
-mod finally_chains;
 mod for_statements;
 mod function_values;
 mod if_statements;
