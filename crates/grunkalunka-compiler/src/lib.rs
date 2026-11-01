@@ -8,6 +8,8 @@ mod ir;
 #[path = "ir/iterative_drop.rs"]
 mod ir_iterative_drop;
 mod lower;
+#[cfg(test)]
+mod source_cursor_tests;
 
 use lower::{Lowering, NumericBinding, NumericFunction};
 
