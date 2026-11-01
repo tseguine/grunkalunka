@@ -73,6 +73,12 @@ enum Frame<'n, 'a> {
         consequent: Option<Region>,
         consequent_returns: Option<Completion>,
     },
+    /// The loop condition owns a child Region until its predicate returns.
+    WhilePredicate {
+        source: &'n WhileStatement<'a>,
+        output: Region,
+        depth: usize,
+    },
     While {
         source: &'n WhileStatement<'a>,
         output: Region,
@@ -139,6 +145,7 @@ impl Frame<'_, '_> {
         match self {
             Self::IfPredicate { depth, .. }
             | Self::If { depth, .. }
+            | Self::WhilePredicate { depth, .. }
             | Self::While { depth, .. }
             | Self::DoWhile { depth, .. }
             | Self::Block { depth, .. }
