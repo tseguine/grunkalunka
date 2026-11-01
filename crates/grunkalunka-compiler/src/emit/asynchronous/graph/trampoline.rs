@@ -5,7 +5,6 @@
 //! incoming edges to its eventual target without deleting states or changing
 //! protocol state IDs, scheduling boundaries, or the 4,096-state admission cap.
 use super::super::{End, Splitter, State};
-use std::collections::BTreeMap;
 
 fn target_of_empty_jump(states: &[State<'_>], index: usize, fresh: usize) -> Option<usize> {
     let state = &states[index];
@@ -23,23 +22,29 @@ fn target_of_empty_jump(states: &[State<'_>], index: usize, fresh: usize) -> Opt
 /// license to invent a completion for a source-level infinite loop.
 fn canonical_targets(states: &[State<'_>], fresh: usize) -> Vec<usize> {
     let mut canonical = vec![None; states.len()];
+    // A state can occur only once within one walk; store its index in the
+    // current path and the walk's starting ID in dense, reusable arrays.
+    // This avoids an ordered-map lookup and allocation for each chain.
+    let mut visited_by = vec![usize::MAX; states.len()];
+    let mut positions = vec![0; states.len()];
+    let mut path = Vec::new();
     for start in 0..states.len() {
         if canonical[start].is_some() {
             continue;
         }
-        let mut path = Vec::new();
-        let mut positions = BTreeMap::new();
+        path.clear();
         let mut current = start;
         loop {
             if let Some(target) = canonical[current] {
-                for index in path {
+                for &index in &path {
                     canonical[index] = Some(target);
                 }
                 break;
             }
-            if let Some(&cycle_start) = positions.get(&current) {
-                // Preserve original edges between nodes in the cycle, rather
-                // than turning them into a different self-loop.
+            if visited_by[current] == start {
+                let cycle_start = positions[current];
+                // Retain each cyclic state's original target and redirect a
+                // predecessor only to its first entry into that cycle.
                 for &index in &path[cycle_start..] {
                     canonical[index] = Some(index);
                 }
@@ -48,13 +53,14 @@ fn canonical_targets(states: &[State<'_>], fresh: usize) -> Vec<usize> {
                 }
                 break;
             }
-            positions.insert(current, path.len());
+            visited_by[current] = start;
+            positions[current] = path.len();
             if let Some(next) = target_of_empty_jump(states, current, fresh) {
                 path.push(current);
                 current = next;
             } else {
                 canonical[current] = Some(current);
-                for index in path {
+                for &index in &path {
                     canonical[index] = Some(current);
                 }
                 break;
@@ -123,6 +129,55 @@ mod tests {
         Splitter {
             states,
             ..Splitter::default()
+        }
+    }
+
+    // Independent reference semantics: follow the original hops until a
+    // nonempty state or the first repeated state in a pure jump cycle.
+    fn canonical_by_direct_walk(states: &[State<'_>], fresh: usize, start: usize) -> usize {
+        let mut seen = vec![false; states.len()];
+        let mut current = start;
+        loop {
+            if seen[current] {
+                return current;
+            }
+            seen[current] = true;
+            match target_of_empty_jump(states, current, fresh) {
+                Some(next) => current = next,
+                None => return current,
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_cycle_detection_matches_direct_walk_for_all_small_jump_graphs() {
+        // Every state independently chooses one of N jump targets or Return.
+        // This covers cycles, self-loops, paths entering cycles and terminals.
+        for size in 1..=5 {
+            let choices = size + 1;
+            let count = (0..size).fold(1_usize, |value, _| value * choices);
+            for encoding in 0..count {
+                let mut code = encoding;
+                let states = (0..size)
+                    .map(|_| {
+                        let target = code % choices;
+                        code /= choices;
+                        if target == size {
+                            state(End::Return(ValueId(0)))
+                        } else {
+                            state(End::Jump(target))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let computed = canonical_targets(&states, 0);
+                for (start, &target) in computed.iter().enumerate() {
+                    assert_eq!(
+                        target,
+                        canonical_by_direct_walk(&states, 0, start),
+                        "size={size} encoding={encoding} state={start}"
+                    );
+                }
+            }
         }
     }
 
