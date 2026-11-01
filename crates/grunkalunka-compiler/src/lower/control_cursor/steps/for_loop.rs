@@ -24,9 +24,7 @@ impl Lowering<'_, '_> {
                     let start = self.bindings.len();
                     self.declaration(declaration, &mut header)?;
                     if declaration.kind == VariableDeclarationKind::Let {
-                        let_slots.extend(
-                            self.bindings[start..].iter().map(|binding| binding.slot),
-                        );
+                        let_slots.extend(self.bindings[start..].iter().map(|binding| binding.slot));
                     }
                 }
                 _ => {
