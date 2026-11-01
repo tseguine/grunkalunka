@@ -142,6 +142,29 @@ impl Frame<'_, '_> {
     }
 }
 
+/// One active source-lowering machine. Language-specific transitions own
+/// their variant-specific Frame data but never allocate another scheduler.
+struct Cursor<'n, 'a> {
+    pending: Vec<Frame<'n, 'a>>,
+    next: Option<Next<'n, 'a>>,
+    completed: Option<(Region, Completion)>,
+}
+
+impl<'n, 'a> Cursor<'n, 'a> {
+    fn new(root: ControlNode<'n, 'a>, output: Region, depth: usize) -> Self {
+        Self {
+            pending: Vec::new(),
+            next: Some(Next::Enter {
+                source: root,
+                output,
+                depth,
+                charge: source_control::SourceCharge::Charged,
+            }),
+            completed: None,
+        }
+    }
+}
+
 impl Lowering<'_, '_> {
     #[inline(never)]
     pub(super) fn control_statement_iterative<'n, 'a>(
@@ -158,19 +181,12 @@ impl Lowering<'_, '_> {
         let original_depth = saved_context.statement_depth;
         let root_output = Self::take_cursor_region(region);
         let result = (|| {
-            let mut pending = Vec::<Frame<'n, 'a>>::new();
-            let mut next = Some(Next::Enter {
-                source: root,
-                output: root_output,
-                depth,
-                charge: source_control::SourceCharge::Charged,
-            });
-            let mut completed: Option<(Region, Completion)> = None;
+            let mut cursor = Cursor::new(root, root_output, depth);
 
             loop {
                 #[cfg(test)]
-                crate::source_cursor_tests::pending(pending.len());
-                if let Some(task) = next.take() {
+                crate::source_cursor_tests::pending(cursor.pending.len());
+                if let Some(task) = cursor.next.take() {
                     match task {
                         Next::Enter {
                             source,
@@ -206,14 +222,7 @@ impl Lowering<'_, '_> {
                                 }
                             }
 
-                            self.begin_control(
-                                source,
-                                output,
-                                depth,
-                                &mut pending,
-                                &mut next,
-                                &mut completed,
-                            )?;
+                            self.begin_control(source, output, depth, &mut cursor)?;
                         }
                         Next::Statement {
                             source,
@@ -221,7 +230,7 @@ impl Lowering<'_, '_> {
                             depth,
                         } => {
                             if let Some(node) = ControlNode::of_statement(source) {
-                                next = Some(Next::Enter {
+                                cursor.next = Some(Next::Enter {
                                     source: node,
                                     output,
                                     depth,
@@ -232,9 +241,9 @@ impl Lowering<'_, '_> {
                                 // function body. Preserve its enclosing loop mode
                                 // and source depth until the child has completed.
                                 self.statement_depth =
-                                    pending.last().map_or(original_depth, Frame::depth);
+                                    cursor.pending.last().map_or(original_depth, Frame::depth);
                                 let completion = self.statement(source, &mut output, depth)?;
-                                completed = Some((output, completion));
+                                cursor.completed = Some((output, completion));
                             }
                         }
                     }
@@ -242,21 +251,14 @@ impl Lowering<'_, '_> {
                 }
 
                 let (finished_region, completion) =
-                    completed.take().expect("completed mixed control child");
-                let Some(frame) = pending.pop() else {
+                    cursor.completed.take().expect("completed mixed control child");
+                let Some(frame) = cursor.pending.pop() else {
                     *region = finished_region;
                     return Ok(completion);
                 };
 
                 self.statement_depth = frame.depth();
-                self.resume_control(
-                    frame,
-                    finished_region,
-                    completion,
-                    &mut pending,
-                    &mut next,
-                    &mut completed,
-                )?;
+                self.resume_control(frame, finished_region, completion, &mut cursor)?;
             }
         })();
         self.restore_source_context(saved_context);
