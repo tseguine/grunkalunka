@@ -610,9 +610,7 @@ mod tests {
                     assert!(result.is_ok(), "{depth} levels: {:?}", result.err());
                 } else if let Err(error) = result {
                     assert!(
-                        error.contains("64")
-                            || error.contains("128")
-                            || error.contains("256"),
+                        error.contains("64") || error.contains("128") || error.contains("256"),
                         "{depth} mixed lexical controls: {error}"
                     );
                 }
