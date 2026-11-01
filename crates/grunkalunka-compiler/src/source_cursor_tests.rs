@@ -123,9 +123,7 @@ fn suspended_if_predicate_preserves_expression_diagnostics_on_two_mib_stack() {
             let source = format!("export function run(a,b) {{ {body} }}");
             let (result, maximum, entries, _) = std::thread::Builder::new()
                 .stack_size(2 * 1024 * 1024)
-                .spawn(move || {
-                    observe(|| crate::compile(&source, typescript))
-                })
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
                 .expect("2 MiB source expression request thread")
                 .join()
                 .expect("condition request must not exhaust native stack");
