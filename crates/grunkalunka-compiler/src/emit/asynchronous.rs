@@ -16,8 +16,8 @@ mod errors;
 #[cfg(test)]
 mod finally_split_tests;
 mod frames;
-mod inspection;
 mod graph;
+mod inspection;
 #[cfg(test)]
 mod loop_split_tests;
 #[cfg(test)]
