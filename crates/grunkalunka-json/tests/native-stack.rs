@@ -86,7 +86,7 @@ fn deep_owned_json_debug_and_explicit_drop_have_bounded_stack_depth() {
                 };
             }
             let rendered = format!("{root:?}");
-            assert!(rendered.starts_with("Object([([97], Array([")));
+            assert!(rendered.starts_with("Object([([97], Array(["));
             assert!(rendered.contains("String([55296])"));
             root.drop_iteratively();
         })
