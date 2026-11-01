@@ -11,6 +11,7 @@ mod block_split_tests;
 mod branch_split_tests;
 #[cfg(test)]
 mod call_split_tests;
+mod dispatch;
 mod errors;
 #[cfg(test)]
 mod finally_split_tests;
@@ -1142,6 +1143,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         entries[index] = Some(split.terminal(End::EnterClosure { next: body })?);
     }
     let has_async = entries.iter().any(Option::is_some);
+    let dispatch_targets = dispatch::targets(module);
     let mut types = Vec::new();
     let mut frames = Vec::new();
     for (index, function) in module.functions.iter().enumerate() {
@@ -1304,36 +1306,25 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 let Type::Closure(signature) = emitter.function.values[callee.0] else {
                     unreachable!()
                 };
-                for (index, target) in frames.iter().enumerate().skip(1) {
-                    let Some(target) = target else {
-                        continue;
-                    };
-                    let parameters: Vec<_> = target
-                        .emitter
-                        .function
-                        .slots
-                        .iter()
-                        .take(target.emitter.function.parameter_count)
-                        .map(|slot| slot.ty)
-                        .collect();
-                    if module.closure_signatures.id_async(&parameters) != Some(signature) {
-                        continue;
+                if let Some(targets) = dispatch_targets.get(&signature) {
+                    for &index in targets {
+                        let target = frames[index].as_ref().expect("indexed async closure");
+                        writeln!(
+                            output,
+                            "global.get {}\ni32.const {index}\ni32.eq\nif",
+                            emitter.value_offsets[callee.0]
+                        )
+                        .unwrap();
+                        frame.invoke(
+                            &mut output,
+                            target,
+                            callee,
+                            arguments,
+                            returned,
+                            entries[index].expect("async entry"),
+                        );
+                        output.push_str("end\n");
                     }
-                    writeln!(
-                        output,
-                        "global.get {}\ni32.const {index}\ni32.eq\nif",
-                        emitter.value_offsets[callee.0]
-                    )
-                    .unwrap();
-                    frame.invoke(
-                        &mut output,
-                        target,
-                        callee,
-                        arguments,
-                        returned,
-                        entries[index].expect("async entry"),
-                    );
-                    output.push_str("end\n");
                 }
                 output.push_str("unreachable\n");
             }
