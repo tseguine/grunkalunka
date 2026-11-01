@@ -2,7 +2,7 @@
 //! enum remains directly destructurable by value, so it cannot implement
 //! Drop without breaking its existing variant-pattern API.
 use crate::JsonValue;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 /// Releases an owned JSON tree iteratively when the wrapper goes out of scope.
 ///
@@ -15,6 +15,16 @@ pub struct OwnedJson(Option<JsonValue>);
 impl OwnedJson {
     pub fn new(value: JsonValue) -> Self {
         Self(Some(value))
+    }
+
+    /// Replaces a potentially deep tree without recursively dropping the old
+    /// one. Mutable Deref is deliberately not exposed: an assignment through
+    /// such a reference could invoke ordinary recursive enum destruction.
+    pub fn replace(&mut self, value: JsonValue) {
+        self.0
+            .replace(value)
+            .expect("owned JSON value")
+            .drop_iteratively();
     }
 
     /// Returns the raw enum for ordinary by-value matching. Ownership then
@@ -36,12 +46,6 @@ impl Deref for OwnedJson {
 
     fn deref(&self) -> &Self::Target {
         self.0.as_ref().expect("owned JSON value")
-    }
-}
-
-impl DerefMut for OwnedJson {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_mut().expect("owned JSON value")
     }
 }
 
