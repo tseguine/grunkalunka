@@ -24,6 +24,7 @@ mod closures;
 mod evaluate;
 mod finalizers;
 mod function_values;
+mod if_statements;
 mod invocation;
 mod managed_calls;
 pub(super) use managed_calls::infer as infer_managed_calls;
@@ -1172,32 +1173,7 @@ impl Lowering<'_, '_> {
                 Ok(completion.pretest_loop())
             }
             Statement::IfStatement(statement) => {
-                let condition = self.predicate(&statement.test, region, 0)?;
-                let mut consequent = self.region(&statement.consequent);
-                let visible = self.bindings.len();
-                let consequent_returns =
-                    self.statement(&statement.consequent, &mut consequent, depth + 1)?;
-                self.bindings.truncate(visible);
-                let mut alternate = self.region(statement.as_ref());
-                let alternate_returns = if let Some(source) = &statement.alternate {
-                    alternate.span = source.span();
-                    let returns = self.statement(source, &mut alternate, depth + 1)?;
-                    self.bindings.truncate(visible);
-                    returns
-                } else {
-                    Completion::NORMAL
-                };
-                Self::push(
-                    region,
-                    statement.as_ref(),
-                    Op::If {
-                        result: None,
-                        condition,
-                        consequent,
-                        alternate,
-                    },
-                );
-                Ok(consequent_returns.union(alternate_returns))
+                self.if_statement_iterative(statement, region, depth)
             }
             Statement::BlockStatement(block) => {
                 let mut child = self.region(block.as_ref());
