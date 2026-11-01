@@ -166,3 +166,53 @@ mixed-kind SCC survey and a bounded cross-handler vertical slice.
 [GC-aware suspension steering #356](https://github.com/tseguine/grunkalunka/issues/356),
 [JavaScript engine steering](../javascript-engine-steering.md), and
 [IR course correction](../ir-course-correction.md).
+
+## Incremental migration checkpoint (in-flight code, 2026-11-01)
+
+The implementation sequence is intentionally stacked so each mechanical
+migration can be reviewed and CI-corrected before inclusion in `master`:
+
+- [#381](https://github.com/tseguine/grunkalunka/pull/381): common source
+  charge/admission checks, enter/child task vocabulary, owned Region handoff.
+- [#382](https://github.com/tseguine/grunkalunka/pull/382) through
+  [#385](https://github.com/tseguine/grunkalunka/pull/385): one heap
+  scheduler for If/While/DoWhile/For, lexical blocks and raw sequences;
+  existing statement families retain typed semantics and `Completion`.
+- [#386](https://github.com/tseguine/grunkalunka/pull/386) and
+  [#387](https://github.com/tseguine/grunkalunka/pull/387): catch and finally
+  continuations enter the same machine; legacy direct-chain schedulers retire.
+- [#388](https://github.com/tseguine/grunkalunka/pull/388) through
+  [#390](https://github.com/tseguine/grunkalunka/pull/390): keep the scheduler
+  small, place typed transitions in a separate module, give dynamic source
+  modes an explicit context checkpoint, remove a now-obsolete singleton block
+  path.
+- [#391](https://github.com/tseguine/grunkalunka/pull/391): test-only
+  active-cursor instrumentation and composed syntax probes for precisely the
+  source-control boundaries that were previously distinct Rust frames.
+
+**Do not equate open PRs with a verified architecture.** This is a migration
+plan with code under review; full output/diagnostic parity, formatting, Windows
+and Linux native stack checks, and runtime source oracles remain merge gates.
+The absence of synchronous recursion among these particular source-control
+families is not yet evidence for the whole compiler. In particular:
+
+1. `control_cursor -> statement_inner -> evaluate -> function_value_leaf ->
+   local_function_result / arrow_block_result -> sequence -> control_cursor`
+   can reenter the source machine through an *expression/function body* seam.
+   A supported native stack budget is currently enforced for some inline and
+   function-result depths. The next investigation should measure full
+   cross-phase SCCs and their frame sizes, not only AST source depth.
+2. Read-only signature, callback-origin, storage and Promise analyses use
+   independent worklists; their results are fact queries, not compiler effect
+   continuations. Unify only demonstrated duplicate semantics and preserve
+   their no-source-effects contract.
+3. The async IR splitter's continuation graph and runtime Promise job queue
+   do not belong to the compiler source scheduler. Future traced-reference
+   suspension must be designed and verified at its own lifetime boundary.
+
+A future `LoweringMachine` API could expose a typed child-expression request
+and a continuation receiving a typed value, allowing expression/factory leaves
+to yield back to the same scheduler without Rust call-stack reentry. That
+requires an explicit result-stack/region-ownership contract and must migrate
+each actual SCC as a whole. It should not be claimed merely by replacing a
+recursive call with another `Vec<Work>`.
