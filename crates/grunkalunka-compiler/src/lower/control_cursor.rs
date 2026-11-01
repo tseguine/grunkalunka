@@ -56,9 +56,9 @@ enum Frame<'n, 'a> {
 impl Frame<'_, '_> {
     fn depth(&self) -> usize {
         match self {
-            Self::If { depth, .. }
-            | Self::While { depth, .. }
-            | Self::DoWhile { depth, .. } => *depth,
+            Self::If { depth, .. } | Self::While { depth, .. } | Self::DoWhile { depth, .. } => {
+                *depth
+            }
         }
     }
 }
@@ -353,11 +353,7 @@ mod tests {
                     .join()
                     .expect("mixed statement cursor must not exhaust native stack");
                 if depth <= 12 {
-                    assert!(
-                        result.is_ok(),
-                        "{depth} mixed controls: {:?}",
-                        result.err()
-                    );
+                    assert!(result.is_ok(), "{depth} mixed controls: {:?}", result.err());
                 }
                 if depth == 66 {
                     let error = result.err().expect("over-depth mixed source must reject");
