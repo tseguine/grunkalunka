@@ -183,3 +183,26 @@ fn suspended_do_while_test_preserves_body_before_predicate_order_on_two_mib_stac
         }
     }
 }
+
+#[test]
+fn suspended_for_test_preserves_header_and_omitted_test_on_two_mib_stack() {
+    for (body, admitted) in [
+        ("let n=0;for(let i=0;i<3;i++)n+=i;return n;", true),
+        ("let n=0;for(let i=0;i<3;){n+=a;i++;}return n;", true),
+        ("let n=0;for(let i=0;;i++){n+=a;break;}return n;", true),
+        ("let n=0;for(let i=0;i ** b;i++)n+=a;return n;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
+                .expect("2 MiB for-loop test request thread")
+                .join()
+                .expect("for-loop condition must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
