@@ -275,11 +275,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 arguments.push(check.value(ty));
                 continue;
             }
-            if !arrow.r#async
-                && let Some(ty) = self
-                    .managed_kinds
-                    .inputs
-                    .get(&identifier.symbol_id.get().expect("parameter symbol"))
+            if let Some(ty) = self
+                .managed_kinds
+                .inputs
+                .get(&identifier.symbol_id.get().expect("parameter symbol"))
             {
                 arguments.push(check.value(*ty));
                 continue;
@@ -526,11 +525,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
                             arguments.push(check.value(ty));
                             continue;
                         }
-                        if !arrow.r#async
-                            && let Some(ty) = parent
-                                .managed_kinds
-                                .inputs
-                                .get(&identifier.symbol_id.get().expect("parameter symbol"))
+                        if let Some(ty) = parent
+                            .managed_kinds
+                            .inputs
+                            .get(&identifier.symbol_id.get().expect("parameter symbol"))
                         {
                             arguments.push(check.value(*ty));
                             continue;

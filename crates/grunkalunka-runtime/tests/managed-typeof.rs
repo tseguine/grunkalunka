@@ -164,15 +164,12 @@ fn typeof_comparisons_preserve_primitive_export_kinds() {
 }
 
 #[test]
-fn typeof_does_not_admit_untraced_async_reference_frames() {
+fn typeof_survives_reference_bearing_async_frames() {
     for source in [
         "export async function run(a,b){const kind=typeof a;const f=async x=>{await b;return x;};const p=f(a);await p;return kind==='number'?a:b;}",
     ] {
         for ts in [false, true] {
-            let result = grunkalunka_compiler::compile_async(source, ts);
-            assert!(result.is_err(), "{source}");
-            let error = result.err().unwrap();
-            assert!(error.contains("managed") || error.contains("GC"), "{error}");
+            grunkalunka_compiler::compile_async(source, ts).unwrap();
         }
     }
 }

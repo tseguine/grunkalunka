@@ -1,6 +1,8 @@
 use wasmtime::{Config, Engine, Instance, Module, Store, TypedFunc};
 
 #[cfg(test)]
+mod managed_frame_tests;
+#[cfg(test)]
 mod managed_suspension_tests;
 
 /// Guest rejection tracking, in occurrence order at each invocation boundary.

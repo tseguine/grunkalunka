@@ -107,9 +107,8 @@ fn managed_closure_suspension_preserves_erased_types_and_small_stack_limits() {
 }
 
 #[test]
-fn managed_closures_keep_unsupported_coroutine_and_public_reference_boundaries() {
+fn managed_closures_keep_managed_settlement_and_public_reference_boundaries() {
     for body in [
-        "const o={};const f=()=>o;const g=async x=>{await b;return x;};const p=g(a);await p;return f()===o?1:0;",
         "const o={};const f=async()=>{await b;return o;};const p=f();await p;return a;",
         "const o={};const f=()=>o;await a;return f;",
         "const o={};const f=()=>o;await a;return f();",

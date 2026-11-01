@@ -52,15 +52,52 @@ then collect and resume through a returned closure's environment. Generated
 activation roots clear on completion; immutable module-function identities remain
 for the instance's lifetime and disappear with its Store.
 
-Modules requiring multiple reference-bearing coroutine frames still reject,
-including modules using GC function identities without managed object carriers.
-Related child activations sharing a managed value
-need a separate frame/root bridge; host entry invocations retain their existing
-fresh Store/instance isolation. Managed await operands, settlements, rejection
+Related child coroutine activations use the traced storage described below;
+host entry invocations retain their existing fresh Store/instance isolation.
+Managed await operands, settlements, rejection
 reasons and public reference results are not admitted by this increment.
 [Steering #356](https://github.com/tseguine/grunkalunka/issues/356) remains open.
 Earlier async exclusions below describe their named synchronous increments and
-are superseded only within this single-frame boundary.
+are superseded within these documented coroutine-storage boundaries.
+
+## Managed values across related coroutine frames
+
+Async children in one generated instance can share objects, arrays, Strings,
+functions and captured binding cells while retaining their own saved snapshots.
+Synchronous helpers may start these children and return normally. Existing prefix
+execution, reaction ordering, finalizers and owned jobs after root settlement are
+preserved; a child is not an independent host entry or an implicit parallel task.
+
+Numeric control records and Number/primitive lanes keep their existing byte
+storage. Reference lanes and closure environments instead live in WasmGC
+activation records. A checked map uses the aligned control-record address and
+function owner to find each record; restored references are cast to their verified
+nominal lane types. No GC pointer or encoded reference is stored in linear memory.
+Overlapping activations of one function can therefore reuse working globals
+without confusing their saved references or shared captured cells.
+
+The map grows geometrically within the existing 1 MiB arena's 65,536 aligned
+positions. Addresses must be aligned, allocated and in range; duplicate live
+registration and wrong-owner/stale lookups trap as private backend failures.
+The arena does not reuse activation addresses. These checks are not catchable JS
+exceptions. Async signatures admit the existing managed input kinds using the
+same source facts as synchronous calls; their results still use General, and
+existing count, callback and source-kind validation remains.
+
+An activation record exists before its prefix executes and retains references
+while suspended. Terminal success or rejection clears that function's working
+reference globals and removes only the completed record. Other owned child jobs
+keep their records even after the root settles. Uncaught primitive await rejection
+also releases its completed guest roots. Traps leave the host invocation unusable;
+dropping its Store releases remaining pending records. Immutable module-function
+identities keep their instance lifetime. No collection-latency guarantee is made.
+
+Maintained source/native-JS/Node-Wasm/Wasmtime tests compare identity, mutation,
+snapshots, reentrant starts and job traces. Private production-adapter tests clear
+working references and force copying collections while suspended, then check
+completion, child ownership and invalid/stale identities. Managed Promise
+settlements/reasons, managed await operands, public references and sharing across
+separately instantiated host entries remain unsupported.
 
 ## Logical operations and representation
 

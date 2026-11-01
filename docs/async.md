@@ -26,9 +26,12 @@ those roots, and terminal host failures retain them only until Store teardown.
 Named synchronous helpers can transport these references without changing their
 signatures or adding jobs. Existing numeric-only modules retain their generated
 encoding. See [managed suspension](managed-values.md#managed-values-in-a-single-coroutine-frame).
-Synchronous GC closure environments share the same typed global roots and retain
-their captured cells across suspension. Multiple reference-bearing coroutine frames
-remain rejected pending their separate storage. This does not add managed Promise
+Synchronous GC closure environments retain their captured cells across suspension.
+Related coroutine activations save reference lanes and environments in checked
+WasmGC records beside the existing numeric control records; overlapping calls keep
+separate snapshots and share actual identities. Completion releases only the finished
+activation, so owned children can continue after root settlement. See
+[related managed frames](managed-values.md#managed-values-across-related-coroutine-frames). This does not add managed Promise
 settlements, managed await operands, public reference exports or a shared heap
 across separately instantiated host invocations.
 

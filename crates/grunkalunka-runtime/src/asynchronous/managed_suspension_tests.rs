@@ -47,7 +47,7 @@ fn generated_managed_references_survive_copying_collection_while_pending() {
 
 // Export only the generated reference globals for test observation. The
 // production instructions, control flow and reference storage stay unchanged.
-fn root_exports(wat: &str) -> (Vec<u8>, Vec<String>) {
+pub(super) fn root_exports(wat: &str) -> (Vec<u8>, Vec<String>) {
     let mut names = Vec::new();
     let mut exports = String::new();
     for (index, declaration) in wat
@@ -173,6 +173,33 @@ fn terminal_success_and_rejection_clear_generated_reference_globals() {
         activation.store.gc(None).unwrap();
         assert!(!activation.run_one_job().unwrap());
     }
+}
+
+#[test]
+fn uncaught_await_rejection_releases_terminal_guest_reference_globals() {
+    let source =
+        "export async function run(a,b){const o={};o.self=o;await Promise.reject(b);return a;}";
+    let artifact = grunkalunka_compiler::compile_async(source, false).unwrap();
+    let (wasm, names) = root_exports(&artifact.wat);
+    let prepared = PreparedAsyncModule::new(&wasm).unwrap();
+    let mut store = Store::new(&prepared.engine, ());
+    store.set_fuel(super::super::FUEL_PER_CALL).unwrap();
+    let instance = Instance::new(&mut store, &prepared.module, &[]).unwrap();
+    let roots: Vec<_> = names
+        .iter()
+        .map(|name| instance.get_global(&mut store, name).unwrap())
+        .collect();
+    let mut activation = AsyncInstance::start_with_instance(store, instance, 4.0, 2.0).unwrap();
+    while activation.run_one_job().unwrap() {}
+    assert!(matches!(
+        activation.state().unwrap(),
+        AsyncState::Rejected(super::super::Value::Number(2.0))
+    ));
+    assert!(
+        roots
+            .iter()
+            .all(|root| matches!(root.get(&mut activation.store), wasmtime::Val::AnyRef(None)))
+    );
 }
 
 #[test]

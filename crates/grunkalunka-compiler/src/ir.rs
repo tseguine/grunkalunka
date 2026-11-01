@@ -22,6 +22,8 @@ mod gc_function_tests;
 #[cfg(test)]
 mod managed_array_tests;
 #[cfg(test)]
+mod managed_async_signature_tests;
+#[cfg(test)]
 mod managed_reference_projection_tests;
 #[cfg(test)]
 mod managed_value_tests;
@@ -169,9 +171,7 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if (signature.asynchronous
-                && (signature.result != Type::General
-                    || signature.parameters.iter().any(|ty| ty.is_managed())))
+            if (signature.asynchronous && signature.result != Type::General)
                 || signature.parameters.len() > 1000
                 || signature.parameters.iter().any(|ty| match ty {
                     Type::ManagedValue
@@ -219,9 +219,7 @@ impl ClosureSignatures {
             let Some(signature) = self.higher.get(id - 1001) else {
                 return false;
             };
-            if (signature.asynchronous
-                && (signature.result != Type::General
-                    || signature.parameters.iter().any(|ty| ty.is_managed())))
+            if (signature.asynchronous && signature.result != Type::General)
                 || !matches!(
                     signature.result,
                     Type::ManagedValue
@@ -2311,9 +2309,7 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
     // while retaining the same first-invalid-signature diagnostic order.
     let mut seen_signatures = BTreeSet::new();
     for (index, signature) in module.closure_signatures.higher.iter().enumerate() {
-        if (signature.asynchronous
-            && (signature.result != Type::General
-                || signature.parameters.iter().any(|ty| ty.is_managed())))
+        if (signature.asynchronous && signature.result != Type::General)
             || signature.parameters.len() > 1000
             || (signature.result == Type::Number
                 && !signature.parameters.iter().any(|ty| {

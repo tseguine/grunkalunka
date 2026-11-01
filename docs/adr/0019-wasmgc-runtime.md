@@ -46,8 +46,8 @@ physical coroutine frame use the same roots. Synchronous traced closure
 environments now compose with this single-frame path: function, cell and argument
 frame references remain engine-visible globals, and helper signatures use the
 existing GC closure ABI. Captures keep shared binding cells, including rebinding
-after suspension. Numeric-only closures retain their previous layout. Multiple
-reference-bearing coroutine frames still reject before emission.
+after suspension. Numeric-only closures retain their previous layout. The
+multi-frame increment below adds separately owned traced activation storage.
 
 This reuses the synchronous GC graph rather than introducing a second closure
 encoding or a numeric root-ID table for one frame. Forced copying collections
@@ -65,8 +65,8 @@ Alternatives for the wider #356 frontier remain:
   lanes in engine-visible storage, but needs bounded root identities, release
   and stale-resume checks for every physical activation.
 - Existing instance globals are sufficient for one physical coroutine frame.
-  Select this existing path now; do not infer multi-frame sharing from it or
-  introduce a root bridge before its ownership contract is implemented.
+  Keep that path for one frame; extending to overlapping activations requires the
+  ownership contract implemented below.
 
 The identity domain remains one generated instance. The current host adapters
 create fresh Stores/instances for independent entry invocations; no public
@@ -76,6 +76,46 @@ Source/native-JS/Node-Wasm/Wasmtime tests cover identity, aliases, snapshots and
 job order; private production-adapter tests force copying collections while
 genuinely suspended and check terminal root clearing through test-only exports.
 This is not evidence of bounded collection latency or general Promise support.
+
+## Related coroutine activations and traced saved references (2026-11-01)
+
+Select a checked WasmGC root bridge alongside the existing numeric control
+records. A GC activation record retains its function owner, closure environment
+and an array of saved reference lanes. A geometrically growing GC map indexes
+records by the existing aligned frame address. Numeric lanes retain their byte
+storage; generic saved references recover their verified nominal types by checked
+casts. Managed-input facts now reach async signatures and definition checking,
+while General results, parameter limits and complete callback validation remain.
+
+This keeps Promise/queue addressing and the scheduler intact. Replacing every
+control record with a full GC activation could remove the map, but would require
+changing parent links, Promise identities and job transport together. Reusing one
+set of globals alone would lose snapshots for overlapping calls. The bridge
+provides independent traced ownership without either rewrite or numeric GC
+surrogates. Existing numeric-only modules and the single-frame fast path remain.
+
+Map positions derive from the existing 1 MiB, 16-byte-aligned invocation arena:
+at most 65,536 positions, with no address reuse. Registration checks allocation,
+alignment, range, count bounds and duplicate occupancy. Lookups check the stored
+function owner; stale/malformed identities trap as backend failures. Each record
+is created before execution, saved on suspension/call boundaries and restored on
+resume. GC closure argument/environment frames retain the same binding cells.
+
+Logical completion releases that activation's record and working references,
+including uncaught primitive await rejection. Root settlement does not release
+pending children. A trap makes the adapter unusable until Store teardown;
+abandoning the invocation drops the Store and its roots. Immutable module-function
+identities last until instance teardown. The identity domain is one generated
+instance with related source activations; independently instantiated host entries
+still have separate Stores. This does not select a public shared-agent heap API.
+
+Source differential tests exercise two related activations sharing identity,
+mutation, independent snapshots, nested/reentrant helpers, finalizers and jobs
+after root settlement. Private production tests remove working roots, force
+copying collections while suspended, and check release, stale/invalid identities
+and terminal failures. Performance and collection latency are not inferred from
+these correctness checks. Managed Promise payloads/reasons, managed await operands
+and public reference exports remain excluded; ADR 0013 remains proposed.
 
 ## Context
 
