@@ -188,6 +188,12 @@ impl Lowering<'_, '_> {
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
+            Frame::DiscardExpression { .. } => {
+                // Mode::Discard already evaluates side effects and produces
+                // no statement value. Resume sequential completion normally.
+                cursor.completed = Some(Outcome::Statement(output_region, Completion::NORMAL));
+                Ok(())
+            }
             Frame::IfPredicate { source, depth } => {
                 let condition = value.expect("predicate mode yields a value");
                 let consequent = self.region(&source.consequent);
@@ -265,7 +271,8 @@ impl Lowering<'_, '_> {
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
-            Frame::IfPredicate { .. }
+            Frame::DiscardExpression { .. }
+            | Frame::IfPredicate { .. }
             | Frame::WhilePredicate { .. }
             | Frame::DoWhilePredicate { .. }
             | Frame::ForPredicate(_) => {
