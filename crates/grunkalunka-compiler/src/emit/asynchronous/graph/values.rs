@@ -63,6 +63,7 @@ pub(super) fn verify_state_values(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::super::State;
     use crate::ir::{ClosureSignatures, Exit, Function, Region, RegionId, Type};
     use oxc_span::Span;
 
@@ -84,8 +85,8 @@ mod tests {
         }
     }
 
-    fn state(end: End<'_>) -> super::super::State<'_> {
-        super::super::State {
+    fn state(end: End<'_>) -> State<'_> {
+        State {
             function: 0,
             operations: &[],
             resumed: None,
