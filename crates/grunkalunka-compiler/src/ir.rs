@@ -23,6 +23,8 @@ mod managed_array_tests;
 #[cfg(test)]
 mod managed_value_tests;
 #[cfg(test)]
+mod module_function_tests;
+#[cfg(test)]
 mod promise_equality_tests;
 #[cfg(test)]
 mod relational_tests;
@@ -534,6 +536,18 @@ pub(crate) enum Op {
     },
     AsyncClosureEntry {
         captures: Vec<SlotId>,
+    },
+    // One capture-free private function identity for the module instance.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "source declaration adapters are a separate lowering unit"
+        )
+    )]
+    ModuleClosure {
+        result: ValueId,
+        function: FunctionId,
     },
     MakeClosure {
         result: ValueId,
@@ -1240,6 +1254,32 @@ impl Verifier<'_> {
                         ));
                     }
                 }
+            }
+            Op::ModuleClosure { result, function } => {
+                let target = self
+                    .functions
+                    .get(function.0)
+                    .ok_or_else(|| invalid(span, "invalid module function ID"))?;
+                let captures = closure_environment(target).ok_or_else(|| {
+                    invalid(span, "module function target requires a closure entry")
+                })?;
+                if !captures.is_empty() || is_async_closure(target) {
+                    return Err(invalid(
+                        span,
+                        "module functions require a capture-free synchronous entry",
+                    ));
+                }
+                let parameters: Vec<_> = target
+                    .slots
+                    .iter()
+                    .take(target.parameter_count)
+                    .map(|slot| slot.ty)
+                    .collect();
+                let signature = self
+                    .closure_signatures
+                    .id(&parameters, target.return_type)
+                    .ok_or_else(|| invalid(span, "unknown module function signature"))?;
+                self.define(*result, Type::Closure(signature), visible, span)?;
             }
             Op::MakeClosure {
                 result,

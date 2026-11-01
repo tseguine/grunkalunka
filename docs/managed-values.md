@@ -23,8 +23,8 @@ the object's identity: two carriers for one object compare equal, while fresh
 objects remain distinct. Primitive comparisons retain kind differences, NaN and
 signed-zero rules. String equality compares lossless UTF-16 code units, never
 carrier/array identity or Unicode-normalized text. Future BigInt equality also needs value comparison;
-Synchronous private functions have the identity bridge described below. Source
-function storage, Symbols and other object kinds still require their own admission.
+Synchronous private functions have the identity bridge described below. Broader
+function-object behavior, Symbols and other object kinds remain follow-ups.
 
 | Operation | Contract |
 | --- | --- |
@@ -518,3 +518,27 @@ suspended GC frames, public heap ownership and full coercion/prototype behavior
 remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting
 rejected programs as supported.
+
+## Module-lifetime private function identities
+
+`ModuleClosure` reads a single immutable function object for a capture-free,
+synchronous private target. The backend allocates that object in a traced Wasm
+global at module instantiation. Repeated reads, including reads in different
+function bodies, keep identity; distinct targets and separate module instances
+remain distinct. Ordinary `MakeClosure` still allocates a fresh function.
+The existing typed closure call ABI handles Number, General and managed values.
+
+The verifier checks the target's entry, empty capture list and complete signature.
+The operation selects GC storage even when no managed carrier is otherwise used;
+numeric async spills explicitly reject it. Primitive modules without the operation
+retain their encoding. Per-read allocation would split declaration identity, and
+process-wide interning would merge separate module instances. A module global fits
+the existing engine tracing model without numeric handles or a new frame format.
+
+Eleven maintained emitted-IR/native-JS/Node groups cover these contracts, malformed
+IR and a 2 MiB native stack. A test-only observer retains an actual generated
+module-function read across separate call activations. A runtime fixture uses the
+production GC type fragment to compare per-instance identities against native
+JS/Node and to force Wasmtime copying collection between typed calls. These are backend tests;
+connecting source declarations through private adapters remains a separate unit.
+No source construct, public reference export or suspended GC frame is admitted here.

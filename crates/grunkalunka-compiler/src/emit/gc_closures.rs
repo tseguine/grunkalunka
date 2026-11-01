@@ -6,13 +6,17 @@ pub(super) const TYPES: &str = include_str!("gc_closures.wat");
 
 pub(super) fn needed(module: &ir::Module) -> bool {
     module.functions.iter().any(|f| {
-        let mut boxed_function = false;
-        if f.values.contains(&Type::ManagedValue) {
+        let mut function_identity = false;
+        if f.values
+            .iter()
+            .any(|ty| matches!(ty, Type::ManagedValue | Type::Closure(_)))
+        {
             ir::visit_operations(&f.body, &mut |op| {
-                boxed_function |= matches!(op, Op::ManagedFromClosure { .. });
+                function_identity |=
+                    matches!(op, Op::ManagedFromClosure { .. } | Op::ModuleClosure { .. });
             });
         }
-        boxed_function
+        function_identity
             || (ir::closure_environment(f).is_some()
                 && (f.return_type.is_managed()
                     || f.slots
@@ -23,6 +27,30 @@ pub(super) fn needed(module: &ir::Module) -> bool {
                 .into_iter()
                 .any(|slot| f.slots[slot.0].ty.is_managed())
     })
+}
+
+// Constant allocation makes identity belong to instantiation, independent of
+// where or how often the private function is read. No source effects run here.
+pub(super) fn module_globals(module: &ir::Module) -> String {
+    let mut functions = std::collections::BTreeSet::new();
+    for function in &module.functions {
+        if function
+            .values
+            .iter()
+            .any(|ty| matches!(ty, Type::Closure(_)))
+        {
+            ir::visit_operations(&function.body, &mut |op| {
+                if let Op::ModuleClosure { function, .. } = op {
+                    functions.insert(function.0);
+                }
+            });
+        }
+    }
+    let mut output = String::new();
+    for function in functions {
+        writeln!(output,"(global $gc_module_function{function} (ref $gc_function) (struct.new $gc_function (i32.const {function}) (ref.null $gc_frame)))").unwrap();
+    }
+    output
 }
 
 fn field(lane: layout::Lane) -> usize {

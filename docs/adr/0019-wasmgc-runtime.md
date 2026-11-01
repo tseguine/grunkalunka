@@ -444,3 +444,26 @@ explicit follow-ups.
 Use WasmGC for the general-value path, preserve specialized primitives, and grow
 source support through executable slices. Keep current runtime evidence distinct
 from the unimplemented object model, frame migration and public lifetime contracts.
+
+## Module-lifetime function getter prerequisite
+
+Module declarations need one function identity per module instance, independent
+of reads and call activations. `ModuleClosure` therefore reads a traced immutable
+Wasm global, allocated at instantiation for a capture-free synchronous private
+target. The target retains the existing typed closure signature and call ABI.
+This is an IR/backend prerequisite; source declaration adapters are separate work.
+
+Reusing fresh `MakeClosure` at each read would split one declaration's identity.
+Process-wide interning would merge declarations across instances. A lazy global
+cache could also preserve identity but introduces mutable initialization state
+without source creation effects to justify it. Constant GC allocation matches the
+module lifetime directly and executes on the pinned Node 24/Wasmtime 50 engines.
+Ordinary closure creation remains fresh. Targets without a getter operation emit
+no global.
+
+Validation rejects captured/asynchronous entries and signature mismatches. A getter
+selects traced storage even without a boxed value, and the numeric async emitter
+rejects it before spilling references. Tests distinguish emitted IR/native-JS/Node
+behavior from a shared-fragment Wasmtime instance/collection control. No public
+heap ABI, dependency, workflow, source admission or coroutine frame change follows
+from this prerequisite.
