@@ -254,8 +254,10 @@ impl Lowering<'_, '_> {
                     continue;
                 }
 
-                let (finished_region, completion) =
-                    cursor.completed.take().expect("completed mixed control child");
+                let (finished_region, completion) = cursor
+                    .completed
+                    .take()
+                    .expect("completed mixed control child");
                 let Some(frame) = cursor.pending.pop() else {
                     *region = finished_region;
                     return Ok(completion);
