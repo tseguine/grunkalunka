@@ -2,7 +2,8 @@
 
 Date: 2026-11-01
 
-Status: proposed; first bounded source-control migration is under review.
+Status: proposed architecture for the remaining cross-phase work; its bounded
+source-control pilot is integrated and verified (see checkpoint below).
 
 ## Context
 
@@ -167,10 +168,11 @@ mixed-kind SCC survey and a bounded cross-handler vertical slice.
 [JavaScript engine steering](../javascript-engine-steering.md), and
 [IR course correction](../ir-course-correction.md).
 
-## Incremental migration checkpoint (in-flight code, 2026-11-01)
+## Integrated source-control checkpoint (2026-11-01)
 
-The implementation sequence is intentionally stacked so each mechanical
-migration can be reviewed and CI-corrected before inclusion in `master`:
+The following bounded implementation stack was tested and integrated
+into `master` through the combined #391 rebase merge. Predecessor PRs
+were closed as superseded by the batch, not individually merged:
 
 - [#381](https://github.com/tseguine/grunkalunka/pull/381): common source
   charge/admission checks, enter/child task vocabulary, owned Region handoff.
@@ -190,9 +192,17 @@ migration can be reviewed and CI-corrected before inclusion in `master`:
   active-cursor instrumentation and composed syntax probes for precisely the
   source-control boundaries that were previously distinct Rust frames.
 
-**Do not equate open PRs with a verified architecture.** This is a migration
-plan with code under review; full output/diagnostic parity, formatting, Windows
-and Linux native stack checks, and runtime source oracles remain merge gates.
+**Verified scope:** #391's exact combined tip passed applicable hosted
+Linux/Windows checks and the repository macOS verification gate before
+rebase merge, and the caretaker confirmed the reviewed file contents in
+`master`. The later [#394](https://github.com/tseguine/grunkalunka/pull/394)
+expression refactor and [#396](https://github.com/tseguine/grunkalunka/pull/396)
+owned source-cursor/for-loop extraction were also integrated with exact-head
+checks and their own regression repairs. These establish the currently
+implemented bounded source machine, not the full cross-phase architecture.
+Full output/diagnostic parity, stack probes and runtime oracles remain gates
+for *each future* code migration. The active remaining-unit plan is in
+[engine steering](../javascript-engine-steering.md#source-lowering-architecture-completed-base-and-remaining-work).
 The absence of synchronous recursion among these particular source-control
 families is not yet evidence for the whole compiler. In particular:
 
