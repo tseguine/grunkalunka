@@ -125,21 +125,15 @@ fn managed_closure_results_and_async_frames_remain_explicit_gaps() {
 // Keep an actual generated closure alive after its defining invocation returns.
 // This is a test-only observation/root, not a public reference ABI or host heap.
 fn rooted_closure_observer(wat: &str) -> Vec<u8> {
-    assert!(wat.contains("$gc_frame"));
-    let lines = wat.lines().collect::<Vec<_>>();
+    assert!(wat.contains("$gc_function"));
     let mut result = String::new();
     let mut copies = 0;
-    for (index, line) in lines.iter().enumerate() {
+    for line in wat.lines() {
         result.push_str(line);
         result.push('\n');
-        if index >= 2
-            && lines[index - 2] == "array.set $gc_frame"
-            && lines[index - 1].starts_with("i32.const ")
-            && line.starts_with("local.get ")
-        {
-            // Preserve the code/environment pair on the operand stack while
-            // copying its two lanes into test-only traced roots.
-            result.push_str("global.set $test_env\nglobal.set $test_code\nglobal.get $test_code\nglobal.get $test_env\n");
+        if line == "struct.new $gc_function" {
+            // Retain the actual canonical function object, including its environment.
+            result.push_str("global.set $test_function\nglobal.get $test_function\n");
             copies += 1;
         }
     }
@@ -151,13 +145,13 @@ fn rooted_closure_observer(wat: &str) -> Vec<u8> {
     result.truncate(end);
     result.push_str(
         r#"
-      (global $test_env (mut (ref null $gc_frame)) (ref.null $gc_frame))
-      (global $test_code (mut i32) (i32.const -1))
+      (global $test_function (mut (ref null $gc_function)) (ref.null $gc_function))
       (func (export "read_saved") (result f64)
-        global.get $test_env i32.const 0 array.new_default $gc_frame
-        global.get $test_code call_indirect (type $closure))
+        global.get $test_function struct.get $gc_function 1
+        i32.const 0 array.new_default $gc_frame
+        global.get $test_function struct.get $gc_function 0 call_indirect (type $closure))
       (func (export "clear_saved")
-        ref.null $gc_frame global.set $test_env i32.const -1 global.set $test_code))"#,
+        ref.null $gc_function global.set $test_function))"#,
     );
     wat::parse_str(result).unwrap()
 }

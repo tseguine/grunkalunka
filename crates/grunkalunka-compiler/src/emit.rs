@@ -315,6 +315,12 @@ impl Emitter<'_> {
                 self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
                 self.set(*result);
             }
+            Op::ManagedFromClosure { result, input } => {
+                self.output.push_str("i32.const 6\nf64.const 0\n");
+                self.get(*input);
+                self.output.push_str("struct.new $gc_value\n");
+                self.set(*result);
+            }
             Op::ManagedEqual {
                 result,
                 left,
@@ -335,6 +341,7 @@ impl Emitter<'_> {
                     "number",
                     "object",
                     "string",
+                    "function",
                 ];
                 for (tag, name) in names.iter().enumerate() {
                     self.get(*input);

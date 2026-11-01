@@ -30,7 +30,7 @@ pub(super) enum Lane {
     ManagedRef,
     ObjectRef,
     ArrayRef,
-    EnvironmentRef,
+    FunctionRef,
 }
 
 impl Lane {
@@ -41,7 +41,7 @@ impl Lane {
             Self::ManagedRef => "(ref null $gc_value)",
             Self::ObjectRef => "(ref null $gc_object)",
             Self::ArrayRef => "(ref null $gc_array)",
-            Self::EnvironmentRef => "(ref null $gc_frame)",
+            Self::FunctionRef => "(ref null $gc_function)",
         }
     }
 }
@@ -139,18 +139,12 @@ pub(super) fn value(ty: Type) -> Layout {
 pub(super) fn closure_value(ty: Type, gc: bool) -> Layout {
     if gc && matches!(ty, Type::Closure(_)) {
         Layout {
-            parts: &[
-                Part {
-                    lane: Lane::I32,
-                    byte_offset: 0,
-                },
-                Part {
-                    lane: Lane::EnvironmentRef,
-                    byte_offset: 0,
-                },
-            ],
-            wat: "i32 (ref null $gc_frame)",
-            local: "(local i32 (ref null $gc_frame))\n",
+            parts: &[Part {
+                lane: Lane::FunctionRef,
+                byte_offset: 0,
+            }],
+            wat: "(ref null $gc_function)",
+            local: "(local (ref null $gc_function))\n",
         }
     } else {
         value(ty)
