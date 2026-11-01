@@ -50,6 +50,16 @@ pub(super) fn verify(split: &Splitter<'_>, entries: &[Option<usize>]) -> Result<
                     "async continuation state {index} references invalid state {destination}"
                 ));
             }
+            // Direct graph edges run within the current activation. Entering
+            // another async closure happens through InvokeClosure and its
+            // separate module entry; returning to the caller happens through
+            // the scheduler, not a cross-function graph edge. Crossing here
+            // would read/write locals from the wrong physical coroutine frame.
+            if split.states[destination].function != state.function {
+                return Err(format!(
+                    "async continuation state {index} crosses function boundary to state {destination}"
+                ));
+            }
         }
         if let End::AdoptPromise { subscription } = &state.end
             && !matches!(
@@ -161,6 +171,42 @@ mod tests {
     }
 
     #[test]
+    fn rejects_cross_function_edges_even_when_state_ids_are_in_bounds() {
+        let value = ValueId(0);
+        for (start, end) in [
+            (
+                End::Jump(1),
+                End::Return(value),
+            ),
+            (
+                End::Reaction {
+                    fulfilled: 1,
+                    rejected: 0,
+                },
+                End::Reject(value),
+            ),
+            (
+                End::Suspend {
+                    input: value,
+                    rejected: false,
+                    resume: 1,
+                },
+                End::Return(value),
+            ),
+        ] {
+            let split = graph(vec![state(0, start), state(1, end)]);
+            let error = verify(&split, &[None, None])
+                .expect_err("continuations may not enter another function's frame");
+            assert!(
+                error.contains("crosses function boundary to state 1"),
+                "{error}"
+            );
+        }
+        let split = graph(vec![state(0, End::Jump(1)), state(0, End::Return(value))]);
+        verify(&split, &[None, None]).expect("same-function continuation remains valid");
+    }
+
+    #[test]
     fn checks_adoption_kind_and_private_function_entries() {
         let v = ValueId(0);
         let split = graph(vec![
@@ -174,7 +220,8 @@ mod tests {
                 },
             ),
             state(0, End::AdoptPromise { subscription: 2 }),
-            state(1, End::EnterClosure { next: 1 }),
+            state(1, End::EnterClosure { next: 5 }),
+            state(1, End::Return(v)),
         ]);
         verify(&split, &[None, Some(4)]).expect("well-formed private graph");
         assert!(
