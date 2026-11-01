@@ -194,18 +194,20 @@ mod tests {
     #[test]
     fn private_async_entry_coverage_must_match_source_function_kinds() {
         let span = Span::new(0, 0);
-        let mut module = module(1);
-        let mut async_closure = module(1).functions.remove(0);
+        let mut source = module(1);
+        let mut async_module = module(1);
+        let mut async_closure = async_module.functions.remove(0);
         async_closure.body.operations.push(Operation {
             span,
             kind: Op::AsyncClosureEntry {
                 captures: Vec::new(),
             },
         });
-        module.functions.push(async_closure);
-        module.functions.push(module(1).functions.remove(0));
+        source.functions.push(async_closure);
+        let mut ordinary_module = module(1);
+        source.functions.push(ordinary_module.functions.remove(0));
 
-        verify_entry_coverage(&[None, Some(1), None], &module)
+        verify_entry_coverage(&[None, Some(1), None], &source)
             .expect("one represented async closure with one entry");
         for (entries, expected) in [
             (vec![None, None, None], "function 1"),
@@ -213,7 +215,7 @@ mod tests {
             (vec![Some(0), Some(1), None], "source entry"),
             (vec![None, Some(1)], "length disagrees"),
         ] {
-            let error = verify_entry_coverage(&entries, &module)
+            let error = verify_entry_coverage(&entries, &source)
                 .expect_err("malformed private entry coverage");
             assert!(error.contains(expected), "{error}");
         }
