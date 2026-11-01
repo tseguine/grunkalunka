@@ -551,6 +551,13 @@ impl Emitter<'_> {
                 }
                 self.set(*result);
             }
+            Op::RebindCell { slot, value } => {
+                // The source Load preceding this operation preserves the old
+                // value; Initialize-style storage allocates a new cell and
+                // redirects future references without changing past closures.
+                let pointer = self.cell_offsets[slot.0].expect("rebound cell has storage");
+                self.store_cell(*slot, *value, pointer, true);
+            }
             Op::Initialize { slot, value } | Op::Store { slot, value } => {
                 if let Some(pointer) = self.cell_offsets[slot.0] {
                     self.store_cell(
