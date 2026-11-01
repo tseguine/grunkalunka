@@ -41,6 +41,32 @@ different parts are **language-specific transitions and result semantics**.
 An abstraction that merges both prematurely would be less maintainable than
 the existing handlers.
 
+## Cross-handler reentry seams to measure
+
+The repeated direct-nesting optimizations do **not** yet establish a
+stack-independent whole-program lowering entry point. In the inspected source,
+these call paths can return to a previously entered subsystem:
+
+| Candidate path (source files) | Why individual iterative loops are insufficient | Representative regression |
+| --- | --- | --- |
+| `sequence -> statement -> if_statement_iterative -> statement -> sequence` | A block inside an if body delegates back into sequence; alternating blocks/branches can reenter a suspended source cursor | Mixed nested block/if forms, boundary and over-depth, on a 2 MiB native thread stack |
+| `statement -> for/while_cursor -> statement -> if/try/loop_cursor` | Same-kind loop chains are handled on a heap, but mixed-kind children reenter another large handler | Alternating for/while/if forms with breaks, continues, captured header bindings and exact output |
+| `statement -> try_statement -> sequence -> statement -> try_statement` | Direct catch/finally chains have specialized iterative handling; intervening blocks/branches create a different path | Nested catch/finally with thrown and returned completion, precise handler/cleanup order |
+| `statement -> evaluate -> function_value -> closure/body lowering -> sequence -> statement` | A value or call can enter a source function body and subsequently another expression evaluator | Factory/callback results with lexical captures, arithmetic suffixes and source-budget diagnostics |
+
+These are **static call-path observations**, not a measured set of strongly
+connected components or proof that any admitted case currently overflows.
+Before a unified dispatcher, construct the composed call graph (including
+helper callbacks and error paths), identify SCCs, and measure the accepted
+depth/2 MiB case and just-over-budget rejection for each selected seam.
+
+An eventual machine can represent a request, suspended parent continuation,
+lexical context, owned output region and typed outcome explicitly. A handler
+should either complete or schedule the next request; the engine resumes its
+continuation without building another native Rust frame per source layer.
+Its task vocabulary should be extended only for actual source transitions,
+not copied wholesale from every existing local worklist.
+
 ## Proposed decision
 
 Adopt a **composable, heap-owned lowering cursor** as a direction, developed in
