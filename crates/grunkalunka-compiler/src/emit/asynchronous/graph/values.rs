@@ -4,7 +4,7 @@
 use super::super::{End, Splitter};
 use crate::ir::{self, ValueId};
 
-pub(super) fn verify_state_values(
+pub(in crate::emit::asynchronous) fn verify_state_values(
     split: &Splitter<'_>,
     module: &ir::Module,
 ) -> Result<(), String> {
@@ -33,8 +33,9 @@ pub(super) fn verify_state_values(
             | End::AwaitPromise { input, .. }
             | End::SettledTest { input, .. }
             | End::Suspend { input, .. } => check(*input)?,
-            End::StartedClosure { result, .. }
-            | End::ReturnedClosure { result, .. } => check(*result)?,
+            End::StartedClosure { result, .. } | End::ReturnedClosure { result, .. } => {
+                check(*result)?
+            }
             End::InvokeClosure {
                 callee, arguments, ..
             } => {
@@ -62,8 +63,8 @@ pub(super) fn verify_state_values(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::State;
+    use super::*;
     use crate::ir::{ClosureSignatures, Exit, Function, Region, RegionId, Type};
     use oxc_span::Span;
 
@@ -176,9 +177,11 @@ mod tests {
             states: vec![resumed],
             ..Splitter::default()
         };
-        assert!(verify_state_values(&split, &module)
-            .unwrap_err()
-            .contains("invalid value 99"));
+        assert!(
+            verify_state_values(&split, &module)
+                .unwrap_err()
+                .contains("invalid value 99")
+        );
 
         let mut wrong_function = state(End::Return(ValueId(0)));
         wrong_function.function = 4;
@@ -186,9 +189,11 @@ mod tests {
             states: vec![wrong_function],
             ..Splitter::default()
         };
-        assert!(verify_state_values(&split, &module)
-            .unwrap_err()
-            .contains("invalid function 4"));
+        assert!(
+            verify_state_values(&split, &module)
+                .unwrap_err()
+                .contains("invalid function 4")
+        );
 
         let split = Splitter {
             states: vec![state(End::Copy {
