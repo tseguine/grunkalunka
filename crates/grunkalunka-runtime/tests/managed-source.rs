@@ -127,7 +127,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
         "let o={};o=a;return a;",
         "const o={};o={};return a;",
         "const o={};return o==null?a:b;",
-        "const o={x:{}};const x=o.x;return x.y?a:b;",
         "const o={};Object.setPrototypeOf(o,{});return a;",
     ] {
         for ts in [false, true] {

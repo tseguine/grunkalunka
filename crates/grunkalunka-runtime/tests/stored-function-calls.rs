@@ -111,7 +111,6 @@ fn missing_mixed_opaque_and_async_fields_remain_explicit_rejections() {
         "const o={f:async()=>a};return o.f();",
         "const o={constructor:()=>a};return o.constructor();",
         "const o={f:()=>a};return o.f;",
-        "const o={child:{f:()=>a}};return o.child.f();",
     ] {
         let source = format!("export function run(a,b){{{body}}}");
         for ts in [false, true] {

@@ -481,13 +481,6 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Backend receiver bridge; source consumer follows separately"
-        )
-    )]
     ManagedToArray {
         result: ValueId,
         input: ValueId,
@@ -503,13 +496,6 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Backend receiver bridge; source consumer follows separately"
-        )
-    )]
     ManagedToObject {
         result: ValueId,
         input: ValueId,
