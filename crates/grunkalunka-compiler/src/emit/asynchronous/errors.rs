@@ -6,3 +6,13 @@ pub(super) fn runtime() -> String {
     runtime.push_str(include_str!("errors.wat"));
     runtime
 }
+
+pub(super) fn managed_runtime() -> String {
+    let original = "local.get $value struct.get $gc_value 0 i32.const 6 i32.eq i32.or";
+    let extended = "local.get $value struct.get $gc_value 0 i32.const 6 i32.eq i32.or\n    local.get $value struct.get $gc_value 0 i32.const 7 i32.eq i32.or";
+    let runtime = include_str!("../managed.wat");
+    debug_assert_eq!(runtime.matches(original).count(), 1);
+    // Equality already compares scalar payloads for non-reference kinds. GC
+    // kind 7 carries the existing Error record identity, never an eqref or Number.
+    runtime.replacen(original, extended, 1)
+}

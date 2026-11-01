@@ -117,6 +117,16 @@ and terminal failures. Performance and collection latency are not inferred from
 these correctness checks. Managed Promise payloads/reasons, managed await operands
 and public reference exports remain excluded; ADR 0013 remains proposed.
 
+The General-to-GC bridge gives the already represented intrinsic TypeError a
+separate GC language tag (7). General's tag 4 denotes its validated numeric Error
+record identity, whereas GC tag 4 denotes an ordinary object/array reference;
+copying the tag would collide and rejecting it would trap on admitted catches.
+Retain the existing Error identity payload in the box, compare identities within
+this separate kind, and map its truthiness and `typeof` to object behavior. This
+avoids introducing a second Error allocation/identity protocol for this repair.
+It does not select general Error construction, prototype lookup, managed Promise
+payloads or a replacement for the existing private Error wire representation.
+
 ## Context
 
 The maintainer selected **WasmGC first** for the compiler's general-JavaScript

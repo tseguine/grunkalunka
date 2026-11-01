@@ -99,6 +99,15 @@ completion, child ownership and invalid/stale identities. Managed Promise
 settlements/reasons, managed await operands, public references and sharing across
 separately instantiated host entries remain unsupported.
 
+The already represented intrinsic self-resolution `TypeError` can also be stored
+in these containers or captured across suspension. Its General wire tag differs
+from its private GC language tag: boxing validates and preserves the existing
+invocation-local Error record identity, rather than treating that identity as an
+ordinary object reference. Same-error equality, distinct-error inequality,
+truthiness, nullish selection and `typeof` retain their JavaScript behavior.
+This does not add Error constructors/properties/prototypes or unbox a managed
+property snapshot into a Promise payload or public result.
+
 ## Logical operations and representation
 
 `ManagedValue` currently carries Undefined, Null, Boolean, Number, String or an

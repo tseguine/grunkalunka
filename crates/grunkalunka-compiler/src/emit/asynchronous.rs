@@ -1556,7 +1556,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(&super::gc_closures::projection_helpers(module));
     }
     if managed {
-        output.push_str(include_str!("managed.wat"));
+        if errors {
+            output.push_str(&errors::managed_runtime());
+        } else {
+            output.push_str(include_str!("managed.wat"));
+        }
     }
     if gc_frames {
         output.push_str(managed_frames::RUNTIME);
