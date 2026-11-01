@@ -131,7 +131,6 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn direct_nested_finalizers_keep_small_stack_and_original_depth_guards() {
