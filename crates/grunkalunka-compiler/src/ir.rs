@@ -47,7 +47,7 @@ pub(crate) struct RegionId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct FunctionId(pub usize);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum Type {
     Number,
     Predicate,
@@ -79,7 +79,7 @@ impl Type {
 
 // Numeric leaf signatures keep their arity as the ID. Other IDs intern a
 // logical parameter list; the backend chooses numeric or traced private frames.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub(crate) struct ClosureSignature {
     pub parameters: Vec<Type>,
     pub result: Type,
@@ -2305,6 +2305,11 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
     if !matches!(entry_type, Type::Number | Type::General) {
         return Err("internal IR: entry profile must return Number or General".into());
     }
+    // Keep duplicate validation independent of signature interning: tests
+    // and future IR constructors can mutate the public logical registry.
+    // A set of borrowed signatures avoids repeatedly scanning every prefix
+    // while retaining the same first-invalid-signature diagnostic order.
+    let mut seen_signatures = BTreeSet::new();
     for (index, signature) in module.closure_signatures.higher.iter().enumerate() {
         if (signature.asynchronous
             && (signature.result != Type::General
@@ -2355,7 +2360,7 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
                     | Type::Promise
             )
             || matches!(signature.result, Type::Closure(id) if id > 1000 && id >= 1001 + index)
-            || module.closure_signatures.higher[..index].contains(signature)
+            || !seen_signatures.insert(signature)
         {
             return Err("internal IR: invalid closure signature".into());
         }
@@ -2538,6 +2543,43 @@ fn verify_function(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn many_distinct_signatures_still_reject_a_late_duplicate() {
+        let mut module = crate::lower_source("export function run(a,b){return a;}", false).unwrap();
+        // Same parameters with different sync/async identity remain distinct.
+        for asynchronous in [false, true] {
+            for count in 0..96 {
+                module.closure_signatures.higher.push(ClosureSignature {
+                    parameters: vec![Type::General; count],
+                    result: Type::General,
+                    asynchronous,
+                });
+            }
+        }
+        verify_module(&module).expect("distinct source signatures");
+        module.closure_signatures.higher.push(ClosureSignature {
+            parameters: vec![Type::General; 57],
+            result: Type::General,
+            asynchronous: true,
+        });
+        assert!(
+            verify_module(&module)
+                .unwrap_err()
+                .contains("invalid closure signature")
+        );
+        module
+            .closure_signatures
+            .higher
+            .last_mut()
+            .unwrap()
+            .asynchronous = false;
+        assert!(
+            verify_module(&module)
+                .unwrap_err()
+                .contains("invalid closure signature")
+        );
+    }
 
     fn calling_module() -> Module {
         let mut caller = function(
