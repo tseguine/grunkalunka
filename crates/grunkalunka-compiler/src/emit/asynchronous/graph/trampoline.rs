@@ -151,20 +151,26 @@ mod tests {
 
     #[test]
     fn does_not_skip_states_that_emit_source_operations() {
-        static OPS: [Operation; 1] = [Operation {
+        let operations = [Operation {
             span: Span::new(0, 0),
             kind: Op::Constant {
                 result: ValueId(0),
                 value: 7.0,
             },
         }];
-        let mut live = state(End::Jump(2));
-        live.operations = &OPS;
-        let mut split = graph(vec![
-            state(End::Jump(1)),
-            live,
-            state(End::Return(ValueId(0))),
-        ]);
+        let mut split = Splitter {
+            states: vec![
+                state(End::Jump(1)),
+                State {
+                    function: 0,
+                    operations: &operations,
+                    resumed: None,
+                    end: End::Jump(2),
+                },
+                state(End::Return(ValueId(0))),
+            ],
+            ..Splitter::default()
+        };
         thread_empty_jumps(&mut split, 0);
         assert!(matches!(split.states[0].end, End::Jump(1)));
     }
