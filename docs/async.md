@@ -431,6 +431,9 @@ previous mutable-capture case that left a root pending with no ready jobs.
 
 Adoption modules opt into `error_kind(f64) -> i32`. Async tag 4 carries a validated,
 invocation-local Error-record ID; kind 1 is the intrinsic self-resolution TypeError.
+Fallible `Object.keys` modules also admit kind 2 for nullish ToObject, with the
+fixed message `Cannot convert undefined or null to object`. Both causes retain
+the same identity/notification protocol; unsupported kinds remain fatal.
 The Node adapter caches a native TypeError per ID, shared between root outcomes
 and rejection notifications. Separate invocations have separate caches. Wasmtime
 exposes `Value::TypeError { id }`; IDs have meaning only within their invocation.
@@ -445,17 +448,17 @@ Tests compare Error class and identity rather than engine-specific messages or
 stack traces; previous primitive comparisons remain exact.
 
 All four relational operators now retain General operands until comparison. Two
-intrinsic Errors have equal primitive strings, even when their object identities
-differ: `<` and `>` are false, and `<=` and `>=` are true. The saved `e <= e`
+intrinsic Errors of the same cause have equal primitive strings, even when their
+object identities differ: `<` and `>` are false, and `<=` and `>=` are true. The saved `e <= e`
 counterexample now passes. Mixed Error/non-string primitive pairs compare through
 NaN and return false; explicit `+e <= +e` also remains false. Captured operands,
 private calls and suspension retain source evaluation order and snapshots.
 
 This does not implement arbitrary Error constructors/properties, general object
-semantics or String values. The comparison shortcut relies on the current single
-intrinsic Error kind and fixed message; new kinds or custom coercion require an
-extension. String-producing conversions, snapshot adoption and other previously
-recorded JS/TS gaps remain open.
+semantics or general String coercion. Modules admitting both intrinsic causes
+order the nullish-ToObject string before the self-resolution string. New kinds
+or custom coercion require an extension. String-producing conversions, snapshot
+adoption and other previously recorded JS/TS gaps remain open.
 
 ### Represented Promise identity equality
 
@@ -732,7 +735,7 @@ conversion remain separate work.
 All four relational operators now accept represented Promise/General operands.
 Operands execute once, left before right, and retain raw snapshots across RHS
 mutation, calls and suspension. Builtin Promise primitive strings compare equal
-regardless of identity. Against the sole represented intrinsic TypeError string,
+regardless of identity. Against either represented intrinsic TypeError string,
 the Promise string orders after it. Promise/non-string primitive pairs compare
 through NaN and yield false. General/General behavior remains unchanged.
 No comparison adopts, handles or schedules a Promise. Custom conversion and

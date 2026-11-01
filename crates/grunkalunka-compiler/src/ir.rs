@@ -32,6 +32,8 @@ mod managed_value_tests;
 #[cfg(test)]
 mod module_function_tests;
 #[cfg(test)]
+mod own_keys_tests;
+#[cfg(test)]
 mod promise_equality_tests;
 #[cfg(test)]
 mod relational_tests;
@@ -481,6 +483,12 @@ pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
 }
 
 #[derive(Debug)]
+pub(crate) struct Failure {
+    pub threw: ValueId,
+    pub reason: ValueId,
+}
+
+#[derive(Debug)]
 pub(crate) enum Op {
     ManagedArrayNew {
         result: ValueId,
@@ -523,6 +531,17 @@ pub(crate) enum Op {
     ManagedObjectSpread {
         object: ValueId,
         input: ValueId,
+    },
+    // Checked non-null input specialization; source unknowns use the fallible form.
+    ManagedOwnKeys {
+        result: ValueId,
+        input: ValueId,
+    },
+    // Semantic ToObject/enumeration; normal and throw outputs are distinct.
+    TryManagedOwnKeys {
+        result: ValueId,
+        input: ValueId,
+        failure: Failure,
     },
     ManagedFromObject {
         result: ValueId,
@@ -1228,6 +1247,36 @@ impl Verifier<'_> {
             Op::ManagedObjectSpread { object, input } => {
                 self.value(*object, Type::ManagedObject, visible, span)?;
                 self.value(*input, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedOwnKeys { result, input } => {
+                let ty = self
+                    .function
+                    .values
+                    .get(input.0)
+                    .copied()
+                    .ok_or_else(|| invalid(span, "unknown own-keys input"))?;
+                if !matches!(
+                    ty,
+                    Type::Number
+                        | Type::ManagedValue
+                        | Type::ManagedObject
+                        | Type::ManagedArray
+                        | Type::Closure(_)
+                ) {
+                    return Err(invalid(span, "own-keys input requires a represented value"));
+                }
+                self.value(*input, ty, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
+            }
+            Op::TryManagedOwnKeys {
+                result,
+                input,
+                failure,
+            } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
+                self.define(failure.threw, Type::Predicate, visible, span)?;
+                self.define(failure.reason, Type::General, visible, span)?;
             }
             Op::ManagedString { result, units } => {
                 u32::try_from(units.len())

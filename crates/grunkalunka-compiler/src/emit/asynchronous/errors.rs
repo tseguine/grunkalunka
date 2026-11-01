@@ -1,9 +1,14 @@
-pub(super) fn runtime() -> String {
+pub(super) fn runtime(error_kinds: bool) -> String {
     let original = "local.get $tag i32.const 3 i32.gt_u if unreachable end";
     let extended = "local.get $tag i32.const 4 i32.eq\nif local.get $payload call $error_record drop return end\n  local.get $tag i32.const 3 i32.gt_u if unreachable end";
     debug_assert_eq!(super::promises::RUNTIME.matches(original).count(), 1);
     let mut runtime = super::promises::RUNTIME.replacen(original, extended, 1);
     runtime.push_str(include_str!("errors.wat"));
+    if error_kinds {
+        let old = "local.get $p i32.load offset=4 i32.const 1 i32.ne if unreachable end";
+        debug_assert_eq!(runtime.matches(old).count(), 1);
+        runtime=runtime.replacen(old,"local.get $p i32.load offset=4 i32.const 1 i32.sub i32.const 1 i32.gt_u if unreachable end",1);
+    }
     runtime
 }
 

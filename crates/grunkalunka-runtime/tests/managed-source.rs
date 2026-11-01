@@ -14,6 +14,91 @@ fn source_object_aliases_preserve_identity() {
 }
 
 #[test]
+fn object_keys_orders_indexes_before_insertion_order_strings() {
+    compare(
+        "const o={'2':a,'1':b,z:a,a:b};const keys=Object.keys(o);return keys.length===4&&keys[0]==='1'&&keys[1]==='2'&&keys[2]==='z'&&keys[3]==='a'?a:b;",
+    );
+}
+
+#[test]
+fn object_keys_preserves_index_boundaries_and_sparse_array_enumerability() {
+    for body in [
+        "const o={'4294967295':a,'01':a,'4294967294':a,'0':a,'2':a};o['01']=b;const k=Object.keys(o);return k.length===5&&k[0]==='0'&&k[1]==='2'&&k[2]==='4294967294'&&k[3]==='4294967295'&&k[4]==='01'?a:b;",
+        "const xs=[a,,b];xs.named=a;const k=Object.keys(xs);return k.length===3&&k[0]==='0'&&k[1]==='2'&&k[2]==='named'?a:b;",
+        "const xs=[a,b];xs.length=1;const k=Object.keys(xs);return k.length===1&&k[0]==='0'?a:b;",
+        "const xs=[];xs[4294967294]=a;const k=Object.keys(xs);return k.length===1&&k[0]==='4294967294'?a:b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_keys_handles_primitive_values_utf16_and_fresh_snapshots() {
+    for body in [
+        "const k=Object.keys('😀');return k.length===2&&k[0]==='0'&&k[1]==='1'?a:b;",
+        "const k=Object.keys('0123456789x');return k.length===11&&k[10]==='10'?a:b;",
+        "return Object.keys('').length===0&&Object.keys(a).length===0&&Object.keys(false).length===0&&Object.keys(true).length===0?a:b;",
+        "const f=()=>a;return Object.keys(f).length===0&&Object.keys(typeof a).length===6?a:b;",
+        r#"const o={'\ud800':a,'\ufffd':b};const k=Object.keys(o);return k[0]==='\ud800'&&k[1]==='\ufffd'?a:b;"#,
+        "const o={x:a};const k=Object.keys(o);o.y=b;const later=Object.keys(o);k[0]='z';return k!==later&&k.length===1&&later.length===2&&later[0]==='x'&&later[1]==='y'&&o.x===a?a:b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn object_keys_evaluates_call_arguments_before_taking_the_snapshot() {
+    for body in [
+        "let n=0;const o={x:a};const k=Object.keys((n++,o),(n++,o.y=b));return n===2&&k.length===2&&k[1]==='y'?a:b;",
+        "let n=0;const o={x:a};const k=Object.keys.call((n++,null),(n++,o),(n++,o.y=b));return n===3&&k.length===2&&k[1]==='y'?a:b;",
+        "const k=Object['keys']({x:a});return k.length===1&&k[0]==='x'?a:b;",
+        "const Object={keys:x=>x};return Object.keys(a);",
+    ] {
+        compare(body);
+    }
+    common::compare_sources(
+        "export function run(a,b){const o={x:a};return Object.keys(o)[0]==='x'?a:b;}",
+        "type Object=never;export function run(a:string,b:boolean):void{const o:Missing={x:a};return ((Object as unknown).keys(o as never)!)[0]==='x'?a:b;}",
+    );
+    let source = "function keys(o){return Object.keys(o);}function count(xs){return xs.length;}export function run(a,b){const k=keys({x:a,y:b});return count(k)===2&&k[1]==='y'?a:b;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn object_keys_keeps_unimplemented_semantics_and_depth_explicit() {
+    for body in [
+        "Object.keys(null);return a;",
+        "Object.keys();return a;",
+        "const o=a?{}:null;Object.keys(o);return a;",
+        "Object.keys({get x(){return a;}});return a;",
+        "Object.keys(...[{}]);return a;",
+        "Object?.keys({});return a;",
+        "Object.keys(1n);return a;",
+    ] {
+        for ts in [false, true] {
+            let error = compile(&format!("export function run(a,b){{{body}}}"), ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {body}"));
+            assert!(!error.contains("internal IR"), "{body}: {error}");
+        }
+    }
+    for (depth, admitted) in [(16, true), (140, false)] {
+        let source = format!(
+            "export function run(a,b){{return Object.keys({}{{x:a}}{})[0]==='x'?a:b;}}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted, "{:?}", result.as_ref().err());
+    }
+}
+
+#[test]
 fn source_object_spreads_copy_values_without_cloning_references() {
     compare(
         "const child={x:a};const source={child,x:a};const copy={...source};source.x=b;return copy!==source&&copy.child===child&&copy.x===a?a:b;",

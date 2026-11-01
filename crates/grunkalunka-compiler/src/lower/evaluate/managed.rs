@@ -394,6 +394,11 @@ impl Lowering<'_, '_> {
                         {
                             values.push(Some(Type::ManagedValue));
                         }
+                        Expression::CallExpression(call)
+                            if object_keys::is_call(call, self.semantic) =>
+                        {
+                            values.push(Some(Type::ManagedArray))
+                        }
                         Expression::CallExpression(call) => values.push(
                             managed_calls::function(call, self.semantic, self.functions)
                                 .map(|f| f.return_type)
@@ -609,6 +614,21 @@ impl Lowering<'_, '_> {
         if matches!(mode, Mode::Predicate) && self.managed_source_type(node, depth).is_some() {
             work.push(Work::Managed(ManagedWork::Truthy(node)));
             work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Array)
+            && let Expression::CallExpression(call) = node
+            && object_keys::is_call(call, self.semantic)
+        {
+            work.push(Work::OwnKeys(super::own_keys::Task {
+                node,
+                call,
+                index: 0,
+                input: None,
+                awaiting: false,
+                known: false,
+                depth,
+            }));
             return Ok(true);
         }
         if matches!(mode, Mode::Object | Mode::Array | Mode::Managed)

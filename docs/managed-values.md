@@ -756,6 +756,35 @@ remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting
 rejected programs as supported.
 
+## Own enumerable key arrays
+
+`Object.keys` builds a fresh managed array from the currently represented
+data-only domain. Objects and sparse arrays enumerate existing own data entries:
+canonical array-index strings first in ascending numeric order, then other
+strings in insertion order. Updating a property retains its position; array
+`length` is not enumerable. Strings supply UTF-16 index names. Numbers, Booleans,
+represented functions and intrinsic Errors supply no enumerable data.
+The result snapshots keys and shares immutable string storage without sorting or
+mutating the source. Subsequent source/result writes remain independent.
+This follows [Object.keys](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-object.keys)
+and [ordinary key ordering](https://tc39.es/ecma262/multipage/ordinary-and-exotic-objects-behaviours.html#sec-ordinaryownpropertykeys)
+within the admitted domain, not arbitrary exotic objects or descriptors.
+
+The frontend recognizes the unshadowed intrinsic, including a literal computed
+member and the existing `.call` form. Arguments execute once, left to right;
+ignored receiver/surplus arguments execute before enumeration. TypeScript types
+remain erased. Known nonnull values use a checked specialization. Unknown or
+nullable boxed values use an explicit normal/throw operation in the async profile:
+null/undefined, including a missing argument, throw a fresh catchable TypeError.
+Existing handlers, finalizers and saved activation roots preserve its identity
+and key arrays through suspension and copying collection.
+
+General synchronous exception propagation is still unsupported, so nullable
+`Object.keys` rejects in synchronous source. Getters, proxies, Symbols, custom
+prototypes, mutable function/Error properties and arbitrary dynamic property reads
+or writes remain outside this increment. Resource exhaustion and malformed private
+values are engine/protocol failures, never fabricated source TypeErrors.
+
 ## Module-lifetime private function identities
 
 `ModuleClosure` reads a single immutable function object for a capture-free,

@@ -140,6 +140,9 @@ fn kinds(
                             .and_then(|symbol| bindings.get(&symbol).cloned())
                             .unwrap_or_else(|| [Kind::Primitive].into()),
                     ),
+                    Expression::CallExpression(call) if object_keys::is_call(call, semantic) => {
+                        values.push([Kind::Array].into())
+                    }
                     Expression::CallExpression(call) => values.push(
                         function(call, semantic, functions)
                             .map(|f| returns[f.id.0].clone())
@@ -207,6 +210,7 @@ fn extend<K: Ord>(bindings: &mut BTreeMap<K, Kinds>, symbol: K, kinds: Kinds) ->
 fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
     semantic.nodes().iter().any(|node| {
         let origin = match node.kind() {
+            AstKind::CallExpression(call) if object_keys::is_call(call, semantic) => true,
             AstKind::ObjectExpression(_)
             | AstKind::ArrayExpression(_)
             | AstKind::StringLiteral(_)

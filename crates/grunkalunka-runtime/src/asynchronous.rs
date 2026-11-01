@@ -374,7 +374,7 @@ impl AsyncInstance {
             {
                 wasmtime::bail!("invalid error object identity");
             }
-            if kind.call(&mut self.store, payload)? != 1 {
+            if !matches!(kind.call(&mut self.store, payload)?, 1 | 2) {
                 wasmtime::bail!("invalid error object kind");
             }
             return Ok(super::Value::TypeError { id: payload as u32 });

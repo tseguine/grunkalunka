@@ -17,7 +17,7 @@ impl Emitter<'_> {
             self.relational_tag(left, 5);
             self.relational_tag(right, 5);
             self.output.push_str("i32.or\nif (result i32)\n");
-            // The builtin Promise string starts with '['; the sole represented
+            // The builtin Promise string starts with '['; each represented
             // intrinsic TypeError string starts with 'T'. Other General kinds
             // compare numerically against Promise's NaN and always yield false.
             let (error, promise) = match operator {
@@ -42,13 +42,24 @@ impl Emitter<'_> {
                 self.value_offsets[left.0], self.value_offsets[right.0]
             )
             .unwrap();
-            // All currently represented Error objects are the same intrinsic
-            // TypeError with the same message. Their primitive strings compare
-            // equal even when the object identities differ. Future Error kinds
-            // and string values must extend this dispatch with string ordering.
-            let equal_strings =
-                matches!(operator, Relational::LessEqual | Relational::GreaterEqual);
-            writeln!(self.output, "i32.const {}\nelse", u8::from(equal_strings)).unwrap();
+            // Identity is separate from the fixed intrinsic Error strings.
+            // Modules without the new cause keep the original equal-string path.
+            if self.error_kinds {
+                // Cause 2's "Cannot convert..." precedes cause 1's Promise
+                // self-resolution message, in both native Node and our adapter.
+                writeln!(self.output,"local.get {}\ncall $error_record\ni32.load offset=4\nlocal.get {}\ncall $error_record\ni32.load offset=4",self.value_offsets[left.0]+1,self.value_offsets[right.0]+1).unwrap();
+                self.output.push_str(match operator {
+                    Relational::Less => "i32.gt_u\n",
+                    Relational::LessEqual => "i32.ge_u\n",
+                    Relational::Greater => "i32.lt_u\n",
+                    Relational::GreaterEqual => "i32.le_u\n",
+                });
+                self.output.push_str("else\n");
+            } else {
+                let equal_strings =
+                    matches!(operator, Relational::LessEqual | Relational::GreaterEqual);
+                writeln!(self.output, "i32.const {}\nelse", u8::from(equal_strings)).unwrap();
+            }
         }
         self.general_number(left);
         self.general_number(right);
