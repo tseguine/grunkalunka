@@ -66,9 +66,7 @@ impl Lowering<'_, '_> {
                         } => {
                             self.statement_depth = depth;
                             if !charged {
-                                if self.active_block_calls != 0
-                                    && self.inline_depth + depth > 128
-                                {
+                                if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
                                     return Err(unsupported(
                                         source,
                                         "block-arrow expansion exceeds 128 nested regions",
@@ -224,7 +222,12 @@ mod tests {
                     .join()
                     .expect("nested source for must not overflow native stack");
                 if admitted {
-                    assert!(!result.unwrap_or_else(|error| panic!("{depth}: {error}")).wasm.is_empty());
+                    assert!(
+                        !result
+                            .unwrap_or_else(|error| panic!("{depth}: {error}"))
+                            .wasm
+                            .is_empty()
+                    );
                 } else {
                     let error = result.err().expect("deep source for should be rejected");
                     assert!(
@@ -244,8 +247,8 @@ mod tests {
             "let n=0;for(let i=0;i<3;){n+=a;i++;}return n;",
         ] {
             let source = format!("export function run(a,b){{{body}}}");
-            let artifact = crate::compile(&source, false)
-                .unwrap_or_else(|error| panic!("{body}: {error}"));
+            let artifact =
+                crate::compile(&source, false).unwrap_or_else(|error| panic!("{body}: {error}"));
             assert!(!artifact.wasm.is_empty());
         }
     }
