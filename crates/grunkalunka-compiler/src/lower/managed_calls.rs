@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 // Number inputs retain their fast path. Non-Number primitive arguments need the
 // managed carrier when a helper also transports managed values: ordinary source
 // parameter signatures do not admit the General pair. Other profiles retain the
-// existing primitive-result planner. Function values remain subject to rejection.
+// existing primitive-result planner. Functions use the checked constructor path.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Kind {
     Primitive,
@@ -366,6 +366,9 @@ pub(crate) struct ClosureKinds {
     pub(super) inputs: BTreeMap<SymbolId, Type>,
     pub(super) results: BTreeMap<NodeId, Type>,
     pub(super) calls: BTreeMap<NodeId, Type>,
+    pub(super) identity_symbols: BTreeSet<SymbolId>,
+    pub(super) identity_bodies: BTreeSet<NodeId>,
+    pub(super) identity_calls: BTreeSet<NodeId>,
 }
 pub(super) struct ClosureFlow<'s, 'n, 'a> {
     pub semantic: &'s Semantic<'a>,
@@ -570,5 +573,152 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
             .iter()
             .filter_map(|(call, kinds)| managed_type(kinds).map(|ty| (*call, ty)))
             .collect(),
+        ..ClosureKinds::default()
+    }
+}
+
+// Identity demand is separate from scalar result kinds: a numeric closure may
+// still escape as data. Follow the same finite constructor graph, without
+// changing the calling convention of typed callback parameters.
+pub(super) fn closure_identities(
+    kinds: &mut ClosureKinds,
+    origins: &callbacks::ReturnOrigins<'_, '_, '_>,
+    calls: &BTreeMap<NodeId, BTreeSet<NodeId>>,
+) {
+    let observe = |kinds: &mut ClosureKinds, expression| {
+        let (sources, mut bodies) = origins.expression(expression, &BTreeMap::new(), 0, 0);
+        for source in &sources {
+            if let Some(known) = origins.targets.get(source) {
+                bodies.extend(known);
+            }
+        }
+        if !sources.is_empty() || !bodies.is_empty() {
+            // Record value-producing calls beneath wrappers and selectors too.
+            // Their exact function signature remains checked during lowering.
+            let mut pending = vec![(expression, 0)];
+            while let Some((expression, depth)) = pending.pop() {
+                if depth > 128 {
+                    continue;
+                }
+                if let Some(inner) = erased_inner(expression) {
+                    pending.push((inner, depth + 1));
+                    continue;
+                }
+                match expression {
+                    Expression::CallExpression(call) => {
+                        kinds.identity_calls.insert(call.node_id.get());
+                    }
+                    Expression::ParenthesizedExpression(wrapper) => {
+                        pending.push((&wrapper.expression, depth + 1))
+                    }
+                    Expression::ConditionalExpression(conditional) => {
+                        pending.push((&conditional.consequent, depth + 1));
+                        pending.push((&conditional.alternate, depth + 1));
+                    }
+                    Expression::LogicalExpression(logical) => {
+                        pending.push((&logical.left, depth + 1));
+                        pending.push((&logical.right, depth + 1));
+                    }
+                    Expression::SequenceExpression(sequence) => {
+                        if let Some(last) = sequence.expressions.last() {
+                            pending.push((last, depth + 1));
+                        }
+                    }
+                    Expression::AssignmentExpression(assignment)
+                        if assignment.operator == AssignmentOperator::Assign =>
+                    {
+                        pending.push((&assignment.right, depth + 1))
+                    }
+                    _ => (),
+                }
+            }
+        }
+        kinds.identity_symbols.extend(sources);
+        kinds.identity_bodies.extend(bodies);
+    };
+    for node in origins.semantic.nodes().iter() {
+        match node.kind() {
+            AstKind::ObjectProperty(property) => observe(kinds, &property.value),
+            AstKind::ArrayExpression(array) => {
+                for element in &array.elements {
+                    if let Some(expression) = element.as_expression() {
+                        observe(kinds, expression);
+                    }
+                }
+            }
+            AstKind::AssignmentExpression(assignment)
+                if matches!(
+                    assignment.left.as_simple_assignment_target(),
+                    Some(
+                        SimpleAssignmentTarget::StaticMemberExpression(_)
+                            | SimpleAssignmentTarget::ComputedMemberExpression(_)
+                    )
+                ) =>
+            {
+                observe(kinds, &assignment.right);
+            }
+            AstKind::BinaryExpression(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::StrictEquality | BinaryOperator::StrictInequality
+                ) =>
+            {
+                observe(kinds, &binary.left);
+                observe(kinds, &binary.right);
+            }
+            _ => (),
+        }
+    }
+    for (body, arrow) in origins.arrows {
+        if kinds.results.contains_key(body) {
+            for statement in super::block_results::return_statements(origins.semantic, *body) {
+                if let Some(expression) = &statement.argument {
+                    observe(kinds, expression);
+                }
+            }
+            if let Some(expression) = super::storage::arrow_returns(arrow, origins.semantic) {
+                for expression in expression {
+                    observe(kinds, expression);
+                }
+            }
+        }
+    }
+    loop {
+        let before = (
+            kinds.identity_symbols.len(),
+            kinds.identity_bodies.len(),
+            kinds.identity_calls.len(),
+        );
+        for node in origins.semantic.nodes().iter() {
+            let AstKind::CallExpression(call) = node.kind() else {
+                continue;
+            };
+            for body in calls.get(&call.node_id.get()).into_iter().flatten() {
+                for (parameter, actual) in origins.arrows[body]
+                    .params
+                    .items
+                    .iter()
+                    .zip(invocation::arguments(call))
+                {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                        && let Some(symbol) = identifier.symbol_id.get()
+                        && (kinds.identity_symbols.contains(&symbol)
+                            || kinds.inputs.contains_key(&symbol))
+                        && let Some(expression) = actual.as_expression()
+                    {
+                        observe(kinds, expression);
+                    }
+                }
+            }
+        }
+        if before
+            == (
+                kinds.identity_symbols.len(),
+                kinds.identity_bodies.len(),
+                kinds.identity_calls.len(),
+            )
+        {
+            break;
+        }
     }
 }

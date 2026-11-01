@@ -899,7 +899,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         result
     }
 
-    fn materialize_closure(
+    pub(super) fn materialize_closure(
         &mut self,
         mut closure: closures::LocalClosure,
         region: &mut Region,
@@ -932,7 +932,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             .result(arity)
             .expect("checked signature");
         let asynchronous = self.closure_signatures.borrow().is_async(arity);
-        if return_type.is_managed()
+        if (return_type.is_managed() || self.managed_kinds.identity_bodies.contains(&closure.arrow))
             && closure
                 .captures
                 .iter()

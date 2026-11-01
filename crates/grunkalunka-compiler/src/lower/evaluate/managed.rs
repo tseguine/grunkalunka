@@ -317,7 +317,24 @@ impl Lowering<'_, '_> {
                         Expression::ObjectExpression(_) => values.push(Some(Type::ManagedObject)),
                         Expression::ArrayExpression(_) => values.push(Some(Type::ManagedArray)),
                         Expression::StringLiteral(_) => values.push(Some(Type::ManagedValue)),
+                        Expression::ArrowFunctionExpression(arrow)
+                            if self
+                                .managed_kinds
+                                .identity_bodies
+                                .contains(&arrow.node_id.get()) =>
+                        {
+                            values.push(Some(Type::ManagedValue));
+                        }
                         Expression::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
+                            values.push(Some(Type::ManagedValue));
+                        }
+                        Expression::CallExpression(call)
+                            if self
+                                .managed_kinds
+                                .identity_calls
+                                .contains(&call.node_id.get())
+                                && self.function_arity(node, depth).is_some() =>
+                        {
                             values.push(Some(Type::ManagedValue));
                         }
                         Expression::CallExpression(call) => values.push(
@@ -331,8 +348,19 @@ impl Lowering<'_, '_> {
                         Expression::Identifier(i) => values.push(
                             numeric_binding(i, self.semantic, &self.bindings)
                                 .ok()
-                                .map(|b| self.slots[b.slot.0].ty)
-                                .filter(|ty| ty.is_managed()),
+                                .and_then(|binding| {
+                                    let ty = self.slots[binding.slot.0].ty;
+                                    if ty.is_managed() {
+                                        Some(ty)
+                                    } else {
+                                        (matches!(ty, Type::Closure(_))
+                                            && self
+                                                .managed_kinds
+                                                .identity_symbols
+                                                .contains(&binding.symbol))
+                                        .then_some(Type::ManagedValue)
+                                    }
+                                }),
                         ),
                         Expression::StaticMemberExpression(m) if !m.optional => {
                             work.push(Shape::Member(m.property.name == "length"));
@@ -673,6 +701,17 @@ impl Lowering<'_, '_> {
                 values.push(Value::Managed(result));
                 return Ok(true);
             }
+            if let Some(signature) = self.function_arity(node, depth) {
+                if self.closure_signatures.borrow().is_async(signature) {
+                    return Err(unsupported(
+                        node,
+                        "suspended async functions cannot be stored as managed values",
+                    ));
+                }
+                work.push(Work::Managed(ManagedWork::BoxReference(node)));
+                work.push(Work::Eval(node, depth, Mode::Function(signature)));
+                return Ok(true);
+            }
             if let Expression::CallExpression(call) = node
                 && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
             {
@@ -750,7 +789,7 @@ impl Lowering<'_, '_> {
             }
             return Ok(true);
         }
-        if self.managed_source_type(node, depth).is_some() {
+        if !matches!(mode, Mode::Function(_)) && self.managed_source_type(node, depth).is_some() {
             return Err(unsupported(
                 node,
                 "expression is outside the numeric experiment: managed value requires an identity or managed storage position",
@@ -953,6 +992,7 @@ impl Lowering<'_, '_> {
                 let kind = match input {
                     Value::Object(input) => Op::ManagedFromObject { result, input },
                     Value::Array(input) => Op::ManagedFromArray { result, input },
+                    Value::Function(input) => Op::ManagedFromClosure { result, input },
                     Value::General(input) => Op::ManagedPrimitive { result, input },
                     _ => unreachable!("checked managed bridge"),
                 };

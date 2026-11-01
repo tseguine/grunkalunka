@@ -380,8 +380,32 @@ result. The source GC observer now retains the actual generated function object
 after defining calls return. A separate shared-fragment Wasmtime test keeps a
 boxed function/environment/object cycle across forced copying collections and
 checks a cleared root. Neither test claims a public reference ABI or reclamation
-timing. Source function containers and arbitrary calls through stored values remain
-separate work; the backend bridge does not silently enable them.
+timing. The source increment below connects known function values to containers;
+arbitrary calls through stored values remain separate work.
+
+## Source function values in managed storage
+
+Known typed source arrows can be stored in object/array properties, compared by
+identity and inspected with `typeof`. They can coexist with other managed values
+and different function signatures. The original typed bindings remain callable;
+a property containing an opaque managed function is not yet a callable source
+target. Named declaration identities and general changing-kind binding/signature
+inference remain separate work.
+
+Identity demand follows the existing finite constructor graph through aliases and
+known callback/factory arguments. An observed immutable function binding is
+materialized once at its definition, including already-evaluated factory metadata.
+Reads load that same reference; factory prefix effects are not repeated. Unobserved
+primitive functions retain the existing static path. This avoids both per-read
+recreation and a lazy cache whose first read might occur in only one branch.
+
+`managed-function-values` compares JS/TS in native JS, Node-Wasm and Wasmtime,
+including fresh captureless/captured functions, aliases, reassignment, snapshots,
+factory effects, heterogeneous arrays, cycles and erased annotations. A test-only
+root retains an actual generated function carrier and its object/environment cycle
+after source calls return, then forces copying collection and calls the saved
+function. Clearing the root must trap. This establishes reachability, not measured
+reclamation or a public reference ABI. Suspended function carriers still reject.
 
 ## Source managed closure arguments
 
@@ -420,10 +444,11 @@ still a value snapshot. Maintained `managed-closure-results` comparisons execute
 JS/TS against native JS, Node-Wasm and Wasmtime, covering concise/block returns,
 callbacks, factories, mixed values, method calls, reassignment effects and erased
 annotations. Exact former source-result rejection cases now execute positively.
-Public numeric exports, unsupported coercions/prototypes, function values in
-containers and suspended managed frames retain explicit rejection controls.
+Public numeric exports, unsupported coercions/prototypes, opaque stored-function
+calls and suspended managed frames retain explicit rejection controls.
 
-Runtime function values with managed results that directly capture a for-let
+Runtime function values with managed results or observed data identity that
+directly capture a for-let
 header are rejected pending [per-iteration environments #334](https://github.com/tseguine/grunkalunka/issues/334).
 Body-local iteration snapshots have positive tests. The older numeric header-cell
 case is also a known correctness gap tracked there.
@@ -488,7 +513,7 @@ No new package version, host authority, public reference ABI or dedicated CI
 workflow is introduced. Ordinary Cargo tests and existing package dependencies
 select the compiler and runtime consumers of the shared helper file.
 
-Broader String operations, general function identities,
+Broader String operations, declaration identities, opaque stored-function calls,
 suspended GC frames, public heap ownership and full coercion/prototype behavior
 remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting

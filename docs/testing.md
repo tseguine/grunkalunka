@@ -448,7 +448,8 @@ object/array snapshots, type inspection, typed calls and invalid inputs/results.
 function/environment/object cycle across forced Wasmtime copying GC. The actual
 source-closure lifetime observer separately roots a generated canonical function
 object, calls its unchanged body after collection, and tests root clearing. Source
-function-container admission and arbitrary stored-function calls remain rejected.
+function containers are covered by `managed-function-values` below, while
+arbitrary stored-function calls remain rejected.
 
 The compiler's `ir::gc_closure_tests` and `ir::gc_closure_argument_tests` exercise
 the traced closure backend independently of source managed-capture admission. `managed-closure-storage` in the runtime package
@@ -480,3 +481,12 @@ root is a negative control. New managed-returning function values with direct
 for-let header captures reject pending #334; body-local snapshots remain positive.
 The existing numeric header-capture defect is recorded in that issue, not counted
 as compatibility. The versioned corpus also includes these supported source cases.
+
+`managed-function-values` executes known source functions in object/array storage
+against native JS, Node-Wasm and Wasmtime. It checks canonical identity across
+aliases, reboxing, fresh factories, reassignment and argument snapshots, factory
+effects exactly once, mixed function signatures, cycles and annotation erasure.
+An actual generated carrier is retained after source returns and exercised through
+forced copying GC, with a cleared-root trap control. Two-megabyte native-stack
+and unsupported stored-call/public-reference/async/header-capture guards remain.
+Supported fixtures also participate in the versioned compatibility corpus.

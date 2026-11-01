@@ -488,13 +488,6 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "source function storage is a separate lowering unit"
-        )
-    )]
     ManagedFromClosure {
         result: ValueId,
         input: ValueId,

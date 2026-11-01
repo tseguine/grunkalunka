@@ -306,17 +306,14 @@ fn boxing_requires_a_visible_known_synchronous_function_and_managed_result() {
 }
 
 #[test]
-fn backend_bridge_does_not_silently_admit_source_function_containers() {
+fn source_function_containers_use_the_checked_backend_bridge() {
     for source in [
         "export function run(a,b){const f=()=>a;const o={f};return a;}",
         "export function run(a,b){const o=[()=>a];return a;}",
     ] {
         for ts in [false, true] {
-            let error = crate::compile(source, ts).err().unwrap();
-            assert!(
-                error.contains("unsupported") && !error.contains("internal IR"),
-                "{error}"
-            );
+            let artifact = crate::compile(source, ts).unwrap();
+            assert!(artifact.wat.contains("struct.new $gc_function"));
         }
     }
 }
