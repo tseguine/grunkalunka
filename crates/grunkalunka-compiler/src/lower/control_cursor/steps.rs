@@ -101,7 +101,7 @@ impl Lowering<'_, '_> {
                         depth,
                     });
                 } else {
-                    cursor.completed = Some((output, Completion::NORMAL));
+                    cursor.completed = Some(Outcome::Statement(output, Completion::NORMAL));
                 }
             }
             ControlNode::Block(source) => {
@@ -124,23 +124,15 @@ impl Lowering<'_, '_> {
                 });
             }
             ControlNode::If(source) => {
-                // If conditions execute before either branch.
-                let condition = self.predicate(&source.test, &mut output, 0)?;
-                let consequent = self.region(&source.consequent);
-                let visible = self.bindings.len();
-                cursor.pending.push(Frame::If {
-                    source,
+                // The condition is evaluated before its lexical branch Region
+                // exists. The source frame suspends without holding a second
+                // mutable borrow of the output Region.
+                cursor.pending.push(Frame::IfPredicate { source, depth });
+                cursor.next = Some(Next::Expression {
+                    source: &source.test,
                     output,
-                    depth,
-                    visible,
-                    condition,
-                    consequent: None,
-                    consequent_returns: None,
-                });
-                cursor.next = Some(Next::Statement {
-                    source: &source.consequent,
-                    output: consequent,
-                    depth: depth + 1,
+                    depth: 0,
+                    mode: evaluate::Mode::Predicate,
                 });
             }
             ControlNode::While(source) => {
@@ -192,6 +184,41 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
+    /// Resume one source-level consumer after the existing expression
+    /// evaluator has delivered its typed result. No source node is charged
+    /// twice and no child Region is allocated before the source expression.
+    pub(super) fn resume_expression<'n, 'a>(
+        &mut self,
+        frame: Frame<'n, 'a>,
+        mut output: Region,
+        value: Option<ValueId>,
+        cursor: &mut Cursor<'n, 'a>,
+    ) -> Result<(), String> {
+        match frame {
+            Frame::IfPredicate { source, depth } => {
+                let condition = value.expect("predicate mode yields a value");
+                let consequent = self.region(&source.consequent);
+                let visible = self.bindings.len();
+                cursor.pending.push(Frame::If {
+                    source,
+                    output,
+                    depth,
+                    visible,
+                    condition,
+                    consequent: None,
+                    consequent_returns: None,
+                });
+                cursor.next = Some(Next::Statement {
+                    source: &source.consequent,
+                    output: consequent,
+                    depth: depth + 1,
+                });
+                Ok(())
+            }
+            _ => unreachable!("only expression continuations may receive value results"),
+        }
+    }
+
     pub(super) fn resume_control<'n, 'a>(
         &mut self,
         frame: Frame<'n, 'a>,
@@ -200,6 +227,9 @@ impl Lowering<'_, '_> {
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
+            Frame::IfPredicate { .. } => {
+                unreachable!("predicate continuation is resumed by a value result")
+            }
             Frame::TryFinallyBody {
                 source,
                 output,
@@ -261,7 +291,7 @@ impl Lowering<'_, '_> {
                         continuation: Box::new(continuation),
                     },
                 );
-                cursor.completed = Some((output, body_completion.finalized_by(completion)));
+                cursor.completed = Some(Outcome::Statement(output, body_completion.finalized_by(completion)));
             }
             Frame::TryCatchBody {
                 source,
@@ -351,7 +381,7 @@ impl Lowering<'_, '_> {
                         handler: finished_region,
                     },
                 );
-                cursor.completed = Some((output, body_completion.caught_by(completion)));
+                cursor.completed = Some(Outcome::Statement(output, body_completion.caught_by(completion)));
             }
             Frame::Sequence {
                 statements,
@@ -387,7 +417,7 @@ impl Lowering<'_, '_> {
                         depth,
                     });
                 } else {
-                    cursor.completed = Some((finished_region, completion));
+                    cursor.completed = Some(Outcome::Statement(finished_region, completion));
                 }
             }
             Frame::Block {
@@ -398,7 +428,7 @@ impl Lowering<'_, '_> {
             } => {
                 self.bindings.truncate(visible);
                 Self::push(&mut output, source, Op::Block(finished_region));
-                cursor.completed = Some((output, completion));
+                cursor.completed = Some(Outcome::Statement(output, completion));
             }
             Frame::If {
                 source,
@@ -423,7 +453,7 @@ impl Lowering<'_, '_> {
                             alternate: finished_region,
                         },
                     );
-                    cursor.completed = Some((output, first.union(completion)));
+                    cursor.completed = Some(Outcome::Statement(output, first.union(completion)));
                     return Ok(());
                 }
 
@@ -457,7 +487,7 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    cursor.completed = Some((output, completion.union(Completion::NORMAL)));
+                    cursor.completed = Some(Outcome::Statement(output, completion.union(Completion::NORMAL)));
                 }
             }
             Frame::While {
@@ -479,7 +509,7 @@ impl Lowering<'_, '_> {
                         step: None,
                     },
                 );
-                cursor.completed = Some((output, completion.pretest_loop()));
+                cursor.completed = Some(Outcome::Statement(output, completion.pretest_loop()));
             }
             Frame::For(frame) => {
                 self.resume_for_loop(frame, finished_region, completion, cursor)?;
@@ -507,7 +537,7 @@ impl Lowering<'_, '_> {
                         condition,
                     },
                 );
-                cursor.completed = Some((output, completion.do_loop()));
+                cursor.completed = Some(Outcome::Statement(output, completion.do_loop()));
             }
         }
         Ok(())
