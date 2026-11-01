@@ -75,7 +75,6 @@ impl Lowering<'_, '_> {
         Ok(body_completion.finalized_by(finalizer_completion))
     }
 
-
     #[inline(never)]
     fn try_catch_chain<'n, 'a>(
         &mut self,
