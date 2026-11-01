@@ -5,7 +5,6 @@
 //! incoming edges to its eventual target without deleting states or changing
 //! protocol state IDs, scheduling boundaries, or the 4,096-state admission cap.
 use super::super::{End, Splitter, State};
-use std::collections::BTreeMap;
 
 fn target_of_empty_jump(states: &[State<'_>], index: usize, fresh: usize) -> Option<usize> {
     let state = &states[index];
@@ -23,12 +22,18 @@ fn target_of_empty_jump(states: &[State<'_>], index: usize, fresh: usize) -> Opt
 /// license to invent a completion for a source-level infinite loop.
 fn canonical_targets(states: &[State<'_>], fresh: usize) -> Vec<usize> {
     let mut canonical = vec![None; states.len()];
+    // Positions in an active DFS path are indexed by state ID rather than
+    // inserting every step into a fresh balanced tree. A generation counter
+    // avoids clearing this table for each disconnected path or cycle.
+    let mut seen_generation = vec![0usize; states.len()];
+    let mut path_position = vec![0usize; states.len()];
+    let mut generation = 0usize;
     for start in 0..states.len() {
         if canonical[start].is_some() {
             continue;
         }
+        generation += 1; // At most MAX_STATES generations.
         let mut path = Vec::new();
-        let mut positions = BTreeMap::new();
         let mut current = start;
         loop {
             if let Some(target) = canonical[current] {
@@ -37,9 +42,10 @@ fn canonical_targets(states: &[State<'_>], fresh: usize) -> Vec<usize> {
                 }
                 break;
             }
-            if let Some(&cycle_start) = positions.get(&current) {
-                // Preserve original edges between nodes in the cycle, rather
-                // than turning them into a different self-loop.
+            if seen_generation[current] == generation {
+                let cycle_start = path_position[current];
+                // The cycle's original edges remain intact; only upstream
+                // administrative paths redirect to their first cycle node.
                 for &index in &path[cycle_start..] {
                     canonical[index] = Some(index);
                 }
@@ -48,7 +54,8 @@ fn canonical_targets(states: &[State<'_>], fresh: usize) -> Vec<usize> {
                 }
                 break;
             }
-            positions.insert(current, path.len());
+            seen_generation[current] = generation;
+            path_position[current] = path.len();
             if let Some(next) = target_of_empty_jump(states, current, fresh) {
                 path.push(current);
                 current = next;
@@ -187,6 +194,30 @@ mod tests {
         assert!(matches!(split.states[0].end, End::Jump(1)));
         assert!(matches!(split.states[1].end, End::Jump(2)));
         assert!(matches!(split.states[2].end, End::Jump(1)));
+    }
+
+    #[test]
+    fn resolves_a_full_budget_chain_without_tree_allocations_or_recursion() {
+        use super::super::super::MAX_STATES;
+        let mut split = graph(
+            (0..MAX_STATES)
+                .map(|index| {
+                    if index + 1 == MAX_STATES {
+                        state(End::Return(ValueId(7)))
+                    } else {
+                        state(End::Jump(index + 1))
+                    }
+                })
+                .collect(),
+        );
+        thread_empty_jumps(&mut split, 0);
+        for state in split.states.iter().take(MAX_STATES - 1) {
+            assert!(matches!(state.end, End::Jump(target) if target == MAX_STATES - 1));
+        }
+        assert!(matches!(
+            split.states[MAX_STATES - 1].end,
+            End::Return(ValueId(7))
+        ));
     }
 
     #[test]
