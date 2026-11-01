@@ -1191,7 +1191,17 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     if queued {
         output.push_str(promises::GLOBALS);
     }
-    output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\nblock $invalid\nloop $dispatch\n");
+    output.push_str("(global $pc (mut i32) (i32.const 0))\n(func $advance (param $awaited_tag i32) (param $awaited f64) (result i32 i32 f64)\n");
+    if frames
+        .iter()
+        .flatten()
+        .any(|frame| super::needs_literal_scratch(frame.emitter.function))
+    {
+        // Construction is atomic within one state. The completed String/key
+        // moves to a traced value global before any suspension can occur.
+        output.push_str("(local $gc_literal (ref null $gc_key))\n");
+    }
+    output.push_str("block $invalid\nloop $dispatch\n");
     // A br_table dispatch avoids scanning every state on each loop iteration.
     for id in 0..split.states.len() {
         writeln!(output, "block $state{id}").unwrap();

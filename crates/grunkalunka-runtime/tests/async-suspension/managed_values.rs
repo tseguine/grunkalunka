@@ -1,6 +1,81 @@
 use super::*;
 
 #[test]
+fn large_managed_literals_keep_construction_scratch_separate_from_async_roots() {
+    use wasmtime::{Collector, Config, Engine, Instance, Module, Store};
+
+    let text = "x".repeat(10_001);
+    for source in [
+        format!("export async function run(a,b){{const s='{text}';await b;return s?a:b;}}"),
+        format!("export async function run(a,b){{await b;const s='{text}';await a;return s?a:b;}}"),
+        format!("export async function run(a,b){{const o={{'{text}':a}};await b;return o?a:b;}}"),
+        format!(
+            "export async function run(a,b){{const o={{}};await b;return o['{text}']===undefined?a:b;}}"
+        ),
+        format!(
+            "function make(){{return '{text}';}}export async function run(a,b){{const s=make();await b;return s?a:b;}}"
+        ),
+    ] {
+        for ts in [false, true] {
+            let artifact = compile_async(&source, ts).unwrap();
+            // Large construction measures semantics with a bounded core-engine
+            // budget; the ordinary production budget must still exhaust cleanly.
+            let mut config = Config::new();
+            config.consume_fuel(true).collector(Collector::Copying);
+            let engine = Engine::new(&config).unwrap();
+            let module = Module::new(&engine, &artifact.wasm).unwrap();
+            for (a, b) in [(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)] {
+                let mut store = Store::new(&engine, ());
+                store.set_fuel(1_000_000).unwrap();
+                let instance = Instance::new(&mut store, &module, &[]).unwrap();
+                let start = instance
+                    .get_typed_func::<(f64, f64), (i32, i32, f64)>(&mut store, "start")
+                    .unwrap();
+                let resume = instance
+                    .get_typed_func::<(i32, f64), (i32, i32, f64)>(&mut store, "resume")
+                    .unwrap();
+                let mut state = start.call(&mut store, (a, b)).unwrap();
+                let mut suspensions = 0;
+                while state.0 == 1 {
+                    suspensions += 1;
+                    assert!(suspensions <= 2);
+                    store.gc(None).unwrap();
+                    state = resume.call(&mut store, (state.1, state.2)).unwrap();
+                }
+                assert!(suspensions > 0);
+                assert_eq!((state.0, state.1), (0, 3));
+                assert!(state.2.is_nan() && a.is_nan() || state.2.to_bits() == a.to_bits());
+            }
+            let error = match AsyncInstance::new(&artifact.wasm, 4.0, 2.0) {
+                Err(error) => error,
+                Ok(mut activation) => loop {
+                    match activation.run_one_job() {
+                        Err(error) => break error,
+                        Ok(true) => (),
+                        Ok(false) => {
+                            panic!("large construction escaped the production fuel budget")
+                        }
+                    }
+                },
+            };
+            assert!(format!("{error:?}").contains("fuel"), "{error:?}");
+            run_node(&format!(
+                r#"
+import assert from 'node:assert/strict';import {{pathToFileURL}} from 'node:url';
+const {{createAsyncFunction}}=await import(pathToFileURL(process.argv[2]));
+const native=(()=>{{{};return run;}})(),wasm=createAsyncFunction(new Uint8Array({:?}));
+async function observe(run,a,b){{const trace=['returned'];const done=run(a,b).then(v=>trace.push(['fulfilled',v]));let n=0;const markers=new Promise(resolve=>{{function tick(){{trace.push(++n);if(n<12)queueMicrotask(tick);else resolve();}}queueMicrotask(tick);}});await Promise.all([done,markers]);return trace;}}
+for(const [a,b] of [[4,2],[-0,0],[NaN,Infinity]])assert.deepEqual(await observe(wasm,a,b),await observe(native,a,b));
+assert.deepEqual(await Promise.all([wasm(4,2),wasm(-0,0)]),await Promise.all([native(4,2),native(-0,0)]));
+"#,
+                source.replacen("export async function run", "async function run", 1),
+                artifact.wasm
+            ));
+        }
+    }
+}
+
+#[test]
 fn managed_objects_keep_identity_and_alias_mutation_across_await() {
     compare_promises(
         &["const o={x:a};const p=o;await b;p.x=b;return o===p&&o.x===b?1:0;"],

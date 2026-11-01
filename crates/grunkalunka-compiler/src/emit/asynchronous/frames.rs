@@ -232,16 +232,23 @@ pub(super) fn complete(output: &mut String, rejected: bool) {
 
 // The atomic emitter renders instructions against numeric-indexed locals.
 // Coroutine frames store the same value lanes in globals. Copy the instructions
-// directly into the destination, changing only those two instruction mnemonics.
+// directly into the destination, changing only numeric local get/set accesses.
+// Named locals are atomic construction scratch, not persistent frame lanes.
 // This keeps the old exact output without two whole-string allocations per state.
 fn append_globalized(output: &mut String, instructions: &str) {
     let mut remaining = instructions;
     while let Some((prefix, suffix)) = remaining.split_once("local.") {
         output.push_str(prefix);
-        if let Some(rest) = suffix.strip_prefix("get ") {
+        if let Some(rest) = suffix
+            .strip_prefix("get ")
+            .filter(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
+        {
             output.push_str("global.get ");
             remaining = rest;
-        } else if let Some(rest) = suffix.strip_prefix("set ") {
+        } else if let Some(rest) = suffix
+            .strip_prefix("set ")
+            .filter(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
+        {
             output.push_str("global.set ");
             remaining = rest;
         } else {
@@ -255,6 +262,19 @@ fn append_globalized(output: &mut String, instructions: &str) {
 #[cfg(test)]
 mod globalize_tests {
     use super::append_globalized;
+
+    #[test]
+    fn named_construction_scratch_stays_local_between_frame_lane_accesses() {
+        let mut output = String::new();
+        append_globalized(
+            &mut output,
+            "local.get 12\nlocal.set $gc_literal\nlocal.get $gc_literal\nlocal.set 3\n",
+        );
+        assert_eq!(
+            output,
+            "global.get 12\nlocal.set $gc_literal\nlocal.get $gc_literal\nglobal.set 3\n"
+        );
+    }
 
     #[test]
     fn rewrites_only_get_and_set_in_one_pass() {
