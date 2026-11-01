@@ -40,9 +40,7 @@ pub(super) fn verify(split: &Splitter<'_>, entries: &[Option<usize>]) -> Result<
                 ..
             } => [Some(*fulfilled), Some(*rejected)],
             End::InvokeClosure { returned, .. } => [Some(*returned), None],
-            End::Test { yes, no, .. } | End::SettledTest { yes, no, .. } => {
-                [Some(*yes), Some(*no)]
-            }
+            End::Test { yes, no, .. } | End::SettledTest { yes, no, .. } => [Some(*yes), Some(*no)],
             End::Suspend { resume, .. } => [Some(*resume), None],
             End::Return(_) | End::Reject(_) | End::Trap => [None, None],
         };
@@ -83,9 +81,9 @@ pub(super) fn verify(split: &Splitter<'_>, entries: &[Option<usize>]) -> Result<
 
 #[cfg(test)]
 mod tests {
+    use super::super::State;
     use super::*;
     use crate::ir::ValueId;
-    use super::super::State;
 
     fn state(function: usize, end: End<'static>) -> State<'static> {
         State {
@@ -108,19 +106,52 @@ mod tests {
         let v = ValueId(0);
         let invalid = vec![
             End::AdoptPromise { subscription: 8 },
-            End::AdoptSubscription { input: v, reaction: 8 },
+            End::AdoptSubscription {
+                input: v,
+                reaction: 8,
+            },
             End::AwaitStarted { reaction: 8 },
             End::StartedClosure { result: v, next: 8 },
-            End::AwaitPromise { input: v, reaction: 8 },
-            End::Reaction { fulfilled: 0, rejected: 8 },
-            End::InvokeClosure { callee: v, arguments: &[], returned: 8 },
+            End::AwaitPromise {
+                input: v,
+                reaction: 8,
+            },
+            End::Reaction {
+                fulfilled: 0,
+                rejected: 8,
+            },
+            End::InvokeClosure {
+                callee: v,
+                arguments: &[],
+                returned: 8,
+            },
             End::EnterClosure { next: 8 },
-            End::ReturnedClosure { result: v, fulfilled: 8, rejected: 0 },
+            End::ReturnedClosure {
+                result: v,
+                fulfilled: 8,
+                rejected: 0,
+            },
             End::Jump(8),
-            End::Copy { input: v, result: v, next: 8 },
-            End::Test { condition: v, yes: 0, no: 8 },
-            End::SettledTest { input: v, yes: 8, no: 0 },
-            End::Suspend { input: v, rejected: false, resume: 8 },
+            End::Copy {
+                input: v,
+                result: v,
+                next: 8,
+            },
+            End::Test {
+                condition: v,
+                yes: 0,
+                no: 8,
+            },
+            End::SettledTest {
+                input: v,
+                yes: 8,
+                no: 0,
+            },
+            End::Suspend {
+                input: v,
+                rejected: false,
+                resume: 8,
+            },
         ];
         for end in invalid {
             let split = graph(vec![state(0, end)]);
@@ -135,29 +166,43 @@ mod tests {
         let split = graph(vec![
             state(0, End::Jump(1)),
             state(0, End::Return(v)),
-            state(0, End::AdoptSubscription { input: v, reaction: 1 }),
+            state(
+                0,
+                End::AdoptSubscription {
+                    input: v,
+                    reaction: 1,
+                },
+            ),
             state(0, End::AdoptPromise { subscription: 2 }),
             state(1, End::EnterClosure { next: 1 }),
         ]);
         verify(&split, &[None, Some(4)]).expect("well-formed private graph");
-        assert!(verify(&split, &[None, Some(1)])
-            .unwrap_err()
-            .contains("invalid entry for function 1"));
-        assert!(verify(&split, &[Some(0), Some(4)])
-            .unwrap_err()
-            .contains("invalid entry for function 0"));
+        assert!(
+            verify(&split, &[None, Some(1)])
+                .unwrap_err()
+                .contains("invalid entry for function 1")
+        );
+        assert!(
+            verify(&split, &[Some(0), Some(4)])
+                .unwrap_err()
+                .contains("invalid entry for function 0")
+        );
 
         let invalid = graph(vec![
             state(0, End::AdoptPromise { subscription: 1 }),
             state(0, End::Return(v)),
         ]);
-        assert!(verify(&invalid, &[None])
-            .unwrap_err()
-            .contains("lacks an adoption subscription"));
+        assert!(
+            verify(&invalid, &[None])
+                .unwrap_err()
+                .contains("lacks an adoption subscription")
+        );
 
         let invalid_function = graph(vec![state(2, End::Trap)]);
-        assert!(verify(&invalid_function, &[None])
-            .unwrap_err()
-            .contains("invalid function ID"));
+        assert!(
+            verify(&invalid_function, &[None])
+                .unwrap_err()
+                .contains("invalid function ID")
+        );
     }
 }
