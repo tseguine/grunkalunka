@@ -7,7 +7,7 @@ use super::{End, MAX_STATES, Splitter};
 mod trampoline;
 mod values;
 pub(super) use trampoline::thread_empty_jumps;
-pub(super) use values::verify_state_values;
+pub(super) use values::{verify_entry_coverage, verify_state_values};
 
 pub(super) fn verify(split: &Splitter<'_>, entries: &[Option<usize>]) -> Result<(), String> {
     let size = split.states.len();
