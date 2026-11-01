@@ -206,3 +206,25 @@ fn suspended_for_test_preserves_header_and_omitted_test_on_two_mib_stack() {
         }
     }
 }
+
+#[test]
+fn discarded_expression_request_preserves_side_effect_order_and_diagnostics() {
+    for (body, admitted) in [
+        ("a;!a;(a=1,!b);return a;", true),
+        ("if(a){a=1;a+=b;}return a;", true),
+        ("a ** b;return a;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
+                .expect("2 MiB discard-expression request thread")
+                .join()
+                .expect("discard statement must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
