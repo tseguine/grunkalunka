@@ -6,7 +6,9 @@
 //! child through this one loop. For statements, blocks and try/finally are still
 //! separate continuation families and can join this cursor incrementally.
 use super::*;
-use oxc_ast::ast::{BlockStatement, DoWhileStatement, ForStatement, IfStatement, WhileStatement};
+use oxc_ast::ast::{
+    BlockStatement, DoWhileStatement, ForStatement, IfStatement, TryStatement, WhileStatement,
+};
 
 #[derive(Clone, Copy)]
 pub(super) enum ControlNode<'n, 'a> {
@@ -17,6 +19,7 @@ pub(super) enum ControlNode<'n, 'a> {
     Block(&'n BlockStatement<'a>),
     /// A lexical statement sequence is a traversal boundary, not a source node.
     Sequence(&'n [Statement<'a>]),
+    TryCatch(&'n TryStatement<'a>),
 }
 
 impl<'n, 'a> ControlNode<'n, 'a> {
@@ -27,6 +30,9 @@ impl<'n, 'a> ControlNode<'n, 'a> {
             Statement::DoWhileStatement(statement) => Some(Self::DoWhile(statement)),
             Statement::ForStatement(statement) => Some(Self::For(statement)),
             Statement::BlockStatement(statement) => Some(Self::Block(statement)),
+            Statement::TryStatement(statement) if statement.finalizer.is_none() => {
+                Some(Self::TryCatch(statement))
+            }
             _ => None,
         }
     }
@@ -80,6 +86,21 @@ enum Frame<'n, 'a> {
         depth: usize,
         completion: Completion,
     },
+    TryCatchBody {
+        source: &'n TryStatement<'a>,
+        output: Region,
+        depth: usize,
+        visible: usize,
+    },
+    TryCatchHandler {
+        source: &'n TryStatement<'a>,
+        output: Region,
+        depth: usize,
+        visible: usize,
+        body: Region,
+        body_completion: Completion,
+        reason: ValueId,
+    },
 }
 
 impl Frame<'_, '_> {
@@ -90,7 +111,9 @@ impl Frame<'_, '_> {
             | Self::DoWhile { depth, .. }
             | Self::For { depth, .. }
             | Self::Block { depth, .. }
-            | Self::Sequence { depth, .. } => *depth,
+            | Self::Sequence { depth, .. }
+            | Self::TryCatchBody { depth, .. }
+            | Self::TryCatchHandler { depth, .. } => *depth,
         }
     }
 }
@@ -148,10 +171,42 @@ impl Lowering<'_, '_> {
                                         self.admit_source_statement(node, depth)?;
                                     }
                                     ControlNode::Sequence(_) => {}
+                                    ControlNode::TryCatch(node) => {
+                                        self.admit_source_statement(node, depth)?;
+                                    }
                                 }
                             }
 
                             match source {
+                                ControlNode::TryCatch(source) => {
+                                    if !self.allow_await {
+                                        return Err(unsupported(
+                                            source,
+                                            "statement is outside the numeric experiment",
+                                        ));
+                                    }
+                                    source.handler.as_ref().ok_or_else(|| {
+                                        unsupported(source, "try requires a catch handler")
+                                    })?;
+                                    let visible = self.bindings.len();
+                                    let body = self.region(source.block.as_ref());
+                                    // The try body is a source block, but its
+                                    // region is already the protected IR body.
+                                    // Do not wrap it in another Op::Block.
+                                    self.charge_statement(source.block.as_ref())?;
+                                    pending.push(Frame::TryCatchBody {
+                                        source,
+                                        output,
+                                        depth,
+                                        visible,
+                                    });
+                                    next = Some(Next::Enter {
+                                        source: ControlNode::Sequence(&source.block.body),
+                                        output: body,
+                                        depth: depth + 2,
+                                        charge: source_control::SourceCharge::Charged,
+                                    });
+                                }
                                 ControlNode::Sequence(statements) => {
                                     if let Some(statement) = statements.first() {
                                         pending.push(Frame::Sequence {
@@ -365,6 +420,101 @@ impl Lowering<'_, '_> {
 
                 self.statement_depth = frame.depth();
                 match frame {
+                    Frame::TryCatchBody {
+                        source,
+                        output,
+                        depth,
+                        visible,
+                    } => {
+                        self.bindings.truncate(visible);
+                        let handler = source
+                            .handler
+                            .as_ref()
+                            .expect("try/catch handler validated at entry");
+                        let mut caught = self.region(handler.body.as_ref());
+                        self.charge_statement(handler.body.as_ref())?;
+                        let reason_type = self.promise_parameters.catch_type(handler);
+                        let reason = self.value(reason_type);
+                        if let Some(parameter) = &handler.param {
+                            let BindingPattern::BindingIdentifier(identifier) =
+                                &parameter.pattern
+                            else {
+                                return Err(unsupported(
+                                    parameter,
+                                    "catch destructuring is not admitted",
+                                ));
+                            };
+                            if self.source_charging && self.local_count >= 128 {
+                                return Err(unsupported(
+                                    parameter,
+                                    "at most 128 source locals are admitted",
+                                ));
+                            }
+                            if self.source_charging {
+                                self.local_count += 1;
+                            }
+                            let slot = SlotId(self.slots.len());
+                            self.slots.push(Slot {
+                                ty: reason_type,
+                                owner: caught.id,
+                                mutable: true,
+                                parameter: false,
+                                span: parameter.span(),
+                            });
+                            Self::push(
+                                &mut caught,
+                                parameter,
+                                Op::Initialize {
+                                    slot,
+                                    value: reason,
+                                },
+                            );
+                            self.bindings.push(NumericBinding {
+                                symbol: identifier
+                                    .symbol_id
+                                    .get()
+                                    .ok_or("missing catch binding")?,
+                                slot,
+                                mutable: true,
+                            });
+                        }
+                        pending.push(Frame::TryCatchHandler {
+                            source,
+                            output,
+                            depth,
+                            visible,
+                            body: finished_region,
+                            body_completion: completion,
+                            reason,
+                        });
+                        next = Some(Next::Enter {
+                            source: ControlNode::Sequence(&handler.body.body),
+                            output: caught,
+                            depth: depth + 2,
+                            charge: source_control::SourceCharge::Charged,
+                        });
+                    }
+                    Frame::TryCatchHandler {
+                        source,
+                        mut output,
+                        visible,
+                        body,
+                        body_completion,
+                        reason,
+                        ..
+                    } => {
+                        self.bindings.truncate(visible);
+                        Self::push(
+                            &mut output,
+                            source,
+                            Op::TryCatch {
+                                body,
+                                reason,
+                                handler: finished_region,
+                            },
+                        );
+                        completed = Some((output, body_completion.caught_by(completion)));
+                    }
                     Frame::Sequence {
                         statements,
                         index,
