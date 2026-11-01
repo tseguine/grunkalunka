@@ -11,19 +11,7 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
-        enum Next<'n, 'a> {
-            Loop {
-                source: &'n ForStatement<'a>,
-                output: Region,
-                depth: usize,
-                charged: bool,
-            },
-            Statement {
-                source: &'n Statement<'a>,
-                output: Region,
-                depth: usize,
-            },
-        }
+        type Next<'n, 'a> = source_control::StatementTask<'n, 'a, &'n ForStatement<'a>>;
 
         struct Frame<'n, 'a> {
             source: &'n ForStatement<'a>,
@@ -40,15 +28,10 @@ impl Lowering<'_, '_> {
         let original_depth = self.statement_depth;
         let original_loop = self.in_loop_body;
         // Preserve previously emitted operations at the original call site.
-        let root_output = Region {
-            id: region.id,
-            span: region.span,
-            operations: std::mem::take(&mut region.operations),
-            exit: std::mem::replace(&mut region.exit, Exit::Fallthrough),
-        };
+        let root_output = Self::take_cursor_region(region);
         let result = (|| {
             let mut pending: Vec<Frame<'n, 'a>> = Vec::new();
-            let mut next = Some(Next::Loop {
+            let mut next = Some(Next::Enter {
                 source: root,
                 output: root_output,
                 depth,
@@ -59,7 +42,7 @@ impl Lowering<'_, '_> {
             loop {
                 if let Some(task) = next.take() {
                     match task {
-                        Next::Loop {
+                        Next::Enter {
                             source,
                             output,
                             depth,
@@ -67,19 +50,7 @@ impl Lowering<'_, '_> {
                         } => {
                             self.statement_depth = depth;
                             if !charged {
-                                if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
-                                    return Err(unsupported(
-                                        source,
-                                        "block-arrow expansion exceeds 128 nested regions",
-                                    ));
-                                }
-                                if depth > 64 {
-                                    return Err(unsupported(
-                                        source,
-                                        "statement nesting exceeds 64",
-                                    ));
-                                }
-                                self.charge_statement(source)?;
+                                self.admit_source_statement(source, depth)?;
                             }
                             // Generated header Block and loop Regions are not
                             // charged as source statements or lexical depth.
@@ -158,7 +129,7 @@ impl Lowering<'_, '_> {
                             depth,
                         } => {
                             if let Statement::ForStatement(inner) = source {
-                                next = Some(Next::Loop {
+                                next = Some(Next::Enter {
                                     source: inner,
                                     output,
                                     depth,
