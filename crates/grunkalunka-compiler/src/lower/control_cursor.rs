@@ -585,6 +585,42 @@ impl Lowering<'_, '_> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn alternating_lexical_blocks_and_control_nodes_preserve_source_guards() {
+        // Every nested block has a source declaration and a following control
+        // node: a singleton-block peel alone cannot avoid this reentry pattern.
+        for depth in [4, 12, 24, 40] {
+            let mut body = String::from("a+=b;");
+            for index in 0..depth {
+                body = match index % 3 {
+                    0 => format!("if(a){{let v_{index}=b;{body}}}else{{b+=a;}}"),
+                    1 => format!("while(a){{let v_{index}=b;{body}}}"),
+                    _ => format!("do{{let v_{index}=b;{body}}}while(false);"),
+                };
+            }
+            let source = format!("export function run(a,b){{{body}return a;}}");
+            for ts in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, ts))
+                    .expect("small stack control/block thread")
+                    .join()
+                    .expect("mixed lexical controls must not overflow Rust stack");
+                if depth <= 12 {
+                    assert!(result.is_ok(), "{depth} levels: {:?}", result.err());
+                } else if let Err(error) = result {
+                    assert!(
+                        error.contains("64")
+                            || error.contains("128")
+                            || error.contains("256"),
+                        "{depth} mixed lexical controls: {error}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn alternating_if_and_loop_families_keep_native_stack_bounded() {
         // Homogeneous nesting was already iterative. Alternating kinds used to
         // reenter different native-stack cursors for each source layer.
