@@ -4,6 +4,29 @@
 use super::super::{End, Splitter};
 use crate::ir::{self, ValueId};
 
+/// Confirm that every private async closure has an entry and ordinary
+/// numeric helpers do not. The graph verifier separately validates the
+/// target index, entry end kind and owning function.
+pub(in crate::emit::asynchronous) fn verify_entry_coverage(
+    entries: &[Option<usize>],
+    module: &ir::Module,
+) -> Result<(), String> {
+    if entries.len() != module.functions.len() {
+        return Err("async continuation entry table length disagrees with module".into());
+    }
+    if entries.first().is_some_and(Option::is_some) {
+        return Err("async continuation entry table cannot contain a source entry".into());
+    }
+    for (index, function) in module.functions.iter().enumerate().skip(1) {
+        if ir::is_async_closure(function) != entries[index].is_some() {
+            return Err(format!(
+                "async continuation entry coverage disagrees with function {index}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(in crate::emit::asynchronous) fn verify_state_values(
     split: &Splitter<'_>,
     module: &ir::Module,
@@ -65,7 +88,7 @@ pub(in crate::emit::asynchronous) fn verify_state_values(
 mod tests {
     use super::super::super::State;
     use super::*;
-    use crate::ir::{ClosureSignatures, Exit, Function, Region, RegionId, Type};
+    use crate::ir::{ClosureSignatures, Exit, Function, Op, Operation, Region, RegionId, Type};
     use oxc_span::Span;
 
     fn module(values: usize) -> ir::Module {
@@ -165,6 +188,36 @@ mod tests {
             let error = verify_state_values(&split, &module)
                 .expect_err("missing continuation operands must be rejected");
             assert!(error.contains("invalid value 9"), "{error}");
+        }
+    }
+
+    #[test]
+    fn private_async_entry_coverage_must_match_source_function_kinds() {
+        let span = Span::new(0, 0);
+        let mut source = module(1);
+        let mut async_module = module(1);
+        let mut async_closure = async_module.functions.remove(0);
+        async_closure.body.operations.push(Operation {
+            span,
+            kind: Op::AsyncClosureEntry {
+                captures: Vec::new(),
+            },
+        });
+        source.functions.push(async_closure);
+        let mut ordinary_module = module(1);
+        source.functions.push(ordinary_module.functions.remove(0));
+
+        verify_entry_coverage(&[None, Some(1), None], &source)
+            .expect("one represented async closure with one entry");
+        for (entries, expected) in [
+            (vec![None, None, None], "function 1"),
+            (vec![None, Some(1), Some(2)], "function 2"),
+            (vec![Some(0), Some(1), None], "source entry"),
+            (vec![None, Some(1)], "length disagrees"),
+        ] {
+            let error = verify_entry_coverage(&entries, &source)
+                .expect_err("malformed private entry coverage");
+            assert!(error.contains(expected), "{error}");
         }
     }
 
