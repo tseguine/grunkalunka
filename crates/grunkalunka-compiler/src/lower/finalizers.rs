@@ -38,7 +38,10 @@ impl Lowering<'_, '_> {
         // native finalizer frame. The iterative checker preserves the same
         // return-kind and source budgets as the ordinary path.
         if statement.handler.is_none()
-            && matches!(statement.block.body.as_slice(), [Statement::TryStatement(_)])
+            && matches!(
+                statement.block.body.as_slice(),
+                [Statement::TryStatement(_)]
+            )
         {
             return self.try_finally_chain(statement, region, depth);
         }
