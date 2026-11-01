@@ -90,12 +90,11 @@ pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool, gc: boo
 }
 
 pub(super) fn temporary(function: &Function, offset: usize, starts: bool) -> Option<usize> {
-    let mut used = false;
-    ir::visit_operations(&function.body, &mut |op| {
-        used |= matches!(op, Op::MakeClosure { .. } | Op::ClosureCall { .. })
+    ir::any_operation(&function.body, &mut |op| {
+        matches!(op, Op::MakeClosure { .. } | Op::ClosureCall { .. })
             || (starts && matches!(op, Op::StartAsyncClosure { .. }))
-    });
-    used.then_some(offset)
+    })
+    .then_some(offset)
 }
 
 impl Emitter<'_> {

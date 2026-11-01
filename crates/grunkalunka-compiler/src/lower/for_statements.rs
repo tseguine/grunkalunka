@@ -1,0 +1,255 @@
+//! Schedule direct nested ForStatement bodies on the heap without changing the
+//! source loop's generated lexical Block and While region or completion algebra.
+use super::*;
+use oxc_ast::ast::ForStatement;
+
+impl Lowering<'_, '_> {
+    #[inline(never)]
+    pub(super) fn for_statement_iterative<'n, 'a>(
+        &mut self,
+        root: &'n ForStatement<'a>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<Completion, String> {
+        enum Next<'n, 'a> {
+            Loop {
+                source: &'n ForStatement<'a>,
+                output: Region,
+                depth: usize,
+                charged: bool,
+            },
+            Statement {
+                source: &'n Statement<'a>,
+                output: Region,
+                depth: usize,
+            },
+        }
+
+        struct Frame<'n, 'a> {
+            source: &'n ForStatement<'a>,
+            output: Region,
+            header: Region,
+            condition: Region,
+            depth: usize,
+            outer: usize,
+            header_bindings: usize,
+            old_loop: bool,
+        }
+
+        let original_depth = self.statement_depth;
+        let original_loop = self.in_loop_body;
+        // Preserve previously emitted operations at the original call site.
+        let root_output = Region {
+            id: region.id,
+            span: region.span,
+            operations: std::mem::take(&mut region.operations),
+            exit: std::mem::replace(&mut region.exit, Exit::Fallthrough),
+        };
+        let result = (|| {
+            let mut pending: Vec<Frame<'n, 'a>> = Vec::new();
+            let mut next = Some(Next::Loop {
+                source: root,
+                output: root_output,
+                depth,
+                charged: true,
+            });
+            let mut completed: Option<(Region, Completion)> = None;
+
+            loop {
+                if let Some(task) = next.take() {
+                    match task {
+                        Next::Loop {
+                            source,
+                            output,
+                            depth,
+                            charged,
+                        } => {
+                            self.statement_depth = depth;
+                            if !charged {
+                                if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
+                                    return Err(unsupported(
+                                        source,
+                                        "block-arrow expansion exceeds 128 nested regions",
+                                    ));
+                                }
+                                if depth > 64 {
+                                    return Err(unsupported(
+                                        source,
+                                        "statement nesting exceeds 64",
+                                    ));
+                                }
+                                self.charge_statement(source)?;
+                            }
+                            // Generated header Block and loop Regions are not
+                            // charged as source statements or lexical depth.
+                            let mut header = self.region(source);
+                            let outer = self.bindings.len();
+                            if let Some(init) = &source.init {
+                                match init {
+                                    ForStatementInit::VariableDeclaration(declaration) => {
+                                        self.charge_statement(declaration.as_ref())?;
+                                        self.declaration(declaration, &mut header)?;
+                                    }
+                                    _ => {
+                                        self.discarded(init.to_expression(), &mut header, 0)?;
+                                    }
+                                }
+                            }
+                            let header_bindings = self.bindings.len();
+                            let mut condition = self.region(source);
+                            let predicate = if let Some(test) = &source.test {
+                                condition.span = test.span();
+                                self.predicate(test, &mut condition, 0)?
+                            } else {
+                                let one = self.value(Type::Number);
+                                Self::push(
+                                    &mut condition,
+                                    source,
+                                    Op::Constant {
+                                        result: one,
+                                        value: 1.0,
+                                    },
+                                );
+                                let predicate = self.value(Type::Predicate);
+                                Self::push(
+                                    &mut condition,
+                                    source,
+                                    Op::Truthy {
+                                        result: predicate,
+                                        input: one,
+                                    },
+                                );
+                                predicate
+                            };
+                            condition.exit = Exit::Yield(predicate);
+                            let body = self.region(&source.body);
+                            let old_loop = self.in_loop_body;
+                            pending.push(Frame {
+                                source,
+                                output,
+                                header,
+                                condition,
+                                depth,
+                                outer,
+                                header_bindings,
+                                old_loop,
+                            });
+                            self.in_loop_body = true;
+                            next = Some(Next::Statement {
+                                source: &source.body,
+                                output: body,
+                                depth: depth + 1,
+                            });
+                        }
+                        Next::Statement {
+                            source,
+                            mut output,
+                            depth,
+                        } => {
+                            if let Statement::ForStatement(inner) = source {
+                                next = Some(Next::Loop {
+                                    source: inner,
+                                    output,
+                                    depth,
+                                    charged: false,
+                                });
+                            } else {
+                                self.statement_depth =
+                                    pending.last().map_or(original_depth, |frame| frame.depth);
+                                self.in_loop_body = true;
+                                let completion = self.statement(source, &mut output, depth)?;
+                                completed = Some((output, completion));
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                let (body, completion) = completed.take().expect("completed source for body");
+                let Some(mut frame) = pending.pop() else {
+                    *region = body;
+                    return Ok(completion);
+                };
+                self.statement_depth = frame.depth;
+                self.in_loop_body = frame.old_loop;
+                // The body cannot leak declarations into the update or the
+                // enclosing lexical scope, but the header bindings stay live
+                // while the update expression is admitted and lowered.
+                self.bindings.truncate(frame.header_bindings);
+                let step = if let Some(update) = &frame.source.update {
+                    let mut step = self.region(update);
+                    self.discarded(update, &mut step, 0)?;
+                    Some(step)
+                } else {
+                    None
+                };
+                Self::push(
+                    &mut frame.header,
+                    frame.source,
+                    Op::While {
+                        condition: frame.condition,
+                        body,
+                        step,
+                    },
+                );
+                self.bindings.truncate(frame.outer);
+                Self::push(&mut frame.output, frame.source, Op::Block(frame.header));
+                completed = Some((frame.output, completion.pretest_loop()));
+            }
+        })();
+        self.statement_depth = original_depth;
+        self.in_loop_body = original_loop;
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn nested_for_statements_keep_small_stack_and_generated_region_budget() {
+        for (depth, admitted) in [(1, true), (8, true), (16, true), (65, false)] {
+            let mut body = String::from("break;");
+            for _ in 0..depth {
+                body = format!("for(;a;) {body}");
+            }
+            let source = format!("export function run(a,b){{{body}return b;}}");
+            for typescript in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("small-stack for lowering thread")
+                    .join()
+                    .expect("nested source for must not overflow native stack");
+                if admitted {
+                    assert!(
+                        !result
+                            .unwrap_or_else(|error| panic!("{depth}: {error}"))
+                            .wasm
+                            .is_empty()
+                    );
+                } else {
+                    let error = result.err().expect("deep source for should be rejected");
+                    assert!(
+                        error.contains("64") || error.contains("128"),
+                        "{depth} nested for: {error}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn for_header_declarations_and_updates_retain_scope_and_effect_order() {
+        for body in [
+            "let n=0;for(let i=0;i<3;i++)n+=b;return n;",
+            "let n=a;for(let i=0;i<3;i++){n+=i;}return n;",
+            "let n=0;for(let i=0;i<3;){n+=a;i++;}return n;",
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let artifact =
+                crate::compile(&source, false).unwrap_or_else(|error| panic!("{body}: {error}"));
+            assert!(!artifact.wasm.is_empty());
+        }
+    }
+}

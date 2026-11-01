@@ -206,3 +206,29 @@ fn terminal_root_id_is_assigned_once_by_json_operations() {
     assert!(matches!(guest.roots[&last], JsonValue::Null));
     guest.release(last).unwrap();
 }
+
+#[test]
+fn deep_internal_and_explicit_roots_release_without_recursive_drop() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let deep = || {
+                let mut root = JsonValue::Null;
+                for _ in 0..4096 {
+                    root = JsonValue::Array(vec![root]);
+                }
+                root
+            };
+            let mut guest = crate::JsonGuest::default();
+            guest.roots.insert(1, deep());
+            guest.release(1).expect("external root release");
+            guest.roots.insert(2, deep());
+            guest.internal_roots.insert(2);
+            guest.collect_internal_roots();
+            assert!(guest.roots.is_empty());
+            assert!(guest.internal_roots.is_empty());
+        })
+        .expect("small-stack owned JSON guest")
+        .join()
+        .expect("iterative guest root release");
+}

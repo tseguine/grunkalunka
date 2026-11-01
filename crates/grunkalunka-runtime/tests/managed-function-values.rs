@@ -188,6 +188,7 @@ fn generated_stored_function_cycles_survive_copying_gc_after_source_returns() {
     for source in [
         "export function run(a,b){const o={x:a};const f=()=>o.x===b?1:0;o.f=f;o.self=o;o.x=b;return f();}",
         "export function run(a,b){const state={x:a};const f=()=>state.x===b?1:0;const o={f};state.o=o;state.self=state;state.x=b;return o.f();}",
+        "export function run(a,b){const state={x:a};const f=()=>state.x===b?1:0;const o={child:{f}};state.o=o;state.self=state;state.x=b;return o.child.f();}",
     ] {
         common::compare_sources(source, source);
         let mut config = Config::new();

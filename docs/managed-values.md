@@ -7,6 +7,17 @@ This is an increment toward [#300](https://github.com/tseguine/grunkalunka/issue
 not complete source object/array support. Exported Number/primitive signatures and
 the existing async contract are preserved.
 
+**Current integration frontier (2026-11-01):** known source synchronous
+function values, module declarations, typed closures/callbacks and captures
+now work with traced references; later sections document these separately.
+[Steering #355](https://github.com/tseguine/grunkalunka/issues/355)
+addresses *runtime-dependent* property/call semantics and catchable source
+exceptions; [#356](https://github.com/tseguine/grunkalunka/issues/356)
+addresses traced references through async suspension. Static source proofs
+remain useful fast paths, not a complete replacement for dynamic JavaScript
+semantics. [#334](https://github.com/tseguine/grunkalunka/issues/334)
+records a pre-existing loop-header closure mismatch.
+
 ## Logical operations and representation
 
 `ManagedValue` currently carries Undefined, Null, Boolean, Number, String or an
@@ -127,8 +138,10 @@ Dynamic property keys, optional access, unknown-kind receivers, accessors, metho
 spread and numeric literal keys reject. Implicit managed coercions, loose equality
 and reference-aware async frames remain separate work. Managed properties cannot
 be returned directly through the primitive ABI; observations must produce a supported primitive result.
-Function values in managed containers remain unimplemented. String methods, indexing, length,
-concatenation and coercions remain separate work. Unsupported branches
+Known typed function values in managed containers and calls through proven
+compatible own fields are supported as detailed below; opaque dynamic calls
+remain separate work. String methods, indexing, length, concatenation and coercions
+also remain separate work. Unsupported branches
 are checked even when a particular input would not execute them.
 
 String literals, including empty text, NUL, non-BMP characters and lone surrogates,
@@ -196,8 +209,9 @@ entry profiles use the same carrier when needed to retain their kind; other entr
 profiles retain the original primitive-result planning. Metadata supplies no kind
 proof. This does not add primitive projection from arbitrary managed results.
 
-Managed logical assignments, function values in the carrier, suspended frames and
-public managed exports remain outside this increment. Unsupported
+Managed logical assignments, opaque/dynamic function calls, suspended frames and
+public managed exports remain outside this increment. Known typed function values
+in the carrier are covered by later source increments. Unsupported
 operations in an unselected branch remain rejected.
 
 ## Source type inspection
@@ -396,9 +410,9 @@ layout, and numeric-only artifacts do not acquire a GC dependency.
 
 Wrong kinds, wrong carriers and null payloads trap at this internal boundary.
 This does not implement JS TypeError completions or authorize unknown source
-receivers. Source admission remains a separate step; these operations supply the
-backend bridge for recovering proven receivers after general-value property
-reads. GC references in suspended async frames still require their own work.
+receivers. Source admission uses the exhaustive receiver proofs described below;
+a generic IR lane alone does not prove a particular receiver kind. GC references
+in suspended async frames still require their own work.
 
 Maintained emitted-IR/native-JS/Node tests cover nested object/array storage,
 saved children after replacement, identity and mutation, sparse array lengths,
@@ -443,9 +457,8 @@ The field must be present at construction. Missing fields, holes, incompatible
 writes, and array shrinking that could delete the element invalidate this proof.
 The analysis merges calls and writes conservatively, so some valid programs with
 later field initialization or heterogeneous values still reject. Dynamic keys,
-prototype behavior, async targets and nested unknown-kind receivers remain
-unsupported. In particular, a generic property value cannot yet be projected to
-an object/array receiver merely to call a deeper field.
+prototype behavior, async targets and unknown-kind receivers remain unsupported.
+Proven nested receivers use the checked recovery described below.
 
 Lowering evaluates the receiver, reads the actual field once, and applies
 `ManagedToClosure` before the existing typed call. The analysis supplies a
@@ -460,6 +473,34 @@ annotations and negative alternatives. A generated function reached through a
 property retains cyclic captured state after its defining call returns and
 across forced Wasmtime copying collections. Native-stack regressions retain
 the 2 MiB limit.
+
+## Nested source receivers
+
+Objects and arrays read from own fields, saved in aliases, or passed through
+known helpers and closures can act as receivers when every original-source
+alternative has the same container kind. This supports nested reads, writes,
+array lengths/resizing and function-field calls while preserving reference
+identity, captures and property snapshots. Constructor fields, aliases, known
+formal/actual/result edges and writes share the existing finite source relation.
+Logical function assignments retain replacement factories even when their
+generic result signatures agree; those factories can return different kinds.
+An unknown, missing, noncontainer or mixed object/array alternative prevents the
+proof. Later initialization of an absent constructor field remains conservative.
+
+Representation and receiver proof are separate. Property reads, generic slots
+and helper lanes keep `ManagedValue`; they do not become typed object lanes just
+because a consumer needs a receiver. The iterative cursor reads the actual value
+once and applies `ManagedToObject` / `ManagedToArray` at that use. Already typed
+references retain their existing path. This preserves receiver-before-RHS and
+callee-before-argument snapshots, explicit `.call` offsets and surplus effects,
+without changing helper signatures or choosing a runtime target from metadata.
+
+Maintained source/native-JS/Node-Wasm/Wasmtime fixtures cover all object/array
+combinations, aliases, factories, captures, cycles, replacement during assignment
+or call arguments, TS erasure and source bounds on a 2 MiB native stack. Generated
+functions reached through nested receivers retain captured cyclic state across
+forced collections after their defining call returns. Public reference exports,
+prototype/dynamic-key behavior and GC async frames remain separate work.
 
 ## Source function values in managed storage
 

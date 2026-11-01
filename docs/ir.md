@@ -49,7 +49,9 @@ object kind and casts the payload to the corresponding nonnull nominal GC carrie
 Arrays and ordinary objects share the language kind, so that check alone is
 insufficient. Neither operation copies storage or allocates another container.
 These are internal checked projections, not JS TypeError completions. Source
-receiver admission and reference-aware coroutine frames remain separate work.
+lowering uses them only when original-source alternatives prove one receiver
+kind, keeping the actual boxed lane until receiver use. Unknown receiver behavior
+and reference-aware coroutine frames remain separate work.
 
 ## Checked managed function projection
 

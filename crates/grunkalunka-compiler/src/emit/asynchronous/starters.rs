@@ -6,11 +6,9 @@ pub(super) fn needed(module: &ir::Module) -> bool {
         if ir::is_async_closure(function) {
             return false;
         }
-        let mut starts = false;
-        ir::visit_operations(&function.body, &mut |op| {
-            starts |= matches!(op, Op::StartAsyncClosure { .. });
-        });
-        starts
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(op, Op::StartAsyncClosure { .. })
+        })
     })
 }
 

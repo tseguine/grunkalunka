@@ -67,7 +67,7 @@ fn canonical_targets(states: &[State<'_>], fresh: usize) -> Vec<usize> {
         .collect()
 }
 
-pub(super) fn thread_empty_jumps(split: &mut Splitter<'_>, fresh: usize) {
+pub(in crate::emit::asynchronous) fn thread_empty_jumps(split: &mut Splitter<'_>, fresh: usize) {
     // The caller has already verified that all targets are in range.
     let canonical = canonical_targets(&split.states, fresh);
     let remap = |target: &mut usize| *target = canonical[*target];
@@ -132,10 +132,10 @@ mod tests {
         let mut resumed = state(End::Jump(4));
         resumed.resumed = Some(v);
         let mut split = graph(vec![
-            state(End::Jump(1)),  // initial state, never bypassed as a target
+            state(End::Jump(1)), // initial state, never bypassed as a target
             state(End::Jump(2)),
             state(End::Jump(3)),
-            resumed,            // a resumed value is a real side effect
+            resumed, // a resumed value is a real side effect
             state(End::Return(v)),
             state(End::Jump(0)), // may reach the initial state again
         ]);
@@ -224,6 +224,9 @@ mod tests {
                 rejected: 4,
             }
         ));
-        assert!(matches!(split.states[6].end, End::Suspend { resume: 4, .. }));
+        assert!(matches!(
+            split.states[6].end,
+            End::Suspend { resume: 4, .. }
+        ));
     }
 }

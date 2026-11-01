@@ -23,8 +23,11 @@ mod callbacks;
 mod closures;
 mod evaluate;
 mod finalizers;
+mod for_statements;
 mod function_values;
+mod if_statements;
 mod invocation;
+mod loop_statements;
 mod managed_calls;
 pub(super) use managed_calls::infer as infer_managed_calls;
 mod module_functions;
@@ -536,27 +539,105 @@ impl Lowering<'_, '_> {
     }
 
     // Preserve every possible completion; only normal paths reach the suffix.
-    pub fn sequence(
+    // Blocks no longer recursively re-enter sequence for each nested source
+    // scope. A frame owns its child Region, statement cursor, lexical binding
+    // boundary and completion accumulator on the heap.
+    pub fn sequence<'n, 'a>(
         &mut self,
-        statements: &[Statement<'_>],
+        statements: &'n [Statement<'a>],
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
-        let mut completion = Completion::NORMAL;
-        for statement in statements {
-            if !completion.normal && !is_type_declaration(statement) {
+        struct Frame<'n, 'a> {
+            statements: &'n [Statement<'a>],
+            index: usize,
+            depth: usize,
+            completion: Completion,
+            region: Option<Region>,
+            owner: Option<&'n Statement<'a>>,
+            visible: usize,
+        }
+
+        let mut pending = vec![Frame {
+            statements,
+            index: 0,
+            depth,
+            completion: Completion::NORMAL,
+            region: None,
+            owner: None,
+            visible: 0,
+        }];
+
+        while let Some(mut frame) = pending.pop() {
+            if frame.index == frame.statements.len() {
+                let completion = frame.completion;
+                if let Some(owner) = frame.owner {
+                    self.bindings.truncate(frame.visible);
+                    let child = frame.region.take().expect("completed block region");
+                    let parent = pending.last_mut().expect("block has enclosing sequence");
+                    Self::push(
+                        parent.region.as_mut().unwrap_or(region),
+                        owner,
+                        Op::Block(child),
+                    );
+                    parent.completion = parent.completion.then(completion);
+                    continue;
+                }
+                return Ok(completion);
+            }
+
+            let statement = &frame.statements[frame.index];
+            if !frame.completion.normal && !is_type_declaration(statement) {
                 return Err(unsupported(
                     statement,
-                    if completion == Completion::RETURN {
+                    if frame.completion == Completion::RETURN {
                         "statements after a guaranteed return are not admitted"
                     } else {
                         "statements after a guaranteed abrupt completion are not admitted"
                     },
                 ));
             }
-            completion = completion.then(self.statement(statement, region, depth)?);
+
+            frame.index += 1;
+            if let Statement::BlockStatement(block) = statement {
+                // The old statement wrapper checks this before charging the
+                // block, creates a fresh lexical Region, and passes depth+1
+                // to the child sequence. Preserve that order and every limit.
+                if self.active_block_calls != 0 && self.inline_depth + frame.depth > 128 {
+                    return Err(unsupported(
+                        statement,
+                        "block-arrow expansion exceeds 128 nested regions",
+                    ));
+                }
+                if frame.depth > 64 {
+                    return Err(unsupported(statement, "statement nesting exceeds 64"));
+                }
+                self.charge_statement(statement)?;
+                let child = self.region(block.as_ref());
+                let visible = self.bindings.len();
+                let child_depth = frame.depth + 1;
+                pending.push(frame);
+                pending.push(Frame {
+                    statements: &block.body,
+                    index: 0,
+                    depth: child_depth,
+                    completion: Completion::NORMAL,
+                    region: Some(child),
+                    owner: Some(statement),
+                    visible,
+                });
+                continue;
+            }
+
+            let completion = self.statement(
+                statement,
+                frame.region.as_mut().unwrap_or(region),
+                frame.depth,
+            )?;
+            frame.completion = frame.completion.then(completion);
+            pending.push(frame);
         }
-        Ok(completion)
+        unreachable!("root source sequence must finish")
     }
 
     pub(super) fn charge_statement(&mut self, statement: &impl GetSpan) -> Result<(), String> {
@@ -954,19 +1035,6 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
-    fn loop_body(
-        &mut self,
-        statement: &Statement<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Completion, String> {
-        let outer = self.in_loop_body;
-        self.in_loop_body = true;
-        let result = self.statement(statement, region, depth);
-        self.in_loop_body = outer;
-        result
-    }
-
     fn statement(
         &mut self,
         statement: &Statement<'_>,
@@ -1070,134 +1138,21 @@ impl Lowering<'_, '_> {
                 Ok(Completion::BREAK)
             }
             Statement::EmptyStatement(_) => Ok(Completion::NORMAL),
-            Statement::DoWhileStatement(statement) => {
-                let mut body = self.region(&statement.body);
-                let visible = self.bindings.len();
-                let returns = self.loop_body(&statement.body, &mut body, depth + 1)?;
-                self.bindings.truncate(visible);
-                // Admit the whole condition even when a body return skips it.
-                let mut condition = self.region(&statement.test);
-                let predicate = self.predicate(&statement.test, &mut condition, 0)?;
-                condition.exit = Exit::Yield(predicate);
-                Self::push(region, statement.as_ref(), Op::DoWhile { body, condition });
-                // The body executes at least once; this loop consumes its loop control.
-                Ok(returns.do_loop())
-            }
+            Statement::DoWhileStatement(statement) => self.loop_statement_iterative(
+                loop_statements::LoopNode::DoWhile(statement),
+                region,
+                depth,
+            ),
             Statement::ForStatement(statement) => {
-                // This lexical block and the loop's regions are generated, so
-                // they consume neither source statements nor nesting depth.
-                let mut header = self.region(statement.as_ref());
-                let outer = self.bindings.len();
-                if let Some(init) = &statement.init {
-                    match init {
-                        ForStatementInit::VariableDeclaration(declaration) => {
-                            self.charge_statement(declaration.as_ref())?;
-                            self.declaration(declaration, &mut header)?;
-                        }
-                        _ => {
-                            self.discarded(init.to_expression(), &mut header, 0)?;
-                        }
-                    }
-                }
-                let header_bindings = self.bindings.len();
-                let mut condition = self.region(statement.as_ref());
-                let predicate = if let Some(test) = &statement.test {
-                    condition.span = test.span();
-                    self.predicate(test, &mut condition, 0)?
-                } else {
-                    let one = self.value(Type::Number);
-                    Self::push(
-                        &mut condition,
-                        statement.as_ref(),
-                        Op::Constant {
-                            result: one,
-                            value: 1.0,
-                        },
-                    );
-                    let predicate = self.value(Type::Predicate);
-                    Self::push(
-                        &mut condition,
-                        statement.as_ref(),
-                        Op::Truthy {
-                            result: predicate,
-                            input: one,
-                        },
-                    );
-                    predicate
-                };
-                condition.exit = Exit::Yield(predicate);
-                let mut body = self.region(&statement.body);
-                let completion = self.loop_body(&statement.body, &mut body, depth + 1)?;
-                self.bindings.truncate(header_bindings);
-                // Always admit the update, including after a returning body.
-                let step = if let Some(update) = &statement.update {
-                    let mut step = self.region(update);
-                    self.discarded(update, &mut step, 0)?;
-                    Some(step)
-                } else {
-                    None
-                };
-                Self::push(
-                    &mut header,
-                    statement.as_ref(),
-                    Op::While {
-                        condition,
-                        body,
-                        step,
-                    },
-                );
-                self.bindings.truncate(outer);
-                Self::push(region, statement.as_ref(), Op::Block(header));
-                // Preserve the existing conservative structural return policy,
-                // even when the source omits its test.
-                Ok(completion.pretest_loop())
+                self.for_statement_iterative(statement, region, depth)
             }
-            Statement::WhileStatement(statement) => {
-                let mut condition = self.region(&statement.test);
-                let value = self.predicate(&statement.test, &mut condition, 0)?;
-                condition.exit = Exit::Yield(value);
-                let mut body = self.region(&statement.body);
-                let visible = self.bindings.len();
-                let completion = self.loop_body(&statement.body, &mut body, depth + 1)?;
-                self.bindings.truncate(visible);
-                Self::push(
-                    region,
-                    statement.as_ref(),
-                    Op::While {
-                        condition,
-                        body,
-                        step: None,
-                    },
-                );
-                Ok(completion.pretest_loop())
-            }
+            Statement::WhileStatement(statement) => self.loop_statement_iterative(
+                loop_statements::LoopNode::While(statement),
+                region,
+                depth,
+            ),
             Statement::IfStatement(statement) => {
-                let condition = self.predicate(&statement.test, region, 0)?;
-                let mut consequent = self.region(&statement.consequent);
-                let visible = self.bindings.len();
-                let consequent_returns =
-                    self.statement(&statement.consequent, &mut consequent, depth + 1)?;
-                self.bindings.truncate(visible);
-                let mut alternate = self.region(statement.as_ref());
-                let alternate_returns = if let Some(source) = &statement.alternate {
-                    alternate.span = source.span();
-                    let returns = self.statement(source, &mut alternate, depth + 1)?;
-                    self.bindings.truncate(visible);
-                    returns
-                } else {
-                    Completion::NORMAL
-                };
-                Self::push(
-                    region,
-                    statement.as_ref(),
-                    Op::If {
-                        result: None,
-                        condition,
-                        consequent,
-                        alternate,
-                    },
-                );
-                Ok(consequent_returns.union(alternate_returns))
+                self.if_statement_iterative(statement, region, depth)
             }
             Statement::BlockStatement(block) => {
                 let mut child = self.region(block.as_ref());

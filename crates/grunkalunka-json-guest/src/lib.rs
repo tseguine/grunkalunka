@@ -174,8 +174,13 @@ impl JsonGuest {
             .iter()
             .flat_map(|frame| frame.pins.iter().copied())
             .collect();
-        self.roots
-            .retain(|id, _| !self.internal_roots.contains(id) || protected.contains(id));
+        for id in &self.internal_roots {
+            if !protected.contains(id)
+                && let Some(value) = self.roots.remove(id)
+            {
+                value.drop_iteratively();
+            }
+        }
         self.internal_roots.retain(|id| self.roots.contains_key(id));
     }
 
@@ -287,7 +292,10 @@ impl JsonGuest {
     /// Drop a root and reclaim its live quota. Its ID is never assigned again.
     pub fn release(&mut self, id: u32) -> Result<(), GuestError> {
         self.output.clear();
-        self.roots.remove(&id).ok_or(GuestError::InvalidHandle)?;
+        self.roots
+            .remove(&id)
+            .ok_or(GuestError::InvalidHandle)?
+            .drop_iteratively();
         self.internal_roots.remove(&id);
         for frame in &mut self.frames {
             frame.pins.remove(&id);

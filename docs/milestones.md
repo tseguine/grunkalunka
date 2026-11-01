@@ -4,34 +4,42 @@ This is the active execution plan. Each milestone ends in a runnable demonstrati
 measured compatibility evidence, and an updated status. A rejected input is not a
 supported feature; an unattempted test is not a passing test.
 
-## Current status (2026-10-31)
+## Current status (2026-11-01)
 
-**L3/L4/L5 remain in progress.** The current synchronous JS/TS lowering includes
-an opt-in [WasmGC general-value/object slice](managed-values.md): fresh data-object
-literals, static own-property access/mutation, identity and truthiness, and
-traced-reference parameters/results through named helpers. The selected
-[GC direction](adr/0019-wasmgc-runtime.md) is implemented as an executable
-prerequisite, **not** a complete eight-kind JS value model. Prototype lookup,
-general Strings/arrays, coercion, escaped reference exports, GC-backed captures
-and suspended reference-aware async frames remain explicit gaps. The numeric
-and four-kind primitive interfaces continue to work independently.
+**L3/L4/L5 remain in progress, with a much broader synchronous WasmGC source slice.**
+The shared IR now executes source ordinary objects, sparse arrays, lossless UTF-16
+Strings, static own-data-property reads/writes, identity and truthiness, and
+traced reference/managed-value transport through named helpers and selected
+closures, captures, callbacks and factories. Function values can inhabit
+managed containers, and statically proven fields can be called with checked
+signatures. The [accepted GC direction](adr/0019-wasmgc-runtime.md) does **not**
+imply prototype-aware/dynamic property semantics, general coercion, Symbol/BigInt,
+public reference exports, catchable general synchronous exceptions or traced
+managed references in suspended async frames. Existing numeric/primitive profiles
+remain independently supported. See [managed values](managed-values.md).
 
-**A1 is still Planned.** Host-managed Markdown/WIT grants, native RGB scene
-layout, native hit selection and a headless state-change/repaint test exist;
-[#280](https://github.com/tseguine/grunkalunka/pull/280) independently executes
-a **source-compiled scalar WIT UI import** against a Rust service in Wasmtime.
-The two paths have not yet been connected into a source-import-driven
-interactive application, nor have text glyphs, a public view contract or
-end-user packaging been accepted. See [A1 note preview](a1-note-preview.md) and
-[UI import](a1-ui-source-import.md).
+**A1 is still Planned, with separate runnable prerequisites.** Authorized
+Markdown/WIT, native RGB scene layout/paint, hit selection and host-managed
+state/repaint work, and [#280](https://github.com/tseguine/grunkalunka/pull/280)
+executes an actual source-compiled scalar WIT UI import against a Rust provider.
+A real input event has not yet driven **that imported source service** into the
+same state/reflow/repaint path; readable text glyphs and the same action/view
+contract from a native Rust app remain acceptance gates. See
+[A1 integration](a1-note-preview.md) and [steering #52](https://github.com/tseguine/grunkalunka/issues/52).
 
-Recent stack-depth hardening replaced selected native-recursive IR, source,
-JSON and layout walks with explicit worklists, while keeping original source
-admission limits; [#281](https://github.com/tseguine/grunkalunka/issues/281)
-tracks the remaining audit. [CLI diagnostics](observability.md) are opt-in.
-The [canonical corpus](../tests/compatibility/corpus.mjs) is currently version
-85; older numerical counts below are explicitly dated experiment receipts,
-not live totals.
+**Near-term convergence steering (advisory, not reassignment):** [#334](https://github.com/tseguine/grunkalunka/issues/334)
+tracks an accepted-source for-let closure mismatch; [#355](https://github.com/tseguine/grunkalunka/issues/355)
+tracks runtime semantic operations and catchable source errors; [#356](https://github.com/tseguine/grunkalunka/issues/356)
+tracks GC-traced suspended references and identity ownership. Source/IR/JSON/layout
+stack-depth hardening continues under [#281](https://github.com/tseguine/grunkalunka/issues/281).
+See the [engine steering gates](javascript-engine-steering.md); these do not
+replace the current independently owned workstreams.
+
+The [canonical corpus](../tests/compatibility/corpus.mjs) declares **version 96**
+at the inspected revision. Source program counts, rejection inventories, executed
+engine comparisons and old experiment receipts below are revision-specific,
+**not** a percentage of ECMAScript compatibility. [CLI diagnostics](observability.md)
+are opt-in.
 
 ## Execution scope and quality
 
@@ -175,8 +183,8 @@ changing those streams' scope or the maintainer's priorities.
 | L0 — numeric expressions | Done | JS/TS -> portable Wasm; Wasmtime + Node-Wasm differential tests including signed zero, NaN, infinities and rounding. [Compiler contract](compiler.md). |
 | L1 — local values and decisions | Done | Numeric `const` locals and comparison-controlled ternaries; the L1 run had 31 JS/TS pairs, 76,508 engine comparisons and 64 rejected inputs. Bindings become available after their initializer. |
 | L2 — mutable control flow | Demonstrated | Numeric mutation, lexical blocks, `if`/`else`, early returns, numeric truthiness and `while`/`for`/`do...while`; the initial L2 run had 72 JS/TS pairs, 177,696 comparisons and 100 rejections. NaN/±0 conditions, nested loops, per-entry initialization and selected branches agree with JS. A separate runtime test observes OutOfFuel and successful instance reuse. Numeric compound assignments, prefix/postfix updates and parenthesized write statements are now admitted. Unlabelled break/continue now target the nearest while/for/do loop; switch, labels and other control forms remain explicit compatibility gaps. |
-| L3 — functions and modules | In progress | Numeric helpers preserve ordered argument snapshots and self/mutual recursion. Initialized local/runtime function pairs, returned closures and captured cells work in the [admitted scalar/callback domains](runtime-closures.md). General function forms, nested declarations and module graphs/initialization remain. |
-| L4 — JS value semantics | In progress | Undefined, Null, Boolean and Number have executable coverage in admitted domains. [WasmGC objects](managed-values.md) now construct fresh source objects, support static own-data properties, aliases, identity/truthiness and traced synchronous helper calls in shared IR; this is not full prototype, coercion or public reference-ABI support. Separate [String/JSON source experiments](heap-literals.md) and [JSON guest operations](json.md) retain distinct bounded transports. General Strings/arrays, prototype-aware behavior, managed captures/async frames and complete heap lifetime semantics remain open. |
+| L3 — functions and modules | In progress | Named helpers and admitted local/runtime closures support captured cells, aliases, callbacks, factories, returned values and canonical module-level function identities. [Managed helpers and synchronous closures](managed-values.md) carry objects, arrays, Strings and mixed values through checked call signatures; known own-field calls execute. Nested declarations, general dynamic calls, complete module graphs/initialization and [for-let header lifetime correction #334](https://github.com/tseguine/grunkalunka/issues/334) remain. |
+| L4 — JS value semantics | In progress | The [shared-IR WasmGC slice](managed-values.md) executes four primitive kinds plus lossless Strings, ordinary objects, sparse arrays, static own-data properties, reference identity, truthiness/typeof, and managed values in synchronous helpers/captures/closures. Some source function-valued fields are callable only with complete static signature proofs. [Runtime-dependent property/call semantics and catchable errors #355](https://github.com/tseguine/grunkalunka/issues/355), prototype lookup, general coercion, Symbol/BigInt, public reference ownership and [managed suspended frames #356](https://github.com/tseguine/grunkalunka/issues/356) remain open. The separate [JSON heap experiment](heap-literals.md) has a different transport. |
 | L5 — exceptions, closures and async | In progress | Local/runtime closures preserve captured cells and scoped block returns. The async profile preserves represented primitives and internal function pairs across suspension. [Lexical async catch and primitive source throw](async-catch.md) have differential result/job-order tests. Immediate primitive async closures materialize stable Promise identities from compact completions; stored rejection, homogeneous forwarding and async-return adoption are supported. Conditional/comma/logical async returns now select primitive or represented Promise leaves before adoption, preserving lexical evaluation errors and selected reaction jobs. Equality can compare selected Promise/primitive operands before adoption without adding jobs or handling rejections. Const and let mixed locals, aliases and captured cells retain the raw kind until equality, logical tests, explicit await or async return consumes it. Simple and logical assignments preserve raw snapshots and selected RHS effects. General synchronous exceptions, recursive initialization, broader mixed-value storage/private interfaces, exported mixed pending/scalar input domains and general Promise/thenable values remain. Homogeneous pending inputs retain handles through known/runtime calls, callbacks, captures and synchronous forwarding. Represented Promise/General mixtures now pass through private parameters and typed argument frames, including callbacks, factories, captures and async consumption. Ordinary synchronous private returns now preserve the same raw carrier through concise/block bodies, implicit undefined, callbacks and forwarding; returning alone adds no adoption or handling. Detached primitive child rejections and later handling now use guest FIFO notifications, Node native checkpoint reporting and a consuming Wasmtime API; this does not complete arbitrary Promise objects or HTML event-loop policy. Async try/catch/finally now preserves pending completions through suspended cleanup, supports abrupt finalizer overrides, and defers return adoption until cleanup ends. No blanket compatibility claim from these slices. |
 | T1 — tsrs integration | Research gate | Pin source; perform one real type query associated with an expression; compare tsrs-only against Oxc+tsrs representations. Type information must not erase observable JS behavior. |
 

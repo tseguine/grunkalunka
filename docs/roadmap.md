@@ -1,48 +1,51 @@
 # Research roadmap
 
-The [experimental primitive async profile](async.md) now provides saved activation
-state and host Promise jobs across numeric branches and loops, preserving the four
-represented primitive kinds and uncaught rejection reasons. Limited
-[lexical async catch and primitive source throw](async-catch.md) and
-[returned synchronous closures with captured cells](runtime-closures.md) now have
-execution evidence. General Promise/thenable values, synchronous exceptions,
-`finally` and unrestricted function environments remain open.
+The maintained JS/TS compiler uses Oxc semantics and a verified structured IR.
+Its independent numeric, primitive, bounded async and synchronous WasmGC
+profiles are executable in the supported subset, not a full JavaScript engine.
+The async path supports selected Promise identities, suspension, adoption,
+rejections and finally; general synchronous exceptions, managed suspension and
+general Promise/thenable behavior remain open. The current
+[engine steering review](javascript-engine-steering.md) names the next
+cross-stream integration proofs.
 
-The project's direction is clear; implementation choices should earn their place
-through small experiments. This is a sequence of questions and exit criteria, not
-a promise that any prototype will become the architecture.
+Implementation choices should earn their place through small experiments.
+This is a sequence of questions and exit criteria, not a promise that any
+prototype becomes the permanent architecture. The
+[external testing plan](testing.md) tracks adopted reference suites and evidence.
 
-The [external testing plan](testing.md) tracks all six adopted conformance,
-reference and performance suites, their pinned sources and execution prerequisites.
+## Current implementation snapshot (2026-11-01)
 
-## Current implementation snapshot (2026-10-31)
+The synchronous [WasmGC source path](managed-values.md) supports fresh object
+and sparse-array literals, Strings, static own-data-property operations,
+aliases/identity and truthiness, managed parameters/results, traced captured
+cells, stored function values, callbacks/factories and statically checked
+known-field calls. Those improvements supersede the older source-object-only
+snapshot. Known Number operations remain directly f64. Dynamic keys, prototype
+lookup, coercion, general runtime calls, Symbol/BigInt, public reference exports
+and suspended GC references are **not** established. [ADR 0019](adr/0019-wasmgc-runtime.md)
+records the **accepted** WasmGC direction without selecting a final value layout.
+[Semantic operations steering #355](https://github.com/tseguine/grunkalunka/issues/355)
+and [async managed lifetime #356](https://github.com/tseguine/grunkalunka/issues/356)
+record the two next architectural seams. A known accepted-source
+[for-let closure bug #334](https://github.com/tseguine/grunkalunka/issues/334)
+needs correction.
 
-The maintained compiler now has several **distinct, bounded** executable paths:
-numeric and primitive-return profiles, specialized async/closure support, and a
-[shared-IR WasmGC data-object increment](managed-values.md). The latter constructs
-fresh ordinary objects, reads/writes admitted static own-data properties, preserves
-aliases/identity, and passes traced references through synchronous named helpers.
-Known Number operations remain f64. Full prototype behavior, general Strings/arrays,
-coercion, captured managed values, suspended GC frames and public reference exports
-are **not** established. [ADR 0019](adr/0019-wasmgc-runtime.md) records the
-**selected** WasmGC direction; representation optimizations remain revisable.
+The A1 host already has authorized Markdown inspection and a headless native
+hit/state/repaint experiment. A [separate source-to-WIT scalar import](a1-ui-source-import.md)
+calls a real Rust service; it has not been connected to the A1 input and paint
+cycle. [A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
+requires that integration, readable glyphs and shared Rust/JS service behavior,
+**not** a general DOM implementation. Native-stack-sensitive compiler and JSON
+paths have received iterative refactors; [#281](https://github.com/tseguine/grunkalunka/issues/281)
+tracks remaining cases. CLI diagnostics are [opt-in](observability.md).
 
-The A1 host already has an authorized headless note/paint/hit/repaint experiment.
-A [separate opt-in source-to-WIT scalar import](a1-ui-source-import.md) now calls a
-Rust UI service from compiled JS/TS, but **is not yet wired** into the A1
-interactive application. [A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
-still requires an integrated service-driven interaction, readable text and
-cross-language/application evidence. Native-stack-sensitive IR verification,
-emission, traversal, cleanup and selected source/JSON/layout paths have received
-iterative implementations; [steering #281](https://github.com/tseguine/grunkalunka/issues/281)
-tracks remaining audit scope. Low-volume CLI diagnostics are
-[opt-in](observability.md).
-
-The historical experiments and dated measurements below record what each
-*particular profile and revision* established. They are not an exhaustive feature
-matrix for the current compiler. Use [milestones](milestones.md) and the
-[executable corpus](../tests/compatibility/corpus.mjs) for current status and
-test inventory.
+The lower sections preserve historical experimental receipts and may describe
+older limitations already superseded by later PRs. For current source support,
+read [managed values](managed-values.md), [async](async.md), the
+[executable corpus](../tests/compatibility/corpus.mjs) and the linked
+steering issues. Do not use past corpus versions as current counts or
+conformance percentages.
 
 ## Direction
 
