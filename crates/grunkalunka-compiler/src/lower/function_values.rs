@@ -77,7 +77,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             self.callback_parameters,
             callbacks::ValueInputs {
                 general: self.general_parameters,
-                managed: self.managed_parameters,
+                managed: &self.managed_kinds.inputs,
             },
             self.promise_parameters,
         );
@@ -161,6 +161,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
         bindings: &BTreeMap<SymbolId, Option<usize>>,
         calls: usize,
     ) -> Type {
+        if !arrow.r#async
+            && let Some(ty) = self.managed_kinds.results.get(&arrow.node_id.get())
+        {
+            return *ty;
+        }
         // Original-source provenance also sees aliases declared inside a block
         // before this definition checker has lowered their local bindings.
         if !arrow.r#async
@@ -927,8 +932,22 @@ impl<'s, 'a> Lowering<'s, 'a> {
             .result(arity)
             .expect("checked signature");
         let asynchronous = self.closure_signatures.borrow().is_async(arity);
+        if return_type.is_managed()
+            && closure
+                .captures
+                .iter()
+                .any(|binding| captured_for_let_header(binding.symbol, self.semantic))
+        {
+            return Err(unsupported(
+                node,
+                "managed closure results over for-loop lexical headers require per-iteration environments (#334)",
+            ));
+        }
         if !match return_type {
-            Type::Number
+            Type::ManagedObject
+            | Type::ManagedArray
+            | Type::ManagedValue
+            | Type::Number
             | Type::General
             | Type::AsyncValue
             | Type::FulfilledPromise
@@ -967,7 +986,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             self.callback_parameters,
             callbacks::ValueInputs {
                 general: self.general_parameters,
-                managed: self.managed_parameters,
+                managed: &self.managed_kinds.inputs,
             },
             self.promise_parameters,
         );
@@ -1137,6 +1156,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 child
                     .evaluate(expression, &mut body, 0, evaluate::Mode::Promise)?
                     .expect("fulfilled Promise closure result")
+            } else if return_type.is_managed() {
+                child
+                    .evaluate(
+                        expression,
+                        &mut body,
+                        0,
+                        evaluate::Mode::managed(return_type),
+                    )?
+                    .expect("managed private result")
             } else if return_type == Type::General {
                 child
                     .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
@@ -1186,4 +1214,31 @@ impl<'s, 'a> Lowering<'s, 'a> {
         );
         Ok(result)
     }
+}
+
+// The shared header-environment gap is tracked in #334. New managed-return
+// function values must not silently inherit the older numeric-path miscompile.
+fn captured_for_let_header(symbol: SymbolId, semantic: &Semantic<'_>) -> bool {
+    semantic.scoping().symbol_declarations(symbol).any(|node| {
+        if !matches!(
+            semantic.nodes().kind(node),
+            oxc_ast::AstKind::VariableDeclarator(_)
+        ) {
+            return false;
+        }
+        let mut ancestors = semantic.nodes().ancestor_kinds(node);
+        let Some(oxc_ast::AstKind::VariableDeclaration(declaration)) = ancestors.next() else {
+            return false;
+        };
+        if declaration.kind != oxc_ast::ast::VariableDeclarationKind::Let {
+            return false;
+        }
+        let Some(oxc_ast::AstKind::ForStatement(statement)) = ancestors.next() else {
+            return false;
+        };
+        statement
+            .init
+            .as_ref()
+            .is_some_and(|init| init.span() == declaration.span)
+    })
 }

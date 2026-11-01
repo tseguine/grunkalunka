@@ -775,7 +775,7 @@ fn refine_shapes<'a>(
                 parameters,
                 ValueInputs {
                     general: &kinds.inputs,
-                    managed: &kinds.managed_inputs,
+                    managed: &kinds.managed.inputs,
                 },
                 promise_parameters,
             ));
@@ -927,7 +927,7 @@ fn refine_shapes<'a>(
                 parameters,
                 ValueInputs {
                     general: &kinds.inputs,
-                    managed: &kinds.managed_inputs,
+                    managed: &kinds.managed.inputs,
                 },
                 promise_parameters,
             ),
@@ -947,6 +947,10 @@ fn refine_shapes<'a>(
                 } else {
                     Type::FulfilledPromise
                 }
+            } else if !arrow.r#async
+                && let Some(ty) = kinds.managed.results.get(&body)
+            {
+                *ty
             } else if number {
                 Type::Number
             } else {

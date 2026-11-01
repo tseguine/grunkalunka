@@ -290,7 +290,7 @@ verifier now admits `ManagedObject`, `ManagedArray` and `ManagedValue` as synchr
 private closure parameters, including callback and returned-function signatures.
 GC closure storage is selected even when such a function captures no values.
 Argument count/type checks, parameter initialization, exported numeric inputs,
-source-result guards and asynchronous frame rejection remain unchanged.
+public-result guards and asynchronous frame rejection remain unchanged.
 
 Maintained emitted-IR/native-JS/Node tests cover alias mutation and prior snapshots,
 arrays, lossless String and Number carriers, nested capture of a managed parameter,
@@ -337,13 +337,13 @@ path need no numeric arena reset wrapper. Ordinary Number arithmetic and locals 
 
 Synchronous source closures now use this storage for captured objects, arrays,
 Strings and managed property snapshots, including shared rebinding and mutation.
-Selected closures, callbacks and supported factories retain primitive results and
-function-pair transport. Their synchronous managed arguments are described below.
+Selected closures, callbacks and supported factories transport managed arguments
+and results alongside the existing primitive and function-pair lanes.
 Capture pruning still validates
 unused bodies and excludes erased metadata/unreferenced cells. Managed values
-cannot enter the old async byte-spill frames. Traced suspension, managed closure
-results, general function values in containers and public reference
-ownership remain follow-up work. This implementation does not add a shared heap
+cannot enter the old async byte-spill frames. Traced suspension, general function
+values in containers and public reference ownership remain follow-up work. This
+implementation does not add a shared heap
 across runtime instances or promise reclamation latency/throughput.
 
 Maintained typed-IR tests execute actual emitted modules in Node against independent
@@ -398,10 +398,42 @@ cells. A returned closure may capture a managed formal, preserving identity and
 mutation after the factory returns. TS annotations do not determine these kinds.
 `managed-closure-inputs` compares source in native JS, Node-Wasm and Wasmtime,
 including callback/factory composition, mixed kinds, argument effects, property
-writes, array cycles and erased contradictory annotations. Private managed results,
+writes, array cycles and erased contradictory annotations. Public managed references,
 unknown property receivers, prototype/coercion operations and suspended managed
 frames remain explicitly unsupported. No public reference ABI or new frame format
 is introduced.
+
+## Source managed closure results
+
+Known synchronous arrows return objects, arrays, Strings and mixed managed values
+through the same traced private result path. Input, return and call-kind facts
+converge together over the existing constructor graph; selected peers share a
+compatible result type. Block fallthrough and bare returns contribute undefined.
+Object/array-only results keep their typed references, mixed results use the
+managed carrier, and Number-only graphs retain their existing path. The lowerer
+borrows one planning context rather than growing its copied native frame with
+several maps. TypeScript annotations supply no runtime kind proof.
+
+Actual calls still snapshot the callee before evaluating arguments left to right.
+Returning a reference preserves identity and mutation; a saved property read is
+still a value snapshot. Maintained `managed-closure-results` comparisons execute
+JS/TS against native JS, Node-Wasm and Wasmtime, covering concise/block returns,
+callbacks, factories, mixed values, method calls, reassignment effects and erased
+annotations. Exact former source-result rejection cases now execute positively.
+Public numeric exports, unsupported coercions/prototypes, function values in
+containers and suspended managed frames retain explicit rejection controls.
+
+Runtime function values with managed results that directly capture a for-let
+header are rejected pending [per-iteration environments #334](https://github.com/tseguine/grunkalunka/issues/334).
+Body-local iteration snapshots have positive tests. The older numeric header-cell
+case is also a known correctness gap tracked there.
+
+A test-only observer retains an actual generated private call's returned object
+in a traced global without replacing its source functions or call/frame code.
+After both the private call and numeric entry return, Wasmtime copying collections
+preserve a cyclic reference and an updated property payload. Clearing the test root
+makes its observer trap. Unmodified source is independently compared in all three
+engines. This adds no public reference export and makes no reclamation-time claim.
 
 ## Source capture lifetime evidence
 
@@ -410,7 +442,7 @@ Wasmtime. It covers captured objects, arrays, Strings and changing-kind snapshot
 shared binding writes, property updates, receiver evaluation order, factory results,
 callbacks, lexical iteration cells, shadowing and erased annotations. The exact
 former object-truthiness, array-length and returned-array-reader guards execute
-unchanged as positive tests. Private managed results, invalid writes,
+unchanged as positive tests. Invalid writes,
 unsupported prototype operations and async frames remain explicit rejection tests.
 
 For forced collection after a defining call returns, the lifetime test adds a
@@ -456,7 +488,7 @@ No new package version, host authority, public reference ABI or dedicated CI
 workflow is introduced. Ordinary Cargo tests and existing package dependencies
 select the compiler and runtime consumers of the shared helper file.
 
-Broader String operations, general function identities, managed closure results,
+Broader String operations, general function identities,
 suspended GC frames, public heap ownership and full coercion/prototype behavior
 remain work under the original general-purpose JavaScript goal.
 This source increment does not complete the value domain or justify counting

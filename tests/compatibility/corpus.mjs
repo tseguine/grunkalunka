@@ -35,6 +35,7 @@ import { managedStrings } from './managed-strings.mjs';
 import { managedArrays } from './managed-arrays.mjs';
 import { managedCaptures } from './managed-captures.mjs';
 import { managedClosureInputs } from './managed-closure-inputs.mjs';
+import { managedClosureResults } from './managed-closure-results.mjs';
 
 import { managedLogical } from './managed-logical.mjs';
 import { managedTypeof } from './managed-typeof.mjs';
@@ -88,7 +89,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 91;
+export const corpusVersion = 92;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -139,6 +140,7 @@ programs.push(...managedStrings);
 programs.push(...managedArrays);
 programs.push(...managedCaptures);
 programs.push(...managedClosureInputs);
+programs.push(...managedClosureResults);
 
 programs.push(...managedLogical);
 programs.push(...managedTypeof);

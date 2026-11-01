@@ -459,7 +459,7 @@ suspended GC frames remain rejected.
 
 `managed-captures` compiles synchronous source closures over objects, arrays and
 Strings, compares JS/TS in native JS, Node-Wasm and Wasmtime, and preserves the
-remaining private-signature/async/prototype boundaries. Its copying-GC test adds
+remaining async/prototype/lifetime boundaries. Its copying-GC test adds
 only a test-time root/observer to an actual generated closure: source functions and
 cell/frame code remain generated, while the public artifact gains no reference ABI.
 
@@ -467,5 +467,16 @@ cell/frame code remain generated, while the public artifact gains no reference A
 local/selected closures, callbacks and returned factories against native JS,
 Node-Wasm and Wasmtime. It tests argument snapshots/order, object mutation, array
 cycles, mixed-kind formal unions and erased annotations; rejection controls retain
-unknown receivers, private managed results and async storage boundaries. These
+unknown receivers, public managed references and async storage boundaries. These
 sources also participate in the versioned compatibility corpus.
+
+`managed-closure-results` compares source object/array/String and mixed return values
+across native JS, Node-Wasm and Wasmtime. It covers callee/argument snapshots,
+callbacks/factories, implicit undefined, alias mutation, annotations and native-stack
+limits. Exact former private-result guards are promoted to positive cases. A
+returned cyclic object's generated call result is retained by a test-only traced
+observer across forced copying collection after source calls finish; clearing the
+root is a negative control. New managed-returning function values with direct
+for-let header captures reject pending #334; body-local snapshots remain positive.
+The existing numeric header-capture defect is recorded in that issue, not counted
+as compatibility. The versioned corpus also includes these supported source cases.

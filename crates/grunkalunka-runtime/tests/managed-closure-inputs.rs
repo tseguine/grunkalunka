@@ -75,10 +75,9 @@ fn managed_parameter_annotations_do_not_override_source_values() {
 }
 
 #[test]
-fn unknown_receivers_managed_results_and_async_storage_still_reject() {
+fn unknown_receivers_and_async_storage_still_reject() {
     for source in [
         "export function run(a,b){let f=v=>v.x;f({x:a});return f(a);}",
-        "export function run(a,b){let f=v=>v;return f({})===null?a:b;}",
         "export function run(a,b){let f=v=>v[b];return f({x:a});}",
         "export function run(a,b){let f=v=>v.toString();return f({});}",
         "export function run(a,b){let f=v=>v.x===a?a:b;return f(a);}",

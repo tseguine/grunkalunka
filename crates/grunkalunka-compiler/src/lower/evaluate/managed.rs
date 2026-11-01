@@ -323,7 +323,10 @@ impl Lowering<'_, '_> {
                         Expression::CallExpression(call) => values.push(
                             managed_calls::function(call, self.semantic, self.functions)
                                 .map(|f| f.return_type)
-                                .filter(|t| t.is_managed()),
+                                .filter(|t| t.is_managed())
+                                .or_else(|| {
+                                    self.managed_kinds.calls.get(&call.node_id.get()).copied()
+                                }),
                         ),
                         Expression::Identifier(i) => values.push(
                             numeric_binding(i, self.semantic, &self.bindings)
@@ -529,6 +532,13 @@ impl Lowering<'_, '_> {
                 ));
                 return Ok(true);
             }
+        }
+        if matches!(mode, Mode::Object | Mode::Array | Mode::Managed)
+            && let Expression::CallExpression(call) = node
+            && managed_calls::function(call, self.semantic, self.functions).is_none()
+            && self.managed_kinds.calls.contains_key(&call.node_id.get())
+        {
+            return Ok(false);
         }
         if matches!(mode, Mode::Array) {
             if schedule_selection(work, node, depth, mode)? {

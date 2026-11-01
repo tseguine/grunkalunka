@@ -449,12 +449,10 @@ fn managed_parameters_keep_exact_types_counts_and_async_result_boundaries() {
     .unwrap();
     super::managed_value_tests::node(&promoted.wasm, "a===a?a:b");
     let source = "export function run(a,b){const f=x=>x;return f('text')==='text'?a:b;}";
-    let error = crate::compile(source, false)
-        .err()
-        .unwrap_or_else(|| panic!("managed result admitted: {source}"));
-    assert!(
-        error.contains("unsupported") && !error.contains("internal IR"),
-        "{source}: {error}"
+    let promoted = crate::compile(source, false).unwrap();
+    super::managed_value_tests::node(
+        &promoted.wasm,
+        "(()=>{const f=x=>x;return f('text')==='text'?a:b;})()",
     );
 }
 #[test]
