@@ -158,6 +158,41 @@ impl Lowering<'_, '_> {
 #[cfg(test)]
 mod stack_hygiene_tests {
     #[test]
+    fn alternating_try_catch_and_if_blocks_stay_on_heap_continuations() {
+        for depth in [2, 8, 16, 32] {
+            let mut body = String::from("return a;");
+            for index in 0..depth {
+                body = if index % 2 == 0 {
+                    format!("try{{{body}}}catch(e){{return b;}}")
+                } else {
+                    format!("if(a){{{body}}}else return b;")
+                };
+            }
+            let source = format!("export async function run(a,b){{{body}}}");
+            for ts in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile_async(&source, ts))
+                    .expect("small-stack mixed try/if compiler")
+                    .join()
+                    .expect("alternating try/catch source cannot overflow native stack");
+                if depth <= 8 {
+                    assert!(result.is_ok(), "{depth} controls: {:?}", result.err());
+                } else if let Err(error) = result {
+                    assert!(
+                        error.contains("64")
+                            || error.contains("128")
+                            || error.contains("256")
+                            || error.contains("nested"),
+                        "{depth} controls: {error}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn direct_nested_try_catch_chain_obeys_small_stack_and_source_limits() {
         for (depth, admitted) in [(1, true), (8, true), (16, true), (34, false)] {
             let mut body = String::from("return a;");
