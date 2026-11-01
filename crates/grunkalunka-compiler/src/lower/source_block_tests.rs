@@ -57,3 +57,42 @@ fn nested_multistatement_blocks_keep_depth_and_binding_boundaries_on_small_stack
         }
     }
 }
+
+#[test]
+fn interleaved_source_control_families_complete_under_two_mib_stack() {
+    // Each homogeneous family already has an iterative lowering continuation,
+    // but crossing If -> While -> DoWhile -> For can still reenter statement.
+    // Exercise *compositions*, preserving the source admission budgets rather
+    // than increasing the Rust stack or serializing the compiler suite.
+    for depth in [4, 12, 24, 32] {
+        let mut body = String::from("a+=b;");
+        for index in 0..depth {
+            body = match index % 4 {
+                0 => format!("if(a){{{body}}}else{{b+=a;}}"),
+                1 => format!("while(a){{{body}}}"),
+                2 => format!("do{{{body}}}while(false);"),
+                _ => format!("for(let i=0;i<1;i++){{{body}}}"),
+            };
+        }
+        let source = format!("export function run(a,b){{{body}return a;}}");
+        for typescript in [false, true] {
+            let source = source.clone();
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || crate::compile(&source, typescript))
+                .expect("small-stack mixed source lowering thread")
+                .join()
+                .expect("cross-family lowering must not overflow native stack");
+            // The shorter mixtures are all admitted. Deeper mixtures may
+            // exhaust the independent generated-region/source-work budgets,
+            // but must return a diagnostic instead of aborting the process.
+            if depth <= 12 {
+                assert!(
+                    result.is_ok(),
+                    "{depth} mixed source levels: {:?}",
+                    result.err()
+                );
+            }
+        }
+    }
+}
