@@ -10,7 +10,7 @@ impl Lowering<'_, '_> {
     pub(super) fn begin_control<'n, 'a>(
         &mut self,
         source: ControlNode<'n, 'a>,
-        mut output: Region,
+        output: Region,
         depth: usize,
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
