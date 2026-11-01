@@ -16,6 +16,7 @@ mod errors;
 #[cfg(test)]
 mod finally_split_tests;
 mod frames;
+mod graph;
 #[cfg(test)]
 mod loop_split_tests;
 #[cfg(test)]
@@ -1142,6 +1143,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let body = split.region(&function.body, unreachable, None, None)?;
         entries[index] = Some(split.terminal(End::EnterClosure { next: body })?);
     }
+    graph::verify(&split, &entries)?;
     let has_async = entries.iter().any(Option::is_some);
     let dispatch_targets = dispatch::targets(module);
     let mut types = Vec::new();
