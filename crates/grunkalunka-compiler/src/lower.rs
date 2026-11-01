@@ -310,7 +310,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub closure_signatures: &'s std::cell::RefCell<ir::ClosureSignatures>,
 }
 
-impl Lowering<'_, '_> {
+impl<'s, 'a> Lowering<'s, 'a> {
     fn lifted_limit(&self) -> usize {
         self.functions.len()
             + self
@@ -536,27 +536,105 @@ impl Lowering<'_, '_> {
     }
 
     // Preserve every possible completion; only normal paths reach the suffix.
-    pub fn sequence(
+    // Blocks no longer recursively re-enter sequence for each nested source
+    // scope. A frame owns its child Region, statement cursor, lexical binding
+    // boundary and completion accumulator on the heap.
+    pub fn sequence<'n>(
         &mut self,
-        statements: &[Statement<'_>],
+        statements: &'n [Statement<'a>],
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
-        let mut completion = Completion::NORMAL;
-        for statement in statements {
-            if !completion.normal && !is_type_declaration(statement) {
+        struct Frame<'n, 'a> {
+            statements: &'n [Statement<'a>],
+            index: usize,
+            depth: usize,
+            completion: Completion,
+            region: Option<Region>,
+            owner: Option<&'n Statement<'a>>,
+            visible: usize,
+        }
+
+        let mut pending = vec![Frame {
+            statements,
+            index: 0,
+            depth,
+            completion: Completion::NORMAL,
+            region: None,
+            owner: None,
+            visible: 0,
+        }];
+
+        while let Some(mut frame) = pending.pop() {
+            if frame.index == frame.statements.len() {
+                let completion = frame.completion;
+                if let Some(owner) = frame.owner {
+                    self.bindings.truncate(frame.visible);
+                    let child = frame.region.take().expect("completed block region");
+                    let parent = pending.last_mut().expect("block has enclosing sequence");
+                    Self::push(
+                        parent.region.as_mut().unwrap_or(region),
+                        owner,
+                        Op::Block(child),
+                    );
+                    parent.completion = parent.completion.then(completion);
+                    continue;
+                }
+                return Ok(completion);
+            }
+
+            let statement = &frame.statements[frame.index];
+            if !frame.completion.normal && !is_type_declaration(statement) {
                 return Err(unsupported(
                     statement,
-                    if completion == Completion::RETURN {
+                    if frame.completion == Completion::RETURN {
                         "statements after a guaranteed return are not admitted"
                     } else {
                         "statements after a guaranteed abrupt completion are not admitted"
                     },
                 ));
             }
-            completion = completion.then(self.statement(statement, region, depth)?);
+
+            frame.index += 1;
+            if let Statement::BlockStatement(block) = statement {
+                // The old statement wrapper checks this before charging the
+                // block, creates a fresh lexical Region, and passes depth+1
+                // to the child sequence. Preserve that order and every limit.
+                if self.active_block_calls != 0 && self.inline_depth + frame.depth > 128 {
+                    return Err(unsupported(
+                        statement,
+                        "block-arrow expansion exceeds 128 nested regions",
+                    ));
+                }
+                if frame.depth > 64 {
+                    return Err(unsupported(statement, "statement nesting exceeds 64"));
+                }
+                self.charge_statement(statement)?;
+                let child = self.region(block.as_ref());
+                let visible = self.bindings.len();
+                let child_depth = frame.depth + 1;
+                pending.push(frame);
+                pending.push(Frame {
+                    statements: &block.body,
+                    index: 0,
+                    depth: child_depth,
+                    completion: Completion::NORMAL,
+                    region: Some(child),
+                    owner: Some(statement),
+                    visible,
+                });
+                continue;
+            }
+
+            let completion = self.statement(
+                statement,
+                frame.region.as_mut().unwrap_or(region),
+                frame.depth,
+            )?;
+            frame.completion = frame.completion.then(completion);
+            pending.push(frame);
         }
-        Ok(completion)
+        unreachable!("root source sequence must finish")
     }
 
     pub(super) fn charge_statement(&mut self, statement: &impl GetSpan) -> Result<(), String> {
