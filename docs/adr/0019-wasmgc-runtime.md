@@ -5,6 +5,31 @@ Date: 2026-10-31
 Status: accepted target direction and bounded runtime prerequisite; source value
 encoding and general heap integration remain incremental implementation work.
 
+## Integration frontier after the source increments (2026-11-01)
+
+The accepted WasmGC direction has now demonstrated a substantially wider
+**synchronous** source domain than the original runtime prerequisite: sparse
+arrays, UTF-16 Strings, traced captures and private frames, function identity,
+managed closure parameters/results, module declaration values and statically
+checked calls through stored fields. See [managed values](../managed-values.md)
+for precise current admission and differential evidence; the chronological
+sections below preserve the decisions made at each increment.
+
+This **does not** change ADR 0019 into a full JS value/heap contract. Current
+operations still use static own-property keys and selected proven call targets;
+JavaScript Get/Set/Call, coercion and catchable synchronous source errors require
+semantics rather than more mandatory source-origin proofs
+([#355](https://github.com/tseguine/grunkalunka/issues/355)).
+The GC-traced synchronous environment also does not by itself root managed
+references through numeric/linear-memory async suspension, establish an agent's
+shared instance/identity domain, or define public reference ownership
+([#356](https://github.com/tseguine/grunkalunka/issues/356)).
+An older captured for-let header mismatch is separately tracked in
+[#334](https://github.com/tseguine/grunkalunka/issues/334).
+The narrow GC-aware suspension design gate must reconcile the still-**proposed**
+[activation/scheduling ADR 0013](0013-async-job-and-activation-ownership.md);
+nothing here accepts that proposal or changes the selected collector.
+
 ## Context
 
 The maintainer selected **WasmGC first** for the compiler's general-JavaScript

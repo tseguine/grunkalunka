@@ -7,6 +7,17 @@ This is an increment toward [#300](https://github.com/tseguine/grunkalunka/issue
 not complete source object/array support. Exported Number/primitive signatures and
 the existing async contract are preserved.
 
+**Current integration frontier (2026-11-01):** known source synchronous
+function values, module declarations, typed closures/callbacks and captures
+now work with traced references; later sections document these separately.
+[Steering #355](https://github.com/tseguine/grunkalunka/issues/355)
+addresses *runtime-dependent* property/call semantics and catchable source
+exceptions; [#356](https://github.com/tseguine/grunkalunka/issues/356)
+addresses traced references through async suspension. Static source proofs
+remain useful fast paths, not a complete replacement for dynamic JavaScript
+semantics. [#334](https://github.com/tseguine/grunkalunka/issues/334)
+records a pre-existing loop-header closure mismatch.
+
 ## Logical operations and representation
 
 `ManagedValue` currently carries Undefined, Null, Boolean, Number, String or an
@@ -127,8 +138,10 @@ Dynamic property keys, optional access, unknown-kind receivers, accessors, metho
 spread and numeric literal keys reject. Implicit managed coercions, loose equality
 and reference-aware async frames remain separate work. Managed properties cannot
 be returned directly through the primitive ABI; observations must produce a supported primitive result.
-Function values in managed containers remain unimplemented. String methods, indexing, length,
-concatenation and coercions remain separate work. Unsupported branches
+Known typed function values in managed containers and calls through proven
+compatible own fields are supported as detailed below; opaque dynamic calls
+remain separate work. String methods, indexing, length, concatenation and coercions
+also remain separate work. Unsupported branches
 are checked even when a particular input would not execute them.
 
 String literals, including empty text, NUL, non-BMP characters and lone surrogates,
@@ -196,8 +209,9 @@ entry profiles use the same carrier when needed to retain their kind; other entr
 profiles retain the original primitive-result planning. Metadata supplies no kind
 proof. This does not add primitive projection from arbitrary managed results.
 
-Managed logical assignments, function values in the carrier, suspended frames and
-public managed exports remain outside this increment. Unsupported
+Managed logical assignments, opaque/dynamic function calls, suspended frames and
+public managed exports remain outside this increment. Known typed function values
+in the carrier are covered by later source increments. Unsupported
 operations in an unselected branch remain rejected.
 
 ## Source type inspection

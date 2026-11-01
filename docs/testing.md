@@ -1,35 +1,49 @@
 # External tests and benchmarks
 
-## Current verification map (2026-10-31)
+## Current verification map (2026-11-01)
 
-The canonical check catalog under [`scripts/checks/`](../scripts/checks/README.md)
-and the [executable compatibility corpus](../tests/compatibility/corpus.mjs)
-are authoritative for today's commands, fixture membership and counts.
-The corpus currently declares version **90**. The older numeric-pair and
-rejection totals retained in historical paragraphs below describe their
-named **past** revisions, not current percentages or suite totals.
+The canonical [check catalog](../scripts/checks/README.md) and the
+[executable corpus](../tests/compatibility/corpus.mjs) define current commands,
+fixtures, admission and rejection counts. The inspected source declares corpus
+version **96**. Older counts in this file are dated receipts, **not**
+current ECMAScript compatibility percentages.
 
-The synchronous [WasmGC object increment](managed-values.md) has maintained
-compiler typed-IR tests and runtime source differential suites, including
-`managed-source`, `managed-calls`, `managed-strings`, `managed-arrays`,
-`managed-logical`, `managed-typeof` and `managed-values`. Their asserted
-domain is the admitted fresh-object/static-own-property/helper subset and
-String construction, content equality and truthiness, plus local arrays with
-static element/length operations, identity and ordered reference transport,
-not prototype compliance or all JavaScript objects. The
-[A1 source import](a1-ui-source-import.md) has a dedicated real-provider
-`a1_ui_import` Rust integration test. The
-[A1 note preview](a1-note-preview.md) uses the ordinary Node application
-test for authorized WIT data, native scene output and host-managed input/repaint;
-the two A1 paths are not yet a single source-import-driven app.
+The synchronous [WasmGC source implementation](managed-values.md) has both
+typed-IR and **source** differential tests in native JavaScript, Node-Wasm and
+Wasmtime. Suites now cover objects, sparse arrays, UTF-16 Strings, alias writes,
+captures, managed arguments/results, callable known function fields, canonical
+module declaration identities and effect/snapshot ordering. This is evidence for
+the admitted static-own-property/known-signature subset, **not** dynamic property
+access, prototype semantics, arbitrary JS errors or the public reference ABI.
+The [for-let header capture mismatch #334](https://github.com/tseguine/grunkalunka/issues/334)
+is a known accepted-source semantic defect and must not be counted as coverage.
 
-Native-stack-depth regressions now cover deeply nested structured IR and
-selected iterative frontend, JSON and layout walks on constrained thread stacks.
-They do not establish a recursive-call-free Rust codebase; see
-[stack-depth steering](https://github.com/tseguine/grunkalunka/issues/281).
-These tests are part of normal canonical/selected checks rather than separate
-per-feature Actions jobs. [CI](ci.md) describes what Linux/Windows partial PR
-selection and the native macOS baseline actually execute.
+The bounded [async profile](async.md) has Promise/job, return/adoption,
+catch/finally and continuation tests; it does not provide traced managed
+references in suspended frames. [#355](https://github.com/tseguine/grunkalunka/issues/355)
+and [#356](https://github.com/tseguine/grunkalunka/issues/356)
+define recommended integration proof targets and their independent observables.
+The [A1 scalar source import](a1-ui-source-import.md) runs against a real Rust/WIT
+provider; its test is distinct from the host-managed
+[A1 preview](a1-note-preview.md) and cannot establish a connected application.
+
+**Evidence classification for the next coverage increment:** report executed
+and admitted source behavior separately from accepted-but-mismatching behavior,
+intentional rejection (invalid source, resource bound or unimplemented valid
+semantics), unattempted source, and hand-built IR/runtime-only tests. Distinguish
+scalar-result equality from observable effects, thrown values, job order and
+ownership. Existing Test262 evidence consists of four adapted numeric programs
+covering 18 source assertions, **not** the original suite/harness; start with a
+small original-harness selection for supported semantics before inferring
+broader conformance. Prefer existing canonical tests/impact descriptors over
+new standalone CI gates. See [engine steering](javascript-engine-steering.md).
+
+Native-stack regressions exercise selected source/IR/JSON/layout traversals on
+explicitly small host stacks, with admitted and just-over-limit cases. They
+do **not** show the entire Rust codebase has constant stack depth; see
+[remaining audit #281](https://github.com/tseguine/grunkalunka/issues/281).
+[CI](ci.md) describes the actual Linux/Windows PR selection and native macOS
+baseline rather than implying every possible runtime/platform was exercised.
 
 Local block-arrow checks live in `crates/grunkalunka-runtime/tests/local-arrows.rs`:
 Node and Wasmtime compare shared captures, fresh locals, early/loop returns,
