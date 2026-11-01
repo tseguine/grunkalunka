@@ -291,7 +291,10 @@ impl Lowering<'_, '_> {
                         continuation: Box::new(continuation),
                     },
                 );
-                cursor.completed = Some(Outcome::Statement(output, body_completion.finalized_by(completion)));
+                cursor.completed = Some(Outcome::Statement(
+                    output,
+                    body_completion.finalized_by(completion),
+                ));
             }
             Frame::TryCatchBody {
                 source,
@@ -381,7 +384,10 @@ impl Lowering<'_, '_> {
                         handler: finished_region,
                     },
                 );
-                cursor.completed = Some(Outcome::Statement(output, body_completion.caught_by(completion)));
+                cursor.completed = Some(Outcome::Statement(
+                    output,
+                    body_completion.caught_by(completion),
+                ));
             }
             Frame::Sequence {
                 statements,
@@ -487,7 +493,10 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    cursor.completed = Some(Outcome::Statement(output, completion.union(Completion::NORMAL)));
+                    cursor.completed = Some(Outcome::Statement(
+                        output,
+                        completion.union(Completion::NORMAL),
+                    ));
                 }
             }
             Frame::While {
