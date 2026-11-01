@@ -28,6 +28,14 @@ pub(super) enum StatementTask<'n, 'a, N> {
         output: Region,
         depth: usize,
     },
+    /// A suspended source continuation requests exactly one expression result.
+    /// The expression evaluator remains the existing ADR 0001/0016 engine.
+    Expression {
+        source: &'n Expression<'a>,
+        output: Region,
+        depth: usize,
+        mode: evaluate::Mode,
+    },
 }
 
 /// Dynamic source-control state whose value is local to one entry into the
