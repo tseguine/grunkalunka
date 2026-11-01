@@ -417,6 +417,22 @@ call returns; a separate shared-fragment fixture retains a boxed-function cycle.
 The source increment below connects this capability to known function storage.
 Generic stored-function calls and declaration-binding identity remain follow-ups.
 
+## Checked boxed-function projection
+
+`ManagedToClosure` recovers the canonical function object for a complete checked
+synchronous signature. Its runtime guard checks the language kind and membership
+in the module's matching table targets; kind/signature mismatches trap internally.
+This preserves the existing object layout and traced environment. A core-Wasm
+call-type check alone is insufficient because GC argument cells erase logical
+parameter types. The verifier retains visibility and signature-registry checks.
+
+An embedded signature field would change every function allocation and older
+artifacts; a universal boxed call ABI would also change parameter/result lowering.
+Neither is required for this projection, so the first bridge uses on-demand
+table-target guards. Its dispatch cost can be optimized independently. Existing
+modules without projection retain their artifacts. This is a backend prerequisite,
+not source property-call admission or a substitute for JS TypeError semantics.
+
 ## Source function storage and creation identity
 
 Known typed source closures now box into object/array properties using that same

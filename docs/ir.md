@@ -40,6 +40,17 @@ historical sections below describe the numeric and primitive subsets. The
 managed-value contract and [ADR 0019](adr/0019-wasmgc-runtime.md) define the
 newer source boundaries, exports and GC lifetime exclusions.
 
+## Checked managed function projection
+
+`ManagedToClosure { result, input }` reads a visible `ManagedValue` and defines a
+valid synchronous `Closure(signature)`. It preserves the canonical function and
+environment, trapping on a wrong value kind or complete signature. The GC backend
+checks matching module table targets before exposing the typed callee: shared
+argument cells otherwise erase logical parameter types. It leaves ordinary typed
+`ClosureCall`, function storage and layouts unchanged. Source property calls and
+reference-aware coroutine frames require their own lowering work; an internal
+projection trap is not a JS exception outcome. See [managed values](managed-values.md).
+
 ## Modules and direct numeric calls
 
 A module holds an entry-first list of functions, indexed by `FunctionId`. Each

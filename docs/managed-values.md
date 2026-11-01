@@ -383,6 +383,27 @@ checks a cleared root. Neither test claims a public reference ABI or reclamation
 timing. The source increment below connects known function values to containers;
 arbitrary calls through stored values remain separate work.
 
+## Checked function projection in the IR
+
+`ManagedToClosure` projects a boxed managed value to a checked synchronous
+`Closure(signature)`, preserving the original function object and its traced
+environment. Wrong language kinds and mismatched complete signatures trap at this
+internal projection. The verifier requires a visible managed input and a valid
+synchronous result signature. This is not a JavaScript exception boundary.
+
+GC call frames erase logical parameter types into shared cells. Checking only the
+core-Wasm indirect-call type would permit incompatible Number/General parameters.
+The emitter therefore generates an on-demand guard over table targets whose full
+parameter/result signature matches. Existing signature-registry invariants make
+those IDs canonical. The check does not allocate another function, change the GC
+layout, or affect artifacts without the new operation.
+
+Focused IR tests cover calls, identity, captures, rich signatures, snapshots,
+wrong-kind/signature traps, malformed inputs and 2 MiB native-stack traversal.
+`GRUNKALUNKA_IR_TEST_ARTIFACTS` can retain their exact WAT/Wasm and native oracle
+expressions for Wasmtime replay. Source calls through stored properties remain a
+separate admission unit; this operation supplies their checked backend bridge.
+
 ## Source function values in managed storage
 
 Known typed source arrows can be stored in object/array properties, compared by
