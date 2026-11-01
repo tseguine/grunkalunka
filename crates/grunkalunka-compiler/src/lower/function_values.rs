@@ -1423,3 +1423,35 @@ fn captured_for_let_header(symbol: SymbolId, semantic: &Semantic<'_>) -> bool {
             .is_some_and(|init| init.span() == declaration.span)
     })
 }
+
+#[cfg(test)]
+mod concise_signature_stack_tests {
+    #[test]
+    fn nested_concise_arrow_signatures_do_not_reenter_native_stack() {
+        for depth in [1, 2, 3, 5, 8] {
+            let mut expression = String::from("a");
+            for _ in 0..depth {
+                expression = format!("()=>{expression}");
+            }
+            let calls = "()".repeat(depth);
+            let source =
+                format!("export function run(a,b){{const f={expression};return f{calls};}}");
+            for typescript in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("small-stack signature query thread")
+                    .join()
+                    .expect("signature inference must not overflow native stack");
+                if depth <= 3 {
+                    assert!(
+                        result.is_ok(),
+                        "{depth} nested arrow results: {:?}",
+                        result.err()
+                    );
+                }
+            }
+        }
+    }
+}
