@@ -4,6 +4,7 @@
 //! See `docs/json.md` for the resource accounting and integration boundary.
 
 mod stringify;
+use std::fmt::Write as _;
 pub use stringify::{StringifyError, StringifyLimit, StringifyLimits, stringify};
 
 /// Parsed JSON data. Strings and keys retain every UTF-16 code unit.
@@ -11,7 +12,6 @@ pub use stringify::{StringifyError, StringifyLimit, StringifyLimits, stringify};
 /// Object entries retain first insertion order, with duplicate values replaced.
 /// This metadata is not JavaScript property enumeration order: integer index keys
 /// must be ordered separately when exposing an object to JavaScript operations.
-#[derive(Debug)]
 pub enum JsonValue {
     Null,
     Boolean(bool),
@@ -67,6 +67,203 @@ impl Clone for JsonValue {
             }
         }
         done.pop().expect("the root JSON value was cloned")
+    }
+}
+
+// Manually assembled JSON trees can exceed the parser's depth-128 limit.
+// Explicit consuming release avoids Rust's recursive implicit drop glue.
+// The public enum keeps its by-value pattern matching, so ordinary automatic
+// destruction may still recurse; callers with unbounded trees use this method.
+impl JsonValue {
+    pub fn drop_iteratively(self) {
+        let mut pending = vec![self];
+        while let Some(value) = pending.pop() {
+            match value {
+                Self::Array(elements) => pending.extend(elements),
+                Self::Object(entries) => {
+                    pending.extend(entries.into_iter().map(|(_, value)| value));
+                }
+                Self::Null | Self::Boolean(_) | Self::Number(_) | Self::String(_) => {}
+            }
+        }
+    }
+}
+
+// Derived Debug recursively formats nested JSON. A heap worklist preserves
+// the compact and alternate pretty representations without deep Rust calls.
+impl std::fmt::Debug for JsonValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        enum Work<'a> {
+            Value(&'a JsonValue, usize),
+            Entry(&'a [u16], &'a JsonValue, usize),
+            Text(&'static str),
+            Indent(usize),
+            EndContainer(usize),
+            EndEntry(usize),
+        }
+
+        fn indent(f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
+            for _ in 0..level {
+                f.write_str("    ")?;
+            }
+            Ok(())
+        }
+
+        fn units(
+            f: &mut std::fmt::Formatter<'_>,
+            values: &[u16],
+            level: usize,
+            pretty: bool,
+        ) -> std::fmt::Result {
+            if !pretty {
+                return write!(f, "{values:?}");
+            }
+            f.write_str("[")?;
+            if !values.is_empty() {
+                f.write_str("\n")?;
+                for value in values {
+                    indent(f, level + 1)?;
+                    writeln!(f, "{value},")?;
+                }
+                indent(f, level)?;
+            }
+            f.write_str("]")
+        }
+
+        let pretty = f.alternate();
+        let mut pending = vec![Work::Value(self, 0)];
+        while let Some(task) = pending.pop() {
+            match task {
+                Work::Text(text) => f.write_str(text)?,
+                Work::Indent(level) => indent(f, level)?,
+                Work::EndContainer(level) => {
+                    indent(f, level + 1)?;
+                    f.write_str("],\n")?;
+                    indent(f, level)?;
+                    f.write_str(")")?;
+                }
+                Work::EndEntry(level) => {
+                    f.write_str(",\n")?;
+                    indent(f, level)?;
+                    f.write_str(")")?;
+                }
+                Work::Entry(key, value, level) => {
+                    if pretty {
+                        f.write_str("(\n")?;
+                        indent(f, level + 1)?;
+                        units(f, key, level + 1, true)?;
+                        f.write_str(",\n")?;
+                        indent(f, level + 1)?;
+                        pending.push(Work::EndEntry(level));
+                        pending.push(Work::Value(value, level + 1));
+                    } else {
+                        f.write_str("(")?;
+                        units(f, key, level, false)?;
+                        f.write_str(", ")?;
+                        pending.push(Work::Text(")"));
+                        pending.push(Work::Value(value, level));
+                    }
+                }
+                Work::Value(value, level) => match value {
+                    Self::Null => f.write_str("Null")?,
+                    Self::Boolean(value) => {
+                        if pretty {
+                            f.write_str("Boolean(\n")?;
+                            indent(f, level + 1)?;
+                            writeln!(f, "{value:?},")?;
+                            indent(f, level)?;
+                            f.write_str(")")?;
+                        } else {
+                            write!(f, "Boolean({value:?})")?;
+                        }
+                    }
+                    Self::Number(value) => {
+                        if pretty {
+                            f.write_str("Number(\n")?;
+                            indent(f, level + 1)?;
+                            writeln!(f, "{value:?},")?;
+                            indent(f, level)?;
+                            f.write_str(")")?;
+                        } else {
+                            write!(f, "Number({value:?})")?;
+                        }
+                    }
+                    Self::String(value) => {
+                        if pretty {
+                            f.write_str("String(\n")?;
+                            indent(f, level + 1)?;
+                            units(f, value, level + 1, true)?;
+                            f.write_str(",\n")?;
+                            indent(f, level)?;
+                            f.write_str(")")?;
+                        } else {
+                            f.write_str("String(")?;
+                            units(f, value, level, false)?;
+                            f.write_str(")")?;
+                        }
+                    }
+                    Self::Array(elements) => {
+                        if pretty {
+                            f.write_str("Array(\n")?;
+                            indent(f, level + 1)?;
+                            f.write_str("[")?;
+                            if !elements.is_empty() {
+                                f.write_str("\n")?;
+                                pending.push(Work::EndContainer(level));
+                                for element in elements.iter().rev() {
+                                    pending.push(Work::Text(",\n"));
+                                    pending.push(Work::Value(element, level + 2));
+                                    pending.push(Work::Indent(level + 2));
+                                }
+                            } else {
+                                f.write_str("],\n")?;
+                                indent(f, level)?;
+                                f.write_str(")")?;
+                            }
+                        } else {
+                            f.write_str("Array([")?;
+                            pending.push(Work::Text("])"));
+                            for (index, element) in elements.iter().enumerate().rev() {
+                                if index + 1 < elements.len() {
+                                    pending.push(Work::Text(", "));
+                                }
+                                pending.push(Work::Value(element, level));
+                            }
+                        }
+                    }
+                    Self::Object(entries) => {
+                        if pretty {
+                            f.write_str("Object(\n")?;
+                            indent(f, level + 1)?;
+                            f.write_str("[")?;
+                            if !entries.is_empty() {
+                                f.write_str("\n")?;
+                                pending.push(Work::EndContainer(level));
+                                for (key, value) in entries.iter().rev() {
+                                    pending.push(Work::Text(",\n"));
+                                    pending.push(Work::Entry(key, value, level + 2));
+                                    pending.push(Work::Indent(level + 2));
+                                }
+                            } else {
+                                f.write_str("],\n")?;
+                                indent(f, level)?;
+                                f.write_str(")")?;
+                            }
+                        } else {
+                            f.write_str("Object([")?;
+                            pending.push(Work::Text("])"));
+                            for (index, (key, value)) in entries.iter().enumerate().rev() {
+                                if index + 1 < entries.len() {
+                                    pending.push(Work::Text(", "));
+                                }
+                                pending.push(Work::Entry(key, value, level));
+                            }
+                        }
+                    }
+                },
+            }
+        }
+        Ok(())
     }
 }
 
