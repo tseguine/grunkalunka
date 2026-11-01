@@ -370,7 +370,10 @@ pub(crate) enum Nullish {
 ///
 /// This is a traversal guarantee, not a change to the admitted source depth,
 /// verifier budgets, or recursion in other compiler phases.
-fn visit_until<B>(region: &Region, visit: &mut impl FnMut(&Op) -> ControlFlow<B>) -> ControlFlow<B> {
+fn visit_until<B>(
+    region: &Region,
+    visit: &mut impl FnMut(&Op) -> ControlFlow<B>,
+) -> ControlFlow<B> {
     let mut pending = vec![region.operations.iter()];
     while let Some(iter) = pending.last_mut() {
         let Some(operation) = iter.next() else {
