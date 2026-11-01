@@ -510,3 +510,10 @@ explicit signature, nested-declaration, opaque-call and suspended-reference guar
 and a 2 MiB stack probe delimit this increment.
 The 1,000-parameter declaration control uses a bounded two-million-fuel core-engine
 test budget; ordinary cases use the unchanged production per-call budget.
+
+`module-callback-inputs` checks module-helper managed arguments reached through
+local callbacks, aliases, nested forwarding and returned factories against native
+JS, Node-Wasm and Wasmtime. It covers reference identity, mutable properties,
+arrays/strings/mixed inputs, receiver/surplus effects and callee snapshots, erased
+annotations, unknown/incompatible calls and 2 MiB/128-local boundaries. The source
+fixtures also participate in the canonical numeric replay.

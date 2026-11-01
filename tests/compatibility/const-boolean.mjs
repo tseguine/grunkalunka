@@ -87,8 +87,6 @@ const negatives=[
 export const constBooleanRejected=negatives.map(([id,body,diagnostic,ext='js'])=>[
   `const-boolean-${id}`,`export function run(a,b) { ${body} }`,ext,diagnostic,
 ]);
-constBooleanRejected.push(['const-boolean-unused-helper',
-  'function f(x) { const flag=true; return flag; } export function run(a,b) { return a; }','js',numeric]);
 constBooleanRejected.push(['const-boolean-module-local-limit',
   `function f(x) { const ${Array.from({length:65},(_,i)=>`h${i}=true`).join(',')}; return x; } export function run(a,b) { const ${Array.from({length:64},(_,i)=>`r${i}=a`).join(',')}; return a; }`,
   'js','at most 128 source locals']);

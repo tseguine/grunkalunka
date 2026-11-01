@@ -4,6 +4,7 @@ use super::*;
 use oxc_ast::{AstKind, ast::Function};
 use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
+mod input_flow;
 
 // Number inputs retain their fast path. Non-Number primitive arguments need the
 // managed carrier when a helper also transports managed values: ordinary source
@@ -203,6 +204,55 @@ fn extend<K: Ord>(bindings: &mut BTreeMap<K, Kinds>, symbol: K, kinds: Kinds) ->
     entry.len() != before
 }
 
+fn has_managed_origin(semantic: &Semantic<'_>) -> bool {
+    semantic.nodes().iter().any(|node| {
+        let origin = match node.kind() {
+            AstKind::ObjectExpression(_)
+            | AstKind::ArrayExpression(_)
+            | AstKind::StringLiteral(_)
+            | AstKind::BooleanLiteral(_)
+            | AstKind::NullLiteral(_) => true,
+            AstKind::UnaryExpression(u) => matches!(
+                u.operator,
+                UnaryOperator::Typeof | UnaryOperator::Void | UnaryOperator::LogicalNot
+            ),
+            AstKind::BinaryExpression(b) => matches!(
+                b.operator,
+                BinaryOperator::Equality
+                    | BinaryOperator::Inequality
+                    | BinaryOperator::StrictEquality
+                    | BinaryOperator::StrictInequality
+                    | BinaryOperator::LessThan
+                    | BinaryOperator::LessEqualThan
+                    | BinaryOperator::GreaterThan
+                    | BinaryOperator::GreaterEqualThan
+            ),
+            AstKind::IdentifierReference(id) => {
+                id.name == "undefined" && symbol(id, semantic).is_none()
+            }
+            AstKind::VariableDeclarator(v) => v.init.is_none(),
+            _ => false,
+        };
+        origin
+            && !semantic.nodes().ancestor_kinds(node.id()).any(|parent| {
+                parent.is_type()
+                    || matches!(
+                        parent,
+                        AstKind::TSTypeAliasDeclaration(_)
+                            | AstKind::TSInterfaceDeclaration(_)
+                            | AstKind::TSTypeAnnotation(_)
+                            | AstKind::TSTypeParameterDeclaration(_)
+                            | AstKind::TSTypeParameterInstantiation(_)
+                            | AstKind::TSImportType(_)
+                            | AstKind::TSTypeQuery(_)
+                            | AstKind::ImportDeclaration(_)
+                            | AstKind::ExportNamedDeclaration(_)
+                            | AstKind::ExportAllDeclaration(_)
+                    )
+            })
+    })
+}
+
 pub(crate) fn infer(
     semantic: &Semantic<'_>,
     declarations: &[&Function<'_>],
@@ -210,12 +260,12 @@ pub(crate) fn infer(
 ) {
     // The only public inputs are Numbers. Without a construction there is no
     // managed reference origin, so ordinary modules keep the old planning path.
-    if !semantic.nodes().iter().any(|n| {
-        matches!(
-            n.kind(),
-            AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
-        ) || matches!(n.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
-    }) {
+    if !functions
+        .iter()
+        .skip(1)
+        .any(|f| f.async_signature.is_none())
+        || !has_managed_origin(semantic)
+    {
         return;
     }
     let parameters: Vec<Vec<_>> = declarations
@@ -282,12 +332,26 @@ pub(crate) fn infer(
             _ => (),
         }
     }
+    let forwarded = input_flow::collect(semantic, &definitions, &all_calls);
+    for arrow in forwarded.arrows.values() {
+        for parameter in &arrow.params.items {
+            if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
+                && let Some(symbol) = identifier.symbol_id.get()
+            {
+                bindings.entry(symbol).or_default();
+            }
+        }
+    }
+    for (symbol, actual) in &forwarded.actuals {
+        definitions.push((*symbol, Some(*actual)));
+    }
+    let origins = callbacks::ReturnOrigins {
+        semantic,
+        targets: &forwarded.targets,
+        arrows: &forwarded.arrows,
+    };
     let aliases = callbacks::named_targets(
-        &callbacks::ReturnOrigins {
-            semantic,
-            targets: &BTreeMap::new(),
-            arrows: &BTreeMap::new(),
-        },
+        &origins,
         functions
             .iter()
             .filter(|f| f.async_signature.is_none())
@@ -304,17 +368,18 @@ pub(crate) fn infer(
         if function(call, semantic, functions).is_some() {
             continue;
         }
-        if let Some(Expression::Identifier(identifier)) =
-            closures::unwrapped(invocation::callee(call), 0)
-            && let Some(targets) = symbol(identifier, semantic).and_then(|s| aliases.get(&s))
-        {
-            for target in targets {
-                if let Some(f) = functions
-                    .iter()
-                    .find(|f| f.symbol == *target && f.id.0 != 0)
-                {
-                    calls.push((f.id.0, call));
-                }
+        let sources = origins
+            .expression(invocation::callee(call), &BTreeMap::new(), 0, 0)
+            .0;
+        let mut targets = BTreeSet::<SymbolId>::new();
+        for source in sources {
+            if let Some(known) = aliases.get(&source) {
+                targets.extend(known.iter().copied());
+            }
+        }
+        for target in targets {
+            if let Some(f) = functions.iter().find(|f| f.symbol == target && f.id.0 != 0) {
+                calls.push((f.id.0, call));
             }
         }
     }
@@ -328,7 +393,7 @@ pub(crate) fn infer(
         for (symbol, value) in &definitions {
             let next = value
                 .map(|v| kinds(v, semantic, functions, &bindings, &returns, None))
-                .unwrap_or_else(|| [Kind::Primitive].into());
+                .unwrap_or_else(|| [Kind::GeneralPrimitive].into());
             changed |= extend(&mut bindings, *symbol, next);
         }
         for (index, call) in &calls {
@@ -417,6 +482,7 @@ pub(super) struct ClosureFlow<'s, 'n, 'a> {
     pub groups: &'s BTreeSet<BTreeSet<NodeId>>,
     pub arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
     pub calls: &'s BTreeMap<NodeId, BTreeSet<NodeId>>,
+    pub targets: &'s BTreeMap<SymbolId, BTreeSet<NodeId>>,
     pub callback_parameters: &'s callbacks::Parameters,
     pub closure_signatures: &'s ir::ClosureSignatures,
 }
@@ -430,15 +496,11 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         groups,
         arrows,
         calls,
+        targets,
         callback_parameters,
         closure_signatures,
     } = flow;
-    if !semantic.nodes().iter().any(|n| {
-        matches!(
-            n.kind(),
-            AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
-        ) || matches!(n.kind(),AstKind::UnaryExpression(u) if u.operator==UnaryOperator::Typeof)
-    }) {
+    if !has_managed_origin(semantic) {
         return ClosureKinds::default();
     }
     let from_type = |ty: Type| -> Kinds {
@@ -503,9 +565,57 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
     let mut results: BTreeMap<_, Kinds> = bodies.keys().map(|body| (*body, Kinds::new())).collect();
     let mut call_kinds: BTreeMap<_, Kinds> =
         calls.keys().map(|call| (*call, Kinds::new())).collect();
+    let origins = callbacks::ReturnOrigins {
+        semantic,
+        targets,
+        arrows,
+    };
+    let named = if functions
+        .iter()
+        .any(|f| f.async_signature.is_none() && f.return_type.is_managed())
+    {
+        let definitions = definitions
+            .iter()
+            .filter_map(|(s, e)| e.map(|e| (*s, e)))
+            .chain(
+                writes
+                    .iter()
+                    .flat_map(|(s, values)| values.iter().map(move |e| (*s, *e))),
+            )
+            .collect::<Vec<_>>();
+        let calls = semantic
+            .nodes()
+            .iter()
+            .filter_map(|n| match n.kind() {
+                AstKind::CallExpression(c) => Some(c),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        callbacks::named_targets(
+            &origins,
+            functions
+                .iter()
+                .filter(|f| f.async_signature.is_none())
+                .map(|f| f.symbol),
+            &definitions,
+            &calls,
+        )
+    } else {
+        BTreeMap::new()
+    };
     // A checked callback signature is also positive evidence for its result
     // lane, including a synchronous module function passed as the actual.
     for node in semantic.nodes().iter() {
+        if !named.is_empty()
+            && let AstKind::CallExpression(call) = node.kind()
+            && let Some(result) =
+                input_flow::module_result(invocation::callee(call), &origins, &named, functions)
+        {
+            call_kinds
+                .entry(call.node_id.get())
+                .or_default()
+                .extend(from_type(result));
+        }
         if let AstKind::CallExpression(call) = node.kind()
             && let Some(Expression::Identifier(identifier)) =
                 closures::unwrapped(invocation::callee(call), 0)

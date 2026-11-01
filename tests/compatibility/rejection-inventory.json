@@ -5661,13 +5661,6 @@
       "group": "statement-count"
     },
     {
-      "id": "const-boolean-unused-helper",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "af4bf2f8129f2ccfc703d4bb133bc18ab2987999a21b9973ca843043030bed5f",
-      "group": "boolean-values"
-    },
-    {
       "id": "const-boolean-module-local-limit",
       "extension": "js",
       "sourceMode": "module-strict",

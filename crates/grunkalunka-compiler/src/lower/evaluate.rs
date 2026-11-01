@@ -153,6 +153,12 @@ fn call_result<'e, 'a>(
                 "managed closure result requires a matching managed position",
             ));
         }
+        (Type::Number | Type::General, Mode::Object | Mode::Array | Mode::Managed) => {
+            return Err(unsupported(
+                node,
+                "call result does not match the managed consumer",
+            ));
+        }
         (Type::AsyncValue, Mode::AsyncValue) => (),
         (Type::AsyncValue, _) => {
             return Err(unsupported(

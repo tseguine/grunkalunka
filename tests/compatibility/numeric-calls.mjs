@@ -98,7 +98,7 @@ bad('unused-missing-return', 'function unused(x) { x++; }', 'return a;', 'every 
 bad('boolean-return', 'function helper() { return true; }', 'return helper();', expression);
 for(const [id,value] of [['boolean','true'],['string','"1"'],['object','({})'],['bigint','1n'],['null','null'],['call','Math.random()']]) bad(`argument-${id}`,identity,`return identity(${value});`,expression);
 bad('unselected-argument', identity, 'return true?a:identity(Math.random());', expression);
-bad('predicate-argument', identity, 'return identity(a<b);', 'only binary');
+bad('predicate-argument', identity, 'return identity(a<b);', 'managed value requires an identity or managed storage position');
 bad('helper-const-write', 'function helper(x) { const y=x; y=1; return y; }', 'return helper(a);', 'assignment to a const');
 bad('helper-self-tdz', 'function helper(x) { const y=y; return y; }', 'return helper(a);', reference);
 bad('helper-default', 'function helper(x=1) { return x; }', 'return helper(a);', 'parameter modifiers');
