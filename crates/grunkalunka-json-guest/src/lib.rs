@@ -175,10 +175,10 @@ impl JsonGuest {
             .flat_map(|frame| frame.pins.iter().copied())
             .collect();
         for id in &self.internal_roots {
-            if !protected.contains(id) {
-                if let Some(value) = self.roots.remove(id) {
-                    value.drop_iteratively();
-                }
+            if !protected.contains(id)
+                && let Some(value) = self.roots.remove(id)
+            {
+                value.drop_iteratively();
             }
         }
         self.internal_roots.retain(|id| self.roots.contains_key(id));
