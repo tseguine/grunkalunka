@@ -33,6 +33,7 @@ impl Lowering<'_, '_> {
             depth: usize,
             outer: usize,
             header_bindings: usize,
+            let_slots: Vec<SlotId>,
             old_loop: bool,
         }
 
@@ -84,11 +85,20 @@ impl Lowering<'_, '_> {
                             // charged as source statements or lexical depth.
                             let mut header = self.region(source);
                             let outer = self.bindings.len();
+                            let mut let_slots = Vec::new();
                             if let Some(init) = &source.init {
                                 match init {
                                     ForStatementInit::VariableDeclaration(declaration) => {
                                         self.charge_statement(declaration.as_ref())?;
+                                        let start = self.bindings.len();
                                         self.declaration(declaration, &mut header)?;
+                                        if declaration.kind == VariableDeclarationKind::Let {
+                                            let_slots.extend(
+                                                self.bindings[start..]
+                                                    .iter()
+                                                    .map(|binding| binding.slot),
+                                            );
+                                        }
                                     }
                                     _ => {
                                         self.discarded(init.to_expression(), &mut header, 0)?;
@@ -132,6 +142,7 @@ impl Lowering<'_, '_> {
                                 depth,
                                 outer,
                                 header_bindings,
+                                let_slots,
                                 old_loop,
                             });
                             self.in_loop_body = true;
@@ -176,13 +187,65 @@ impl Lowering<'_, '_> {
                 // enclosing lexical scope, but the header bindings stay live
                 // while the update expression is admitted and lowered.
                 self.bindings.truncate(frame.header_bindings);
-                let step = if let Some(update) = &frame.source.update {
+                let mut step = if let Some(update) = &frame.source.update {
                     let mut step = self.region(update);
                     self.discarded(update, &mut step, 0)?;
                     Some(step)
                 } else {
                     None
                 };
+                // Each for-let iteration has a fresh lexical environment.
+                // Only captured header bindings need a new physical cell:
+                // unobserved Number/primitive slots keep their existing fast
+                // path and emitted bytes. Collect captures across all parts,
+                // including initializer, condition, body and update.
+                let mut captured = ir::captured_cells(&frame.header);
+                captured.extend(ir::captured_cells(&frame.condition));
+                captured.extend(ir::captured_cells(&body));
+                if let Some(step) = &step {
+                    captured.extend(ir::captured_cells(step));
+                }
+                let renewal = frame
+                    .let_slots
+                    .into_iter()
+                    .filter(|slot| captured.contains(slot))
+                    .collect::<Vec<_>>();
+                if !renewal.is_empty() {
+                    // The initializer is in the original lexical binding.
+                    // Copy before the first test so an initializer closure
+                    // cannot alias closures from the first loop body.
+                    for &slot in &renewal {
+                        let result = self.value(self.slots[slot.0].ty);
+                        Self::push(&mut frame.header, frame.source, Op::Load { result, slot });
+                        Self::push(
+                            &mut frame.header,
+                            frame.source,
+                            Op::RebindCell {
+                                slot,
+                                value: result,
+                            },
+                        );
+                    }
+                    // Continue and ordinary body completion both enter step;
+                    // a new cell is cloned *before* update side effects. The
+                    // source update (when present) then mutates that new cell.
+                    let mut next = step.take().unwrap_or_else(|| self.region(frame.source));
+                    let updates = std::mem::take(&mut next.operations);
+                    for &slot in &renewal {
+                        let result = self.value(self.slots[slot.0].ty);
+                        Self::push(&mut next, frame.source, Op::Load { result, slot });
+                        Self::push(
+                            &mut next,
+                            frame.source,
+                            Op::RebindCell {
+                                slot,
+                                value: result,
+                            },
+                        );
+                    }
+                    next.operations.extend(updates);
+                    step = Some(next);
+                }
                 Self::push(
                     &mut frame.header,
                     frame.source,
@@ -205,6 +268,8 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::ir::{Op, SlotId};
+
     #[test]
     fn nested_for_statements_keep_small_stack_and_generated_region_budget() {
         for (depth, admitted) in [(1, true), (8, true), (16, true), (65, false)] {
@@ -237,6 +302,62 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn per_iteration_cells_are_generated_only_for_captured_let_headers() {
+        for (body, expected) in [
+            ("let n=0;for(let i=0;i<3;i++)n+=i;return n;", 0),
+            (
+                "let first=()=>a,last=()=>b;for(let i=0;i<3;i++){const make=()=>i;if(i===0)first=make;last=make;}return first()*10+last();",
+                2,
+            ),
+            (
+                "let first=()=>a,last=()=>b;for(let i=0;i<3;){const make=()=>i;if(i===0)first=make;last=make;i++;}return first()*10+last();",
+                2,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let module = crate::lower_source(&source, false)
+                .unwrap_or_else(|error| panic!("{source}: {error}"));
+            let mut renewals = 0;
+            crate::ir::visit_operations(&module.functions[0].body, &mut |op| {
+                if matches!(op, Op::RebindCell { .. }) {
+                    renewals += 1;
+                }
+            });
+            assert_eq!(renewals, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn rebinding_cannot_target_a_parameter_instead_of_the_lexical_header() {
+        let source = "export function run(a,b){let first=()=>a,last=()=>b;for(let i=0;i<3;i++){const make=()=>i;if(i===0)first=make;last=make;}return first()*10+last();}";
+        let mut module = crate::lower_source(source, false).unwrap();
+        crate::ir::verify_module(&module).expect("source-lowered rebinding is valid");
+        let header = module.functions[0]
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| match &mut operation.kind {
+                Op::Block(region) => Some(region),
+                _ => None,
+            })
+            .expect("for-let header block");
+        let renewal = header
+            .operations
+            .iter_mut()
+            .find_map(|operation| match &mut operation.kind {
+                Op::RebindCell { slot, .. } => Some(slot),
+                _ => None,
+            })
+            .expect("captured header rebinding");
+        *renewal = SlotId(0);
+        assert!(
+            crate::ir::verify_module(&module)
+                .unwrap_err()
+                .contains("rebinding requires an initialized mutable lexical cell")
+        );
     }
 
     #[test]

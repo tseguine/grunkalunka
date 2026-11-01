@@ -15,6 +15,9 @@ mod function_call;
 #[path = "runtime-closures/discarded_logical.rs"]
 mod discarded_logical;
 
+#[path = "runtime-closures/for_let_cells.rs"]
+mod for_let_cells;
+
 #[test]
 fn eager_async_closures_keep_synchronous_prefix_effects() {
     compare_functions(&[
@@ -1396,19 +1399,23 @@ fn argument_and_environment_frames_share_a_bounded_reusable_arena() {
         .unwrap();
     let top = instance.get_global(&mut store, "top").unwrap();
     let memory = instance.get_memory(&mut store, "arena").unwrap();
-    assert_eq!(run.call(&mut store, (1.0, 32767.0)).unwrap(), 32766.0);
-    assert_eq!(top.get(&mut store).i32(), Some(1048560));
+    // The original header cell and first iteration's fresh binding take
+    // 32 bytes; each body/call plus the next header binding takes 48 bytes.
+    // Exercise the largest complete run below the unchanged 1 MiB cap,
+    // then its immediate successor and reuse after the allocator trap.
+    assert_eq!(run.call(&mut store, (1.0, 21844.0)).unwrap(), 21843.0);
+    assert_eq!(top.get(&mut store).i32(), Some(1048544));
     assert_eq!(memory.size(&store), 16);
-    let error = run.call(&mut store, (1.0, 32768.0)).unwrap_err();
+    let error = run.call(&mut store, (1.0, 21845.0)).unwrap_err();
     assert_eq!(
         error.downcast_ref::<Trap>(),
         Some(&Trap::UnreachableCodeReached)
     );
     assert_eq!(top.get(&mut store).i32(), Some(1048576));
     assert_eq!(run.call(&mut store, (1.0, 1.0)).unwrap(), 0.0);
-    assert_eq!(top.get(&mut store).i32(), Some(48));
+    assert_eq!(top.get(&mut store).i32(), Some(80));
     node(&format!(
-        "const assert=require('node:assert/strict');const e=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({wasm:?}))).exports;assert.equal(e.run(1,32767),32766);assert.equal(e.top.value,1048560);assert.equal(e.arena.buffer.byteLength,1048576);assert.throws(()=>e.run(1,32768),WebAssembly.RuntimeError);assert.equal(e.top.value,1048576);assert.equal(e.run(1,1),0);assert.equal(e.top.value,48);"
+        "const assert=require('node:assert/strict');const e=new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({wasm:?}))).exports;assert.equal(e.run(1,21844),21843);assert.equal(e.top.value,1048544);assert.equal(e.arena.buffer.byteLength,1048576);assert.throws(()=>e.run(1,21845),WebAssembly.RuntimeError);assert.equal(e.top.value,1048576);assert.equal(e.run(1,1),0);assert.equal(e.top.value,80);"
     ));
     let mut host = NumericInstance::new(&artifact.wasm).unwrap();
     let error = host.run(1.0, 32768.0).unwrap_err();

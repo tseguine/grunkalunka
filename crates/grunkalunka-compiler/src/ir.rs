@@ -456,6 +456,9 @@ pub(crate) fn any_operation(region: &Region, predicate: &mut impl FnMut(&Op) -> 
 pub(crate) fn captured_cells(region: &Region) -> BTreeSet<SlotId> {
     let mut cells = BTreeSet::new();
     visit_operations(region, &mut |op| match op {
+        Op::RebindCell { slot, .. } => {
+            cells.insert(*slot);
+        }
         Op::CaptureCells { cells: captured }
         | Op::ClosureEntry { captures: captured }
         | Op::AsyncClosureEntry { captures: captured }
@@ -470,7 +473,7 @@ pub(crate) fn captured_cells(region: &Region) -> BTreeSet<SlotId> {
 pub(crate) fn referenced_cells(region: &Region) -> BTreeSet<SlotId> {
     let mut cells = BTreeSet::new();
     visit_operations(region, &mut |op| match op {
-        Op::Load { slot, .. } | Op::Store { slot, .. } => {
+        Op::Load { slot, .. } | Op::Store { slot, .. } | Op::RebindCell { slot, .. } => {
             cells.insert(*slot);
         }
         Op::CaptureCells { cells: captured }
@@ -799,6 +802,12 @@ pub(crate) enum Op {
         slot: SlotId,
     },
     Initialize {
+        slot: SlotId,
+        value: ValueId,
+    },
+    // Clone the current binding into a fresh captured cell for a for-let
+    // iteration. The source value is first snapshotted by an ordinary Load.
+    RebindCell {
         slot: SlotId,
         value: ValueId,
     },
@@ -1666,6 +1675,16 @@ impl Verifier<'_> {
                 }
                 if !initialized.insert(*slot) {
                     return Err(invalid(span, "slot initialized twice per lexical entry"));
+                }
+            }
+            Op::RebindCell { slot, value } => {
+                let cell = self.slot(*slot, scope_index, span)?;
+                self.value(*value, cell.ty, visible, span)?;
+                if !cell.mutable || cell.parameter || !initialized.contains(slot) {
+                    return Err(invalid(
+                        span,
+                        "rebinding requires an initialized mutable lexical cell",
+                    ));
                 }
             }
             Op::Store { slot, value } => {
