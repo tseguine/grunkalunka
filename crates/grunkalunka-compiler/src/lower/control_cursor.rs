@@ -152,9 +152,8 @@ impl Lowering<'_, '_> {
     ) -> Result<Completion, String> {
         // The root has already been charged by statement_inner. Every direct
         // nested control node is charged exactly once when its Enter runs.
-        let original_depth = self.statement_depth;
-        let original_loop = self.in_loop_body;
-        let original_return_type = self.return_type;
+        let saved_context = self.source_context();
+        let original_depth = saved_context.statement_depth;
         let root_output = Self::take_cursor_region(region);
         let result = (|| {
             let mut pending = Vec::<Frame<'n, 'a>>::new();
@@ -256,9 +255,7 @@ impl Lowering<'_, '_> {
                 )?;
             }
         })();
-        self.statement_depth = original_depth;
-        self.in_loop_body = original_loop;
-        self.return_type = original_return_type;
+        self.restore_source_context(saved_context);
         result
     }
 }
