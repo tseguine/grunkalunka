@@ -136,26 +136,19 @@ impl Lowering<'_, '_> {
                 });
             }
             ControlNode::While(source) => {
-                // While tests execute before their bodies.
-                let mut condition = self.region(&source.test);
-                let predicate = self.predicate(&source.test, &mut condition, 0)?;
-                condition.exit = Exit::Yield(predicate);
-                let body = self.region(&source.body);
-                let visible = self.bindings.len();
-                let old_loop = self.in_loop_body;
-                cursor.pending.push(Frame::While {
+                // The condition Region is allocated before evaluating its
+                // expression, and the body exists only after the result.
+                let condition = self.region(&source.test);
+                cursor.pending.push(Frame::WhilePredicate {
                     source,
                     output,
                     depth,
-                    visible,
-                    old_loop,
-                    condition,
                 });
-                self.in_loop_body = true;
-                cursor.next = Some(Next::Statement {
-                    source: &source.body,
-                    output: body,
-                    depth: depth + 1,
+                cursor.next = Some(Next::Expression {
+                    source: &source.test,
+                    output: condition,
+                    depth: 0,
+                    mode: evaluate::Mode::Predicate,
                 });
             }
             ControlNode::For(source) => {
@@ -190,7 +183,7 @@ impl Lowering<'_, '_> {
     pub(super) fn resume_expression<'n, 'a>(
         &mut self,
         frame: Frame<'n, 'a>,
-        output: Region,
+        output_region: Region,
         value: Option<ValueId>,
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
@@ -201,7 +194,7 @@ impl Lowering<'_, '_> {
                 let visible = self.bindings.len();
                 cursor.pending.push(Frame::If {
                     source,
-                    output,
+                    output: output_region,
                     depth,
                     visible,
                     condition,
@@ -211,6 +204,33 @@ impl Lowering<'_, '_> {
                 cursor.next = Some(Next::Statement {
                     source: &source.consequent,
                     output: consequent,
+                    depth: depth + 1,
+                });
+                Ok(())
+            }
+            Frame::WhilePredicate {
+                source,
+                output,
+                depth,
+            } => {
+                let predicate = value.expect("predicate mode yields a value");
+                let mut condition = output_region;
+                condition.exit = Exit::Yield(predicate);
+                let body = self.region(&source.body);
+                let visible = self.bindings.len();
+                let old_loop = self.in_loop_body;
+                cursor.pending.push(Frame::While {
+                    source,
+                    output,
+                    depth,
+                    visible,
+                    old_loop,
+                    condition,
+                });
+                self.in_loop_body = true;
+                cursor.next = Some(Next::Statement {
+                    source: &source.body,
+                    output: body,
                     depth: depth + 1,
                 });
                 Ok(())
@@ -227,7 +247,7 @@ impl Lowering<'_, '_> {
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
-            Frame::IfPredicate { .. } => {
+            Frame::IfPredicate { .. } | Frame::WhilePredicate { .. } => {
                 unreachable!("predicate continuation is resumed by a value result")
             }
             Frame::TryFinallyBody {
