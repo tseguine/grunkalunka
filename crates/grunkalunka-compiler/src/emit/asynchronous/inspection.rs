@@ -23,8 +23,7 @@ pub(super) fn inspect(module: &ir::Module) -> Needs {
                 needs.queued = true;
                 needs.starters |= synchronous_helper;
             }
-            Op::AwaitPromise { .. }
-            | Op::MaterializePromise { .. } => needs.queued = true,
+            Op::AwaitPromise { .. } | Op::MaterializePromise { .. } => needs.queued = true,
             Op::AdoptPromise { .. } => {
                 needs.queued = true;
                 needs.errors = true;
@@ -89,7 +88,10 @@ mod tests {
             functions: vec![
                 function(
                     region(vec![
-                        Op::AwaitPromise { result: value, input: value },
+                        Op::AwaitPromise {
+                            result: value,
+                            input: value,
+                        },
                         Op::Call {
                             function: FunctionId(0),
                             result: value,
@@ -99,13 +101,11 @@ mod tests {
                     false,
                 ),
                 function(
-                    region(vec![Op::Block(region(vec![
-                        Op::StartAsyncClosure {
-                            result: value,
-                            callee: value,
-                            arguments: Vec::new(),
-                        },
-                    ]))]),
+                    region(vec![Op::Block(region(vec![Op::StartAsyncClosure {
+                        result: value,
+                        callee: value,
+                        arguments: Vec::new(),
+                    }]))]),
                     false,
                 ),
                 function(
@@ -116,10 +116,13 @@ mod tests {
                     }]),
                     true,
                 ),
-                function(region(vec![Op::AdoptPromise {
-                    result: value,
-                    input: value,
-                }]), false),
+                function(
+                    region(vec![Op::AdoptPromise {
+                        result: value,
+                        input: value,
+                    }]),
+                    false,
+                ),
             ],
         };
         let actual = inspect(&module);
@@ -142,7 +145,9 @@ mod tests {
             })
         });
         let old_errors = module.functions.iter().any(|function| {
-            ir::any_operation(&function.body, &mut |op| matches!(op, Op::AdoptPromise { .. }))
+            ir::any_operation(&function.body, &mut |op| {
+                matches!(op, Op::AdoptPromise { .. })
+            })
         });
         let old_starters = module.functions.iter().skip(1).any(|function| {
             !ir::is_async_closure(function)
@@ -154,9 +159,10 @@ mod tests {
             .functions
             .iter()
             .map(|function| {
-                ir::any_operation(&function.body, &mut |op| {
-                    matches!(op, Op::Call { function, .. } if function.0 == 0)
-                })
+                ir::any_operation(
+                    &function.body,
+                    &mut |op| matches!(op, Op::Call { function, .. } if function.0 == 0),
+                )
             })
             .collect::<Vec<_>>();
         assert_eq!(actual.queued, old_queued);
@@ -177,12 +183,13 @@ mod tests {
 
         let unrelated = ir::Module {
             closure_signatures: ClosureSignatures::default(),
-            functions: vec![function(region(vec![
-                Op::Constant {
+            functions: vec![function(
+                region(vec![Op::Constant {
                     result: ValueId(0),
                     value: 2.0,
-                },
-            ]), false)],
+                }]),
+                false,
+            )],
         };
         let absent = inspect(&unrelated);
         assert!(!absent.queued && !absent.errors && !absent.starters);
