@@ -34,6 +34,7 @@ mod promises;
 #[cfg(test)]
 mod source_block_tests;
 mod storage;
+pub(super) mod stored_functions;
 pub(super) use callbacks::infer_callback_parameters;
 pub(super) use promises::parameters as infer_promise_parameters;
 pub(super) use storage::general_mutable_bindings;
@@ -268,6 +269,7 @@ fn target_identifier<'e, 'a>(
 pub(super) struct Lowering<'s, 'a> {
     pub return_type: Type,
     pub semantic: &'s Semantic<'a>,
+    pub stored: &'s stored_functions::Fields,
     pub functions: &'s [NumericFunction],
     /// Only present in the explicitly selected A1 scalar-import compiler mode.
     /// Resolved by Oxc semantic symbol identity, never identifier spelling.

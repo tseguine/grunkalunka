@@ -92,7 +92,6 @@ fn declaration_values_keep_unsupported_constructs_explicit() {
         "function f(x){return x;}export function run(a,b){f=x=>x;return a;}",
         "function f(x){return x;}export function run(a,b){const g=f;return g();}",
         "function f(x){return x;}function g(x,y){return x+y;}export function run(a,b){const h=a?f:g;return h(a,b);}",
-        "function f(x){return x;}export function run(a,b){const o={f};return o.f(a);}",
         "export function run(a,b){function f(){return a;}const g=f;return g();}",
         "function f(){return Symbol();}export function run(a,b){const o={f};return a;}",
         "function make(x){return {x};}export function run(a,b){const f=make;return f(a).x;}",

@@ -401,8 +401,40 @@ layout, or affect artifacts without the new operation.
 Focused IR tests cover calls, identity, captures, rich signatures, snapshots,
 wrong-kind/signature traps, malformed inputs and 2 MiB native-stack traversal.
 `GRUNKALUNKA_IR_TEST_ARTIFACTS` can retain their exact WAT/Wasm and native oracle
-expressions for Wasmtime replay. Source calls through stored properties remain a
-separate admission unit; this operation supplies their checked backend bridge.
+expressions for Wasmtime replay. Source calls through known own fields use this
+operation as their checked backend bridge.
+
+## Calls through known own fields
+
+Source calls such as `o.f(a)` and `items[0](a)` can recover a typed function from
+an own data property. An iterative original-source analysis gathers allocation
+sites, aliases, field writes, known call arguments and returned constructors.
+It admits a call only when every gathered alternative is a synchronous function
+with the same complete parameter/result signature. Positive constructor facts
+also feed existing callback and managed-value planning; those facts alone never
+authorize a call or erase an unknown/nonfunction alternative.
+
+The field must be present at construction. Missing fields, holes, incompatible
+writes, and array shrinking that could delete the element invalidate this proof.
+The analysis merges calls and writes conservatively, so some valid programs with
+later field initialization or heterogeneous values still reject. Dynamic keys,
+prototype behavior, async targets and nested unknown-kind receivers remain
+unsupported. In particular, a generic property value cannot yet be projected to
+an object/array receiver merely to call a deeper field.
+
+Lowering evaluates the receiver, reads the actual field once, and applies
+`ManagedToClosure` before the existing typed call. The analysis supplies a
+signature, never a replacement runtime callee. Saved functions, argument-time
+overwrites, explicit `.call` receivers and surplus argument effects therefore
+keep their original evaluation order and identity. Known primitive lanes remain
+specialized. No universal dynamic call ABI or JS TypeError handling is implied.
+
+Ordinary maintained tests and canonical native-JS/Node-Wasm/Wasmtime fixtures
+cover object/array calls, callbacks, factories, managed inputs/results, erased TS
+annotations and negative alternatives. A generated function reached through a
+property retains cyclic captured state after its defining call returns and
+across forced Wasmtime copying collections. Native-stack regressions retain
+the 2 MiB limit.
 
 ## Source function values in managed storage
 
@@ -410,8 +442,9 @@ Known typed source arrows can be stored in object/array properties, compared by
 identity and inspected with `typeof`. They can coexist with other managed values
 and different function signatures. The original typed bindings remain callable;
 a property containing an opaque managed function is not yet a callable source
-target. Named declaration identities and general changing-kind binding/signature
-inference remain separate work.
+target. Known uniform fields use the admission above; module declarations use
+the identity adapters described below. General changing-kind binding/signature
+inference remains separate work.
 
 Identity demand follows the existing finite constructor graph through aliases and
 known callback/factory arguments. An observed immutable function binding is

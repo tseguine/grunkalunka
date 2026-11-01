@@ -257,6 +257,7 @@ pub(crate) fn infer(
     semantic: &Semantic<'_>,
     declarations: &[&Function<'_>],
     functions: &mut [NumericFunction],
+    stored: &stored_functions::Fields,
 ) {
     // The only public inputs are Numbers. Without a construction there is no
     // managed reference origin, so ordinary modules keep the old planning path.
@@ -332,7 +333,7 @@ pub(crate) fn infer(
             _ => (),
         }
     }
-    let forwarded = input_flow::collect(semantic, &definitions, &all_calls);
+    let forwarded = input_flow::collect(semantic, &definitions, &all_calls, stored);
     for arrow in forwarded.arrows.values() {
         for parameter in &arrow.params.items {
             if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
@@ -347,6 +348,7 @@ pub(crate) fn infer(
     }
     let origins = callbacks::ReturnOrigins {
         semantic,
+        stored,
         targets: &forwarded.targets,
         arrows: &forwarded.arrows,
     };
@@ -475,6 +477,7 @@ pub(crate) struct ClosureKinds {
 }
 pub(super) struct ClosureFlow<'s, 'n, 'a> {
     pub semantic: &'s Semantic<'a>,
+    pub stored: &'s stored_functions::Fields,
     pub functions: &'s [NumericFunction],
     pub definitions: &'s BTreeMap<SymbolId, Option<&'n Expression<'a>>>,
     pub writes: &'s BTreeMap<SymbolId, Vec<&'n Expression<'a>>>,
@@ -489,6 +492,7 @@ pub(super) struct ClosureFlow<'s, 'n, 'a> {
 pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
     let ClosureFlow {
         semantic,
+        stored,
         functions,
         definitions,
         writes,
@@ -567,6 +571,7 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
         calls.keys().map(|call| (*call, Kinds::new())).collect();
     let origins = callbacks::ReturnOrigins {
         semantic,
+        stored,
         targets,
         arrows,
     };

@@ -38,6 +38,7 @@ pub(super) fn collect<'n, 'a>(
     semantic: &'n Semantic<'a>,
     definitions: &[(SymbolId, Option<&'n Expression<'a>>)],
     calls: &[&'n CallExpression<'a>],
+    stored: &stored_functions::Fields,
 ) -> Inputs<'n, 'a> {
     let arrows: BTreeMap<_, _> = semantic
         .nodes()
@@ -53,6 +54,7 @@ pub(super) fn collect<'n, 'a>(
     while !arrows.is_empty() {
         let origins = callbacks::ReturnOrigins {
             semantic,
+            stored,
             targets: &targets,
             arrows: &arrows,
         };

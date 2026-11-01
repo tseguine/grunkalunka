@@ -495,13 +495,6 @@ pub(crate) enum Op {
         input: ValueId,
     },
     // Checked projection; preserves identity and traps on a wrong kind/signature.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Backend bridge; source property-call lowering follows separately"
-        )
-    )]
     ManagedToClosure {
         result: ValueId,
         input: ValueId,

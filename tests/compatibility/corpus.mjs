@@ -39,6 +39,7 @@ import { managedClosureResults } from './managed-closure-results.mjs';
 import { managedFunctionValues } from './managed-function-values.mjs';
 import { moduleDeclarationValues } from './module-declaration-values.mjs';
 import { moduleCallbackInputs } from './module-callback-inputs.mjs';
+import { storedFunctionCalls } from './stored-function-calls.mjs';
 
 import { managedLogical } from './managed-logical.mjs';
 import { managedTypeof } from './managed-typeof.mjs';
@@ -92,7 +93,7 @@ import { generalLogical } from './general-logical.mjs';
 
 import { mutableGeneralLocals } from './mutable-general-locals.mjs';
 
-export const corpusVersion = 95;
+export const corpusVersion = 96;
 export const externalSources = [typescriptSource, test262Source, benchmarkSource];
 
 const expressions = [
@@ -147,6 +148,7 @@ programs.push(...managedClosureResults);
 programs.push(...managedFunctionValues);
 programs.push(...moduleDeclarationValues);
 programs.push(...moduleCallbackInputs);
+programs.push(...storedFunctionCalls);
 
 programs.push(...managedLogical);
 programs.push(...managedTypeof);

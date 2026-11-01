@@ -49,6 +49,10 @@ pub(super) enum ManagedWork<'e, 'a> {
         node: &'e Expression<'a>,
         key: Vec<u16>,
     },
+    FunctionProjection {
+        node: &'e Expression<'a>,
+        signature: usize,
+    },
     SetReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -248,6 +252,51 @@ fn assignment_member<'e, 'a>(
 }
 
 impl Lowering<'_, '_> {
+    pub(super) fn schedule_function_member<'e, 'a>(
+        &self,
+        node: &'e Expression<'a>,
+        depth: usize,
+        signature: usize,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<bool, String> {
+        if !matches!(
+            node,
+            Expression::StaticMemberExpression(_) | Expression::ComputedMemberExpression(_)
+        ) {
+            return Ok(false);
+        }
+        if self.function_arity(node, depth) != Some(signature) {
+            return Err(unsupported(
+                node,
+                "stored function field requires a complete agreeing signature",
+            ));
+        }
+        let Some((object, key)) = member(node, self.member_array(node, depth), depth)? else {
+            return Ok(false);
+        };
+        let receiver = self.managed_source_type(object, depth + 1);
+        if !matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray)) {
+            return Err(unsupported(
+                node,
+                "stored function receiver must be a known object or array",
+            ));
+        }
+        work.push(Work::Managed(ManagedWork::FunctionProjection {
+            node,
+            signature,
+        }));
+        work.push(Work::Managed(ManagedWork::Read { node, key }));
+        work.push(Work::Eval(
+            object,
+            depth + 1,
+            if receiver == Some(Type::ManagedArray) {
+                Mode::Array
+            } else {
+                Mode::Object
+            },
+        ));
+        Ok(true)
+    }
     pub(in crate::lower) fn array_length_receiver<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
@@ -720,7 +769,11 @@ impl Lowering<'_, '_> {
                 values.push(Value::Managed(result));
                 return Ok(true);
             }
-            if let Some(signature) = self.function_arity(node, depth) {
+            if !matches!(
+                node,
+                Expression::StaticMemberExpression(_) | Expression::ComputedMemberExpression(_)
+            ) && let Some(signature) = self.function_arity(node, depth)
+            {
                 if self.closure_signatures.borrow().is_async(signature) {
                     return Err(unsupported(
                         node,
@@ -956,6 +1009,16 @@ impl Lowering<'_, '_> {
                     object,
                     depth,
                 }));
+            }
+            ManagedWork::FunctionProjection { node, signature } => {
+                let input = values.pop().expect("stored function value").id();
+                let result = self.value(Type::Closure(signature));
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedToClosure { result, input },
+                );
+                values.push(Value::Function(result));
             }
             ManagedWork::Read { node, key } => {
                 let object = values.pop().expect("property receiver").id();

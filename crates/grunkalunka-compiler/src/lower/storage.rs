@@ -385,6 +385,7 @@ pub(crate) fn general_mutable_bindings(
     callback_parameters: &super::callbacks::Parameters,
     signatures: &ir::ClosureSignatures,
     promises: &super::promises::Inputs,
+    stored: &stored_functions::Fields,
 ) -> BindingKinds {
     // Also retain non-Number facts for immutable definitions: nested signature
     // queries may inspect their captures before those definitions are lowered.
@@ -483,6 +484,7 @@ pub(crate) fn general_mutable_bindings(
     loop {
         let returns = callbacks::ReturnOrigins {
             semantic,
+            stored,
             targets: &targets,
             arrows: &arrows,
         };
@@ -602,6 +604,7 @@ pub(crate) fn general_mutable_bindings(
     // turning a generic identity formal into one monomorphic scalar kind.
     let returns = callbacks::ReturnOrigins {
         semantic,
+        stored,
         targets: &targets,
         arrows: &arrows,
     };
@@ -838,6 +841,7 @@ pub(crate) fn general_mutable_bindings(
     }
     let mut managed = managed_calls::closure_kinds(managed_calls::ClosureFlow {
         semantic,
+        stored,
         functions,
         definitions: &definitions,
         writes: &writes,

@@ -518,3 +518,21 @@ tests exercise this boundary; GC coroutine frames remain separate work.
 Runtime Boolean/nullish constructors also activate value planning, so equivalent
 JS gains support instead of relying on a TS-only literal to trigger analysis.
 Type-only syntax and module-specifier strings never supply runtime origin facts.
+
+## Source calls through stored fields
+
+Known own object/array fields reuse the existing typed call ABI through
+`ManagedToClosure`. A finite original-source relation follows constructor sites,
+aliases, writes and known formal/actual/result edges; every alternative must be
+callable with the same complete signature. Representation-planning facts remain
+separate from this admission proof. The emitted call reads the actual field and
+preserves its function identity, captures and evaluation order.
+
+This extends the existing typed model without immediately adding a universal
+dynamic ABI. Always dynamically dispatching would also need language-level
+wrong-kind completions, while treating positive function evidence as exhaustive
+would silently ignore nonfunction writes. Missing constructor fields, conflicting
+alternatives, array deletion by shrinking, unknown receivers and asynchronous
+targets therefore reject conservatively. Richer flow-sensitive admission and GC
+coroutine frames remain follow-ups. Maintained original-source differential,
+bounded-stack and forced-collection tests exercise this increment.
