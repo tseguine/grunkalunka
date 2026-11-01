@@ -150,6 +150,8 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
+        #[cfg(test)]
+        let _entry = crate::source_cursor_tests::entry();
         // The root has already been charged by statement_inner. Every direct
         // nested control node is charged exactly once when its Enter runs.
         let saved_context = self.source_context();
@@ -166,6 +168,8 @@ impl Lowering<'_, '_> {
             let mut completed: Option<(Region, Completion)> = None;
 
             loop {
+                #[cfg(test)]
+                crate::source_cursor_tests::pending(pending.len());
                 if let Some(task) = next.take() {
                     match task {
                         Next::Enter {
