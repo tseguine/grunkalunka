@@ -235,6 +235,10 @@ impl Lowering<'_, '_> {
                 });
                 Ok(())
             }
+            Frame::ForPredicate(frame) => {
+                let predicate = value.expect("predicate mode yields a value");
+                self.resume_for_predicate(frame, output_region, predicate, cursor)
+            }
             Frame::DoWhilePredicate {
                 source,
                 mut output,
@@ -263,7 +267,8 @@ impl Lowering<'_, '_> {
         match frame {
             Frame::IfPredicate { .. }
             | Frame::WhilePredicate { .. }
-            | Frame::DoWhilePredicate { .. } => {
+            | Frame::DoWhilePredicate { .. }
+            | Frame::ForPredicate(_) => {
                 unreachable!("predicate continuation is resumed by a value result")
             }
             Frame::TryFinallyBody {
