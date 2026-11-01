@@ -111,3 +111,41 @@ fn compact_and_alternate_json_debug_keep_derived_shape() {
     assert!(pretty.contains("Boolean(\n"));
     assert!(pretty.ends_with("    ],\n)"));
 }
+
+#[test]
+fn opted_in_raii_json_release_avoids_implicit_recursive_drop() {
+    use grunkalunka_json::OwnedJson;
+
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let mut root = JsonValue::String(vec![0xd800]);
+            for level in 0..4096 {
+                root = if level % 2 == 0 {
+                    JsonValue::Array(vec![root])
+                } else {
+                    JsonValue::Object(vec![(vec![0x0061], root)])
+                };
+            }
+            let owned = OwnedJson::from(root);
+            assert!(matches!(&*owned, JsonValue::Object(_)));
+            let copy = owned.clone();
+            assert!(format!("{copy:?}").contains("String([55296])"));
+            // Both deep owned trees drop automatically on a 2 MiB native
+            // stack, with no explicit per-node teardown by the test.
+        })
+        .expect("small-stack owned JSON thread")
+        .join()
+        .expect("RAII owned JSON teardown");
+}
+
+#[test]
+fn owned_json_can_return_raw_values_without_losing_scalar_bits() {
+    use grunkalunka_json::OwnedJson;
+
+    let value = OwnedJson::new(JsonValue::Number(-0.0));
+    let JsonValue::Number(number) = value.into_inner() else {
+        panic!("owned wrapper must yield the original enum");
+    };
+    assert_eq!(number.to_bits(), (-0.0f64).to_bits());
+}
