@@ -71,6 +71,10 @@ struct ForFrame<'n, 'a> {
 }
 
 enum Frame<'n, 'a> {
+    /// A charged expression statement awaits a Discard-mode completion.
+    DiscardExpression {
+        depth: usize,
+    },
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
         source: &'n IfStatement<'a>,
@@ -164,7 +168,8 @@ enum Frame<'n, 'a> {
 impl Frame<'_, '_> {
     fn depth(&self) -> usize {
         match self {
-            Self::IfPredicate { depth, .. }
+            Self::DiscardExpression { depth }
+            | Self::IfPredicate { depth, .. }
             | Self::If { depth, .. }
             | Self::WhilePredicate { depth, .. }
             | Self::While { depth, .. }
@@ -283,10 +288,23 @@ impl Lowering<'_, '_> {
                                     depth,
                                     charge: source_control::SourceCharge::Uncharged,
                                 });
+                            } else if let Statement::ExpressionStatement(statement) = source {
+                                // A discard expression is another typed leaf
+                                // request. Preserve the original statement
+                                // depth and source-charge order before it runs.
+                                self.statement_depth =
+                                    cursor.pending.last().map_or(original_depth, Frame::depth);
+                                self.admit_source_statement(source, depth)?;
+                                cursor.pending.push(Frame::DiscardExpression { depth });
+                                cursor.next = Some(Next::Expression {
+                                    source: &statement.expression,
+                                    output,
+                                    depth: 0,
+                                    mode: evaluate::Mode::Discard,
+                                });
                             } else {
-                                // The child may itself be a block, for, try or
-                                // function body. Preserve its enclosing loop mode
-                                // and source depth until the child has completed.
+                                // The child may still run a source function body
+                                // through the existing expression evaluator.
                                 self.statement_depth =
                                     cursor.pending.last().map_or(original_depth, Frame::depth);
                                 let completion = self.statement(source, &mut output, depth)?;
