@@ -33,6 +33,15 @@ impl Lowering<'_, '_> {
                 "finally requires an async primitive completion",
             ));
         }
+        // A singleton nested source try inside a finally body is a
+        // source-dependent continuation, not a reason to reenter the large
+        // native finalizer frame. The iterative checker preserves the same
+        // return-kind and source budgets as the ordinary path.
+        if statement.handler.is_none()
+            && matches!(statement.block.body.as_slice(), [Statement::TryStatement(_)])
+        {
+            return self.try_finally_chain(statement, region, depth);
+        }
         let visible = self.bindings.len();
         self.return_type = Type::AsyncValue;
         let parts: Result<_, String> = (|| {
