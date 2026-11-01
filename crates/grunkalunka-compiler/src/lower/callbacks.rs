@@ -1311,9 +1311,7 @@ pub(super) fn parameter_types(
                     || {
                         if let Some(ty) = promises.parameter(&symbol) {
                             ty
-                        } else if !arrow.r#async
-                            && let Some(ty) = inputs.managed.get(&symbol)
-                        {
+                        } else if let Some(ty) = inputs.managed.get(&symbol) {
                             *ty
                         } else if inputs.general.contains(&symbol) {
                             Type::General

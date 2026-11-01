@@ -305,13 +305,20 @@ impl Emitter<'_> {
                 self.set(*result);
             }
             Op::ManagedPrimitive { result, input } => {
-                writeln!(
-                    self.output,
-                    "local.get {}\ni32.const 3\ni32.gt_u\nif unreachable end",
-                    self.value_offsets[input.0]
-                )
-                .unwrap();
-                self.get(*input);
+                let tag = self.value_offsets[input.0];
+                if self.errors {
+                    // General's Error tag 4 must not become GC Object tag 4.
+                    // Retain the validated invocation-local Error identity in
+                    // the scalar payload of a distinct GC language kind.
+                    writeln!(self.output,"local.get {tag}\ni32.const 4\ni32.eq\nif (result i32)\nlocal.get {}\ncall $error_record\ndrop\ni32.const 7\nelse\nlocal.get {tag}\ni32.const 3\ni32.gt_u\nif unreachable end\nlocal.get {tag}\nend\nlocal.get {}",tag+1,tag+1).unwrap();
+                } else {
+                    writeln!(
+                        self.output,
+                        "local.get {tag}\ni32.const 3\ni32.gt_u\nif unreachable end"
+                    )
+                    .unwrap();
+                    self.get(*input);
+                }
                 self.output.push_str("ref.null eq\nstruct.new $gc_value\n");
                 self.set(*result);
             }
@@ -363,7 +370,9 @@ impl Emitter<'_> {
                     "object",
                     "string",
                     "function",
+                    "object",
                 ];
+                let names = &names[..if self.errors { 8 } else { 7 }];
                 for (tag, name) in names.iter().enumerate() {
                     self.get(*input);
                     writeln!(self.output, "struct.get $gc_value 0\ni32.const {tag}\ni32.eq\nif (result (ref null $gc_key))").unwrap();

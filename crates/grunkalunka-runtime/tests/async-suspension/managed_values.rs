@@ -130,19 +130,14 @@ fn synchronous_managed_helpers_keep_reference_signatures_in_async_modules() {
 }
 
 #[test]
-fn reference_bearing_multiple_frames_and_public_managed_values_still_reject() {
-    for (index, body) in [
-        "const o={};const f=async x=>{await b;return x;};const p=f(a);await p;return o?1:0;",
-        "const f=async x=>{const o={x};await b;return o.x===x?1:0;};const p=f(a);return await p;",
+fn public_managed_values_and_unrepresented_promise_payloads_still_reject() {
+    for body in [
         "const o={};await a;return o;",
         "const o={};await o;return a;",
         "const o={};await a;throw o;",
         "const p=Promise.resolve(a);const o={p};await b;return o.p===p?1:0;",
         "const p=Promise.resolve(a);try{await Promise.reject(p);}catch(e){const o={x:e};await b;return o.x===e?1:0;}return a;",
-    ]
-    .into_iter()
-    .enumerate()
-    {
+    ] {
         let source = format!("export async function run(a,b){{{body}}}");
         for ts in [false, true] {
             let result = std::panic::catch_unwind(|| compile_async(&source, ts))
@@ -150,12 +145,7 @@ fn reference_bearing_multiple_frames_and_public_managed_values_still_reject() {
             let error = result
                 .err()
                 .unwrap_or_else(|| panic!("unexpected admission: {source}"));
-            if index < 2 {
-                assert_eq!(
-                    error, "managed values require reference-aware async frames",
-                    "{source}"
-                );
-            }
+            assert!(!error.contains("internal IR"), "{source}: {error}");
         }
     }
 }

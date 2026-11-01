@@ -95,7 +95,7 @@ fn declaration_values_keep_unsupported_constructs_explicit() {
         "export function run(a,b){function f(){return a;}const g=f;return g();}",
         "function f(){return Symbol();}export function run(a,b){const o={f};return a;}",
         "function make(x){return {x};}export function run(a,b){const f=make;return f(a).x;}",
-        "function f(x){return x;}export async function run(a,b){const g=f;const h=async x=>{await b;return x;};const p=h(a);await p;return g(a);}",
+        "function f(x){return x;}export async function run(a,b){const g=f;const h=async x=>{await b;return x;};const p=h(a);await p;return g;}",
     ] {
         for ts in [false, true] {
             let result = if source.contains("export async") {

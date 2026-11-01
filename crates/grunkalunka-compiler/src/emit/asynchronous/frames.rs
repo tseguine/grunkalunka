@@ -13,6 +13,18 @@ pub(super) struct Frame<'a> {
     header: usize,
     spill_template: String,
     restore_template: String,
+    owner: usize,
+    managed: bool,
+    references: Vec<Option<usize>>,
+}
+
+pub(super) struct Options {
+    pub owner: usize,
+    pub queued: bool,
+    pub errors: bool,
+    pub needs_spills: bool,
+    pub gc_closures: bool,
+    pub managed: bool,
 }
 
 // Spill and restore instructions are invariant for one physical frame.
@@ -23,11 +35,19 @@ fn spill_restore_templates(
     indices: &[usize],
     start: usize,
     header: usize,
+    owner: usize,
+    managed: bool,
+    references: &[Option<usize>],
 ) -> (String, String) {
     let mut spill = String::new();
     let mut restore = String::new();
     for &index in indices {
         let lane = lanes[index];
+        if managed && let Some(reference) = references[index] {
+            writeln!(spill, "global.get $async_frame\ni32.const {owner}\ncall $async_roots_get\nstruct.get $async_root 2\ni32.const {reference}\nglobal.get {}\narray.set $async_saved_refs",start+index).unwrap();
+            writeln!(restore, "global.get $async_frame\ni32.const {owner}\ncall $async_roots_get\nstruct.get $async_root 2\ni32.const {reference}\narray.get $async_saved_refs\nref.cast {lane}\nglobal.set {}",start+index).unwrap();
+            continue;
+        }
         writeln!(
             spill,
             "global.get $async_frame\nglobal.get {}\n{lane}.store offset={}",
@@ -47,14 +67,15 @@ fn spill_restore_templates(
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(
-        function: &'a ir::Function,
-        start: usize,
-        queued: bool,
-        errors: bool,
-        needs_spills: bool,
-        gc_closures: bool,
-    ) -> Self {
+    pub fn new(function: &'a ir::Function, start: usize, options: Options) -> Self {
+        let Options {
+            owner,
+            queued,
+            errors,
+            needs_spills,
+            gc_closures,
+            managed,
+        } = options;
         let mut lanes = Vec::new();
         let mut offsets = Vec::new();
         for ty in function
@@ -111,8 +132,29 @@ impl<'a> Frame<'a> {
             .filter_map(|(index, present)| present.then_some(index))
             .collect::<Vec<_>>();
         let header = if queued { 32 } else { HEADER };
+        let mut count = 0;
+        let references = lanes
+            .iter()
+            .map(|lane| {
+                if lane.starts_with("(ref null ") {
+                    let index = count;
+                    count += 1;
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
         let (spill_template, restore_template) = if needs_spills {
-            spill_restore_templates(&lanes, &spill_lanes, start, header)
+            spill_restore_templates(
+                &lanes,
+                &spill_lanes,
+                start,
+                header,
+                owner,
+                managed,
+                &references,
+            )
         } else {
             (String::new(), String::new())
         };
@@ -139,7 +181,68 @@ impl<'a> Frame<'a> {
             header,
             spill_template,
             restore_template,
+            owner,
+            managed,
+            references,
         }
+    }
+
+    pub fn managed(&self) -> bool {
+        self.managed
+    }
+
+    pub fn register(&self, output: &mut String, address: &str, environment: &str) {
+        if self.managed {
+            writeln!(
+                output,
+                "{address}\ni32.const {}\ni32.const {}\n{environment}\ncall $async_roots_new",
+                self.owner,
+                self.references.iter().flatten().count()
+            )
+            .unwrap();
+        }
+    }
+
+    pub fn reference_array(&self, output: &mut String, address: &str) {
+        writeln!(
+            output,
+            "{address}\ni32.const {}\ncall $async_roots_get\nstruct.get $async_root 2",
+            self.owner
+        )
+        .unwrap();
+    }
+
+    pub fn reference_index(&self, global: usize) -> Option<usize> {
+        self.references[global - self.start]
+    }
+
+    pub fn release(&self, output: &mut String) {
+        if self.managed {
+            writeln!(output, "call $async_finish_{}", self.owner).unwrap();
+        }
+    }
+
+    pub fn finish(&self, output: &mut String) {
+        if !self.managed {
+            return;
+        }
+        writeln!(output, "(func $async_finish_{}", self.owner).unwrap();
+        for (index, reference) in self.references.iter().enumerate() {
+            if reference.is_some() {
+                let ty = self.lanes[index]
+                    .strip_prefix("(ref null ")
+                    .unwrap()
+                    .strip_suffix(')')
+                    .unwrap();
+                writeln!(output, "ref.null {ty}\nglobal.set {}", self.start + index).unwrap();
+            }
+        }
+        writeln!(
+            output,
+            "global.get $async_frame\ni32.const {}\ncall $async_roots_drop\n)",
+            self.owner
+        )
+        .unwrap();
     }
 
     fn offset(&self, global: usize) -> usize {
@@ -172,11 +275,20 @@ impl<'a> Frame<'a> {
         let function = self.emitter.function;
         for slot in 0..function.parameter_count {
             let global = self.emitter.slot_offsets[slot];
-            for (part, lane) in layout::value(function.slots[slot].ty)
+            for (part, lane) in self
+                .emitter
+                .value_layout(function.slots[slot].ty)
                 .parts
                 .iter()
                 .enumerate()
             {
+                if self.managed
+                    && let Some(reference) = self.reference_index(global + part)
+                {
+                    self.reference_array(output, "global.get $async_frame");
+                    writeln!(output,"i32.const {reference}\narray.get $async_saved_refs\nref.cast {}\nglobal.set {}",lane.lane.wat(),global+part).unwrap();
+                    continue;
+                }
                 writeln!(
                     output,
                     "global.get $async_frame\n{}.load offset={}\nglobal.set {}",
@@ -192,6 +304,10 @@ impl<'a> Frame<'a> {
             .iter()
             .enumerate()
         {
+            if self.managed {
+                writeln!(output,"global.get $async_frame\ni32.const {}\ncall $async_roots_get\nstruct.get $async_root 1\ni32.const {index}\narray.get $gc_frame\nglobal.set {}",self.owner,self.emitter.cell_offsets[slot.0].expect("imported GC capture")).unwrap();
+                continue;
+            }
             writeln!(
                 output,
                 "global.get $async_frame\ni32.load offset=8\ni32.load offset={}\nglobal.set {}",
@@ -213,18 +329,49 @@ impl<'a> Frame<'a> {
         returned: usize,
         entry: usize,
     ) {
-        writeln!(output,"i32.const {}\ncall $closure_frame\nglobal.set $async_next\nglobal.get $async_next\nglobal.get $async_frame\ni32.store\nglobal.get $async_next\ni32.const {returned}\ni32.store offset=4\nglobal.get $async_next\nglobal.get {}\ni32.store offset=8",target.bytes(),self.emitter.value_offsets[callee.0]+1).unwrap();
+        writeln!(output,"i32.const {}\ncall $closure_frame\nglobal.set $async_next\nglobal.get $async_next\nglobal.get $async_frame\ni32.store\nglobal.get $async_next\ni32.const {returned}\ni32.store offset=4",target.bytes()).unwrap();
+        if self.managed {
+            target.register(
+                output,
+                "global.get $async_next",
+                &format!(
+                    "global.get {}\nstruct.get $gc_function 1",
+                    self.emitter.value_offsets[callee.0]
+                ),
+            );
+        } else {
+            writeln!(
+                output,
+                "global.get $async_next\nglobal.get {}\ni32.store offset=8",
+                self.emitter.value_offsets[callee.0] + 1
+            )
+            .unwrap();
+        }
         if self.header != HEADER {
             output.push_str("global.get $async_next\ncall $promise_new\ni32.store offset=16\nglobal.get $async_next\ni32.const 1\ni32.store offset=20\n");
         }
         for (index, argument) in arguments.iter().enumerate() {
             let source = self.emitter.value_offsets[argument.0];
             let destination = target.emitter.slot_offsets[index];
-            for (part, lane) in layout::value(self.emitter.function.values[argument.0])
+            for (part, lane) in self
+                .emitter
+                .value_layout(self.emitter.function.values[argument.0])
                 .parts
                 .iter()
                 .enumerate()
             {
+                if self.managed
+                    && let Some(reference) = target.reference_index(destination + part)
+                {
+                    target.reference_array(output, "global.get $async_next");
+                    writeln!(
+                        output,
+                        "i32.const {reference}\nglobal.get {}\narray.set $async_saved_refs",
+                        source + part
+                    )
+                    .unwrap();
+                    continue;
+                }
                 writeln!(
                     output,
                     "global.get $async_next\nglobal.get {}\n{}.store offset={}",
@@ -367,7 +514,18 @@ mod spill_lane_tests {
     #[test]
     fn fulfilled_snapshot_alias_skips_only_unreferenced_physical_lanes() {
         let function = function(true);
-        let frame = Frame::new(&function, 5, true, false, true, false);
+        let frame = Frame::new(
+            &function,
+            5,
+            Options {
+                owner: 0,
+                queued: true,
+                errors: false,
+                needs_spills: true,
+                gc_closures: false,
+                managed: false,
+            },
+        );
         assert_eq!(frame.lanes.len(), 5);
         assert_eq!(frame.spill_lanes, vec![0, 1, 4]);
         assert_eq!(frame.emitter.value_offsets, vec![5, 5, 9]);
@@ -392,7 +550,18 @@ mod spill_lane_tests {
     #[test]
     fn cached_spill_and_restore_match_previous_per_state_wat_byte_for_byte() {
         let function = function(true);
-        let frame = Frame::new(&function, 5, true, false, true, false);
+        let frame = Frame::new(
+            &function,
+            5,
+            Options {
+                owner: 0,
+                queued: true,
+                errors: false,
+                needs_spills: true,
+                gc_closures: false,
+                managed: false,
+            },
+        );
         let mut expected_spill = String::new();
         let mut expected_restore = String::new();
         for &index in &frame.spill_lanes {
@@ -419,7 +588,18 @@ mod spill_lane_tests {
         frame.restore(&mut repeated);
         assert_eq!(repeated, expected_restore.repeat(2));
 
-        let unneeded = Frame::new(&function, 5, true, false, false, false);
+        let unneeded = Frame::new(
+            &function,
+            5,
+            Options {
+                owner: 0,
+                queued: true,
+                errors: false,
+                needs_spills: false,
+                gc_closures: false,
+                managed: false,
+            },
+        );
         let mut output = String::from("prefix");
         unneeded.spill(&mut output);
         unneeded.restore(&mut output);
@@ -431,7 +611,18 @@ mod spill_lane_tests {
     #[test]
     fn distinct_values_keep_all_physical_lanes() {
         let function = function(false);
-        let frame = Frame::new(&function, 0, false, false, true, false);
+        let frame = Frame::new(
+            &function,
+            0,
+            Options {
+                owner: 0,
+                queued: false,
+                errors: false,
+                needs_spills: true,
+                gc_closures: false,
+                managed: false,
+            },
+        );
         assert_eq!(frame.spill_lanes, vec![0, 1, 2, 3, 4]);
     }
 }

@@ -425,8 +425,10 @@ fn managed_parameters_keep_exact_types_counts_and_async_result_boundaries() {
             4 => {
                 m.closure_signatures.higher[0].asynchronous = true;
                 m.closure_signatures.higher[0].result = Type::General;
-                assert!(!m.closure_signatures.is_callback_signature(1001));
-                assert!(!m.closure_signatures.is_returned_function(1001));
+                // The input signature is now valid, but the unchanged target
+                // is synchronous; module verification must still reject it.
+                assert!(m.closure_signatures.is_callback_signature(1001));
+                assert!(m.closure_signatures.is_returned_function(1001));
             }
             _ => m.closure_signatures.higher[0].result = Type::ManagedObject,
         }

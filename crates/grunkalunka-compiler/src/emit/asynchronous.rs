@@ -20,6 +20,7 @@ mod graph;
 mod inspection;
 #[cfg(test)]
 mod loop_split_tests;
+mod managed_frames;
 mod managed_globals;
 #[cfg(test)]
 mod mixed_split_tests;
@@ -1126,9 +1127,8 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     graph::verify(&split, &entries)?;
     graph::thread_empty_jumps(&mut split, fresh);
     let has_async = entries.iter().any(Option::is_some);
-    if (managed || gc_closures) && has_async {
-        return Err("managed values require reference-aware async frames".into());
-    }
+    let gc_frames = (managed || gc_closures) && has_async;
+    let gc_closures = gc_closures || gc_frames;
     let dispatch_targets = dispatch::targets(module);
     let mut types = Vec::new();
     let mut frames = Vec::new();
@@ -1140,10 +1140,14 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         let mut frame = frames::Frame::new(
             function,
             types.len(),
-            queued,
-            errors,
-            has_async,
-            gc_closures,
+            frames::Options {
+                owner: index,
+                queued,
+                errors,
+                needs_spills: has_async,
+                gc_closures,
+                managed: gc_frames,
+            },
         );
         if starters {
             let mut spill = String::new();
@@ -1167,7 +1171,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     }
     let roots = managed_globals::Globals::new(&types);
     roots.declare(&mut output, &types);
-    if has_cells && (!gc_closures || queued) {
+    if has_async || queued || (has_cells && !gc_closures) {
         output.push_str(cells::MEMORY);
     }
     if has_closures {
@@ -1212,7 +1216,8 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             jump(&mut output, next);
             continue;
         }
-        if queued && (state.resumed.is_some() || matches!(state.end, End::AdoptSubscription { .. }))
+        if (queued || gc_frames)
+            && (state.resumed.is_some() || matches!(state.end, End::AdoptSubscription { .. }))
         {
             frame.restore(&mut output);
         }
@@ -1246,6 +1251,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 )
                 .unwrap();
             }
+            frame.register(&mut output, "global.get $async_frame", "ref.null $gc_frame");
             let emitter = &mut frame.emitter;
             emitter.init_cell_parameters();
         }
@@ -1266,6 +1272,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                         unreachable!()
                     };
                     writeln!(output,"global.get {}\nglobal.get $async_frame\ni32.load offset=16\ni32.eq\nif\nglobal.get $async_frame\ni32.load offset=16\ni32.const 1\ni32.const 4\ncall $type_error\ncall $promise_settle\ndrop",emitter.value_offsets[input.0]).unwrap();
+                    frame.release(&mut output);
                     promises::park(&mut output);
                     output.push_str("end\n");
                 }
@@ -1317,12 +1324,11 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 if let Some(targets) = dispatch_targets.get(&signature) {
                     for &index in targets {
                         let target = frames[index].as_ref().expect("indexed async closure");
-                        writeln!(
-                            output,
-                            "global.get {}\ni32.const {index}\ni32.eq\nif",
-                            emitter.value_offsets[callee.0]
-                        )
-                        .unwrap();
+                        writeln!(output, "global.get {}", emitter.value_offsets[callee.0]).unwrap();
+                        if gc_closures {
+                            output.push_str("struct.get $gc_function 0\n");
+                        }
+                        writeln!(output, "i32.const {index}\ni32.eq\nif").unwrap();
                         frame.invoke(
                             &mut output,
                             target,
@@ -1389,6 +1395,15 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                     promises::park(&mut output);
                     continue;
                 }
+                if rejected {
+                    if gc_frames {
+                        frame.release(&mut output);
+                    } else if state.function == 0 {
+                        roots.clear(&mut output);
+                    }
+                } else if gc_frames {
+                    frame.spill(&mut output);
+                }
                 writeln!(
                     output,
                     "i32.const {}\nglobal.set $pc\ni32.const {}",
@@ -1400,7 +1415,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Return(value) => {
-                if state.function == 0 {
+                if gc_frames {
+                    frame.release(&mut output);
+                } else if state.function == 0 {
                     roots.clear(&mut output);
                 }
                 if queued {
@@ -1417,7 +1434,9 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 output.push_str("return\n");
             }
             End::Reject(value) => {
-                if state.function == 0 {
+                if gc_frames {
+                    frame.release(&mut output);
+                } else if state.function == 0 {
                     roots.clear(&mut output);
                 }
                 if queued {
@@ -1456,8 +1475,13 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             }
             writeln!(
                 output,
-                "(func $closure_body{} (param i32 i32) (result i32 f64) unreachable)",
-                index + 1
+                "(func $closure_body{} (param {}) (result i32 f64) unreachable)",
+                index + 1,
+                if gc_closures {
+                    "(ref null $gc_frame) (ref null $gc_frame)"
+                } else {
+                    "i32 i32"
+                }
             )
             .unwrap();
             continue;
@@ -1518,7 +1542,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     if has_cells && !gc_closures {
         output.push_str(cells::ALLOCATOR);
     }
-    if (has_closures && !gc_closures) || queued {
+    if (has_closures && !gc_closures) || queued || has_async {
         output.push_str(closures::FRAME_ALLOCATOR);
     }
     if queued {
@@ -1532,9 +1556,20 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(&super::gc_closures::projection_helpers(module));
     }
     if managed {
-        output.push_str(include_str!("managed.wat"));
+        if errors {
+            output.push_str(&errors::managed_runtime());
+        } else {
+            output.push_str(include_str!("managed.wat"));
+        }
     }
-    roots.finish(&mut output);
+    if gc_frames {
+        output.push_str(managed_frames::RUNTIME);
+        for frame in frames.iter().flatten() {
+            frame.finish(&mut output);
+        }
+    } else {
+        roots.finish(&mut output);
+    }
     output.push_str(")\n");
     Ok(output)
 }

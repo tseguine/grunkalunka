@@ -97,7 +97,7 @@ pub(super) fn projection_helpers(module: &ir::Module) -> String {
     output
 }
 
-fn field(lane: layout::Lane) -> usize {
+pub(super) fn field(lane: layout::Lane) -> usize {
     match lane {
         layout::Lane::I32 => 0,
         layout::Lane::F64 => 1,
@@ -241,13 +241,17 @@ impl Emitter<'_> {
             _ => "$closure",
         };
         let callee = self.value_offsets[callee.0];
-        // Managed modules cannot use the async spill protocol; no numeric spill.
-        assert!(self.call_boundary.is_none());
+        if let Some(boundary) = &self.call_boundary {
+            self.output.push_str(&boundary.spill);
+        }
         writeln!(
             self.output,
             "local.get {callee}\nstruct.get $gc_function 1\nlocal.get {temp}\nlocal.get {callee}\nstruct.get $gc_function 0\ncall_indirect (type {signature})"
         )
         .unwrap();
+        if let Some(boundary) = &self.call_boundary {
+            self.output.push_str(&boundary.restore);
+        }
         let ty = self.function.values[result.0];
         if ty.is_managed() {
             // The private ABI shares eqref; the verified signature retains the

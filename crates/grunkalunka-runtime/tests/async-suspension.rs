@@ -13,6 +13,9 @@ mod managed_values;
 #[path = "async-suspension/managed_closures.rs"]
 mod managed_closures;
 
+#[path = "async-suspension/managed_frames.rs"]
+mod managed_frames;
+
 #[path = "async-suspension/pending.rs"]
 mod pending;
 
