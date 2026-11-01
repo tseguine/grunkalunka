@@ -179,7 +179,7 @@ impl Lowering<'_, '_> {
 
     /// Resume one source-level consumer after the existing expression
     /// evaluator has delivered its typed result. No source node is charged
-    /// twice and no child Region is allocated before the source expression.
+    /// twice; child Region allocation retains each source form's prior order.
     pub(super) fn resume_expression<'n, 'a>(
         &mut self,
         frame: Frame<'n, 'a>,
