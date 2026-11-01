@@ -327,3 +327,46 @@ impl Lowering<'_, '_> {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn alternating_if_and_loop_families_keep_native_stack_bounded() {
+        // Homogeneous nesting was already iterative. Alternating kinds used to
+        // reenter different native-stack cursors for each source layer.
+        for depth in [4, 12, 24, 40, 66] {
+            let mut body = String::from("a+=b;");
+            for index in 0..depth {
+                body = match index % 3 {
+                    0 => format!("if(a){{{body}}}else{{b+=a;}}"),
+                    1 => format!("while(a){{{body}}}"),
+                    _ => format!("do{{{body}}}while(false);"),
+                };
+            }
+            let source = format!("export function run(a,b){{{body}return a;}}");
+            for ts in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, ts))
+                    .expect("2 MiB mixed-control compiler thread")
+                    .join()
+                    .expect("mixed statement cursor must not exhaust native stack");
+                if depth <= 12 {
+                    assert!(
+                        result.is_ok(),
+                        "{depth} mixed controls: {:?}",
+                        result.err()
+                    );
+                }
+                if depth == 66 {
+                    let error = result.err().expect("over-depth mixed source must reject");
+                    assert!(
+                        error.contains("64") || error.contains("128"),
+                        "{depth} mixed controls: {error}"
+                    );
+                }
+            }
+        }
+    }
+}
