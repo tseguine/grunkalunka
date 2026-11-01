@@ -65,9 +65,10 @@ impl Lowering<'_, '_> {
                         "statement is outside the numeric experiment",
                     ));
                 }
-                source.handler.as_ref().ok_or_else(|| {
-                    unsupported(source, "try requires a catch handler")
-                })?;
+                source
+                    .handler
+                    .as_ref()
+                    .ok_or_else(|| unsupported(source, "try requires a catch handler"))?;
                 let visible = self.bindings.len();
                 let body = self.region(source.block.as_ref());
                 // The try body is a source block, but its
@@ -146,8 +147,7 @@ impl Lowering<'_, '_> {
             ControlNode::While(source) => {
                 // While tests execute before their bodies.
                 let mut condition = self.region(&source.test);
-                let predicate =
-                    self.predicate(&source.test, &mut condition, 0)?;
+                let predicate = self.predicate(&source.test, &mut condition, 0)?;
                 condition.exit = Exit::Yield(predicate);
                 let body = self.region(&source.body);
                 let visible = self.bindings.len();
@@ -181,18 +181,12 @@ impl Lowering<'_, '_> {
                             self.declaration(declaration, &mut header)?;
                             if declaration.kind == VariableDeclarationKind::Let {
                                 let_slots.extend(
-                                    self.bindings[start..]
-                                        .iter()
-                                        .map(|binding| binding.slot),
+                                    self.bindings[start..].iter().map(|binding| binding.slot),
                                 );
                             }
                         }
                         _ => {
-                            self.discarded(
-                                init.to_expression(),
-                                &mut header,
-                                0,
-                            )?;
+                            self.discarded(init.to_expression(), &mut header, 0)?;
                         }
                     }
                 }
@@ -318,17 +312,12 @@ impl Lowering<'_, '_> {
                 self.return_type = outer_type;
                 self.bindings.truncate(visible);
                 let returned = self.value(Type::AsyncValue);
-                let reason =
-                    self.value(self.promise_parameters.finally_type(source.span.start));
+                let reason = self.value(self.promise_parameters.finally_type(source.span.start));
                 let mut continuation = self.region(source);
                 let result = if outer_type == Type::AsyncValue {
                     returned
                 } else {
-                    self.resolve_async_value(
-                        source,
-                        returned,
-                        &mut continuation,
-                    )
+                    self.resolve_async_value(source, returned, &mut continuation)
                 };
                 continuation.exit = Exit::Return(result);
                 Self::push(
@@ -342,8 +331,7 @@ impl Lowering<'_, '_> {
                         continuation: Box::new(continuation),
                     },
                 );
-                completed =
-                    Some((output, body_completion.finalized_by(completion)));
+                *completed = Some((output, body_completion.finalized_by(completion)));
             }
             Frame::TryCatchBody {
                 source,
@@ -361,9 +349,7 @@ impl Lowering<'_, '_> {
                 let reason_type = self.promise_parameters.catch_type(handler);
                 let reason = self.value(reason_type);
                 if let Some(parameter) = &handler.param {
-                    let BindingPattern::BindingIdentifier(identifier) =
-                        &parameter.pattern
-                    else {
+                    let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                         return Err(unsupported(
                             parameter,
                             "catch destructuring is not admitted",
@@ -395,10 +381,7 @@ impl Lowering<'_, '_> {
                         },
                     );
                     self.bindings.push(NumericBinding {
-                        symbol: identifier
-                            .symbol_id
-                            .get()
-                            .ok_or("missing catch binding")?,
+                        symbol: identifier.symbol_id.get().ok_or("missing catch binding")?,
                         slot,
                         mutable: true,
                     });
@@ -617,16 +600,11 @@ impl Lowering<'_, '_> {
                             },
                         );
                     }
-                    let mut next_step =
-                        step.take().unwrap_or_else(|| self.region(source));
+                    let mut next_step = step.take().unwrap_or_else(|| self.region(source));
                     let updates = std::mem::take(&mut next_step.operations);
                     for &slot in &renewal {
                         let result = self.value(self.slots[slot.0].ty);
-                        Self::push(
-                            &mut next_step,
-                            source,
-                            Op::Load { result, slot },
-                        );
+                        Self::push(&mut next_step, source, Op::Load { result, slot });
                         Self::push(
                             &mut next_step,
                             source,
