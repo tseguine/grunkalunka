@@ -8,13 +8,20 @@ use super::*;
 /// A direct-nesting cursor can enter another node of its own kind or delegate
 /// an ordinary child statement. Future handlers can share this request protocol
 /// without sharing their distinct completion or lexical-environment semantics.
+/// Source nodes reached through a control cursor were either charged by the
+/// enclosing dispatcher or must be charged at this newly scheduled entry.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum SourceCharge {
+    Charged,
+    Uncharged,
+}
+
 pub(super) enum StatementTask<'n, 'a, N> {
     Enter {
         source: N,
         output: Region,
         depth: usize,
-        /// The enclosing statement dispatcher already charged the root node.
-        charged: bool,
+        charge: SourceCharge,
     },
     Statement {
         source: &'n Statement<'a>,
