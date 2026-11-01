@@ -108,3 +108,30 @@ fn rejected_mixed_source_nesting_exits_without_reentering_native_cursor() {
     assert_eq!(maximum, 1, "rejected mixed source reentered the cursor");
     assert!(entries > 0);
 }
+
+#[test]
+fn suspended_if_predicate_preserves_expression_diagnostics_on_two_mib_stack() {
+    // The condition now crosses the source -> expression request/result seam
+    // instead of being executed inside the If entry transition. Preserve
+    // ordering of comma/conditional expressions and failure before either arm.
+    for (body, admitted) in [
+        ("if((a=1,!b,a<b)) return a; return b;", true),
+        ("if(a?(b?true:false):!a) return a; return b;", true),
+        ("if(a ** b) return a; return b;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || {
+                    observe(|| crate::compile(&source, typescript))
+                })
+                .expect("2 MiB source expression request thread")
+                .join()
+                .expect("condition request must not exhaust native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
