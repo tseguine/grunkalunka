@@ -190,18 +190,27 @@ impl Lowering<'_, '_> {
                 let handler_completion =
                     self.sequence(&handler.body.body, &mut caught, frame.depth + 2)?;
                 self.bindings.truncate(frame.visible);
-                let output = pending
-                    .last_mut()
-                    .map_or(region, |parent| &mut parent.body);
-                Self::push(
-                    output,
-                    statement,
-                    Op::TryCatch {
-                        body: frame.body,
-                        reason,
-                        handler: caught,
-                    },
-                );
+                if let Some(parent) = pending.last_mut() {
+                    Self::push(
+                        &mut parent.body,
+                        statement,
+                        Op::TryCatch {
+                            body: frame.body,
+                            reason,
+                            handler: caught,
+                        },
+                    );
+                } else {
+                    Self::push(
+                        region,
+                        statement,
+                        Op::TryCatch {
+                            body: frame.body,
+                            reason,
+                            handler: caught,
+                        },
+                    );
+                }
                 completion = completion.caught_by(handler_completion);
             }
             Ok(completion)
