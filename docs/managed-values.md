@@ -288,7 +288,7 @@ verifier now admits `ManagedObject`, `ManagedArray` and `ManagedValue` as synchr
 private closure parameters, including callback and returned-function signatures.
 GC closure storage is selected even when such a function captures no values.
 Argument count/type checks, parameter initialization, exported numeric inputs,
-managed-result guards and asynchronous frame rejection remain unchanged.
+source-result guards and asynchronous frame rejection remain unchanged.
 
 Maintained emitted-IR/native-JS/Node tests cover alias mutation and prior snapshots,
 arrays, lossless String and Number carriers, nested capture of a managed parameter,
@@ -299,9 +299,36 @@ A separate manual run executes an actual emitted object-argument artifact throug
 the production Wasmtime numeric adapter over 64 input pairs; temporary capture
 instrumentation is removed afterward. This does not establish source admission.
 
+### Typed managed closure results
+
+Synchronous private IR closures can also return `ManagedObject`, `ManagedArray`
+or `ManagedValue`, including through callback and returned-function signatures.
+Logical signatures and inline function-body regions still match the exact result
+type. The inline-body gate admits these existing managed types; awaited inline
+calls retain their separate General-only result check. The private Wasm call uses
+one nullable `eqref` result, then casts to the IR-proven reference type before
+assigning the caller's typed local. Objects and arrays retain identity; String and
+primitive carriers keep their language kind. No numeric handle or byte spill is
+introduced. A managed result selects traced closure storage even without managed
+parameters or captures. Number, General and function-pair result paths are unchanged.
+
+A separate physical function type for each managed result was considered. The
+shared reference lane avoids forward references into the later managed type group
+and preserves existing type/function ordering for modules without this feature.
+IR validation retains the precise logical contract; this does not permit forging
+or interchanging object, array and carrier result signatures.
+
+`ir::gc_closure_result_tests` executes emitted modules against native JS in Node.
+It covers alias mutation, array length, lossless text, numeric/boxed carriers,
+callbacks, returned functions, fresh factories and argument/type/async boundaries.
+A manual verification runs an actual emitted factory-result artifact through the
+production Wasmtime numeric adapter over 64 pairs; temporary capture instrumentation
+is removed afterward. That probe does not force collection or establish source
+result inference, a public reference ABI or suspended managed frames.
+
 GC types precede explicit closure function types so type references do not cross
 forward into a later recursion group. The source function indices remain stable.
-Modules without managed captured cells or managed closure parameters retain their
+Modules without managed captured cells or managed closure parameters/results retain their
 existing numeric arena, closure layout and async behavior. Modules using the traced
 path need no numeric arena reset wrapper. Ordinary Number arithmetic and locals retain f64 in both paths.
 

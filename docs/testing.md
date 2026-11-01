@@ -433,6 +433,14 @@ Store or invert branch selection. Compatibility accounting retains eight exact
 diagnostic advances and two unchanged numeric rejection sources as Value origins;
 neither diagnostic movement nor Value execution is counted as numeric promotion.
 
+`ir::gc_closure_result_tests` compares actual emitted synchronous private managed
+results with native JS in Node. Object/array aliasing, String/number carriers,
+callback/returned-function signatures, fresh zero-input factories, 1,000 arguments
+and invalid result/type/async boundaries have maintained tests. A missing-cast
+mutation must fail engine type validation. A separate manual 64-pair Wasmtime run
+executes an actual emitted result artifact; this is not forced-collection or source
+managed-result evidence.
+
 The compiler's `ir::gc_closure_tests` and `ir::gc_closure_argument_tests` exercise
 the traced closure backend independently of source managed-capture admission. `managed-closure-storage` in the runtime package
 checks the shared GC cell/frame type fragment across forced Wasmtime copying

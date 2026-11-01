@@ -13,6 +13,8 @@ mod fulfilled_promise_tests;
 #[cfg(test)]
 mod gc_closure_argument_tests;
 #[cfg(test)]
+mod gc_closure_result_tests;
+#[cfg(test)]
 mod gc_closure_tests;
 #[cfg(test)]
 mod managed_array_tests;
@@ -183,7 +185,10 @@ impl ClosureSignatures {
                 return false;
             }
             match signature.result {
-                Type::Number
+                Type::ManagedValue
+                | Type::ManagedObject
+                | Type::ManagedArray
+                | Type::Number
                 | Type::General
                 | Type::AsyncValue
                 | Type::FulfilledPromise
@@ -212,7 +217,10 @@ impl ClosureSignatures {
                     || signature.parameters.iter().any(|ty| ty.is_managed())))
                 || !matches!(
                     signature.result,
-                    Type::Number
+                    Type::ManagedValue
+                        | Type::ManagedObject
+                        | Type::ManagedArray
+                        | Type::Number
                         | Type::General
                         | Type::AsyncValue
                         | Type::FulfilledPromise
@@ -1740,7 +1748,10 @@ impl Verifier<'_> {
                     }
                     if !matches!(
                         ty,
-                        Type::Number
+                        Type::ManagedObject
+                            | Type::ManagedArray
+                            | Type::ManagedValue
+                            | Type::Number
                             | Type::General
                             | Type::AsyncValue
                             | Type::Closure(_)
@@ -1750,7 +1761,7 @@ impl Verifier<'_> {
                     ) {
                         return Err(invalid(
                             span,
-                            "inline calls require Number, General, function or fulfilled Promise results",
+                            "inline calls require Number, General, managed, function or fulfilled Promise results",
                         ));
                     }
                     frame.pending = PendingRegion::Inline(ty);
@@ -2205,7 +2216,10 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
             })
             || !matches!(
                 signature.result,
-                Type::Number
+                Type::ManagedValue
+                    | Type::ManagedObject
+                    | Type::ManagedArray
+                    | Type::Number
                     | Type::General
                     | Type::AsyncValue
                     | Type::Closure(_)
@@ -2241,7 +2255,10 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
             Type::General
         } else if closure_environment(function).is_some() {
             if !match function.return_type {
-                Type::Number
+                Type::ManagedValue
+                | Type::ManagedObject
+                | Type::ManagedArray
+                | Type::Number
                 | Type::General
                 | Type::AsyncValue
                 | Type::FulfilledPromise
@@ -2254,7 +2271,7 @@ fn verify_module_profile(module: &Module, profile: VerificationProfile) -> Resul
             } {
                 return Err(invalid(
                     function.body.span,
-                    "runtime closure results require Number, General or acyclic supported function signatures",
+                    "runtime closure results require supported scalar, managed or acyclic function types",
                 ));
             }
             function.return_type

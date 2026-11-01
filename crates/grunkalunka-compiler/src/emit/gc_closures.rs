@@ -1,4 +1,4 @@
-//! One traced cell domain for synchronous managed captures and closure arguments.
+//! One traced cell domain for synchronous managed captures, arguments and results.
 //! Environments retain cells, not snapshots; argument entries hold fresh cells.
 use super::*;
 
@@ -7,10 +7,11 @@ pub(super) const TYPES: &str = include_str!("gc_closures.wat");
 pub(super) fn needed(module: &ir::Module) -> bool {
     module.functions.iter().any(|f| {
         (ir::closure_environment(f).is_some()
-            && f.slots
-                .iter()
-                .take(f.parameter_count)
-                .any(|slot| slot.ty.is_managed()))
+            && (f.return_type.is_managed()
+                || f.slots
+                    .iter()
+                    .take(f.parameter_count)
+                    .any(|slot| slot.ty.is_managed())))
             || ir::captured_cells(&f.body)
                 .into_iter()
                 .any(|slot| f.slots[slot.0].ty.is_managed())
@@ -147,6 +148,7 @@ impl Emitter<'_> {
             self.output.push_str("array.set $gc_frame\n");
         }
         let signature = match self.function.values[result.0] {
+            Type::ManagedValue | Type::ManagedObject | Type::ManagedArray => "$closure_managed",
             Type::Closure(_) => "$closure_pair",
             Type::Promise => "$closure_promise",
             Type::General | Type::AsyncValue | Type::FulfilledPromise | Type::SettledPromise => {
@@ -163,6 +165,13 @@ impl Emitter<'_> {
             callee + 1
         )
         .unwrap();
+        let ty = self.function.values[result.0];
+        if ty.is_managed() {
+            // The private ABI shares eqref; the verified signature retains the
+            // precise result kind, restored before assigning its typed local.
+            let lane = self.value_layout(ty).parts[0].lane;
+            self.output.push_str(cast(lane));
+        }
         self.set(result);
     }
 }
