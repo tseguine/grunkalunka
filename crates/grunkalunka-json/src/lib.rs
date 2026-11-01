@@ -4,7 +4,6 @@
 //! See `docs/json.md` for the resource accounting and integration boundary.
 
 mod stringify;
-use std::fmt::Write as _;
 pub use stringify::{StringifyError, StringifyLimit, StringifyLimits, stringify};
 
 /// Parsed JSON data. Strings and keys retain every UTF-16 code unit.
