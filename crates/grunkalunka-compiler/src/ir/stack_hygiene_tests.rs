@@ -80,6 +80,41 @@ fn operation_walk_keeps_preorder_for_every_nested_control_region() {
 }
 
 #[test]
+fn operation_predicate_short_circuits_in_the_existing_region_preorder() {
+    let tree = region(vec![
+        marker(0),
+        Op::If {
+            result: None,
+            condition: ValueId(0),
+            consequent: region(vec![marker(1)]),
+            alternate: region(vec![marker(2)]),
+        },
+        marker(3),
+    ]);
+    let mut inspected = Vec::new();
+    let found = any_operation(&tree, &mut |op| {
+        if let Op::Constant { result, .. } = op {
+            inspected.push(result.0);
+            result.0 == 1
+        } else {
+            false
+        }
+    });
+    assert!(found);
+    assert_eq!(inspected, vec![0, 1]);
+
+    inspected.clear();
+    let absent = any_operation(&tree, &mut |op| {
+        if let Op::Constant { result, .. } = op {
+            inspected.push(result.0);
+        }
+        false
+    });
+    assert!(!absent);
+    assert_eq!(inspected, vec![0, 1, 2, 3]);
+}
+
+#[test]
 fn deep_operation_walk_stays_on_a_small_native_stack() {
     // No parser, verifier or emitter admission is inferred from this test.
     // Exceed the source-depth budget intentionally to prove the inspector

@@ -1,6 +1,7 @@
 //! Ordered, typed structured regions. Values are snapshots; slots are source cells.
 use oxc_span::Span;
 use std::collections::BTreeSet;
+use std::ops::ControlFlow;
 
 #[cfg(test)]
 mod adoption_tests;
@@ -369,14 +370,17 @@ pub(crate) enum Nullish {
 ///
 /// This is a traversal guarantee, not a change to the admitted source depth,
 /// verifier budgets, or recursion in other compiler phases.
-pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
+fn visit_until<B>(
+    region: &Region,
+    visit: &mut impl FnMut(&Op) -> ControlFlow<B>,
+) -> ControlFlow<B> {
     let mut pending = vec![region.operations.iter()];
     while let Some(iter) = pending.last_mut() {
         let Some(operation) = iter.next() else {
             pending.pop();
             continue;
         };
-        visit(&operation.kind);
+        visit(&operation.kind)?;
         match &operation.kind {
             Op::InlineCall { body, .. }
             | Op::AwaitCall { body, .. }
@@ -422,6 +426,29 @@ pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
             _ => (),
         }
     }
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn visit_operations(region: &Region, visit: &mut impl FnMut(&Op)) {
+    let _ = visit_until(region, &mut |operation| {
+        visit(operation);
+        ControlFlow::<()>::Continue(())
+    });
+}
+
+/// Stop at the first matching operation, including nested structured regions,
+/// without consuming native stack proportional to source or generated IR depth.
+pub(crate) fn any_operation(region: &Region, predicate: &mut impl FnMut(&Op) -> bool) -> bool {
+    matches!(
+        visit_until(region, &mut |operation| {
+            if predicate(operation) {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        }),
+        ControlFlow::Break(())
+    )
 }
 
 pub(crate) fn captured_cells(region: &Region) -> BTreeSet<SlotId> {

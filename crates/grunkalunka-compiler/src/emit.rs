@@ -1136,11 +1136,9 @@ pub(crate) fn module_has_managed(module: &ir::Module) -> bool {
 
 fn module_materializes_promises(module: &ir::Module) -> bool {
     module.functions.iter().any(|function| {
-        let mut found = false;
-        ir::visit_operations(&function.body, &mut |op| {
-            found |= matches!(op, Op::MaterializePromise { .. })
-        });
-        found
+        ir::any_operation(&function.body, &mut |op| {
+            matches!(op, Op::MaterializePromise { .. })
+        })
     })
 }
 
