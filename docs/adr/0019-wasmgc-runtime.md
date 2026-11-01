@@ -484,3 +484,21 @@ target nor grant an annotation runtime authority. Source/native-JS/Node/Wasmtime
 tests cover identity and typed calls. Nested declaration environments, async
 declaration identities, opaque stored calls and GC coroutine frames remain outside
 this increment.
+
+## Managed callback input provenance
+
+Module helper signatures must be available before checked callback signatures, so
+input planning first derives a finite relation of source constructor targets and
+formal/actual edges. Original-symbol aliases and returned local factories extend
+that relation; the existing kind lattice then gathers input/result lanes. This
+keeps Number specialization and reference identity without adding a universal call
+ABI, eagerly boxing every helper parameter, or matching individual source idioms.
+
+Named result facts also reach callback aliases. Agreement among known targets is
+positive representation evidence, not admission of an unknown alternative; full
+signature validation stays in lowering. Unsupported result/consumer combinations
+must diagnose rather than panic. Source/native-JS/Node/Wasmtime and bounded-stack
+tests exercise this boundary; GC coroutine frames remain separate work.
+Runtime Boolean/nullish constructors also activate value planning, so equivalent
+JS gains support instead of relying on a TS-only literal to trigger analysis.
+Type-only syntax and module-specifier strings never supply runtime origin facts.

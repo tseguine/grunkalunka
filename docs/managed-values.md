@@ -571,3 +571,26 @@ through opaque stored carriers and suspended GC references remain follow-ups.
 The 1,000-parameter frame control uses an explicit two-million-fuel engine budget;
 it does not increase the production per-call budget or promise that every admitted
 wide program fits that smaller budget.
+
+## Managed inputs through module callbacks
+
+Module-helper input planning follows original-source constructor origins through
+known local calls, aliases and returned factories. It records formal/actual input
+edges without evaluating source code, then computes managed lanes using the
+existing finite kind lattice. Public entry parameters remain Numbers. Programs
+without a synchronous private helper or a non-Number runtime value origin retain
+the earlier path. Boolean/nullish values also seed boxed input facts; unused TS
+literals and import/export specifiers do not establish runtime value origins.
+
+The storage planner also follows named module targets for managed results through
+callback aliases. Known targets must agree on a result lane; these positive facts
+do not establish a complete callable signature. Lowering still checks every
+alternative and rejects unknown/incompatible calls. A mismatched managed consumer
+returns a diagnostic instead of reaching a scalar-routing assertion.
+
+`module-callback-inputs` compares source with native JS, Node-Wasm and Wasmtime for
+objects, arrays, strings, mixed inputs, mutation, reads, cycles, forwarding,
+factories and argument snapshots. Receiver and surplus effects still execute once;
+they do not become declared input facts. Type annotations remain erased. Two-MiB
+stack, 128-local boundary and explicit opaque/unknown/signature/async guards cover
+the limits. This changes source analysis, not the call ABI or coroutine frames.

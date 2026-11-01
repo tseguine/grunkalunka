@@ -845,6 +845,7 @@ pub(crate) fn general_mutable_bindings(
         groups: &constructor_groups,
         arrows: &arrows,
         calls: &managed_call_targets,
+        targets: &targets,
         callback_parameters,
         closure_signatures: signatures,
     });
