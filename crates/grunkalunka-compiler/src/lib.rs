@@ -327,6 +327,7 @@ fn lower_source_profile_with_identities(
                     .borrow_mut()
                     .intern_async(vec![ir::Type::Number; function.params.items.len()])
             }),
+            module_value: None,
         });
     }
     lower::infer_managed_calls(&built.semantic, &declarations, &mut signatures);
@@ -427,6 +428,12 @@ fn lower_source_profile_with_identities(
     general_bindings
         .async_results
         .extend(&promise_parameters.asynchronous);
+    let adapters = lower::plan_module_functions(
+        &built.semantic,
+        &declarations,
+        &mut signatures,
+        &closure_signatures,
+    );
     let mut functions = Vec::new();
     let mut lifted = Vec::new();
     let mut local_count = 0;
@@ -506,7 +513,7 @@ fn lower_source_profile_with_identities(
             allow_await: function.r#async && async_entry,
             allow_async_closures: async_entry,
             lifted: Vec::new(),
-            lifted_base: signatures.len() + lifted.len(),
+            lifted_base: signatures.len() + adapters.len() + lifted.len(),
             lifting_depth: 0,
             active_function_values: 0,
             active_function_results: 0,
@@ -565,6 +572,7 @@ fn lower_source_profile_with_identities(
         lifted.append(&mut lowering.lifted);
         functions.push(lowering.finish(region, function.params.items.len()));
     }
+    functions.extend(adapters);
     functions.extend(lifted.into_iter().map(|function| {
         std::rc::Rc::try_unwrap(function)
             .expect("completed lifted body has no remaining lowering owner")

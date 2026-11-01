@@ -66,6 +66,10 @@ fn direct_call_type_arguments_erase_without_changing_execution() {
             "function id(x){return x;}export function run(a,b){return id(a);}",
             "type id=never;function id<T>(x:T):T{return x;}export function run(a,b){return id<id>(a);}",
         ),
+        (
+            "function id(x){return x;}export function run(a,b){return (id)(a);}",
+            "function id(x){return x;}export function run(a,b){return (id)<never>(a);}",
+        ),
     ] {
         for compiler in [compile, compile_value] {
             assert_eq!(
@@ -90,7 +94,6 @@ fn direct_call_type_arguments_do_not_prove_values_or_relax_limits() {
         "return id<never>(missing);",
         "const id=a;return id<never>(b);",
         "id=a;return id<never>(b);",
-        "return (id)<never>(a);",
         "return id<never>(a,missing);",
     ] {
         let source = format!("function id(x){{return x;}}export function run(a,b){{{body}}}");

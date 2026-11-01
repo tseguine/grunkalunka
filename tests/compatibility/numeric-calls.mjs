@@ -78,13 +78,14 @@ bad('spread', identity, 'return identity(...a);', 'spread call arguments');
 bad('optional', identity, 'return identity?.(a);', expression);
 // The receiver supplies thisArg; identity still has no forwarded input.
 bad('property', identity, 'return identity.call(a);', 'call is missing declared arguments');
-bad('wrapped-callee', identity, 'return (identity)(a);', expression);
+// Exact former rejections now execute through module declaration adapters.
+add('wrapped-callee', identity, 'return (identity)(a);', identity, 'return (identity)(a);');
 full('generic-call',"function identity(x) { return x; } export function run(a,b) { return identity(a); }","function identity(x) { return x; } export function run(a,b) { return identity<number>(a); }");
 bad('numeric-shadow-call', identity, 'let identity=a; return identity(b);', expression);
 bad('parameter-shadow-call', 'function other(identity) { return identity(1); }', 'return other(a);', expression);
 bad('tdz-shadow-call', identity, 'const x=identity(a); let identity=b; return x;', expression);
-bad('function-value', identity, 'return identity;', reference);
-bad('function-alias', identity, 'const f=identity; return f(a);', reference);
+bad('function-value', identity, 'return identity;', expression);
+add('function-alias', identity, 'const f=identity; return f(a);', identity, 'const f=identity; return f(a);');
 bad('function-write', identity, 'identity=a; return b;', 'writes to a function binding');
 bad('function-update', identity, 'identity++; return b;', 'writes to a function binding');
 bad('dead-function-write', identity, 'if(false) identity=a; return b;', 'writes to a function binding');

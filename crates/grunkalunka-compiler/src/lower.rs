@@ -27,6 +27,8 @@ mod function_values;
 mod invocation;
 mod managed_calls;
 pub(super) use managed_calls::infer as infer_managed_calls;
+mod module_functions;
+pub(super) use module_functions::plan as plan_module_functions;
 mod pending;
 mod promises;
 #[cfg(test)]
@@ -51,9 +53,24 @@ pub(super) struct NumericFunction {
     pub parameter_types: Vec<Type>,
     pub return_type: Type,
     pub async_signature: Option<usize>,
+    pub module_value: Option<(ir::FunctionId, usize)>,
 }
 
 impl NumericFunction {
+    pub(super) fn closure_signature(
+        &self,
+        signatures: &std::cell::RefCell<ir::ClosureSignatures>,
+    ) -> usize {
+        self.async_signature.unwrap_or_else(|| {
+            signatures.borrow_mut().intern(
+                (0..self.parameter_count)
+                    .map(|i| self.parameter_type(i))
+                    .collect(),
+                self.return_type,
+            )
+        })
+    }
+
     pub(super) fn parameter_type(&self, index: usize) -> Type {
         self.parameter_types
             .get(index)
@@ -292,6 +309,16 @@ pub(super) struct Lowering<'s, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    fn lifted_limit(&self) -> usize {
+        self.functions.len()
+            + self
+                .functions
+                .iter()
+                .filter(|f| f.module_value.is_some())
+                .count()
+            + 256
+    }
+
     // Number and Boolean results can be discarded without exposing a value kind.
     // Keep numeric lowering byte-identical; never retry a partially emitted tree.
     fn discarded(

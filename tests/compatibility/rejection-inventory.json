@@ -479,7 +479,7 @@
     {
       "id": "function-calls",
       "kind": "open-requirement",
-      "assessment": "Top-level numeric helpers and the five supported pristine unary Math calls evaluate supplied ordinary surplus arguments and discard their values after retaining declared inputs. Missing helper or over-limit arguments, indirect, property, wrapped-callee and spread calls remain outside the direct numeric helper subset; call-site TypeScript arguments erase as unvalidated metadata; unsupported calls in unselected source still reject. The five pristine unary Math intrinsics produce Number NaN for missing inputs and convert represented Undefined/Null/Boolean/Number first operands with ToNumber. Strings, objects, BigInts, functions and external mutable Math objects remain separate requirements.",
+      "assessment": "Top-level helpers retain direct calls; synchronous module declarations also support typed aliases, wrapped callees and existing local callbacks through stable module identities. The exact wrapped-callee and function-alias originals now execute. Missing helper or over-limit arguments, opaque stored calls, unsupported property access, spread and unsupported call forms remain explicit rejections; call-site TypeScript arguments erase as unvalidated metadata. The five supported pristine unary Math calls evaluate supplied surplus arguments, produce Number NaN for missing inputs and convert represented Undefined/Null/Boolean/Number first operands. Public function-reference returns, broader function properties and full callable domains remain open.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-function-calls",
@@ -978,7 +978,7 @@
     {
       "id": "function-context",
       "kind": "open-requirement",
-      "assessment": "Function values, this and arguments require runtime function/context representation.",
+      "assessment": "Synchronous module declarations and represented closures have private typed identities and managed storage. Returning a function through the numeric/primitive public ABI remains rejected. Nested declaration environments, broader function properties, strict this and arguments still require further function/context support.",
       "evidence": [
         {
           "source": "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-primary-expression",
@@ -4576,13 +4576,6 @@
       "group": "function-calls"
     },
     {
-      "id": "direct-call-wrapped-callee",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "945842fbe97f9ae99792f5d1738cd9a679f3959a26bb13a66b772e2eeeeccc4d",
-      "group": "function-calls"
-    },
-    {
       "id": "direct-call-numeric-shadow-call",
       "extension": "js",
       "sourceMode": "module-strict",
@@ -4608,13 +4601,6 @@
       "extension": "js",
       "sourceMode": "module-strict",
       "sourceSha256": "9f9c87e66aef4fee34442de843f37f284df82ac9d42ca68329038cab8adf9cf5",
-      "group": "function-context"
-    },
-    {
-      "id": "direct-call-function-alias",
-      "extension": "js",
-      "sourceMode": "module-strict",
-      "sourceSha256": "2e7da0df94a0dfd1ecad3bd328bd74d26c2943852c08796836ac7146b1106c58",
       "group": "function-context"
     },
     {

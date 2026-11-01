@@ -467,3 +467,20 @@ rejects it before spilling references. Tests distinguish emitted IR/native-JS/No
 behavior from a shared-fragment Wasmtime instance/collection control. No public
 heap ABI, dependency, workflow, source admission or coroutine frame change follows
 from this prerequisite.
+
+## Source declaration adapters
+
+Source module function values use those immutable identities through one private
+adapter per synchronous declaration used as a value. The adapter forwards the
+existing checked signature to the original function; direct source calls keep
+their fast path. This avoids a second object allocation at each read or changing
+all ordinary helper calls to the closure ABI. Reference planning is iterative and
+uses original symbols, including hoisted bindings and erased TS wrappers.
+
+Named aliases contribute managed-input facts to the existing finite source-flow
+planner, and checked callback signatures contribute managed-result facts. Actual
+lowering still validates each input/result; these facts neither pick a runtime
+target nor grant an annotation runtime authority. Source/native-JS/Node/Wasmtime
+tests cover identity and typed calls. Nested declaration environments, async
+declaration identities, opaque stored calls and GC coroutine frames remain outside
+this increment.

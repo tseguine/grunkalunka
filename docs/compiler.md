@@ -462,14 +462,18 @@ The two libraries take source text or Wasm bytes; filesystem access remains in t
   This ABI contract is independent of whether TS annotations are present.
 - Helper signatures are collected before any body is lowered, so calls can precede
   declarations. A bare callee must resolve by semantic SymbolId to a collected
-  function; local/parameter/TDZ shadows never fall back by spelling. Declared inputs
-  must be Numbers, and callers must supply at least the declared count. Supported
+  function; local/parameter/TDZ shadows never fall back by spelling. Inputs on the
+  numeric fast path must be Numbers; callers must supply at least the declared count. Supported
   surplus expressions execute for their effects before the call. Arguments
   execute once from left to right and retain snapshots across later argument
   writes. Each invocation has independent mutable parameters and locals. Every
-  body, including unused helpers, must satisfy numeric return coverage. Function
-  values, aliases, nested declarations/captures and writes to function bindings
-  are rejected, including writes in dead or unused code. Missing inputs, more than
+  body, including unused helpers, must satisfy its checked return coverage.
+  Synchronous module declarations can also be read, aliased, stored and passed to
+  typed local callbacks through [module-identity adapters](managed-values.md#source-module-declaration-values).
+  Direct calls retain their fast path; the managed representation can carry
+  checked managed inputs/results without treating TS annotations as proofs.
+  Nested declarations/captures and writes to module function bindings remain
+  rejected, including writes in dead or unused code. Missing inputs, more than
   1,000 supplied arguments, spread, defaults, rest and optional calls stay outside
   this subset. Call-site type arguments erase as unvalidated metadata; see
   [the contract](#direct-module-call-type-arguments).

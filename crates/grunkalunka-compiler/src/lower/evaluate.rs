@@ -3376,6 +3376,8 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
+                        && managed_calls::function(call, self.semantic, self.functions)
+                            .is_none_or(|f| f.async_signature.is_some())
                         && self
                             .closure_target(
                                 invocation::callee(call),
