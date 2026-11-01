@@ -174,10 +174,7 @@ mod tests {
     fn rejects_cross_function_edges_even_when_state_ids_are_in_bounds() {
         let value = ValueId(0);
         for (start, end) in [
-            (
-                End::Jump(1),
-                End::Return(value),
-            ),
+            (End::Jump(1), End::Return(value)),
             (
                 End::Reaction {
                     fulfilled: 1,
