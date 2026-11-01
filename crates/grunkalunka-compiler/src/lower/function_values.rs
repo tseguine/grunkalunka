@@ -91,6 +91,18 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if calls >= 8 {
             return None;
         }
+        // A => B => C creates a mutual native recursion seam
+        // through function_arity_in, even though both helpers have admission
+        // limits. Keep the direct concise-arrow chain on the heap.
+        if !arrow.r#async
+            && calls + 1 < 8
+            && matches!(
+                arrow.get_expression(),
+                Some(Expression::ArrowFunctionExpression(_))
+            )
+        {
+            return self.arrow_signature_concise_chain(arrow, calls, outer);
+        }
         let parameters = callbacks::parameter_types(
             arrow,
             self.callback_parameters,
@@ -162,6 +174,113 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 .borrow_mut()
                 .intern(parameters, result),
         )
+    }
+
+    #[inline(never)]
+    fn arrow_signature_concise_chain<'n, 'ast>(
+        &self,
+        arrow: &'n oxc_ast::ast::ArrowFunctionExpression<'ast>,
+        calls: usize,
+        outer: &BTreeMap<SymbolId, Option<usize>>,
+    ) -> Option<usize> {
+        struct Frame<'n, 'ast> {
+            arrow: &'n oxc_ast::ast::ArrowFunctionExpression<'ast>,
+            parameters: Vec<Type>,
+            bindings: BTreeMap<SymbolId, Option<usize>>,
+            calls: usize,
+        }
+
+        let mut pending: Vec<Frame<'n, 'ast>> = Vec::new();
+        let mut current = arrow;
+        let mut current_calls = calls;
+        let mut outer = outer.clone();
+        let mut resolved = loop {
+            // Let the normal query handle a leaf, an async arrow, or the
+            // existing eight-call boundary. It never receives a direct chain
+            // at a lower calls value here, so this method cannot reenter itself.
+            if current.r#async || current_calls + 1 >= 8 {
+                break self.arrow_signature_at(current, current_calls, &outer);
+            }
+            let Some(Expression::ArrowFunctionExpression(child)) = current.get_expression() else {
+                break self.arrow_signature_at(current, current_calls, &outer);
+            };
+
+            let parameters = callbacks::parameter_types(
+                current,
+                self.callback_parameters,
+                callbacks::ValueInputs {
+                    general: self.general_parameters,
+                    managed: &self.managed_kinds.inputs,
+                },
+                self.promise_parameters,
+            );
+            // Match arrow_signature_at's lexical binding precedence. The
+            // current arrow's formals shadow the caller's captured signatures.
+            let next_bindings = (|| {
+                let mut bindings: BTreeMap<_, _> = self
+                    .bindings
+                    .iter()
+                    .map(|binding| {
+                        (
+                            binding.symbol,
+                            match self.slots[binding.slot.0].ty {
+                                Type::Closure(id) => Some(id),
+                                _ => None,
+                            },
+                        )
+                    })
+                    .collect();
+                for (symbol, signature) in &outer {
+                    bindings.entry(*symbol).or_insert(*signature);
+                }
+                for (parameter, ty) in current.params.items.iter().zip(&parameters) {
+                    if let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern {
+                        bindings.insert(
+                            identifier.symbol_id.get()?,
+                            match ty {
+                                Type::Closure(id) => Some(*id),
+                                _ => None,
+                            },
+                        );
+                    }
+                }
+                Some(bindings)
+            })();
+            let Some(bindings) = next_bindings else {
+                break None;
+            };
+            pending.push(Frame {
+                arrow: current,
+                parameters,
+                bindings: bindings.clone(),
+                calls: current_calls,
+            });
+            outer = bindings;
+            current = child;
+            current_calls += 1;
+        };
+
+        // Recursive signature inference interns the innermost arrow first.
+        // Reconstruct parents in exactly that order, including the scalar
+        // fallback when a child does not prove a complete function signature.
+        while let Some(frame) = pending.pop() {
+            let mut result = if let Some(signature) = resolved {
+                Type::Closure(signature)
+            } else {
+                self.arrow_scalar_result_at(frame.arrow, &frame.bindings, frame.calls)
+            };
+            if result == Type::FulfilledPromise
+                && self.settled_results.contains(&frame.arrow.node_id.get())
+            {
+                result = Type::SettledPromise;
+            }
+            resolved = Some(
+                self.closure_signatures
+                    .borrow_mut()
+                    .intern(frame.parameters, result),
+            );
+        }
+        resolved
     }
 
     // Scalar results use the same positive Number proof as storage planning; otherwise
@@ -1303,4 +1422,36 @@ fn captured_for_let_header(symbol: SymbolId, semantic: &Semantic<'_>) -> bool {
             .as_ref()
             .is_some_and(|init| init.span() == declaration.span)
     })
+}
+
+#[cfg(test)]
+mod concise_signature_stack_tests {
+    #[test]
+    fn nested_concise_arrow_signatures_do_not_reenter_native_stack() {
+        for depth in [1, 2, 3, 5, 8] {
+            let mut expression = String::from("a");
+            for _ in 0..depth {
+                expression = format!("()=>{expression}");
+            }
+            let calls = "()".repeat(depth);
+            let source =
+                format!("export function run(a,b){{const f={expression};return f{calls};}}");
+            for typescript in [false, true] {
+                let source = source.clone();
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("small-stack signature query thread")
+                    .join()
+                    .expect("signature inference must not overflow native stack");
+                if depth <= 3 {
+                    assert!(
+                        result.is_ok(),
+                        "{depth} nested arrow results: {:?}",
+                        result.err()
+                    );
+                }
+            }
+        }
+    }
 }
