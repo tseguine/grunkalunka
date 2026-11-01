@@ -31,13 +31,11 @@ impl<'n, 'a> ControlNode<'n, 'a> {
             Statement::DoWhileStatement(statement) => Some(Self::DoWhile(statement)),
             Statement::ForStatement(statement) => Some(Self::For(statement)),
             Statement::BlockStatement(statement) => Some(Self::Block(statement)),
-            Statement::TryStatement(statement) => {
-                Some(if statement.finalizer.is_some() {
-                    Self::TryFinally(statement)
-                } else {
-                    Self::TryCatch(statement)
-                })
-            }
+            Statement::TryStatement(statement) => Some(if statement.finalizer.is_some() {
+                Self::TryFinally(statement)
+            } else {
+                Self::TryCatch(statement)
+            }),
             _ => None,
         }
     }
@@ -537,11 +535,7 @@ impl Lowering<'_, '_> {
                         let result = if outer_type == Type::AsyncValue {
                             returned
                         } else {
-                            self.resolve_async_value(
-                                source,
-                                returned,
-                                &mut continuation,
-                            )
+                            self.resolve_async_value(source, returned, &mut continuation)
                         };
                         continuation.exit = Exit::Return(result);
                         Self::push(
@@ -555,8 +549,7 @@ impl Lowering<'_, '_> {
                                 continuation: Box::new(continuation),
                             },
                         );
-                        completed =
-                            Some((output, body_completion.finalized_by(completion)));
+                        completed = Some((output, body_completion.finalized_by(completion)));
                     }
                     Frame::TryCatchBody {
                         source,
