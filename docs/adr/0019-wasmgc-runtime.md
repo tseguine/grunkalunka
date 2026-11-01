@@ -127,6 +127,26 @@ avoids introducing a second Error allocation/identity protocol for this repair.
 It does not select general Error construction, prototype lookup, managed Promise
 payloads or a replacement for the existing private Error wire representation.
 
+## Object spread over represented values (2026-11-01)
+
+Select a typed own-data copy operation over the existing GC carrier. The source
+expression executes once on the ordinary expression cursor, then the runtime
+copies property values into the fresh target before the next initializer. Reuse
+object/array property entries and boxed identities; copy String UTF-16 index
+properties, omit array length, and ignore supported sources with no enumerable
+own data. New entries preserve shallow reference identity and replacement
+snapshots. A conditional helper leaves modules without spread unchanged.
+
+Inlining finite source-known properties would lose runtime mutation snapshots
+and would make source provenance a requirement for ordinary composition. A new
+heap or general property dispatcher is unnecessary for the currently admitted
+data-only objects. Accessor/proxy/prototype semantics still need their separate
+runtime operation/completion design. Existing field-call proofs must account for
+overwrites: a spread invalidates preceding known fields, while a following
+explicit property can establish a known value again. This is not acceptance of
+an unchecked generic call or a general key-enumeration API. Source differential
+tests and forced copying collections cover composition across suspension.
+
 ## Context
 
 The maintainer selected **WasmGC first** for the compiler's general-JavaScript

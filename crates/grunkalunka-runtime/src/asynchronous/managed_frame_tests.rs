@@ -46,6 +46,7 @@ fn related_frames_survive_copying_gc_with_only_saved_activation_roots() {
         "export async function run(a,b){const o={x:a};const f=a?async n=>{await b;return o.x===n?1:0;}:async n=>{await a;return o.x===n?1:0;};return await f(a);}",
         "export async function run(a,b){const f=a?async o=>{await a;return o.x===b?1:0;}:async o=>{await b;return o.x===b?1:0;};return await f({x:b});}",
         "export async function run(a,b){const f=async()=>{await a;return b;};let p=f();const g=async()=>{await a;return p;};p=g();try{await p;}catch(e){const o={e};o.self=o;const read=()=>o.e;await b;return read()===e&&o.self===o?1:0;}return 0;}",
+        "export async function run(a,b){const source={x:a};source.self=source;const f=async()=>{await b;return 1;};const p=f();const copy={...source,...(await p,source)};await b;return copy.self===source&&copy.x===a?1:0;}",
     ] {
         for ts in [false, true] {
             let (prepared, names) = prepare(source, ts);

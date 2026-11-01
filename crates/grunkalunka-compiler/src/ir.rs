@@ -26,6 +26,8 @@ mod managed_async_signature_tests;
 #[cfg(test)]
 mod managed_reference_projection_tests;
 #[cfg(test)]
+mod managed_spread_tests;
+#[cfg(test)]
 mod managed_value_tests;
 #[cfg(test)]
 mod module_function_tests;
@@ -516,6 +518,11 @@ pub(crate) enum Op {
     },
     ManagedObjectNew {
         result: ValueId,
+    },
+    // Copy admitted own enumerable data properties, preserving boxed values.
+    ManagedObjectSpread {
+        object: ValueId,
+        input: ValueId,
     },
     ManagedFromObject {
         result: ValueId,
@@ -1217,6 +1224,10 @@ impl Verifier<'_> {
                 self.value(*value, Type::ManagedValue, visible, span)?;
                 u32::try_from(key.len())
                     .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+            }
+            Op::ManagedObjectSpread { object, input } => {
+                self.value(*object, Type::ManagedObject, visible, span)?;
+                self.value(*input, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedString { result, units } => {
                 u32::try_from(units.len())

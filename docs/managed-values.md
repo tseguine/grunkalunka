@@ -108,15 +108,41 @@ truthiness, nullish selection and `typeof` retain their JavaScript behavior.
 This does not add Error constructors/properties/prototypes or unbox a managed
 property snapshot into a Promise payload or public result.
 
+## Object spread composition
+
+Object literals admit spread from the currently represented value domain. Each
+operand executes once in source order, before its properties are copied and the
+next initializer runs. Copying creates new own data entries while retaining the
+boxed property values: nested objects, arrays and functions preserve identity,
+and later replacement of a source property does not replace the copied value.
+
+Objects contribute their enumerable data entries. Arrays contribute sparse own
+properties, including named entries, while their non-enumerable logical `length`
+is excluded. Strings contribute one property per UTF-16 code unit under its
+decimal index key. Null/undefined, Numbers, Booleans, represented functions and
+intrinsic Errors contribute no enumerable properties in this admitted profile.
+The helper operates on existing WasmGC references and can compose with helpers,
+closures and suspended activations; it introduces no host operation or new heap.
+
+Accessors, proxies, object-rest patterns, array spread and general prototype/Get
+semantics remain unsupported. A spread that might overwrite a known callable
+field invalidates that earlier source fact; an explicit later property can
+establish it again. This preserves rejection of an unproven field call rather
+than allowing a wrong-kind private projection trap. The physical property table
+is not a general JavaScript key-enumeration API. No public reference or managed
+Promise payload boundary changes. Modules without spread keep their prior output.
+
 ## Logical operations and representation
 
-`ManagedValue` currently carries Undefined, Null, Boolean, Number, String or an
-object reference. `ManagedObject` denotes a known ordinary object, and
+`ManagedValue` currently carries Undefined, Null, Boolean, Number, String,
+object/array references, function identities and the represented intrinsic Error.
+`ManagedObject` denotes a known ordinary object, and
 `ManagedArray` a known array. Each has one traced WasmGC reference lane rather than
 a numeric handle into linear memory.
 Known Number computations still use f64, and the existing `General` primitive pair
 is separate. `ManagedPrimitive` bridges its four canonical primitive kinds;
-extended async Error/Promise tags cannot be copied into this private tag space.
+Error-enabled modules translate their Error identity into its distinct GC kind.
+Async Error tags cannot be copied verbatim, and Promise tags remain unsupported.
 
 The immutable value carrier has a kind, numeric payload and nullable GC reference.
 Ordinary objects have mutable GC-backed property storage. Boxing an object keeps
