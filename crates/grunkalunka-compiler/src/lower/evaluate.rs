@@ -244,7 +244,6 @@ enum ClosureEffect {
     Start,
 }
 
-
 fn predicate_number<'e, 'a>(work: &mut Vec<Work<'e, 'a>>, node: &'e Expression<'a>, depth: usize) {
     work.push(Work::Convert(node));
     work.push(Work::Eval(node, depth, Mode::Predicate));
