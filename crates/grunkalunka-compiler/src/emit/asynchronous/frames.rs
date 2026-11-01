@@ -29,14 +29,14 @@ fn spill_restore_templates(
         let lane = lanes[index];
         writeln!(
             spill,
-            "global.get $async_frame\\nglobal.get {}\\n{lane}.store offset={}",
+            "global.get $async_frame\nglobal.get {}\n{lane}.store offset={}",
             start + index,
             header + index * 8
         )
         .unwrap();
         writeln!(
             restore,
-            "global.get $async_frame\\n{lane}.load offset={}\\nglobal.set {}",
+            "global.get $async_frame\n{lane}.load offset={}\nglobal.set {}",
             header + index * 8,
             start + index
         )
