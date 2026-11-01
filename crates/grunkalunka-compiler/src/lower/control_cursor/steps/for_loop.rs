@@ -165,7 +165,7 @@ impl Lowering<'_, '_> {
         );
         self.bindings.truncate(outer);
         Self::push(&mut output, source, Op::Block(header));
-        cursor.completed = Some((output, completion.pretest_loop()));
+        cursor.completed = Some(Outcome::Statement(output, completion.pretest_loop()));
         Ok(())
     }
 }
