@@ -59,6 +59,12 @@ struct ForFrame<'n, 'a> {
 }
 
 enum Frame<'n, 'a> {
+    /// The If source is suspended until its condition yields a predicate.
+    IfPredicate {
+        source: &'n IfStatement<'a>,
+        output: Region,
+        depth: usize,
+    },
     If {
         source: &'n IfStatement<'a>,
         output: Region,
@@ -132,7 +138,8 @@ enum Frame<'n, 'a> {
 impl Frame<'_, '_> {
     fn depth(&self) -> usize {
         match self {
-            Self::If { depth, .. }
+            Self::IfPredicate { depth, .. }
+            | Self::If { depth, .. }
             | Self::While { depth, .. }
             | Self::DoWhile { depth, .. }
             | Self::Block { depth, .. }
@@ -146,12 +153,19 @@ impl Frame<'_, '_> {
     }
 }
 
+/// A source continuation can complete an ordinary statement or deliver a
+/// requested value. The optional expression value also represents Discard mode.
+enum Outcome {
+    Statement(Region, Completion),
+    Expression(Region, Option<ValueId>),
+}
+
 /// One active source-lowering machine. Language-specific transitions own
 /// their variant-specific Frame data but never allocate another scheduler.
 struct Cursor<'n, 'a> {
     pending: Vec<Frame<'n, 'a>>,
     next: Option<Next<'n, 'a>>,
-    completed: Option<(Region, Completion)>,
+    completed: Option<Outcome>,
 }
 
 impl<'n, 'a> Cursor<'n, 'a> {
@@ -247,24 +261,44 @@ impl Lowering<'_, '_> {
                                 self.statement_depth =
                                     cursor.pending.last().map_or(original_depth, Frame::depth);
                                 let completion = self.statement(source, &mut output, depth)?;
-                                cursor.completed = Some((output, completion));
+                                cursor.completed = Some(Outcome::Statement(output, completion));
                             }
+                        }
+                        Next::Expression {
+                            source,
+                            mut output,
+                            depth,
+                            mode,
+                        } => {
+                            // A single source-owned handoff point. Eventually
+                            // the evaluator may itself yield a child-body task;
+                            // for now it uses the original typed evaluator.
+                            let value = self.evaluate(source, &mut output, depth, mode)?;
+                            cursor.completed = Some(Outcome::Expression(output, value));
                         }
                     }
                     continue;
                 }
 
-                let (finished_region, completion) = cursor
-                    .completed
-                    .take()
-                    .expect("completed mixed control child");
-                let Some(frame) = cursor.pending.pop() else {
-                    *region = finished_region;
-                    return Ok(completion);
-                };
-
-                self.statement_depth = frame.depth();
-                self.resume_control(frame, finished_region, completion, &mut cursor)?;
+                let completed = cursor.completed.take().expect("completed source child");
+                match completed {
+                    Outcome::Statement(finished_region, completion) => {
+                        let Some(frame) = cursor.pending.pop() else {
+                            *region = finished_region;
+                            return Ok(completion);
+                        };
+                        self.statement_depth = frame.depth();
+                        self.resume_control(frame, finished_region, completion, &mut cursor)?;
+                    }
+                    Outcome::Expression(finished_region, value) => {
+                        let frame = cursor
+                            .pending
+                            .pop()
+                            .expect("expression needs a waiting source continuation");
+                        self.statement_depth = frame.depth();
+                        self.resume_expression(frame, finished_region, value, &mut cursor)?;
+                    }
+                }
             }
         })();
         self.restore_source_context(saved_context);
