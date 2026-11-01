@@ -70,3 +70,44 @@ fn deep_manually_built_json_clones_on_two_mib_stack() {
         .join()
         .expect("iterative JSON cloning succeeded");
 }
+
+#[test]
+fn deep_owned_json_debug_and_explicit_drop_have_bounded_stack_depth() {
+    const DEPTH: usize = 4096;
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || {
+            let mut root = JsonValue::String(vec![0xd800]);
+            for depth in 0..DEPTH {
+                root = if depth % 2 == 0 {
+                    JsonValue::Array(vec![root])
+                } else {
+                    JsonValue::Object(vec![(vec![0x0061], root)])
+                };
+            }
+            let rendered = format!("{root:?}");
+            assert!(rendered.starts_with("Object([([97], Array([")));
+            assert!(rendered.contains("String([55296])"));
+            root.drop_iteratively();
+        })
+        .expect("native small-stack JSON thread")
+        .join()
+        .expect("iterative debug and release succeeded");
+}
+
+#[test]
+fn compact_and_alternate_json_debug_keep_derived_shape() {
+    let root = JsonValue::Object(vec![
+        (vec![0x0061], JsonValue::Array(vec![JsonValue::Null])),
+        (vec![0x0062], JsonValue::Boolean(true)),
+    ]);
+    assert_eq!(
+        format!("{root:?}"),
+        "Object([([97], Array([Null])), ([98], Boolean(true))])"
+    );
+    let pretty = format!("{root:#?}");
+    assert!(pretty.starts_with("Object(\n    [\n        (\n"));
+    assert!(pretty.contains("Null,\n"));
+    assert!(pretty.contains("Boolean(\n"));
+    assert!(pretty.ends_with("    ],\n)"));
+}
