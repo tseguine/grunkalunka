@@ -17,6 +17,7 @@ mod errors;
 mod finally_split_tests;
 mod frames;
 mod graph;
+mod inspection;
 #[cfg(test)]
 mod loop_split_tests;
 #[cfg(test)]
@@ -1081,38 +1082,17 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     if super::module_has_managed(module) || super::gc_closures::needed(module) {
         return Err("managed values require reference-aware async frames".into());
     }
-    let starters = starters::needed(module);
-    let queued = module.functions.iter().any(|function| {
-        let mut pending = false;
-        ir::visit_operations(&function.body, &mut |op| {
-            pending |= matches!(
-                op,
-                Op::StartAsyncClosure { .. }
-                    | Op::AwaitPromise { .. }
-                    | Op::AdoptPromise { .. }
-                    | Op::MaterializePromise { .. }
-            )
-        });
-        pending
-    });
-    let errors = module.functions.iter().any(|function| {
-        let mut found = false;
-        ir::visit_operations(&function.body, &mut |op| {
-            found |= matches!(op, Op::AdoptPromise { .. })
-        });
-        found
-    });
     let Some((function, outlined)) = module.functions.split_first() else {
         return Err("async profile currently requires a single entry function".into());
     };
+    let needs = inspection::inspect(module);
+    let starters = needs.starters;
+    let queued = needs.queued;
+    let errors = needs.errors;
     for (index, function) in module.functions.iter().enumerate() {
-        let mut source_call = false;
-        ir::visit_operations(&function.body, &mut |op| {
-            source_call |= matches!(op, Op::Call { function, .. } if function.0 == 0);
-        });
         // The source entry's logical ID does not denote a callable numeric Wasm
         // function in this module; its physical implementation is $advance.
-        if source_call {
+        if needs.calls_to_entry[index] {
             return Err("async profile forbids source function calls to the async entry".into());
         }
         if index != 0
