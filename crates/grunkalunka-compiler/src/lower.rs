@@ -23,6 +23,7 @@ mod callbacks;
 mod closures;
 mod evaluate;
 mod finalizers;
+mod for_statements;
 mod function_values;
 mod if_statements;
 mod invocation;
@@ -1156,73 +1157,7 @@ impl Lowering<'_, '_> {
                 depth,
             ),
             Statement::ForStatement(statement) => {
-                // This lexical block and the loop's regions are generated, so
-                // they consume neither source statements nor nesting depth.
-                let mut header = self.region(statement.as_ref());
-                let outer = self.bindings.len();
-                if let Some(init) = &statement.init {
-                    match init {
-                        ForStatementInit::VariableDeclaration(declaration) => {
-                            self.charge_statement(declaration.as_ref())?;
-                            self.declaration(declaration, &mut header)?;
-                        }
-                        _ => {
-                            self.discarded(init.to_expression(), &mut header, 0)?;
-                        }
-                    }
-                }
-                let header_bindings = self.bindings.len();
-                let mut condition = self.region(statement.as_ref());
-                let predicate = if let Some(test) = &statement.test {
-                    condition.span = test.span();
-                    self.predicate(test, &mut condition, 0)?
-                } else {
-                    let one = self.value(Type::Number);
-                    Self::push(
-                        &mut condition,
-                        statement.as_ref(),
-                        Op::Constant {
-                            result: one,
-                            value: 1.0,
-                        },
-                    );
-                    let predicate = self.value(Type::Predicate);
-                    Self::push(
-                        &mut condition,
-                        statement.as_ref(),
-                        Op::Truthy {
-                            result: predicate,
-                            input: one,
-                        },
-                    );
-                    predicate
-                };
-                condition.exit = Exit::Yield(predicate);
-                let mut body = self.region(&statement.body);
-                let completion = self.loop_body(&statement.body, &mut body, depth + 1)?;
-                self.bindings.truncate(header_bindings);
-                // Always admit the update, including after a returning body.
-                let step = if let Some(update) = &statement.update {
-                    let mut step = self.region(update);
-                    self.discarded(update, &mut step, 0)?;
-                    Some(step)
-                } else {
-                    None
-                };
-                Self::push(
-                    &mut header,
-                    statement.as_ref(),
-                    Op::While {
-                        condition,
-                        body,
-                        step,
-                    },
-                );
-                self.bindings.truncate(outer);
-                Self::push(region, statement.as_ref(), Op::Block(header));
-                // Preserve the existing conservative structural return policy,
-                // even when the source omits its test.
-                Ok(completion.pretest_loop())
+                self.for_statement_iterative(statement, region, depth)
             }
             Statement::WhileStatement(statement) => self.loop_statement_iterative(
                 loop_statements::LoopNode::While(statement),
