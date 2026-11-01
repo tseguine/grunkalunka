@@ -10,7 +10,39 @@ pub(super) struct Frame<'a> {
     spill_lanes: Vec<usize>,
     start: usize,
     header: usize,
-    needs_spills: bool,
+    spill_template: String,
+    restore_template: String,
+}
+
+// Spill and restore instructions are invariant for one physical frame.
+// Render them once during frame planning, not again at every suspend,
+// child invocation or entry state that needs the same complete lane set.
+fn spill_restore_templates(
+    lanes: &[&str],
+    indices: &[usize],
+    start: usize,
+    header: usize,
+) -> (String, String) {
+    let mut spill = String::new();
+    let mut restore = String::new();
+    for &index in indices {
+        let lane = lanes[index];
+        writeln!(
+            spill,
+            "global.get $async_frame\\nglobal.get {}\\n{lane}.store offset={}",
+            start + index,
+            header + index * 8
+        )
+        .unwrap();
+        writeln!(
+            restore,
+            "global.get $async_frame\\n{lane}.load offset={}\\nglobal.set {}",
+            header + index * 8,
+            start + index
+        )
+        .unwrap();
+    }
+    (spill, restore)
 }
 
 impl<'a> Frame<'a> {
@@ -62,7 +94,13 @@ impl<'a> Frame<'a> {
             .iter()
             .enumerate()
             .filter_map(|(index, present)| present.then_some(index))
-            .collect();
+            .collect::<Vec<_>>();
+        let header = if queued { 32 } else { HEADER };
+        let (spill_template, restore_template) = if needs_spills {
+            spill_restore_templates(&lanes, &spill_lanes, start, header)
+        } else {
+            (String::new(), String::new())
+        };
         Self {
             emitter: Emitter {
                 function,
@@ -82,8 +120,9 @@ impl<'a> Frame<'a> {
             lanes,
             spill_lanes,
             start,
-            header: if queued { 32 } else { HEADER },
-            needs_spills,
+            header,
+            spill_template,
+            restore_template,
         }
     }
 
@@ -100,37 +139,12 @@ impl<'a> Frame<'a> {
     }
 
     pub fn spill(&self, output: &mut String) {
-        // Synchronous private helpers own Wasm locals. Without coroutine children
-        // no activation can overwrite this invocation's persistent globals.
-        if !self.needs_spills {
-            return;
-        }
-        for &index in &self.spill_lanes {
-            let lane = self.lanes[index];
-            writeln!(
-                output,
-                "global.get $async_frame\nglobal.get {}\n{lane}.store offset={}",
-                self.start + index,
-                self.header + index * 8
-            )
-            .unwrap();
-        }
+        // The unchanged empty template handles frames without coroutine children.
+        output.push_str(&self.spill_template);
     }
 
     pub fn restore(&self, output: &mut String) {
-        if !self.needs_spills {
-            return;
-        }
-        for &index in &self.spill_lanes {
-            let lane = self.lanes[index];
-            writeln!(
-                output,
-                "global.get $async_frame\n{lane}.load offset={}\nglobal.set {}",
-                self.header + index * 8,
-                self.start + index
-            )
-            .unwrap();
-        }
+        output.push_str(&self.restore_template);
     }
 
     pub fn take_output(&mut self, output: &mut String) {
