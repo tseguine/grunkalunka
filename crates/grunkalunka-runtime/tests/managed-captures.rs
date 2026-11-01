@@ -90,7 +90,7 @@ fn original_capture_guards_now_have_positive_source_execution() {
     }
 }
 #[test]
-fn managed_capture_writes_prototypes_and_async_frames_remain_explicit_gaps() {
+fn managed_capture_boundaries_preserve_mutations_prototypes_and_async_admission() {
     for body in [
         "const o={};const f=()=>{o.toString();return a;};return a;",
         "const o={};const f=()=>{o.x=Symbol();return a;};return a;",
@@ -113,8 +113,7 @@ fn managed_capture_writes_prototypes_and_async_frames_remain_explicit_gaps() {
         "export async function run(a,b){let make=n=>{const x=[n];return ()=>x.length;};const f=make(a);await 0;return f();}",
     ] {
         for ts in [false, true] {
-            let e = grunkalunka_compiler::compile_async(js, ts).err().unwrap();
-            assert!(e.contains("managed") || e.contains("GC"), "{e}");
+            grunkalunka_compiler::compile_async(js, ts).unwrap();
         }
     }
 }

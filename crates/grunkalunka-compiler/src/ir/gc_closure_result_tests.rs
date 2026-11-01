@@ -416,11 +416,7 @@ fn managed_result_signatures_keep_argument_limits_and_precise_validation() {
     let result = value(entry, Type::General, |result| Op::Pack { result, input });
     entry.return_type = Type::General;
     entry.body.exit = Exit::Return(result);
-    assert!(
-        crate::emit::emit_async(&asynchronous)
-            .unwrap_err()
-            .contains("managed")
-    );
+    wat::parse_str(crate::emit::emit_async(&asynchronous).unwrap()).unwrap();
 }
 #[test]
 fn source_managed_results_keep_numeric_exports_coercion_and_async_guards() {

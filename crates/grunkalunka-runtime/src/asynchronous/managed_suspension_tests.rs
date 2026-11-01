@@ -68,6 +68,67 @@ fn root_exports(wat: &str) -> (Vec<u8>, Vec<String>) {
 }
 
 #[test]
+fn suspended_closures_trace_environments_after_unrelated_roots_are_removed() {
+    for body in [
+        "const make=o=>()=>o.x;const f=make({x:a});const keep={f};await b;return f()===a?1:0;",
+        "const make=x=>{const o={x};const f=()=>o.x;o.f=f;o.self=o;return f;};const f=make(a);const keep={f};await b;return f()===a?1:0;",
+        "const make=s=>()=>s;const f=make('text');const keep={f};await b;return f()==='text'?1:0;",
+        "const make=x=>{let o={x};return()=>{const saved=o;o={x:b};return saved!==o?1:0;};};const f=make(a);const keep={f};await b;return f();",
+    ] {
+        let source = format!("export async function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let artifact = grunkalunka_compiler::compile_async(&source, ts).unwrap();
+            let (wasm, names) = root_exports(&artifact.wat);
+            let prepared = PreparedAsyncModule::new(&wasm)
+                .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+            let mut store = Store::new(&prepared.engine, ());
+            store.set_fuel(super::super::FUEL_PER_CALL).unwrap();
+            let instance = Instance::new(&mut store, &prepared.module, &[]).unwrap();
+            let declarations: Vec<_> = artifact
+                .wat
+                .lines()
+                .filter(|line| line.starts_with("(global "))
+                .collect();
+            let roots: Vec<_> = names
+                .iter()
+                .map(|name| {
+                    let index = name.strip_prefix("root").unwrap().parse::<usize>().unwrap();
+                    (
+                        instance.get_global(&mut store, name).unwrap(),
+                        declarations[index].starts_with("(global (mut (ref null $gc_function)"),
+                    )
+                })
+                .collect();
+            let mut activation =
+                AsyncInstance::start_with_instance(store, instance, 4.0, 2.0).unwrap();
+            assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+            assert!(roots.iter().any(|(_, function)| *function), "{source}");
+            // Test-only root removal leaves actual emitted closure/environment/
+            // cell edges as the sole path to captured objects and Strings.
+            for (root, function) in &roots {
+                if !function {
+                    root.set(&mut activation.store, wasmtime::Val::AnyRef(None))
+                        .unwrap();
+                }
+            }
+            for _ in 0..4 {
+                activation.store.gc(None).unwrap();
+                assert!(matches!(activation.state().unwrap(), AsyncState::Pending));
+            }
+            while activation.run_one_job().unwrap() {}
+            assert!(matches!(
+                activation.state().unwrap(),
+                AsyncState::Fulfilled(super::super::Value::Number(1.0))
+            ));
+            assert!(roots.iter().all(|(root, _)| matches!(
+                root.get(&mut activation.store),
+                wasmtime::Val::AnyRef(None)
+            )));
+        }
+    }
+}
+
+#[test]
 fn terminal_success_and_rejection_clear_generated_reference_globals() {
     for body in [
         "const o={};o.self=o;await b;return Promise.resolve(a);",
@@ -78,6 +139,10 @@ fn terminal_success_and_rejection_clear_generated_reference_globals() {
         "const o={};o.self=o;await b;throw a;",
         "const o={};o.self=o;await Promise.resolve(b);return o.self===o?1:0;",
         "const o={};o.self=o;await Promise.resolve(b);throw a;",
+        "const o={};const f=()=>o;o.f=f;await b;return f()===o?a:b;",
+        "const o={};const f=()=>o;o.f=f;await b;throw a;",
+        "const o={};const f=()=>o;await b;return Promise.resolve(f()===o?a:b);",
+        "const o={};const f=()=>o;await b;return Promise.reject(f()===o?a:b);",
     ] {
         let source = format!("export async function run(a,b){{{body}}}");
         let artifact = grunkalunka_compiler::compile_async(&source, false).unwrap();

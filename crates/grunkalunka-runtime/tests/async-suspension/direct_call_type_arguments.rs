@@ -78,7 +78,6 @@ fn direct_call_type_arguments_keep_async_helper_number_and_binding_domains() {
         "return id<number>(true);",
         "return id<number>(missing);",
         "const id=a;return id<never>(b);",
-        "return (id)<never>(a);",
     ] {
         let source = format!("function id(x){{return x;}}{}", source_for(body));
         assert!(compile_async(&source, true).is_err(), "{source}");
@@ -88,4 +87,8 @@ fn direct_call_type_arguments_keep_async_helper_number_and_binding_domains() {
         let typed = plain.replace("return id(", &format!("return id<{metadata}>("));
         compare_typed(plain, &typed);
     }
+    compare_typed(
+        "function id(x){return x;}export async function run(a,b){return (id)(a);}",
+        "function id(x){return x;}export async function run(a,b){return (id)<never>(a);}",
+    );
 }

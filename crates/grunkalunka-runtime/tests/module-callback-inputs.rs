@@ -131,7 +131,7 @@ fn callback_input_evidence_does_not_admit_unknown_or_incompatible_calls() {
         "function id(x){return x;}function other(x){return 1;}export function run(a,b){const apply=(fn,x)=>fn(x);return apply(a?id:other,{})===null?1:0;}",
         "function id(x){return x;}export function run(a,b){const apply=(fn,x)=>fn(x);return apply(id);}",
         "function id(x){return x+1;}export function run(a,b){const apply=(fn,x)=>fn(x);return apply(id,{});}",
-        "function id(x){return x;}export async function run(a,b){const apply=(fn,x)=>fn(x);const o={};await 0;return apply(id,o)===o?1:0;}",
+        "function id(x){return x;}export async function run(a,b){const apply=(fn,x)=>fn(x);const o={};const g=async x=>{await b;return x;};const p=g(a);await p;return apply(id,o)===o?1:0;}",
     ] {
         for ts in [false, true] {
             let result = std::panic::catch_unwind(|| {

@@ -53,6 +53,7 @@ impl<'a> Frame<'a> {
         queued: bool,
         errors: bool,
         needs_spills: bool,
+        gc_closures: bool,
     ) -> Self {
         let mut lanes = Vec::new();
         let mut offsets = Vec::new();
@@ -63,12 +64,25 @@ impl<'a> Frame<'a> {
             .chain(function.values.iter().copied())
         {
             offsets.push(start + lanes.len());
-            lanes.extend(layout::value(ty).parts.iter().map(|part| part.lane.wat()));
+            lanes.extend(
+                layout::closure_value(ty, gc_closures)
+                    .parts
+                    .iter()
+                    .map(|part| part.lane.wat()),
+            );
         }
         let mut offset = start + lanes.len();
         let cell_offsets = cells::offsets(function, &mut offset);
         let arena_temp = closures::temporary(function, offset, false);
         lanes.resize(offset - start + usize::from(arena_temp.is_some()), "i32");
+        if gc_closures {
+            for pointer in cell_offsets.iter().flatten() {
+                lanes[*pointer - start] = "(ref null $gc_cell)";
+            }
+            if let Some(pointer) = arena_temp {
+                lanes[pointer - start] = "(ref null $gc_frame)";
+            }
+        }
         let mut value_offsets = offsets[function.slots.len()..].to_vec();
         layout::share_fulfilled_storage(function, &mut value_offsets);
         // Fulfilled Promise snapshots may share their original General
@@ -76,12 +90,12 @@ impl<'a> Frame<'a> {
         // the stable physical frame layout but need no save/restore traffic.
         let mut used = vec![false; lanes.len()];
         for (index, slot) in function.slots.iter().enumerate() {
-            for part in 0..layout::value(slot.ty).parts.len() {
+            for part in 0..layout::closure_value(slot.ty, gc_closures).parts.len() {
                 used[offsets[index] - start + part] = true;
             }
         }
         for (index, ty) in function.values.iter().enumerate() {
-            for part in 0..layout::value(*ty).parts.len() {
+            for part in 0..layout::closure_value(*ty, gc_closures).parts.len() {
                 used[value_offsets[index] - start + part] = true;
             }
         }
@@ -116,7 +130,7 @@ impl<'a> Frame<'a> {
                 throw_to: None,
                 needs_remainder: false,
                 errors,
-                gc_closures: false,
+                gc_closures,
             },
             lanes,
             #[cfg(test)]
@@ -353,7 +367,7 @@ mod spill_lane_tests {
     #[test]
     fn fulfilled_snapshot_alias_skips_only_unreferenced_physical_lanes() {
         let function = function(true);
-        let frame = Frame::new(&function, 5, true, false, true);
+        let frame = Frame::new(&function, 5, true, false, true, false);
         assert_eq!(frame.lanes.len(), 5);
         assert_eq!(frame.spill_lanes, vec![0, 1, 4]);
         assert_eq!(frame.emitter.value_offsets, vec![5, 5, 9]);
@@ -378,7 +392,7 @@ mod spill_lane_tests {
     #[test]
     fn cached_spill_and_restore_match_previous_per_state_wat_byte_for_byte() {
         let function = function(true);
-        let frame = Frame::new(&function, 5, true, false, true);
+        let frame = Frame::new(&function, 5, true, false, true, false);
         let mut expected_spill = String::new();
         let mut expected_restore = String::new();
         for &index in &frame.spill_lanes {
@@ -405,7 +419,7 @@ mod spill_lane_tests {
         frame.restore(&mut repeated);
         assert_eq!(repeated, expected_restore.repeat(2));
 
-        let unneeded = Frame::new(&function, 5, true, false, false);
+        let unneeded = Frame::new(&function, 5, true, false, false, false);
         let mut output = String::from("prefix");
         unneeded.spill(&mut output);
         unneeded.restore(&mut output);
@@ -417,7 +431,7 @@ mod spill_lane_tests {
     #[test]
     fn distinct_values_keep_all_physical_lanes() {
         let function = function(false);
-        let frame = Frame::new(&function, 0, false, false, true);
+        let frame = Frame::new(&function, 0, false, false, true, false);
         assert_eq!(frame.spill_lanes, vec![0, 1, 2, 3, 4]);
     }
 }

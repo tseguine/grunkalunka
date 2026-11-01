@@ -530,7 +530,7 @@ fn projection_queries_and_emission_fit_a_two_megabyte_native_stack() {
 }
 
 #[test]
-fn projection_does_not_enter_numeric_async_spill_frames() {
+fn projection_uses_reference_globals_in_one_async_frame() {
     let (mut module, callee) = fixture(false);
     let f = &mut module.functions[0];
     f.return_type = Type::General;
@@ -549,10 +549,8 @@ fn projection_does_not_enter_numeric_async_spill_frames() {
     });
     f.body.exit = Exit::Return(result);
     verify_async_module(&module).unwrap();
-    assert_eq!(
-        crate::emit::emit_async(&module).unwrap_err(),
-        "managed values require reference-aware async frames"
-    );
+    let wat = crate::emit::emit_async(&module).unwrap();
+    wat::parse_str(wat).unwrap();
 }
 
 #[test]

@@ -42,8 +42,19 @@ protocols and modules without managed values keep their previous encoding.
 This is a storage increment inside the existing structured IR and scheduler.
 It does not store GC pointers in numeric frame bytes. Named synchronous helpers
 retain reference signatures; immediate async bodies inlined into the same
-physical coroutine frame use the same roots. Traced closure environments and
-multiple reference-bearing coroutine frames still reject before emission.
+physical coroutine frame use the same roots. Synchronous traced closure
+environments now compose with this single-frame path: function, cell and argument
+frame references remain engine-visible globals, and helper signatures use the
+existing GC closure ABI. Captures keep shared binding cells, including rebinding
+after suspension. Numeric-only closures retain their previous layout. Multiple
+reference-bearing coroutine frames still reject before emission.
+
+This reuses the synchronous GC graph rather than introducing a second closure
+encoding or a numeric root-ID table for one frame. Forced copying collections
+while suspended, with unrelated test-visible roots cleared, exercise actual
+returned environments and cycles. Terminal cleanup releases mutable activation
+roots; immutable module-function identities live until instance teardown. No
+reference is written into the numeric Promise/control records.
 
 Alternatives for the wider #356 frontier remain:
 
