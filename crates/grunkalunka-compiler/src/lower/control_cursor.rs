@@ -73,8 +73,6 @@ enum Frame<'n, 'a> {
         output: Region,
         depth: usize,
         visible: usize,
-        index: usize,
-        completion: Completion,
     },
     Sequence {
         statements: &'n [Statement<'a>],
@@ -172,28 +170,23 @@ impl Lowering<'_, '_> {
                                     }
                                 }
                                 ControlNode::Block(source) => {
-                                    // The block's new Region is lexical, not
-                                    // an additional source statement charge.
+                                    // The raw sequence cursor owns sibling
+                                    // ordering. This frame owns only the lexical
+                                    // boundary and the generated Block region.
                                     let child = self.region(source);
                                     let visible = self.bindings.len();
-                                    if let Some(statement) = source.body.first() {
-                                        pending.push(Frame::Block {
-                                            source,
-                                            output,
-                                            depth,
-                                            visible,
-                                            index: 0,
-                                            completion: Completion::NORMAL,
-                                        });
-                                        next = Some(Next::Statement {
-                                            source: statement,
-                                            output: child,
-                                            depth: depth + 1,
-                                        });
-                                    } else {
-                                        Self::push(&mut output, source, Op::Block(child));
-                                        completed = Some((output, Completion::NORMAL));
-                                    }
+                                    pending.push(Frame::Block {
+                                        source,
+                                        output,
+                                        depth,
+                                        visible,
+                                    });
+                                    next = Some(Next::Enter {
+                                        source: ControlNode::Sequence(&source.body),
+                                        output: child,
+                                        depth: depth + 1,
+                                        charge: source_control::SourceCharge::Charged,
+                                    });
                                 }
                                 ControlNode::If(source) => {
                                     // If conditions execute before either branch.
@@ -412,45 +405,12 @@ impl Lowering<'_, '_> {
                     Frame::Block {
                         source,
                         mut output,
-                        depth,
                         visible,
-                        index,
-                        completion: prefix,
+                        ..
                     } => {
-                        // A sequence keeps its local declarations visible to
-                        // each sibling. Its completion channels combine in
-                        // order and only normal paths reach the next sibling.
-                        let completion = prefix.then(completion);
-                        let next_index = index + 1;
-                        if let Some(statement) = source.body.get(next_index) {
-                            if !completion.normal && !is_type_declaration(statement) {
-                                return Err(unsupported(
-                                    statement,
-                                    if completion == Completion::RETURN {
-                                        "statements after a guaranteed return are not admitted"
-                                    } else {
-                                        "statements after a guaranteed abrupt completion are not admitted"
-                                    },
-                                ));
-                            }
-                            pending.push(Frame::Block {
-                                source,
-                                output,
-                                depth,
-                                visible,
-                                index: next_index,
-                                completion,
-                            });
-                            next = Some(Next::Statement {
-                                source: statement,
-                                output: finished_region,
-                                depth: depth + 1,
-                            });
-                        } else {
-                            self.bindings.truncate(visible);
-                            Self::push(&mut output, source, Op::Block(finished_region));
-                            completed = Some((output, completion));
-                        }
+                        self.bindings.truncate(visible);
+                        Self::push(&mut output, source, Op::Block(finished_region));
+                        completed = Some((output, completion));
                     }
                     Frame::If {
                         source,
