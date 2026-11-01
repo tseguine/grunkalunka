@@ -257,7 +257,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub ui_import: Option<SymbolId>,
     pub general_bindings: &'s std::collections::BTreeSet<SymbolId>,
     pub general_parameters: &'s std::collections::BTreeSet<SymbolId>,
-    pub managed_parameters: &'s std::collections::BTreeMap<SymbolId, Type>,
+    pub managed_kinds: &'s managed_calls::ClosureKinds,
     pub number_calls: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub general_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
     pub settled_results: &'s std::collections::BTreeSet<oxc_syntax::node::NodeId>,
@@ -368,7 +368,18 @@ impl Lowering<'_, '_> {
                 value: ir::Nullish::Undefined,
             },
         );
-        let value = if self.return_type == Type::AsyncValue {
+        let value = if self.return_type == Type::ManagedValue {
+            let result = self.value(Type::ManagedValue);
+            Self::push(
+                region,
+                node,
+                Op::ManagedPrimitive {
+                    result,
+                    input: value,
+                },
+            );
+            result
+        } else if self.return_type == Type::AsyncValue {
             let result = self.value(Type::AsyncValue);
             Self::push(
                 region,
@@ -1157,7 +1168,10 @@ impl Lowering<'_, '_> {
             }
             Statement::ReturnStatement(statement) => {
                 if statement.argument.is_none()
-                    && matches!(self.return_type, Type::General | Type::AsyncValue)
+                    && matches!(
+                        self.return_type,
+                        Type::General | Type::AsyncValue | Type::ManagedValue
+                    )
                     && (self.active_block_calls != 0 || self.allow_await)
                 {
                     self.return_undefined(statement.as_ref(), region);

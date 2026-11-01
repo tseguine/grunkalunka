@@ -2,6 +2,7 @@
 //! This is representation planning, never admission or annotation-based typing.
 use super::*;
 use oxc_ast::{AstKind, ast::Function};
+use oxc_syntax::node::NodeId;
 use std::collections::{BTreeMap, BTreeSet};
 
 // Number inputs retain their fast path. Non-Number primitive arguments need the
@@ -56,6 +57,7 @@ fn kinds(
     functions: &[NumericFunction],
     bindings: &BTreeMap<SymbolId, Kinds>,
     returns: &[Kinds],
+    closure_calls: Option<&BTreeMap<NodeId, Kinds>>,
 ) -> Kinds {
     enum Task<'e, 'a> {
         Expr(&'e Expression<'a>, usize),
@@ -140,6 +142,10 @@ fn kinds(
                     Expression::CallExpression(call) => values.push(
                         function(call, semantic, functions)
                             .map(|f| returns[f.id.0].clone())
+                            .or_else(|| {
+                                closure_calls
+                                    .and_then(|calls| calls.get(&call.node_id.get()).cloned())
+                            })
                             .unwrap_or_else(|| [Kind::Primitive].into()),
                     ),
                     Expression::ConditionalExpression(c) => {
@@ -190,7 +196,7 @@ fn kinds(
     values.pop().expect("one source kind query")
 }
 
-fn extend(bindings: &mut BTreeMap<SymbolId, Kinds>, symbol: SymbolId, kinds: Kinds) -> bool {
+fn extend<K: Ord>(bindings: &mut BTreeMap<K, Kinds>, symbol: K, kinds: Kinds) -> bool {
     let entry = bindings.entry(symbol).or_default();
     let before = entry.len();
     entry.extend(kinds);
@@ -283,14 +289,14 @@ pub(crate) fn infer(
         let mut changed = false;
         for (symbol, value) in &definitions {
             let next = value
-                .map(|v| kinds(v, semantic, functions, &bindings, &returns))
+                .map(|v| kinds(v, semantic, functions, &bindings, &returns, None))
                 .unwrap_or_else(|| [Kind::Primitive].into());
             changed |= extend(&mut bindings, *symbol, next);
         }
         for (index, call) in &calls {
             for (symbol, actual) in parameters[*index].iter().zip(invocation::arguments(call)) {
                 if let (Some(symbol), Some(actual)) = (symbol, actual.as_expression()) {
-                    let next = kinds(actual, semantic, functions, &bindings, &returns);
+                    let next = kinds(actual, semantic, functions, &bindings, &returns, None);
                     changed |= extend(&mut bindings, *symbol, next);
                 }
             }
@@ -303,7 +309,7 @@ pub(crate) fn infer(
                 let next = statement
                     .argument
                     .as_ref()
-                    .map(|v| kinds(v, semantic, functions, &bindings, &returns))
+                    .map(|v| kinds(v, semantic, functions, &bindings, &returns, None))
                     .unwrap_or_else(|| [Kind::Primitive].into());
                 let before = returns[index].len();
                 returns[index].extend(next);
@@ -354,24 +360,41 @@ pub(crate) fn infer(
     }
 }
 
-// Reuse the finite value-kind lattice for arrow formal cells. Call targets and
-// actual-to-formal writes are supplied by storage's existing constructor graph.
-pub(super) fn closure_inputs<'a>(
-    semantic: &Semantic<'a>,
-    functions: &[NumericFunction],
-    definitions: &BTreeMap<SymbolId, Option<&Expression<'a>>>,
-    writes: &BTreeMap<SymbolId, Vec<&Expression<'a>>>,
-    parameters: &BTreeSet<SymbolId>,
-    groups: &BTreeSet<BTreeSet<oxc_syntax::node::NodeId>>,
-    arrows: &BTreeMap<oxc_syntax::node::NodeId, &oxc_ast::ast::ArrowFunctionExpression<'a>>,
-) -> BTreeMap<SymbolId, Type> {
+// Finite closure facts share the helper lattice; only actual lowering admits code.
+#[derive(Default)]
+pub(crate) struct ClosureKinds {
+    pub(super) inputs: BTreeMap<SymbolId, Type>,
+    pub(super) results: BTreeMap<NodeId, Type>,
+    pub(super) calls: BTreeMap<NodeId, Type>,
+}
+pub(super) struct ClosureFlow<'s, 'n, 'a> {
+    pub semantic: &'s Semantic<'a>,
+    pub functions: &'s [NumericFunction],
+    pub definitions: &'s BTreeMap<SymbolId, Option<&'n Expression<'a>>>,
+    pub writes: &'s BTreeMap<SymbolId, Vec<&'n Expression<'a>>>,
+    pub parameters: &'s BTreeSet<SymbolId>,
+    pub groups: &'s BTreeSet<BTreeSet<NodeId>>,
+    pub arrows: &'s BTreeMap<NodeId, &'n oxc_ast::ast::ArrowFunctionExpression<'a>>,
+    pub calls: &'s BTreeMap<NodeId, BTreeSet<NodeId>>,
+}
+pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
+    let ClosureFlow {
+        semantic,
+        functions,
+        definitions,
+        writes,
+        parameters,
+        groups,
+        arrows,
+        calls,
+    } = flow;
     if !semantic.nodes().iter().any(|n| {
         matches!(
             n.kind(),
             AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
         ) || matches!(n.kind(),AstKind::UnaryExpression(u) if u.operator==UnaryOperator::Typeof)
     }) {
-        return BTreeMap::new();
+        return ClosureKinds::default();
     }
     let from_type = |ty: Type| -> Kinds {
         match ty {
@@ -389,8 +412,7 @@ pub(super) fn closure_inputs<'a>(
             _ => [Kind::Primitive].into(),
         }
     };
-    // Unresolved formal facts start at bottom, so forwarding does not invent an
-    // initial Number call before the actual object/array origin has propagated.
+    // Known unresolved formals and calls start at bottom, never an invented Number.
     let mut bindings: BTreeMap<_, Kinds> = parameters.iter().map(|s| (*s, Kinds::new())).collect();
     for symbol in definitions.keys().chain(writes.keys()) {
         bindings.entry(*symbol).or_default();
@@ -418,19 +440,70 @@ pub(super) fn closure_inputs<'a>(
         .iter()
         .map(|f| from_type(f.return_type))
         .collect::<Vec<_>>();
+    let bodies = arrows
+        .iter()
+        .filter(|(_, arrow)| !arrow.r#async)
+        .map(|(body, arrow)| {
+            let complete = super::storage::arrow_returns(arrow, semantic);
+            let missing = complete.is_none();
+            let expressions = complete.unwrap_or_else(|| {
+                super::block_results::return_statements(semantic, *body)
+                    .into_iter()
+                    .filter_map(|s| s.argument.as_ref())
+                    .collect()
+            });
+            (*body, (expressions, missing))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut results: BTreeMap<_, Kinds> = bodies.keys().map(|body| (*body, Kinds::new())).collect();
+    let mut call_kinds: BTreeMap<_, Kinds> =
+        calls.keys().map(|call| (*call, Kinds::new())).collect();
     loop {
         let mut changed = false;
         for (symbol, expression) in definitions {
             let next = expression
-                .map(|e| kinds(e, semantic, functions, &bindings, &returns))
+                .map(|e| {
+                    kinds(
+                        e,
+                        semantic,
+                        functions,
+                        &bindings,
+                        &returns,
+                        Some(&call_kinds),
+                    )
+                })
                 .unwrap_or_else(|| [Kind::GeneralPrimitive].into());
             changed |= extend(&mut bindings, *symbol, next);
         }
         for (symbol, expressions) in writes {
-            for expression in expressions {
-                let next = kinds(expression, semantic, functions, &bindings, &returns);
+            for e in expressions {
+                let next = kinds(
+                    e,
+                    semantic,
+                    functions,
+                    &bindings,
+                    &returns,
+                    Some(&call_kinds),
+                );
                 changed |= extend(&mut bindings, *symbol, next);
             }
+        }
+        for (body, (expressions, missing)) in &bodies {
+            let mut next = Kinds::new();
+            if *missing {
+                next.insert(Kind::GeneralPrimitive);
+            }
+            for e in expressions {
+                next.extend(kinds(
+                    e,
+                    semantic,
+                    functions,
+                    &bindings,
+                    &returns,
+                    Some(&call_kinds),
+                ));
+            }
+            changed |= extend(&mut results, *body, next);
         }
         for group in groups {
             let count = group
@@ -457,13 +530,45 @@ pub(super) fn closure_inputs<'a>(
                     changed |= extend(&mut bindings, symbol, joined.clone());
                 }
             }
+            let joined = group
+                .iter()
+                .filter_map(|body| results.get(body))
+                .flatten()
+                .copied()
+                .collect::<Kinds>();
+            for body in group {
+                if !arrows[body].r#async {
+                    changed |= extend(&mut results, *body, joined.clone());
+                }
+            }
+        }
+        for (call, targets) in calls {
+            let mut next = Kinds::new();
+            for target in targets {
+                if arrows[target].r#async {
+                    next.insert(Kind::Primitive);
+                } else if let Some(kinds) = results.get(target) {
+                    next.extend(kinds);
+                }
+            }
+            changed |= extend(&mut call_kinds, *call, next);
         }
         if !changed {
             break;
         }
     }
-    parameters
-        .iter()
-        .filter_map(|s| bindings.get(s).and_then(managed_type).map(|ty| (*s, ty)))
-        .collect()
+    ClosureKinds {
+        inputs: parameters
+            .iter()
+            .filter_map(|s| bindings.get(s).and_then(managed_type).map(|ty| (*s, ty)))
+            .collect(),
+        results: results
+            .iter()
+            .filter_map(|(body, kinds)| managed_type(kinds).map(|ty| (*body, ty)))
+            .collect(),
+        calls: call_kinds
+            .iter()
+            .filter_map(|(call, kinds)| managed_type(kinds).map(|ty| (*call, ty)))
+            .collect(),
+    }
 }

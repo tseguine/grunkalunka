@@ -361,6 +361,28 @@ source comparisons cover identity, mutations, snapshots, mixed values and callba
 composition. Managed private results, public references and suspended GC frames
 remain separate work; unknown receivers and unsupported coercions still reject.
 
+## Source managed result admission
+
+Synchronous source closures now infer managed return and call kinds together with
+actual parameter facts over the existing finite constructor graph. Selected peers
+join results; implicit undefined remains distinct from an object/array identity.
+The shared typed cursor consumes these results without numeric handles or new
+frame formats. Primitive-only graphs and erased TypeScript semantics remain in
+place. This supersedes the source private-result restriction above.
+
+Maintained source/native-JS/Node-Wasm/Wasmtime comparisons cover aliases, mutations,
+callbacks, factories, callee snapshots, argument effects and block completion.
+A test-only traced observer saves an actual generated call result, then forces
+copying collections after its defining calls return. Cycles and updated values
+survive; clearing the root is checked separately. There is no public reference ABI
+or measured reclamation guarantee.
+
+A broader pre-existing for-let header-capture defect was reproduced in the older
+numeric compiler and is tracked in #334 for shared control-flow work. Newly admitted
+managed-returning runtime function values reject direct header captures until that
+binding lifecycle exists; body-local iteration snapshots remain supported. General
+function carriers, coercions/prototypes and suspended managed frames remain work.
+
 ## Related work and follow-up
 
 - [Shared backend layout](0014-backend-value-layout.md).

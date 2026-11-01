@@ -64,6 +64,9 @@ fn void_keeps_operand_effects_and_primitive_results_in_both_engines() {
             false,
         ),
         ("return void(()=>a);", false),
+        ("return void(()=>[]);", false),
+        ("return void(()=> '');", false),
+        ("return void(()=>({}));", false),
         (
             "let x=a;const make=()=>{x=b;return ()=>x;};void make();return x;",
             true,
@@ -99,6 +102,12 @@ fn void_keeps_operand_effects_and_primitive_results_in_both_engines() {
             } else {
                 js.clone()
             };
+            if !numeric {
+                assert!(
+                    compile(&source, ts).is_err(),
+                    "numeric export admitted: {source}"
+                );
+            }
             for general in [false, true] {
                 if !general && !numeric {
                     continue;
@@ -170,7 +179,7 @@ fn void_does_not_hide_invalid_operands_and_keeps_depth_limits() {
         "return void missing;",
         "void x;let x=a;return a;",
         "const x=a;return void(x=b);",
-        "return void(()=>[]);",
+        "return void(()=>Symbol());",
         "const f=()=>a;return void f?.();",
     ] {
         assert!(

@@ -90,11 +90,8 @@ fn original_capture_guards_now_have_positive_source_execution() {
     }
 }
 #[test]
-fn managed_closure_results_and_async_frames_remain_explicit_gaps() {
+fn managed_capture_writes_prototypes_and_async_frames_remain_explicit_gaps() {
     for body in [
-        "const o={};let f=()=>o;return f()===o?a:b;",
-        "const x=[];let f=()=>x;return f().length;",
-        "const text='x';let f=()=>text;return f()==='x'?a:b;",
         "const o={};const f=()=>{o.toString();return a;};return a;",
         "const o={};const f=()=>{o.x=Symbol();return a;};return a;",
         "const o={};const f=()=>{o.x=1n;return a;};return a;",

@@ -277,7 +277,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
             }
             if !arrow.r#async
                 && let Some(ty) = self
-                    .managed_parameters
+                    .managed_kinds
+                    .inputs
                     .get(&identifier.symbol_id.get().expect("parameter symbol"))
             {
                 arguments.push(check.value(*ty));
@@ -351,6 +352,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
                         ));
                     }
                     Type::FulfilledPromise
+                } else if !arrow.r#async
+                    && let Some(ty) = check.managed_kinds.results.get(&arrow.node_id.get())
+                {
+                    *ty
                 } else if check.numeric_result_shape(expression, 0) {
                     Type::Number
                 } else {
@@ -363,7 +368,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                         expression,
                         &mut region,
                         0,
-                        if closure.result == Type::AsyncValue {
+                        if closure.result.is_managed() {
+                            evaluate::Mode::managed(closure.result)
+                        } else if closure.result == Type::AsyncValue {
                             evaluate::Mode::AsyncValue
                         } else if closure.result == Type::Promise {
                             evaluate::Mode::Pending
@@ -521,7 +528,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                         }
                         if !arrow.r#async
                             && let Some(ty) = parent
-                                .managed_parameters
+                                .managed_kinds
+                                .inputs
                                 .get(&identifier.symbol_id.get().expect("parameter symbol"))
                         {
                             arguments.push(check.value(*ty));
@@ -607,6 +615,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
                                     ));
                                 }
                                 Type::FulfilledPromise
+                            } else if !arrow.r#async
+                                && let Some(ty) =
+                                    check.managed_kinds.results.get(&arrow.node_id.get())
+                            {
+                                *ty
                             } else if check.numeric_result_shape(expression, 0) {
                                 Type::Number
                             } else {
@@ -619,7 +632,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                                     expression,
                                     &mut region,
                                     0,
-                                    if closure.result == Type::AsyncValue {
+                                    if closure.result.is_managed() {
+                                        evaluate::Mode::managed(closure.result)
+                                    } else if closure.result == Type::AsyncValue {
                                         evaluate::Mode::AsyncValue
                                     } else if closure.result == Type::Promise {
                                         evaluate::Mode::Pending
@@ -850,8 +865,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 self.charge_statement(directive)?;
             }
             let completion = self.sequence(&body.statements, &mut region, 0)?;
-            if matches!(result_type, Type::General | Type::AsyncValue)
-                && completion.normal
+            if matches!(
+                result_type,
+                Type::General | Type::AsyncValue | Type::ManagedValue
+            ) && completion.normal
                 && !completion.breaks
                 && !completion.continues
                 && (arrow.r#async || !completion.throws)

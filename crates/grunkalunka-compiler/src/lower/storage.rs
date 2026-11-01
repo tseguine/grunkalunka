@@ -368,7 +368,7 @@ pub(super) fn number_result_shape<'a>(
 pub(crate) struct BindingKinds {
     pub(crate) storage: BTreeSet<SymbolId>,
     pub(crate) inputs: BTreeSet<SymbolId>,
-    pub(crate) managed_inputs: BTreeMap<SymbolId, Type>,
+    pub(crate) managed: managed_calls::ClosureKinds,
     // Source-local computed calls proven Number under all incoming scalar facts.
     pub(crate) number_calls: BTreeSet<NodeId>,
     // Physical scalar result interfaces; source-local Number proofs stay separate.
@@ -706,6 +706,7 @@ pub(crate) fn general_mutable_bindings(
         })
         .collect();
     let mut incoming = Vec::new();
+    let mut managed_call_targets = BTreeMap::new();
     let mut constructor_groups: BTreeSet<_> = targets
         .values()
         .filter(|bodies| bodies.len() > 1)
@@ -751,6 +752,9 @@ pub(crate) fn general_mutable_bindings(
             if let Some(known) = targets.get(&source) {
                 bodies.extend(known);
             }
+        }
+        if !bodies.is_empty() {
+            managed_call_targets.insert(call.node_id.get(), bodies.clone());
         }
         if bodies.len() > 1 {
             constructor_groups.insert(bodies.clone());
@@ -832,15 +836,16 @@ pub(crate) fn general_mutable_bindings(
         }
         frontier = next;
     }
-    let managed_inputs = managed_calls::closure_inputs(
+    let managed = managed_calls::closure_kinds(managed_calls::ClosureFlow {
         semantic,
         functions,
-        &definitions,
-        &writes,
-        &parameters,
-        &constructor_groups,
-        &arrows,
-    );
+        definitions: &definitions,
+        writes: &writes,
+        parameters: &parameters,
+        groups: &constructor_groups,
+        arrows: &arrows,
+        calls: &managed_call_targets,
+    });
     // A candidate stays Number exactly when its initial value and every plain/logical RHS write
     // have Number shape and all symbol dependencies stay Number. Start with the
     // greatest candidate set, then propagate removals through reverse edges once.
@@ -1111,7 +1116,7 @@ pub(crate) fn general_mutable_bindings(
     BindingKinds {
         storage,
         inputs,
-        managed_inputs,
+        managed,
         number_calls,
         general_results,
         settled_results,

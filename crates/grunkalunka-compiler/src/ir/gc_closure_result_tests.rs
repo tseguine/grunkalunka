@@ -423,10 +423,10 @@ fn managed_result_signatures_keep_argument_limits_and_precise_validation() {
     );
 }
 #[test]
-fn source_results_still_require_frontend_inference_and_async_frames_stay_guarded() {
+fn source_managed_results_keep_numeric_exports_coercion_and_async_guards() {
     for source in [
-        "export function run(a,b){const f=x=>x;return f('text')==='text'?a:b;}",
-        "export function run(a,b){let f=()=>({x:a});return f().x===a?a:b;}",
+        "export function run(a,b){let f=()=>({x:a});return f();}",
+        "export function run(a,b){let f=()=>({x:a});return f()+a;}",
         "export async function run(a,b){const o={};let f=()=>o;await 0;return f()===o?a:b;}",
     ] {
         for ts in [false, true] {

@@ -26,6 +26,17 @@ pub(super) enum Mode {
     Awaited(usize),
 }
 
+impl Mode {
+    pub(super) fn managed(ty: Type) -> Self {
+        match ty {
+            Type::ManagedObject => Self::Object,
+            Type::ManagedArray => Self::Array,
+            Type::ManagedValue => Self::Managed,
+            _ => unreachable!("managed result mode"),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Value {
     Number(ValueId),
@@ -41,6 +52,14 @@ enum Value {
     Settled(ValueId),
 }
 impl Value {
+    fn managed(id: ValueId, ty: Type) -> Self {
+        match ty {
+            Type::ManagedObject => Self::Object(id),
+            Type::ManagedArray => Self::Array(id),
+            Type::ManagedValue => Self::Managed(id),
+            _ => unreachable!("managed result value"),
+        }
+    }
     fn id(self) -> ValueId {
         match self {
             Self::Number(id)
@@ -125,6 +144,15 @@ fn call_result<'e, 'a>(
     number_proven: bool,
 ) -> Result<(), String> {
     match (ty, mode) {
+        (Type::ManagedObject, Mode::Object)
+        | (Type::ManagedArray, Mode::Array)
+        | (Type::ManagedValue, Mode::Managed) => (),
+        (ty, _) if ty.is_managed() => {
+            return Err(unsupported(
+                node,
+                "managed closure result requires a matching managed position",
+            ));
+        }
         (Type::AsyncValue, Mode::AsyncValue) => (),
         (Type::AsyncValue, _) => {
             return Err(unsupported(
@@ -710,7 +738,7 @@ impl Lowering<'_, '_> {
                 BindingPattern::BindingIdentifier(i) => i.symbol_id.get(),
                 _ => None,
             })
-            .and_then(|symbol| self.managed_parameters.get(&symbol));
+            .and_then(|symbol| self.managed_kinds.inputs.get(&symbol));
         match managed {
             Some(Type::ManagedObject) => Mode::Object,
             Some(Type::ManagedArray) => Mode::Array,
@@ -1760,7 +1788,9 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(
                                 expression,
                                 0,
-                                if closure.result == Type::AsyncValue {
+                                if closure.result.is_managed() {
+                                    Mode::managed(closure.result)
+                                } else if closure.result == Type::AsyncValue {
                                     Mode::AsyncValue
                                 } else if closure.result == Type::Promise {
                                     Mode::Pending
@@ -1782,7 +1812,9 @@ impl Lowering<'_, '_> {
                             let body = self.arrow_block_result(arrow, depth, closure.result)?;
                             let result = self.value(closure.result);
                             Self::push(regions.current(), node, Op::InlineCall { result, body });
-                            values.push(if closure.result == Type::AsyncValue {
+                            values.push(if closure.result.is_managed() {
+                                Value::managed(result, closure.result)
+                            } else if closure.result == Type::AsyncValue {
                                 Value::Selection(result)
                             } else if closure.result == Type::Promise {
                                 Value::Pending(result)
@@ -1958,7 +1990,9 @@ impl Lowering<'_, '_> {
                                 }
                             },
                         );
-                        values.push(if ty == Type::AsyncValue {
+                        values.push(if ty.is_managed() {
+                            Value::managed(result, ty)
+                        } else if ty == Type::AsyncValue {
                             Value::Selection(result)
                         } else if ty == Type::Promise {
                             Value::Pending(result)
@@ -3371,7 +3405,10 @@ impl Lowering<'_, '_> {
                             .expect("checked signature");
                         if !matches!(
                             result_type,
-                            Type::Number
+                            Type::ManagedObject
+                                | Type::ManagedArray
+                                | Type::ManagedValue
+                                | Type::Number
                                 | Type::General
                                 | Type::AsyncValue
                                 | Type::FulfilledPromise
