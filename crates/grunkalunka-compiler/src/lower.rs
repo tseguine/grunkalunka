@@ -23,6 +23,7 @@ mod callbacks;
 mod closures;
 mod evaluate;
 mod finalizers;
+mod finally_chains;
 mod for_statements;
 mod function_values;
 mod if_statements;
