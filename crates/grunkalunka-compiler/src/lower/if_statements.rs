@@ -15,19 +15,7 @@ impl Lowering<'_, '_> {
         // are charged here with exactly the same source and expansion limits.
         // Move its current operation buffer into an owned Region so nested
         // branches and their completion continuations live on the heap.
-        enum Next<'n, 'a> {
-            If {
-                source: &'n IfStatement<'a>,
-                output: Region,
-                depth: usize,
-                charged: bool,
-            },
-            Statement {
-                source: &'n Statement<'a>,
-                output: Region,
-                depth: usize,
-            },
-        }
+        type Next<'n, 'a> = source_control::StatementTask<'n, 'a, &'n IfStatement<'a>>;
 
         struct Frame<'n, 'a> {
             source: &'n IfStatement<'a>,
@@ -40,46 +28,29 @@ impl Lowering<'_, '_> {
         }
 
         let original_depth = self.statement_depth;
-        let root_output = Region {
-            id: region.id,
-            span: region.span,
-            operations: std::mem::take(&mut region.operations),
-            exit: std::mem::replace(&mut region.exit, Exit::Fallthrough),
-        };
+        let root_output = Self::take_cursor_region(region);
         let result = (|| {
             let mut pending: Vec<Frame<'n, 'a>> = Vec::new();
-            let mut next = Some(Next::If {
+            let mut next = Some(Next::Enter {
                 source: root,
                 output: root_output,
                 depth,
-                charged: true,
+                charge: source_control::SourceCharge::Charged,
             });
             let mut completed: Option<(Region, Completion)> = None;
 
             loop {
                 if let Some(task) = next.take() {
                     match task {
-                        Next::If {
+                        Next::Enter {
                             source,
                             mut output,
                             depth,
-                            charged,
+                            charge,
                         } => {
                             self.statement_depth = depth;
-                            if !charged {
-                                if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
-                                    return Err(unsupported(
-                                        source,
-                                        "block-arrow expansion exceeds 128 nested regions",
-                                    ));
-                                }
-                                if depth > 64 {
-                                    return Err(unsupported(
-                                        source,
-                                        "statement nesting exceeds 64",
-                                    ));
-                                }
-                                self.charge_statement(source)?;
+                            if charge == source_control::SourceCharge::Uncharged {
+                                self.admit_source_statement(source, depth)?;
                             }
 
                             let condition = self.predicate(&source.test, &mut output, 0)?;
@@ -106,11 +77,11 @@ impl Lowering<'_, '_> {
                             depth,
                         } => {
                             if let Statement::IfStatement(inner) = source {
-                                next = Some(Next::If {
+                                next = Some(Next::Enter {
                                     source: inner,
                                     output,
                                     depth,
-                                    charged: false,
+                                    charge: source_control::SourceCharge::Uncharged,
                                 });
                             } else {
                                 self.statement_depth =
