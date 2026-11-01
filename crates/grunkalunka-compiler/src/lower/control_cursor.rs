@@ -44,6 +44,18 @@ impl<'n, 'a> ControlNode<'n, 'a> {
     }
 }
 
+/// The for header is lowered; an explicit source expression request will
+/// produce the test predicate before the loop body Region is allocated.
+struct ForPredicateFrame<'n, 'a> {
+    source: &'n ForStatement<'a>,
+    output: Region,
+    header: Region,
+    depth: usize,
+    outer: usize,
+    header_bindings: usize,
+    let_slots: Vec<SlotId>,
+}
+
 /// For-loop-specific continuation data is independent of the scheduler.
 /// The corresponding lowering transitions live in steps/for_loop.rs.
 struct ForFrame<'n, 'a> {
@@ -102,6 +114,7 @@ enum Frame<'n, 'a> {
         body: Region,
         body_completion: Completion,
     },
+    ForPredicate(ForPredicateFrame<'n, 'a>),
     For(ForFrame<'n, 'a>),
     Block {
         source: &'n BlockStatement<'a>,
@@ -163,6 +176,7 @@ impl Frame<'_, '_> {
             | Self::TryCatchHandler { depth, .. }
             | Self::TryFinallyBody { depth, .. }
             | Self::TryFinallyCleanup { depth, .. } => *depth,
+            Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
         }
     }
