@@ -49,7 +49,7 @@ impl Lowering<'_, '_> {
                 source: root,
                 output: root_output,
                 depth,
-                charged: true,
+                charge: source_control::SourceCharge::Charged,
             });
             let mut completed: Option<(Region, Completion)> = None;
 
@@ -60,10 +60,10 @@ impl Lowering<'_, '_> {
                             source,
                             output,
                             depth,
-                            charged,
+                            charge,
                         } => {
                             self.statement_depth = depth;
-                            if !charged {
+                            if charge == source_control::SourceCharge::Uncharged {
                                 let span = match source {
                                     LoopNode::While(node) => node.span(),
                                     LoopNode::DoWhile(node) => node.span(),
@@ -126,7 +126,7 @@ impl Lowering<'_, '_> {
                                     source: LoopNode::While(statement),
                                     output,
                                     depth,
-                                    charged: false,
+                                    charge: source_control::SourceCharge::Uncharged,
                                 });
                             }
                             Statement::DoWhileStatement(statement) => {
@@ -134,7 +134,7 @@ impl Lowering<'_, '_> {
                                     source: LoopNode::DoWhile(statement),
                                     output,
                                     depth,
-                                    charged: false,
+                                    charge: source_control::SourceCharge::Uncharged,
                                 });
                             }
                             _ => {
