@@ -26,6 +26,7 @@ mod finalizers;
 mod function_values;
 mod if_statements;
 mod invocation;
+mod loop_statements;
 mod managed_calls;
 pub(super) use managed_calls::infer as infer_managed_calls;
 mod module_functions;
@@ -1149,19 +1150,11 @@ impl Lowering<'_, '_> {
                 Ok(Completion::BREAK)
             }
             Statement::EmptyStatement(_) => Ok(Completion::NORMAL),
-            Statement::DoWhileStatement(statement) => {
-                let mut body = self.region(&statement.body);
-                let visible = self.bindings.len();
-                let returns = self.loop_body(&statement.body, &mut body, depth + 1)?;
-                self.bindings.truncate(visible);
-                // Admit the whole condition even when a body return skips it.
-                let mut condition = self.region(&statement.test);
-                let predicate = self.predicate(&statement.test, &mut condition, 0)?;
-                condition.exit = Exit::Yield(predicate);
-                Self::push(region, statement.as_ref(), Op::DoWhile { body, condition });
-                // The body executes at least once; this loop consumes its loop control.
-                Ok(returns.do_loop())
-            }
+            Statement::DoWhileStatement(statement) => self.loop_statement_iterative(
+                loop_statements::LoopNode::DoWhile(statement),
+                region,
+                depth,
+            ),
             Statement::ForStatement(statement) => {
                 // This lexical block and the loop's regions are generated, so
                 // they consume neither source statements nor nesting depth.
@@ -1231,25 +1224,11 @@ impl Lowering<'_, '_> {
                 // even when the source omits its test.
                 Ok(completion.pretest_loop())
             }
-            Statement::WhileStatement(statement) => {
-                let mut condition = self.region(&statement.test);
-                let value = self.predicate(&statement.test, &mut condition, 0)?;
-                condition.exit = Exit::Yield(value);
-                let mut body = self.region(&statement.body);
-                let visible = self.bindings.len();
-                let completion = self.loop_body(&statement.body, &mut body, depth + 1)?;
-                self.bindings.truncate(visible);
-                Self::push(
-                    region,
-                    statement.as_ref(),
-                    Op::While {
-                        condition,
-                        body,
-                        step: None,
-                    },
-                );
-                Ok(completion.pretest_loop())
-            }
+            Statement::WhileStatement(statement) => self.loop_statement_iterative(
+                loop_statements::LoopNode::While(statement),
+                region,
+                depth,
+            ),
             Statement::IfStatement(statement) => {
                 self.if_statement_iterative(statement, region, depth)
             }
