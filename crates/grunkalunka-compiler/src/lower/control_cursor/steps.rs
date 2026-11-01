@@ -11,9 +11,7 @@ impl Lowering<'_, '_> {
         source: ControlNode<'n, 'a>,
         mut output: Region,
         depth: usize,
-        pending: &mut Vec<Frame<'n, 'a>>,
-        next: &mut Option<Next<'n, 'a>>,
-        completed: &mut Option<(Region, Completion)>,
+        cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match source {
             ControlNode::TryFinally(source) => {
@@ -37,14 +35,14 @@ impl Lowering<'_, '_> {
                 if !has_handler {
                     self.charge_statement(source.block.as_ref())?;
                 }
-                pending.push(Frame::TryFinallyBody {
+                cursor.pending.push(Frame::TryFinallyBody {
                     source,
                     output,
                     depth,
                     visible,
                     outer_type,
                 });
-                *next = Some(Next::Enter {
+                cursor.next = Some(Next::Enter {
                     // Catch and finally have distinct
                     // completions. The protected body
                     // remains a raw source sequence.
@@ -75,13 +73,13 @@ impl Lowering<'_, '_> {
                 // region is already the protected IR body.
                 // Do not wrap it in another Op::Block.
                 self.charge_statement(source.block.as_ref())?;
-                pending.push(Frame::TryCatchBody {
+                cursor.pending.push(Frame::TryCatchBody {
                     source,
                     output,
                     depth,
                     visible,
                 });
-                *next = Some(Next::Enter {
+                cursor.next = Some(Next::Enter {
                     source: ControlNode::Sequence(&source.block.body),
                     output: body,
                     depth: depth + 2,
@@ -90,19 +88,19 @@ impl Lowering<'_, '_> {
             }
             ControlNode::Sequence(statements) => {
                 if let Some(statement) = statements.first() {
-                    pending.push(Frame::Sequence {
+                    cursor.pending.push(Frame::Sequence {
                         statements,
                         index: 0,
                         depth,
                         completion: Completion::NORMAL,
                     });
-                    *next = Some(Next::Statement {
+                    cursor.next = Some(Next::Statement {
                         source: statement,
                         output,
                         depth,
                     });
                 } else {
-                    *completed = Some((output, Completion::NORMAL));
+                    cursor.completed = Some((output, Completion::NORMAL));
                 }
             }
             ControlNode::Block(source) => {
@@ -111,13 +109,13 @@ impl Lowering<'_, '_> {
                 // boundary and the generated Block region.
                 let child = self.region(source);
                 let visible = self.bindings.len();
-                pending.push(Frame::Block {
+                cursor.pending.push(Frame::Block {
                     source,
                     output,
                     depth,
                     visible,
                 });
-                *next = Some(Next::Enter {
+                cursor.next = Some(Next::Enter {
                     source: ControlNode::Sequence(&source.body),
                     output: child,
                     depth: depth + 1,
@@ -129,7 +127,7 @@ impl Lowering<'_, '_> {
                 let condition = self.predicate(&source.test, &mut output, 0)?;
                 let consequent = self.region(&source.consequent);
                 let visible = self.bindings.len();
-                pending.push(Frame::If {
+                cursor.pending.push(Frame::If {
                     source,
                     output,
                     depth,
@@ -138,7 +136,7 @@ impl Lowering<'_, '_> {
                     consequent: None,
                     consequent_returns: None,
                 });
-                *next = Some(Next::Statement {
+                cursor.next = Some(Next::Statement {
                     source: &source.consequent,
                     output: consequent,
                     depth: depth + 1,
@@ -152,7 +150,7 @@ impl Lowering<'_, '_> {
                 let body = self.region(&source.body);
                 let visible = self.bindings.len();
                 let old_loop = self.in_loop_body;
-                pending.push(Frame::While {
+                cursor.pending.push(Frame::While {
                     source,
                     output,
                     depth,
@@ -161,7 +159,7 @@ impl Lowering<'_, '_> {
                     condition,
                 });
                 self.in_loop_body = true;
-                *next = Some(Next::Statement {
+                cursor.next = Some(Next::Statement {
                     source: &source.body,
                     output: body,
                     depth: depth + 1,
@@ -219,7 +217,7 @@ impl Lowering<'_, '_> {
                 condition.exit = Exit::Yield(predicate);
                 let body = self.region(&source.body);
                 let old_loop = self.in_loop_body;
-                pending.push(Frame::For {
+                cursor.pending.push(Frame::For {
                     source,
                     output,
                     header,
@@ -231,7 +229,7 @@ impl Lowering<'_, '_> {
                     old_loop,
                 });
                 self.in_loop_body = true;
-                *next = Some(Next::Statement {
+                cursor.next = Some(Next::Statement {
                     source: &source.body,
                     output: body,
                     depth: depth + 1,
@@ -242,7 +240,7 @@ impl Lowering<'_, '_> {
                 let body = self.region(&source.body);
                 let visible = self.bindings.len();
                 let old_loop = self.in_loop_body;
-                pending.push(Frame::DoWhile {
+                cursor.pending.push(Frame::DoWhile {
                     source,
                     output,
                     depth,
@@ -250,7 +248,7 @@ impl Lowering<'_, '_> {
                     old_loop,
                 });
                 self.in_loop_body = true;
-                *next = Some(Next::Statement {
+                cursor.next = Some(Next::Statement {
                     source: &source.body,
                     output: body,
                     depth: depth + 1,
@@ -265,9 +263,7 @@ impl Lowering<'_, '_> {
         frame: Frame<'n, 'a>,
         finished_region: Region,
         completion: Completion,
-        pending: &mut Vec<Frame<'n, 'a>>,
-        next: &mut Option<Next<'n, 'a>>,
-        completed: &mut Option<(Region, Completion)>,
+        cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
             Frame::TryFinallyBody {
@@ -284,7 +280,7 @@ impl Lowering<'_, '_> {
                     .expect("TryFinally has a source finalizer");
                 let cleanup = self.region(finalizer.as_ref());
                 self.charge_statement(finalizer.as_ref())?;
-                pending.push(Frame::TryFinallyCleanup {
+                cursor.pending.push(Frame::TryFinallyCleanup {
                     source,
                     output,
                     depth,
@@ -293,7 +289,7 @@ impl Lowering<'_, '_> {
                     body: finished_region,
                     body_completion: completion,
                 });
-                *next = Some(Next::Enter {
+                cursor.next = Some(Next::Enter {
                     source: ControlNode::Sequence(&finalizer.body),
                     output: cleanup,
                     depth: depth + 2,
@@ -331,7 +327,7 @@ impl Lowering<'_, '_> {
                         continuation: Box::new(continuation),
                     },
                 );
-                *completed = Some((output, body_completion.finalized_by(completion)));
+                cursor.completed = Some((output, body_completion.finalized_by(completion)));
             }
             Frame::TryCatchBody {
                 source,
@@ -386,7 +382,7 @@ impl Lowering<'_, '_> {
                         mutable: true,
                     });
                 }
-                pending.push(Frame::TryCatchHandler {
+                cursor.pending.push(Frame::TryCatchHandler {
                     source,
                     output,
                     depth,
@@ -395,7 +391,7 @@ impl Lowering<'_, '_> {
                     body_completion: completion,
                     reason,
                 });
-                *next = Some(Next::Enter {
+                cursor.next = Some(Next::Enter {
                     source: ControlNode::Sequence(&handler.body.body),
                     output: caught,
                     depth: depth + 2,
@@ -421,7 +417,7 @@ impl Lowering<'_, '_> {
                         handler: finished_region,
                     },
                 );
-                *completed = Some((output, body_completion.caught_by(completion)));
+                cursor.completed = Some((output, body_completion.caught_by(completion)));
             }
             Frame::Sequence {
                 statements,
@@ -445,19 +441,19 @@ impl Lowering<'_, '_> {
                             },
                         ));
                     }
-                    pending.push(Frame::Sequence {
+                    cursor.pending.push(Frame::Sequence {
                         statements,
                         index: next_index,
                         depth,
                         completion,
                     });
-                    *next = Some(Next::Statement {
+                    cursor.next = Some(Next::Statement {
                         source: statement,
                         output: finished_region,
                         depth,
                     });
                 } else {
-                    *completed = Some((finished_region, completion));
+                    cursor.completed = Some((finished_region, completion));
                 }
             }
             Frame::Block {
@@ -468,7 +464,7 @@ impl Lowering<'_, '_> {
             } => {
                 self.bindings.truncate(visible);
                 Self::push(&mut output, source, Op::Block(finished_region));
-                *completed = Some((output, completion));
+                cursor.completed = Some((output, completion));
             }
             Frame::If {
                 source,
@@ -493,7 +489,7 @@ impl Lowering<'_, '_> {
                             alternate: finished_region,
                         },
                     );
-                    *completed = Some((output, first.union(completion)));
+                    cursor.completed = Some((output, first.union(completion)));
                     return Ok(());
                 }
 
@@ -502,7 +498,7 @@ impl Lowering<'_, '_> {
                 let mut alternate = self.region(source);
                 if let Some(alternate_source) = &source.alternate {
                     alternate.span = alternate_source.span();
-                    pending.push(Frame::If {
+                    cursor.pending.push(Frame::If {
                         source,
                         output,
                         depth,
@@ -511,7 +507,7 @@ impl Lowering<'_, '_> {
                         consequent: Some(finished_region),
                         consequent_returns: Some(completion),
                     });
-                    *next = Some(Next::Statement {
+                    cursor.next = Some(Next::Statement {
                         source: alternate_source,
                         output: alternate,
                         depth: depth + 1,
@@ -527,7 +523,7 @@ impl Lowering<'_, '_> {
                             alternate,
                         },
                     );
-                    *completed = Some((output, completion.union(Completion::NORMAL)));
+                    cursor.completed = Some((output, completion.union(Completion::NORMAL)));
                 }
             }
             Frame::While {
@@ -549,7 +545,7 @@ impl Lowering<'_, '_> {
                         step: None,
                     },
                 );
-                *completed = Some((output, completion.pretest_loop()));
+                cursor.completed = Some((output, completion.pretest_loop()));
             }
             Frame::For {
                 source,
@@ -628,7 +624,7 @@ impl Lowering<'_, '_> {
                 );
                 self.bindings.truncate(outer);
                 Self::push(&mut output, source, Op::Block(header));
-                *completed = Some((output, completion.pretest_loop()));
+                cursor.completed = Some((output, completion.pretest_loop()));
             }
             Frame::DoWhile {
                 source,
@@ -653,7 +649,7 @@ impl Lowering<'_, '_> {
                         condition,
                     },
                 );
-                *completed = Some((output, completion.do_loop()));
+                cursor.completed = Some((output, completion.do_loop()));
             }
         }
         Ok(())
