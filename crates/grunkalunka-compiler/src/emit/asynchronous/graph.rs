@@ -4,6 +4,9 @@
 //! an index/pattern panic while rendering dispatcher states.
 use super::{End, MAX_STATES, Splitter};
 
+mod trampoline;
+pub(super) use trampoline::thread_empty_jumps;
+
 pub(super) fn verify(split: &Splitter<'_>, entries: &[Option<usize>]) -> Result<(), String> {
     let size = split.states.len();
     if size == 0 || size > MAX_STATES {

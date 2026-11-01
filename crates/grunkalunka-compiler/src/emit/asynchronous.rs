@@ -1144,6 +1144,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         entries[index] = Some(split.terminal(End::EnterClosure { next: body })?);
     }
     graph::verify(&split, &entries)?;
+    graph::thread_empty_jumps(&mut split, fresh);
     let has_async = entries.iter().any(Option::is_some);
     let dispatch_targets = dispatch::targets(module);
     let mut types = Vec::new();

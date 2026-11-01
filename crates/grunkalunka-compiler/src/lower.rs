@@ -1035,19 +1035,6 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
-    fn loop_body(
-        &mut self,
-        statement: &Statement<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Completion, String> {
-        let outer = self.in_loop_body;
-        self.in_loop_body = true;
-        let result = self.statement(statement, region, depth);
-        self.in_loop_body = outer;
-        result
-    }
-
     fn statement(
         &mut self,
         statement: &Statement<'_>,
