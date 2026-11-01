@@ -235,6 +235,20 @@ impl Lowering<'_, '_> {
                 });
                 Ok(())
             }
+            Frame::DoWhilePredicate {
+                source,
+                mut output,
+                body,
+                body_completion,
+                ..
+            } => {
+                let predicate = value.expect("predicate mode yields a value");
+                let mut condition = output_region;
+                condition.exit = Exit::Yield(predicate);
+                Self::push(&mut output, source, Op::DoWhile { body, condition });
+                cursor.completed = Some(Outcome::Statement(output, body_completion.do_loop()));
+                Ok(())
+            }
             _ => unreachable!("only expression continuations may receive value results"),
         }
     }
@@ -247,7 +261,9 @@ impl Lowering<'_, '_> {
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
-            Frame::IfPredicate { .. } | Frame::WhilePredicate { .. } => {
+            Frame::IfPredicate { .. }
+            | Frame::WhilePredicate { .. }
+            | Frame::DoWhilePredicate { .. } => {
                 unreachable!("predicate continuation is resumed by a value result")
             }
             Frame::TryFinallyBody {
@@ -545,28 +561,30 @@ impl Lowering<'_, '_> {
             }
             Frame::DoWhile {
                 source,
-                mut output,
+                output,
                 visible,
                 old_loop,
-                ..
+                depth,
             } => {
                 self.in_loop_body = old_loop;
                 self.bindings.truncate(visible);
-                // The source depth limit was checked before descending,
-                // but this predicate is evaluated after the body even
-                // when its completion cannot fall through.
-                let mut condition = self.region(&source.test);
-                let value = self.predicate(&source.test, &mut condition, 0)?;
-                condition.exit = Exit::Yield(value);
-                Self::push(
-                    &mut output,
+                // The source depth limit was checked before descending.
+                // The test is still lowered after the body, even if the body
+                // already returned and cannot fall through at runtime.
+                let condition = self.region(&source.test);
+                cursor.pending.push(Frame::DoWhilePredicate {
                     source,
-                    Op::DoWhile {
-                        body: finished_region,
-                        condition,
-                    },
-                );
-                cursor.completed = Some(Outcome::Statement(output, completion.do_loop()));
+                    output,
+                    depth,
+                    body: finished_region,
+                    body_completion: completion,
+                });
+                cursor.next = Some(Next::Expression {
+                    source: &source.test,
+                    output: condition,
+                    depth: 0,
+                    mode: evaluate::Mode::Predicate,
+                });
             }
         }
         Ok(())
