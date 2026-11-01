@@ -44,6 +44,20 @@ impl<'n, 'a> ControlNode<'n, 'a> {
     }
 }
 
+/// For-loop-specific continuation data is independent of the scheduler.
+/// The corresponding lowering transitions live in steps/for_loop.rs.
+struct ForFrame<'n, 'a> {
+    source: &'n ForStatement<'a>,
+    output: Region,
+    header: Region,
+    condition: Region,
+    depth: usize,
+    outer: usize,
+    header_bindings: usize,
+    let_slots: Vec<SlotId>,
+    old_loop: bool,
+}
+
 enum Frame<'n, 'a> {
     If {
         source: &'n IfStatement<'a>,
@@ -69,17 +83,7 @@ enum Frame<'n, 'a> {
         visible: usize,
         old_loop: bool,
     },
-    For {
-        source: &'n ForStatement<'a>,
-        output: Region,
-        header: Region,
-        condition: Region,
-        depth: usize,
-        outer: usize,
-        header_bindings: usize,
-        let_slots: Vec<SlotId>,
-        old_loop: bool,
-    },
+    For(ForFrame<'n, 'a>),
     Block {
         source: &'n BlockStatement<'a>,
         output: Region,
@@ -131,13 +135,13 @@ impl Frame<'_, '_> {
             Self::If { depth, .. }
             | Self::While { depth, .. }
             | Self::DoWhile { depth, .. }
-            | Self::For { depth, .. }
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
             | Self::TryCatchBody { depth, .. }
             | Self::TryCatchHandler { depth, .. }
             | Self::TryFinallyBody { depth, .. }
             | Self::TryFinallyCleanup { depth, .. } => *depth,
+            Self::For(frame) => frame.depth,
         }
     }
 }
