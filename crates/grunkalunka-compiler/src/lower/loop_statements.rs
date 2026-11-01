@@ -92,10 +92,7 @@ impl Lowering<'_, '_> {
                                     ));
                                 }
                                 if depth > 64 {
-                                    return Err(unsupported(
-                                        &span,
-                                        "statement nesting exceeds 64",
-                                    ));
+                                    return Err(unsupported(&span, "statement nesting exceeds 64"));
                                 }
                                 self.charge_statement(&span)?;
                             }
@@ -104,11 +101,8 @@ impl Lowering<'_, '_> {
                             match source {
                                 LoopNode::While(statement) => {
                                     let mut condition = self.region(&statement.test);
-                                    let value = self.predicate(
-                                        &statement.test,
-                                        &mut condition,
-                                        0,
-                                    )?;
+                                    let value =
+                                        self.predicate(&statement.test, &mut condition, 0)?;
                                     condition.exit = Exit::Yield(value);
                                     let body = self.region(&statement.body);
                                     let visible = self.bindings.len();
@@ -171,9 +165,8 @@ impl Lowering<'_, '_> {
                             }
                             _ => {
                                 self.in_loop_body = true;
-                                self.statement_depth = pending
-                                    .last()
-                                    .map_or(original_depth, |frame| frame.depth);
+                                self.statement_depth =
+                                    pending.last().map_or(original_depth, |frame| frame.depth);
                                 let completion = self.statement(source, &mut output, depth)?;
                                 completed = Some((output, completion));
                             }
@@ -209,11 +202,7 @@ impl Lowering<'_, '_> {
                         let mut condition = self.region(&source.test);
                         let value = self.predicate(&source.test, &mut condition, 0)?;
                         condition.exit = Exit::Yield(value);
-                        Self::push(
-                            &mut frame.output,
-                            source,
-                            Op::DoWhile { body, condition },
-                        );
+                        Self::push(&mut frame.output, source, Op::DoWhile { body, condition });
                         completed = Some((frame.output, completion.do_loop()));
                     }
                 }
