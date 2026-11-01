@@ -135,3 +135,27 @@ fn suspended_if_predicate_preserves_expression_diagnostics_on_two_mib_stack() {
         }
     }
 }
+
+#[test]
+fn suspended_while_predicate_preserves_region_order_on_two_mib_stack() {
+    // The while condition must yield its result before the loop body is
+    // allocated; rejected predicates must not continue to body lowering.
+    for (body, admitted) in [
+        ("let n=a;while(n<b){n+=1;}return n;", true),
+        ("let n=a;while((n+=b)<10){n-=1;}return n;", true),
+        ("while(a ** b) a+=b;return a;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
+                .expect("2 MiB loop predicate request thread")
+                .join()
+                .expect("loop condition must not exhaust native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
