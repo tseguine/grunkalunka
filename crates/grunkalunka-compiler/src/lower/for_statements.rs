@@ -311,6 +311,32 @@ mod tests {
     }
 
     #[test]
+    fn per_iteration_cells_are_generated_only_for_captured_let_headers() {
+        for (body, expected) in [
+            ("let n=0;for(let i=0;i<3;i++)n+=i;return n;", 0),
+            (
+                "let first=()=>a,last=()=>b;for(let i=0;i<3;i++){const make=()=>i;if(i===0)first=make;last=make;}return first()*10+last();",
+                2,
+            ),
+            (
+                "let first=()=>a,last=()=>b;for(let i=0;i<3;){const make=()=>i;if(i===0)first=make;last=make;i++;}return first()*10+last();",
+                2,
+            ),
+        ] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let module = crate::lower_source(&source, false)
+                .unwrap_or_else(|error| panic!("{source}: {error}"));
+            let mut renewals = 0;
+            crate::ir::visit_operations(&module.functions[0].body, &mut |op| {
+                if matches!(op, Op::RebindCell { .. }) {
+                    renewals += 1;
+                }
+            });
+            assert_eq!(renewals, expected, "{source}");
+        }
+    }
+
+    #[test]
     fn for_header_declarations_and_updates_retain_scope_and_effect_order() {
         for body in [
             "let n=0;for(let i=0;i<3;i++)n+=b;return n;",
