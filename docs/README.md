@@ -3,8 +3,9 @@
 Start at the [project README](../README.md) for a supported build/check command,
 workspace map and high-level scope. This page routes readers to the maintained
 contracts; it is not a second feature inventory. For the current execution
-priorities see [milestones](milestones.md), and for longer-term questions see the
-[research roadmap](roadmap.md).
+priorities see [milestones](milestones.md), the [JavaScript engine steering
+review](javascript-engine-steering.md) for cross-stream convergence gates, and
+the [research roadmap](roadmap.md) for longer-term questions.
 
 ## Compiler and runtime
 
@@ -12,7 +13,7 @@ priorities see [milestones](milestones.md), and for longer-term questions see th
   JS/TS profiles, diagnostics, verifier and backend.
 - [Managed values and source data objects](managed-values.md) and
   [WasmGC decision](adr/0019-wasmgc-runtime.md): synchronous object subset,
-  traced-reference helpers, prototype/capture/async exclusions.
+  traced references, typed synchronous captures and remaining dynamic/prototype/async exclusions.
 - [Async and promises](async.md), [runtime closures](runtime-closures.md), and
   [bounded String/JSON source experiments](heap-literals.md): distinct
   implementations with distinct admission boundaries.

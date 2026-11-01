@@ -235,6 +235,17 @@ product-level usability and packaging. A1 stays **Planned**.
 
 ## Candidate next A1 acceptance and compiler priorities (steering, 2026-10-30)
 
+**2026-11-01 steering check:** [#280](https://github.com/tseguine/grunkalunka/pull/280)
+satisfies the *first compiler prerequisite*, not the integrated application gate.
+The source WIT service has not yet been invoked by the actual A1 input-driven
+state/reflow/repaint path. The next demonstration also needs readable heading
+glyphs and an equivalent native Rust use of the agreed action/view contract.
+Track the integration in [#52](https://github.com/tseguine/grunkalunka/issues/52);
+the proposed pilot [#54](https://github.com/tseguine/grunkalunka/issues/54)
+remains unassigned pending a maintainer decision. See
+[engine convergence steering](javascript-engine-steering.md).
+Do not require the general WasmGC JS model or a full DOM as an A1 prerequisite.
+
 This section originated as **proposed next-slice steering** on 2026-10-30.
 The first source-to-WIT compiler prerequisite has since been implemented in a
 separate [opt-in experiment](a1-ui-source-import.md) by
