@@ -6,7 +6,7 @@
 //! child through this one loop. For statements, blocks and try/finally are still
 //! separate continuation families and can join this cursor incrementally.
 use super::*;
-use oxc_ast::ast::{DoWhileStatement, ForStatement, IfStatement, WhileStatement};
+use oxc_ast::ast::{BlockStatement, DoWhileStatement, ForStatement, IfStatement, WhileStatement};
 
 #[derive(Clone, Copy)]
 pub(super) enum ControlNode<'n, 'a> {
@@ -14,6 +14,7 @@ pub(super) enum ControlNode<'n, 'a> {
     While(&'n WhileStatement<'a>),
     DoWhile(&'n DoWhileStatement<'a>),
     For(&'n ForStatement<'a>),
+    Block(&'n BlockStatement<'a>),
 }
 
 impl<'n, 'a> ControlNode<'n, 'a> {
@@ -23,6 +24,7 @@ impl<'n, 'a> ControlNode<'n, 'a> {
             Statement::WhileStatement(statement) => Some(Self::While(statement)),
             Statement::DoWhileStatement(statement) => Some(Self::DoWhile(statement)),
             Statement::ForStatement(statement) => Some(Self::For(statement)),
+            Statement::BlockStatement(statement) => Some(Self::Block(statement)),
             _ => None,
         }
     }
@@ -64,6 +66,14 @@ enum Frame<'n, 'a> {
         let_slots: Vec<SlotId>,
         old_loop: bool,
     },
+    Block {
+        source: &'n BlockStatement<'a>,
+        output: Region,
+        depth: usize,
+        visible: usize,
+        index: usize,
+        completion: Completion,
+    },
 }
 
 impl Frame<'_, '_> {
@@ -72,7 +82,8 @@ impl Frame<'_, '_> {
             Self::If { depth, .. }
             | Self::While { depth, .. }
             | Self::DoWhile { depth, .. }
-            | Self::For { depth, .. } => *depth,
+            | Self::For { depth, .. }
+            | Self::Block { depth, .. } => *depth,
         }
     }
 }
@@ -126,10 +137,37 @@ impl Lowering<'_, '_> {
                                     ControlNode::For(node) => {
                                         self.admit_source_statement(node, depth)?;
                                     }
+                                    ControlNode::Block(node) => {
+                                        self.admit_source_statement(node, depth)?;
+                                    }
                                 }
                             }
 
                             match source {
+                                ControlNode::Block(source) => {
+                                    // The block's new Region is lexical, not
+                                    // an additional source statement charge.
+                                    let child = self.region(source);
+                                    let visible = self.bindings.len();
+                                    if let Some(statement) = source.body.first() {
+                                        pending.push(Frame::Block {
+                                            source,
+                                            output,
+                                            depth,
+                                            visible,
+                                            index: 0,
+                                            completion: Completion::NORMAL,
+                                        });
+                                        next = Some(Next::Statement {
+                                            source: statement,
+                                            output: child,
+                                            depth: depth + 1,
+                                        });
+                                    } else {
+                                        Self::push(&mut output, source, Op::Block(child));
+                                        completed = Some((output, Completion::NORMAL));
+                                    }
+                                }
                                 ControlNode::If(source) => {
                                     // If conditions execute before either branch.
                                     let condition = self.predicate(&source.test, &mut output, 0)?;
@@ -307,6 +345,49 @@ impl Lowering<'_, '_> {
 
                 self.statement_depth = frame.depth();
                 match frame {
+                    Frame::Block {
+                        source,
+                        mut output,
+                        depth,
+                        visible,
+                        index,
+                        completion: prefix,
+                    } => {
+                        // A sequence keeps its local declarations visible to
+                        // each sibling. Its completion channels combine in
+                        // order and only normal paths reach the next sibling.
+                        let completion = prefix.then(completion);
+                        let next_index = index + 1;
+                        if let Some(statement) = source.body.get(next_index) {
+                            if !completion.normal && !is_type_declaration(statement) {
+                                return Err(unsupported(
+                                    statement,
+                                    if completion == Completion::RETURN {
+                                        "statements after a guaranteed return are not admitted"
+                                    } else {
+                                        "statements after a guaranteed abrupt completion are not admitted"
+                                    },
+                                ));
+                            }
+                            pending.push(Frame::Block {
+                                source,
+                                output,
+                                depth,
+                                visible,
+                                index: next_index,
+                                completion,
+                            });
+                            next = Some(Next::Statement {
+                                source: statement,
+                                output: finished_region,
+                                depth: depth + 1,
+                            });
+                        } else {
+                            self.bindings.truncate(visible);
+                            Self::push(&mut output, source, Op::Block(finished_region));
+                            completed = Some((output, completion));
+                        }
+                    }
                     Frame::If {
                         source,
                         mut output,
