@@ -38,6 +38,7 @@ mod pending;
 mod promises;
 #[cfg(test)]
 mod source_block_tests;
+mod source_control;
 mod storage;
 pub(super) mod stored_functions;
 pub(super) use callbacks::infer_callback_parameters;
@@ -605,16 +606,7 @@ impl Lowering<'_, '_> {
                 // The old statement wrapper checks this before charging the
                 // block, creates a fresh lexical Region, and passes depth+1
                 // to the child sequence. Preserve that order and every limit.
-                if self.active_block_calls != 0 && self.inline_depth + frame.depth > 128 {
-                    return Err(unsupported(
-                        statement,
-                        "block-arrow expansion exceeds 128 nested regions",
-                    ));
-                }
-                if frame.depth > 64 {
-                    return Err(unsupported(statement, "statement nesting exceeds 64"));
-                }
-                self.charge_statement(statement)?;
+                self.admit_source_statement(statement, frame.depth)?;
                 let child = self.region(block.as_ref());
                 let visible = self.bindings.len();
                 let child_depth = frame.depth + 1;
@@ -1064,16 +1056,7 @@ impl Lowering<'_, '_> {
                     break;
                 }
                 self.statement_depth = current_depth;
-                if self.active_block_calls != 0 && self.inline_depth + current_depth > 128 {
-                    return Err(unsupported(
-                        current,
-                        "block-arrow expansion exceeds 128 nested regions",
-                    ));
-                }
-                if current_depth > 64 {
-                    return Err(unsupported(current, "statement nesting exceeds 64"));
-                }
-                self.charge_statement(current)?;
+                self.admit_source_statement(current, current_depth)?;
                 let visible = self.bindings.len();
                 blocks.push((current, self.region(block.as_ref()), visible));
                 current = &block.body[0];
@@ -1105,16 +1088,7 @@ impl Lowering<'_, '_> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
-        if self.active_block_calls != 0 && self.inline_depth + depth > 128 {
-            return Err(unsupported(
-                statement,
-                "block-arrow expansion exceeds 128 nested regions",
-            ));
-        }
-        if depth > 64 {
-            return Err(unsupported(statement, "statement nesting exceeds 64"));
-        }
-        self.charge_statement(statement)?;
+        self.admit_source_statement(statement, depth)?;
         if is_type_declaration(statement) {
             return Ok(Completion::NORMAL);
         }
