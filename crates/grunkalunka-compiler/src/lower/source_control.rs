@@ -36,7 +36,7 @@ pub(super) enum StatementTask<'n, 'a, N> {
 /// lexical boundaries, while a root sequence may publish declarations.
 #[derive(Clone, Copy)]
 pub(super) struct SourceContext {
-    statement_depth: usize,
+    pub(super) statement_depth: usize,
     in_loop_body: bool,
     return_type: Type,
 }
