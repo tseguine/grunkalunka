@@ -1561,6 +1561,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         } else {
             output.push_str(include_str!("managed.wat"));
         }
+        output.push_str(super::managed_spread::runtime(module));
     }
     if gc_frames {
         output.push_str(managed_frames::RUNTIME);

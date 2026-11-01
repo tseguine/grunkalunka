@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn object_spread_composes_suspended_values_and_preserves_source_order() {
+    compare_promises(
+        &[
+            "const source={x:a};let n=0;const copy={before:(n++,a),...(await b,n++,source),after:(n++,source.x=b)};await a;return n===3&&copy.x===a&&copy.after===b?1:0;",
+            "const source={x:a};const f=async()=>{await b;return 1;};const p=f();const copy={...source,...(await p,source)};await b;return copy.x===a?1:0;",
+            "const f=async()=>{await a;return b;};let p=f();const g=async()=>{await a;return p;};p=g();try{await p;}catch(e){const copy={...e,x:a};await b;return copy.x===a&&copy.message===undefined?1:0;}return 0;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn large_managed_literals_keep_construction_scratch_separate_from_async_roots() {
     use wasmtime::{Collector, Config, Engine, Instance, Module, Store};
 

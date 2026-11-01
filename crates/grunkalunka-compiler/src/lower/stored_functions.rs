@@ -129,6 +129,13 @@ impl Fields {
                 AstKind::ObjectExpression(object) => {
                     let mut own = BTreeMap::new();
                     for property in &object.properties {
+                        if matches!(property, ObjectPropertyKind::SpreadProperty(_)) {
+                            // A runtime spread may overwrite any earlier field.
+                            // A later explicit property can establish it again.
+                            for value in own.values_mut() {
+                                *value = None;
+                            }
+                        }
                         if let ObjectPropertyKind::ObjectProperty(property) = property {
                             let name = match &property.key {
                                 PropertyKey::StaticIdentifier(k) if !property.computed => {

@@ -43,7 +43,7 @@ pub(super) enum ManagedWork<'e, 'a> {
         index: usize,
         object: ValueId,
         depth: usize,
-        key: Vec<u16>,
+        key: Option<Vec<u16>>,
     },
     Read {
         node: &'e Expression<'a>,
@@ -978,11 +978,20 @@ impl Lowering<'_, '_> {
                     values.push(Value::Object(object));
                     return Ok(());
                 };
-                let ObjectPropertyKind::ObjectProperty(property) = property else {
-                    return Err(unsupported(
-                        node,
-                        "managed object spread is not yet admitted",
-                    ));
+                let property = match property {
+                    ObjectPropertyKind::ObjectProperty(property) => property,
+                    ObjectPropertyKind::SpreadProperty(spread) => {
+                        work.push(Work::Managed(ManagedWork::LiteralValue {
+                            node,
+                            literal,
+                            index,
+                            object,
+                            depth,
+                            key: None,
+                        }));
+                        work.push(Work::Eval(&spread.argument, depth + 1, Mode::Managed));
+                        return Ok(());
+                    }
                 };
                 if property.kind != PropertyKind::Init || property.method {
                     return Err(unsupported(
@@ -1009,7 +1018,7 @@ impl Lowering<'_, '_> {
                     index,
                     object,
                     depth,
-                    key,
+                    key: Some(key),
                 }));
                 work.push(Work::Eval(&property.value, depth + 1, Mode::Managed));
             }
@@ -1025,7 +1034,13 @@ impl Lowering<'_, '_> {
                 Self::push(
                     regions.current(),
                     node,
-                    Op::ManagedSetOwn { object, key, value },
+                    match key {
+                        Some(key) => Op::ManagedSetOwn { object, key, value },
+                        None => Op::ManagedObjectSpread {
+                            object,
+                            input: value,
+                        },
+                    },
                 );
                 work.push(Work::Managed(ManagedWork::Literal {
                     node,

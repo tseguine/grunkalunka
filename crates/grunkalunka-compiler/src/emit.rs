@@ -9,6 +9,7 @@ mod gc_closures;
 #[cfg(test)]
 mod iterative_emitter_tests;
 mod layout;
+mod managed_spread;
 mod materialization;
 mod relational;
 #[cfg(test)]
@@ -251,6 +252,11 @@ impl Emitter<'_> {
                 self.managed_key(key);
                 self.get(*value);
                 self.output.push_str("call $gc_set\n");
+            }
+            Op::ManagedObjectSpread { object, input } => {
+                self.get(*object);
+                self.get(*input);
+                self.output.push_str("call $gc_object_spread\n");
             }
             Op::ManagedString { result, units } => {
                 self.output.push_str("i32.const 5\nf64.const 0\n");
@@ -1127,6 +1133,7 @@ fn emit_verified(
     }
     if managed {
         output.push_str(include_str!("emit/managed.wat"));
+        output.push_str(managed_spread::runtime(module));
     }
     output.push_str(")\n");
     Ok(output)

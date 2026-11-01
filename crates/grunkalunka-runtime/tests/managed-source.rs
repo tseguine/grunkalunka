@@ -14,6 +14,98 @@ fn source_object_aliases_preserve_identity() {
 }
 
 #[test]
+fn source_object_spreads_copy_values_without_cloning_references() {
+    compare(
+        "const child={x:a};const source={child,x:a};const copy={...source};source.x=b;return copy!==source&&copy.child===child&&copy.x===a?a:b;",
+    );
+    compare("const o={...{x:a}};return a;");
+}
+
+#[test]
+fn source_object_spreads_copy_string_utf16_index_properties() {
+    compare(
+        "const copy={...'0123456789x'};return copy['0']==='0'&&copy['9']==='9'&&copy['10']==='x'&&copy.length===undefined?a:b;",
+    );
+    compare(
+        r#"const copy={...'😀'};return copy['0']==='\ud83d'&&copy['1']==='\ude00'&&copy['2']===undefined?a:b;"#,
+    );
+}
+
+#[test]
+fn source_object_spreads_preserve_order_overwrites_and_shallow_snapshots() {
+    for body in [
+        "let n=0;const source={x:a};const copy={x:(n++,b),...(n++,source),y:(n++,source.x=b),...(n++,{x:a})};return n===4&&copy.x===a&&copy.y===b&&source.x===b?a:b;",
+        "const source={x:a};const copy={...source,...(source.x=b,source)};return copy.x===b?a:b;",
+        "const child={};const source={child};const copy={...source};source.child={};return copy.child===child&&source.child!==child?a:b;",
+        "const f=()=>a;const copy={...{f}};return copy.f===f?a:b;",
+        "const source=a?{x:a}:{x:b};const make=x=>({...x});const copy=make(source);return copy!==source&&copy.x===source.x?a:b;",
+        "const o={...{f:a},f:()=>b};return o.f();",
+        "const source={f:b};const copy={f:()=>a,...source};return typeof copy.f==='number'?a:b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn source_object_spreads_observe_array_enumerability_and_ignore_other_primitives() {
+    for body in [
+        "const xs=[a,,b];xs.named=a;const copy={...xs};return copy['0']===a&&copy['1']===undefined&&copy['2']===b&&copy.named===a&&copy.length===undefined?a:b;",
+        "const xs=[a,b];xs.length=1;const copy={...xs};return copy['0']===a&&copy['1']===undefined?a:b;",
+        "const copy={...null,...undefined,...false,...true,...a,...'',x:b};return copy.x===b&&copy.absent===undefined?a:b;",
+        "const f=()=>a;const copy={...f,x:b};return copy.x===b&&copy.length===undefined?a:b;",
+        "const source=a?'ab':null;const copy={...source};return a?(copy['1']==='b'?a:b):(copy['0']===undefined?a:b);",
+        "let n=0;const copy={...(n++,null),...(n++,a)};return n===2&&copy.absent===undefined?a:b;",
+    ] {
+        compare(body);
+    }
+    let source = "function f(x){return x;}export function run(a,b){const copy={...f,x:a};return copy.x===a&&copy.name===undefined?a:b;}";
+    common::compare_sources(source, source);
+}
+
+#[test]
+fn source_object_spreads_preserve_annotations_limits_and_callable_field_guards() {
+    compare_typed(
+        "const source={x:a};const copy={...source};return copy.x===a?a:b;",
+        "const source:number={x:a};const copy:never={...(source as Missing)};return copy.x===a?a:b;",
+    );
+    for body in [
+        "const source={f:b};const copy={f:()=>a,...source};return copy.f();",
+        "const copy={f:()=>a,...(a?{}:{f:b})};return copy.f();",
+        "const copy={...{get x(){return a;}}};return a;",
+        "const copy={...Promise.resolve(a)};return a;",
+        "const copy={...1n};return a;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let error = compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    for (depth, admitted) in [(16, true), (140, false)] {
+        let source = format!(
+            "export function run(a,b){{const source={{x:a}};const copy={{...{}source{}}};return copy.x===a?a:b;}}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        for ts in [false, true] {
+            let source = source.clone();
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || compile(&source, ts))
+                .unwrap()
+                .join()
+                .unwrap();
+            assert_eq!(result.is_ok(), admitted, "{:?}", result.as_ref().err());
+            if let Err(error) = result {
+                assert!(error.contains("limit"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
 fn source_properties_preserve_values_and_saved_reads() {
     compare("const o={x:a};const old=o.x;o.x=b;return old===a&&o.x===b?a:b;");
 }
@@ -116,7 +208,6 @@ fn source_managed_boundaries_explicitly_reject_unimplemented_semantics() {
         "const o={};return o[a]?a:b;",
         "const o={get x(){return a;}};return o.x?a:b;",
         "const o={x(){return a;}};return a;",
-        "const o={...{x:a}};return a;",
         "const o={1:a};return a;",
         "const o={x:Promise.resolve(a)};return o.x===a?a:b;",
         "const p=Promise.resolve(a);const o={x:p};return o.x===a?a:b;",
