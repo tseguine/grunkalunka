@@ -40,6 +40,17 @@ historical sections below describe the numeric and primitive subsets. The
 managed-value contract and [ADR 0019](adr/0019-wasmgc-runtime.md) define the
 newer source boundaries, exports and GC lifetime exclusions.
 
+## Checked managed container projection
+
+`ManagedToObject { result, input }` and `ManagedToArray { result, input }`
+recover the original typed receiver from a visible `ManagedValue`. Their result
+must have the exact ordinary-object/array IR type. The emitter checks the language
+object kind and casts the payload to the corresponding nonnull nominal GC carrier.
+Arrays and ordinary objects share the language kind, so that check alone is
+insufficient. Neither operation copies storage or allocates another container.
+These are internal checked projections, not JS TypeError completions. Source
+receiver admission and reference-aware coroutine frames remain separate work.
+
 ## Checked managed function projection
 
 `ManagedToClosure { result, input }` reads a visible `ManagedValue` and defines a

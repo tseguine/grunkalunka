@@ -21,6 +21,8 @@ mod gc_function_tests;
 #[cfg(test)]
 mod managed_array_tests;
 #[cfg(test)]
+mod managed_reference_projection_tests;
+#[cfg(test)]
 mod managed_value_tests;
 #[cfg(test)]
 mod module_function_tests;
@@ -479,6 +481,17 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Backend receiver bridge; source consumer follows separately"
+        )
+    )]
+    ManagedToArray {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedString {
         result: ValueId,
         units: Vec<u16>,
@@ -487,6 +500,17 @@ pub(crate) enum Op {
         result: ValueId,
     },
     ManagedFromObject {
+        result: ValueId,
+        input: ValueId,
+    },
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Backend receiver bridge; source consumer follows separately"
+        )
+    )]
+    ManagedToObject {
         result: ValueId,
         input: ValueId,
     },
@@ -1201,6 +1225,14 @@ impl Verifier<'_> {
             Op::ManagedFromObject { result, input } => {
                 self.value(*input, Type::ManagedObject, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedToObject { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedObject, visible, span)?;
+            }
+            Op::ManagedToArray { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedArray, visible, span)?;
             }
             Op::ManagedToClosure { result, input } => {
                 let Some(Type::Closure(signature)) = self.function.values.get(result.0).copied()
