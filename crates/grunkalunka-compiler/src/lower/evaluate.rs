@@ -297,6 +297,25 @@ fn schedule_selection<'e, 'a>(
 }
 
 impl Lowering<'_, '_> {
+    /// Preserve aggregate generated-region depth when a function or callback
+    /// leaf crosses into its own lowering cursor. This crossing still needs
+    /// eventual defunctionalization; the scope only centralizes its context.
+    #[inline(always)]
+    fn with_function_result_context<T>(
+        &mut self,
+        region_depth: Option<usize>,
+        lower: impl FnOnce(&mut Self) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let outer = self.function_result_depth;
+        if let Some(region_depth) = region_depth {
+            self.function_result_depth =
+                (self.inline_depth + self.statement_depth).max(outer) + region_depth;
+        }
+        let result = lower(self);
+        self.function_result_depth = outer;
+        result
+    }
+
     fn schedule_discarded_logical<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
@@ -1537,14 +1556,17 @@ impl Lowering<'_, '_> {
                         );
                         let function = self.function_arity(argument, depth);
                         if let Some(arity) = function {
-                            let outer = self.function_result_depth;
-                            self.function_result_depth = (self.inline_depth + self.statement_depth)
-                                .max(outer)
-                                + regions.children.len();
-                            let value =
-                                self.callback_argument(argument, regions.current(), arity, depth);
-                            self.function_result_depth = outer;
-                            arguments.push(value?);
+                            let region_depth = regions.children.len();
+                            let value = self.with_function_result_context(
+                                Some(region_depth),
+                                |lower| lower.callback_argument(
+                                    argument,
+                                    regions.current(),
+                                    arity,
+                                    depth,
+                                ),
+                            )?;
+                            arguments.push(value);
                         }
                         work.push(Work::LocalCall {
                             node,
@@ -1690,18 +1712,17 @@ impl Lowering<'_, '_> {
                             .parameter(signature, actual_index)
                             .expect("checked signature");
                         let callback = if let Type::Closure(signature) = parameter {
-                            let outer = self.function_result_depth;
-                            self.function_result_depth = (self.inline_depth + self.statement_depth)
-                                .max(outer)
-                                + regions.children.len();
-                            let value = self.callback_argument(
-                                argument,
-                                regions.current(),
-                                signature,
-                                depth,
-                            );
-                            self.function_result_depth = outer;
-                            arguments.push(value?);
+                            let region_depth = regions.children.len();
+                            let value = self.with_function_result_context(
+                                Some(region_depth),
+                                |lower| lower.callback_argument(
+                                    argument,
+                                    regions.current(),
+                                    signature,
+                                    depth,
+                                ),
+                            )?;
+                            arguments.push(value);
                             true
                         } else {
                             false
@@ -2514,13 +2535,10 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if let Some(arity) = self.function_arity(node, depth) {
-                        let outer = self.function_result_depth;
-                        self.function_result_depth = (self.inline_depth + self.statement_depth)
-                            .max(outer)
-                            + regions.children.len();
-                        let result = self.function_value(node, regions.current(), arity, depth);
-                        self.function_result_depth = outer;
-                        result?;
+                        let region_depth = regions.children.len();
+                        self.with_function_result_context(Some(region_depth), |lower| {
+                            lower.function_value(node, regions.current(), arity, depth)
+                        })?;
                         continue;
                     }
                     // Routing owns classification before the selected mode's guard.
@@ -3082,16 +3100,17 @@ impl Lowering<'_, '_> {
                             work.push(Work::Eval(&assignment.right, depth + 1, mode));
                             continue;
                         }
-                        let outer = self.function_result_depth;
-                        if matches!(node, Expression::CallExpression(_)) {
-                            self.function_result_depth = (self.inline_depth + self.statement_depth)
-                                .max(outer)
-                                + regions.children.len();
-                        }
-                        let result =
-                            self.function_value_leaf(node, regions.current(), signature, depth);
-                        self.function_result_depth = outer;
-                        values.push(Value::Function(result?));
+                        let region_depth = matches!(node, Expression::CallExpression(_))
+                            .then_some(regions.children.len());
+                        let result = self.with_function_result_context(region_depth, |lower| {
+                            lower.function_value_leaf(
+                                node,
+                                regions.current(),
+                                signature,
+                                depth,
+                            )
+                        })?;
+                        values.push(Value::Function(result));
                         continue;
                     }
                     if matches!(mode, Mode::Predicate)
@@ -3100,13 +3119,10 @@ impl Lowering<'_, '_> {
                         // Evaluating a function can have constructor/argument/
                         // assignment effects. Its ToBoolean result is always true;
                         // evaluating its body is neither needed nor permitted here.
-                        let outer = self.function_result_depth;
-                        self.function_result_depth = (self.inline_depth + self.statement_depth)
-                            .max(outer)
-                            + regions.children.len();
-                        let value = self.function_value(node, regions.current(), signature, depth);
-                        self.function_result_depth = outer;
-                        value?;
+                        let region_depth = regions.children.len();
+                        self.with_function_result_context(Some(region_depth), |lower| {
+                            lower.function_value(node, regions.current(), signature, depth)
+                        })?;
                         let result = self.value(Type::Predicate);
                         Self::push(
                             regions.current(),
@@ -4100,17 +4116,14 @@ impl Lowering<'_, '_> {
             );
             value
         } else {
-            let outer = self.function_result_depth;
-            self.function_result_depth =
-                (self.inline_depth + self.statement_depth).max(outer) + region_depth;
-            let value = self.function_value(
-                invocation::callee(call),
-                region,
-                signature,
-                invocation::depth(call, depth),
-            );
-            self.function_result_depth = outer;
-            value?
+            self.with_function_result_context(Some(region_depth), |lower| {
+                lower.function_value(
+                    invocation::callee(call),
+                    region,
+                    signature,
+                    invocation::depth(call, depth),
+                )
+            })?
         };
         Ok(callee)
     }
