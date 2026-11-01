@@ -75,7 +75,7 @@ impl Lowering<'_, '_> {
                     match task {
                         Next::Loop {
                             source,
-                            mut output,
+                            output,
                             depth,
                             charged,
                         } => {
