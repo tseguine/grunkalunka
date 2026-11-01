@@ -55,6 +55,24 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
     before != entry.len()
 }
 impl Fields {
+    pub(super) fn container(&self, node: NodeId) -> Option<Type> {
+        let values = self.values.get(&node)?;
+        let ty = match values.first()? {
+            Origin::Object(_) => Type::ManagedObject,
+            Origin::Array(_) => Type::ManagedArray,
+            _ => return None,
+        };
+        values
+            .iter()
+            .all(|origin| {
+                matches!(
+                    (ty, origin),
+                    (Type::ManagedObject, Origin::Object(_))
+                        | (Type::ManagedArray, Origin::Array(_))
+                )
+            })
+            .then_some(ty)
+    }
     pub(super) fn functions(&self, node: NodeId) -> Option<&Alternatives> {
         let values = self.values.get(&node)?;
         (!values.is_empty()
@@ -257,6 +275,30 @@ impl Fields {
                         .filter_map(|argument| argument.as_expression().map(GetNodeId::node_id))
                         .collect(),
                 )),
+                AstKind::AssignmentExpression(a)
+                    if matches!(
+                        a.operator,
+                        AssignmentOperator::LogicalAnd
+                            | AssignmentOperator::LogicalOr
+                            | AssignmentOperator::LogicalNullish
+                    ) =>
+                {
+                    // A function binding may select another factory while its
+                    // generic result ABI stays unchanged. Retain every target;
+                    // provenance never selects the branch executed at runtime.
+                    if let Some(name) = a
+                        .left
+                        .as_simple_assignment_target()
+                        .and_then(|target| target_identifier(target, 0).ok().flatten())
+                        && let Some(target) = symbol(name, semantic)
+                    {
+                        definitions.push((target, a.right.node_id()));
+                        Some(Rule::Symbol(target))
+                    } else {
+                        values.insert(id, BTreeSet::from([Origin::Other]));
+                        None
+                    }
+                }
                 AstKind::AssignmentExpression(a) if a.operator == AssignmentOperator::Assign => {
                     match a.left.as_simple_assignment_target() {
                         Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(name)) => {

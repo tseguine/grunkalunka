@@ -131,6 +131,16 @@ impl<'s, 'n, 'a> ReturnOrigins<'s, 'n, 'a> {
                             }
                         }
                         Expression::AssignmentExpression(assignment)
+                            if matches!(
+                                assignment.operator,
+                                AssignmentOperator::LogicalAnd
+                                    | AssignmentOperator::LogicalOr
+                                    | AssignmentOperator::LogicalNullish
+                            ) =>
+                        {
+                            results.push(self.stored.origins(node.node_id()));
+                        }
+                        Expression::AssignmentExpression(assignment)
                             if assignment.operator == AssignmentOperator::Assign =>
                         {
                             work.push(Work::Expression {

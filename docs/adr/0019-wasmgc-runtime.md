@@ -538,8 +538,13 @@ to accept arbitrary boxed values would conflate receiver admission with storage.
 
 The leaf projections retain the existing typed operations, specialized primitive
 paths, GC layouts and synchronous call frames. Wrong-kind internal traps do not
-supply JS TypeError completions. Source receiver admission and reference-aware
-coroutine frames remain independent follow-ups. Maintained emitted-IR/native-JS/
+supply JS TypeError completions. Source receiver admission uses an independent
+all-alternatives proof while retaining boxed property, slot and helper lanes.
+Only receiver use projects the actual reference; already typed references keep
+their existing path. This avoids rewriting helper signatures or letting a shape
+proof stand in for the value read at runtime. Unknown or mixed container kinds
+remain rejected. General dynamic receiver errors and reference-aware coroutine
+frames remain follow-ups. Maintained emitted-IR/native-JS/
 Node tests and exact-artifact Wasmtime replay cover nested storage, snapshots,
 mutation, generated call/capture composition, wrong kinds and malformed payloads;
 existing modules without the new operations retain their previous artifacts.

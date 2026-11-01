@@ -53,6 +53,10 @@ pub(super) enum ManagedWork<'e, 'a> {
         node: &'e Expression<'a>,
         signature: usize,
     },
+    ReferenceProjection {
+        node: &'e Expression<'a>,
+        ty: Type,
+    },
     SetReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -252,6 +256,12 @@ fn assignment_member<'e, 'a>(
 }
 
 impl Lowering<'_, '_> {
+    fn receiver_type(&self, node: &Expression<'_>, depth: usize) -> Option<Type> {
+        match self.managed_source_type(node, depth) {
+            Some(Type::ManagedValue) => self.stored.container(node.node_id()),
+            ty => ty,
+        }
+    }
     pub(super) fn schedule_function_member<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
@@ -274,7 +284,7 @@ impl Lowering<'_, '_> {
         let Some((object, key)) = member(node, self.member_array(node, depth), depth)? else {
             return Ok(false);
         };
-        let receiver = self.managed_source_type(object, depth + 1);
+        let receiver = self.receiver_type(object, depth + 1);
         if !matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray)) {
             return Err(unsupported(
                 node,
@@ -317,8 +327,7 @@ impl Lowering<'_, '_> {
             }
             _ => return None,
         };
-        (self.managed_source_type(receiver, depth + 1) == Some(Type::ManagedArray))
-            .then_some(receiver)
+        (self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)).then_some(receiver)
     }
 
     fn member_array(&self, node: &Expression<'_>, depth: usize) -> bool {
@@ -332,9 +341,8 @@ impl Lowering<'_, '_> {
             },
             _ => None,
         };
-        object.is_some_and(|object| {
-            self.managed_source_type(object, depth + 1) == Some(Type::ManagedArray)
-        })
+        object
+            .is_some_and(|object| self.receiver_type(object, depth + 1) == Some(Type::ManagedArray))
     }
     pub(in crate::lower) fn managed_source_type(
         &self,
@@ -343,7 +351,7 @@ impl Lowering<'_, '_> {
     ) -> Option<Type> {
         enum Shape<'e, 'a> {
             Expr(&'e Expression<'a>, usize),
-            Member(bool),
+            Member(&'e Expression<'a>, bool),
             Join,
         }
         let mut work = vec![Shape::Expr(node, depth)];
@@ -424,11 +432,11 @@ impl Lowering<'_, '_> {
                                 }),
                         ),
                         Expression::StaticMemberExpression(m) if !m.optional => {
-                            work.push(Shape::Member(m.property.name == "length"));
+                            work.push(Shape::Member(&m.object, m.property.name == "length"));
                             work.push(Shape::Expr(&m.object, depth + 1));
                         }
                         Expression::ComputedMemberExpression(m) if !m.optional => {
-                            work.push(Shape::Member(closures::unwrapped_at(&m.expression,depth+1).is_some_and(|(key,_)|matches!(key,Expression::StringLiteral(s) if s.value=="length"))));
+                            work.push(Shape::Member(&m.object,closures::unwrapped_at(&m.expression,depth+1).is_some_and(|(key,_)|matches!(key,Expression::StringLiteral(s) if s.value=="length"))));
                             work.push(Shape::Expr(&m.object, depth + 1));
                         }
                         Expression::SequenceExpression(s) => {
@@ -451,11 +459,14 @@ impl Lowering<'_, '_> {
                         Expression::AssignmentExpression(a) => {
                             match a.left.as_simple_assignment_target() {
                                 Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => {
-                                    work.push(Shape::Member(m.property.name == "length"));
+                                    work.push(Shape::Member(
+                                        &m.object,
+                                        m.property.name == "length",
+                                    ));
                                     work.push(Shape::Expr(&m.object, depth + 1));
                                 }
                                 Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => {
-                                    work.push(Shape::Member(closures::unwrapped_at(&m.expression,depth+1).is_some_and(|(key,_)|matches!(key,Expression::StringLiteral(s) if s.value=="length"))));
+                                    work.push(Shape::Member(&m.object,closures::unwrapped_at(&m.expression,depth+1).is_some_and(|(key,_)|matches!(key,Expression::StringLiteral(s) if s.value=="length"))));
                                     work.push(Shape::Expr(&m.object, depth + 1));
                                 }
                                 Some(SimpleAssignmentTarget::AssignmentTargetIdentifier(i)) => {
@@ -472,8 +483,11 @@ impl Lowering<'_, '_> {
                         _ => values.push(None),
                     }
                 }
-                Shape::Member(length) => {
-                    let receiver = values.pop().expect("member shape");
+                Shape::Member(source, length) => {
+                    let receiver = match values.pop().expect("member shape") {
+                        Some(Type::ManagedValue) => self.stored.container(source.node_id()),
+                        ty => ty,
+                    };
                     values.push(
                         (receiver == Some(Type::ManagedObject)
                             || (receiver == Some(Type::ManagedArray) && !length))
@@ -507,6 +521,17 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
+        if let Some(ty) = match mode {
+            Mode::Object => Some(Type::ManagedObject),
+            Mode::Array => Some(Type::ManagedArray),
+            _ => None,
+        } && self.managed_source_type(node, depth) == Some(Type::ManagedValue)
+            && self.stored.container(node.node_id()) == Some(ty)
+        {
+            work.push(Work::Managed(ManagedWork::ReferenceProjection { node, ty }));
+            work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
         if self.member_array(node, depth)
             && let Expression::AssignmentExpression(a) = node
             && let Some((object, key)) = assignment_member(node, true, depth)?
@@ -796,7 +821,7 @@ impl Lowering<'_, '_> {
             if self.managed_source_type(node, depth) == Some(Type::ManagedValue)
                 && let Some((object, key)) = member(node, self.member_array(node, depth), depth)?
             {
-                let receiver = self.managed_source_type(object, depth + 1);
+                let receiver = self.receiver_type(object, depth + 1);
                 if !matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray)) {
                     return Err(unsupported(
                         node,
@@ -827,7 +852,7 @@ impl Lowering<'_, '_> {
                         "managed properties require plain assignment",
                     ));
                 }
-                let array = self.managed_source_type(object, depth + 1) == Some(Type::ManagedArray);
+                let array = self.receiver_type(object, depth + 1) == Some(Type::ManagedArray);
                 if array && key.as_slice() == [108, 101, 110, 103, 116, 104] {
                     return Err(unsupported(
                         node,
@@ -1019,6 +1044,21 @@ impl Lowering<'_, '_> {
                     Op::ManagedToClosure { result, input },
                 );
                 values.push(Value::Function(result));
+            }
+            ManagedWork::ReferenceProjection { node, ty } => {
+                let input = values.pop().expect("boxed receiver").id();
+                let result = self.value(ty);
+                let op = match ty {
+                    Type::ManagedObject => Op::ManagedToObject { result, input },
+                    Type::ManagedArray => Op::ManagedToArray { result, input },
+                    _ => unreachable!("checked receiver projection"),
+                };
+                Self::push(regions.current(), node, op);
+                values.push(if ty == Type::ManagedObject {
+                    Value::Object(result)
+                } else {
+                    Value::Array(result)
+                });
             }
             ManagedWork::Read { node, key } => {
                 let object = values.pop().expect("property receiver").id();
