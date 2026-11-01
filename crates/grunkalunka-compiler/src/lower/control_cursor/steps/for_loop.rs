@@ -12,8 +12,7 @@ impl Lowering<'_, '_> {
         depth: usize,
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
-        // The synthetic header Block and loop Region
-        // are not source statements and are not charged.
+        // Generated header Block and loop Region are not source statements.
         let mut header = self.region(source);
         let outer = self.bindings.len();
         let mut let_slots = Vec::new();
@@ -33,31 +32,67 @@ impl Lowering<'_, '_> {
             }
         }
         let header_bindings = self.bindings.len();
-        let mut condition = self.region(source);
-        let predicate = if let Some(test) = &source.test {
-            condition.span = test.span();
-            self.predicate(test, &mut condition, 0)?
-        } else {
-            let one = self.value(Type::Number);
-            Self::push(
-                &mut condition,
-                source,
-                Op::Constant {
-                    result: one,
-                    value: 1.0,
-                },
-            );
-            let predicate = self.value(Type::Predicate);
-            Self::push(
-                &mut condition,
-                source,
-                Op::Truthy {
-                    result: predicate,
-                    input: one,
-                },
-            );
-            predicate
+        let frame = ForPredicateFrame {
+            source,
+            output,
+            header,
+            depth,
+            outer,
+            header_bindings,
+            let_slots,
         };
+        let mut condition = self.region(source);
+        if let Some(test) = &source.test {
+            condition.span = test.span();
+            cursor.pending.push(Frame::ForPredicate(frame));
+            cursor.next = Some(Next::Expression {
+                source: test,
+                output: condition,
+                depth: 0,
+                mode: evaluate::Mode::Predicate,
+            });
+            return Ok(());
+        }
+
+        // Omitted tests still create the original constant-true predicate,
+        // without scheduling an expression that does not exist in the AST.
+        let one = self.value(Type::Number);
+        Self::push(
+            &mut condition,
+            source,
+            Op::Constant {
+                result: one,
+                value: 1.0,
+            },
+        );
+        let predicate = self.value(Type::Predicate);
+        Self::push(
+            &mut condition,
+            source,
+            Op::Truthy {
+                result: predicate,
+                input: one,
+            },
+        );
+        self.resume_for_predicate(frame, condition, predicate, cursor)
+    }
+
+    pub(super) fn resume_for_predicate<'n, 'a>(
+        &mut self,
+        frame: ForPredicateFrame<'n, 'a>,
+        mut condition: Region,
+        predicate: ValueId,
+        cursor: &mut Cursor<'n, 'a>,
+    ) -> Result<(), String> {
+        let ForPredicateFrame {
+            source,
+            output,
+            header,
+            depth,
+            outer,
+            header_bindings,
+            let_slots,
+        } = frame;
         condition.exit = Exit::Yield(predicate);
         let body = self.region(&source.body);
         let old_loop = self.in_loop_body;
