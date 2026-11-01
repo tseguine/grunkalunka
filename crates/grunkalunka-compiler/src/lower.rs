@@ -310,7 +310,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub closure_signatures: &'s std::cell::RefCell<ir::ClosureSignatures>,
 }
 
-impl<'s, 'a> Lowering<'s, 'a> {
+impl Lowering<'_, '_> {
     fn lifted_limit(&self) -> usize {
         self.functions.len()
             + self
@@ -539,7 +539,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
     // Blocks no longer recursively re-enter sequence for each nested source
     // scope. A frame owns its child Region, statement cursor, lexical binding
     // boundary and completion accumulator on the heap.
-    pub fn sequence<'n>(
+    pub fn sequence<'n, 'a>(
         &mut self,
         statements: &'n [Statement<'a>],
         region: &mut Region,
