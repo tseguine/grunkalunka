@@ -98,8 +98,8 @@ RelationalCompare now accepts the existing private Promise/General carrier as
 well as General. The frontend retains raw kinds and ordered operand snapshots;
 the emitter dispatches represented Promise cases before its unchanged General
 comparison. Builtin Promise strings compare equal to one another and after the
-sole intrinsic TypeError string. Promise/non-string primitive comparisons are
-false through NaN. This is independent of numeric-only Promise conversion.
+represented intrinsic TypeError strings. Promise/non-string primitive comparisons
+are false through NaN. This is independent of numeric-only Promise conversion.
 
 Extending the existing semantic operation avoids a separate opcode, universal
 object conversion mechanism or extra allocation. Unconditionally coercing these

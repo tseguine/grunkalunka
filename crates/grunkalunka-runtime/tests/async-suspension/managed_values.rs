@@ -1,6 +1,46 @@
 use super::*;
 
 #[test]
+fn object_keys_nullable_input_uses_a_catchable_typeerror() {
+    compare_promises(
+        &[
+            "const source=a?{x:b}:null;try{const keys=Object.keys(source);return keys.length;}catch(e){return typeof e==='object'?-1:0;}",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn object_keys_fallible_inputs_preserve_finalizers_and_argument_order() {
+    compare_promises(
+        &[
+            "const source=a?'xy':null;try{const k=Object.keys(source);await b;return k.length;}catch(e){await b;return typeof e==='object'&&e===e?-1:0;}",
+            "const source=a?[a,,b]:true;const k=Object.keys(source);await b;return a?(k.length===2&&k[1]==='2'?1:0):(k.length===0?1:0);",
+            "const f=()=>b;const source={...{f}};const k=Object.keys(source.f);await b;return k.length===0?1:0;",
+            "const source=a?a:null;try{return Object.keys(source).length;}catch(e){return -1;}",
+            "let n=0;try{try{Object.keys();}catch(e){await a;throw e;}finally{await b;n++;}}catch(e){return n===1&&typeof e==='object'?1:0;}return 0;",
+            "try{Object.keys(undefined);}finally{await a;return b;}",
+            "let n=0;try{Object.keys.call((n++,null),null,(n++,await Promise.reject(b)));}catch(e){return n===2&&e===b?1:0;}return 0;",
+            "let n=0;try{Object.keys(null,(n++,await a));}catch(e){return n===1&&typeof e==='object'?1:0;}return 0;",
+            "const o={x:a};const k=Object.keys(o,(await b,o.y=b));await a;return k.length===2&&k[1]==='y'?1:0;",
+            "try{Object.keys(null);}catch(e){const k=Object.keys(e);const o={e};await a;return k.length===0&&o.e===e&&typeof e==='object'&&!!e&&+(e)!==+(e)?1:0;}return 0;",
+            "let saved=null;try{Object.keys(null);}catch(e){saved=e;}try{Object.keys(undefined);}catch(e){await a;return e!==saved&&!(e<saved)&&e<=saved&&!(e>saved)&&e>=saved?1:0;}return 0;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
+fn object_keys_uses_js_error_string_order_across_intrinsic_causes() {
+    compare_promises(
+        &[
+            "const f=async()=>{await a;return b;};let p=f();const g=async()=>{await a;return p;};p=g();try{await p;}catch(cycle){try{Object.keys(null);}catch(toObject){await b;return toObject<cycle&&toObject<=cycle&&!(toObject>cycle)&&!(toObject>=cycle)&&cycle>toObject&&cycle>=toObject&&!(cycle<toObject)&&!(cycle<=toObject)?1:0;}}return 0;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0)],
+    );
+}
+
+#[test]
 fn object_spread_composes_suspended_values_and_preserves_source_order() {
     compare_promises(
         &[

@@ -40,6 +40,28 @@ historical sections below describe the numeric and primitive subsets. The
 managed-value contract and [ADR 0019](adr/0019-wasmgc-runtime.md) define the
 newer source boundaries, exports and GC lifetime exclusions.
 
+## Own keys with normal and throw outcomes
+
+`ManagedOwnKeys { result, input }` accepts a visible Number, function, typed
+object/array or proven nonnull boxed value and defines a fresh managed array.
+A boxed nullish value violates its private precondition and traps; frontend facts
+must establish that precondition rather than relying on TS annotations.
+
+`TryManagedOwnKeys { result, input, failure }` instead accepts any represented
+boxed value. `Failure { threw, reason }` defines Predicate and General outputs.
+Normal completion has `threw = false` and a valid key array; nullish input has
+`threw = true` and a fresh TypeError reason. The array is null on failure and the
+reason is undefined on success; consumers must branch on the flag before using
+those outputs. Lowering immediately branches to the existing throw continuation,
+so lexical catches/finalizers retain their existing ordering and replacement rules.
+The verifier checks visibility, types and fresh definitions of all outputs.
+
+The fallible operation currently requires the async emitter and its existing
+Error protocol. Guest cause 2 denotes nullish ToObject with a fixed message;
+source throws remain distinct from checked-helper traps, malformed records and
+fuel exhaustion. There is no new public value shape, heap or control graph.
+Enumeration and source admission boundaries are in [managed values](managed-values.md).
+
 ## Checked managed container projection
 
 `ManagedToObject { result, input }` and `ManagedToArray { result, input }`
@@ -875,7 +897,7 @@ with a distinct magic and kind; the f64 payload carries the exact positive ID.
 and intrinsic error code. Promise and reaction record headers have different magic
 and are rejected by Error-record validation.
 The existing General tag/payload lanes, cell/frame layout and reaction queue stay
-unchanged. Modules without adoption retain their previous emitted kernel and
+unchanged. Modules without adoption or fallible own-keys retain their previous kernel and
 value semantics; the primitive exported return ABI still rejects async tag 4.
 
 The adoption self-check settles the owning Promise with this Error before normal
@@ -895,12 +917,12 @@ Proven Number operands retain their existing scalar `Compare` specialization.
 
 General kinds survive until comparison, rather than passing through
 `NumberFromGeneral`. This distinction matters for the intrinsic Error extension:
-two represented Errors convert to the same intrinsic TypeError string, so `<` and
-`>` are false and `<=` and `>=` are true even for distinct object IDs. Emission can
-use this equal-string result directly without allocating a temporary string.
-This relies on the current single intrinsic Error kind and fixed message. New
-Error kinds, mutable properties, user coercion and General String values must
-extend the dispatch before admission.
+two represented Errors of the same cause convert to equal intrinsic strings, so
+`<` and `>` are false and `<=` and `>=` are true even for distinct object IDs.
+Modules admitting nullish-ToObject errors order that fixed message before the
+self-resolution message. Emission compares cause ranks rather than allocating a
+temporary string or comparing object IDs. New Error kinds, mutable properties,
+user coercion and General String values must extend this dispatch before admission.
 
 For the remaining represented pairs, numeric conversion applies: Undefined and
 an Error converted alongside a non-string primitive yield NaN; Null converts to

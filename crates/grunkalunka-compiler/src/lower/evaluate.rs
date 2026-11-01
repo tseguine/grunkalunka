@@ -3,6 +3,7 @@
 //! continuations own completed children until their parent operation is emitted.
 use super::*;
 mod managed;
+mod own_keys;
 
 #[derive(Clone, Copy)]
 pub(super) enum Mode {
@@ -242,6 +243,7 @@ enum ClosureEffect {
 }
 
 enum Work<'e, 'a> {
+    OwnKeys(own_keys::Task<'e, 'a>),
     Managed(managed::ManagedWork<'e, 'a>),
     Eval(&'e Expression<'a>, usize, Mode),
     AwaitOperand {
@@ -1309,6 +1311,9 @@ impl Lowering<'_, '_> {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
+                Work::OwnKeys(task) => {
+                    self.resume_own_keys(task, &mut regions, &mut values, &mut work)?
+                }
                 Work::Managed(task) => {
                     self.complete_managed(task, &mut regions, &mut values, &mut work)?;
                 }

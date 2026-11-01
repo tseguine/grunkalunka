@@ -7,6 +7,7 @@ use crate::ir::{self, Op};
 pub(super) struct Needs {
     pub queued: bool,
     pub errors: bool,
+    pub error_kinds: bool,
     pub starters: bool,
     pub calls_to_entry: Vec<bool>,
 }
@@ -19,6 +20,11 @@ pub(super) fn inspect(module: &ir::Module) -> Needs {
     for (index, function) in module.functions.iter().enumerate() {
         let synchronous_helper = index != 0 && !ir::is_async_closure(function);
         ir::visit_operations(&function.body, &mut |op| match op {
+            Op::TryManagedOwnKeys { .. } => {
+                needs.queued = true;
+                needs.errors = true;
+                needs.error_kinds = true;
+            }
             Op::StartAsyncClosure { .. } => {
                 needs.queued = true;
                 needs.starters |= synchronous_helper;
@@ -128,6 +134,7 @@ mod tests {
         let actual = inspect(&module);
         assert!(actual.queued);
         assert!(actual.errors);
+        assert!(!actual.error_kinds);
         assert!(actual.starters);
         assert_eq!(actual.calls_to_entry, vec![true, false, false, false]);
 
@@ -178,7 +185,7 @@ mod tests {
             functions: Vec::new(),
         };
         let absent = inspect(&empty);
-        assert!(!absent.queued && !absent.errors && !absent.starters);
+        assert!(!absent.queued && !absent.errors && !absent.starters && !absent.error_kinds);
         assert!(absent.calls_to_entry.is_empty());
 
         let unrelated = ir::Module {
@@ -192,7 +199,21 @@ mod tests {
             )],
         };
         let absent = inspect(&unrelated);
-        assert!(!absent.queued && !absent.errors && !absent.starters);
+        assert!(!absent.queued && !absent.errors && !absent.starters && !absent.error_kinds);
         assert_eq!(absent.calls_to_entry, vec![false]);
+    }
+
+    #[test]
+    fn own_keys_without_await_or_promise_still_selects_its_error_protocol() {
+        let module = crate::lower_source_profile(
+            "export async function run(a,b){Object.keys(null);return a;}",
+            false,
+            Type::General,
+            true,
+        )
+        .unwrap();
+        let needs = inspect(&module);
+        assert!(needs.queued && needs.errors && needs.error_kinds);
+        assert!(!needs.starters);
     }
 }

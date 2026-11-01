@@ -72,8 +72,9 @@ export function createAsyncFunction(bytes) {
         if (tag === 5 && promiseObjects && allowPromise) return promiseObject(payload);
         if (tag === 4 && errorObjects) {
           if (!Number.isInteger(payload) || payload < 16 || payload > 1048544 || payload % 16 !== 0) throw new TypeError('invalid error object identity');
-          if (guest.error_kind(payload) !== 1) throw new TypeError('invalid error object kind');
-          if (!errors.has(payload)) errors.set(payload, new TypeError('Promise cannot resolve to itself'));
+          const kind = guest.error_kind(payload);
+          if (kind !== 1 && kind !== 2) throw new TypeError('invalid error object kind');
+          if (!errors.has(payload)) errors.set(payload, new TypeError(kind === 1 ? 'Promise cannot resolve to itself' : 'Cannot convert undefined or null to object'));
           return errors.get(payload);
         }
         throw new TypeError('invalid primitive value tag or payload');

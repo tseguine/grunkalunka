@@ -11,6 +11,7 @@ mod iterative_emitter_tests;
 mod layout;
 mod managed_spread;
 mod materialization;
+mod own_keys;
 mod relational;
 #[cfg(test)]
 mod stack_hygiene_tests;
@@ -85,6 +86,7 @@ struct Emitter<'a> {
     throw_to: Option<ThrowTarget>,
     needs_remainder: bool,
     errors: bool,
+    error_kinds: bool,
     gc_closures: bool,
 }
 
@@ -257,6 +259,35 @@ impl Emitter<'_> {
                 self.get(*object);
                 self.get(*input);
                 self.output.push_str("call $gc_object_spread\n");
+            }
+            Op::ManagedOwnKeys { result, input } => {
+                let ty = self.function.values[input.0];
+                if matches!(ty, Type::Number | Type::Closure(_)) {
+                    self.get(*input);
+                    self.output
+                        .push_str("drop\ni32.const 0\ncall $gc_array_new\n");
+                } else {
+                    if matches!(ty, Type::ManagedObject | Type::ManagedArray) {
+                        self.output.push_str("i32.const 4\nf64.const 0\n");
+                        self.get(*input);
+                        self.output.push_str("struct.new $gc_value\n");
+                    } else {
+                        self.get(*input);
+                    }
+                    self.output.push_str("call $gc_own_keys_known\n");
+                }
+                self.set(*result);
+            }
+            Op::TryManagedOwnKeys {
+                result,
+                input,
+                failure,
+            } => {
+                self.get(*input);
+                self.output.push_str("call $gc_try_own_keys\n");
+                self.set(failure.reason);
+                self.set(failure.threw);
+                self.set(*result);
             }
             Op::ManagedString { result, units } => {
                 self.output.push_str("i32.const 5\nf64.const 0\n");
@@ -1021,6 +1052,9 @@ fn emit_verified(
     entry_type: Type,
     ui_profile: bool,
 ) -> Result<String, String> {
+    if own_keys::fallible(module) {
+        return Err("fallible own-keys requires the async completion profile".into());
+    }
     if module_materializes_promises(module) {
         return Err("Promise materialization requires the async runtime profile".into());
     }
@@ -1111,7 +1145,7 @@ fn emit_verified(
             layout::closure_value(function.return_type, gc_closures).wat
         };
         writeln!(header, " (result {})", result_wat).unwrap();
-        let (body, remainder) = emit_function(function, header, false, gc_closures);
+        let (body, remainder) = emit_function(function, header, false, gc_closures, false);
         needs_remainder |= remainder;
         output.push_str(&body);
     }
@@ -1134,6 +1168,7 @@ fn emit_verified(
     if managed {
         output.push_str(include_str!("emit/managed.wat"));
         output.push_str(managed_spread::runtime(module));
+        output.push_str(own_keys::runtime(module));
     }
     output.push_str(")\n");
     Ok(output)
@@ -1221,6 +1256,7 @@ fn emit_function(
     header: String,
     errors: bool,
     gc_closures: bool,
+    error_kinds: bool,
 ) -> (String, bool) {
     let environment = ir::closure_environment(function);
     let mut offset = if environment.is_some() { 2 } else { 0 };
@@ -1257,6 +1293,7 @@ fn emit_function(
         throw_to: None,
         needs_remainder: false,
         errors,
+        error_kinds,
         gc_closures,
         output: header,
     };

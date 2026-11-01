@@ -25,8 +25,8 @@ For the currently admitted builtin domain:
 - Two Promises have equal primitive strings: < and > are false; <= and >= true.
 - Promise/Number, Boolean, null or undefined pairs compare through NaN, so all
   four operators are false, in either order.
-- A Promise's builtin string starts with '['; the sole intrinsic TypeError's
-  string starts with 'T'. The Promise orders after that Error, independently of
+- A Promise's builtin string starts with '['; both represented intrinsic TypeError
+  strings start with 'T'. The Promise orders after either Error, independently of
   their object IDs and engine-specific Error messages.
 - Two General operands keep the existing Error-aware relational rules.
 

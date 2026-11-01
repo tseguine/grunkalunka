@@ -1090,6 +1090,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     let starters = needs.starters;
     let queued = needs.queued;
     let errors = needs.errors;
+    let error_kinds = needs.error_kinds;
     for (index, function) in module.functions.iter().enumerate() {
         // The source entry's logical ID does not denote a callable numeric Wasm
         // function in this module; its physical implementation is $advance.
@@ -1144,6 +1145,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
                 owner: index,
                 queued,
                 errors,
+                error_kinds,
                 needs_spills: has_async,
                 gc_closures,
                 managed: gc_frames,
@@ -1517,7 +1519,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             layout::closure_value(function.return_type, gc_closures).wat
         };
         writeln!(header, " (result {result_wat})").unwrap();
-        let (body, remainder) = emit_function(function, header, errors, gc_closures);
+        let (body, remainder) = emit_function(function, header, errors, gc_closures, error_kinds);
         output.push_str(&body);
         needs_remainder |= remainder;
     }
@@ -1547,7 +1549,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
     }
     if queued {
         if errors {
-            output.push_str(&errors::runtime());
+            output.push_str(&errors::runtime(error_kinds));
         } else {
             output.push_str(promises::RUNTIME);
         }
@@ -1562,6 +1564,10 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             output.push_str(include_str!("managed.wat"));
         }
         output.push_str(super::managed_spread::runtime(module));
+        output.push_str(super::own_keys::runtime(module));
+        if error_kinds {
+            output.push_str(super::own_keys::FALLIBLE);
+        }
     }
     if gc_frames {
         output.push_str(managed_frames::RUNTIME);

@@ -684,6 +684,41 @@ Runtime Boolean/nullish constructors also activate value planning, so equivalent
 JS gains support instead of relying on a TS-only literal to trigger analysis.
 Type-only syntax and module-specifier strings never supply runtime origin facts.
 
+## Own keys and the first fallible boxed operation
+
+`Object.keys` reads actual property storage rather than requiring static knowledge
+of each key. Known nonnull operands retain a checked specialization; nullable or
+unknown boxed inputs use `TryManagedOwnKeys`, defining an array plus a failure
+flag/reason. Lowering routes that flag to the existing lexical throw continuation.
+This is an incremental normal/throw seam, not a new control graph or universal
+dynamic-call ABI. The nullable path initially requires the async completion
+profile; unsupported synchronous exception propagation remains a diagnostic.
+
+Enumeration copies entry references and stably sorts canonical array indices
+before insertion-ordered other strings. The source table stays unchanged. String
+index names use UTF-16 length; arrays enumerate present data entries, not their
+logical length. A shared decimal formatter preserves spread's emitted helper
+text. Direct construction of the fresh result avoids repeatedly appending through
+the ordinary property setter. Sorting is quadratic in the number of properties;
+existing guest fuel limits still apply, and this is not a performance claim.
+
+Nullish ToObject needs one fixed TypeError cause, so the existing aligned Error
+record preserves identity without introducing a general message heap. Private
+cause 2 means `Cannot convert undefined or null to object`; cause 1 remains Promise
+self-resolution. Rust retains `Value::TypeError { id }`, and Node caches a native
+TypeError per ID. Only modules using the fallible operation extend guest kind
+validation and Error string comparison. Cause 2 sorts before cause 1's fixed
+string, independently of IDs; old modules keep their prior encoding.
+
+Always boxing Numbers/functions would lose useful specialization. Treating
+nullish input as an empty array or trapping would violate source semantics.
+A universal object/exception runtime would require unrelated prototype, message
+and call decisions. This bounded operation reuses current storage, handlers and
+traced frames. Tests compare source with native JS, Node-Wasm and Wasmtime, force
+copying collection, and distinguish malformed records and resource failures from
+catchable throws. It does not settle getters/proxies, Symbols, custom coercion,
+general Get/Call or public reference lifetimes.
+
 ## Source calls through stored fields
 
 Known own object/array fields reuse the existing typed call ABI through

@@ -47,6 +47,7 @@ fn structured_wat_emission_keeps_deep_blocks_off_native_stack() {
                 throw_to: None,
                 needs_remainder: false,
                 errors: false,
+                error_kinds: false,
                 gc_closures: false,
             };
             emitter.region(&function.body);
