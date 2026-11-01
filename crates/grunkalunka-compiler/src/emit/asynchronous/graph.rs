@@ -50,6 +50,14 @@ pub(super) fn verify(split: &Splitter<'_>, entries: &[Option<usize>]) -> Result<
                     "async continuation state {index} references invalid state {destination}"
                 ));
             }
+            // A direct continuation never switches coroutine frames. Only
+            // InvokeClosure's generated frame-activation code can enter a
+            // different function; its returned continuation belongs here.
+            if split.states[destination].function != state.function {
+                return Err(format!(
+                    "async continuation state {index} crosses function boundary to state {destination}"
+                ));
+            }
         }
         if let End::AdoptPromise { subscription } = &state.end
             && !matches!(
@@ -161,6 +169,53 @@ mod tests {
     }
 
     #[test]
+    fn rejects_direct_edges_crossing_function_boundaries() {
+        let value = ValueId(0);
+        let edges = [
+            End::Jump(1),
+            End::Reaction {
+                fulfilled: 1,
+                rejected: 0,
+            },
+            End::AdoptSubscription {
+                input: value,
+                reaction: 1,
+            },
+            End::InvokeClosure {
+                callee: value,
+                arguments: &[],
+                returned: 1,
+            },
+            End::Suspend {
+                input: value,
+                rejected: false,
+                resume: 1,
+            },
+        ];
+        for end in edges {
+            let split = graph(vec![
+                state(0, end),
+                state(1, End::Return(value)),
+            ]);
+            let error = verify(&split, &[None, None])
+                .expect_err("direct control edges cannot enter another function");
+            assert!(
+                error.contains("crosses function boundary to state 1"),
+                "{error}"
+            );
+        }
+
+        // The graph can contain multiple isolated functions; source-level
+        // cross-function calls use their own explicit activation transition.
+        let valid = graph(vec![
+            state(0, End::Return(value)),
+            state(1, End::EnterClosure { next: 2 }),
+            state(1, End::Return(value)),
+        ]);
+        verify(&valid, &[None, Some(1)]).expect("separate activation graphs");
+    }
+
+    #[test]
     fn checks_adoption_kind_and_private_function_entries() {
         let v = ValueId(0);
         let split = graph(vec![
@@ -174,7 +229,7 @@ mod tests {
                 },
             ),
             state(0, End::AdoptPromise { subscription: 2 }),
-            state(1, End::EnterClosure { next: 1 }),
+            state(1, End::EnterClosure { next: 4 }),
         ]);
         verify(&split, &[None, Some(4)]).expect("well-formed private graph");
         assert!(
