@@ -292,8 +292,7 @@ impl Lowering<'_, '_> {
                                 // A discard expression is another typed leaf
                                 // request. Preserve the original statement
                                 // depth and source-charge order before it runs.
-                                self.statement_depth =
-                                    cursor.pending.last().map_or(original_depth, Frame::depth);
+                                self.statement_depth = depth;
                                 self.admit_source_statement(source, depth)?;
                                 cursor.pending.push(Frame::DiscardExpression { depth });
                                 cursor.next = Some(Next::Expression {

@@ -49,6 +49,38 @@ fn observe<T>(run: impl FnOnce() -> T) -> (T, usize, usize, usize) {
 }
 
 #[test]
+fn discarded_control_body_preserves_aggregate_expression_depth_limit() {
+    for control in ["if(a)", "while(a)", "for(;a;)"] {
+        for (branches, admitted) in [(126, true), (127, false)] {
+            for typescript in [false, true] {
+                let expression = format!("{}a", "a?0:".repeat(branches));
+                let source = format!(
+                    "export function run(a,b){{const f=()=>{{{control} {expression};return a;}};return f();}}"
+                );
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("2 MiB discarded-expression boundary thread")
+                    .join()
+                    .expect("discarded expression must not exhaust native stack");
+                assert_eq!(
+                    result.is_ok(),
+                    admitted,
+                    "{control}, {branches} branches, typescript={typescript}: {:?}",
+                    result.err()
+                );
+                if let Err(error) = result {
+                    assert!(
+                        error.contains("block-arrow expansion exceeds 128 nested regions"),
+                        "{control}: {error}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn mixed_source_control_lowers_with_a_single_native_cursor_entry() {
     // All source-control families should share the *same* scheduling loop;
     // a second native entry would reveal an uncaught control/control SCC.
