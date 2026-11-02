@@ -75,6 +75,10 @@ enum Frame<'n, 'a> {
     DiscardExpression {
         depth: usize,
     },
+    /// Numeric return expressions are resumed with one Number value.
+    NumericReturn {
+        depth: usize,
+    },
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
         source: &'n IfStatement<'a>,
@@ -184,6 +188,7 @@ impl Frame<'_, '_> {
     fn depth(&self) -> usize {
         match self {
             Self::DiscardExpression { depth }
+            | Self::NumericReturn { depth }
             | Self::IfPredicate { depth, .. }
             | Self::If { depth, .. }
             | Self::WhilePredicate { depth, .. }
@@ -304,6 +309,22 @@ impl Lowering<'_, '_> {
                                     output,
                                     depth,
                                     charge: source_control::SourceCharge::Uncharged,
+                                });
+                            } else if let Statement::ReturnStatement(statement) = source
+                                && self.return_type == Type::Number
+                                && statement.argument.is_some()
+                            {
+                                // Numeric return uses the existing Mode::Number
+                                // evaluator. Keep bare returns and all other
+                                // represented result kinds on their legacy path.
+                                self.statement_depth = depth;
+                                self.admit_source_statement(source, depth)?;
+                                cursor.pending.push(Frame::NumericReturn { depth });
+                                cursor.next = Some(Next::Expression {
+                                    source: statement.argument.as_ref().expect("checked return"),
+                                    output,
+                                    depth: 0,
+                                    mode: evaluate::Mode::Number,
                                 });
                             } else if let Statement::ExpressionStatement(statement) = source {
                                 // A discard expression is another typed leaf
