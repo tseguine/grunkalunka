@@ -15,6 +15,8 @@ mod steps;
 std::thread_local! {
     static BRIDGED_LOCAL_BODIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
+    static SCHEDULED_FUNCTION_RETURNS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
 }
 
 type Next<'n, 'a> = source_control::StatementTask<'n, 'a, ControlNode<'n, 'a>>;
@@ -497,6 +499,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 self.admit_source_statement(source, depth)?;
                                 let expression = statement.argument.as_ref().expect("checked return");
                                 self.enter_function_value(expression)?;
+                                #[cfg(test)]
+                                SCHEDULED_FUNCTION_RETURNS.with(|count| count.set(count.get() + 1));
                                 cursor.pending.push(Frame::FunctionReturn { depth });
                                 cursor.next = Some(Next::Expression {
                                     source: expression,
@@ -621,6 +625,36 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn function_valued_returns_share_the_owned_expression_cursor() {
+        for body in [
+            "const make=x=>{return ()=>x+a;};return make(b)();",
+            "const make=x=>{if(x)return ()=>x+a;return ()=>x-b;};return make(a)();",
+            "const make=x=>{return y=>{return ()=>x+y;};};return make(a)(b)();",
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let (result, scheduled) = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || {
+                        SCHEDULED_FUNCTION_RETURNS.with(|count| count.set(0));
+                        let result = crate::compile(&source, typescript);
+                        let scheduled = SCHEDULED_FUNCTION_RETURNS.with(std::cell::Cell::get);
+                        (result, scheduled)
+                    })
+                    .expect("2 MiB function return compiler thread")
+                    .join()
+                    .expect("function-valued return must not overflow native stack");
+                assert!(result.is_ok(), "{body}: {:?}", result.err());
+                assert!(scheduled > 0, "{body}: function result used the legacy return path");
+            }
+        }
+        for typescript in [false, true] {
+            let source = "export function run(a,b){const make=x=>{if(x)return ()=>x+a;};return make(b)();}";
+            assert!(crate::compile(source, typescript).is_err());
+        }
+    }
 
     #[test]
     fn numeric_let_initializers_join_the_owned_source_evaluator_cursor() {
