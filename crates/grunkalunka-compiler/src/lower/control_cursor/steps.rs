@@ -245,6 +245,14 @@ impl Lowering<'_, '_> {
                 let predicate = value.expect("predicate mode yields a value");
                 self.resume_for_predicate(frame, output_region, predicate, cursor)
             }
+            Frame::ForUpdate {
+                frame,
+                body,
+                completion,
+            } => {
+                // Discard-mode evaluation has populated the step Region.
+                self.finish_for_loop(frame, body, completion, Some(output_region), cursor)
+            }
             Frame::DoWhilePredicate {
                 source,
                 mut output,
@@ -275,8 +283,9 @@ impl Lowering<'_, '_> {
             | Frame::IfPredicate { .. }
             | Frame::WhilePredicate { .. }
             | Frame::DoWhilePredicate { .. }
-            | Frame::ForPredicate(_) => {
-                unreachable!("predicate continuation is resumed by a value result")
+            | Frame::ForPredicate(_)
+            | Frame::ForUpdate { .. } => {
+                unreachable!("expression continuation is resumed by a value result")
             }
             Frame::TryFinallyBody {
                 source,
