@@ -10,11 +10,15 @@ thread_local! {
     static MAXIMUM: Cell<usize> = const { Cell::new(0) };
     static ENTRIES: Cell<usize> = const { Cell::new(0) };
     static PENDING: Cell<usize> = const { Cell::new(0) };
+    static EVALUATOR_CROSSINGS: Cell<usize> = const { Cell::new(0) };
 }
 
 pub(crate) struct Entry;
 
 pub(crate) fn entry() -> Entry {
+    if crate::evaluator_tests::active_depth() != 0 {
+        EVALUATOR_CROSSINGS.with(|crossings| crossings.set(crossings.get() + 1));
+    }
     ACTIVE.with(|active| {
         active.set(active.get() + 1);
         MAXIMUM.with(|maximum| maximum.set(maximum.get().max(active.get())));
@@ -33,11 +37,16 @@ pub(crate) fn pending(count: usize) {
     PENDING.with(|pending| pending.set(pending.get().max(count)));
 }
 
+fn evaluator_crossings() -> usize {
+    EVALUATOR_CROSSINGS.with(Cell::get)
+}
+
 fn observe<T>(run: impl FnOnce() -> T) -> (T, usize, usize, usize) {
     ACTIVE.with(|active| assert_eq!(active.get(), 0));
     MAXIMUM.with(|maximum| maximum.set(0));
     ENTRIES.with(|entries| entries.set(0));
     PENDING.with(|pending| pending.set(0));
+    EVALUATOR_CROSSINGS.with(|crossings| crossings.set(0));
     let result = run();
     ACTIVE.with(|active| assert_eq!(active.get(), 0, "cursor must restore on all exits"));
     (
@@ -307,6 +316,55 @@ fn suspended_for_initializer_keeps_header_effects_and_source_diagnostics() {
             assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
             assert_eq!(maximum, 1, "source cursor reentered for {body}");
             assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
+
+#[test]
+fn nested_block_function_results_characterize_cross_phase_native_reentry() {
+    // This reproduces a maintained runtime-closures admission boundary, but
+    // observes the source cursor while its caller evaluator is still active.
+    // Successful future L4 defunctionalization should drive the crossing count
+    // down rather than tightening source admission or increasing thread stacks.
+    for (depth, admitted) in [
+        (0, true),
+        (2, true),
+        (4, true),
+        (6, true),
+        (7, false),
+    ] {
+        let mut body = String::from("const get0=()=>{return ()=>a;};");
+        for index in 1..=depth {
+            body.push_str(&format!(
+                "const get{index}=()=>{{return get{}();}};",
+                index - 1
+            ));
+        }
+        let source = format!(
+            "export function run(a,b){{{body}const f=get{depth}();return f();}}"
+        );
+        for typescript in [false, true] {
+            let source = source.clone();
+            let (result, maximum, entries, crossings) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || {
+                    let (result, maximum, entries, _) =
+                        observe(|| crate::compile(&source, typescript));
+                    (result, maximum, entries, evaluator_crossings())
+                })
+                .expect("2 MiB block factory measurement thread")
+                .join()
+                .expect("block function result must not exhaust native stack");
+            assert_eq!(result.is_ok(), admitted, "{depth} block factories: {:?}", result.err());
+            assert!(maximum <= 8, "{depth} block factories reentered too deeply: {maximum}");
+            assert!(entries > 0);
+            assert!(crossings <= entries);
+            if let Err(error) = result {
+                assert!(error.contains("8 active"), "{depth} block factories: {error}");
+            }
+            println!(
+                "CROSS_PHASE|block_factories={depth}|max_source={maximum}|source_entries={entries}|eval_to_source={crossings}"
+            );
         }
     }
 }
