@@ -334,3 +334,37 @@ fn numeric_return_continuation_preserves_abrupt_paths_and_first_errors() {
         }
     }
 }
+
+#[test]
+fn async_throw_reason_continuation_preserves_catch_and_source_diagnostics() {
+    for (body, admitted) in [
+        ("try{throw a;}catch(e){return b;}", true),
+        ("try{throw (a+b);}catch(e){return b;}", true),
+        ("try{throw a ** b;}catch(e){return b;}", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export async function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile_async(&source, typescript)))
+                .expect("2 MiB throw-reason continuation thread")
+                .join()
+                .expect("async throw lowering must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+
+    // Synchronous source throw is still outside the numeric profile, and
+    // rejects before its argument can be evaluated or emitted.
+    let source = "export function run(a,b) { throw a; }";
+    let (result, maximum, entries, _) = observe(|| crate::compile(source, false));
+    let error = result.expect_err("synchronous throw must remain rejected");
+    assert!(
+        error.contains("statement is outside the numeric experiment"),
+        "unexpected first diagnostic: {error}"
+    );
+    assert_eq!(maximum, 1);
+    assert!(entries > 0);
+}
