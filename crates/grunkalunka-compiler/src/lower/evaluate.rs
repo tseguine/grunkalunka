@@ -80,6 +80,19 @@ pub(super) enum FunctionEffect {
     Truthy,
 }
 
+/// The source-ordered continuation of a synchronous closure call once its
+/// function-valued callee is available. The callee may have yielded a source
+/// block; no arguments or result-mode conversions run before this point.
+#[derive(Clone, Copy)]
+pub(super) struct SyncCalleeContinuation<'e, 'a> {
+    pub(super) node: &'e Expression<'a>,
+    pub(super) call: &'e CallExpression<'a>,
+    pub(super) depth: usize,
+    pub(super) mode: Mode,
+    pub(super) result_type: Type,
+    pub(super) number_proven: bool,
+}
+
 /// One resumable run segment either completes the requested expression or
 /// yields a source-body or function-leaf task while the caller keeps the cursor.
 pub(super) enum EvaluationRun<'e, 'a> {
@@ -1239,13 +1252,15 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     )?;
                     self.resume_sync_closure_callee(
                         &mut lease.cursor,
-                        node,
-                        call,
+                        SyncCalleeContinuation {
+                            node,
+                            call,
+                            depth,
+                            mode,
+                            result_type,
+                            number_proven,
+                        },
                         callee,
-                        depth,
-                        mode,
-                        result_type,
-                        number_proven,
                     )?;
                 }
                 EvaluationRun::LowerBody {
@@ -1347,14 +1362,17 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     pub(super) fn resume_sync_closure_callee<'e, 'a>(
         &mut self,
         cursor: &mut EvaluationCursor<'e, 'a>,
-        node: &'e Expression<'a>,
-        call: &'e CallExpression<'a>,
+        continuation: SyncCalleeContinuation<'e, 'a>,
         callee: ValueId,
-        depth: usize,
-        mode: Mode,
-        result_type: Type,
-        number_proven: bool,
     ) -> Result<(), String> {
+        let SyncCalleeContinuation {
+            node,
+            call,
+            depth,
+            mode,
+            result_type,
+            number_proven,
+        } = continuation;
         call_result(&mut cursor.work, node, mode, result_type, number_proven)?;
         cursor.work.push(Work::ClosureCall {
             node,
