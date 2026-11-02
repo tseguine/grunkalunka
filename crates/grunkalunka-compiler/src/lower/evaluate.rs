@@ -61,6 +61,18 @@ struct EvaluationCursor<'r, 'e, 'a> {
     values: Vec<Value>,
 }
 
+/// One resumable run segment either completes the requested expression or
+/// yields a source-body task while the caller keeps the owned evaluator cursor.
+enum EvaluationRun<'e, 'a> {
+    Complete(Option<ValueId>),
+    LowerBody {
+        node: &'e Expression<'a>,
+        arrow: oxc_syntax::node::NodeId,
+        result_type: Type,
+        parent_depth: usize,
+    },
+}
+
 impl<'r, 'e, 'a> EvaluationCursor<'r, 'e, 'a> {
     fn new(root: &'r mut Region, expression: &'e Expression<'a>, depth: usize, mode: Mode) -> Self {
         Self {
@@ -1043,20 +1055,54 @@ impl Lowering<'_, '_> {
         #[cfg(test)]
         let _entry = crate::evaluator_tests::entry();
         let mut cursor = EvaluationCursor::new(region, expression, depth, mode);
-        // Keep the original scheduling logic intact while first making its
-        // complete pending state a single transferable activation.
-        self.run_evaluation(&mut cursor, mode)
+        // The large evaluator runner returns before a source block is lowered.
+        // Only this small compatibility wrapper remains on the native stack.
+        // A future source/evaluator machine will own this outer dispatch loop.
+        loop {
+            match self.run_evaluation(&mut cursor, mode)? {
+                EvaluationRun::Complete(result) => return Ok(result),
+                EvaluationRun::LowerBody {
+                    node,
+                    arrow,
+                    result_type,
+                    parent_depth,
+                } => {
+                    let arrow = self.arrow(arrow);
+                    let body = self.arrow_block_result(arrow, parent_depth, result_type)?;
+                    let result = self.value(result_type);
+                    Self::push(
+                        cursor.regions.current(),
+                        node,
+                        Op::InlineCall { result, body },
+                    );
+                    cursor.values.push(if result_type.is_managed() {
+                        Value::managed(result, result_type)
+                    } else if result_type == Type::AsyncValue {
+                        Value::Selection(result)
+                    } else if result_type == Type::Promise {
+                        Value::Pending(result)
+                    } else if result_type == Type::SettledPromise {
+                        Value::Settled(result)
+                    } else if result_type == Type::FulfilledPromise {
+                        Value::Promise(result)
+                    } else if result_type == Type::General {
+                        Value::General(result)
+                    } else {
+                        Value::Number(result)
+                    });
+                }
+            }
+        }
     }
 
-    /// One evaluator run segment, operating entirely on an owned activation.
-    /// A later unit can return a typed LowerBody suspension instead of
-    /// synchronously calling a nested source dispatcher.
+    /// One evaluator run segment. A block-body request suspends this large
+    /// native frame, leaving the work, value stack and Regions in the cursor.
     #[inline(never)]
     fn run_evaluation<'e, 'a>(
         &mut self,
         cursor: &mut EvaluationCursor<'_, 'e, 'a>,
         mode: Mode,
-    ) -> Result<Option<ValueId>, String> {
+    ) -> Result<EvaluationRun<'e, 'a>, String> {
         let (regions, work, values) = (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
         while !work.is_empty() {
             #[cfg(test)]
@@ -1587,28 +1633,14 @@ impl Lowering<'_, '_> {
                     result_type,
                     parent_depth,
                 } => {
-                    // A typed phase boundary: all caller arguments and fresh
-                    // formal bindings are already committed. For now this
-                    // executes the existing source-body lowering synchronously.
-                    // A subsequent unit replaces it with a yield/resume handoff.
-                    let arrow = self.arrow(arrow);
-                    let body = self.arrow_block_result(arrow, parent_depth, result_type)?;
-                    let result = self.value(result_type);
-                    Self::push(regions.current(), node, Op::InlineCall { result, body });
-                    values.push(if result_type.is_managed() {
-                        Value::managed(result, result_type)
-                    } else if result_type == Type::AsyncValue {
-                        Value::Selection(result)
-                    } else if result_type == Type::Promise {
-                        Value::Pending(result)
-                    } else if result_type == Type::SettledPromise {
-                        Value::Settled(result)
-                    } else if result_type == Type::FulfilledPromise {
-                        Value::Promise(result)
-                    } else if result_type == Type::General {
-                        Value::General(result)
-                    } else {
-                        Value::Number(result)
+                    // Do not retain this large native evaluator frame across
+                    // source lowering. All remaining work and values are owned
+                    // by cursor and resume after the completed body is inserted.
+                    return Ok(EvaluationRun::LowerBody {
+                        node,
+                        arrow,
+                        result_type,
+                        parent_depth,
                     });
                 }
                 Work::BeginAwaitedClosureCall {
@@ -3881,7 +3913,7 @@ impl Lowering<'_, '_> {
             Some(values.pop().expect("evaluation result").id())
         };
         assert!(values.is_empty(), "all intermediate values consumed");
-        Ok(result)
+        Ok(EvaluationRun::Complete(result))
     }
 
     fn create_promise_value(
