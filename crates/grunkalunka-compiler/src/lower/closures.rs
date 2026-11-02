@@ -7,6 +7,14 @@ use oxc_ast::{
 };
 use oxc_syntax::node::NodeId;
 
+/// The caller's lexical bindings and source-charge mode are restored only
+/// after an invoked function's parameters/body have finished. This token may
+/// be held in a future heap continuation while a factory body is suspended.
+pub(super) struct FactoryBindings {
+    previous: Vec<NumericBinding>,
+    charging: bool,
+}
+
 #[derive(Clone)]
 pub(crate) struct LocalClosure {
     pub symbol: Option<SymbolId>,
@@ -776,6 +784,23 @@ impl<'s, 'a> Lowering<'s, 'a> {
         Ok(())
     }
 
+    /// Fresh factory formals are published only after caller arguments have
+    /// finished in the caller's lexical environment.
+    pub(super) fn enter_factory_bindings(
+        &mut self,
+        captures: Vec<NumericBinding>,
+    ) -> FactoryBindings {
+        FactoryBindings {
+            previous: std::mem::replace(&mut self.bindings, captures),
+            charging: std::mem::replace(&mut self.source_charging, false),
+        }
+    }
+
+    pub(super) fn restore_factory_bindings(&mut self, checkpoint: FactoryBindings) {
+        self.bindings = checkpoint.previous;
+        self.source_charging = checkpoint.charging;
+    }
+
     pub(super) fn factory_result(
         &mut self,
         expression: &Expression<'_>,
@@ -839,8 +864,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             arguments.push(value);
         }
         let arrow = self.arrow(factory.arrow);
-        let previous = std::mem::replace(&mut self.bindings, factory.captures);
-        let charging = std::mem::replace(&mut self.source_charging, false);
+        let checkpoint = self.enter_factory_bindings(factory.captures);
         let result = (|| {
             self.bind_arrow_parameters(arrow, arguments, region)?;
             let mut returned = self
@@ -851,8 +875,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             }
             Ok(Some(returned))
         })();
-        self.bindings = previous;
-        self.source_charging = charging;
+        self.restore_factory_bindings(checkpoint);
         result
     }
 
