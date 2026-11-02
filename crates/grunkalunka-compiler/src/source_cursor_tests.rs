@@ -368,3 +368,26 @@ fn async_throw_reason_continuation_preserves_catch_and_source_diagnostics() {
     assert_eq!(maximum, 1);
     assert!(entries > 0);
 }
+
+#[test]
+fn direct_primitive_returns_use_typed_source_outcomes_without_changing_admission() {
+    for (body, admitted) in [
+        ("return null;", true),
+        ("return a?false:null;", true),
+        ("if(a)return b;return undefined;", true),
+        ("return a ** b;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile_value(&source, typescript)))
+                .expect("2 MiB typed-return continuation thread")
+                .join()
+                .expect("primitive return must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
