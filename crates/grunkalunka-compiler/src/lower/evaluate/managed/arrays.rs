@@ -47,7 +47,7 @@ impl Lowering<'_, '_> {
     pub(super) fn complete_array<'e, 'a>(
         &mut self,
         mut task: ArrayWork<'e, 'a>,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
