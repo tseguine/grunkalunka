@@ -118,6 +118,14 @@ enum Frame<'n, 'a> {
         body: Region,
         body_completion: Completion,
     },
+    /// A for initializer expression runs in its lexical header Region.
+    /// Declaration initializers retain their existing declaration helper.
+    ForInitializer {
+        source: &'n ForStatement<'a>,
+        output: Region,
+        depth: usize,
+        outer: usize,
+    },
     ForPredicate(ForPredicateFrame<'n, 'a>),
     For(ForFrame<'n, 'a>),
     /// The loop body has finished; an update expression must run before
@@ -188,6 +196,7 @@ impl Frame<'_, '_> {
             | Self::TryCatchHandler { depth, .. }
             | Self::TryFinallyBody { depth, .. }
             | Self::TryFinallyCleanup { depth, .. } => *depth,
+            Self::ForInitializer { depth, .. } => *depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
