@@ -407,13 +407,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     .expect("returned factory callee function");
                 self.resume_sync_closure_callee(
                     expression.as_mut(),
-                    outer_node,
-                    outer_call,
+                    evaluate::SyncCalleeContinuation {
+                        node: outer_node,
+                        call: outer_call,
+                        depth: outer_depth,
+                        mode: outer_mode,
+                        result_type,
+                        number_proven,
+                    },
                     callee,
-                    outer_depth,
-                    outer_mode,
-                    result_type,
-                    number_proven,
                 )?;
                 self.advance_owned_expression(*expression, mode, cursor)?;
             }
