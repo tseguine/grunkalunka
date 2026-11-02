@@ -522,7 +522,7 @@ impl Lowering<'_, '_> {
         node: &'e Expression<'a>,
         depth: usize,
         mode: Mode,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
@@ -918,7 +918,7 @@ impl Lowering<'_, '_> {
     pub(super) fn complete_managed<'e, 'a>(
         &mut self,
         task: ManagedWork<'e, 'a>,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
