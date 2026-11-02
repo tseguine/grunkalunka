@@ -1019,17 +1019,17 @@ impl Lowering<'_, '_> {
         let mut cursor = EvaluationCursor::new(region, expression, depth, mode);
         // Keep the original scheduling logic intact while first making its
         // complete pending state a single transferable activation.
-        let (mut regions, mut work, mut values) =
+        let (regions, work, values) =
             (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
         while !work.is_empty() {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
                 Work::OwnKeys(task) => {
-                    self.resume_own_keys(task, &mut regions, &mut values, &mut work)?
+                    self.resume_own_keys(task, regions, values, work)?
                 }
                 Work::Managed(task) => {
-                    self.complete_managed(task, &mut regions, &mut values, &mut work)?;
+                    self.complete_managed(task, regions, values, work)?;
                 }
                 Work::AwaitOperand {
                     node,
@@ -1038,7 +1038,7 @@ impl Lowering<'_, '_> {
                     operand,
                     site,
                 } => {
-                    if self.schedule_raw_rejected_await(node, mode, &operand, site, &mut work)? {
+                    if self.schedule_raw_rejected_await(node, mode, &operand, site, work)? {
                         continue;
                     }
                     if let Some(argument) = operand.argument
@@ -1049,7 +1049,7 @@ impl Lowering<'_, '_> {
                             || !self.pending_promise_shape(argument, operand.depth))
                     {
                         if self.schedule_mixed_resolve_await(
-                            node, depth, mode, &operand, site, &mut work,
+                            node, depth, mode, &operand, site, work,
                         )? {
                             continue;
                         }
@@ -1060,7 +1060,7 @@ impl Lowering<'_, '_> {
                             ));
                         }
                         call_result(
-                            &mut work,
+                            work,
                             node,
                             mode,
                             Type::General,
@@ -1121,7 +1121,7 @@ impl Lowering<'_, '_> {
                             ));
                         }
                         call_result(
-                            &mut work,
+                            work,
                             node,
                             mode,
                             Type::General,
@@ -1149,7 +1149,7 @@ impl Lowering<'_, '_> {
                             ));
                         }
                         call_result(
-                            &mut work,
+                            work,
                             node,
                             mode,
                             Type::General,
@@ -1207,7 +1207,7 @@ impl Lowering<'_, '_> {
                                 "settled async-call operands require a direct await without Promise-valued rejection or surplus intrinsic arguments",
                             ));
                         }
-                        call_result(&mut work, node, mode, Type::General, false)?;
+                        call_result(work, node, mode, Type::General, false)?;
                         work.push(Work::AwaitSettled(node, site));
                         work.push(Work::Eval(argument, argument_depth, Mode::Settled));
                         continue;
@@ -1249,7 +1249,7 @@ impl Lowering<'_, '_> {
                         if closure.result == Type::Number && matches!(mode, Mode::Number) {
                             work.push(Work::NumberFromGeneral(node));
                         } else {
-                            call_result(&mut work, node, mode, Type::General, false)?;
+                            call_result(work, node, mode, Type::General, false)?;
                         }
                         work.push(Work::LocalCall {
                             node: argument,
@@ -1330,7 +1330,7 @@ impl Lowering<'_, '_> {
                     values.push(Value::Promise(result));
                 }
                 Work::CreatePromise(node, rejected) => {
-                    self.create_promise_value(node, rejected, &mut values, regions.current());
+                    self.create_promise_value(node, rejected, values, regions.current());
                 }
                 Work::PromiseValue(node) => {
                     let input = values.pop().expect("awaited Promise").promise();
@@ -2013,7 +2013,7 @@ impl Lowering<'_, '_> {
                         operator,
                     });
                     if booleans {
-                        predicate_number(&mut work, right, depth);
+                        predicate_number(work, right, depth);
                     } else {
                         work.push(Work::Eval(
                             right,
@@ -2219,10 +2219,10 @@ impl Lowering<'_, '_> {
                     values.push(Value::Number(value));
                 }
                 task @ Work::UiCall { .. } => {
-                    self.resume_ui_call(task, &mut regions, &mut work, &mut values)?;
+                    self.resume_ui_call(task, regions, work, values)?;
                 }
                 task @ Work::Call { .. } => {
-                    self.resume_direct_call(task, &mut regions, &mut work, &mut values)?;
+                    self.resume_direct_call(task, regions, work, values)?;
                 }
                 Work::MathCall {
                     node,
@@ -2360,8 +2360,8 @@ impl Lowering<'_, '_> {
                             mode,
                             left,
                         },
-                        &mut regions,
-                        &mut work,
+                        regions,
+                        work,
                     )?;
                 }
                 Work::LogicalRight {
@@ -2378,7 +2378,7 @@ impl Lowering<'_, '_> {
                             left_node,
                             condition,
                             operator,
-                            &mut regions,
+                            regions,
                         );
                         continue;
                     }
@@ -2481,11 +2481,11 @@ impl Lowering<'_, '_> {
                     work.push(Work::Eval(node, depth, mode));
                 }
                 Work::Eval(node, depth, Mode::Numeric) => {
-                    numeric(self, &mut work, node, depth);
+                    numeric(self, work, node, depth);
                 }
                 Work::Eval(node, depth, Mode::Arithmetic) => {
                     if self.operand_boolean_shape(node, depth) {
-                        predicate_number(&mut work, node, depth);
+                        predicate_number(work, node, depth);
                     } else if self.numeric_result_shape(node, depth) {
                         work.push(Work::Eval(node, depth, Mode::Number));
                     } else {
@@ -2547,14 +2547,14 @@ impl Lowering<'_, '_> {
                         node,
                         depth,
                         mode,
-                        &mut regions,
-                        &mut values,
-                        &mut work,
+                        regions,
+                        values,
+                        work,
                     )? {
                         continue;
                     }
                     if matches!(mode, Mode::DiscardLogical) {
-                        self.schedule_discarded_logical(node, depth, &mut work);
+                        self.schedule_discarded_logical(node, depth, work);
                         continue;
                     }
                     if let Some(result) =
@@ -2563,17 +2563,17 @@ impl Lowering<'_, '_> {
                         values.push(result);
                         continue;
                     }
-                    if self.schedule_mixed_result(node, depth, mode, &mut work) {
+                    if self.schedule_mixed_result(node, depth, mode, work) {
                         continue;
                     }
                     if matches!(mode, Mode::AsyncValue) && !self.mixed_call(node) {
-                        if self.schedule_mixed_assignment(node, depth, &mut regions, &mut work)? {
+                        if self.schedule_mixed_assignment(node, depth, regions, work)? {
                             continue;
                         }
                         if self.pending_promise_shape(node, depth) {
                             work.push(Work::LiftAsyncValue(node));
                             work.push(Work::Eval(node, depth, Mode::Pending));
-                        } else if !schedule_selection(&mut work, node, depth, mode)? {
+                        } else if !schedule_selection(work, node, depth, mode)? {
                             work.push(Work::LiftAsyncValue(node));
                             work.push(Work::Eval(node, depth, Mode::General));
                         }
@@ -2607,7 +2607,7 @@ impl Lowering<'_, '_> {
                             node,
                             Expression::ConditionalExpression(_)
                                 | Expression::SequenceExpression(_)
-                        ) || !schedule_selection(&mut work, node, depth, mode)?
+                        ) || !schedule_selection(work, node, depth, mode)?
                         {
                             work.push(Work::Eval(node, depth, Mode::General));
                         }
@@ -2619,7 +2619,7 @@ impl Lowering<'_, '_> {
                         continue;
                     }
                     if matches!(mode, Mode::Pending) {
-                        if schedule_selection(&mut work, node, depth, mode)? {
+                        if schedule_selection(work, node, depth, mode)? {
                             continue;
                         }
                         if let Expression::Identifier(id) = node {
@@ -2645,8 +2645,8 @@ impl Lowering<'_, '_> {
                                     assignment,
                                     depth,
                                     mode,
-                                    &mut regions,
-                                    &mut work,
+                                    regions,
+                                    work,
                                 )?;
                                 continue;
                             }
@@ -2679,7 +2679,7 @@ impl Lowering<'_, '_> {
                         }
                         if let Expression::CallExpression(call) = node {
                             if self
-                                .schedule_mixed_resolve_constructor(node, call, depth, &mut work)?
+                                .schedule_mixed_resolve_constructor(node, call, depth, work)?
                             {
                                 continue;
                             }
@@ -2806,7 +2806,7 @@ impl Lowering<'_, '_> {
                             node,
                             Expression::ConditionalExpression(_)
                                 | Expression::SequenceExpression(_)
-                        ) && schedule_selection(&mut work, node, depth, mode)?
+                        ) && schedule_selection(work, node, depth, mode)?
                         {
                             continue;
                         }
@@ -2847,7 +2847,7 @@ impl Lowering<'_, '_> {
                                 "settled Promise selection or storage requires rejection tracking",
                             ));
                         }
-                        if schedule_selection(&mut work, node, depth, mode)? {
+                        if schedule_selection(work, node, depth, mode)? {
                             continue;
                         }
                         if !self.settled_promise_shape_in(
@@ -2868,7 +2868,7 @@ impl Lowering<'_, '_> {
                         }
                     }
                     if matches!(mode, Mode::Promise) {
-                        if schedule_selection(&mut work, node, depth, mode)? {
+                        if schedule_selection(work, node, depth, mode)? {
                             continue;
                         }
                         if let Some(slot) = self.fulfilled_promise_slot(node, depth) {
@@ -2889,8 +2889,8 @@ impl Lowering<'_, '_> {
                                     assignment,
                                     depth,
                                     mode,
-                                    &mut regions,
-                                    &mut work,
+                                    regions,
+                                    work,
                                 )?;
                                 continue;
                             }
@@ -2974,10 +2974,10 @@ impl Lowering<'_, '_> {
                             values.push(Value::Function(result));
                             continue;
                         }
-                        if schedule_selection(&mut work, node, depth, mode)? {
+                        if schedule_selection(work, node, depth, mode)? {
                             continue;
                         }
-                        if self.schedule_function_member(node, depth, signature, &mut work)? {
+                        if self.schedule_function_member(node, depth, signature, work)? {
                             continue;
                         }
                         if let Expression::AssignmentExpression(assignment) = node {
@@ -2992,8 +2992,8 @@ impl Lowering<'_, '_> {
                                     assignment,
                                     depth,
                                     mode,
-                                    &mut regions,
-                                    &mut work,
+                                    regions,
+                                    work,
                                 )?;
                                 continue;
                             }
@@ -3151,7 +3151,7 @@ impl Lowering<'_, '_> {
                             region_depth,
                         )?;
                         call_result(
-                            &mut work,
+                            work,
                             node,
                             mode,
                             result_type,
@@ -3189,7 +3189,7 @@ impl Lowering<'_, '_> {
                             ));
                         }
                         call_result(
-                            &mut work,
+                            work,
                             node,
                             mode,
                             closure.result,
@@ -3440,7 +3440,7 @@ impl Lowering<'_, '_> {
                                             unreachable!("relational operator")
                                         }
                                     };
-                                    self.schedule_relational(node, depth, operator, &mut work);
+                                    self.schedule_relational(node, depth, operator, work);
                                     continue;
                                 }
                                 work.push(Work::CompareRight {
@@ -3451,7 +3451,7 @@ impl Lowering<'_, '_> {
                                     operator,
                                 });
                                 if booleans {
-                                    predicate_number(&mut work, &binary.left, depth + 1);
+                                    predicate_number(work, &binary.left, depth + 1);
                                 } else {
                                     work.push(Work::Eval(
                                         &binary.left,
@@ -3478,7 +3478,7 @@ impl Lowering<'_, '_> {
                             continue;
                         }
                     }
-                    if schedule_selection(&mut work, node, depth, mode)? {
+                    if schedule_selection(work, node, depth, mode)? {
                         continue;
                     }
                     match node {
@@ -3489,7 +3489,7 @@ impl Lowering<'_, '_> {
                                 node,
                                 &member.object,
                                 depth + 1,
-                                &mut work,
+                                work,
                             )?;
                         }
                         Expression::NumericLiteral(literal) => {
@@ -3540,7 +3540,7 @@ impl Lowering<'_, '_> {
                             values.push(Value::Number(result));
                         }
                         Expression::CallExpression(call) => {
-                            if self.schedule_ui_call(node, call, mode, depth, &mut work)? {
+                            if self.schedule_ui_call(node, call, mode, depth, work)? {
                                 continue;
                             }
                             if let Some((operator, _)) = math_unary(call, self.semantic) {
@@ -3572,7 +3572,7 @@ impl Lowering<'_, '_> {
                                     depth: depth + 1,
                                 });
                             } else {
-                                self.schedule_direct_call(node, call, depth, mode, &mut work)?;
+                                self.schedule_direct_call(node, call, depth, mode, work)?;
                             }
                         }
                         Expression::AssignmentExpression(assignment) => {
@@ -3587,8 +3587,8 @@ impl Lowering<'_, '_> {
                                     assignment,
                                     depth,
                                     mode,
-                                    &mut regions,
-                                    &mut work,
+                                    regions,
+                                    work,
                                 )?;
                                 continue;
                             }
