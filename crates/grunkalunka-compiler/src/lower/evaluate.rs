@@ -1045,6 +1045,18 @@ impl Lowering<'_, '_> {
         let mut cursor = EvaluationCursor::new(region, expression, depth, mode);
         // Keep the original scheduling logic intact while first making its
         // complete pending state a single transferable activation.
+        self.run_evaluation(&mut cursor, mode)
+    }
+
+    /// One evaluator run segment, operating entirely on an owned activation.
+    /// A later unit can return a typed LowerBody suspension instead of
+    /// synchronously calling a nested source dispatcher.
+    #[inline(never)]
+    fn run_evaluation<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'_, 'e, 'a>,
+        mode: Mode,
+    ) -> Result<Option<ValueId>, String> {
         let (regions, work, values) = (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
         while !work.is_empty() {
             #[cfg(test)]
