@@ -4493,11 +4493,7 @@ mod function_effect_yield_tests {
         let sources = [
             ("const f=x=>x+a;f;return b;", true, false),
             ("const f=x=>x+a;if(f)return b;return a;", false, true),
-            (
-                "const choose=()=>()=>a;choose();return b;",
-                true,
-                false,
-            ),
+            ("const choose=()=>()=>a;choose();return b;", true, false),
             (
                 "const choose=()=>()=>a;if(choose())return b;return a;",
                 false,
