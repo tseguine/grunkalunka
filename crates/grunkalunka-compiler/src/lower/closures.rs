@@ -876,10 +876,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
     /// without entering another native source-control dispatcher. Both the
     /// original synchronous path and a future yielding path use this request.
     #[inline(never)]
-    pub(super) fn prepare_arrow_block_body<'n, 'ast>(
+    pub(super) fn prepare_arrow_block_body<'n>(
         &mut self,
-        arrow: &'n ArrowFunctionExpression<'ast>,
-    ) -> Result<ArrowBodyRequest<'n, 'ast>, String> {
+        arrow: &'n ArrowFunctionExpression<'a>,
+    ) -> Result<ArrowBodyRequest<'n, 'a>, String>
+    where
+        'a: 'n,
+    {
         let ArrowFunctionBody::FunctionBody(body) = &arrow.body else {
             unreachable!("block arrow body")
         };
@@ -897,12 +900,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
     /// request. The source dispatcher has *not* been entered on this path.
     /// This preserves the existing eight-active-block admission boundary.
     #[inline(never)]
-    pub(super) fn begin_arrow_block_activation<'n, 'ast>(
+    pub(super) fn begin_arrow_block_activation<'n>(
         &mut self,
-        arrow: &'n ArrowFunctionExpression<'ast>,
+        arrow: &'n ArrowFunctionExpression<'a>,
         parent_depth: usize,
         result_type: Type,
-    ) -> Result<(BlockArrowActivation, ArrowBodyRequest<'n, 'ast>), String> {
+    ) -> Result<(BlockArrowActivation, ArrowBodyRequest<'n, 'a>), String>
+    where
+        'a: 'n,
+    {
         if self.active_block_calls >= 8 {
             return Err(unsupported(
                 arrow,
@@ -961,12 +967,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
 
     /// Synchronous compatibility entry. Future L4 work moves this source-body
     /// request onto the common scheduler while suspending its evaluator state.
-    pub(super) fn arrow_block_result(
+    pub(super) fn arrow_block_result<'n>(
         &mut self,
-        arrow: &ArrowFunctionExpression<'_>,
+        arrow: &'n ArrowFunctionExpression<'a>,
         parent_depth: usize,
         result_type: Type,
-    ) -> Result<Region, String> {
+    ) -> Result<Region, String>
+    where
+        'a: 'n,
+    {
         let (activation, request) =
             self.begin_arrow_block_activation(arrow, parent_depth, result_type)?;
         let ArrowBodyRequest {
