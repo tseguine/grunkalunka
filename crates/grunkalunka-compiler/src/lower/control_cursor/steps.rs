@@ -391,7 +391,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let body_result =
                     self.finish_arrow_block_activation(activation, finished_region, Ok(completion));
                 let emitted = body_result.map(|body| {
-                    self.resume_zero_block_factory(expression.as_mut(), callee_node, signature, body);
+                    self.resume_zero_block_factory(
+                        expression.as_mut(),
+                        callee_node,
+                        signature,
+                        body,
+                    );
                 });
                 self.finish_zero_block_factory(factory);
                 self.leave_function_value();
