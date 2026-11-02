@@ -70,8 +70,8 @@ test("real layout artifact feeds one engine's node:test parity and sensitivity s
   assert.match(source, /needs: native/);
   assert.ok(source.includes("engine: [chromium, firefox, webkit]"));
   assert.match(source, /cargo run --locked --offline -p grunkalunka-layout --example native_block_bridge/);
-  assert.ok(source.includes("actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4"));
-  assert.ok(source.includes("actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0"));
+  assert.ok(source.includes("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"));
+  assert.ok(source.includes("actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333"));
   assert.ok(source.includes("node --test tools/browser-oracles/hosted/native-bridge.test.mjs"));
   assert.ok(source.includes("BROWSER_BRIDGE_NATIVE: target/native-bridge/native.json"));
   assert.ok(source.includes("BROWSER_ENGINE: ${{ matrix.engine }}"));
