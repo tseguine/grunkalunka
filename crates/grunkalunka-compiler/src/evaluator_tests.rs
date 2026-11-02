@@ -48,6 +48,12 @@ pub(crate) fn pending(count: usize) {
     PENDING.with(|pending| pending.set(pending.get().max(count)));
 }
 
+/// Test-only depth of the active native evaluator entry, used to detect when
+/// a source-body cursor is started synchronously from an evaluator leaf.
+pub(crate) fn active_depth() -> usize {
+    ACTIVE.with(Cell::get)
+}
+
 fn observe<T>(run: impl FnOnce() -> T) -> (T, usize, usize, usize) {
     ACTIVE.with(|active| assert_eq!(active.get(), 0));
     MAXIMUM.with(|maximum| maximum.set(0));
