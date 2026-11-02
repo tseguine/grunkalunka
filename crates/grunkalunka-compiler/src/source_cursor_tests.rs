@@ -360,7 +360,9 @@ fn async_throw_reason_continuation_preserves_catch_and_source_diagnostics() {
     // rejects before its argument can be evaluated or emitted.
     let source = "export function run(a,b) { throw a; }";
     let (result, maximum, entries, _) = observe(|| crate::compile(source, false));
-    let error = result.expect_err("synchronous throw must remain rejected");
+    let error = result
+        .err()
+        .expect("synchronous throw must remain rejected");
     assert!(
         error.contains("statement is outside the numeric experiment"),
         "unexpected first diagnostic: {error}"
