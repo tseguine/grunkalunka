@@ -171,6 +171,15 @@ pub(super) enum Work<'e, 'a> {
         depth: usize,
         site: Option<usize>,
     },
+    /// Deferred source-body boundary for a block-bodied local call.
+    /// Eventually the evaluator will yield here rather than run another
+    /// source cursor on the Rust stack.
+    LowerBlockBody {
+        node: &'e Expression<'a>,
+        arrow: oxc_syntax::node::NodeId,
+        result_type: Type,
+        parent_depth: usize,
+    },
     ClosureCall {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
