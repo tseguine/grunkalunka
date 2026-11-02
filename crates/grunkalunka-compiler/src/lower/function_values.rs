@@ -3,6 +3,19 @@
 use super::*;
 use std::collections::BTreeMap;
 
+/// Function-valued result calls have one shared eight-active-call budget.
+/// Admission is a move-only token so a future heap continuation can own the
+/// charge until its argument, body and result phases finish or unwind.
+#[derive(Clone, Copy)]
+enum FunctionResultKind {
+    Local,
+    Runtime,
+}
+
+struct FunctionResultActivation {
+    _kind: FunctionResultKind,
+}
+
 impl<'s, 'a> Lowering<'s, 'a> {
     pub(super) fn named_module_function(
         &self,
@@ -904,6 +917,35 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
+    /// Keep resource charging separate from the native function-result frame.
+    /// Both kinds share the same counter, but preserve their original first
+    /// diagnostic when the limit is exceeded.
+    fn begin_function_result(
+        &mut self,
+        call: &CallExpression<'_>,
+        kind: FunctionResultKind,
+    ) -> Result<FunctionResultActivation, String> {
+        if self.active_function_results >= 8 {
+            return Err(unsupported(
+                call,
+                match kind {
+                    FunctionResultKind::Local => {
+                        "at most 8 active local function-result calls are admitted"
+                    }
+                    FunctionResultKind::Runtime => {
+                        "at most 8 active runtime function-result calls are admitted"
+                    }
+                },
+            ));
+        }
+        self.active_function_results += 1;
+        Ok(FunctionResultActivation { _kind: kind })
+    }
+
+    fn finish_function_result(&mut self, _activation: FunctionResultActivation) {
+        self.active_function_results -= 1;
+    }
+
     fn runtime_function_result(
         &mut self,
         call: &CallExpression<'_>,
@@ -911,13 +953,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         expected: usize,
         depth: usize,
     ) -> Result<ValueId, String> {
-        if self.active_function_results >= 8 {
-            return Err(unsupported(
-                call,
-                "at most 8 active runtime function-result calls are admitted",
-            ));
-        }
-        self.active_function_results += 1;
+        let activation = self.begin_function_result(call, FunctionResultKind::Runtime)?;
         let result = (|| {
             let signature = self
                 .function_arity(invocation::callee(call), invocation::depth(call, depth + 1))
@@ -1012,7 +1048,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             );
             Ok(result)
         })();
-        self.active_function_results -= 1;
+        self.finish_function_result(activation);
         result
     }
 
@@ -1023,13 +1059,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         arity: usize,
         depth: usize,
     ) -> Result<ValueId, String> {
-        if self.active_function_results >= 8 {
-            return Err(unsupported(
-                call,
-                "at most 8 active local function-result calls are admitted",
-            ));
-        }
-        self.active_function_results += 1;
+        let activation = self.begin_function_result(call, FunctionResultKind::Local)?;
         let result = (|| {
             let mut closure = self
                 .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
@@ -1091,7 +1121,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             self.source_charging = charging;
             result
         })();
-        self.active_function_results -= 1;
+        self.finish_function_result(activation);
         result
     }
 
