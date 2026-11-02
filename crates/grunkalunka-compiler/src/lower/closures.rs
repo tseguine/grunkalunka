@@ -914,9 +914,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         {
             self.return_undefined(arrow, &mut region);
         } else if completion != Completion::RETURN
-            && !(arrow.r#async
-                && result_type == Type::General
-                && completion.returns_or_throws())
+            && !(arrow.r#async && result_type == Type::General && completion.returns_or_throws())
         {
             return Err(unsupported(
                 arrow,
