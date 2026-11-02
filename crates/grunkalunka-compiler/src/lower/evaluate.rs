@@ -20,15 +20,41 @@ struct LogicalLeft<'e, 'a> {
     left: Value,
 }
 
+/// Own the root Region while evaluation is active. The destination is only
+/// a restoration lease; the evaluator and its child regions mutate `owned`,
+/// not the caller's Region. Drop restores it even on early diagnostics.
+struct RegionRoot<'r> {
+    destination: &'r mut Region,
+    owned: Region,
+}
+
+impl<'r> RegionRoot<'r> {
+    fn take(destination: &'r mut Region) -> Self {
+        let owned = Region {
+            id: destination.id,
+            span: destination.span,
+            operations: std::mem::take(&mut destination.operations),
+            exit: std::mem::replace(&mut destination.exit, Exit::Fallthrough),
+        };
+        Self { destination, owned }
+    }
+}
+
+impl Drop for RegionRoot<'_> {
+    fn drop(&mut self) {
+        std::mem::swap(&mut *self.destination, &mut self.owned);
+    }
+}
+
 struct Regions<'r> {
-    root: &'r mut Region,
+    root: RegionRoot<'r>,
     children: Vec<Region>,
 }
 
 /// One logical expression activation owns all pending work, typed value
-/// snapshots and nested Regions. The root is still borrowed through the
-/// existing synchronous evaluator API; a subsequent unit will transfer it
-/// into owned storage so the activation can yield to source-body lowering.
+/// snapshots and Regions (including the root's operation buffer). The
+/// destination lease is retained for the current synchronous evaluate API;
+/// future yielding requests can transfer this cursor without a Rust frame.
 struct EvaluationCursor<'r, 'e, 'a> {
     regions: Regions<'r>,
     work: Vec<Work<'e, 'a>>,
@@ -39,7 +65,7 @@ impl<'r, 'e, 'a> EvaluationCursor<'r, 'e, 'a> {
     fn new(root: &'r mut Region, expression: &'e Expression<'a>, depth: usize, mode: Mode) -> Self {
         Self {
             regions: Regions {
-                root,
+                root: RegionRoot::take(root),
                 children: Vec::new(),
             },
             work: vec![Work::Eval(expression, depth, mode)],
@@ -151,7 +177,7 @@ fn call_result<'e, 'a>(
 }
 impl Regions<'_> {
     fn current(&mut self) -> &mut Region {
-        self.children.last_mut().unwrap_or(self.root)
+        self.children.last_mut().unwrap_or(&mut self.root.owned)
     }
     fn finish(&mut self, value: ValueId) -> Region {
         let mut child = self.children.pop().expect("owned child region");
