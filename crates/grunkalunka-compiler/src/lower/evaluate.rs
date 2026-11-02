@@ -25,6 +25,29 @@ struct Regions<'r> {
     children: Vec<Region>,
 }
 
+/// One logical expression activation owns all pending work, typed value
+/// snapshots and nested Regions. The root is still borrowed through the
+/// existing synchronous evaluator API; a subsequent unit will transfer it
+/// into owned storage so the activation can yield to source-body lowering.
+struct EvaluationCursor<'r, 'e, 'a> {
+    regions: Regions<'r>,
+    work: Vec<Work<'e, 'a>>,
+    values: Vec<Value>,
+}
+
+impl<'r, 'e, 'a> EvaluationCursor<'r, 'e, 'a> {
+    fn new(root: &'r mut Region, expression: &'e Expression<'a>, depth: usize, mode: Mode) -> Self {
+        Self {
+            regions: Regions {
+                root,
+                children: Vec::new(),
+            },
+            work: vec![Work::Eval(expression, depth, mode)],
+            values: Vec::new(),
+        }
+    }
+}
+
 fn numeric<'e, 'a>(
     lowering: &Lowering<'_, '_>,
     work: &mut Vec<Work<'e, 'a>>,
@@ -993,12 +1016,14 @@ impl Lowering<'_, '_> {
     ) -> Result<Option<ValueId>, String> {
         #[cfg(test)]
         let _entry = crate::evaluator_tests::entry();
-        let mut regions = Regions {
-            root: region,
-            children: Vec::new(),
-        };
-        let mut work = vec![Work::Eval(expression, depth, mode)];
-        let mut values: Vec<Value> = Vec::new();
+        let mut cursor = EvaluationCursor::new(region, expression, depth, mode);
+        // Keep the original scheduling logic intact while first making its
+        // complete pending state a single transferable activation.
+        let (mut regions, mut work, mut values) = (
+            &mut cursor.regions,
+            &mut cursor.work,
+            &mut cursor.values,
+        );
         while !work.is_empty() {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
