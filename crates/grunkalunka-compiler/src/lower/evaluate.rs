@@ -1559,30 +1559,51 @@ impl Lowering<'_, '_> {
                                 },
                             ));
                         } else {
-                            let depth = self.inline_depth
+                            let parent_depth = self.inline_depth
                                 + self.statement_depth
                                 + regions.children.len()
                                 + 1;
-                            let body = self.arrow_block_result(arrow, depth, closure.result)?;
-                            let result = self.value(closure.result);
-                            Self::push(regions.current(), node, Op::InlineCall { result, body });
-                            values.push(if closure.result.is_managed() {
-                                Value::managed(result, closure.result)
-                            } else if closure.result == Type::AsyncValue {
-                                Value::Selection(result)
-                            } else if closure.result == Type::Promise {
-                                Value::Pending(result)
-                            } else if closure.result == Type::SettledPromise {
-                                Value::Settled(result)
-                            } else if closure.result == Type::FulfilledPromise {
-                                Value::Promise(result)
-                            } else if closure.result == Type::General {
-                                Value::General(result)
-                            } else {
-                                Value::Number(result)
+                            work.push(Work::LowerBlockBody {
+                                node,
+                                arrow: closure.arrow,
+                                result_type: closure.result,
+                                parent_depth,
                             });
                         }
                     }
+                }
+                Work::LowerBlockBody {
+                    node,
+                    arrow,
+                    result_type,
+                    parent_depth,
+                } => {
+                    // A typed phase boundary: all caller arguments and fresh
+                    // formal bindings are already committed. For now this
+                    // executes the existing source-body lowering synchronously.
+                    // A subsequent unit replaces it with a yield/resume handoff.
+                    let body = self.arrow_block_result(
+                        self.arrow(arrow),
+                        parent_depth,
+                        result_type,
+                    )?;
+                    let result = self.value(result_type);
+                    Self::push(regions.current(), node, Op::InlineCall { result, body });
+                    values.push(if result_type.is_managed() {
+                        Value::managed(result, result_type)
+                    } else if result_type == Type::AsyncValue {
+                        Value::Selection(result)
+                    } else if result_type == Type::Promise {
+                        Value::Pending(result)
+                    } else if result_type == Type::SettledPromise {
+                        Value::Settled(result)
+                    } else if result_type == Type::FulfilledPromise {
+                        Value::Promise(result)
+                    } else if result_type == Type::General {
+                        Value::General(result)
+                    } else {
+                        Value::Number(result)
+                    });
                 }
                 Work::BeginAwaitedClosureCall {
                     node,
