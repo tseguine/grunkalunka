@@ -346,6 +346,72 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 self.resume_lowered_block_body(expression.as_mut(), node, result_type, body);
                 self.advance_owned_expression(*expression, mode, cursor)?;
             }
+            Frame::EvaluateFactoryBody {
+                mut expression,
+                mode,
+                activation,
+                factory,
+                previous_result_depth,
+                node,
+                signature,
+                ..
+            } => {
+                // Complete the body while its captured callee environment is
+                // active, emit the original inline factory call, then restore
+                // the caller bindings and both nested resource checkpoints.
+                let body_result =
+                    self.finish_arrow_block_activation(activation, finished_region, Ok(completion));
+                let emitted = body_result.map(|body| {
+                    self.resume_zero_block_factory(expression.as_mut(), node, signature, body);
+                });
+                self.finish_zero_block_factory(factory);
+                self.restore_function_result_depth(previous_result_depth);
+                emitted?;
+                self.advance_owned_expression(*expression, mode, cursor)?;
+            }
+            Frame::EvaluateFactoryCallee {
+                mut expression,
+                mode,
+                activation,
+                factory,
+                previous_result_depth,
+                callee_node,
+                signature,
+                outer_node,
+                outer_call,
+                outer_depth,
+                outer_mode,
+                result_type,
+                number_proven,
+                ..
+            } => {
+                // The old prepare_closure_call completes the returned function
+                // before converting the outer call's mode or evaluating its
+                // arguments. Preserve that ordering across this suspension.
+                let body_result =
+                    self.finish_arrow_block_activation(activation, finished_region, Ok(completion));
+                let emitted = body_result.map(|body| {
+                    self.resume_zero_block_factory(expression.as_mut(), callee_node, signature, body);
+                });
+                self.finish_zero_block_factory(factory);
+                self.leave_function_value();
+                self.restore_function_result_depth(previous_result_depth);
+                emitted?;
+                let callee = expression
+                    .pop_function_value()
+                    .expect("returned factory callee function");
+                self.resume_sync_closure_callee(
+                    expression.as_mut(),
+                    outer_node,
+                    outer_call,
+                    callee,
+                    outer_depth,
+                    outer_mode,
+                    result_type,
+                    number_proven,
+                )?;
+                self.advance_owned_expression(*expression, mode, cursor)?;
+            }
             Frame::DiscardExpression { .. }
             | Frame::ScalarLet { .. }
             | Frame::ReturnValue { .. }
