@@ -705,6 +705,36 @@ fn function_results_do_not_cross_unsupported_kinds_or_runtime_signatures() {
 }
 
 #[test]
+fn returned_block_factory_callees_preserve_runtime_results() {
+    // These all pass through a block-bodied factory whose returned closure is
+    // immediately invoked. The compiler's source-cursor implementation must
+    // not change the original callee evaluation or indirect-call order.
+    let bodies = [
+        "const get=()=>{return ()=>a;};return get()();",
+        "const get=()=>{if(a)return ()=>a;return ()=>b;};return get()();",
+        "const get=()=>{return ()=>a+b;};return get()()+b;",
+    ];
+    compare_functions(&bodies);
+    for body in bodies {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || compile(&source, typescript))
+                .expect("2 MiB returned-factory callee thread")
+                .join()
+                .expect("factory callee must not overflow native stack");
+            assert!(result.is_ok(), "{body}: {:?}", result.err());
+        }
+    }
+    let rejected =
+        "export function run(a,b){const get=()=>{if(a)return ()=>a;};return get()();}";
+    for ts in [false, true] {
+        assert!(compile(rejected, ts).is_err(), "{rejected}");
+    }
+}
+
+#[test]
 fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))
