@@ -48,6 +48,13 @@ impl BlockArrowCheckpoint {
     }
 }
 
+/// Owned source region plus the original body AST to be scheduled by a
+/// future cross-phase LowerBody task. No evaluator work/Region is borrowed.
+pub(super) struct ArrowBodyRequest<'n, 'a> {
+    pub(super) statements: &'n [Statement<'a>],
+    pub(super) region: Region,
+}
+
 pub(super) fn unwrapped<'e, 'a>(
     expression: &'e Expression<'a>,
     depth: usize,
@@ -856,6 +863,27 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
+    /// Prepare the source block with the same ordered directive admission,
+    /// without entering another native source-control dispatcher. Both the
+    /// original synchronous path and a future yielding path use this request.
+    #[inline(never)]
+    pub(super) fn prepare_arrow_block_body<'n, 'ast>(
+        &mut self,
+        arrow: &'n ArrowFunctionExpression<'ast>,
+    ) -> Result<ArrowBodyRequest<'n, 'ast>, String> {
+        let ArrowFunctionBody::FunctionBody(body) = &arrow.body else {
+            unreachable!("block arrow body")
+        };
+        let region = self.region(body.as_ref());
+        for directive in &body.directives {
+            self.charge_statement(directive)?;
+        }
+        Ok(ArrowBodyRequest {
+            statements: &body.statements,
+            region,
+        })
+    }
+
     pub(super) fn arrow_block_result(
         &mut self,
         arrow: &ArrowFunctionExpression<'_>,
@@ -878,14 +906,11 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.inline_depth = parent_depth;
         self.statement_depth = 0;
         let lowered = (|| {
-            let ArrowFunctionBody::FunctionBody(body) = &arrow.body else {
-                unreachable!("block arrow body")
-            };
-            let mut region = self.region(body.as_ref());
-            for directive in &body.directives {
-                self.charge_statement(directive)?;
-            }
-            let completion = self.sequence(&body.statements, &mut region, 0)?;
+            let ArrowBodyRequest {
+                statements,
+                mut region,
+            } = self.prepare_arrow_block_body(arrow)?;
+            let completion = self.sequence(statements, &mut region, 0)?;
             self.complete_arrow_block_body(arrow, result_type, region, completion)
         })();
         checkpoint.restore(self);
