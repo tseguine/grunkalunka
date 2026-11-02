@@ -120,6 +120,13 @@ enum Frame<'n, 'a> {
     },
     ForPredicate(ForPredicateFrame<'n, 'a>),
     For(ForFrame<'n, 'a>),
+    /// The loop body has finished; an update expression must run before
+    /// captured let-header renewal and final loop IR assembly.
+    ForUpdate {
+        frame: ForFrame<'n, 'a>,
+        body: Region,
+        completion: Completion,
+    },
     Block {
         source: &'n BlockStatement<'a>,
         output: Region,
@@ -183,6 +190,7 @@ impl Frame<'_, '_> {
             | Self::TryFinallyCleanup { depth, .. } => *depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
+            Self::ForUpdate { frame, .. } => frame.depth,
         }
     }
 }
