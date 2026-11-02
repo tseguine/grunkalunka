@@ -226,3 +226,65 @@ to yield back to the same scheduler without Rust call-stack reentry. That
 requires an explicit result-stack/region-ownership contract and must migrate
 each actual SCC as a whole. It should not be claimed merely by replacing a
 recursive call with another `Vec<Work>`.
+
+## Cross-phase checkpoint (2026-11-02)
+
+The design's initial source/evaluator integration is **implemented**, but
+the overall native-stack SCC migration is not complete:
+
+- [#398–#402](https://github.com/tseguine/grunkalunka/pull/402)
+  integrated typed source-to-expression requests, outcomes and explicit
+  continuations for branch/loop predicates and discarded expressions.
+- [#405–#409](https://github.com/tseguine/grunkalunka/pull/409)
+  integrated for-header initialization/update, numeric and directly typed
+  return values, and async-source throw reason requests. The tested stacks
+  were reconciled before their final merge; closed predecessor PRs are not
+  necessarily individually marked merged.
+- [#410](https://github.com/tseguine/grunkalunka/pull/410)
+  introduced evaluator-to-source native reentry observations and the
+  [cross-phase inventory](../lowering-cross-phase-reentry.md).
+- [#411–#414](https://github.com/tseguine/grunkalunka/pull/414)
+  isolated block-arrow context, source-body preparation, completion and
+  restoration into typed activation operations.
+- [#415–#421](https://github.com/tseguine/grunkalunka/pull/421)
+  built an owned evaluator work/value/Region activation with a separate
+  compatibility lease, preserved the `LowerFunctionLeaf` stack fix,
+  and integrated the first block-bodied `LocalCall` yield into the
+  **same source-control scheduler**. `Frame::EvaluateBody` carries the
+  suspended evaluator and arrow checkpoint; diagnostic unwinding restores
+  the nested activation contexts in reverse order. These changes are
+  integrated at master `d519917` (2026-11-02).
+
+### Work still required for a complete L4/L5 claim
+
+- **Source statements not yet handed off:** variable declarations and
+  specialized function/managed/Promise/async return paths can call a separate
+  synchronous evaluator through `statement_inner` or helper methods. The
+  [#422–#425](https://github.com/tseguine/grunkalunka/pull/425) work-in-flight
+  stack pilots single numeric and primitive-General `let` declarations,
+  closure-valued returns and async `Mode::AsyncReturn` resolution.
+  These remain **unverified/unmerged at this checkpoint**.
+- **Returned function-value factories:** `LowerFunctionLeaf` safely releases
+  the large evaluator runner but the wrapper
+  `function_value_leaf → local_function_result/factory_result →
+  arrow_block_result` can still enter nested evaluators and source cursors
+  through native Rust calls. That entire remaining SCC requires a typed
+  request/resume path, including ordered arguments, lexical captures,
+  function-result signatures and error restoration.
+- **Compatibility call sites:** direct `evaluate` and `arrow_block_result`
+  entry points are retained for other callers. Removing them requires
+  tracing their actual source-dependent call paths rather than declaring
+  the single source-owned `Next::Expression` vertical slice universal.
+- **Evidence and contracts:** source-depth/expansion guards, the eight-active-
+  block and sixteen-active-function-value limits remain original admission
+  constraints, not proof that all native recursion has been removed.
+  Maintain two-MiB Linux/Windows probes, exact source rejection diagnostics,
+  emitted IR/WAT/Wasm identity where a pure refactor, and native JS /
+  Node-Wasm / Wasmtime execution parity. The async runtime job queue and
+  effect-free source fact queries remain separate ownership domains.
+
+The next architecture decision is about **resumable function-value factory
+and declaration continuations**, not replacing the typed Region IR or
+redesigning the runtime scheduler. Update the L4 completion claim only
+when admitted mixed-kind and returned-function call graphs no longer build
+a source-depth-dependent native Rust stack.
