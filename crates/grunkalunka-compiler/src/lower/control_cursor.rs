@@ -292,7 +292,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 } else {
                     evaluate::Mode::General
                 }
-            },
+            }
             Type::AsyncValue => evaluate::Mode::AsyncValue,
             Type::Promise => evaluate::Mode::Pending,
             Type::SettledPromise => evaluate::Mode::Settled,
@@ -509,7 +509,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             {
                                 self.statement_depth = depth;
                                 self.admit_source_statement(source, depth)?;
-                                let expression = statement.argument.as_ref().expect("checked return");
+                                let expression =
+                                    statement.argument.as_ref().expect("checked return");
                                 self.enter_function_value(expression)?;
                                 #[cfg(test)]
                                 SCHEDULED_FUNCTION_RETURNS.with(|count| count.set(count.get() + 1));
@@ -706,11 +707,15 @@ mod tests {
                     .join()
                     .expect("function-valued return must not overflow native stack");
                 assert!(result.is_ok(), "{body}: {:?}", result.err());
-                assert!(scheduled > 0, "{body}: function result used the legacy return path");
+                assert!(
+                    scheduled > 0,
+                    "{body}: function result used the legacy return path"
+                );
             }
         }
         for typescript in [false, true] {
-            let source = "export function run(a,b){const make=x=>{if(x)return ()=>x+a;};return make(b)();}";
+            let source =
+                "export function run(a,b){const make=x=>{if(x)return ()=>x+a;};return make(b)();}";
             assert!(crate::compile(source, typescript).is_err());
         }
     }
