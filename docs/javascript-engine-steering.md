@@ -70,6 +70,10 @@ behavior, not merely that individual functions now use a `Vec<Work>`.
 | **L6 — Facts, extensibility and future semantics** | Review effect-free function signatures, callback origins, stored kinds and Promise/input analysis for genuine duplicate traversal/fixed-point rules. Keep these *queries* distinct from effectful lowering; introduce an extensible normal/throw source-operation interface only when a concrete dynamic Get/Set/Call implementation needs it. | A new supported source feature crosses one well-defined semantic boundary without duplicating fact propagation, using observable JS errors rather than invalid-IR traps. No blanket new CFG, universal dynamic ABI, or ambient host capability as a prerequisite. |
 | **L7 — Hardening and design closure** | Keep accepted/rejected JS/TS differential programs, Node-Wasm/Wasmtime comparisons, 2 MiB native-stack fixtures, generated artifact identity, compile-time/peak-memory checks, and CI impact selection aligned with changes. Revise ADR 0020 based on proven implementation boundaries rather than speculative completion. | Exact-head Linux/Windows/macOS policy gates, focused source/runtime oracles, final SCC/stack report and explicit remaining limitations. Close #281 only once its full cross-phase acceptance invariant is supported, not merely because PRs merged. |
 
+The inspected L4 call paths, owned-state requirements and first native-stack
+observation are collected in [cross-phase reentry](lowering-cross-phase-reentry.md).
+These are the implementation targets, not a claim that L4 is complete.
+
 **Implementation order:** L1 and a small L2 proof first; then convert actual L3/L4
 SCCs incrementally, using L5 as cleanup after each verified replacement. L6
 is optional until a specific source semantic extension requires it; L7
