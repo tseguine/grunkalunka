@@ -3,13 +3,16 @@
 use super::*;
 use oxc_ast::ast::TryStatement;
 
-impl Lowering<'_, '_> {
-    pub(super) fn try_statement(
+impl<'s, 'ast> Lowering<'s, 'ast> {
+    pub(super) fn try_statement<'n>(
         &mut self,
-        statement: &TryStatement<'_>,
+        statement: &'n TryStatement<'ast>,
         region: &mut Region,
         depth: usize,
-    ) -> Result<Completion, String> {
+    ) -> Result<Completion, String>
+    where
+        'ast: 'n,
+    {
         let node = if statement.finalizer.is_some() {
             control_cursor::ControlNode::TryFinally(statement)
         } else {
