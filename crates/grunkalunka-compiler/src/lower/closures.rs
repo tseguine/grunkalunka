@@ -920,3 +920,29 @@ impl<'s, 'a> Lowering<'s, 'a> {
         lowered
     }
 }
+
+#[cfg(test)]
+mod checkpoint_tests {
+    #[test]
+    fn block_arrow_checkpoint_preserves_source_modes_on_small_native_stack() {
+        for (body, admitted) in [
+            ("const get=()=>{return ()=>a;};const f=get();return f();", true),
+            (
+                "let make=x=>{if(x)return ()=>x+a;return ()=>x-b;};return make(a)();",
+                true,
+            ),
+            ("let make=x=>{if(x)return ()=>a;};return a;", false),
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("small-stack block-arrow checkpoint thread")
+                    .join()
+                    .expect("block-arrow source reentry must not overflow native stack");
+                assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            }
+        }
+    }
+}
