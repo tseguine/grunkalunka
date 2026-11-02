@@ -286,7 +286,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     fn direct_return_mode(&self) -> Option<evaluate::Mode> {
         Some(match self.return_type {
             Type::Number | Type::Predicate => evaluate::Mode::Number,
-            Type::General if !self.allow_await => evaluate::Mode::General,
+            Type::General => {
+                if self.allow_await {
+                    evaluate::Mode::AsyncReturn
+                } else {
+                    evaluate::Mode::General
+                }
+            },
             Type::AsyncValue => evaluate::Mode::AsyncValue,
             Type::Promise => evaluate::Mode::Pending,
             Type::SettledPromise => evaluate::Mode::Settled,
@@ -294,7 +300,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Type::ManagedValue => evaluate::Mode::Managed,
             Type::ManagedObject => evaluate::Mode::Object,
             Type::ManagedArray => evaluate::Mode::Array,
-            Type::General | Type::Closure(_) => return None,
+            Type::Closure(_) => return None,
         })
     }
 
@@ -635,6 +641,28 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn async_general_returns_resume_through_the_owned_source_evaluator() {
+        for body in [
+            "return a;",
+            "return await a;",
+            "const p=Promise.resolve(a);return p;",
+            "const p=Promise.resolve(a);return await p;",
+            "const f=x=>{return x+b;};return f(a);",
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export async function run(a,b){{{body}}}");
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile_async(&source, typescript))
+                    .expect("2 MiB async return compiler thread")
+                    .join()
+                    .expect("async return resolution must not overflow native stack");
+                assert!(result.is_ok(), "{body}: {:?}", result.err());
+            }
+        }
+    }
 
     #[test]
     fn general_let_values_use_the_same_owned_source_evaluator() {
