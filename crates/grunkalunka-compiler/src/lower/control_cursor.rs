@@ -96,11 +96,12 @@ enum Frame<'n, 'a> {
     ThrowValue {
         depth: usize,
     },
-    /// One source-charged numeric let binding awaits its initializer ValueId.
+    /// One source-charged scalar let binding awaits its initializer ValueId.
     /// The declaration slot and visible binding are published only after its
     /// initializer side effects finish, as on the original statement path.
-    NumericLet {
+    ScalarLet {
         local: &'n VariableDeclarator<'a>,
+        ty: Type,
         depth: usize,
     },
     /// The If source is suspended until its condition yields a predicate.
@@ -226,7 +227,7 @@ impl Frame<'_, '_> {
             | Self::ReturnValue { depth }
             | Self::FunctionReturn { depth }
             | Self::ThrowValue { depth }
-            | Self::NumericLet { depth, .. }
+            | Self::ScalarLet { depth, .. }
             | Self::IfPredicate { depth, .. }
             | Self::If { depth, .. }
             | Self::WhilePredicate { depth, .. }
@@ -297,13 +298,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         })
     }
 
-    /// Conservative read-only selection of the exact existing Number path
-    /// for a single initialized `let`. All function-valued, mixed Promise,
-    /// managed and General declarations retain their legacy lowering.
-    fn numeric_let_initializer<'n>(
+    /// Select the original direct Number/General source initializer path,
+    /// without executing any expression or changing the local-binding state.
+    /// Function-valued, Promise and managed inputs retain their own handlers.
+    fn scalar_let_initializer<'n>(
         &self,
         declaration: &'n VariableDeclaration<'ast>,
-    ) -> Option<&'n VariableDeclarator<'ast>> {
+    ) -> Option<(&'n VariableDeclarator<'ast>, Type)> {
         if declaration.kind != VariableDeclarationKind::Let
             || declaration.declare
             || declaration.declarations.len() != 1
@@ -324,12 +325,17 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             || self.pending_promise_shape(initializer, 0)
             || self.fulfilled_promise_shape(initializer, 0)
             || self.managed_source_type(initializer, 0).is_some()
-            || self.general_bindings.contains(&symbol)
-            || !self.numeric_result_shape(initializer, 0)
         {
             return None;
         }
-        Some(local)
+        let ty = if self.general_bindings.contains(&symbol)
+            || !self.numeric_result_shape(initializer, 0)
+        {
+            Type::General
+        } else {
+            Type::Number
+        };
+        Some((local, ty))
     }
 
     /// Drive one owned expression activation until it yields a source-body
@@ -522,7 +528,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     mode,
                                 });
                             } else if let Statement::VariableDeclaration(declaration) = source
-                                && let Some(local) = self.numeric_let_initializer(declaration)
+                                && let Some((local, ty)) = self.scalar_let_initializer(declaration)
                             {
                                 // Match statement_inner -> declaration's admission
                                 // and first-local charge before evaluating any source.
@@ -537,12 +543,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 if self.source_charging {
                                     self.local_count += 1;
                                 }
-                                cursor.pending.push(Frame::NumericLet { local, depth });
+                                cursor.pending.push(Frame::ScalarLet { local, ty, depth });
                                 cursor.next = Some(Next::Expression {
                                     source: local.init.as_ref().expect("eligible initializer"),
                                     output,
                                     depth: 0,
-                                    mode: evaluate::Mode::Number,
+                                    mode: if ty == Type::General {
+                                        evaluate::Mode::General
+                                    } else {
+                                        evaluate::Mode::Number
+                                    },
                                 });
                             } else if let Statement::ExpressionStatement(statement) = source {
                                 // A discard expression is another typed leaf
