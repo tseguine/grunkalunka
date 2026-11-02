@@ -1053,6 +1053,36 @@ impl<'s, 'a> Lowering<'s, 'a> {
 #[cfg(test)]
 mod checkpoint_tests {
     #[test]
+    fn factory_binding_checkpoint_restores_caller_context_on_small_stack() {
+        for (body, admitted) in [
+            ("const id=fn=>fn;const f=id(x=>x+a);return f(b);", true),
+            (
+                "const make=x=>{return ()=>x+a;};const f=make(b);return f();",
+                true,
+            ),
+            (
+                "let n=a;const make=x=>{return ()=>n+x;};const f=make(b);return f()+n;",
+                true,
+            ),
+            (
+                "const make=x=>{if(x)return ()=>x+a;};const f=make(b);return f();",
+                false,
+            ),
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("2 MiB factory checkpoint thread")
+                    .join()
+                    .expect("factory binding restoration must not overflow");
+                assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
     fn block_arrow_checkpoint_preserves_source_modes_on_small_native_stack() {
         for (body, admitted) in [
             (
