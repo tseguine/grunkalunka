@@ -1045,15 +1045,12 @@ impl Lowering<'_, '_> {
         let mut cursor = EvaluationCursor::new(region, expression, depth, mode);
         // Keep the original scheduling logic intact while first making its
         // complete pending state a single transferable activation.
-        let (regions, work, values) =
-            (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
+        let (regions, work, values) = (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
         while !work.is_empty() {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
-                Work::OwnKeys(task) => {
-                    self.resume_own_keys(task, regions, values, work)?
-                }
+                Work::OwnKeys(task) => self.resume_own_keys(task, regions, values, work)?,
                 Work::Managed(task) => {
                     self.complete_managed(task, regions, values, work)?;
                 }
@@ -1074,9 +1071,9 @@ impl Lowering<'_, '_> {
                         && (operand.extras.is_empty()
                             || !self.pending_promise_shape(argument, operand.depth))
                     {
-                        if self.schedule_mixed_resolve_await(
-                            node, depth, mode, &operand, site, work,
-                        )? {
+                        if self
+                            .schedule_mixed_resolve_await(node, depth, mode, &operand, site, work)?
+                        {
                             continue;
                         }
                         if operand.rejected || !operand.extras.is_empty() {
@@ -2400,11 +2397,7 @@ impl Lowering<'_, '_> {
                 } => {
                     if matches!(mode, Mode::Discard) {
                         self.finish_discarded_logical(
-                            node,
-                            left_node,
-                            condition,
-                            operator,
-                            regions,
+                            node, left_node, condition, operator, regions,
                         );
                         continue;
                     }
@@ -2569,14 +2562,7 @@ impl Lowering<'_, '_> {
                         work.push(Work::Eval(&wrapper.expression, depth + 1, mode));
                         continue;
                     }
-                    if self.schedule_managed(
-                        node,
-                        depth,
-                        mode,
-                        regions,
-                        values,
-                        work,
-                    )? {
+                    if self.schedule_managed(node, depth, mode, regions, values, work)? {
                         continue;
                     }
                     if matches!(mode, Mode::DiscardLogical) {
@@ -2667,12 +2653,7 @@ impl Lowering<'_, '_> {
                                     | AssignmentOperator::LogicalNullish
                             ) {
                                 self.schedule_logical_assignment(
-                                    node,
-                                    assignment,
-                                    depth,
-                                    mode,
-                                    regions,
-                                    work,
+                                    node, assignment, depth, mode, regions, work,
                                 )?;
                                 continue;
                             }
@@ -2704,9 +2685,7 @@ impl Lowering<'_, '_> {
                             continue;
                         }
                         if let Expression::CallExpression(call) = node {
-                            if self
-                                .schedule_mixed_resolve_constructor(node, call, depth, work)?
-                            {
+                            if self.schedule_mixed_resolve_constructor(node, call, depth, work)? {
                                 continue;
                             }
                             if self.promise_parameters.identities
@@ -2911,12 +2890,7 @@ impl Lowering<'_, '_> {
                                     | AssignmentOperator::LogicalNullish
                             ) {
                                 self.schedule_logical_assignment(
-                                    node,
-                                    assignment,
-                                    depth,
-                                    mode,
-                                    regions,
-                                    work,
+                                    node, assignment, depth, mode, regions, work,
                                 )?;
                                 continue;
                             }
@@ -3014,12 +2988,7 @@ impl Lowering<'_, '_> {
                                     | AssignmentOperator::LogicalNullish
                             ) {
                                 self.schedule_logical_assignment(
-                                    node,
-                                    assignment,
-                                    depth,
-                                    mode,
-                                    regions,
-                                    work,
+                                    node, assignment, depth, mode, regions, work,
                                 )?;
                                 continue;
                             }
@@ -3511,12 +3480,7 @@ impl Lowering<'_, '_> {
                         Expression::StaticMemberExpression(member)
                             if !member.optional && member.property.name == "length" =>
                         {
-                            self.schedule_function_length(
-                                node,
-                                &member.object,
-                                depth + 1,
-                                work,
-                            )?;
+                            self.schedule_function_length(node, &member.object, depth + 1, work)?;
                         }
                         Expression::NumericLiteral(literal) => {
                             let result = self.value(Type::Number);
@@ -3609,12 +3573,7 @@ impl Lowering<'_, '_> {
                                     | AssignmentOperator::LogicalNullish
                             ) {
                                 self.schedule_logical_assignment(
-                                    node,
-                                    assignment,
-                                    depth,
-                                    mode,
-                                    regions,
-                                    work,
+                                    node, assignment, depth, mode, regions, work,
                                 )?;
                                 continue;
                             }
