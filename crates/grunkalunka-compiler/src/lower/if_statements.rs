@@ -3,14 +3,17 @@
 use super::*;
 use oxc_ast::ast::IfStatement;
 
-impl Lowering<'_, '_> {
+impl<'s, 'ast> Lowering<'s, 'ast> {
     #[inline(never)]
-    pub(super) fn if_statement_iterative<'n, 'a>(
+    pub(super) fn if_statement_iterative<'n>(
         &mut self,
-        root: &'n IfStatement<'a>,
+        root: &'n IfStatement<'ast>,
         region: &mut Region,
         depth: usize,
-    ) -> Result<Completion, String> {
+    ) -> Result<Completion, String>
+    where
+        'ast: 'n,
+    {
         self.control_statement_iterative(control_cursor::ControlNode::If(root), region, depth)
     }
 }
