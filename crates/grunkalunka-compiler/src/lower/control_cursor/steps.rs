@@ -188,6 +188,35 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
+            Frame::NumericLet { local, .. } => {
+                let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+                    unreachable!("scheduled numeric let has an identifier binding");
+                };
+                let mut output = output_region;
+                let slot = SlotId(self.slots.len());
+                self.slots.push(Slot {
+                    ty: Type::Number,
+                    owner: output.id,
+                    mutable: true,
+                    parameter: false,
+                    span: local.span(),
+                });
+                Self::push(
+                    &mut output,
+                    local,
+                    Op::Initialize {
+                        slot,
+                        value: value.expect("numeric let initializer result"),
+                    },
+                );
+                self.bindings.push(NumericBinding {
+                    symbol: identifier.symbol_id.get().expect("checked numeric binding"),
+                    slot,
+                    mutable: true,
+                });
+                cursor.completed = Some(Outcome::Statement(output, Completion::NORMAL));
+                Ok(())
+            }
             Frame::DiscardExpression { .. } => {
                 // Mode::Discard already evaluates side effects and produces
                 // no statement value. Resume sequential completion normally.
@@ -328,6 +357,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 self.advance_owned_expression(*expression, mode, cursor)?;
             }
             Frame::DiscardExpression { .. }
+            | Frame::NumericLet { .. }
             | Frame::ReturnValue { .. }
             | Frame::ThrowValue { .. }
             | Frame::IfPredicate { .. }
