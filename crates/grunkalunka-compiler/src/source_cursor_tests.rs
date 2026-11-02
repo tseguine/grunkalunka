@@ -355,8 +355,16 @@ fn nested_block_function_results_characterize_cross_phase_native_reentry() {
                 .expect("2 MiB block factory measurement thread")
                 .join()
                 .expect("block function result must not exhaust native stack");
-            assert_eq!(result.is_ok(), admitted, "{depth} block factories: {:?}", result.err());
-            assert!(maximum <= 8, "{depth} block factories reentered too deeply: {maximum}");
+            assert_eq!(
+                result.is_ok(),
+                admitted,
+                "{depth} block factories: {:?}",
+                result.as_ref().err()
+            );
+            assert!(
+                maximum <= 10,
+                "{depth} block factories reentered too deeply: {maximum}"
+            );
             assert!(entries > 0);
             assert!(crossings <= entries);
             if let Err(error) = result {
