@@ -200,6 +200,12 @@ impl Lowering<'_, '_> {
                 cursor.completed = Some(Outcome::Statement(output, Completion::RETURN));
                 Ok(())
             }
+            Frame::ThrowValue { .. } => {
+                let mut output = output_region;
+                output.exit = Exit::Throw(value.expect("throw reason"));
+                cursor.completed = Some(Outcome::Statement(output, Completion::THROW));
+                Ok(())
+            }
             Frame::IfPredicate { source, depth } => {
                 let condition = value.expect("predicate mode yields a value");
                 let consequent = self.region(&source.consequent);
@@ -301,6 +307,7 @@ impl Lowering<'_, '_> {
         match frame {
             Frame::DiscardExpression { .. }
             | Frame::NumericReturn { .. }
+            | Frame::ThrowValue { .. }
             | Frame::IfPredicate { .. }
             | Frame::WhilePredicate { .. }
             | Frame::DoWhilePredicate { .. }
