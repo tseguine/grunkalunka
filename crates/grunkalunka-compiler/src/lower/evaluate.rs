@@ -22,45 +22,51 @@ struct LogicalLeft<'e, 'a> {
     left: Value,
 }
 
-/// Own the root Region while evaluation is active. The destination is only
-/// a restoration lease; the evaluator and its child regions mutate `owned`,
-/// not the caller's Region. Drop restores it even on early diagnostics.
-struct RegionRoot<'r> {
-    destination: &'r mut Region,
-    owned: Region,
+/// All evaluator Regions are owned directly by the resumable activation.
+/// The synchronous `evaluate` API uses a separate restoration lease; source
+/// scheduling will be able to move an activation without borrowing its caller.
+struct Regions {
+    root: Region,
+    children: Vec<Region>,
 }
 
-impl<'r> RegionRoot<'r> {
-    fn take(destination: &'r mut Region) -> Self {
-        let owned = Region {
+struct EvaluationCursor<'e, 'a> {
+    regions: Regions,
+    work: Vec<Work<'e, 'a>>,
+    values: Vec<Value>,
+}
+
+/// Restore the caller's Region even when a synchronous evaluation returns an
+/// error through an early `?`. The cursor itself has no borrow of this Region.
+struct EvaluationLease<'r, 'e, 'a> {
+    destination: &'r mut Region,
+    cursor: EvaluationCursor<'e, 'a>,
+}
+
+impl<'r, 'e, 'a> EvaluationLease<'r, 'e, 'a> {
+    fn new(
+        destination: &'r mut Region,
+        expression: &'e Expression<'a>,
+        depth: usize,
+        mode: Mode,
+    ) -> Self {
+        let root = Region {
             id: destination.id,
             span: destination.span,
             operations: std::mem::take(&mut destination.operations),
             exit: std::mem::replace(&mut destination.exit, Exit::Fallthrough),
         };
-        Self { destination, owned }
+        Self {
+            destination,
+            cursor: EvaluationCursor::new(root, expression, depth, mode),
+        }
     }
 }
 
-impl Drop for RegionRoot<'_> {
+impl Drop for EvaluationLease<'_, '_, '_> {
     fn drop(&mut self) {
-        std::mem::swap(&mut *self.destination, &mut self.owned);
+        std::mem::swap(&mut *self.destination, &mut self.cursor.regions.root);
     }
-}
-
-struct Regions<'r> {
-    root: RegionRoot<'r>,
-    children: Vec<Region>,
-}
-
-/// One logical expression activation owns all pending work, typed value
-/// snapshots and Regions (including the root's operation buffer). The
-/// destination lease is retained for the current synchronous evaluate API;
-/// future yielding requests can transfer this cursor without a Rust frame.
-struct EvaluationCursor<'r, 'e, 'a> {
-    regions: Regions<'r>,
-    work: Vec<Work<'e, 'a>>,
-    values: Vec<Value>,
 }
 
 /// One resumable run segment either completes the requested expression or
@@ -113,11 +119,11 @@ impl Drop for ActiveEvaluationRunner {
     }
 }
 
-impl<'r, 'e, 'a> EvaluationCursor<'r, 'e, 'a> {
-    fn new(root: &'r mut Region, expression: &'e Expression<'a>, depth: usize, mode: Mode) -> Self {
+impl<'e, 'a> EvaluationCursor<'e, 'a> {
+    fn new(root: Region, expression: &'e Expression<'a>, depth: usize, mode: Mode) -> Self {
         Self {
             regions: Regions {
-                root: RegionRoot::take(root),
+                root,
                 children: Vec::new(),
             },
             work: vec![Work::Eval(expression, depth, mode)],
@@ -227,9 +233,9 @@ fn call_result<'e, 'a>(
     }
     Ok(())
 }
-impl Regions<'_> {
+impl Regions {
     fn current(&mut self) -> &mut Region {
-        self.children.last_mut().unwrap_or(&mut self.root.owned)
+        self.children.last_mut().unwrap_or(&mut self.root)
     }
     fn finish(&mut self, value: ValueId) -> Region {
         let mut child = self.children.pop().expect("owned child region");
@@ -357,7 +363,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         left_node: &Expression<'_>,
         condition: ValueId,
         operator: LogicalOperator,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
     ) {
         let selected = regions.children.pop().expect("discarded logical branch");
         let skipped = self.region(left_node);
@@ -385,7 +391,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         assignment: &'e oxc_ast::ast::AssignmentExpression<'a>,
         depth: usize,
         mode: Mode,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
         let Some(identifier) = assignment
@@ -728,7 +734,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     fn resume_direct_call<'e, 'a>(
         &mut self,
         task: Work<'e, 'a>,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         work: &mut Vec<Work<'e, 'a>>,
         values: &mut Vec<Value>,
     ) -> Result<(), String> {
@@ -844,7 +850,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     fn resume_ui_call<'e, 'a>(
         &mut self,
         task: Work<'e, 'a>,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         work: &mut Vec<Work<'e, 'a>>,
         values: &mut Vec<Value>,
     ) -> Result<(), String> {
@@ -953,7 +959,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     fn finish_logical_left<'e, 'a>(
         &mut self,
         input: LogicalLeft<'e, 'a>,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
         let LogicalLeft {
@@ -1094,14 +1100,14 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     ) -> Result<Option<ValueId>, String> {
         #[cfg(test)]
         let _entry = crate::evaluator_tests::entry();
-        let mut cursor = EvaluationCursor::new(region, expression, depth, mode);
+        let mut lease = EvaluationLease::new(region, expression, depth, mode);
         // The large evaluator runner returns before a source block is lowered.
         // Only this small compatibility wrapper remains on the native stack.
         // A future source/evaluator machine will own this outer dispatch loop.
         loop {
             #[cfg(test)]
             let prior_runner_depth = ACTIVE_EVALUATOR_RUNNERS.with(Cell::get);
-            let next = self.run_evaluation(&mut cursor, mode);
+            let next = self.run_evaluation(&mut lease.cursor, mode);
             #[cfg(test)]
             assert_eq!(
                 ACTIVE_EVALUATOR_RUNNERS.with(Cell::get),
@@ -1119,9 +1125,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     // Materializing a function can re-enter evaluation while
                     // checking its constructor. Release the large runner first.
                     let result = self.with_function_result_context(region_depth, |lower| {
-                        lower.function_value_leaf(node, cursor.regions.current(), signature, depth)
+                        lower.function_value_leaf(node, lease.cursor.regions.current(), signature, depth)
                     })?;
-                    cursor.values.push(Value::Function(result));
+                    lease.cursor.values.push(Value::Function(result));
                 }
                 EvaluationRun::LowerBody {
                     node,
@@ -1133,11 +1139,11 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     let body = self.arrow_block_result(arrow, parent_depth, result_type)?;
                     let result = self.value(result_type);
                     Self::push(
-                        cursor.regions.current(),
+                        lease.cursor.regions.current(),
                         node,
                         Op::InlineCall { result, body },
                     );
-                    cursor.values.push(if result_type.is_managed() {
+                    lease.cursor.values.push(if result_type.is_managed() {
                         Value::managed(result, result_type)
                     } else if result_type == Type::AsyncValue {
                         Value::Selection(result)
@@ -1162,7 +1168,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     #[inline(never)]
     fn run_evaluation<'e, 'a>(
         &mut self,
-        cursor: &mut EvaluationCursor<'_, 'e, 'a>,
+        cursor: &mut EvaluationCursor<'e, 'a>,
         mode: Mode,
     ) -> Result<EvaluationRun<'e, 'a>, String>
     where
@@ -4191,7 +4197,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         &mut self,
         node: &'e Expression<'a>,
         depth: usize,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
         let Some(slot) = self.async_value_assignment_slot(node, depth) else {
@@ -4314,7 +4320,21 @@ mod cursor_region_ownership_tests {
     use super::*;
 
     #[test]
-    fn owned_root_is_restored_after_normal_and_diagnostic_exits() {
+    fn production_evaluation_lease_restores_root_on_success_and_error() {
+        // Exercise EvaluationLease::new itself, not a test-only copy of the
+        // Region-transfer logic.
+        let allocator = oxc_allocator::Allocator::default();
+        let parsed = oxc_parser::Parser::new(
+            &allocator,
+            "1;",
+            oxc_span::SourceType::mjs(),
+        )
+        .parse();
+        assert!(!parsed.fatal_error && parsed.diagnostics.is_empty());
+        let Statement::ExpressionStatement(statement) = &parsed.program.body[0] else {
+            panic!("expected expression statement");
+        };
+        let expression = &statement.expression;
         let mut region = Region {
             id: RegionId(17),
             span: oxc_span::Span::new(2, 9),
@@ -4323,20 +4343,26 @@ mod cursor_region_ownership_tests {
         };
 
         {
-            let mut root = RegionRoot::take(&mut region);
-            root.owned.exit = Exit::Yield(ValueId(3));
+            let mut lease = EvaluationLease::new(&mut region, expression, 0, Mode::Number);
+            assert_eq!(lease.cursor.regions.root.id, RegionId(17));
+            assert_eq!(lease.cursor.regions.root.span, oxc_span::Span::new(2, 9));
+            lease.cursor.regions.root.exit = Exit::Yield(ValueId(3));
         }
         assert_eq!(region.id, RegionId(17));
+        assert_eq!(region.span, oxc_span::Span::new(2, 9));
         assert!(matches!(region.exit, Exit::Yield(ValueId(3))));
 
-        fn fail_after_root_take(region: &mut Region) -> Result<(), &'static str> {
-            let mut root = RegionRoot::take(region);
-            root.owned.exit = Exit::Return(ValueId(4));
+        fn failing_evaluation(
+            destination: &mut Region,
+            expression: &Expression<'_>,
+        ) -> Result<(), &'static str> {
+            let mut lease = EvaluationLease::new(destination, expression, 0, Mode::Number);
+            lease.cursor.regions.root.exit = Exit::Return(ValueId(4));
             Err("deliberate diagnostic")
         }
 
         assert_eq!(
-            fail_after_root_take(&mut region),
+            failing_evaluation(&mut region, expression),
             Err("deliberate diagnostic")
         );
         assert_eq!(region.id, RegionId(17));
