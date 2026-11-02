@@ -85,6 +85,11 @@ enum Frame<'n, 'a> {
     ReturnValue {
         depth: usize,
     },
+    /// An explicitly admitted closure-valued return keeps its function-value
+    /// resource charge until the scheduled expression finishes or unwinds.
+    FunctionReturn {
+        depth: usize,
+    },
     /// Async source throw produces the original General/AsyncValue reason.
     ThrowValue {
         depth: usize,
@@ -217,6 +222,7 @@ impl Frame<'_, '_> {
         match self {
             Self::DiscardExpression { depth }
             | Self::ReturnValue { depth }
+            | Self::FunctionReturn { depth }
             | Self::ThrowValue { depth }
             | Self::NumericLet { depth, .. }
             | Self::IfPredicate { depth, .. }
@@ -485,6 +491,21 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 });
                             } else if let Statement::ReturnStatement(statement) = source
                                 && statement.argument.is_some()
+                                && let Type::Closure(arity) = self.return_type
+                            {
+                                self.statement_depth = depth;
+                                self.admit_source_statement(source, depth)?;
+                                let expression = statement.argument.as_ref().expect("checked return");
+                                self.enter_function_value(expression)?;
+                                cursor.pending.push(Frame::FunctionReturn { depth });
+                                cursor.next = Some(Next::Expression {
+                                    source: expression,
+                                    output,
+                                    depth: 0,
+                                    mode: evaluate::Mode::Function(arity),
+                                });
+                            } else if let Statement::ReturnStatement(statement) = source
+                                && statement.argument.is_some()
                                 && let Some(mode) = self.direct_return_mode()
                             {
                                 self.statement_depth = depth;
@@ -581,8 +602,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         // in reverse nesting order rather than leaking function/lexical modes.
         if result.is_err() {
             while let Some(frame) = cursor.pending.pop() {
-                if let Frame::EvaluateBody { activation, .. } = frame {
-                    self.abort_arrow_block_activation(activation);
+                match frame {
+                    Frame::EvaluateBody { activation, .. } => {
+                        self.abort_arrow_block_activation(activation);
+                    }
+                    Frame::FunctionReturn { .. } => {
+                        self.leave_function_value();
+                    }
+                    _ => {}
                 }
             }
         }
