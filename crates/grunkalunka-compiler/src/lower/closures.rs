@@ -15,6 +15,15 @@ pub(super) struct FactoryBindings {
     charging: bool,
 }
 
+/// The source-ordered classification shared by concise and block-bodied local
+/// factories. Classification is read-only; a future source continuation can
+/// schedule the corresponding expression or callback without rerunning it.
+pub(super) enum FactoryArgumentKind {
+    Discard,
+    Callback(usize),
+    Scalar(evaluate::Mode),
+}
+
 #[derive(Clone)]
 pub(crate) struct LocalClosure {
     pub symbol: Option<SymbolId>,
@@ -801,6 +810,52 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.source_charging = checkpoint.charging;
     }
 
+    pub(super) fn classify_factory_argument(
+        &self,
+        call: &CallExpression<'_>,
+        arrow: NodeId,
+        index: usize,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> FactoryArgumentKind {
+        let offset = invocation::offset(call);
+        if index < offset || index - offset >= self.arrow(arrow).params.items.len() {
+            return FactoryArgumentKind::Discard;
+        }
+        if let Some(signature) = self.function_arity(expression, depth) {
+            FactoryArgumentKind::Callback(signature)
+        } else {
+            FactoryArgumentKind::Scalar(self.local_arrow_argument_mode(
+                arrow,
+                index - offset,
+                expression,
+                depth,
+            ))
+        }
+    }
+
+    pub(super) fn evaluate_factory_argument(
+        &mut self,
+        kind: FactoryArgumentKind,
+        expression: &Expression<'_>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<Option<ValueId>, String> {
+        match kind {
+            FactoryArgumentKind::Discard => {
+                self.evaluate(expression, region, depth, evaluate::Mode::Discard)?;
+                Ok(None)
+            }
+            FactoryArgumentKind::Callback(signature) => self
+                .callback_argument(expression, region, signature, depth)
+                .map(Some),
+            FactoryArgumentKind::Scalar(mode) => Ok(Some(
+                self.evaluate(expression, region, depth, mode)?
+                    .expect("factory scalar argument"),
+            )),
+        }
+    }
+
     pub(super) fn factory_result(
         &mut self,
         expression: &Expression<'_>,
@@ -840,28 +895,21 @@ impl<'s, 'a> Lowering<'s, 'a> {
         // replace the caller's. Every specialization gets fresh parameter slots.
         let mut arguments = Vec::new();
         for (index, argument) in call.arguments.iter().enumerate() {
-            let offset = invocation::offset(call);
             let argument = argument.as_expression().ok_or_else(|| {
                 unsupported(call.as_ref(), "spread call arguments are not admitted")
             })?;
-            if index < offset {
-                self.evaluate(argument, region, call_depth + 1, evaluate::Mode::Discard)?;
-                continue;
+            let kind = self.classify_factory_argument(
+                call,
+                factory.arrow,
+                index,
+                argument,
+                call_depth + 1,
+            );
+            if let Some(value) =
+                self.evaluate_factory_argument(kind, argument, region, call_depth + 1)?
+            {
+                arguments.push(value);
             }
-            let index = index - offset;
-            if index >= self.arrow(factory.arrow).params.items.len() {
-                self.evaluate(argument, region, call_depth + 1, evaluate::Mode::Discard)?;
-                continue;
-            }
-            let value = if let Some(arity) = self.function_arity(argument, call_depth + 1) {
-                self.callback_argument(argument, region, arity, call_depth + 1)?
-            } else {
-                let mode =
-                    self.local_arrow_argument_mode(factory.arrow, index, argument, call_depth + 1);
-                self.evaluate(argument, region, call_depth + 1, mode)?
-                    .expect("factory scalar argument")
-            };
-            arguments.push(value);
         }
         let arrow = self.arrow(factory.arrow);
         let checkpoint = self.enter_factory_bindings(factory.captures);
@@ -1052,6 +1100,27 @@ impl<'s, 'a> Lowering<'s, 'a> {
 
 #[cfg(test)]
 mod checkpoint_tests {
+    #[test]
+    fn shared_factory_argument_modes_preserve_callbacks_and_order_on_small_stacks() {
+        for body in [
+            "const make=x=>()=>x+a;return make(b)();",
+            "const make=(x,y)=>()=>x+y+a;return make(a,b)();",
+            "const make=(fn,x)=>()=>fn(x);return make(y=>y+b,a)();",
+            "let n=a;const make=x=>()=>n+x;return make((n+=b))()+n;",
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let compiled = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("2 MiB factory argument thread")
+                    .join()
+                    .expect("factory arguments must not overflow the native stack");
+                assert!(compiled.is_ok(), "{body}: {:?}", compiled.err());
+            }
+        }
+    }
+
     #[test]
     fn factory_binding_checkpoint_restores_caller_context_on_small_stack() {
         for (body, admitted) in [
