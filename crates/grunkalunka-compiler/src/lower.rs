@@ -701,6 +701,37 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         None
     }
 
+    /// Publish a completed scalar/managed/Promise initializer into one local
+    /// slot. Both the original synchronous declaration handler and the owned
+    /// source continuation must use the same allocation, IR and binding order.
+    pub(super) fn commit_local_value(
+        &mut self,
+        local: &VariableDeclarator<'_>,
+        region: &mut Region,
+        ty: Type,
+        value: ValueId,
+        mutable: bool,
+    ) -> Result<(), String> {
+        let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+            unreachable!("declaration local was checked before evaluation");
+        };
+        let slot = SlotId(self.slots.len());
+        self.slots.push(Slot {
+            ty,
+            owner: region.id,
+            mutable,
+            parameter: false,
+            span: local.span(),
+        });
+        Self::push(region, local, Op::Initialize { slot, value });
+        self.bindings.push(NumericBinding {
+            symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
+            slot,
+            mutable,
+        });
+        Ok(())
+    }
+
     fn declaration(
         &mut self,
         declaration: &VariableDeclaration<'_>,
@@ -937,20 +968,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             } else {
                 return Err("numeric local must have an initializer".into());
             };
-            let slot = SlotId(self.slots.len());
-            self.slots.push(Slot {
-                ty,
-                owner: region.id,
-                mutable,
-                parameter: false,
-                span: local.span(),
-            });
-            Self::push(region, local, Op::Initialize { slot, value });
-            self.bindings.push(NumericBinding {
-                symbol: identifier.symbol_id.get().ok_or("missing local binding")?,
-                slot,
-                mutable,
-            });
+            self.commit_local_value(local, region, ty, value, mutable)?;
         }
         Ok(())
     }
