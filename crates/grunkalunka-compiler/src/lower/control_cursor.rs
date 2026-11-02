@@ -262,7 +262,7 @@ impl<'n, 'a> Cursor<'n, 'a> {
     }
 }
 
-impl Lowering<'_, '_> {
+impl<'s, 'ast> Lowering<'s, 'ast> {
     /// Select only return paths that previously called the existing evaluator
     /// directly. Closure-valued returns and async General resolution have
     /// extra context/adoption semantics and retain their separate handlers.
@@ -285,12 +285,15 @@ impl Lowering<'_, '_> {
     /// request or completes. The source scheduler owns any yielded activation
     /// and continues without recursively entering another source cursor.
     #[inline(never)]
-    fn advance_owned_expression<'n, 'a>(
+    fn advance_owned_expression<'n>(
         &mut self,
-        mut expression: evaluate::EvaluationCursor<'n, 'a>,
+        mut expression: evaluate::EvaluationCursor<'n, 'ast>,
         mode: evaluate::Mode,
-        cursor: &mut Cursor<'n, 'a>,
-    ) -> Result<(), String> {
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
         match self.run_evaluation(&mut expression, mode)? {
             evaluate::EvaluationRun::Complete(value) => {
                 cursor.completed = Some(Outcome::Expression(expression.into_region(), value));
@@ -326,12 +329,15 @@ impl Lowering<'_, '_> {
     }
 
     #[inline(never)]
-    pub(super) fn control_statement_iterative<'n, 'a>(
+    pub(super) fn control_statement_iterative<'n>(
         &mut self,
-        root: ControlNode<'n, 'a>,
+        root: ControlNode<'n, 'ast>,
         region: &mut Region,
         depth: usize,
-    ) -> Result<Completion, String> {
+    ) -> Result<Completion, String>
+    where
+        'ast: 'n,
+    {
         #[cfg(test)]
         let _entry = crate::source_cursor_tests::entry();
         // The root has already been charged by statement_inner. Every direct
