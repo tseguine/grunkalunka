@@ -825,9 +825,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if let Some(signature) = self.function_arity(expression, depth) {
             FactoryArgumentKind::Callback(signature)
         } else {
-            FactoryArgumentKind::Scalar(
-                self.local_arrow_argument_mode(arrow, index - offset, expression, depth),
-            )
+            FactoryArgumentKind::Scalar(self.local_arrow_argument_mode(
+                arrow,
+                index - offset,
+                expression,
+                depth,
+            ))
         }
     }
 
