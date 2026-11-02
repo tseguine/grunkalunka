@@ -17,6 +17,8 @@ std::thread_local! {
         const { std::cell::Cell::new(0) };
     static SCHEDULED_FUNCTION_RETURNS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
+    static BRIDGED_ZERO_ARG_FACTORIES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
 }
 
 type Next<'n, 'a> = source_control::StatementTask<'n, 'a, ControlNode<'n, 'a>>;
@@ -187,6 +189,37 @@ enum Frame<'n, 'a> {
         result_type: Type,
         depth: usize,
     },
+    /// A source-owned function-valued call is waiting for its zero-argument,
+    /// block-bodied factory to complete. This owns all three nested checkpoints.
+    EvaluateFactoryBody {
+        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
+        mode: evaluate::Mode,
+        activation: closures::BlockArrowActivation,
+        factory: function_values::ZeroBlockFactory,
+        previous_result_depth: usize,
+        node: &'n Expression<'a>,
+        signature: usize,
+        depth: usize,
+    },
+    /// A synchronous closure call is awaiting a returned block factory used
+    /// as its callee. Its own arguments and result-mode conversion have not
+    /// run; the original evaluation work stack remains with this frame.
+    EvaluateFactoryCallee {
+        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
+        mode: evaluate::Mode,
+        activation: closures::BlockArrowActivation,
+        factory: function_values::ZeroBlockFactory,
+        previous_result_depth: usize,
+        callee_node: &'n Expression<'a>,
+        signature: usize,
+        outer_node: &'n Expression<'a>,
+        outer_call: &'n CallExpression<'a>,
+        outer_depth: usize,
+        outer_mode: evaluate::Mode,
+        result_type: Type,
+        number_proven: bool,
+        depth: usize,
+    },
     TryCatchBody {
         source: &'n TryStatement<'a>,
         output: Region,
@@ -237,6 +270,8 @@ impl Frame<'_, '_> {
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
             | Self::EvaluateBody { depth, .. }
+            | Self::EvaluateFactoryBody { depth, .. }
+            | Self::EvaluateFactoryCallee { depth, .. }
             | Self::TryCatchBody { depth, .. }
             | Self::TryCatchHandler { depth, .. }
             | Self::TryFinallyBody { depth, .. }
@@ -369,13 +404,52 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     depth,
                     region_depth,
                 } => {
-                    self.resume_lowered_function_leaf(
-                        &mut expression,
+                    // One direct zero-argument block factory can now enter the
+                    // same heap-owned source scheduler as its parent evaluator.
+                    let previous_result_depth = self.enter_function_result_depth(region_depth);
+                    let prepared = self.begin_zero_block_factory(
                         node,
+                        expression.current_region(),
                         signature,
                         depth,
-                        region_depth,
-                    )?;
+                    );
+                    match prepared {
+                        Ok(Some((factory, activation, request))) => {
+                            #[cfg(test)]
+                            BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(count.get() + 1));
+                            cursor.pending.push(Frame::EvaluateFactoryBody {
+                                expression: Box::new(expression),
+                                mode,
+                                activation,
+                                factory,
+                                previous_result_depth,
+                                node,
+                                signature,
+                                depth: 0,
+                            });
+                            cursor.next = Some(Next::Enter {
+                                source: ControlNode::Sequence(request.statements),
+                                output: request.region,
+                                depth: 0,
+                                charge: source_control::SourceCharge::Charged,
+                            });
+                            return Ok(());
+                        }
+                        Ok(None) => {
+                            self.restore_function_result_depth(previous_result_depth);
+                            self.resume_lowered_function_leaf(
+                                &mut expression,
+                                node,
+                                signature,
+                                depth,
+                                region_depth,
+                            )?;
+                        }
+                        Err(error) => {
+                            self.restore_function_result_depth(previous_result_depth);
+                            return Err(error);
+                        }
+                    }
                 }
                 evaluate::EvaluationRun::LowerFunctionEffect {
                     node,
@@ -392,6 +466,89 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         region_depth,
                         effect,
                     )?;
+                }
+                evaluate::EvaluationRun::LowerSyncClosureCallee {
+                    node,
+                    call,
+                    signature,
+                    depth,
+                    region_depth,
+                    mode: outer_mode,
+                    result_type,
+                    number_proven,
+                } => {
+                    let callee_node = invocation::callee(call);
+                    let callee_depth = invocation::depth(call, depth);
+                    let previous_result_depth =
+                        self.enter_function_result_depth(Some(region_depth));
+                    if let Err(error) = self.enter_function_value(callee_node) {
+                        self.restore_function_result_depth(previous_result_depth);
+                        return Err(error);
+                    }
+                    let prepared = self.begin_zero_block_factory(
+                        callee_node,
+                        expression.current_region(),
+                        signature,
+                        callee_depth,
+                    );
+                    match prepared {
+                        Ok(Some((factory, activation, request))) => {
+                            #[cfg(test)]
+                            BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(count.get() + 1));
+                            cursor.pending.push(Frame::EvaluateFactoryCallee {
+                                expression: Box::new(expression),
+                                mode,
+                                activation,
+                                factory,
+                                previous_result_depth,
+                                callee_node,
+                                signature,
+                                outer_node: node,
+                                outer_call: call,
+                                outer_depth: depth,
+                                outer_mode,
+                                result_type,
+                                number_proven,
+                                depth: 0,
+                            });
+                            cursor.next = Some(Next::Enter {
+                                source: ControlNode::Sequence(request.statements),
+                                output: request.region,
+                                depth: 0,
+                                charge: source_control::SourceCharge::Charged,
+                            });
+                            return Ok(());
+                        }
+                        Ok(None) => {
+                            // Preserve the legacy path if the read-only
+                            // factory shape no longer selects this source.
+                            self.leave_function_value();
+                            self.restore_function_result_depth(previous_result_depth);
+                            let callee = self.prepare_closure_call(
+                                node,
+                                call,
+                                signature,
+                                expression.current_region(),
+                                depth,
+                                region_depth,
+                            )?;
+                            self.resume_sync_closure_callee(
+                                &mut expression,
+                                node,
+                                call,
+                                callee,
+                                depth,
+                                outer_mode,
+                                result_type,
+                                number_proven,
+                            )?;
+                        }
+                        Err(error) => {
+                            self.leave_function_value();
+                            self.restore_function_result_depth(previous_result_depth);
+                            return Err(error);
+                        }
+                    }
                 }
                 evaluate::EvaluationRun::LowerBody {
                     node,
@@ -643,6 +800,27 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     Frame::EvaluateBody { activation, .. } => {
                         self.abort_arrow_block_activation(activation);
                     }
+                    Frame::EvaluateFactoryBody {
+                        activation,
+                        factory,
+                        previous_result_depth,
+                        ..
+                    } => {
+                        self.abort_arrow_block_activation(activation);
+                        self.finish_zero_block_factory(factory);
+                        self.restore_function_result_depth(previous_result_depth);
+                    }
+                    Frame::EvaluateFactoryCallee {
+                        activation,
+                        factory,
+                        previous_result_depth,
+                        ..
+                    } => {
+                        self.abort_arrow_block_activation(activation);
+                        self.finish_zero_block_factory(factory);
+                        self.leave_function_value();
+                        self.restore_function_result_depth(previous_result_depth);
+                    }
                     Frame::FunctionReturn { .. } => {
                         self.leave_function_value();
                     }
@@ -658,6 +836,41 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zero_argument_returned_block_factories_use_the_same_source_cursor() {
+        for (body, admitted) in [
+            ("const get=()=>{return ()=>a;};return get()();", true),
+            (
+                "const get=()=>{if(a)return ()=>a;return ()=>b;};return get()();",
+                true,
+            ),
+            ("const get=()=>{return ()=>a+b;};return get()()+b;", true),
+            ("const get=()=>{if(a)return ()=>a;};return get()();", false),
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let (result, bridged) = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || {
+                        BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(0));
+                        let result = crate::compile(&source, typescript);
+                        let bridged = BRIDGED_ZERO_ARG_FACTORIES.with(std::cell::Cell::get);
+                        (result, bridged)
+                    })
+                    .expect("2 MiB returned block factory thread")
+                    .join()
+                    .expect("returned block factory must not overflow native stack");
+                assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+                if admitted {
+                    assert!(
+                        bridged > 0,
+                        "{body}: factory still reentered a source cursor"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn async_general_returns_resume_through_the_owned_source_evaluator() {
