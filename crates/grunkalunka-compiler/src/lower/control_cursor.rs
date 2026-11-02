@@ -534,13 +534,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             )?;
                             self.resume_sync_closure_callee(
                                 &mut expression,
-                                node,
-                                call,
+                                evaluate::SyncCalleeContinuation {
+                                    node,
+                                    call,
+                                    depth,
+                                    mode: outer_mode,
+                                    result_type,
+                                    number_proven,
+                                },
                                 callee,
-                                depth,
-                                outer_mode,
-                                result_type,
-                                number_proven,
                             )?;
                         }
                         Err(error) => {
