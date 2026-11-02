@@ -1019,11 +1019,8 @@ impl Lowering<'_, '_> {
         let mut cursor = EvaluationCursor::new(region, expression, depth, mode);
         // Keep the original scheduling logic intact while first making its
         // complete pending state a single transferable activation.
-        let (mut regions, mut work, mut values) = (
-            &mut cursor.regions,
-            &mut cursor.work,
-            &mut cursor.values,
-        );
+        let (mut regions, mut work, mut values) =
+            (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
         while !work.is_empty() {
             #[cfg(test)]
             crate::evaluator_tests::pending(work.len());
