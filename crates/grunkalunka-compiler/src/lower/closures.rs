@@ -17,6 +17,37 @@ pub(crate) struct LocalClosure {
     pub result: Type,
 }
 
+/// Context that must eventually move to the heap with a suspended
+/// block-arrow source-body request. For now the synchronous lowering path
+/// captures and restores it as one typed value on success and error.
+struct BlockArrowCheckpoint {
+    source: source_control::SourceContext,
+    allow_await: bool,
+    inline_depth: usize,
+    visible_bindings: usize,
+    visible_closures: usize,
+}
+
+impl BlockArrowCheckpoint {
+    fn capture(lowering: &Lowering<'_, '_>) -> Self {
+        Self {
+            source: lowering.source_context(),
+            allow_await: lowering.allow_await,
+            inline_depth: lowering.inline_depth,
+            visible_bindings: lowering.bindings.len(),
+            visible_closures: lowering.closures.len(),
+        }
+    }
+
+    fn restore(self, lowering: &mut Lowering<'_, '_>) {
+        lowering.restore_source_context(self.source);
+        lowering.allow_await = self.allow_await;
+        lowering.inline_depth = self.inline_depth;
+        lowering.bindings.truncate(self.visible_bindings);
+        lowering.closures.truncate(self.visible_closures);
+    }
+}
+
 pub(super) fn unwrapped<'e, 'a>(
     expression: &'e Expression<'a>,
     depth: usize,
@@ -840,18 +871,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
             ));
         }
         self.active_block_calls += 1;
-        let outer = (
-            self.return_type,
-            self.in_loop_body,
-            self.allow_await,
-            self.inline_depth,
-            self.statement_depth,
-        );
-        let bindings = self.bindings.len();
-        let closures = self.closures.len();
+        let checkpoint = BlockArrowCheckpoint::capture(self);
         self.return_type = result_type;
         self.in_loop_body = false;
-        self.allow_await = arrow.r#async && outer.2;
+        self.allow_await = arrow.r#async && checkpoint.allow_await;
         self.inline_depth = parent_depth;
         self.statement_depth = 0;
         let lowered = (|| {
@@ -892,15 +915,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             }
             Ok(region)
         })();
-        (
-            self.return_type,
-            self.in_loop_body,
-            self.allow_await,
-            self.inline_depth,
-            self.statement_depth,
-        ) = outer;
-        self.bindings.truncate(bindings);
-        self.closures.truncate(closures);
+        checkpoint.restore(self);
         self.active_block_calls -= 1;
         lowered
     }
