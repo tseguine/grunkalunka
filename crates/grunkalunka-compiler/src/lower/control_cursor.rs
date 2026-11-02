@@ -618,7 +618,10 @@ mod tests {
                     .join()
                     .expect("numeric let initializer must not exhaust Rust stack");
                 assert!(compiled.is_ok(), "{body}: {:?}", compiled.err());
-                assert!(bridged > 0, "{body}: initializer bypassed the owned scheduler");
+                assert!(
+                    bridged > 0,
+                    "{body}: initializer bypassed the owned scheduler"
+                );
             }
         }
         for body in [
