@@ -1472,6 +1472,33 @@ fn captured_for_let_header(symbol: SymbolId, semantic: &Semantic<'_>) -> bool {
 #[cfg(test)]
 mod concise_signature_stack_tests {
     #[test]
+    fn owned_function_result_admission_keeps_the_eight_call_boundary() {
+        for (depth, admitted) in [(0, true), (3, true), (7, true), (8, false)] {
+            let mut returned = String::from("()=>a");
+            for _ in 0..depth {
+                returned = format!("id({returned})");
+            }
+            for typescript in [false, true] {
+                let source = format!(
+                    "export function run(a,b){{const id=fn=>fn;const f={returned};return f();}}"
+                );
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile(&source, typescript))
+                    .expect("2 MiB returned-function admission thread")
+                    .join()
+                    .expect("returned-function cursor must not overflow native stack");
+                assert_eq!(
+                    result.is_ok(),
+                    admitted,
+                    "{depth} nested returned-function calls: {:?}",
+                    result.err()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn nested_concise_arrow_signatures_do_not_reenter_native_stack() {
         for depth in [1, 2, 3, 5, 8] {
             let mut expression = String::from("a");
