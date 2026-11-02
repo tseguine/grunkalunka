@@ -1098,10 +1098,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 };
                 arguments.push(value);
             }
-            // Only after all caller arguments finish do fresh formal bindings
-            // replace the caller's. Returned values are snapshots of these slots.
-            let previous = std::mem::replace(&mut self.bindings, closure.captures);
-            let charging = std::mem::replace(&mut self.source_charging, false);
+            // Fresh formals and the caller's capture identity switch only
+            // after all caller argument effects have finished in source order.
+            let checkpoint = self.enter_factory_bindings(closure.captures);
             let result = (|| {
                 self.bind_arrow_parameters(arrow, arguments, region)?;
                 if let Some(body) = arrow.get_expression() {
@@ -1117,8 +1116,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     Ok(result)
                 }
             })();
-            self.bindings = previous;
-            self.source_charging = charging;
+            self.restore_factory_bindings(checkpoint);
             result
         })();
         self.finish_function_result(activation);
