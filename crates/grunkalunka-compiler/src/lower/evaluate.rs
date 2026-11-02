@@ -64,9 +64,15 @@ struct EvaluationCursor<'r, 'e, 'a> {
 }
 
 /// One resumable run segment either completes the requested expression or
-/// yields a source-body task while the caller keeps the owned evaluator cursor.
+/// yields a source-body or function-leaf task while the caller keeps the cursor.
 enum EvaluationRun<'e, 'a> {
     Complete(Option<ValueId>),
+    LowerFunctionLeaf {
+        node: &'e Expression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: Option<usize>,
+    },
     LowerBody {
         node: &'e Expression<'a>,
         arrow: oxc_syntax::node::NodeId,
@@ -80,7 +86,7 @@ std::thread_local! {
     static ACTIVE_EVALUATOR_RUNNERS: Cell<usize> = const { Cell::new(0) };
 }
 
-/// Test-only guard: a yielded block body must have returned from its own
+/// Test-only guard: a yielded task must have returned from its own
 /// evaluator work runner before the synchronous compatibility host resumes.
 #[cfg(test)]
 struct ActiveEvaluationRunner;
@@ -1104,6 +1110,19 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             );
             match next? {
                 EvaluationRun::Complete(result) => return Ok(result),
+                EvaluationRun::LowerFunctionLeaf {
+                    node,
+                    signature,
+                    depth,
+                    region_depth,
+                } => {
+                    // Materializing a function can re-enter evaluation while
+                    // checking its constructor. Release the large runner first.
+                    let result = self.with_function_result_context(region_depth, |lower| {
+                        lower.function_value_leaf(node, cursor.regions.current(), signature, depth)
+                    })?;
+                    cursor.values.push(Value::Function(result));
+                }
                 EvaluationRun::LowerBody {
                     node,
                     arrow,
@@ -1138,7 +1157,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         }
     }
 
-    /// One evaluator run segment. A block-body request suspends this large
+    /// One evaluator run segment. A yielded request suspends this large
     /// native frame, leaving the work, value stack and Regions in the cursor.
     #[inline(never)]
     fn run_evaluation<'e, 'a>(
@@ -3127,11 +3146,12 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         }
                         let region_depth = matches!(node, Expression::CallExpression(_))
                             .then_some(regions.children.len());
-                        let result = self.with_function_result_context(region_depth, |lower| {
-                            lower.function_value_leaf(node, regions.current(), signature, depth)
-                        })?;
-                        values.push(Value::Function(result));
-                        continue;
+                        return Ok(EvaluationRun::LowerFunctionLeaf {
+                            node,
+                            signature,
+                            depth,
+                            region_depth,
+                        });
                     }
                     if matches!(mode, Mode::Predicate)
                         && let Some(signature) = self.function_arity(node, depth)
