@@ -97,7 +97,12 @@ impl ActiveEvaluationRunner {
 impl Drop for ActiveEvaluationRunner {
     fn drop(&mut self) {
         ACTIVE_EVALUATOR_RUNNERS.with(|count| {
-            count.set(count.get().checked_sub(1).expect("balanced evaluator runner"))
+            count.set(
+                count
+                    .get()
+                    .checked_sub(1)
+                    .expect("balanced evaluator runner"),
+            )
         });
     }
 }
@@ -285,7 +290,7 @@ fn schedule_selection<'e, 'a>(
     Ok(true)
 }
 
-impl Lowering<'_, '_> {
+impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     /// Preserve aggregate generated-region depth when a function or callback
     /// leaf crosses into its own lowering cursor. This crossing still needs
     /// eventual defunctionalization; the scope only centralizes its context.
@@ -1140,7 +1145,10 @@ impl Lowering<'_, '_> {
         &mut self,
         cursor: &mut EvaluationCursor<'_, 'e, 'a>,
         mode: Mode,
-    ) -> Result<EvaluationRun<'e, 'a>, String> {
+    ) -> Result<EvaluationRun<'e, 'a>, String>
+    where
+        'lower_a: 'e + 'a,
+    {
         #[cfg(test)]
         let _runner = ActiveEvaluationRunner::enter();
         let (regions, work, values) = (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
