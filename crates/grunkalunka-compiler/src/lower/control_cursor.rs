@@ -294,38 +294,55 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     where
         'ast: 'n,
     {
-        match self.run_evaluation(&mut expression, mode)? {
-            evaluate::EvaluationRun::Complete(value) => {
-                cursor.completed = Some(Outcome::Expression(expression.into_region(), value));
-            }
-            evaluate::EvaluationRun::LowerBody {
-                node,
-                arrow,
-                result_type,
-                parent_depth,
-            } => {
-                let arrow = self.arrow(arrow);
-                let (activation, request) =
-                    self.begin_arrow_block_activation(arrow, parent_depth, result_type)?;
-                #[cfg(test)]
-                BRIDGED_LOCAL_BODIES.with(|count| count.set(count.get() + 1));
-                cursor.pending.push(Frame::EvaluateBody {
-                    expression: Box::new(expression),
-                    mode,
-                    activation,
+        loop {
+            match self.run_evaluation(&mut expression, mode)? {
+                evaluate::EvaluationRun::Complete(value) => {
+                    cursor.completed = Some(Outcome::Expression(expression.into_region(), value));
+                    return Ok(());
+                }
+                evaluate::EvaluationRun::LowerFunctionLeaf {
                     node,
+                    signature,
+                    depth,
+                    region_depth,
+                } => {
+                    self.resume_lowered_function_leaf(
+                        &mut expression,
+                        node,
+                        signature,
+                        depth,
+                        region_depth,
+                    )?;
+                }
+                evaluate::EvaluationRun::LowerBody {
+                    node,
+                    arrow,
                     result_type,
-                    depth: 0,
-                });
-                cursor.next = Some(Next::Enter {
-                    source: ControlNode::Sequence(request.statements),
-                    output: request.region,
-                    depth: 0,
-                    charge: source_control::SourceCharge::Charged,
-                });
+                    parent_depth,
+                } => {
+                    let arrow = self.arrow(arrow);
+                    let (activation, request) =
+                        self.begin_arrow_block_activation(arrow, parent_depth, result_type)?;
+                    #[cfg(test)]
+                    BRIDGED_LOCAL_BODIES.with(|count| count.set(count.get() + 1));
+                    cursor.pending.push(Frame::EvaluateBody {
+                        expression: Box::new(expression),
+                        mode,
+                        activation,
+                        node,
+                        result_type,
+                        depth: 0,
+                    });
+                    cursor.next = Some(Next::Enter {
+                        source: ControlNode::Sequence(request.statements),
+                        output: request.region,
+                        depth: 0,
+                        charge: source_control::SourceCharge::Charged,
+                    });
+                    return Ok(());
+                }
             }
         }
-        Ok(())
     }
 
     #[inline(never)]
