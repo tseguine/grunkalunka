@@ -188,14 +188,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
         match frame {
-            Frame::NumericLet { local, .. } => {
+            Frame::ScalarLet { local, ty, .. } => {
                 let BindingPattern::BindingIdentifier(identifier) = &local.id else {
                     unreachable!("scheduled numeric let has an identifier binding");
                 };
                 let mut output = output_region;
                 let slot = SlotId(self.slots.len());
                 self.slots.push(Slot {
-                    ty: Type::Number,
+                    ty,
                     owner: output.id,
                     mutable: true,
                     parameter: false,
@@ -364,7 +364,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 self.advance_owned_expression(*expression, mode, cursor)?;
             }
             Frame::DiscardExpression { .. }
-            | Frame::NumericLet { .. }
+            | Frame::ScalarLet { .. }
             | Frame::ReturnValue { .. }
             | Frame::FunctionReturn { .. }
             | Frame::ThrowValue { .. }
