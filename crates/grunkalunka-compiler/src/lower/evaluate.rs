@@ -1139,17 +1139,13 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     depth,
                     region_depth,
                 } => {
-                    // Materializing a function can re-enter evaluation while
-                    // checking its constructor. Release the large runner first.
-                    let result = self.with_function_result_context(region_depth, |lower| {
-                        lower.function_value_leaf(
-                            node,
-                            lease.cursor.regions.current(),
-                            signature,
-                            depth,
-                        )
-                    })?;
-                    lease.cursor.values.push(Value::Function(result));
+                    self.resume_lowered_function_leaf(
+                        &mut lease.cursor,
+                        node,
+                        signature,
+                        depth,
+                        region_depth,
+                    )?;
                 }
                 EvaluationRun::LowerBody {
                     node,
@@ -1163,6 +1159,28 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
             }
         }
+    }
+
+    /// Preserve the merged function-valued leaf suspension on both the
+    /// synchronous evaluator wrapper and the shared source/evaluator bridge.
+    /// This may itself evaluate a constructor, so it stays outside the large
+    /// evaluator runner frame.
+    pub(super) fn resume_lowered_function_leaf<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'e, 'a>,
+        node: &'e Expression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: Option<usize>,
+    ) -> Result<(), String>
+    where
+        'lower_a: 'e + 'a,
+    {
+        let result = self.with_function_result_context(region_depth, |lower| {
+            lower.function_value_leaf(node, cursor.regions.current(), signature, depth)
+        })?;
+        cursor.values.push(Value::Function(result));
+        Ok(())
     }
 
     /// Resume an owned evaluator after its block-bodied source call completed.
