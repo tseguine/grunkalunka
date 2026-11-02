@@ -79,6 +79,10 @@ enum Frame<'n, 'a> {
     NumericReturn {
         depth: usize,
     },
+    /// Async source throw produces the original General/AsyncValue reason.
+    ThrowValue {
+        depth: usize,
+    },
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
         source: &'n IfStatement<'a>,
@@ -189,6 +193,7 @@ impl Frame<'_, '_> {
         match self {
             Self::DiscardExpression { depth }
             | Self::NumericReturn { depth }
+            | Self::ThrowValue { depth }
             | Self::IfPredicate { depth, .. }
             | Self::If { depth, .. }
             | Self::WhilePredicate { depth, .. }
@@ -309,6 +314,29 @@ impl Lowering<'_, '_> {
                                     output,
                                     depth,
                                     charge: source_control::SourceCharge::Uncharged,
+                                });
+                            } else if let Statement::ThrowStatement(statement) = source {
+                                self.statement_depth = depth;
+                                self.admit_source_statement(source, depth)?;
+                                if !self.allow_await {
+                                    return Err(unsupported(
+                                        statement.as_ref(),
+                                        "statement is outside the numeric experiment",
+                                    ));
+                                }
+                                let mode = if self.promise_parameters.identities
+                                    && self.has_promise_choice(&statement.argument, 0)
+                                {
+                                    evaluate::Mode::AsyncValue
+                                } else {
+                                    evaluate::Mode::General
+                                };
+                                cursor.pending.push(Frame::ThrowValue { depth });
+                                cursor.next = Some(Next::Expression {
+                                    source: &statement.argument,
+                                    output,
+                                    depth: 0,
+                                    mode,
                                 });
                             } else if let Statement::ReturnStatement(statement) = source
                                 && self.return_type == Type::Number
