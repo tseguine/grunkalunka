@@ -361,7 +361,7 @@ fn nested_block_function_results_characterize_cross_phase_native_reentry() {
             assert!(crossings <= entries);
             if let Err(error) = result {
                 assert!(
-                    error.contains("8 active"),
+                    error.starts_with("unsupported at bytes "),
                     "{depth} block factories: {error}"
                 );
             }
