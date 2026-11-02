@@ -310,3 +310,27 @@ fn suspended_for_initializer_keeps_header_effects_and_source_diagnostics() {
         }
     }
 }
+
+#[test]
+fn numeric_return_continuation_preserves_abrupt_paths_and_first_errors() {
+    for (body, admitted) in [
+        ("return (a+b)*(a-b);", true),
+        ("if(a){return a+1;}return b+2;", true),
+        ("while(a){return a+b;}return b;", true),
+        ("return a ** b;", false),
+        ("return;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
+                .expect("2 MiB numeric return continuation thread")
+                .join()
+                .expect("numeric return must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
