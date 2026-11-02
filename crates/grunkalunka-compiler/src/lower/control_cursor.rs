@@ -637,6 +637,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn general_let_values_use_the_same_owned_source_evaluator() {
+        for body in [
+            "let value=null;return value;",
+            "let value=a?false:null;return value;",
+            "let value=undefined;return value;",
+            "const f=x=>{return x?null:false;};let value=f(a);return value;",
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let result = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || crate::compile_value(&source, typescript))
+                    .expect("2 MiB General let compiler thread")
+                    .join()
+                    .expect("General let initialization must not overflow Rust stack");
+                assert!(result.is_ok(), "{body}: {:?}", result.err());
+            }
+        }
+    }
+
+    #[test]
     fn function_valued_returns_share_the_owned_expression_cursor() {
         for body in [
             "const make=x=>{return ()=>x+a;};return make(b)();",
