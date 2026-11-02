@@ -14,7 +14,7 @@ impl Lowering<'_, '_> {
     pub(super) fn resume_own_keys<'e, 'a>(
         &mut self,
         mut task: Task<'e, 'a>,
-        regions: &mut Regions<'_>,
+        regions: &mut Regions,
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
