@@ -727,8 +727,7 @@ fn returned_block_factory_callees_preserve_runtime_results() {
             assert!(result.is_ok(), "{body}: {:?}", result.err());
         }
     }
-    let rejected =
-        "export function run(a,b){const get=()=>{if(a)return ()=>a;};return get()();}";
+    let rejected = "export function run(a,b){const get=()=>{if(a)return ()=>a;};return get()();}";
     for ts in [false, true] {
         assert!(compile(rejected, ts).is_err(), "{rejected}");
     }
