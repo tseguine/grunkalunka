@@ -316,7 +316,7 @@ pub(super) struct Lowering<'s, 'a> {
     pub closure_signatures: &'s std::cell::RefCell<ir::ClosureSignatures>,
 }
 
-impl Lowering<'_, '_> {
+impl<'s, 'ast> Lowering<'s, 'ast> {
     fn lifted_limit(&self) -> usize {
         self.functions.len()
             + self
@@ -543,12 +543,15 @@ impl Lowering<'_, '_> {
 
     // Source control and lexical sequencing share one explicit heap cursor.
     // Statement families no longer reenter an independent sequence dispatcher.
-    pub fn sequence<'n, 'a>(
+    pub fn sequence<'n>(
         &mut self,
-        statements: &'n [Statement<'a>],
+        statements: &'n [Statement<'ast>],
         region: &mut Region,
         depth: usize,
-    ) -> Result<Completion, String> {
+    ) -> Result<Completion, String>
+    where
+        'ast: 'n,
+    {
         self.control_statement_iterative(
             control_cursor::ControlNode::Sequence(statements),
             region,
@@ -951,9 +954,9 @@ impl Lowering<'_, '_> {
         Ok(())
     }
 
-    fn statement(
+    fn statement<'n>(
         &mut self,
-        statement: &Statement<'_>,
+        statement: &'n Statement<'ast>,
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
@@ -966,9 +969,9 @@ impl Lowering<'_, '_> {
         result
     }
 
-    fn statement_inner(
+    fn statement_inner<'n>(
         &mut self,
-        statement: &Statement<'_>,
+        statement: &'n Statement<'ast>,
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
