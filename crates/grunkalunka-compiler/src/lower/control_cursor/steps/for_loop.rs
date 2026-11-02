@@ -44,7 +44,18 @@ impl Lowering<'_, '_> {
                 }
             }
         }
-        self.finish_for_initializer(source, output, header, depth, outer, let_slots, cursor)
+        self.finish_for_initializer(
+            ForPredicateFrame {
+                source,
+                output,
+                header,
+                depth,
+                outer,
+                header_bindings: self.bindings.len(),
+                let_slots,
+            },
+            cursor,
+        )
     }
 
     /// Resume only after the initializer has emitted its side effects into
@@ -52,24 +63,10 @@ impl Lowering<'_, '_> {
     /// helper; expression initializers produce no newly visible let bindings.
     pub(super) fn finish_for_initializer<'n, 'a>(
         &mut self,
-        source: &'n ForStatement<'a>,
-        output: Region,
-        header: Region,
-        depth: usize,
-        outer: usize,
-        let_slots: Vec<SlotId>,
+        frame: ForPredicateFrame<'n, 'a>,
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
-        let header_bindings = self.bindings.len();
-        let frame = ForPredicateFrame {
-            source,
-            output,
-            header,
-            depth,
-            outer,
-            header_bindings,
-            let_slots,
-        };
+        let source = frame.source;
         let mut condition = self.region(source);
         if let Some(test) = &source.test {
             condition.span = test.span();

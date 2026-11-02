@@ -247,12 +247,15 @@ impl Lowering<'_, '_> {
                 depth,
                 outer,
             } => self.finish_for_initializer(
-                source,
-                output,
-                output_region,
-                depth,
-                outer,
-                Vec::new(),
+                ForPredicateFrame {
+                    source,
+                    output,
+                    header: output_region,
+                    depth,
+                    outer,
+                    header_bindings: self.bindings.len(),
+                    let_slots: Vec::new(),
+                },
                 cursor,
             ),
             Frame::ForPredicate(frame) => {
