@@ -941,7 +941,10 @@ mod checkpoint_tests {
     #[test]
     fn block_arrow_checkpoint_preserves_source_modes_on_small_native_stack() {
         for (body, admitted) in [
-            ("const get=()=>{return ()=>a;};const f=get();return f();", true),
+            (
+                "const get=()=>{return ()=>a;};const f=get();return f();",
+                true,
+            ),
             (
                 "let make=x=>{if(x)return ()=>x+a;return ()=>x-b;};return make(a)();",
                 true,
