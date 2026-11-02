@@ -4357,7 +4357,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     }
 
     // Both call effects share source validation and callee-before-arguments evaluation.
-    fn prepare_closure_call(
+    pub(super) fn prepare_closure_call(
         &mut self,
         node: &Expression<'_>,
         call: &CallExpression<'_>,
