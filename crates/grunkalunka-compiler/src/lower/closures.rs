@@ -886,38 +886,53 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 self.charge_statement(directive)?;
             }
             let completion = self.sequence(&body.statements, &mut region, 0)?;
-            if matches!(
-                result_type,
-                Type::General | Type::AsyncValue | Type::ManagedValue
-            ) && completion.normal
-                && !completion.breaks
-                && !completion.continues
-                && (arrow.r#async || !completion.throws)
-            {
-                self.return_undefined(arrow, &mut region);
-            } else if completion != Completion::RETURN
-                && !(arrow.r#async
-                    && result_type == Type::General
-                    && completion.returns_or_throws())
-            {
-                return Err(unsupported(
-                    arrow,
-                    if matches!(result_type, Type::Closure(_)) {
-                        "block arrows must return a function on every structural path"
-                    } else if result_type == Type::FulfilledPromise {
-                        "block arrows must return a fulfilled Promise on every structural path"
-                    } else if result_type == Type::General {
-                        "block arrows must return a primitive value on every structural path"
-                    } else {
-                        "block arrows must return a Number on every structural path"
-                    },
-                ));
-            }
-            Ok(region)
+            self.complete_arrow_block_body(arrow, result_type, region, completion)
         })();
         checkpoint.restore(self);
         self.active_block_calls -= 1;
         lowered
+    }
+
+    /// The post-source-body continuation is independent of the Rust stack
+    /// frame that entered the block. The future cross-phase scheduler can
+    /// call this with its heap-owned completed Region and Completion.
+    #[inline(never)]
+    pub(super) fn complete_arrow_block_body(
+        &mut self,
+        arrow: &ArrowFunctionExpression<'_>,
+        result_type: Type,
+        mut region: Region,
+        completion: Completion,
+    ) -> Result<Region, String> {
+        if matches!(
+            result_type,
+            Type::General | Type::AsyncValue | Type::ManagedValue
+        ) && completion.normal
+            && !completion.breaks
+            && !completion.continues
+            && (arrow.r#async || !completion.throws)
+        {
+            self.return_undefined(arrow, &mut region);
+        } else if completion != Completion::RETURN
+            && !(arrow.r#async
+                && result_type == Type::General
+                && completion.returns_or_throws())
+        {
+            return Err(unsupported(
+                arrow,
+                if matches!(result_type, Type::Closure(_)) {
+                    "block arrows must return a function on every structural path"
+                } else if result_type == Type::FulfilledPromise {
+                    "block arrows must return a fulfilled Promise on every structural path"
+                } else if result_type == Type::General {
+                    "block arrows must return a primitive value on every structural path"
+                } else {
+                    "block arrows must return a Number on every structural path"
+                },
+            ));
+        }
+
+        Ok(region)
     }
 }
 
