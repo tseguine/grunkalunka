@@ -223,6 +223,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 cursor.completed = Some(Outcome::Statement(output_region, Completion::NORMAL));
                 Ok(())
             }
+            Frame::FunctionReturn { .. } => {
+                self.leave_function_value();
+                let mut output = output_region;
+                output.exit = Exit::Return(value.expect("function return result"));
+                cursor.completed = Some(Outcome::Statement(output, Completion::RETURN));
+                Ok(())
+            }
             Frame::ReturnValue { .. } => {
                 let mut output = output_region;
                 output.exit = Exit::Return(value.expect("typed return expression result"));
@@ -359,6 +366,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Frame::DiscardExpression { .. }
             | Frame::NumericLet { .. }
             | Frame::ReturnValue { .. }
+            | Frame::FunctionReturn { .. }
             | Frame::ThrowValue { .. }
             | Frame::IfPredicate { .. }
             | Frame::WhilePredicate { .. }
