@@ -1582,11 +1582,8 @@ impl Lowering<'_, '_> {
                     // formal bindings are already committed. For now this
                     // executes the existing source-body lowering synchronously.
                     // A subsequent unit replaces it with a yield/resume handoff.
-                    let body = self.arrow_block_result(
-                        self.arrow(arrow),
-                        parent_depth,
-                        result_type,
-                    )?;
+                    let arrow = self.arrow(arrow);
+                    let body = self.arrow_block_result(arrow, parent_depth, result_type)?;
                     let result = self.value(result_type);
                     Self::push(regions.current(), node, Op::InlineCall { result, body });
                     values.push(if result_type.is_managed() {
