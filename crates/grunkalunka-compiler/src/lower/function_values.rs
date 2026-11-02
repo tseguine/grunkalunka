@@ -820,15 +820,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
         results.pop().expect("root signature query")
     }
 
-    pub(super) fn function_value(
+    /// Function-value admission belongs to the source expression cursor,
+    /// not to a particular native evaluator stack frame. Both synchronous
+    /// compatibility callers and source-owned continuations use this policy.
+    pub(super) fn enter_function_value(
         &mut self,
         expression: &Expression<'_>,
-        region: &mut Region,
-        arity: usize,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        // Constructors can run scalar comma prefixes, which can construct another
-        // function. Bound that cursor crossing independently of AST/lift limits.
+    ) -> Result<(), String> {
         if self.active_function_values >= 16 {
             return Err(unsupported(
                 expression,
@@ -836,10 +834,27 @@ impl<'s, 'a> Lowering<'s, 'a> {
             ));
         }
         self.active_function_values += 1;
+        Ok(())
+    }
+
+    pub(super) fn leave_function_value(&mut self) {
+        self.active_function_values -= 1;
+    }
+
+    pub(super) fn function_value(
+        &mut self,
+        expression: &Expression<'_>,
+        region: &mut Region,
+        arity: usize,
+        depth: usize,
+    ) -> Result<ValueId, String> {
+        // Constructors can run scalar comma prefixes, which can construct
+        // another function. Preserve the same sixteen-active-cursor bound.
+        self.enter_function_value(expression)?;
         let result = self
             .evaluate(expression, region, depth, evaluate::Mode::Function(arity))
             .map(|value| value.expect("function evaluation result"));
-        self.active_function_values -= 1;
+        self.leave_function_value();
         result
     }
 
