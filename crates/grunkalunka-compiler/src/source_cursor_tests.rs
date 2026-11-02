@@ -258,3 +258,31 @@ fn discarded_expression_request_preserves_side_effect_order_and_diagnostics() {
         }
     }
 }
+
+#[test]
+fn suspended_for_update_preserves_step_order_and_lexical_cells_on_two_mib_stack() {
+    // The update executes after body lowering but before captured header
+    // renewal is determined, including when continue may reach the step.
+    for (body, admitted) in [
+        ("let n=0;for(let i=0;i<3;i++){n=n*10+i;}return n;", true),
+        (
+            "let n=a;for(let i=0;i<3;(i++,n+=b)){if(i===1)continue;n+=i;}return n;",
+            true,
+        ),
+        ("for(let i=0;i<2;){i++;}return a;", true),
+        ("for(let i=0;i<2;i ** b){a+=i;}return a;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
+                .expect("2 MiB for-update continuation thread")
+                .join()
+                .expect("for-update source lowering must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
