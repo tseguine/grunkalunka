@@ -108,6 +108,8 @@ pub(super) enum EvaluationRun<'e, 'a> {
 #[cfg(test)]
 std::thread_local! {
     static ACTIVE_EVALUATOR_RUNNERS: Cell<usize> = const { Cell::new(0) };
+    static DISCARDED_FUNCTION_YIELDS: Cell<usize> = const { Cell::new(0) };
+    static TRUTHY_FUNCTION_YIELDS: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Test-only guard: a yielded task must have returned from its own
@@ -2728,6 +2730,8 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     if let Some(signature) = self.function_arity(node, depth) {
                         // Function constructor/factory evaluation may reenter
                         // another source cursor; release the large runner first.
+                        #[cfg(test)]
+                        DISCARDED_FUNCTION_YIELDS.with(|count| count.set(count.get() + 1));
                         return Ok(EvaluationRun::LowerFunctionEffect {
                             node,
                             signature,
@@ -3285,6 +3289,8 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     {
                         // The original value construction, then Boolean(true),
                         // stays ordered while the runner yields its native frame.
+                        #[cfg(test)]
+                        TRUTHY_FUNCTION_YIELDS.with(|count| count.set(count.get() + 1));
                         return Ok(EvaluationRun::LowerFunctionEffect {
                             node,
                             signature,
@@ -4475,5 +4481,55 @@ mod cursor_region_ownership_tests {
         assert_eq!(region.id, RegionId(17));
         assert_eq!(region.span, oxc_span::Span::new(2, 9));
         assert!(matches!(region.exit, Exit::Return(ValueId(4))));
+    }
+}
+
+#[cfg(test)]
+mod function_effect_yield_tests {
+    use super::*;
+
+    #[test]
+    fn discarded_and_truthy_function_values_release_the_large_runner() {
+        let sources = [
+            ("const f=x=>x+a;f;return b;", true, false),
+            ("const f=x=>x+a;if(f)return b;return a;", false, true),
+            (
+                "const choose=()=>()=>a;choose();return b;",
+                true,
+                false,
+            ),
+            (
+                "const choose=()=>()=>a;if(choose())return b;return a;",
+                false,
+                true,
+            ),
+        ];
+        for (body, discard, truthy) in sources {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let (compiled, discarded, predicates) = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || {
+                        DISCARDED_FUNCTION_YIELDS.with(|count| count.set(0));
+                        TRUTHY_FUNCTION_YIELDS.with(|count| count.set(0));
+                        let result = crate::compile(&source, typescript);
+                        (
+                            result,
+                            DISCARDED_FUNCTION_YIELDS.with(Cell::get),
+                            TRUTHY_FUNCTION_YIELDS.with(Cell::get),
+                        )
+                    })
+                    .expect("2 MiB function-effect evaluator thread")
+                    .join()
+                    .expect("function effect must not exhaust the native stack");
+                assert!(compiled.is_ok(), "{body}: {:?}", compiled.err());
+                if discard {
+                    assert!(discarded > 0, "{body}: discarded function did not yield");
+                }
+                if truthy {
+                    assert!(predicates > 0, "{body}: function truthiness did not yield");
+                }
+            }
+        }
     }
 }
