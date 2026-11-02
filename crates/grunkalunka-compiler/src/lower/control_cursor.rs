@@ -596,6 +596,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn numeric_let_initializers_join_the_owned_source_evaluator_cursor() {
+        // A local block-arrow call in a variable initializer used to enter a
+        // second source cursor through statement_inner -> declaration -> evaluate.
+        for body in [
+            "const f=x=>{return x+a;};let n=f(b);return n;",
+            "const f=x=>{if(x)return x+a;return b;};let n=f(a);return n;",
+            "const f=x=>{return x+a;};let n=f(b);n=f(n);return n;",
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let (compiled, bridged) = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || {
+                        BRIDGED_LOCAL_BODIES.with(|count| count.set(0));
+                        let compiled = crate::compile(&source, typescript);
+                        let bridged = BRIDGED_LOCAL_BODIES.with(std::cell::Cell::get);
+                        (compiled, bridged)
+                    })
+                    .expect("2 MiB numeric let compiler thread")
+                    .join()
+                    .expect("numeric let initializer must not exhaust Rust stack");
+                assert!(compiled.is_ok(), "{body}: {:?}", compiled.err());
+                assert!(bridged > 0, "{body}: initializer bypassed the owned scheduler");
+            }
+        }
+        for body in [
+            "let n=a**b;return n;",
+            "const f=x=>{if(x)return x;};let n=f(b);return n;",
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                assert!(crate::compile(&source, typescript).is_err(), "{body}");
+            }
+        }
+    }
+
+    #[test]
     fn block_bodied_local_calls_share_the_source_cursor_on_two_mib_stack() {
         for (body, admitted) in [
             ("const f=x=>{return x+a;};return f(b);", true),
