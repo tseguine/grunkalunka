@@ -2,7 +2,7 @@
 //! never the generated regions, values or Wasm temporary locals.
 use oxc_ast::ast::{
     BindingPattern, CallExpression, Expression, ForStatementInit, IdentifierReference,
-    SimpleAssignmentTarget, Statement, VariableDeclaration, VariableDeclarationKind,
+    SimpleAssignmentTarget, Statement, VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
 };
 use oxc_semantic::{Semantic, SymbolId};
 use oxc_span::GetSpan;
