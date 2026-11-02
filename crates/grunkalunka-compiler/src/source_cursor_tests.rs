@@ -326,13 +326,7 @@ fn nested_block_function_results_characterize_cross_phase_native_reentry() {
     // observes the source cursor while its caller evaluator is still active.
     // Successful future L4 defunctionalization should drive the crossing count
     // down rather than tightening source admission or increasing thread stacks.
-    for (depth, admitted) in [
-        (0, true),
-        (2, true),
-        (4, true),
-        (6, true),
-        (7, false),
-    ] {
+    for (depth, admitted) in [(0, true), (2, true), (4, true), (6, true), (7, false)] {
         let mut body = String::from("const get0=()=>{return ()=>a;};");
         for index in 1..=depth {
             body.push_str(&format!(
@@ -340,9 +334,7 @@ fn nested_block_function_results_characterize_cross_phase_native_reentry() {
                 index - 1
             ));
         }
-        let source = format!(
-            "export function run(a,b){{{body}const f=get{depth}();return f();}}"
-        );
+        let source = format!("export function run(a,b){{{body}const f=get{depth}();return f();}}");
         for typescript in [false, true] {
             let source = source.clone();
             let (result, maximum, entries, crossings) = std::thread::Builder::new()
@@ -368,7 +360,10 @@ fn nested_block_function_results_characterize_cross_phase_native_reentry() {
             assert!(entries > 0);
             assert!(crossings <= entries);
             if let Err(error) = result {
-                assert!(error.contains("8 active"), "{depth} block factories: {error}");
+                assert!(
+                    error.contains("8 active"),
+                    "{depth} block factories: {error}"
+                );
             }
             println!(
                 "CROSS_PHASE|block_factories={depth}|max_source={maximum}|source_entries={entries}|eval_to_source={crossings}"
