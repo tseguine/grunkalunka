@@ -194,9 +194,9 @@ impl Lowering<'_, '_> {
                 cursor.completed = Some(Outcome::Statement(output_region, Completion::NORMAL));
                 Ok(())
             }
-            Frame::NumericReturn { .. } => {
+            Frame::ReturnValue { .. } => {
                 let mut output = output_region;
-                output.exit = Exit::Return(value.expect("Number return result"));
+                output.exit = Exit::Return(value.expect("typed return expression result"));
                 cursor.completed = Some(Outcome::Statement(output, Completion::RETURN));
                 Ok(())
             }
@@ -309,7 +309,7 @@ impl Lowering<'_, '_> {
     ) -> Result<(), String> {
         match frame {
             Frame::DiscardExpression { .. }
-            | Frame::NumericReturn { .. }
+            | Frame::ReturnValue { .. }
             | Frame::ThrowValue { .. }
             | Frame::IfPredicate { .. }
             | Frame::WhilePredicate { .. }
