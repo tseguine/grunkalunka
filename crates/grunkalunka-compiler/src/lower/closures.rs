@@ -51,8 +51,8 @@ impl BlockArrowCheckpoint {
 /// The suspended block-arrow activation owns the function mode and lexical
 /// restoration checkpoint. The body itself is a separate owned request, so
 /// source lowering can eventually yield without borrowing the evaluator stack.
-pub(super) struct BlockArrowActivation<'n, 'a> {
-    arrow: &'n ArrowFunctionExpression<'a>,
+pub(super) struct BlockArrowActivation {
+    arrow: NodeId,
     result_type: Type,
     checkpoint: BlockArrowCheckpoint,
 }
@@ -902,7 +902,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         arrow: &'n ArrowFunctionExpression<'ast>,
         parent_depth: usize,
         result_type: Type,
-    ) -> Result<(BlockArrowActivation<'n, 'ast>, ArrowBodyRequest<'n, 'ast>), String> {
+    ) -> Result<(BlockArrowActivation, ArrowBodyRequest<'n, 'ast>), String> {
         if self.active_block_calls >= 8 {
             return Err(unsupported(
                 arrow,
@@ -919,7 +919,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         match self.prepare_arrow_block_body(arrow) {
             Ok(request) => Ok((
                 BlockArrowActivation {
-                    arrow,
+                    arrow: arrow.node_id.get(),
                     result_type,
                     checkpoint,
                 },
@@ -939,21 +939,24 @@ impl<'s, 'a> Lowering<'s, 'a> {
     #[inline(never)]
     pub(super) fn finish_arrow_block_activation(
         &mut self,
-        activation: BlockArrowActivation<'_, '_>,
+        activation: BlockArrowActivation,
         region: Region,
         completion: Result<Completion, String>,
     ) -> Result<Region, String> {
         let result = completion.and_then(|completion| {
-            self.complete_arrow_block_body(
-                activation.arrow,
-                activation.result_type,
-                region,
-                completion,
-            )
+            let arrow = self.arrow(activation.arrow);
+            self.complete_arrow_block_body(arrow, activation.result_type, region, completion)
         });
+        self.abort_arrow_block_activation(activation);
+        result
+    }
+
+    /// Unwind an activation when the common source cursor returns a diagnostic
+    /// before its suspended source-body frame completes. Nested activations
+    /// must be restored in the reverse order in which they were begun.
+    pub(super) fn abort_arrow_block_activation(&mut self, activation: BlockArrowActivation) {
         activation.checkpoint.restore(self);
         self.active_block_calls -= 1;
-        result
     }
 
     /// Synchronous compatibility entry. Future L4 work moves this source-body
