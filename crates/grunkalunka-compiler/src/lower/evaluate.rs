@@ -80,6 +80,19 @@ pub(super) enum FunctionEffect {
     Truthy,
 }
 
+/// The source-ordered continuation of a synchronous closure call once its
+/// function-valued callee is available. The callee may have yielded a source
+/// block; no arguments or result-mode conversions run before this point.
+#[derive(Clone, Copy)]
+pub(super) struct SyncCalleeContinuation<'e, 'a> {
+    pub(super) node: &'e Expression<'a>,
+    pub(super) call: &'e CallExpression<'a>,
+    pub(super) depth: usize,
+    pub(super) mode: Mode,
+    pub(super) result_type: Type,
+    pub(super) number_proven: bool,
+}
+
 /// One resumable run segment either completes the requested expression or
 /// yields a source-body or function-leaf task while the caller keeps the cursor.
 pub(super) enum EvaluationRun<'e, 'a> {
@@ -90,12 +103,25 @@ pub(super) enum EvaluationRun<'e, 'a> {
         depth: usize,
         region_depth: Option<usize>,
     },
+    /// A synchronous closure call's *callee* is a block-bodied factory.
+    /// The evaluator's Work and value stacks remain owned while the source
+    /// cursor lowers that factory before argument evaluation resumes.
     LowerFunctionEffect {
         node: &'e Expression<'a>,
         signature: usize,
         depth: usize,
         region_depth: usize,
         effect: FunctionEffect,
+    },
+    LowerSyncClosureCallee {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: usize,
+        mode: Mode,
+        result_type: Type,
+        number_proven: bool,
     },
     LowerBody {
         node: &'e Expression<'a>,
@@ -155,6 +181,20 @@ impl<'e, 'a> EvaluationCursor<'e, 'a> {
             values: Vec::new(),
             #[cfg(test)]
             _entry: crate::evaluator_tests::entry(),
+        }
+    }
+
+    pub(super) fn current_region(&mut self) -> &mut Region {
+        self.regions.current()
+    }
+
+    /// The source-owned factory continuation has materialized its callee.
+    /// Consume the temporary function result, just as prepare_closure_call
+    /// returned a bare ValueId before scheduling the outer call.
+    pub(super) fn pop_function_value(&mut self) -> Option<ValueId> {
+        match self.values.pop()? {
+            Value::Function(value) => Some(value),
+            _ => unreachable!("returned factory materialized a function value"),
         }
     }
 
@@ -340,21 +380,32 @@ fn schedule_selection<'e, 'a>(
 }
 
 impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
-    /// Preserve aggregate generated-region depth when a function or callback
-    /// leaf crosses into its own lowering cursor. This crossing still needs
-    /// eventual defunctionalization; the scope only centralizes its context.
+    /// Preserve aggregate generated-region depth for a function result while
+    /// its heap-owned body continuation is suspended. The returned checkpoint
+    /// must be restored even when the body exits with a source diagnostic.
+    pub(super) fn enter_function_result_depth(&mut self, region_depth: Option<usize>) -> usize {
+        let previous = self.function_result_depth;
+        if let Some(region_depth) = region_depth {
+            self.function_result_depth =
+                (self.inline_depth + self.statement_depth).max(previous) + region_depth;
+        }
+        previous
+    }
+
+    pub(super) fn restore_function_result_depth(&mut self, previous: usize) {
+        self.function_result_depth = previous;
+    }
+
+    /// Synchronous compatibility callers use the same depth checkpoint as
+    /// the shared source/evaluator machine, with original diagnostic order.
     fn with_function_result_context<T>(
         &mut self,
         region_depth: Option<usize>,
         lower: impl FnOnce(&mut Self) -> Result<T, String>,
     ) -> Result<T, String> {
-        let outer = self.function_result_depth;
-        if let Some(region_depth) = region_depth {
-            self.function_result_depth =
-                (self.inline_depth + self.statement_depth).max(outer) + region_depth;
-        }
+        let previous = self.enter_function_result_depth(region_depth);
         let result = lower(self);
-        self.function_result_depth = outer;
+        self.restore_function_result_depth(previous);
         result
     }
 
@@ -1181,6 +1232,37 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         effect,
                     )?;
                 }
+                EvaluationRun::LowerSyncClosureCallee {
+                    node,
+                    call,
+                    signature,
+                    depth,
+                    region_depth,
+                    mode,
+                    result_type,
+                    number_proven,
+                } => {
+                    let callee = self.prepare_closure_call(
+                        node,
+                        call,
+                        signature,
+                        lease.cursor.regions.current(),
+                        depth,
+                        region_depth,
+                    )?;
+                    self.resume_sync_closure_callee(
+                        &mut lease.cursor,
+                        SyncCalleeContinuation {
+                            node,
+                            call,
+                            depth,
+                            mode,
+                            result_type,
+                            number_proven,
+                        },
+                        callee,
+                    )?;
+                }
                 EvaluationRun::LowerBody {
                     node,
                     arrow,
@@ -1248,6 +1330,60 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             );
             cursor.values.push(Value::Predicate(result));
         }
+        Ok(())
+    }
+
+    /// Complete a returned-function factory source body without reentering
+    /// function_value_leaf/local_function_result on the Rust call stack.
+    /// The source CallExpression owns the original Op::InlineCall span.
+    pub(super) fn resume_zero_block_factory<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'e, 'a>,
+        node: &'e Expression<'a>,
+        signature: usize,
+        body: Region,
+    ) {
+        let Expression::CallExpression(call) = node else {
+            unreachable!("zero-argument factory came from a direct source call");
+        };
+        let result = self.value(Type::Closure(signature));
+        Self::push(
+            cursor.regions.current(),
+            call.as_ref(),
+            Op::InlineCall { result, body },
+        );
+        cursor.values.push(Value::Function(result));
+    }
+
+    /// Resume the original synchronous closure call once a function-valued
+    /// callee (possibly a returned factory) has been fully materialized.
+    /// Result-mode routing occurs after callee effects, before arguments,
+    /// exactly as in the previous direct prepare_closure_call path.
+    pub(super) fn resume_sync_closure_callee<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'e, 'a>,
+        continuation: SyncCalleeContinuation<'e, 'a>,
+        callee: ValueId,
+    ) -> Result<(), String> {
+        let SyncCalleeContinuation {
+            node,
+            call,
+            depth,
+            mode,
+            result_type,
+            number_proven,
+        } = continuation;
+        call_result(&mut cursor.work, node, mode, result_type, number_proven)?;
+        cursor.work.push(Work::ClosureCall {
+            node,
+            call,
+            callee,
+            effect: ClosureEffect::Sync,
+            index: 0,
+            arguments: Vec::new(),
+            depth,
+            site: None,
+        });
         Ok(())
     }
 
@@ -3391,6 +3527,28 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             ));
                         }
                         let region_depth = regions.children.len();
+                        let number_proven = self.numeric_result_shape(node, depth);
+                        let callee_expression = invocation::callee(call);
+                        let callee_depth = invocation::depth(call, depth + 1);
+                        if self.zero_block_factory_shape(callee_expression, callee_depth)
+                            && self
+                                .runtime_closure_callee(callee_expression, callee_depth)
+                                .is_none()
+                        {
+                            // The callee itself calls a block-bodied function
+                            // factory. Release the large evaluator runner so
+                            // the source-owned cursor can drive its body.
+                            return Ok(EvaluationRun::LowerSyncClosureCallee {
+                                node,
+                                call,
+                                signature: arity,
+                                depth: depth + 1,
+                                region_depth,
+                                mode,
+                                result_type,
+                                number_proven,
+                            });
+                        }
                         let callee = self.prepare_closure_call(
                             node,
                             call,
@@ -3399,13 +3557,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             depth + 1,
                             region_depth,
                         )?;
-                        call_result(
-                            work,
-                            node,
-                            mode,
-                            result_type,
-                            self.numeric_result_shape(node, depth),
-                        )?;
+                        call_result(work, node, mode, result_type, number_proven)?;
                         work.push(Work::ClosureCall {
                             node,
                             call,
@@ -4223,7 +4375,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     }
 
     // Both call effects share source validation and callee-before-arguments evaluation.
-    fn prepare_closure_call(
+    pub(super) fn prepare_closure_call(
         &mut self,
         node: &Expression<'_>,
         call: &CallExpression<'_>,
