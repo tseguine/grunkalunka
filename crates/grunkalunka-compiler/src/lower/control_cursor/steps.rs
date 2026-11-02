@@ -241,6 +241,20 @@ impl Lowering<'_, '_> {
                 });
                 Ok(())
             }
+            Frame::ForInitializer {
+                source,
+                output,
+                depth,
+                outer,
+            } => self.finish_for_initializer(
+                source,
+                output,
+                output_region,
+                depth,
+                outer,
+                Vec::new(),
+                cursor,
+            ),
             Frame::ForPredicate(frame) => {
                 let predicate = value.expect("predicate mode yields a value");
                 self.resume_for_predicate(frame, output_region, predicate, cursor)
@@ -283,6 +297,7 @@ impl Lowering<'_, '_> {
             | Frame::IfPredicate { .. }
             | Frame::WhilePredicate { .. }
             | Frame::DoWhilePredicate { .. }
+            | Frame::ForInitializer { .. }
             | Frame::ForPredicate(_)
             | Frame::ForUpdate { .. } => {
                 unreachable!("expression continuation is resumed by a value result")
