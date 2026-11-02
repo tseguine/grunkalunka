@@ -71,6 +71,15 @@ impl Drop for EvaluationLease<'_, '_, '_> {
     }
 }
 
+/// A discarded closure value is evaluated for its source effects but does not
+/// leave a value on the expression stack. Truthiness emits a Boolean after
+/// evaluating the constructor or factory side effects.
+#[derive(Clone, Copy)]
+pub(super) enum FunctionEffect {
+    Discard,
+    Truthy,
+}
+
 /// One resumable run segment either completes the requested expression or
 /// yields a source-body or function-leaf task while the caller keeps the cursor.
 pub(super) enum EvaluationRun<'e, 'a> {
@@ -80,6 +89,13 @@ pub(super) enum EvaluationRun<'e, 'a> {
         signature: usize,
         depth: usize,
         region_depth: Option<usize>,
+    },
+    LowerFunctionEffect {
+        node: &'e Expression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: usize,
+        effect: FunctionEffect,
     },
     LowerBody {
         node: &'e Expression<'a>,
@@ -1147,6 +1163,22 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         region_depth,
                     )?;
                 }
+                EvaluationRun::LowerFunctionEffect {
+                    node,
+                    signature,
+                    depth,
+                    region_depth,
+                    effect,
+                } => {
+                    self.resume_lowered_function_effect(
+                        &mut lease.cursor,
+                        node,
+                        signature,
+                        depth,
+                        region_depth,
+                        effect,
+                    )?;
+                }
                 EvaluationRun::LowerBody {
                     node,
                     arrow,
@@ -1180,6 +1212,40 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             lower.function_value_leaf(node, cursor.regions.current(), signature, depth)
         })?;
         cursor.values.push(Value::Function(result));
+        Ok(())
+    }
+
+    /// Evaluate a discarded or truthy function value after releasing the large
+    /// evaluator runner. Preserve its sixteen-active-function-value guard and
+    /// all constructor/capture side effects; Boolean(true) is emitted only
+    /// after those effects have finished.
+    pub(super) fn resume_lowered_function_effect<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'e, 'a>,
+        node: &'e Expression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: usize,
+        effect: FunctionEffect,
+    ) -> Result<(), String>
+    where
+        'lower_a: 'e + 'a,
+    {
+        self.with_function_result_context(Some(region_depth), |lower| {
+            lower.function_value(node, cursor.regions.current(), signature, depth)
+        })?;
+        if matches!(effect, FunctionEffect::Truthy) {
+            let result = self.value(Type::Predicate);
+            Self::push(
+                cursor.regions.current(),
+                node,
+                Op::Boolean {
+                    result,
+                    value: true,
+                },
+            );
+            cursor.values.push(Value::Predicate(result));
+        }
         Ok(())
     }
 
@@ -2659,12 +2725,16 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         work.push(Work::Eval(node, depth, Mode::Promise));
                         continue;
                     }
-                    if let Some(arity) = self.function_arity(node, depth) {
-                        let region_depth = regions.children.len();
-                        self.with_function_result_context(Some(region_depth), |lower| {
-                            lower.function_value(node, regions.current(), arity, depth)
-                        })?;
-                        continue;
+                    if let Some(signature) = self.function_arity(node, depth) {
+                        // Function constructor/factory evaluation may reenter
+                        // another source cursor; release the large runner first.
+                        return Ok(EvaluationRun::LowerFunctionEffect {
+                            node,
+                            signature,
+                            depth,
+                            region_depth: regions.children.len(),
+                            effect: FunctionEffect::Discard,
+                        });
                     }
                     // Routing owns classification before the selected mode's guard.
                     let mode = if self.general_binding_shape(node, depth)
@@ -3213,24 +3283,15 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     if matches!(mode, Mode::Predicate)
                         && let Some(signature) = self.function_arity(node, depth)
                     {
-                        // Evaluating a function can have constructor/argument/
-                        // assignment effects. Its ToBoolean result is always true;
-                        // evaluating its body is neither needed nor permitted here.
-                        let region_depth = regions.children.len();
-                        self.with_function_result_context(Some(region_depth), |lower| {
-                            lower.function_value(node, regions.current(), signature, depth)
-                        })?;
-                        let result = self.value(Type::Predicate);
-                        Self::push(
-                            regions.current(),
+                        // The original value construction, then Boolean(true),
+                        // stays ordered while the runner yields its native frame.
+                        return Ok(EvaluationRun::LowerFunctionEffect {
                             node,
-                            Op::Boolean {
-                                result,
-                                value: true,
-                            },
-                        );
-                        values.push(Value::Predicate(result));
-                        continue;
+                            signature,
+                            depth,
+                            region_depth: regions.children.len(),
+                            effect: FunctionEffect::Truthy,
+                        });
                     }
                     if let Expression::UnaryExpression(unary) = node
                         && unary.operator == UnaryOperator::Void
