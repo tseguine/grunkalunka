@@ -9,14 +9,17 @@ pub(super) enum LoopNode<'n, 'a> {
     DoWhile(&'n DoWhileStatement<'a>),
 }
 
-impl Lowering<'_, '_> {
+impl<'s, 'ast> Lowering<'s, 'ast> {
     #[inline(never)]
-    pub(super) fn loop_statement_iterative<'n, 'a>(
+    pub(super) fn loop_statement_iterative<'n>(
         &mut self,
-        root: LoopNode<'n, 'a>,
+        root: LoopNode<'n, 'ast>,
         region: &mut Region,
         depth: usize,
-    ) -> Result<Completion, String> {
+    ) -> Result<Completion, String>
+    where
+        'ast: 'n,
+    {
         let root = match root {
             LoopNode::While(node) => control_cursor::ControlNode::While(node),
             LoopNode::DoWhile(node) => control_cursor::ControlNode::DoWhile(node),

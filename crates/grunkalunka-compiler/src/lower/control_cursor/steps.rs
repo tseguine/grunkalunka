@@ -6,7 +6,7 @@
 use super::*;
 mod for_loop;
 
-impl Lowering<'_, '_> {
+impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn begin_control<'n, 'a>(
         &mut self,
         source: ControlNode<'n, 'a>,
@@ -300,14 +300,33 @@ impl Lowering<'_, '_> {
         }
     }
 
-    pub(super) fn resume_control<'n, 'a>(
+    pub(super) fn resume_control<'n>(
         &mut self,
-        frame: Frame<'n, 'a>,
+        frame: Frame<'n, 'ast>,
         finished_region: Region,
         completion: Completion,
-        cursor: &mut Cursor<'n, 'a>,
-    ) -> Result<(), String> {
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
         match frame {
+            Frame::EvaluateBody {
+                mut expression,
+                mode,
+                activation,
+                node,
+                result_type,
+                ..
+            } => {
+                let body = self.finish_arrow_block_activation(
+                    activation,
+                    finished_region,
+                    Ok(completion),
+                )?;
+                self.resume_lowered_block_body(expression.as_mut(), node, result_type, body);
+                self.advance_owned_expression(*expression, mode, cursor)?;
+            }
             Frame::DiscardExpression { .. }
             | Frame::ReturnValue { .. }
             | Frame::ThrowValue { .. }

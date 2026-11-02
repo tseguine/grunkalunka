@@ -11,6 +11,12 @@ use oxc_ast::ast::{
 
 mod steps;
 
+#[cfg(test)]
+std::thread_local! {
+    static BRIDGED_LOCAL_BODIES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+}
+
 type Next<'n, 'a> = source_control::StatementTask<'n, 'a, ControlNode<'n, 'a>>;
 
 #[derive(Clone, Copy)]
@@ -155,6 +161,17 @@ enum Frame<'n, 'a> {
         depth: usize,
         completion: Completion,
     },
+    /// An evaluator has yielded a block-bodied local-call source request.
+    /// Keep its Work/typed values and the function activation off the Rust
+    /// stack while the same source cursor lowers the nested statement body.
+    EvaluateBody {
+        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
+        mode: evaluate::Mode,
+        activation: closures::BlockArrowActivation,
+        node: &'n Expression<'a>,
+        result_type: Type,
+        depth: usize,
+    },
     TryCatchBody {
         source: &'n TryStatement<'a>,
         output: Region,
@@ -202,6 +219,7 @@ impl Frame<'_, '_> {
             | Self::DoWhilePredicate { depth, .. }
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
+            | Self::EvaluateBody { depth, .. }
             | Self::TryCatchBody { depth, .. }
             | Self::TryCatchHandler { depth, .. }
             | Self::TryFinallyBody { depth, .. }
@@ -244,7 +262,7 @@ impl<'n, 'a> Cursor<'n, 'a> {
     }
 }
 
-impl Lowering<'_, '_> {
+impl<'s, 'ast> Lowering<'s, 'ast> {
     /// Select only return paths that previously called the existing evaluator
     /// directly. Closure-valued returns and async General resolution have
     /// extra context/adoption semantics and retain their separate handlers.
@@ -263,13 +281,80 @@ impl Lowering<'_, '_> {
         })
     }
 
+    /// Drive one owned expression activation until it yields a source-body
+    /// request or completes. The source scheduler owns any yielded activation
+    /// and continues without recursively entering another source cursor.
     #[inline(never)]
-    pub(super) fn control_statement_iterative<'n, 'a>(
+    fn advance_owned_expression<'n>(
         &mut self,
-        root: ControlNode<'n, 'a>,
+        mut expression: evaluate::EvaluationCursor<'n, 'ast>,
+        mode: evaluate::Mode,
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        loop {
+            match self.run_evaluation(&mut expression, mode)? {
+                evaluate::EvaluationRun::Complete(value) => {
+                    cursor.completed = Some(Outcome::Expression(expression.into_region(), value));
+                    return Ok(());
+                }
+                evaluate::EvaluationRun::LowerFunctionLeaf {
+                    node,
+                    signature,
+                    depth,
+                    region_depth,
+                } => {
+                    self.resume_lowered_function_leaf(
+                        &mut expression,
+                        node,
+                        signature,
+                        depth,
+                        region_depth,
+                    )?;
+                }
+                evaluate::EvaluationRun::LowerBody {
+                    node,
+                    arrow,
+                    result_type,
+                    parent_depth,
+                } => {
+                    let arrow = self.arrow(arrow);
+                    let (activation, request) =
+                        self.begin_arrow_block_activation(arrow, parent_depth, result_type)?;
+                    #[cfg(test)]
+                    BRIDGED_LOCAL_BODIES.with(|count| count.set(count.get() + 1));
+                    cursor.pending.push(Frame::EvaluateBody {
+                        expression: Box::new(expression),
+                        mode,
+                        activation,
+                        node,
+                        result_type,
+                        depth: 0,
+                    });
+                    cursor.next = Some(Next::Enter {
+                        source: ControlNode::Sequence(request.statements),
+                        output: request.region,
+                        depth: 0,
+                        charge: source_control::SourceCharge::Charged,
+                    });
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    #[inline(never)]
+    pub(super) fn control_statement_iterative<'n>(
+        &mut self,
+        root: ControlNode<'n, 'ast>,
         region: &mut Region,
         depth: usize,
-    ) -> Result<Completion, String> {
+    ) -> Result<Completion, String>
+    where
+        'ast: 'n,
+    {
         #[cfg(test)]
         let _entry = crate::source_cursor_tests::entry();
         // The root has already been charged by statement_inner. Every direct
@@ -277,9 +362,8 @@ impl Lowering<'_, '_> {
         let saved_context = self.source_context();
         let original_depth = saved_context.statement_depth;
         let root_output = Self::take_cursor_region(region);
+        let mut cursor = Cursor::new(root, root_output, depth);
         let result = (|| {
-            let mut cursor = Cursor::new(root, root_output, depth);
-
             loop {
                 #[cfg(test)]
                 crate::source_cursor_tests::pending(cursor.pending.len());
@@ -393,15 +477,13 @@ impl Lowering<'_, '_> {
                         }
                         Next::Expression {
                             source,
-                            mut output,
+                            output,
                             depth,
                             mode,
                         } => {
-                            // A single source-owned handoff point. Eventually
-                            // the evaluator may itself yield a child-body task;
-                            // for now it uses the original typed evaluator.
-                            let value = self.evaluate(source, &mut output, depth, mode)?;
-                            cursor.completed = Some(Outcome::Expression(output, value));
+                            let expression =
+                                evaluate::EvaluationCursor::new(output, source, depth, mode);
+                            self.advance_owned_expression(expression, mode, &mut cursor)?;
                         }
                     }
                     continue;
@@ -428,6 +510,16 @@ impl Lowering<'_, '_> {
                 }
             }
         })();
+        // A diagnostic may unwind through nested function bodies before their
+        // evaluator resumes. Restore those block-arrow activation checkpoints
+        // in reverse nesting order rather than leaking function/lexical modes.
+        if result.is_err() {
+            while let Some(frame) = cursor.pending.pop() {
+                if let Frame::EvaluateBody { activation, .. } = frame {
+                    self.abort_arrow_block_activation(activation);
+                }
+            }
+        }
         self.restore_source_context(saved_context);
         result
     }
@@ -435,6 +527,37 @@ impl Lowering<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn block_bodied_local_calls_share_the_source_cursor_on_two_mib_stack() {
+        for (body, admitted) in [
+            ("const f=x=>{return x+a;};return f(b);", true),
+            ("const f=x=>{if(x)return x+a;return b;};return f(a);", true),
+            ("const f=x=>{return x+a;};return f(f(b));", true),
+            ("const f=x=>{if(x)return x;};return f(a);", false),
+        ] {
+            for typescript in [false, true] {
+                let source = format!("export function run(a,b){{{body}}}");
+                let (result, bridged) = std::thread::Builder::new()
+                    .stack_size(2 * 1024 * 1024)
+                    .spawn(move || {
+                        BRIDGED_LOCAL_BODIES.with(|count| count.set(0));
+                        let result = crate::compile(&source, typescript);
+                        let bridged = BRIDGED_LOCAL_BODIES.with(std::cell::Cell::get);
+                        (result, bridged)
+                    })
+                    .expect("2 MiB source/evaluator bridge thread")
+                    .join()
+                    .expect("block-bodied source/evaluator lowering must not overflow");
+                assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+                if admitted {
+                    assert!(bridged > 0, "{body}: no same-cursor block-body handoff");
+                }
+            }
+        }
+    }
+
     #[test]
     fn alternating_lexical_blocks_and_control_nodes_preserve_source_guards() {
         // Every nested block has a source declaration and a following control

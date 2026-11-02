@@ -30,10 +30,12 @@ struct Regions {
     children: Vec<Region>,
 }
 
-struct EvaluationCursor<'e, 'a> {
+pub(super) struct EvaluationCursor<'e, 'a> {
     regions: Regions,
     work: Vec<Work<'e, 'a>>,
     values: Vec<Value>,
+    #[cfg(test)]
+    _entry: crate::evaluator_tests::Entry,
 }
 
 /// Restore the caller's Region even when a synchronous evaluation returns an
@@ -71,7 +73,7 @@ impl Drop for EvaluationLease<'_, '_, '_> {
 
 /// One resumable run segment either completes the requested expression or
 /// yields a source-body or function-leaf task while the caller keeps the cursor.
-enum EvaluationRun<'e, 'a> {
+pub(super) enum EvaluationRun<'e, 'a> {
     Complete(Option<ValueId>),
     LowerFunctionLeaf {
         node: &'e Expression<'a>,
@@ -120,7 +122,12 @@ impl Drop for ActiveEvaluationRunner {
 }
 
 impl<'e, 'a> EvaluationCursor<'e, 'a> {
-    fn new(root: Region, expression: &'e Expression<'a>, depth: usize, mode: Mode) -> Self {
+    pub(super) fn new(
+        root: Region,
+        expression: &'e Expression<'a>,
+        depth: usize,
+        mode: Mode,
+    ) -> Self {
         Self {
             regions: Regions {
                 root,
@@ -128,7 +135,19 @@ impl<'e, 'a> EvaluationCursor<'e, 'a> {
             },
             work: vec![Work::Eval(expression, depth, mode)],
             values: Vec::new(),
+            #[cfg(test)]
+            _entry: crate::evaluator_tests::entry(),
         }
+    }
+
+    pub(super) fn into_region(self) -> Region {
+        assert!(
+            self.regions.children.is_empty(),
+            "child Regions must be completed"
+        );
+        assert!(self.work.is_empty(), "expression work must be completed");
+        assert!(self.values.is_empty(), "expression values must be consumed");
+        self.regions.root
     }
 }
 
@@ -1098,8 +1117,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         depth: usize,
         mode: Mode,
     ) -> Result<Option<ValueId>, String> {
-        #[cfg(test)]
-        let _entry = crate::evaluator_tests::entry();
         let mut lease = EvaluationLease::new(region, expression, depth, mode);
         // The large evaluator runner returns before a source block is lowered.
         // Only this small compatibility wrapper remains on the native stack.
@@ -1122,17 +1139,13 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     depth,
                     region_depth,
                 } => {
-                    // Materializing a function can re-enter evaluation while
-                    // checking its constructor. Release the large runner first.
-                    let result = self.with_function_result_context(region_depth, |lower| {
-                        lower.function_value_leaf(
-                            node,
-                            lease.cursor.regions.current(),
-                            signature,
-                            depth,
-                        )
-                    })?;
-                    lease.cursor.values.push(Value::Function(result));
+                    self.resume_lowered_function_leaf(
+                        &mut lease.cursor,
+                        node,
+                        signature,
+                        depth,
+                        region_depth,
+                    )?;
                 }
                 EvaluationRun::LowerBody {
                     node,
@@ -1142,36 +1155,69 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 } => {
                     let arrow = self.arrow(arrow);
                     let body = self.arrow_block_result(arrow, parent_depth, result_type)?;
-                    let result = self.value(result_type);
-                    Self::push(
-                        lease.cursor.regions.current(),
-                        node,
-                        Op::InlineCall { result, body },
-                    );
-                    lease.cursor.values.push(if result_type.is_managed() {
-                        Value::managed(result, result_type)
-                    } else if result_type == Type::AsyncValue {
-                        Value::Selection(result)
-                    } else if result_type == Type::Promise {
-                        Value::Pending(result)
-                    } else if result_type == Type::SettledPromise {
-                        Value::Settled(result)
-                    } else if result_type == Type::FulfilledPromise {
-                        Value::Promise(result)
-                    } else if result_type == Type::General {
-                        Value::General(result)
-                    } else {
-                        Value::Number(result)
-                    });
+                    self.resume_lowered_block_body(&mut lease.cursor, node, result_type, body);
                 }
             }
         }
     }
 
+    /// Preserve the merged function-valued leaf suspension on both the
+    /// synchronous evaluator wrapper and the shared source/evaluator bridge.
+    /// This may itself evaluate a constructor, so it stays outside the large
+    /// evaluator runner frame.
+    pub(super) fn resume_lowered_function_leaf<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'e, 'a>,
+        node: &'e Expression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: Option<usize>,
+    ) -> Result<(), String>
+    where
+        'lower_a: 'e + 'a,
+    {
+        let result = self.with_function_result_context(region_depth, |lower| {
+            lower.function_value_leaf(node, cursor.regions.current(), signature, depth)
+        })?;
+        cursor.values.push(Value::Function(result));
+        Ok(())
+    }
+
+    /// Resume an owned evaluator after its block-bodied source call completed.
+    pub(super) fn resume_lowered_block_body<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'e, 'a>,
+        node: &'e Expression<'a>,
+        result_type: Type,
+        body: Region,
+    ) {
+        let result = self.value(result_type);
+        Self::push(
+            cursor.regions.current(),
+            node,
+            Op::InlineCall { result, body },
+        );
+        cursor.values.push(if result_type.is_managed() {
+            Value::managed(result, result_type)
+        } else if result_type == Type::AsyncValue {
+            Value::Selection(result)
+        } else if result_type == Type::Promise {
+            Value::Pending(result)
+        } else if result_type == Type::SettledPromise {
+            Value::Settled(result)
+        } else if result_type == Type::FulfilledPromise {
+            Value::Promise(result)
+        } else if result_type == Type::General {
+            Value::General(result)
+        } else {
+            Value::Number(result)
+        });
+    }
+
     /// One evaluator run segment. A yielded request suspends this large
     /// native frame, leaving the work, value stack and Regions in the cursor.
     #[inline(never)]
-    fn run_evaluation<'e, 'a>(
+    pub(super) fn run_evaluation<'e, 'a>(
         &mut self,
         cursor: &mut EvaluationCursor<'e, 'a>,
         mode: Mode,
