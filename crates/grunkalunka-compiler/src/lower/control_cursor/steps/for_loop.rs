@@ -12,7 +12,8 @@ impl Lowering<'_, '_> {
         depth: usize,
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
-        // Generated header Block and loop Region are not source statements.
+        // The synthetic header Block is not charged as a source statement.
+        // Expression and declaration initializers both emit into that Region.
         let mut header = self.region(source);
         let outer = self.bindings.len();
         let mut let_slots = Vec::new();
@@ -27,10 +28,38 @@ impl Lowering<'_, '_> {
                     }
                 }
                 _ => {
-                    self.discarded(init.to_expression(), &mut header, 0)?;
+                    cursor.pending.push(Frame::ForInitializer {
+                        source,
+                        output,
+                        depth,
+                        outer,
+                    });
+                    cursor.next = Some(Next::Expression {
+                        source: init.to_expression(),
+                        output: header,
+                        depth: 0,
+                        mode: evaluate::Mode::Discard,
+                    });
+                    return Ok(());
                 }
             }
         }
+        self.finish_for_initializer(source, output, header, depth, outer, let_slots, cursor)
+    }
+
+    /// Resume only after the initializer has emitted its side effects into
+    /// the lexical header. A declaration still uses its original binding
+    /// helper; expression initializers produce no newly visible let bindings.
+    pub(super) fn finish_for_initializer<'n, 'a>(
+        &mut self,
+        source: &'n ForStatement<'a>,
+        output: Region,
+        header: Region,
+        depth: usize,
+        outer: usize,
+        let_slots: Vec<SlotId>,
+        cursor: &mut Cursor<'n, 'a>,
+    ) -> Result<(), String> {
         let header_bindings = self.bindings.len();
         let frame = ForPredicateFrame {
             source,
