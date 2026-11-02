@@ -75,8 +75,8 @@ enum Frame<'n, 'a> {
     DiscardExpression {
         depth: usize,
     },
-    /// Numeric return expressions are resumed with one Number value.
-    NumericReturn {
+    /// Directly evaluated return expressions resume with their typed result.
+    ReturnValue {
         depth: usize,
     },
     /// Async source throw produces the original General/AsyncValue reason.
@@ -192,7 +192,7 @@ impl Frame<'_, '_> {
     fn depth(&self) -> usize {
         match self {
             Self::DiscardExpression { depth }
-            | Self::NumericReturn { depth }
+            | Self::ReturnValue { depth }
             | Self::ThrowValue { depth }
             | Self::IfPredicate { depth, .. }
             | Self::If { depth, .. }
@@ -245,6 +245,24 @@ impl<'n, 'a> Cursor<'n, 'a> {
 }
 
 impl Lowering<'_, '_> {
+    /// Select only return paths that previously called the existing evaluator
+    /// directly. Closure-valued returns and async General resolution have
+    /// extra context/adoption semantics and retain their separate handlers.
+    fn direct_return_mode(&self) -> Option<evaluate::Mode> {
+        Some(match self.return_type {
+            Type::Number | Type::Predicate => evaluate::Mode::Number,
+            Type::General if !self.allow_await => evaluate::Mode::General,
+            Type::AsyncValue => evaluate::Mode::AsyncValue,
+            Type::Promise => evaluate::Mode::Pending,
+            Type::SettledPromise => evaluate::Mode::Settled,
+            Type::FulfilledPromise => evaluate::Mode::Promise,
+            Type::ManagedValue => evaluate::Mode::Managed,
+            Type::ManagedObject => evaluate::Mode::Object,
+            Type::ManagedArray => evaluate::Mode::Array,
+            Type::General | Type::Closure(_) => return None,
+        })
+    }
+
     #[inline(never)]
     pub(super) fn control_statement_iterative<'n, 'a>(
         &mut self,
@@ -339,20 +357,17 @@ impl Lowering<'_, '_> {
                                     mode,
                                 });
                             } else if let Statement::ReturnStatement(statement) = source
-                                && self.return_type == Type::Number
                                 && statement.argument.is_some()
+                                && let Some(mode) = self.direct_return_mode()
                             {
-                                // Numeric return uses the existing Mode::Number
-                                // evaluator. Keep bare returns and all other
-                                // represented result kinds on their legacy path.
                                 self.statement_depth = depth;
                                 self.admit_source_statement(source, depth)?;
-                                cursor.pending.push(Frame::NumericReturn { depth });
+                                cursor.pending.push(Frame::ReturnValue { depth });
                                 cursor.next = Some(Next::Expression {
                                     source: statement.argument.as_ref().expect("checked return"),
                                     output,
                                     depth: 0,
-                                    mode: evaluate::Mode::Number,
+                                    mode,
                                 });
                             } else if let Statement::ExpressionStatement(statement) = source {
                                 // A discard expression is another typed leaf
