@@ -4219,3 +4219,39 @@ impl Lowering<'_, '_> {
         Self::push(region, node, kind);
     }
 }
+
+#[cfg(test)]
+mod cursor_region_ownership_tests {
+    use super::*;
+
+    #[test]
+    fn owned_root_is_restored_after_normal_and_diagnostic_exits() {
+        let mut region = Region {
+            id: RegionId(17),
+            span: oxc_span::Span::new(2, 9),
+            operations: Vec::new(),
+            exit: Exit::Fallthrough,
+        };
+
+        {
+            let mut root = RegionRoot::take(&mut region);
+            root.owned.exit = Exit::Yield(ValueId(3));
+        }
+        assert_eq!(region.id, RegionId(17));
+        assert!(matches!(region.exit, Exit::Yield(ValueId(3))));
+
+        fn fail_after_root_take(region: &mut Region) -> Result<(), &'static str> {
+            let mut root = RegionRoot::take(region);
+            root.owned.exit = Exit::Return(ValueId(4));
+            Err("deliberate diagnostic")
+        }
+
+        assert_eq!(
+            fail_after_root_take(&mut region),
+            Err("deliberate diagnostic")
+        );
+        assert_eq!(region.id, RegionId(17));
+        assert_eq!(region.span, oxc_span::Span::new(2, 9));
+        assert!(matches!(region.exit, Exit::Return(ValueId(4))));
+    }
+}
