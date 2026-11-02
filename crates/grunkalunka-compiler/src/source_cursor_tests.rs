@@ -286,3 +286,27 @@ fn suspended_for_update_preserves_step_order_and_lexical_cells_on_two_mib_stack(
         }
     }
 }
+
+#[test]
+fn suspended_for_initializer_keeps_header_effects_and_source_diagnostics() {
+    for (body, admitted) in [
+        ("let n=0;for(a=0;a<3;a++){n+=a;}return n;", true),
+        ("for((a=0,b=1);a<2;a++){b+=a;}return b;", true),
+        ("let n=0;for(let i=0;i<3;i++){n+=i;}return n;", true),
+        ("for(;a;){break;}return b;", true),
+        ("for(a ** b;a<3;a++){b+=a;}return b;", false),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b) {{ {body} }}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript)))
+                .expect("2 MiB for initializer continuation thread")
+                .join()
+                .expect("for initializer must not overflow native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {:?}", result.err());
+            assert_eq!(maximum, 1, "source cursor reentered for {body}");
+            assert!(entries > 0, "no source cursor entered for {body}");
+        }
+    }
+}
