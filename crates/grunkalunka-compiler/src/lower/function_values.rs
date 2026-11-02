@@ -1187,28 +1187,21 @@ impl<'s, 'a> Lowering<'s, 'a> {
             let arrow = self.arrow(closure.arrow);
             let mut arguments = Vec::new();
             for (index, argument) in call.arguments.iter().enumerate() {
-                let offset = invocation::offset(call);
                 let expression = argument
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
-                if index < offset {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
-                    continue;
+                let kind = self.classify_factory_argument(
+                    call,
+                    closure.arrow,
+                    index,
+                    expression,
+                    depth + 1,
+                );
+                if let Some(value) =
+                    self.evaluate_factory_argument(kind, expression, region, depth + 1)?
+                {
+                    arguments.push(value);
                 }
-                let index = index - offset;
-                if index >= arrow.params.items.len() {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
-                    continue;
-                }
-                let value = if let Some(kind) = self.function_arity(expression, depth + 1) {
-                    self.callback_argument(expression, region, kind, depth + 1)?
-                } else {
-                    let mode =
-                        self.local_arrow_argument_mode(closure.arrow, index, expression, depth + 1);
-                    self.evaluate(expression, region, depth + 1, mode)?
-                        .expect("factory scalar argument")
-                };
-                arguments.push(value);
             }
             // Fresh formals and the caller's capture identity switch only
             // after all caller argument effects have finished in source order.
