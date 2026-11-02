@@ -2,6 +2,8 @@
 //! Requests borrow original AST nodes. Only this cursor owns unfinished regions;
 //! continuations own completed children until their parent operation is emitted.
 use super::*;
+#[cfg(test)]
+use std::cell::Cell;
 mod managed;
 mod own_keys;
 mod tasks;
@@ -71,6 +73,33 @@ enum EvaluationRun<'e, 'a> {
         result_type: Type,
         parent_depth: usize,
     },
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static ACTIVE_EVALUATOR_RUNNERS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Test-only guard: a yielded block body must have returned from its own
+/// evaluator work runner before the synchronous compatibility host resumes.
+#[cfg(test)]
+struct ActiveEvaluationRunner;
+
+#[cfg(test)]
+impl ActiveEvaluationRunner {
+    fn enter() -> Self {
+        ACTIVE_EVALUATOR_RUNNERS.with(|count| count.set(count.get() + 1));
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for ActiveEvaluationRunner {
+    fn drop(&mut self) {
+        ACTIVE_EVALUATOR_RUNNERS.with(|count| {
+            count.set(count.get().checked_sub(1).expect("balanced evaluator runner"))
+        });
+    }
 }
 
 impl<'r, 'e, 'a> EvaluationCursor<'r, 'e, 'a> {
@@ -1059,7 +1088,16 @@ impl Lowering<'_, '_> {
         // Only this small compatibility wrapper remains on the native stack.
         // A future source/evaluator machine will own this outer dispatch loop.
         loop {
-            match self.run_evaluation(&mut cursor, mode)? {
+            #[cfg(test)]
+            let prior_runner_depth = ACTIVE_EVALUATOR_RUNNERS.with(Cell::get);
+            let next = self.run_evaluation(&mut cursor, mode);
+            #[cfg(test)]
+            assert_eq!(
+                ACTIVE_EVALUATOR_RUNNERS.with(Cell::get),
+                prior_runner_depth,
+                "source-body requests must not retain the native evaluator runner"
+            );
+            match next? {
                 EvaluationRun::Complete(result) => return Ok(result),
                 EvaluationRun::LowerBody {
                     node,
@@ -1103,6 +1141,8 @@ impl Lowering<'_, '_> {
         cursor: &mut EvaluationCursor<'_, 'e, 'a>,
         mode: Mode,
     ) -> Result<EvaluationRun<'e, 'a>, String> {
+        #[cfg(test)]
+        let _runner = ActiveEvaluationRunner::enter();
         let (regions, work, values) = (&mut cursor.regions, &mut cursor.work, &mut cursor.values);
         while !work.is_empty() {
             #[cfg(test)]
