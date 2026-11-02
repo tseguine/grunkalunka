@@ -377,6 +377,22 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         region_depth,
                     )?;
                 }
+                evaluate::EvaluationRun::LowerFunctionEffect {
+                    node,
+                    signature,
+                    depth,
+                    region_depth,
+                    effect,
+                } => {
+                    self.resume_lowered_function_effect(
+                        &mut expression,
+                        node,
+                        signature,
+                        depth,
+                        region_depth,
+                        effect,
+                    )?;
+                }
                 evaluate::EvaluationRun::LowerBody {
                     node,
                     arrow,
