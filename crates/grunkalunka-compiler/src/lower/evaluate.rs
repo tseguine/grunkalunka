@@ -1125,7 +1125,12 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     // Materializing a function can re-enter evaluation while
                     // checking its constructor. Release the large runner first.
                     let result = self.with_function_result_context(region_depth, |lower| {
-                        lower.function_value_leaf(node, lease.cursor.regions.current(), signature, depth)
+                        lower.function_value_leaf(
+                            node,
+                            lease.cursor.regions.current(),
+                            signature,
+                            depth,
+                        )
                     })?;
                     lease.cursor.values.push(Value::Function(result));
                 }
@@ -4324,12 +4329,7 @@ mod cursor_region_ownership_tests {
         // Exercise EvaluationLease::new itself, not a test-only copy of the
         // Region-transfer logic.
         let allocator = oxc_allocator::Allocator::default();
-        let parsed = oxc_parser::Parser::new(
-            &allocator,
-            "1;",
-            oxc_span::SourceType::mjs(),
-        )
-        .parse();
+        let parsed = oxc_parser::Parser::new(&allocator, "1;", oxc_span::SourceType::mjs()).parse();
         assert!(!parsed.fatal_error && parsed.diagnostics.is_empty());
         let Statement::ExpressionStatement(statement) = &parsed.program.body[0] else {
             panic!("expected expression statement");
