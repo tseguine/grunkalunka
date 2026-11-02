@@ -123,29 +123,49 @@ impl Lowering<'_, '_> {
         completion: Completion,
         cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String> {
+        // Body locals are not visible to the update, but the header bindings
+        // remain live. Restore the outer loop flag before evaluating the step.
+        self.in_loop_body = frame.old_loop;
+        self.bindings.truncate(frame.header_bindings);
+        let source = frame.source;
+        if let Some(update) = &source.update {
+            let step = self.region(update);
+            cursor.pending.push(Frame::ForUpdate {
+                frame,
+                body: finished_region,
+                completion,
+            });
+            cursor.next = Some(Next::Expression {
+                source: update,
+                output: step,
+                depth: 0,
+                mode: evaluate::Mode::Discard,
+            });
+            return Ok(());
+        }
+        self.finish_for_loop(frame, finished_region, completion, None, cursor)
+    }
+
+    /// Assemble the original header/while IR only after the optional step
+    /// has finished. Capture discovery must observe its emitted operations
+    /// before deciding which lexical let-header cells need renewal.
+    pub(super) fn finish_for_loop<'n, 'a>(
+        &mut self,
+        frame: ForFrame<'n, 'a>,
+        finished_region: Region,
+        completion: Completion,
+        mut step: Option<Region>,
+        cursor: &mut Cursor<'n, 'a>,
+    ) -> Result<(), String> {
         let ForFrame {
             source,
             mut output,
             mut header,
             condition,
             outer,
-            header_bindings,
             let_slots,
-            old_loop,
             ..
         } = frame;
-        self.in_loop_body = old_loop;
-        // Body declarations are hidden from the update expression;
-        // the lexical header remains live until update is lowered.
-        self.bindings.truncate(header_bindings);
-        let mut step = if let Some(update) = &source.update {
-            let mut step = self.region(update);
-            self.discarded(update, &mut step, 0)?;
-            Some(step)
-        } else {
-            None
-        };
-
         // Captured 'let' headers need distinct per-iteration
         // cells. Keep the exact original observable renewal
         // order, including before update side effects.
