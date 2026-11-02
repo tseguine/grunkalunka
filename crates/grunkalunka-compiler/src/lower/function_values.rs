@@ -16,6 +16,13 @@ struct FunctionResultActivation {
     _kind: FunctionResultKind,
 }
 
+/// An admitted local block factory keeps both its eight-active-function-result
+/// charge and the caller's lexical state while its source body is suspended.
+pub(super) struct ZeroBlockFactory {
+    admission: FunctionResultActivation,
+    bindings: closures::FactoryBindings,
+}
+
 impl<'s, 'a> Lowering<'s, 'a> {
     pub(super) fn named_module_function(
         &self,
@@ -944,6 +951,111 @@ impl<'s, 'a> Lowering<'s, 'a> {
 
     fn finish_function_result(&mut self, _activation: FunctionResultActivation) {
         self.active_function_results -= 1;
+    }
+
+    /// Read-only selection for a direct block-bodied local factory call whose
+    /// zero source arguments can enter the same source scheduler. Concise,
+    /// runtime, optional, wrapped and argument-bearing calls keep their
+    /// existing leaf implementation.
+    pub(super) fn zero_block_factory_shape(&self, node: &Expression<'_>, depth: usize) -> bool {
+        let Expression::CallExpression(call) = node else {
+            return false;
+        };
+        if !call.arguments.is_empty() || call.optional || invocation::is_method(call) {
+            return false;
+        }
+        self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
+            .is_some_and(|closure| self.arrow(closure.arrow).get_expression().is_none())
+    }
+
+    /// Prepare a *direct, zero-argument* local block-bodied factory result.
+    /// This is deliberately a narrow first whole-SCC slice. Other argument
+    /// kinds, concise factory bodies and runtime closure calls retain the
+    /// original function-value leaf until their argument/result continuations
+    /// are migrated. No expression or source body is executed in this method.
+    pub(super) fn begin_zero_block_factory<'n>(
+        &mut self,
+        node: &'n Expression<'a>,
+        region: &mut Region,
+        arity: usize,
+        depth: usize,
+    ) -> Result<
+        Option<(
+            ZeroBlockFactory,
+            closures::BlockArrowActivation,
+            closures::ArrowBodyRequest<'n, 'a>,
+        )>,
+        String,
+    >
+    where
+        'a: 'n,
+    {
+        let Expression::CallExpression(call) = node else {
+            return Ok(None);
+        };
+        if !call.arguments.is_empty() || call.optional || invocation::is_method(call) {
+            return Ok(None);
+        }
+        let Some(mut closure) =
+            self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
+        else {
+            return Ok(None);
+        };
+        // factory_result returns None for block-bodied factories, without
+        // charging or evaluating any source; preserve that selection.
+        if self.arrow(closure.arrow).get_expression().is_some() {
+            return Ok(None);
+        }
+
+        let admission = self.begin_function_result(call, FunctionResultKind::Local)?;
+        let prepared = (|| {
+            if !closure.checked {
+                self.check_local_closure(&mut closure)?;
+                self.capture_cells(&closure, region);
+            }
+            self.check_local_call(call, &closure)?;
+            self.charge_closure_expansion(call.as_ref())?;
+            let arrow = self.arrow(closure.arrow);
+
+            // As on local_function_result, caller arguments finish before
+            // installing the captures. There are no source arguments in this
+            // first slice, so binding fresh formals follows immediately.
+            let bindings = self.enter_factory_bindings(closure.captures);
+            let started = (|| {
+                self.bind_arrow_parameters(arrow, Vec::new(), region)?;
+                let parent_depth =
+                    (self.inline_depth + self.statement_depth).max(self.function_result_depth) + 1;
+                self.begin_arrow_block_activation(arrow, parent_depth, Type::Closure(arity))
+            })();
+            match started {
+                Ok((activation, request)) => Ok((bindings, activation, request)),
+                Err(error) => {
+                    self.restore_factory_bindings(bindings);
+                    Err(error)
+                }
+            }
+        })();
+        match prepared {
+            Ok((bindings, activation, request)) => Ok(Some((
+                ZeroBlockFactory {
+                    admission,
+                    bindings,
+                },
+                activation,
+                request,
+            ))),
+            Err(error) => {
+                self.finish_function_result(admission);
+                Err(error)
+            }
+        }
+    }
+
+    /// After block-arrow completion (or on source diagnostic unwind), restore
+    /// the caller's lexical state and then release the function-result charge.
+    pub(super) fn finish_zero_block_factory(&mut self, factory: ZeroBlockFactory) {
+        self.restore_factory_bindings(factory.bindings);
+        self.finish_function_result(factory.admission);
     }
 
     fn runtime_function_result(
