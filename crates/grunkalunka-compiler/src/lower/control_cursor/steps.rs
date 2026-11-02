@@ -189,31 +189,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     ) -> Result<(), String> {
         match frame {
             Frame::ScalarLet { local, ty, .. } => {
-                let BindingPattern::BindingIdentifier(identifier) = &local.id else {
-                    unreachable!("scheduled numeric let has an identifier binding");
-                };
                 let mut output = output_region;
-                let slot = SlotId(self.slots.len());
-                self.slots.push(Slot {
-                    ty,
-                    owner: output.id,
-                    mutable: true,
-                    parameter: false,
-                    span: local.span(),
-                });
-                Self::push(
-                    &mut output,
+                self.commit_local_value(
                     local,
-                    Op::Initialize {
-                        slot,
-                        value: value.expect("numeric let initializer result"),
-                    },
-                );
-                self.bindings.push(NumericBinding {
-                    symbol: identifier.symbol_id.get().expect("checked numeric binding"),
-                    slot,
-                    mutable: true,
-                });
+                    &mut output,
+                    ty,
+                    value.expect("scalar let initializer result"),
+                    true,
+                )?;
                 cursor.completed = Some(Outcome::Statement(output, Completion::NORMAL));
                 Ok(())
             }
