@@ -48,6 +48,15 @@ impl BlockArrowCheckpoint {
     }
 }
 
+/// The suspended block-arrow activation owns the function mode and lexical
+/// restoration checkpoint. The body itself is a separate owned request, so
+/// source lowering can eventually yield without borrowing the evaluator stack.
+pub(super) struct BlockArrowActivation<'n, 'a> {
+    arrow: &'n ArrowFunctionExpression<'a>,
+    result_type: Type,
+    checkpoint: BlockArrowCheckpoint,
+}
+
 /// Owned source region plus the original body AST to be scheduled by a
 /// future cross-phase LowerBody task. No evaluator work/Region is borrowed.
 pub(super) struct ArrowBodyRequest<'n, 'a> {
@@ -884,14 +893,16 @@ impl<'s, 'a> Lowering<'s, 'a> {
         })
     }
 
-    pub(super) fn arrow_block_result(
+    /// Enter a block-arrow's own source context and return the owned body
+    /// request. The source dispatcher has *not* been entered on this path.
+    /// This preserves the existing eight-active-block admission boundary.
+    #[inline(never)]
+    pub(super) fn begin_arrow_block_activation<'n, 'ast>(
         &mut self,
-        arrow: &ArrowFunctionExpression<'_>,
+        arrow: &'n ArrowFunctionExpression<'ast>,
         parent_depth: usize,
         result_type: Type,
-    ) -> Result<Region, String> {
-        // Statement lowering can reenter the expression cursor. Bound this native
-        // recursion separately from concise-arrow's explicit continuation stack.
+    ) -> Result<(BlockArrowActivation<'n, 'ast>, ArrowBodyRequest<'n, 'ast>), String> {
         if self.active_block_calls >= 8 {
             return Err(unsupported(
                 arrow,
@@ -905,17 +916,62 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.allow_await = arrow.r#async && checkpoint.allow_await;
         self.inline_depth = parent_depth;
         self.statement_depth = 0;
-        let lowered = (|| {
-            let ArrowBodyRequest {
-                statements,
-                mut region,
-            } = self.prepare_arrow_block_body(arrow)?;
-            let completion = self.sequence(statements, &mut region, 0)?;
-            self.complete_arrow_block_body(arrow, result_type, region, completion)
-        })();
-        checkpoint.restore(self);
+        match self.prepare_arrow_block_body(arrow) {
+            Ok(request) => Ok((
+                BlockArrowActivation {
+                    arrow,
+                    result_type,
+                    checkpoint,
+                },
+                request,
+            )),
+            Err(error) => {
+                checkpoint.restore(self);
+                self.active_block_calls -= 1;
+                Err(error)
+            }
+        }
+    }
+
+    /// Finish a suspended block-arrow body on normal or diagnostic completion.
+    /// The caller owns the Region and Completion; no native evaluator frame is
+    /// needed here. Every exit restores the exact prior function/lexical modes.
+    #[inline(never)]
+    pub(super) fn finish_arrow_block_activation(
+        &mut self,
+        activation: BlockArrowActivation<'_, '_>,
+        region: Region,
+        completion: Result<Completion, String>,
+    ) -> Result<Region, String> {
+        let result = completion.and_then(|completion| {
+            self.complete_arrow_block_body(
+                activation.arrow,
+                activation.result_type,
+                region,
+                completion,
+            )
+        });
+        activation.checkpoint.restore(self);
         self.active_block_calls -= 1;
-        lowered
+        result
+    }
+
+    /// Synchronous compatibility entry. Future L4 work moves this source-body
+    /// request onto the common scheduler while suspending its evaluator state.
+    pub(super) fn arrow_block_result(
+        &mut self,
+        arrow: &ArrowFunctionExpression<'_>,
+        parent_depth: usize,
+        result_type: Type,
+    ) -> Result<Region, String> {
+        let (activation, request) =
+            self.begin_arrow_block_activation(arrow, parent_depth, result_type)?;
+        let ArrowBodyRequest {
+            statements,
+            mut region,
+        } = request;
+        let completion = self.sequence(statements, &mut region, 0);
+        self.finish_arrow_block_activation(activation, region, completion)
     }
 
     /// The post-source-body continuation is independent of the Rust stack
