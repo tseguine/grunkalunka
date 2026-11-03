@@ -110,11 +110,17 @@ fn reject_inner_optional_call(source: &str, active: usize, prepared: bool) -> Re
             let closure = lowering
                 .closure_target(invocation::callee(call), invocation::depth(call, 1))
                 .expect("known optional helper callee");
-            if lowering
-                .prepare_concise_factory(expression, &mut region, 0)?
-                .is_some()
-            {
-                return Ok(());
+            if let Some((candidate, mut factory)) = lowering.select_concise_factory(expression, 0) {
+                if !factory.checked {
+                    factory = lowering.check_closure_for_test(factory)?;
+                    lowering.capture_cells(&factory, &mut region);
+                }
+                if lowering
+                    .finish_concise_factory_preparation(candidate, factory)?
+                    .is_some()
+                {
+                    return Ok(());
+                }
             }
             lowering
                 .prepare_known_local_function_result(call, closure, &mut region)
@@ -127,6 +133,9 @@ fn reject_inner_optional_call(source: &str, active: usize, prepared: bool) -> Re
             .err()
     }
     .expect("the extracted optional call must still reject");
+    assert_eq!(lowering.statement_depth, 0);
+    assert_eq!(lowering.return_type, Type::Number);
+    assert!(!lowering.in_loop_body);
     Rejection {
         error,
         active_results: lowering.active_function_results,
