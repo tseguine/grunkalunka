@@ -18,6 +18,7 @@ pub(super) struct FactoryBindings {
 /// The source-ordered classification shared by concise and block-bodied local
 /// factories. Classification is read-only; a future source continuation can
 /// schedule the corresponding expression or callback without rerunning it.
+#[derive(Clone, Copy)]
 pub(super) enum FactoryArgumentKind {
     Discard,
     Callback(usize),
