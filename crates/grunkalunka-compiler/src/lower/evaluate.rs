@@ -1318,6 +1318,19 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         self.with_function_result_context(Some(region_depth), |lower| {
             lower.function_value(node, cursor.regions.current(), signature, depth)
         })?;
+        self.complete_function_effect(cursor, node, effect);
+        Ok(())
+    }
+
+    /// Construction has completed and its resource/context checkpoints have
+    /// been restored. Both source-owned and compatibility callers consume the
+    /// unused closure identically before the parent evaluator resumes.
+    pub(super) fn complete_function_effect(
+        &mut self,
+        cursor: &mut EvaluationCursor<'_, '_>,
+        node: &Expression<'_>,
+        effect: FunctionEffect,
+    ) {
         if matches!(effect, FunctionEffect::Truthy) {
             let result = self.value(Type::Predicate);
             Self::push(
@@ -1330,7 +1343,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             );
             cursor.values.push(Value::Predicate(result));
         }
-        Ok(())
     }
 
     /// Complete a returned-function factory source body without reentering
