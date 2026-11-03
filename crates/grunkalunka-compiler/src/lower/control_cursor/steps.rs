@@ -215,6 +215,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Frame::EvaluateFactoryArgument {
                 arguments, kind, ..
             } => self.resume_factory_argument(arguments, kind, output_region, value, cursor),
+            Frame::EvaluateRuntimeFactoryCallee { state, factory, .. } => self
+                .resume_runtime_factory_callee(
+                    state,
+                    factory,
+                    output_region,
+                    value.expect("runtime factory callee"),
+                    cursor,
+                ),
             Frame::EvaluateFactoryValue { state, factory, .. } => self.finish_factory_value(
                 state,
                 factory,
@@ -397,6 +405,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             }
             Frame::DiscardExpression { .. }
             | Frame::EvaluateFunctionValue { .. }
+            | Frame::EvaluateRuntimeFactoryCallee { .. }
             | Frame::EvaluateFactoryArgument { .. }
             | Frame::EvaluateFactoryValue { .. }
             | Frame::ScalarLet { .. }

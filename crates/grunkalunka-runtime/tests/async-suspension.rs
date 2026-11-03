@@ -2920,6 +2920,27 @@ fn concise_function_results_preserve_async_selection_and_captures() {
     );
 }
 
+#[test]
+fn runtime_factory_continuations_preserve_async_arguments_and_jobs() {
+    compare_promises(
+        &[
+            "let make=p=>()=>p;return await make(Promise.resolve(a))();",
+            "const get=async x=>{await x;return x;};let make=p=>()=>p;return await make(get(a))();",
+            "let make=x=>()=>x;return await make(a?Promise.resolve(b):a)();",
+            "const get=async x=>{await x;return x+b;};let make=x=>()=>x+a;return make(await get(a))();",
+            "let make=fn=>async x=>await fn(x);return await make(async x=>{await a;return x+b;})(a);",
+            "const consume=async p=>await p;let make=x=>async y=>x+y;return await consume(make(a)(b));",
+            "let make=x=>async()=>x.x===a?a:b;return await make({x:a})();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
     let sources = bodies
         .iter()

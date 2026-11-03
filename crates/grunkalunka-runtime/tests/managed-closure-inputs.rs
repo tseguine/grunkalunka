@@ -51,6 +51,20 @@ fn managed_arguments_flow_through_callbacks_and_factory_results() {
 }
 
 #[test]
+fn runtime_factory_arguments_preserve_managed_kinds_and_identity() {
+    for body in [
+        "let make=x=>()=>x.x===a?a:b;return make({x:a})();",
+        "let make=x=>()=>x[0]===a?a:b;return make([a])();",
+        "let make=x=>()=>x===x?a:b;return make(a?{x:a}:[b])();",
+        "const o={x:a};let make=x=>()=>x.x===a?a:b;return make(o,(o.x=b))();",
+        "let make=x=>()=>x.x===a?a:b;return make.call(null,{x:a})();",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        common::compare_sources(&js, &js);
+    }
+}
+
+#[test]
 fn managed_parameter_joins_keep_values_and_call_evaluation_order() {
     for body in [
         "let f=v=>typeof v==='object'?a:b;f({});return f(a);",

@@ -2,6 +2,68 @@
 use super::*;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
+    pub(super) fn start_runtime_factory_callee<'n>(
+        &mut self,
+        mut state: FactoryExpression<'n, 'ast>,
+        factory: function_values::PreparedRuntimeFactory<'n, 'ast>,
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        let (call, depth) = factory.call();
+        let source = invocation::callee(call);
+        let signature = factory.signature();
+        // Runtime preparation has already admitted and validated this result.
+        // Even a slot callee owns the ordinary sixteen-value charge and keeps
+        // its own source span. Inherit the FactoryExpression result context;
+        // ordinary closure-callee preparation would aggregate it again.
+        if let Err(error) = self.enter_function_value(source) {
+            self.abort_runtime_factory(factory);
+            self.restore_factory_expression(&state);
+            return Err(error);
+        }
+        let output = Self::take_cursor_region(state.expression.current_region());
+        #[cfg(test)]
+        BRIDGED_RUNTIME_FACTORIES.with(|count| count.set(count.get() + 1));
+        cursor.pending.push(Frame::EvaluateRuntimeFactoryCallee {
+            state,
+            factory,
+            depth: self.statement_depth,
+        });
+        cursor.next = Some(Next::Expression {
+            source,
+            output,
+            depth: invocation::depth(call, depth + 1),
+            mode: evaluate::Mode::Function(signature),
+        });
+        Ok(())
+    }
+
+    pub(super) fn resume_runtime_factory_callee<'n>(
+        &mut self,
+        mut state: FactoryExpression<'n, 'ast>,
+        factory: function_values::PreparedRuntimeFactory<'n, 'ast>,
+        output: Region,
+        callee: ValueId,
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        *state.expression.current_region() = output;
+        // The result token and inherited context remain owned through all
+        // arguments; only callee construction's function-value charge ends.
+        self.leave_function_value();
+        let (_, depth) = factory.call();
+        self.start_factory_arguments(
+            state,
+            function_values::PreparedFactory::Runtime { factory, callee },
+            depth,
+            cursor,
+        )
+    }
+
     pub(super) fn start_factory_arguments<'n>(
         &mut self,
         state: FactoryExpression<'n, 'ast>,
@@ -20,6 +82,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 (call.as_ref(), expression_depth)
             }
             function_values::PreparedFactory::ClosureMetadata(factory) => factory.call(),
+            function_values::PreparedFactory::Runtime { factory, .. } => factory.call(),
         };
         self.advance_factory_arguments(
             Box::new(FactoryArguments {
@@ -51,9 +114,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let source = call.arguments[arguments.index]
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
-                let kind = self.classify_factory_argument(
+                let kind = self.classify_prepared_factory_argument(
+                    &arguments.factory,
                     call,
-                    arguments.factory.arrow(),
                     arguments.index,
                     source,
                     depth,
@@ -106,6 +169,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 #[cfg(test)]
                 BRIDGED_CONCISE_FACTORIES.with(|count| count.set(count.get() + 1));
                 return self.finish_concise_factory_expression(state, factory, values, cursor);
+            }
+            function_values::PreparedFactory::Runtime { factory, callee } => {
+                return self
+                    .finish_runtime_factory_expression(state, factory, callee, values, cursor);
             }
         };
         let started = self.begin_function_result_body(
@@ -205,10 +272,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     }
 
     fn abort_prepared_factory(&mut self, factory: function_values::PreparedFactory<'_, '_>) {
-        if let function_values::PreparedFactory::LocalResult(factory) = factory {
-            self.abort_function_result_arguments(factory);
+        match factory {
+            function_values::PreparedFactory::LocalResult(factory) => {
+                self.abort_function_result_arguments(factory);
+            }
+            function_values::PreparedFactory::Runtime { factory, .. } => {
+                self.abort_runtime_factory(factory);
+            }
+            // Closure metadata owns no active function-result charge.
+            function_values::PreparedFactory::ClosureMetadata(_) => {}
         }
-        // Concise closure metadata owns no active function-result charge.
     }
 
     /// The callee consumer alone owns an extra function-value admission.
@@ -291,6 +364,29 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     state.signature,
                 )
             });
+        self.restore_factory_expression(&state);
+        state.expression.resume_function_value(result?);
+        self.resume_factory_expression(state, cursor)
+    }
+
+    fn finish_runtime_factory_expression<'n>(
+        &mut self,
+        mut state: FactoryExpression<'n, 'ast>,
+        factory: function_values::PreparedRuntimeFactory<'n, 'ast>,
+        callee: ValueId,
+        arguments: Vec<ValueId>,
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        // Expansion and the Function-valued ClosureCall follow every argument
+        // effect. Completion consumes the result token on success or error.
+        let result = self.finish_runtime_factory(
+            factory,
+            state.expression.current_region(),
+            Ok((callee, arguments)),
+        );
         self.restore_factory_expression(&state);
         state.expression.resume_function_value(result?);
         self.resume_factory_expression(state, cursor)

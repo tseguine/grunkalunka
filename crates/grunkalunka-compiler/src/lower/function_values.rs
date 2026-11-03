@@ -18,13 +18,23 @@ struct FunctionResultActivation {
 
 /// Runtime factory admission spans callee construction, ordered arguments and
 /// the final Function-valued call. Source validation completes before effects.
-struct PreparedRuntimeFactory<'n, 'a> {
+pub(super) struct PreparedRuntimeFactory<'n, 'a> {
     admission: FunctionResultActivation,
     call: &'n CallExpression<'a>,
     depth: usize,
     signature: usize,
     parameter_count: usize,
     result_type: Type,
+}
+
+impl<'n, 'a> PreparedRuntimeFactory<'n, 'a> {
+    pub(super) fn call(&self) -> (&'n CallExpression<'a>, usize) {
+        (self.call, self.depth)
+    }
+
+    pub(super) fn signature(&self) -> usize {
+        self.signature
+    }
 }
 
 /// An admitted local factory keeps both its eight-active-function-result
@@ -47,20 +57,16 @@ impl PreparedFunctionResult {
     }
 }
 
-/// These factories share ordered caller arguments, but only the general
-/// function-result path owns an active-result admission token.
+/// These factories share ordered caller arguments. Local and runtime results
+/// own an active-result admission; runtime arguments also retain their callee
+/// snapshot, constructed before the first argument starts.
 pub(super) enum PreparedFactory<'n, 'a> {
     LocalResult(PreparedFunctionResult),
     ClosureMetadata(closures::PreparedConciseFactory<'n, 'a>),
-}
-
-impl PreparedFactory<'_, '_> {
-    pub(super) fn arrow(&self) -> oxc_syntax::node::NodeId {
-        match self {
-            Self::LocalResult(factory) => factory.arrow(),
-            Self::ClosureMetadata(factory) => factory.arrow(),
-        }
-    }
+    Runtime {
+        factory: PreparedRuntimeFactory<'n, 'a>,
+        callee: ValueId,
+    },
 }
 
 /// Body entry retains the distinct context of each local function-result path.
@@ -79,6 +85,7 @@ pub(super) enum FunctionResultBody<'n, 'a> {
 /// results from concise-factory preparation.
 pub(super) enum FunctionLeafResult<'n, 'a> {
     Factory(PreparedFactory<'n, 'a>),
+    RuntimeFactory(PreparedRuntimeFactory<'n, 'a>),
     Value(ValueId),
 }
 
@@ -968,8 +975,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
             .is_none()
         {
             return self
-                .runtime_function_result(call, region, arity, depth)
-                .map(FunctionLeafResult::Value);
+                .prepare_runtime_factory(call, arity, depth)
+                .map(FunctionLeafResult::RuntimeFactory);
         }
         if let Some(factory) = self.prepare_concise_factory(node, region, depth)? {
             return Ok(FunctionLeafResult::Factory(
@@ -1235,6 +1242,68 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
+    pub(super) fn abort_runtime_factory(&mut self, factory: PreparedRuntimeFactory<'_, '_>) {
+        self.finish_function_result(factory.admission);
+    }
+
+    /// Local factory arguments infer their source kind. Runtime factories use
+    /// the complete formal signature, queried only for the next argument after
+    /// all preceding effects, including a discarded .call receiver.
+    pub(super) fn classify_prepared_factory_argument(
+        &self,
+        factory: &PreparedFactory<'_, '_>,
+        call: &CallExpression<'_>,
+        index: usize,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> closures::FactoryArgumentKind {
+        let arrow = match factory {
+            PreparedFactory::LocalResult(factory) => factory.arrow(),
+            PreparedFactory::ClosureMetadata(factory) => factory.arrow(),
+            PreparedFactory::Runtime { factory, .. } => {
+                return self.classify_runtime_factory_argument(factory, index);
+            }
+        };
+        self.classify_factory_argument(call, arrow, index, expression, depth)
+    }
+
+    fn classify_runtime_factory_argument(
+        &self,
+        factory: &PreparedRuntimeFactory<'_, '_>,
+        index: usize,
+    ) -> closures::FactoryArgumentKind {
+        let offset = invocation::offset(factory.call);
+        if index < offset || index - offset >= factory.parameter_count {
+            return closures::FactoryArgumentKind::Discard;
+        }
+        let parameter = self
+            .closure_signatures
+            .borrow()
+            .parameter(factory.signature, index - offset)
+            .expect("checked signature");
+        if let Type::Closure(signature) = parameter {
+            return closures::FactoryArgumentKind::Callback(signature);
+        }
+        let mode = if parameter.is_managed() {
+            match parameter {
+                Type::ManagedObject => evaluate::Mode::Object,
+                Type::ManagedArray => evaluate::Mode::Array,
+                _ => evaluate::Mode::Managed,
+            }
+        } else if parameter == Type::AsyncValue {
+            evaluate::Mode::AsyncValue
+        } else if parameter == Type::Promise {
+            evaluate::Mode::Pending
+        } else if parameter == Type::FulfilledPromise {
+            evaluate::Mode::Promise
+        } else if parameter == Type::General {
+            evaluate::Mode::General
+        } else {
+            evaluate::Mode::Number
+        };
+        closures::FactoryArgumentKind::Scalar(mode)
+    }
+
     fn runtime_function_result(
         &mut self,
         call: &CallExpression<'_>,
@@ -1247,7 +1316,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
             let call = factory.call;
             let depth = factory.depth;
             let signature = factory.signature;
-            let parameter_count = factory.parameter_count;
             // Runtime factories always construct even a slot callee through
             // function_value. Its admission, source span and inherited result
             // depth differ from ordinary closure-call preparation's fast path.
@@ -1259,50 +1327,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
             )?;
             let mut arguments = Vec::new();
             for (index, argument) in call.arguments.iter().enumerate() {
-                let offset = invocation::offset(call);
                 let expression = argument
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
-                if index < offset {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
-                    continue;
+                let kind = self.classify_runtime_factory_argument(&factory, index);
+                if let Some(value) =
+                    self.evaluate_factory_argument(kind, expression, region, depth + 1)?
+                {
+                    arguments.push(value);
                 }
-                let index = index - offset;
-                if index >= parameter_count {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Discard)?;
-                    continue;
-                }
-                let parameter = self
-                    .closure_signatures
-                    .borrow()
-                    .parameter(signature, index)
-                    .expect("checked signature");
-                let value = if let Type::Closure(callback) = parameter {
-                    self.callback_argument(expression, region, callback, depth + 1)?
-                } else if parameter.is_managed() {
-                    let mode = match parameter {
-                        Type::ManagedObject => evaluate::Mode::Object,
-                        Type::ManagedArray => evaluate::Mode::Array,
-                        _ => evaluate::Mode::Managed,
-                    };
-                    self.evaluate(expression, region, depth + 1, mode)?
-                        .expect("managed runtime factory argument")
-                } else if parameter == Type::AsyncValue {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::AsyncValue)?
-                        .expect("mixed runtime factory argument")
-                } else if parameter == Type::Promise {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Pending)?
-                        .expect("pending Promise runtime factory argument")
-                } else if parameter == Type::FulfilledPromise {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::Promise)?
-                        .expect("Promise runtime factory argument")
-                } else if parameter == Type::General {
-                    self.evaluate(expression, region, depth + 1, evaluate::Mode::General)?
-                        .expect("General runtime factory argument")
-                } else {
-                    self.expression(expression, region, depth + 1)?
-                };
-                arguments.push(value);
             }
             Ok((callee, arguments))
         })();
@@ -1312,7 +1345,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
     /// Emission is charged only after all callee and argument effects finish.
     /// This consumes the admission token and restores it on evaluation errors,
     /// expansion-limit errors and successful Function-valued completion alike.
-    fn finish_runtime_factory(
+    pub(super) fn finish_runtime_factory(
         &mut self,
         factory: PreparedRuntimeFactory<'_, '_>,
         region: &mut Region,
