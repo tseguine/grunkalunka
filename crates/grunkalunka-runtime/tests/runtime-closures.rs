@@ -734,6 +734,35 @@ fn returned_block_factory_callees_preserve_runtime_results() {
 }
 
 #[test]
+fn returned_block_factory_arguments_preserve_snapshots_and_effect_order() {
+    // Actual arguments and surplus effects finish in the caller environment.
+    // Parameter cells, the factory body, and outer call arguments follow in
+    // that order. The oracle compares native JS, Node-Wasm and Wasmtime.
+    compare_functions(&[
+        "const make=x=>{return ()=>x+a;};return make(b)();",
+        "const make=(x,y)=>{return ()=>x*10+y+a;};return make(a,b)();",
+        "let n=0;const make=(x,y)=>{n=n*10+3;return ()=>x*10+y+n;};return make((n=n*10+1),(n=n*10+2),n=n*10+4)()+n;",
+        "let n=a;const make=(x,y)=>{return ()=>x*10+y+n;};return make(n,(n+=b),n+=10)()+n;",
+        "const step=x=>{return x+b;};const make=x=>{return ()=>x+a;};return make(step(b))();",
+        "let n=0;const make=x=>{n=n*10+2;return y=>x+y+n;};return make((n=n*10+1))(n=n*10+3)+n;",
+        "const make=x=>{return ()=>x+b;};return (a?make(a)():make(b)())+b;",
+    ]);
+}
+
+#[test]
+fn returned_block_factory_callbacks_preserve_callee_and_capture_identity() {
+    // Retain a callback snapshot even when a later argument changes its
+    // source binding; returned callback factories must run before the
+    // receiving factory installs fresh formals.
+    compare_functions(&[
+        "const make=(fn,x)=>{return ()=>fn(x);};return make(y=>y+b,a)();",
+        "const seed=x=>{return y=>x+y;};const make=(fn,x)=>{return ()=>fn(x);};return make(seed(a),b)();",
+        "let current=x=>x+a;const make=(fn,x)=>{return ()=>fn(x);};return make(current,(current=x=>x-b,a))()+current(b);",
+        "const make=x=>{return ()=>x+b;};const wrap=x=>{return make(x);};return wrap(a)();",
+    ]);
+}
+
+#[test]
 fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))

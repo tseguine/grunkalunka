@@ -18,9 +18,22 @@ struct FunctionResultActivation {
 
 /// An admitted local block factory keeps both its eight-active-function-result
 /// charge and the caller's lexical state while its source body is suspended.
-pub(super) struct ZeroBlockFactory {
+pub(super) struct BlockFactory {
     admission: FunctionResultActivation,
     bindings: closures::FactoryBindings,
+}
+
+/// Arguments run in the caller's environment while this token keeps the
+/// function-result admission and the selected source closure alive.
+pub(super) struct PreparedBlockFactory {
+    admission: FunctionResultActivation,
+    closure: closures::LocalClosure,
+}
+
+impl PreparedBlockFactory {
+    pub(super) fn arrow(&self) -> oxc_syntax::node::NodeId {
+        self.closure.arrow
+    }
 }
 
 impl<'s, 'a> Lowering<'s, 'a> {
@@ -429,6 +442,23 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if number { Type::Number } else { Type::General }
     }
 
+    /// Callback admission is held by either the synchronous wrapper or an
+    /// owned source continuation until its Function-mode expression finishes.
+    pub(super) fn enter_callback_argument(
+        &mut self,
+        expression: &Expression<'_>,
+    ) -> Result<(), String> {
+        // Preserve the callback-specific diagnostic before function-value
+        // admission, including when an argument suspends into a source body.
+        if self.active_function_values >= 8 {
+            return Err(unsupported(
+                expression,
+                "callback arguments require fewer than 8 active function-value cursors",
+            ));
+        }
+        self.enter_function_value(expression)
+    }
+
     pub(super) fn callback_argument(
         &mut self,
         expression: &Expression<'_>,
@@ -436,15 +466,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
         arity: usize,
         depth: usize,
     ) -> Result<ValueId, String> {
-        // An argument constructor can reenter full body checking, which has a
-        // larger native frame than comma-prefix evaluation's cursor crossing.
-        if self.active_function_values >= 8 {
-            return Err(unsupported(
-                expression,
-                "callback arguments require fewer than 8 active function-value cursors",
-            ));
-        }
-        self.function_value(expression, region, arity, depth)
+        self.enter_callback_argument(expression)?;
+        let result = self
+            .evaluate(expression, region, depth, evaluate::Mode::Function(arity))
+            .map(|value| value.expect("function evaluation result"));
+        self.leave_function_value();
+        result
     }
 
     pub(super) fn function_assignment_target(
@@ -953,47 +980,33 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.active_function_results -= 1;
     }
 
-    /// Read-only selection for a direct block-bodied local factory call whose
-    /// zero source arguments can enter the same source scheduler. Concise,
-    /// runtime, optional, wrapped and argument-bearing calls keep their
-    /// existing leaf implementation.
-    pub(super) fn zero_block_factory_shape(&self, node: &Expression<'_>, depth: usize) -> bool {
+    /// Read-only selection for a direct block-bodied local factory call.
+    /// Concise, runtime, optional and method calls retain their existing leaf
+    /// paths until their distinct callee/result continuations are migrated.
+    pub(super) fn block_factory_shape(&self, node: &Expression<'_>, depth: usize) -> bool {
         let Expression::CallExpression(call) = node else {
             return false;
         };
-        if !call.arguments.is_empty() || call.optional || invocation::is_method(call) {
+        if call.optional || invocation::is_method(call) {
             return false;
         }
         self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
             .is_some_and(|closure| self.arrow(closure.arrow).get_expression().is_none())
     }
 
-    /// Prepare a *direct, zero-argument* local block-bodied factory result.
-    /// This is deliberately a narrow first whole-SCC slice. Other argument
-    /// kinds, concise factory bodies and runtime closure calls retain the
-    /// original function-value leaf until their argument/result continuations
-    /// are migrated. No expression or source body is executed in this method.
-    pub(super) fn begin_zero_block_factory<'n>(
+    /// Admit and check a direct local block factory without executing source
+    /// arguments or installing its captures/formals. The caller owns the token
+    /// through ordered argument evaluation, body entry and diagnostic unwind.
+    pub(super) fn prepare_block_factory(
         &mut self,
-        node: &'n Expression<'a>,
+        node: &Expression<'_>,
         region: &mut Region,
-        arity: usize,
         depth: usize,
-    ) -> Result<
-        Option<(
-            ZeroBlockFactory,
-            closures::BlockArrowActivation,
-            closures::ArrowBodyRequest<'n, 'a>,
-        )>,
-        String,
-    >
-    where
-        'a: 'n,
-    {
+    ) -> Result<Option<PreparedBlockFactory>, String> {
         let Expression::CallExpression(call) = node else {
             return Ok(None);
         };
-        if !call.arguments.is_empty() || call.optional || invocation::is_method(call) {
+        if call.optional || invocation::is_method(call) {
             return Ok(None);
         }
         let Some(mut closure) =
@@ -1008,43 +1021,66 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
 
         let admission = self.begin_function_result(call, FunctionResultKind::Local)?;
-        let prepared = (|| {
+        let checked = (|| {
             if !closure.checked {
                 self.check_local_closure(&mut closure)?;
                 self.capture_cells(&closure, region);
             }
             self.check_local_call(call, &closure)?;
-            self.charge_closure_expansion(call.as_ref())?;
-            let arrow = self.arrow(closure.arrow);
-
-            // As on local_function_result, caller arguments finish before
-            // installing the captures. There are no source arguments in this
-            // first slice, so binding fresh formals follows immediately.
-            let bindings = self.enter_factory_bindings(closure.captures);
-            let started = (|| {
-                self.bind_arrow_parameters(arrow, Vec::new(), region)?;
-                let parent_depth =
-                    (self.inline_depth + self.statement_depth).max(self.function_result_depth) + 1;
-                self.begin_arrow_block_activation(arrow, parent_depth, Type::Closure(arity))
-            })();
-            match started {
-                Ok((activation, request)) => Ok((bindings, activation, request)),
-                Err(error) => {
-                    self.restore_factory_bindings(bindings);
-                    Err(error)
-                }
-            }
+            self.charge_closure_expansion(call.as_ref())
         })();
-        match prepared {
-            Ok((bindings, activation, request)) => Ok(Some((
-                ZeroBlockFactory {
+        if let Err(error) = checked {
+            self.finish_function_result(admission);
+            return Err(error);
+        }
+        Ok(Some(PreparedBlockFactory { admission, closure }))
+    }
+
+    pub(super) fn abort_block_factory_arguments(&mut self, factory: PreparedBlockFactory) {
+        self.finish_function_result(factory.admission);
+    }
+
+    /// All caller arguments have completed. Install fresh parameters in the
+    /// captured environment, then yield the body to the existing source cursor.
+    /// Consuming the preparation token also makes this helper own every error
+    /// before the caller can publish a pending body frame.
+    pub(super) fn begin_block_factory_body<'n>(
+        &mut self,
+        factory: PreparedBlockFactory,
+        arguments: Vec<ValueId>,
+        region: &mut Region,
+        arity: usize,
+    ) -> Result<
+        (
+            BlockFactory,
+            closures::BlockArrowActivation,
+            closures::ArrowBodyRequest<'n, 'a>,
+        ),
+        String,
+    >
+    where
+        'a: 'n,
+    {
+        let PreparedBlockFactory { admission, closure } = factory;
+        let arrow = self.arrow(closure.arrow);
+        let bindings = self.enter_factory_bindings(closure.captures);
+        let started = (|| {
+            self.bind_arrow_parameters(arrow, arguments, region)?;
+            let parent_depth =
+                (self.inline_depth + self.statement_depth).max(self.function_result_depth) + 1;
+            self.begin_arrow_block_activation(arrow, parent_depth, Type::Closure(arity))
+        })();
+        match started {
+            Ok((activation, request)) => Ok((
+                BlockFactory {
                     admission,
                     bindings,
                 },
                 activation,
                 request,
-            ))),
+            )),
             Err(error) => {
+                self.restore_factory_bindings(bindings);
                 self.finish_function_result(admission);
                 Err(error)
             }
@@ -1053,7 +1089,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
 
     /// After block-arrow completion (or on source diagnostic unwind), restore
     /// the caller's lexical state and then release the function-result charge.
-    pub(super) fn finish_zero_block_factory(&mut self, factory: ZeroBlockFactory) {
+    pub(super) fn finish_block_factory(&mut self, factory: BlockFactory) {
         self.restore_factory_bindings(factory.bindings);
         self.finish_function_result(factory.admission);
     }

@@ -180,14 +180,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     /// Resume one source-level consumer after the existing expression
     /// evaluator has delivered its typed result. No source node is charged
     /// twice; child Region allocation retains each source form's prior order.
-    pub(super) fn resume_expression<'n, 'a>(
+    pub(super) fn resume_expression<'n>(
         &mut self,
-        frame: Frame<'n, 'a>,
+        frame: Frame<'n, 'ast>,
         output_region: Region,
         value: Option<ValueId>,
-        cursor: &mut Cursor<'n, 'a>,
-    ) -> Result<(), String> {
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
         match frame {
+            Frame::EvaluateFactoryArgument {
+                arguments, kind, ..
+            } => self.resume_factory_argument(arguments, kind, output_region, value, cursor),
             Frame::ScalarLet { local, ty, .. } => {
                 let mut output = output_region;
                 self.commit_local_value(
@@ -362,6 +368,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             Frame::DiscardExpression { .. }
+            | Frame::EvaluateFactoryArgument { .. }
             | Frame::ScalarLet { .. }
             | Frame::ReturnValue { .. }
             | Frame::FunctionReturn { .. }

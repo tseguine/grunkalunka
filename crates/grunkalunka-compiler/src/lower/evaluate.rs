@@ -1336,7 +1336,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
     /// Complete a returned-function factory source body without reentering
     /// function_value_leaf/local_function_result on the Rust call stack.
     /// The source CallExpression owns the original Op::InlineCall span.
-    pub(super) fn resume_zero_block_factory<'e, 'a>(
+    pub(super) fn resume_block_factory<'e, 'a>(
         &mut self,
         cursor: &mut EvaluationCursor<'e, 'a>,
         node: &'e Expression<'a>,
@@ -1344,7 +1344,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         body: Region,
     ) {
         let Expression::CallExpression(call) = node else {
-            unreachable!("zero-argument factory came from a direct source call");
+            unreachable!("block factory came from a direct source call");
         };
         let result = self.value(Type::Closure(signature));
         Self::push(
@@ -3530,7 +3530,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         let number_proven = self.numeric_result_shape(node, depth);
                         let callee_expression = invocation::callee(call);
                         let callee_depth = invocation::depth(call, depth + 1);
-                        if self.zero_block_factory_shape(callee_expression, callee_depth)
+                        if self.block_factory_shape(callee_expression, callee_depth)
                             && self
                                 .runtime_closure_callee(callee_expression, callee_depth)
                                 .is_none()

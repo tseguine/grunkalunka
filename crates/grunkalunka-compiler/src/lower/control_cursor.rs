@@ -10,6 +10,8 @@ use oxc_ast::ast::{
 };
 
 mod factories;
+#[cfg(test)]
+mod factory_tests;
 mod steps;
 
 #[cfg(test)]
@@ -18,7 +20,7 @@ std::thread_local! {
         const { std::cell::Cell::new(0) };
     static SCHEDULED_FUNCTION_RETURNS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
-    static BRIDGED_ZERO_ARG_FACTORIES: std::cell::Cell<usize> =
+    static BRIDGED_BLOCK_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -96,6 +98,15 @@ struct FactoryExpression<'n, 'a> {
     node: &'n Expression<'a>,
     signature: usize,
     resume: FactoryResume<'n, 'a>,
+}
+
+struct FactoryArguments<'n, 'a> {
+    state: FactoryExpression<'n, 'a>,
+    factory: function_values::PreparedBlockFactory,
+    call: &'n CallExpression<'a>,
+    expression_depth: usize,
+    index: usize,
+    values: Vec<ValueId>,
 }
 
 enum Frame<'n, 'a> {
@@ -207,12 +218,19 @@ enum Frame<'n, 'a> {
         result_type: Type,
         depth: usize,
     },
-    /// A source-owned function-valued call is waiting for its zero-argument,
-    /// block-bodied factory to complete. This owns all three nested checkpoints.
+    /// One source argument is running in the caller's lexical environment.
+    /// A callback holds its own function-value admission across suspension.
+    EvaluateFactoryArgument {
+        arguments: Box<FactoryArguments<'n, 'a>>,
+        kind: closures::FactoryArgumentKind,
+        depth: usize,
+    },
+    /// A source-owned function-valued call is waiting for its block-bodied
+    /// factory to complete. This owns all three nested checkpoints.
     EvaluateFactoryBody {
         state: FactoryExpression<'n, 'a>,
         activation: closures::BlockArrowActivation,
-        factory: function_values::ZeroBlockFactory,
+        factory: function_values::BlockFactory,
         depth: usize,
     },
     TryCatchBody {
@@ -265,6 +283,7 @@ impl Frame<'_, '_> {
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
             | Self::EvaluateBody { depth, .. }
+            | Self::EvaluateFactoryArgument { depth, .. }
             | Self::EvaluateFactoryBody { depth, .. }
             | Self::TryCatchBody { depth, .. }
             | Self::TryCatchHandler { depth, .. }
@@ -398,21 +417,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     depth,
                     region_depth,
                 } => {
-                    // One direct zero-argument block factory can now enter the
-                    // same heap-owned source scheduler as its parent evaluator.
                     let previous_result_depth = self.enter_function_result_depth(region_depth);
-                    let prepared = self.begin_zero_block_factory(
-                        node,
-                        expression.current_region(),
-                        signature,
-                        depth,
-                    );
+                    let prepared =
+                        self.prepare_block_factory(node, expression.current_region(), depth);
                     match prepared {
-                        Ok(Some((factory, activation, request))) => {
-                            #[cfg(test)]
-                            BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(count.get() + 1));
-                            cursor.pending.push(Frame::EvaluateFactoryBody {
-                                state: FactoryExpression {
+                        Ok(Some(factory)) => {
+                            return self.start_factory_arguments(
+                                FactoryExpression {
                                     expression: Box::new(expression),
                                     mode,
                                     previous_result_depth,
@@ -420,17 +431,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     signature,
                                     resume: FactoryResume::Value,
                                 },
-                                activation,
                                 factory,
-                                depth: 0,
-                            });
-                            cursor.next = Some(Next::Enter {
-                                source: ControlNode::Sequence(request.statements),
-                                output: request.region,
-                                depth: 0,
-                                charge: source_control::SourceCharge::Charged,
-                            });
-                            return Ok(());
+                                depth,
+                                cursor,
+                            );
                         }
                         Ok(None) => {
                             self.restore_function_result_depth(previous_result_depth);
@@ -482,18 +486,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         self.restore_function_result_depth(previous_result_depth);
                         return Err(error);
                     }
-                    let prepared = self.begin_zero_block_factory(
+                    let prepared = self.prepare_block_factory(
                         callee_node,
                         expression.current_region(),
-                        signature,
                         callee_depth,
                     );
                     match prepared {
-                        Ok(Some((factory, activation, request))) => {
-                            #[cfg(test)]
-                            BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(count.get() + 1));
-                            cursor.pending.push(Frame::EvaluateFactoryBody {
-                                state: FactoryExpression {
+                        Ok(Some(factory)) => {
+                            return self.start_factory_arguments(
+                                FactoryExpression {
                                     expression: Box::new(expression),
                                     mode,
                                     previous_result_depth,
@@ -510,17 +511,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                         },
                                     ),
                                 },
-                                activation,
                                 factory,
-                                depth: 0,
-                            });
-                            cursor.next = Some(Next::Enter {
-                                source: ControlNode::Sequence(request.statements),
-                                output: request.region,
-                                depth: 0,
-                                charge: source_control::SourceCharge::Charged,
-                            });
-                            return Ok(());
+                                callee_depth,
+                                cursor,
+                            );
                         }
                         Ok(None) => {
                             // Preserve the legacy path if the read-only
@@ -805,6 +799,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     Frame::EvaluateBody { activation, .. } => {
                         self.abort_arrow_block_activation(activation);
                     }
+                    Frame::EvaluateFactoryArgument {
+                        arguments, kind, ..
+                    } => {
+                        self.abort_factory_argument(*arguments, kind);
+                    }
                     Frame::EvaluateFactoryBody {
                         state,
                         activation,
@@ -812,7 +811,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         ..
                     } => {
                         self.abort_arrow_block_activation(activation);
-                        self.finish_zero_block_factory(factory);
+                        self.finish_block_factory(factory);
                         self.restore_factory_expression(&state);
                     }
                     Frame::FunctionReturn { .. } => {
@@ -847,9 +846,9 @@ mod tests {
                 let (result, bridged) = std::thread::Builder::new()
                     .stack_size(2 * 1024 * 1024)
                     .spawn(move || {
-                        BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(0));
+                        BRIDGED_BLOCK_FACTORIES.with(|count| count.set(0));
                         let result = crate::compile(&source, typescript);
-                        let bridged = BRIDGED_ZERO_ARG_FACTORIES.with(std::cell::Cell::get);
+                        let bridged = BRIDGED_BLOCK_FACTORIES.with(std::cell::Cell::get);
                         (result, bridged)
                     })
                     .expect("2 MiB returned block factory thread")
