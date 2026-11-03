@@ -583,6 +583,11 @@ pub(crate) enum Op {
         object: ValueId,
         key: Vec<u16>,
     },
+    ManagedGetOwnDynamic {
+        result: ValueId,
+        object: ValueId,
+        key: ValueId,
+    },
     ManagedSetOwn {
         object: ValueId,
         key: Vec<u16>,
@@ -1269,6 +1274,15 @@ impl Verifier<'_> {
                 self.value(*object, Type::ManagedObject, visible, span)?;
                 u32::try_from(key.len())
                     .map_err(|_| invalid(span, "managed property key exceeds Wasm32 length"))?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedGetOwnDynamic {
+                result,
+                object,
+                key,
+            } => {
+                self.value(*object, Type::ManagedObject, visible, span)?;
+                self.value(*key, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedSetOwn { object, key, value } => {

@@ -5,6 +5,7 @@ use super::*;
 #[cfg(test)]
 use std::cell::Cell;
 mod array_at;
+mod dictionary;
 mod managed;
 mod own_keys;
 #[cfg(test)]
@@ -1453,6 +1454,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             crate::evaluator_tests::pending(work.len());
             match work.pop().expect("pending work") {
                 Work::ArrayAt(task) => self.resume_array_at(task, regions, values, work)?,
+                Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
                 Work::OwnKeys(task) => self.resume_own_keys(task, regions, values, work)?,
                 Work::Managed(task) => {
                     self.complete_managed(task, regions, values, work)?;

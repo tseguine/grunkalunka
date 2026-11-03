@@ -253,6 +253,16 @@ impl Emitter<'_> {
                 self.output.push_str("call $gc_get\n");
                 self.set(*result);
             }
+            Op::ManagedGetOwnDynamic {
+                result,
+                object,
+                key,
+            } => {
+                self.get(*object);
+                self.managed_key_value(*key);
+                self.output.push_str("call $gc_get\n");
+                self.set(*result);
+            }
             Op::ManagedSetOwn { object, key, value } => {
                 self.get(*object);
                 self.managed_key(key);
@@ -838,6 +848,15 @@ impl Emitter<'_> {
 
     fn region(&mut self, root: &Region) {
         self.emit_walk(Some(root), &[]);
+    }
+
+    fn managed_key_value(&mut self, key: ValueId) {
+        self.get(key);
+        self.output
+            .push_str("struct.get $gc_value 0\ni32.const 5\ni32.ne\nif unreachable end\n");
+        self.get(key);
+        self.output
+            .push_str("struct.get $gc_value 2\nref.cast (ref $gc_key)\n");
     }
 
     fn managed_key(&mut self, key: &[u16]) {
