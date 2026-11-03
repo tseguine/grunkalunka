@@ -13,7 +13,6 @@ const native = (name, binaryTarget = target) => join(binaryTarget, 'debug', 'exa
   name + (process.platform === 'win32' ? '.exe' : ''));
 const compiler = join(target, 'debug',
   'grunkalunka' + (process.platform === 'win32' ? '.exe' : ''));
-const guest = join(target, 'wasm32-unknown-unknown', 'debug', 'examples', 'outline_guest.wasm');
 const MAX_NOTE = 4096;
 const MAX_REPORT = 128 * 1024;
 const PPM_HEADER = Buffer.from('P6\n320 160\n255\n');
@@ -121,6 +120,20 @@ function checkedPpm(bytes) {
   return bytes;
 }
 
+// Shared by the static preview and the input-driven A1 application.
+export async function loadNoteDocument({ profile, note, binaryTarget = target }) {
+  if (!['granted', 'denied'].includes(profile) ||
+      (profile === 'granted' && (typeof note !== 'string' || !note))) {
+    throw new TypeError('Invalid note-preview document arguments');
+  }
+  const bytes = await boundedNote(note, profile);
+  const selectedGuest = join(binaryTarget, 'wasm32-unknown-unknown',
+    'debug', 'examples', 'outline_guest.wasm');
+  const raw = nativeCall(native('a1_note_preview', binaryTarget),
+    [selectedGuest, '--profile', profile], bytes);
+  return liftedResult(JSON.parse(raw.toString('utf8')), profile, bytes);
+}
+
 export async function runPreview({
   profile, out, note, expanded = 1, debug = false, selectorWasm,
 }) {
@@ -146,12 +159,7 @@ export async function runPreview({
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  const bytes = await boundedNote(note, profile);
-  const selectedGuest = selectorWasm === undefined ? guest : join(
-    binaryTarget, 'wasm32-unknown-unknown', 'debug', 'examples', 'outline_guest.wasm');
-  const raw = nativeCall(native('a1_note_preview', binaryTarget),
-    [selectedGuest, '--profile', profile], bytes);
-  const lifted = liftedResult(JSON.parse(raw.toString('utf8')), profile, bytes);
+  const lifted = await loadNoteDocument({ profile, note, binaryTarget });
   let wasm = selectorWasm;
   if (wasm === undefined) {
     const toggle = await readFile(new URL('./toggle.js', import.meta.url), 'utf8');

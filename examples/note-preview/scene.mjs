@@ -5,6 +5,12 @@ import { renderNotePreview } from './render.mjs';
 
 export async function prepareNoteScene({ wasm, expanded, ...document }) {
   const visibleCount = await runNumeric(wasm, expanded, document.headings.length);
+  return prepareSelectedNoteScene({ ...document, visibleCount });
+}
+
+// A source-imported service may select state without the numeric runner.
+// Both clients consume the same validated presentation and native protocol.
+export function prepareSelectedNoteScene({ visibleCount, ...document }) {
   // Fail closed before creating any native layout input: this is the existing
   // bounded presentation/authority contract, not a second policy evaluator.
   const html = renderNotePreview({ ...document, visibleCount });

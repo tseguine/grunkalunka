@@ -1,0 +1,14 @@
+{
+  "id": "check:a1-service-interaction",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/applications/a1-service-interaction.test.mjs"
+  ],
+  "dependsOn": [
+    "test:a1-note-preview"
+  ],
+  "paths": [
+    "tests/applications/a1-service-interaction.test.mjs"
+  ]
+}
