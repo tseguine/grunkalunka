@@ -191,6 +191,24 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::LiftedExpression {
+                completion,
+                function_value,
+                ..
+            } => {
+                if function_value {
+                    self.leave_function_value();
+                }
+                let body = self.finish_lifted_body(completion, output_region, value);
+                cursor.completed = Some(Outcome::LiftedBody(body));
+                Ok(())
+            }
+            Frame::MaterializedFunction { state, .. } => self.resume_materialized_function(
+                state,
+                output_region,
+                value.expect("materialized function result"),
+                cursor,
+            ),
             Frame::CheckExpression { function_value, .. } => {
                 if function_value {
                     self.leave_function_value();
@@ -409,6 +427,19 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     cursor,
                 )?;
             }
+            Frame::LiftedBlock {
+                completion: body_completion,
+                activation,
+                ..
+            } => {
+                let region = self.finish_arrow_block_activation(
+                    activation,
+                    finished_region,
+                    Ok(completion),
+                )?;
+                let body = self.finish_lifted_body(body_completion, region, None);
+                cursor.completed = Some(Outcome::LiftedBody(body));
+            }
             Frame::CheckBlock {
                 activation,
                 factory,
@@ -453,6 +484,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             Frame::ChildBoundary { .. }
+            | Frame::CheckedMaterialization { .. }
+            | Frame::MaterializedFunction { .. }
+            | Frame::LiftedExpression { .. }
             | Frame::CheckedLocalCall { .. }
             | Frame::CheckExpression { .. }
             | Frame::CheckReturnedClosure { .. }

@@ -513,17 +513,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         )
     }
 
-    fn expression(
-        &mut self,
-        expression: &Expression<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        Ok(self
-            .evaluate(expression, region, depth, evaluate::Mode::Number)?
-            .expect("value mode"))
-    }
-
     // Source control and lexical sequencing share one explicit heap cursor.
     // Statement families no longer reenter an independent sequence dispatcher.
     pub fn sequence<'n>(

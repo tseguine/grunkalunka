@@ -4,7 +4,7 @@
 use super::*;
 
 impl<'s, 'n, 'a> Cursor<'s, 'n, 'a> {
-    fn enter_lowering_child(
+    pub(super) fn enter_lowering_child(
         &mut self,
         active: &mut Lowering<'s, 'a>,
         mut child: Box<Lowering<'s, 'a>>,
@@ -163,6 +163,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 local,
                 output,
             } => self.resume_declaration_closure(sequence, local, closure, output, cursor),
+            Frame::CheckedMaterialization {
+                output,
+                node,
+                signature,
+                ..
+            } => self.start_checked_materialization(closure, output, node, signature, cursor),
             Frame::CheckedLocalCall {
                 mut expression,
                 mode,

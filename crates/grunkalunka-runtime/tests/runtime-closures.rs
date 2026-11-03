@@ -19,6 +19,16 @@ mod discarded_logical;
 mod for_let_cells;
 
 #[test]
+fn lifted_child_continuations_preserve_nested_functions_and_captured_cells() {
+    compare_functions(&[
+        "let f=x=>{let g=y=>x+y;return g(a);};return f(b);",
+        "let f=x=>y=>x+y;return f(a)(b);",
+        "let n=a;let f=x=>{let g=y=>(n+=y,x+n);return g(b);};return f(a)+n;",
+        "let f=x=>x?true:null;return +f(a);",
+    ]);
+}
+
+#[test]
 fn disposable_iife_checks_preserve_captures_effects_and_lifted_identity() {
     compare_function_programs(
         &[

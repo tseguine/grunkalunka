@@ -3029,6 +3029,25 @@ fn disposable_awaited_iife_checks_preserve_inputs_and_async_jobs() {
     );
 }
 
+#[test]
+fn lifted_child_continuations_preserve_async_body_completion_kinds() {
+    compare_promises(
+        &[
+            "let f=async x=>{await b;return x+a;};return await f(a);",
+            "let f=async x=>x+a;return await f(b);",
+            "let f=async x=>{if(x)throw x;return b;};return await f(a);",
+            "let f=p=>p;return await f(Promise.resolve(a));",
+            "let f=x=>x;return await f(a?Promise.resolve(b):a);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
     let sources = bodies
         .iter()

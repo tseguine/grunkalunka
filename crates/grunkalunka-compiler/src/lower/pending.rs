@@ -3,16 +3,6 @@ use super::*;
 use std::collections::BTreeMap;
 
 impl Lowering<'_, '_> {
-    pub(super) fn async_result(
-        &mut self,
-        expression: &Expression<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        Ok(self
-            .evaluate(expression, region, depth, evaluate::Mode::AsyncReturn)?
-            .expect("async return resolution"))
-    }
     pub(super) fn pending_promise_shape(&self, expression: &Expression<'_>, depth: usize) -> bool {
         self.pending_promise_shape_in(expression, depth, &BTreeMap::new(), 0)
     }

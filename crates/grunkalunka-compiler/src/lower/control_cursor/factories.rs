@@ -454,7 +454,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
     /// Each factory kind has restored its own state before delivering the
     /// result to this shared expression/callee consumer.
-    fn resume_factory_expression<'n>(
+    pub(super) fn resume_factory_expression<'n>(
         &mut self,
         mut state: FactoryExpression<'n, 'ast>,
         cursor: &mut Cursor<'s, 'n, 'ast>,

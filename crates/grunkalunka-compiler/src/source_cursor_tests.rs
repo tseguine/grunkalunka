@@ -93,6 +93,44 @@ fn declaration_definition_checks_stay_on_one_source_cursor() {
 }
 
 #[test]
+fn nested_real_lifted_bodies_use_one_source_cursor() {
+    for (body, asynchronous) in [
+        ("let f=x=>{let g=y=>x+y;return g(a);};return f(b);", false),
+        ("let f=x=>y=>x+y;return f(a)(b);", false),
+        ("return((fn,x)=>fn(x))(y=>{return y+a;},b);", false),
+        (
+            "let f=async x=>{await b;return x+a;};return await f(a);",
+            true,
+        ),
+    ] {
+        for typescript in [false, true] {
+            let prefix = if asynchronous { "async " } else { "" };
+            let source = format!("export {prefix}function run(a,b){{{body}}}");
+            std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || {
+                    let (result, maximum, entries, _) = observe(|| {
+                        if asynchronous {
+                            crate::compile_async(&source, typescript).map(|_| ())
+                        } else {
+                            crate::compile(&source, typescript).map(|_| ())
+                        }
+                    });
+                    assert!(result.is_ok(), "{body}: {result:?}");
+                    assert_eq!(maximum, 1, "real lifting must not nest the source cursor");
+                    assert_eq!(
+                        entries, 1,
+                        "real lifting must not reenter the source cursor"
+                    );
+                })
+                .expect("2 MiB lifted source-cursor thread")
+                .join()
+                .expect("real lifted bodies share one source cursor");
+        }
+    }
+}
+
+#[test]
 fn unchecked_local_callees_use_one_source_cursor() {
     for (body, asynchronous) in [
         (
