@@ -7,12 +7,12 @@ use super::*;
 mod for_loop;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
-    pub(super) fn begin_control<'n, 'a>(
+    pub(super) fn begin_control<'n>(
         &mut self,
-        source: ControlNode<'n, 'a>,
+        source: ControlNode<'n, 'ast>,
         output: Region,
         depth: usize,
-        cursor: &mut Cursor<'s, 'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         match source {
             ControlNode::TryFinally(source) => {
@@ -459,6 +459,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::EvaluateFactoryArgument { .. }
             | Frame::EvaluateFactoryValue { .. }
             | Frame::DeclarationValue { .. }
+            | Frame::CheckedDeclarationClosure { .. }
             | Frame::ReturnValue { .. }
             | Frame::FunctionReturn { .. }
             | Frame::ThrowValue { .. }

@@ -3,6 +3,42 @@
 use super::BRIDGED_CLOSURE_CHECKS;
 use crate::ir::{FunctionId, Op, SlotId, ValueId};
 
+#[test]
+fn fresh_declaration_closures_share_the_source_scheduler() {
+    for (body, asynchronous) in [
+        ("const f=x=>x+a;return f(b);", false),
+        ("const f=()=>{const g=()=>a;return g();};return f();", false),
+        ("const make=x=>y=>x+y;return a;", false),
+        ("for(const f=x=>x+a;;){return f(b);}return b;", false),
+        (
+            "const f=async x=>{await b;return x+a;};return await f(b);",
+            true,
+        ),
+    ] {
+        for typescript in [false, true] {
+            let (result, bridged) = on_small_stack(body, asynchronous, typescript);
+            assert!(result.is_ok(), "{body}: {result:?}");
+            assert!(
+                bridged > 0,
+                "fresh declaration bypassed disposable checking children: {body}"
+            );
+        }
+    }
+}
+
+#[test]
+fn declaration_closure_aliases_reuse_the_checked_definition() {
+    for typescript in [false, true] {
+        let body = "const f=x=>x+a,g=f,h=g;return h(b);";
+        let (result, bridged) = on_small_stack(body, false, typescript);
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(
+            bridged, 1,
+            "aliases must reuse definition costs and captures"
+        );
+    }
+}
+
 fn on_small_stack(body: &str, asynchronous: bool, typescript: bool) -> (Result<(), String>, usize) {
     let prefix = if asynchronous { "async " } else { "" };
     let source = format!("export {prefix}function run(a,b){{{body}}}");

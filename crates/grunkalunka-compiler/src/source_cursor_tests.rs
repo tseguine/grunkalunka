@@ -58,6 +58,41 @@ fn observe<T>(run: impl FnOnce() -> T) -> (T, usize, usize, usize) {
 }
 
 #[test]
+fn declaration_definition_checks_stay_on_one_source_cursor() {
+    for (body, admitted) in [
+        (
+            "const f=()=>{const g=()=>{return a;};return g();};return f();",
+            true,
+        ),
+        ("const make=x=>y=>x+y;return a;", true),
+        (
+            "const f=()=>{const bad=()=>Math.noSuch(a);return b;};return a;",
+            false,
+        ),
+        (
+            "const f=()=>{const g=()=>{const bad=()=>Math.noSuch(a);return b;};return g();};return a;",
+            false,
+        ),
+    ] {
+        for typescript in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let (result, maximum, entries, _) = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || observe(|| crate::compile(&source, typescript).map(|_| ())))
+                .expect("2 MiB declaration-check thread")
+                .join()
+                .expect("definition checks must not exhaust the native stack");
+            assert_eq!(result.is_ok(), admitted, "{body}: {result:?}");
+            assert_eq!(
+                maximum, 1,
+                "declaration checking reentered the source cursor: {body}"
+            );
+            assert!(entries > 0);
+        }
+    }
+}
+
+#[test]
 fn unchecked_local_callees_use_one_source_cursor() {
     for (body, asynchronous) in [
         (

@@ -5,12 +5,12 @@
 use super::*;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
-    pub(super) fn begin_for_loop<'n, 'a>(
+    pub(super) fn begin_for_loop<'n>(
         &mut self,
-        source: &'n ForStatement<'a>,
+        source: &'n ForStatement<'ast>,
         output: Region,
         depth: usize,
-        cursor: &mut Cursor<'s, 'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         // The synthetic header Block is not charged as a source statement.
         // Expression and declaration initializers both emit into that Region.
@@ -65,10 +65,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     /// Resume only after the initializer has emitted its side effects into
     /// the lexical header. Declaration continuations collect their let bindings
     /// after all values are published; expression initializers add none.
-    pub(super) fn finish_for_initializer<'n, 'a>(
+    pub(super) fn finish_for_initializer<'n>(
         &mut self,
-        frame: ForPredicateFrame<'n, 'a>,
-        cursor: &mut Cursor<'s, 'n, 'a>,
+        frame: ForPredicateFrame<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         let source = frame.source;
         let mut condition = self.region(source);
@@ -107,12 +107,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         self.resume_for_predicate(frame, condition, predicate, cursor)
     }
 
-    pub(super) fn resume_for_predicate<'n, 'a>(
+    pub(super) fn resume_for_predicate<'n>(
         &mut self,
-        frame: ForPredicateFrame<'n, 'a>,
+        frame: ForPredicateFrame<'n, 'ast>,
         mut condition: Region,
         predicate: ValueId,
-        cursor: &mut Cursor<'s, 'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         let ForPredicateFrame {
             source,
@@ -146,12 +146,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         Ok(())
     }
 
-    pub(super) fn resume_for_loop<'n, 'a>(
+    pub(super) fn resume_for_loop<'n>(
         &mut self,
-        frame: ForFrame<'n, 'a>,
+        frame: ForFrame<'n, 'ast>,
         finished_region: Region,
         completion: Completion,
-        cursor: &mut Cursor<'s, 'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         // Body locals are not visible to the update, but the header bindings
         // remain live. Restore the outer loop flag before evaluating the step.
@@ -179,13 +179,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     /// Assemble the original header/while IR only after the optional step
     /// has finished. Capture discovery must observe its emitted operations
     /// before deciding which lexical let-header cells need renewal.
-    pub(super) fn finish_for_loop<'n, 'a>(
+    pub(super) fn finish_for_loop<'n>(
         &mut self,
-        frame: ForFrame<'n, 'a>,
+        frame: ForFrame<'n, 'ast>,
         finished_region: Region,
         completion: Completion,
         mut step: Option<Region>,
-        cursor: &mut Cursor<'s, 'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String> {
         let ForFrame {
             source,

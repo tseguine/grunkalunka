@@ -8,6 +8,10 @@ use super::*;
 pub(super) enum DeclarationInitializer<'n, 'a> {
     Complete,
     Value(DeclarationValue<'n, 'a>),
+    CheckClosure {
+        local: &'n VariableDeclarator<'a>,
+        closure: closures::LocalClosure,
+    },
 }
 
 pub(super) struct DeclarationValue<'n, 'a> {
@@ -52,7 +56,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     }
 
     /// Charge and validate just this local before selecting its initializer.
-    /// Const closure metadata retains its original checking/publication path;
+    /// Const closure metadata may request a disposable definition check;
     /// ordinary values become a typed request without evaluating their source.
     pub(super) fn prepare_declaration_initializer<'n, 'a>(
         &mut self,
@@ -84,8 +88,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             None
         };
         if let Some(closure) = closure {
-            self.publish_declaration_closure(local, mutable, closure, region)?;
-            return Ok(DeclarationInitializer::Complete);
+            return self.publish_declaration_closure(local, mutable, closure, region);
         }
         let value = |source, ty, mode| {
             Ok(DeclarationInitializer::Value(DeclarationValue {
@@ -224,13 +227,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         }
     }
 
-    pub(super) fn publish_declaration_closure(
+    pub(super) fn publish_declaration_closure<'n, 'a>(
         &mut self,
-        local: &VariableDeclarator<'_>,
+        local: &'n VariableDeclarator<'a>,
         mutable: bool,
-        mut closure: closures::LocalClosure,
+        closure: closures::LocalClosure,
         region: &mut Region,
-    ) -> Result<(), String> {
+    ) -> Result<DeclarationInitializer<'n, 'a>, String> {
         let BindingPattern::BindingIdentifier(identifier) = &local.id else {
             unreachable!("declaration local was checked before selection");
         };
@@ -247,15 +250,39 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     unsupported(initializer, "function value requires a known signature")
                 })?;
             let value = self.materialize_closure(closure, region, initializer, arity)?;
-            return self.commit_function_local(local, region, Type::Closure(arity), value, mutable);
+            self.commit_function_local(local, region, Type::Closure(arity), value, mutable)?;
+            return Ok(DeclarationInitializer::Complete);
         }
         // An alias reuses an already validated source body and its cost.
         if closure.symbol.is_none() {
             if !closure.checked {
-                self.check_local_closure(&mut closure)?;
+                return Ok(DeclarationInitializer::CheckClosure { local, closure });
             }
             self.capture_cells(&closure, region);
         }
+        self.commit_declaration_closure(local, closure)?;
+        Ok(DeclarationInitializer::Complete)
+    }
+
+    pub(super) fn finish_declaration_closure_check(
+        &mut self,
+        local: &VariableDeclarator<'_>,
+        closure: closures::LocalClosure,
+        region: &mut Region,
+    ) -> Result<(), String> {
+        debug_assert!(closure.checked && closure.symbol.is_none());
+        self.capture_cells(&closure, region);
+        self.commit_declaration_closure(local, closure)
+    }
+
+    fn commit_declaration_closure(
+        &mut self,
+        local: &VariableDeclarator<'_>,
+        mut closure: closures::LocalClosure,
+    ) -> Result<(), String> {
+        let BindingPattern::BindingIdentifier(identifier) = &local.id else {
+            unreachable!("declaration local was checked before selection");
+        };
         closure.symbol = Some(
             identifier
                 .symbol_id
