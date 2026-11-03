@@ -14,6 +14,18 @@ fn array_at_preserves_snapshots_through_suspended_arguments_and_results() {
 }
 
 #[test]
+fn string_concat_retains_left_snapshots_across_await() {
+    compare_promises(
+        &[
+            "let s='left';const text=s+(await a,s='right');await b;return text==='leftright'&&s==='right'?1:0;",
+            r"const left='\ud800';const text=left+(await a,'\udfff');await b;return text==='\ud800\udfff'&&text.length===2?1:0;",
+            "let s='';const add=()=>s=s+'x';await a;add();await b;add();return s.length;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_length_keeps_utf16_snapshots_across_suspension() {
     compare_promises(
         &[

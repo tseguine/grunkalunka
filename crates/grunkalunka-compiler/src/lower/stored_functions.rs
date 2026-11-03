@@ -23,6 +23,7 @@ enum Rule {
     Symbol(SymbolId),
     Member(NodeId, Key),
     Call(NodeId, Vec<NodeId>),
+    StringConcat(NodeId, NodeId),
 }
 struct FunctionFlow {
     parameters: Vec<SymbolId>,
@@ -139,6 +140,9 @@ impl Fields {
                 AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
                     values.insert(id, BTreeSet::from([Origin::String]));
                     None
+                }
+                AstKind::BinaryExpression(b) if b.operator == BinaryOperator::Addition => {
+                    Some(Rule::StringConcat(b.left.node_id(), b.right.node_id()))
                 }
                 AstKind::ObjectExpression(object) => {
                     let mut own = BTreeMap::new();
@@ -369,6 +373,21 @@ impl Fields {
                 let found = match rule {
                     Rule::Copy(inputs) => inputs.iter().flat_map(get).collect(),
                     Rule::Symbol(symbol) => bindings.get(symbol).cloned().unwrap_or_default(),
+                    Rule::StringConcat(left, right) => {
+                        let left = get(left);
+                        let right = get(right);
+                        if left.is_empty() || right.is_empty() {
+                            Alternatives::new()
+                        } else if left
+                            .iter()
+                            .chain(&right)
+                            .all(|origin| *origin == Origin::String)
+                        {
+                            BTreeSet::from([Origin::String])
+                        } else {
+                            BTreeSet::from([Origin::Other])
+                        }
+                    }
                     Rule::Call(callee, arguments) => {
                         let mut found = Alternatives::new();
                         for target in get(callee) {

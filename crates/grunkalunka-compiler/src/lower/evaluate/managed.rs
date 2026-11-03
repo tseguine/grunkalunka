@@ -7,6 +7,15 @@ pub(super) enum ManagedWork<'e, 'a> {
     Array(arrays::ArrayWork<'e, 'a>),
     ArrayLength(&'e Expression<'a>),
     StringLength(&'e Expression<'a>),
+    ConcatRight {
+        node: &'e Expression<'a>,
+        right: &'e Expression<'a>,
+        depth: usize,
+    },
+    Concat {
+        node: &'e Expression<'a>,
+        left: ValueId,
+    },
     ResizeReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -382,6 +391,12 @@ impl Lowering<'_, '_> {
                         Expression::ObjectExpression(_) => values.push(Some(Type::ManagedObject)),
                         Expression::ArrayExpression(_) => values.push(Some(Type::ManagedArray)),
                         Expression::StringLiteral(_) => values.push(Some(Type::ManagedValue)),
+                        Expression::BinaryExpression(b)
+                            if b.operator == BinaryOperator::Addition
+                                && self.stored.string(node.node_id()) =>
+                        {
+                            values.push(Some(Type::ManagedValue));
+                        }
                         Expression::ArrowFunctionExpression(arrow)
                             if self
                                 .managed_kinds
@@ -828,6 +843,19 @@ impl Lowering<'_, '_> {
             return Ok(true);
         }
         if matches!(mode, Mode::Managed) {
+            if let Expression::BinaryExpression(binary) = node
+                && binary.operator == BinaryOperator::Addition
+                && self.stored.string(binary.left.node_id())
+                && self.stored.string(binary.right.node_id())
+            {
+                work.push(Work::Managed(ManagedWork::ConcatRight {
+                    node,
+                    right: &binary.right,
+                    depth: depth + 1,
+                }));
+                work.push(Work::Eval(&binary.left, depth + 1, Mode::Managed));
+                return Ok(true);
+            }
             if let Expression::UnaryExpression(u) = node
                 && u.operator == UnaryOperator::Typeof
             {
@@ -975,6 +1003,25 @@ impl Lowering<'_, '_> {
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
         match task {
+            ManagedWork::ConcatRight { node, right, depth } => {
+                let left = values.pop().expect("String addition left operand").id();
+                work.push(Work::Managed(ManagedWork::Concat { node, left }));
+                work.push(Work::Eval(right, depth, Mode::Managed));
+            }
+            ManagedWork::Concat { node, left } => {
+                let right = values.pop().expect("String addition right operand").id();
+                let result = self.value(Type::ManagedValue);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedStringConcat {
+                        result,
+                        left,
+                        right,
+                    },
+                );
+                values.push(Value::Managed(result));
+            }
             ManagedWork::ResizeReceiver {
                 node,
                 right,

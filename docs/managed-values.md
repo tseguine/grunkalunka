@@ -256,7 +256,7 @@ and reference-aware async frames remain separate work. Managed properties cannot
 be returned directly through the primitive ABI; observations must produce a supported primitive result.
 Known typed function values in managed containers and calls through proven
 compatible own fields are supported as detailed below; opaque dynamic calls
-remain separate work. String methods, indexing, concatenation and coercions
+remain separate work. String methods, indexing and mixed-kind coercions
 also remain separate work. Unsupported branches
 are checked even when a particular input would not execute them.
 
@@ -294,6 +294,24 @@ new allocation or host call. Unknown or mixed-kind receivers, dynamic property
 keys, optional access, and String property writes remain outside this slice.
 Native JS, Node-Wasm and Wasmtime tests cover code-unit counts, source effects,
 helpers, captures, snapshots, erased types and async settlement traces.
+
+## String concatenation
+
+Binary `+` concatenates two known String operands in the ordinary managed lane.
+Both operands execute once, left to right; the saved left value survives a write
+or primitive await in the right expression. Concatenation creates a fresh UTF-16
+payload and preserves empty text, NULs, surrogate pairs and lone surrogates
+without normalization. Results compose with `.length`, equality, truthiness,
+local/property storage, admitted helper signatures and captures.
+
+This slice requires positive String facts for both operands. Mixed-kind `+`
+needs separate JavaScript coercion work, and compound `+=` remains unadmitted.
+The private helper is included only when the module needs it. It checks the sum
+in an unsigned 64-bit lane before allocating the Wasm32 array; overflow and
+engine allocation exhaustion are resource failures, not catchable source
+exceptions. A private Wasmtime test exercises arithmetic boundaries without
+allocating enormous arrays. Source differential tests compare operand effects,
+saved values, erased annotations and async results/traces with native JavaScript.
 
 ## Synchronous source arrays
 
