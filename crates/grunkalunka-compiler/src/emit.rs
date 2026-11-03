@@ -88,6 +88,8 @@ struct Emitter<'a> {
     errors: bool,
     error_kinds: bool,
     gc_closures: bool,
+    // Source FunctionIds do not include imported core-Wasm functions.
+    function_index_offset: usize,
 }
 
 // Ordinary helpers use Wasm locals. A coroutine caller additionally preserves
@@ -545,7 +547,12 @@ impl Emitter<'_> {
                 if let Some(boundary) = &self.call_boundary {
                     self.output.push_str(&boundary.spill);
                 }
-                writeln!(self.output, "call {}", function.0).unwrap();
+                writeln!(
+                    self.output,
+                    "call {}",
+                    function.0 + self.function_index_offset
+                )
+                .unwrap();
                 if let Some(boundary) = &self.call_boundary {
                     self.output.push_str(&boundary.restore);
                 }
@@ -1078,12 +1085,10 @@ fn emit_verified(
     // This scan is needed only by the explicit capability profile. Standard
     // numeric/primitive compilation keeps its prior work and stack behavior.
     let mut has_ui_import = false;
-    let mut has_direct_call = false;
     if ui_profile {
         for function in &module.functions {
             ir::visit_operations(&function.body, &mut |op| {
                 has_ui_import |= matches!(op, Op::UiSelectVisible { .. });
-                has_direct_call |= matches!(op, Op::Call { .. });
             });
         }
         if !has_ui_import {
@@ -1103,12 +1108,12 @@ fn emit_verified(
         output.push_str(cells::MEMORY);
     }
     if has_ui_import {
-        // Importing a function prepends its core-Wasm function index. This
-        // first profile disallows all internal numeric calls and lifted functions;
-        // expanding either requires named/index-independent internal references.
-        if module.functions.len() != 1 || has_cells || has_direct_call {
+        // Ordinary direct calls account for the imported function. Closure
+        // table targets and the captured-cell entry wrapper need a separate
+        // composition increment before this profile can admit those paths.
+        if has_cells {
             return Err(
-                "A1 scalar import cannot yet compose with local functions or captured cells".into(),
+                "A1 scalar import cannot yet compose with closures or captured cells".into(),
             );
         }
         output.push_str(
@@ -1152,7 +1157,14 @@ fn emit_verified(
             layout::closure_value(function.return_type, gc_closures).wat
         };
         writeln!(header, " (result {})", result_wat).unwrap();
-        let (body, remainder) = emit_function(function, header, false, gc_closures, false);
+        let (body, remainder) = emit_function(
+            function,
+            header,
+            false,
+            gc_closures,
+            false,
+            usize::from(has_ui_import),
+        );
         needs_remainder |= remainder;
         output.push_str(&body);
     }
@@ -1264,6 +1276,7 @@ fn emit_function(
     errors: bool,
     gc_closures: bool,
     error_kinds: bool,
+    function_index_offset: usize,
 ) -> (String, bool) {
     let environment = ir::closure_environment(function);
     let mut offset = if environment.is_some() { 2 } else { 0 };
@@ -1302,6 +1315,7 @@ fn emit_function(
         errors,
         error_kinds,
         gc_closures,
+        function_index_offset,
         output: header,
     };
     // Source cells and typed value snapshots occupy disjoint physical locals.

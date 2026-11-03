@@ -33,11 +33,13 @@ struct Host {
     attempts: usize,
     transitions: usize,
     visible: usize,
+    calls: Vec<(f64, f64)>,
 }
 
 impl grunkalunka::a1::ui::Host for Host {
     fn select_visible(&mut self, expanded: f64, count: f64) -> wasmtime::Result<f64> {
         self.attempts += 1;
+        self.calls.push((expanded, count));
         if !self.allowed {
             wasmtime::bail!(AccessError::Denied);
         }
@@ -228,6 +230,136 @@ fn same_compiled_wasm_executes_in_node_with_an_explicit_import() {
     }
 }
 
+// Compare the same source with native JavaScript, the exact core-Wasm bytes in
+// Node, and the actual Rust WIT provider. Provider call arguments and resulting
+// state are part of the observation, not just the source function's return.
+fn compare_composed_source(source: &str) {
+    let script = r#"
+      const assert = require('node:assert/strict');
+      const fs = require('node:fs');
+      const source = process.argv[1];
+      const wit = JSON.parse(process.argv[2]);
+      let calls = [], visible = 0;
+      const choose = (expanded, count) => {
+        assert.equal(count, 2);
+        calls.push([expanded, count]);
+        visible = expanded > 0 ? count : 0;
+        return visible;
+      };
+      const native = new Function('choose', '"use strict"; ' + source
+        .replace('import { selectVisible as choose } from "grunkalunka:a1/ui";', '')
+        .replace('export function', 'function') + '; return run;')(choose);
+      const module = new WebAssembly.Module(fs.readFileSync(0));
+      assert.deepEqual(WebAssembly.Module.imports(module), [{
+        module: 'grunkalunka:a1/ui', name: 'select-visible', kind: 'function'
+      }]);
+      const guest = new WebAssembly.Instance(module, {
+        'grunkalunka:a1/ui': { 'select-visible': choose }
+      }).exports.run;
+      for (const [index, a] of [-3, 0, 1, 3].entries()) {
+        calls = []; visible = 0;
+        const expected = [native(a, 2), visible, calls];
+        calls = []; visible = 0;
+        assert.deepEqual([guest(a, 2), visible, calls], expected);
+        assert.deepEqual(wit[index], expected);
+      }
+    "#;
+    let engine = engine();
+    let mut twins = Vec::new();
+    for ts in [false, true] {
+        let input = if ts {
+            source.replace(
+                "function run(a, b)",
+                "function run(a: number, b: number): number",
+            )
+        } else {
+            source.to_owned()
+        };
+        let artifact =
+            compile_ui_import(&input, ts).unwrap_or_else(|error| panic!("{input}: {error}"));
+        twins.push(artifact.wasm.clone());
+        let component = component(&engine, &artifact);
+        let (mut store, instance) = linked(&engine, &component, true);
+        let mut observations = Vec::new();
+        for a in [-3.0, 0.0, 1.0, 3.0] {
+            store.set_fuel(100_000).unwrap();
+            store.data_mut().calls.clear();
+            store.data_mut().visible = 0;
+            let result = instance.call_run(&mut store, a, 2.0).unwrap();
+            let calls = store
+                .data()
+                .calls
+                .iter()
+                .map(|(expanded, count)| format!("[{expanded},{count}]"))
+                .collect::<Vec<_>>()
+                .join(",");
+            observations.push(format!("[{result},{},[{calls}]]", store.data().visible));
+        }
+        let mut child = Command::new("node")
+            .args([
+                "-e",
+                script,
+                source,
+                &format!("[{}]", observations.join(",")),
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Node runtime available in canonical CI");
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(&artifact.wasm)
+            .unwrap();
+        let result = child.wait_with_output().unwrap();
+        assert!(
+            result.status.success(),
+            "{input}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+
+        let (mut denied, instance) = linked(&engine, &component, false);
+        let error = instance.call_run(&mut denied, 1.0, 2.0).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<AccessError>(),
+            Some(&AccessError::Denied)
+        );
+        assert_eq!((denied.data().attempts, denied.data().transitions), (1, 0));
+    }
+    assert_eq!(
+        twins[0], twins[1],
+        "TS annotations must not change source calls"
+    );
+}
+
+#[test]
+fn imported_service_composes_with_named_forward_and_recursive_helpers() {
+    for source in [
+        // The export, forward helper, and provider all have the same ABI, so
+        // wrong numeric function indices can silently return the wrong value.
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) { return adjust(a, b); }
+           function adjust(expanded, count) {
+             let x = expanded;
+             return choose((x += count), count, (x = 0)) + x;
+           }"#,
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function even(x, count) { if (x > 0) return odd(x - 1, count); return choose(x, count); }
+           function odd(x, count) { if (x > 0) return even(x - 1, count); return choose(x + 1, count); }
+           export function run(a, b) { return even(a, b) + 10; }"#,
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) { if (a > 0) return run(a - 1, b); return choose(a, b); }"#,
+        // An ordinary parameter shadow must not acquire the imported binding.
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function sum(choose, count) { return choose + count; }
+           export function run(a, b) { return choose(sum(a, b), b); }"#,
+    ] {
+        compare_composed_source(source);
+    }
+}
+
 #[test]
 fn unsupported_module_and_import_forms_remain_rejected() {
     let valid = source(false, false);
@@ -245,7 +377,6 @@ fn unsupported_module_and_import_forms_remain_rejected() {
         valid.replace("choose((x += b), b, (x = 0))", "choose?.(a,b)"),
         valid.replace("return choose((x += b), b, (x = 0)) + x;", "return choose;"),
         valid.replace("return choose((x += b), b, (x = 0)) + x;", "return a + b;"),
-        valid.replace("choose((x += b), b, (x = 0))", "choose(a,b) + run(a,b)"),
     ];
     for input in unsupported {
         assert!(compile_ui_import(&input, false).is_err(), "{input}");
