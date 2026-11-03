@@ -352,6 +352,7 @@ impl Lowering<'_, '_> {
         enum Shape<'e, 'a> {
             Expr(&'e Expression<'a>, usize),
             Member(&'e Expression<'a>, bool),
+            ArrayAt(&'e Expression<'a>, Option<Type>),
             Join,
         }
         let mut work = vec![Shape::Expr(node, depth)];
@@ -399,22 +400,31 @@ impl Lowering<'_, '_> {
                         {
                             values.push(Some(Type::ManagedArray))
                         }
-                        Expression::CallExpression(call) => values.push(
-                            managed_calls::function(call, self.semantic, self.functions)
-                                .map(|f| f.return_type)
-                                .filter(|t| t.is_managed())
-                                .or_else(|| {
-                                    self.managed_kinds.calls.get(&call.node_id.get()).copied()
-                                })
-                                .or_else(|| {
-                                    self.runtime_closure_callee(
-                                        invocation::callee(call),
-                                        invocation::depth(call, depth + 1),
-                                    )
-                                    .and_then(|(_, id)| self.closure_signatures.borrow().result(id))
-                                    .filter(|ty| ty.is_managed())
-                                }),
-                        ),
+                        Expression::CallExpression(call) => {
+                            let fallback =
+                                managed_calls::function(call, self.semantic, self.functions)
+                                    .map(|f| f.return_type)
+                                    .filter(|t| t.is_managed())
+                                    .or_else(|| {
+                                        self.managed_kinds.calls.get(&call.node_id.get()).copied()
+                                    })
+                                    .or_else(|| {
+                                        self.runtime_closure_callee(
+                                            invocation::callee(call),
+                                            invocation::depth(call, depth + 1),
+                                        )
+                                        .and_then(|(_, id)| {
+                                            self.closure_signatures.borrow().result(id)
+                                        })
+                                        .filter(|ty| ty.is_managed())
+                                    });
+                            if let Some(receiver) = crate::lower::array_at::receiver(call) {
+                                work.push(Shape::ArrayAt(receiver, fallback));
+                                work.push(Shape::Expr(receiver, depth + 1));
+                            } else {
+                                values.push(fallback);
+                            }
+                        }
                         Expression::Identifier(i) => values.push(
                             numeric_binding(i, self.semantic, &self.bindings)
                                 .ok()
@@ -488,6 +498,17 @@ impl Lowering<'_, '_> {
                         _ => values.push(None),
                     }
                 }
+                Shape::ArrayAt(source, fallback) => {
+                    let receiver = match values.pop().expect("at receiver shape") {
+                        Some(Type::ManagedValue) => self.stored.container(source.node_id()),
+                        ty => ty,
+                    };
+                    values.push(if receiver == Some(Type::ManagedArray) {
+                        Some(Type::ManagedValue)
+                    } else {
+                        fallback
+                    });
+                }
                 Shape::Member(source, length) => {
                     let receiver = match values.pop().expect("member shape") {
                         Some(Type::ManagedValue) => self.stored.container(source.node_id()),
@@ -535,6 +556,25 @@ impl Lowering<'_, '_> {
         {
             work.push(Work::Managed(ManagedWork::ReferenceProjection { node, ty }));
             work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Managed)
+            && let Expression::CallExpression(call) = node
+            && let Some(receiver) = crate::lower::array_at::receiver(call)
+            && self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)
+        {
+            // Admitted arrays cannot override `at`, mutate Array.prototype, or
+            // originate at a foreign-reference boundary. Other method calls keep
+            // their ordinary call path; this is not a generic receiver cast.
+            work.push(Work::ArrayAt(super::array_at::Task {
+                node,
+                call,
+                array: None,
+                index: None,
+                argument: 0,
+                depth,
+            }));
+            work.push(Work::Eval(receiver, depth + 1, Mode::Array));
             return Ok(true);
         }
         if self.member_array(node, depth)

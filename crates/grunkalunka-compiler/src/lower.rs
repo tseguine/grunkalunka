@@ -17,6 +17,7 @@ use crate::ir::{
 };
 use crate::{is_type_declaration, unsupported};
 
+mod array_at;
 mod async_values;
 mod awaited;
 mod block_results;

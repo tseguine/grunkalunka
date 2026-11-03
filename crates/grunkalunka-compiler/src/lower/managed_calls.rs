@@ -64,6 +64,7 @@ fn kinds(
         Expr(&'e Expression<'a>, usize),
         Join,
         Member(bool),
+        ArrayAt(Kinds),
     }
     let mut work = vec![Task::Expr(node, 0)];
     let mut values: Vec<Kinds> = Vec::new();
@@ -72,6 +73,21 @@ fn kinds(
             Task::Join => {
                 let right = values.pop().expect("right source kinds");
                 values.last_mut().expect("left source kinds").extend(right);
+            }
+            Task::ArrayAt(fallback) => {
+                let receiver = values.pop().expect("at receiver source kinds");
+                values.push(if receiver.contains(&Kind::Array) {
+                    [
+                        Kind::Primitive,
+                        Kind::GeneralPrimitive,
+                        Kind::Object,
+                        Kind::Array,
+                        Kind::String,
+                    ]
+                    .into()
+                } else {
+                    fallback
+                });
             }
             Task::Member(length) => {
                 let receiver = values.pop().expect("receiver source kinds");
@@ -143,15 +159,21 @@ fn kinds(
                     Expression::CallExpression(call) if object_keys::is_call(call, semantic) => {
                         values.push([Kind::Array].into())
                     }
-                    Expression::CallExpression(call) => values.push(
-                        function(call, semantic, functions)
+                    Expression::CallExpression(call) => {
+                        let fallback = function(call, semantic, functions)
                             .map(|f| returns[f.id.0].clone())
                             .or_else(|| {
                                 closure_calls
                                     .and_then(|calls| calls.get(&call.node_id.get()).cloned())
                             })
-                            .unwrap_or_else(|| [Kind::Primitive].into()),
-                    ),
+                            .unwrap_or_else(|| [Kind::Primitive].into());
+                        if let Some(receiver) = array_at::receiver(call) {
+                            work.push(Task::ArrayAt(fallback));
+                            work.push(Task::Expr(receiver, depth + 1));
+                        } else {
+                            values.push(fallback);
+                        }
+                    }
                     Expression::ConditionalExpression(c) => {
                         work.push(Task::Join);
                         work.push(Task::Expr(&c.alternate, depth + 1));
