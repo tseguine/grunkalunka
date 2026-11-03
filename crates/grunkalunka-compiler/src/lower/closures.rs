@@ -25,6 +25,15 @@ pub(super) enum FactoryArgumentKind {
     Scalar(evaluate::Mode),
 }
 
+/// A concise factory that returns a statically known local closure. Selection
+/// owns no function-result admission: unlike general function-valued results,
+/// this path evaluates arguments and returns closure metadata for its caller.
+pub(super) struct PreparedConciseFactory<'n, 'a> {
+    call: &'n CallExpression<'a>,
+    call_depth: usize,
+    closure: LocalClosure,
+}
+
 #[derive(Clone)]
 pub(crate) struct LocalClosure {
     pub symbol: Option<SymbolId>,
@@ -863,6 +872,23 @@ impl<'s, 'a> Lowering<'s, 'a> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Option<LocalClosure>, String> {
+        let Some(factory) = self.prepare_concise_factory(expression, region, depth)? else {
+            return Ok(None);
+        };
+        let arguments = self.evaluate_concise_factory_arguments(&factory, region)?;
+        self.finish_concise_factory(factory, arguments, region)
+            .map(Some)
+    }
+
+    /// Recognize and validate a concise closure-returning factory before any
+    /// caller arguments run. Keep the original unwrapped call and source depth
+    /// so a suspended argument phase can retain exactly the same context.
+    pub(super) fn prepare_concise_factory<'n, 'ast>(
+        &mut self,
+        expression: &'n Expression<'ast>,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<Option<PreparedConciseFactory<'n, 'ast>>, String> {
         let Some((Expression::CallExpression(call), call_depth)) = unwrapped_at(expression, depth)
         else {
             return Ok(None);
@@ -892,28 +918,53 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
         self.check_local_call(call, &factory)?;
         self.charge_closure_expansion(call.as_ref())?;
+        Ok(Some(PreparedConciseFactory {
+            call,
+            call_depth,
+            closure: factory,
+        }))
+    }
+
+    fn evaluate_concise_factory_arguments(
+        &mut self,
+        factory: &PreparedConciseFactory<'_, '_>,
+        region: &mut Region,
+    ) -> Result<Vec<ValueId>, String> {
+        let call = factory.call;
         // Source arguments finish left-to-right before the creator's bindings
         // replace the caller's. Every specialization gets fresh parameter slots.
         let mut arguments = Vec::new();
         for (index, argument) in call.arguments.iter().enumerate() {
-            let argument = argument.as_expression().ok_or_else(|| {
-                unsupported(call.as_ref(), "spread call arguments are not admitted")
-            })?;
+            let argument = argument
+                .as_expression()
+                .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
             let kind = self.classify_factory_argument(
                 call,
-                factory.arrow,
+                factory.closure.arrow,
                 index,
                 argument,
-                call_depth + 1,
+                factory.call_depth + 1,
             );
             if let Some(value) =
-                self.evaluate_factory_argument(kind, argument, region, call_depth + 1)?
+                self.evaluate_factory_argument(kind, argument, region, factory.call_depth + 1)?
             {
                 arguments.push(value);
             }
         }
-        let arrow = self.arrow(factory.arrow);
-        let checkpoint = self.enter_factory_bindings(factory.captures);
+        Ok(arguments)
+    }
+
+    /// Select and validate the returned closure under the fresh factory
+    /// parameters, then restore the caller before that closure is materialized
+    /// or published by its consumer. This stage owns restoration on every error.
+    pub(super) fn finish_concise_factory(
+        &mut self,
+        factory: PreparedConciseFactory<'_, '_>,
+        arguments: Vec<ValueId>,
+        region: &mut Region,
+    ) -> Result<LocalClosure, String> {
+        let arrow = self.arrow(factory.closure.arrow);
+        let checkpoint = self.enter_factory_bindings(factory.closure.captures);
         let result = (|| {
             self.bind_arrow_parameters(arrow, arguments, region)?;
             let mut returned = self
@@ -922,7 +973,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             if !returned.checked {
                 self.check_local_closure(&mut returned)?;
             }
-            Ok(Some(returned))
+            Ok(returned)
         })();
         self.restore_factory_bindings(checkpoint);
         result
