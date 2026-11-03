@@ -93,6 +93,16 @@ pub(super) struct SyncCalleeContinuation<'e, 'a> {
     pub(super) number_proven: bool,
 }
 
+/// Validation and a direct-slot snapshot finish before any effectful callee
+/// construction. The remaining source expression can become a child request.
+enum PreparedClosureCallee<'e, 'a> {
+    Ready(ValueId),
+    Function {
+        source: &'e Expression<'a>,
+        depth: usize,
+    },
+}
+
 /// One resumable run segment either completes the requested expression or
 /// yields a source-body or function-leaf task while the caller keeps the cursor.
 pub(super) enum EvaluationRun<'e, 'a> {
@@ -4404,7 +4414,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         Ok(true)
     }
 
-    // Both call effects share source validation and callee-before-arguments evaluation.
+    // Call effects share validation and callee-before-arguments evaluation.
     pub(super) fn prepare_closure_call(
         &mut self,
         node: &Expression<'_>,
@@ -4414,6 +4424,25 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         depth: usize,
         region_depth: usize,
     ) -> Result<ValueId, String> {
+        match self.prepare_closure_callee(node, call, signature, region, depth)? {
+            PreparedClosureCallee::Ready(value) => Ok(value),
+            PreparedClosureCallee::Function { source, depth } => self
+                .with_function_result_context(Some(region_depth), |lower| {
+                    lower.function_value(source, region, signature, depth)
+                }),
+        }
+    }
+
+    /// Preserve call-admission diagnostics before taking the callee snapshot.
+    /// A non-slot callee remains unevaluated so either host can own its work.
+    fn prepare_closure_callee<'e, 'a>(
+        &mut self,
+        node: &Expression<'_>,
+        call: &'e CallExpression<'a>,
+        signature: usize,
+        region: &mut Region,
+        depth: usize,
+    ) -> Result<PreparedClosureCallee<'e, 'a>, String> {
         if call.optional {
             return Err(unsupported(
                 node,
@@ -4438,9 +4467,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 "runtime closure call is missing declared arguments",
             ));
         }
-        let callee = if let Some((slot, _)) =
-            self.runtime_closure_callee(invocation::callee(call), invocation::depth(call, depth))
-        {
+        let source = invocation::callee(call);
+        let depth = invocation::depth(call, depth);
+        if let Some((slot, _)) = self.runtime_closure_callee(source, depth) {
             let value = self.value(Type::Closure(signature));
             Self::push(
                 region,
@@ -4450,18 +4479,10 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     slot,
                 },
             );
-            value
+            Ok(PreparedClosureCallee::Ready(value))
         } else {
-            self.with_function_result_context(Some(region_depth), |lower| {
-                lower.function_value(
-                    invocation::callee(call),
-                    region,
-                    signature,
-                    invocation::depth(call, depth),
-                )
-            })?
-        };
-        Ok(callee)
+            Ok(PreparedClosureCallee::Function { source, depth })
+        }
     }
 
     // Keep continuation construction outside the large cursor's native frame.
