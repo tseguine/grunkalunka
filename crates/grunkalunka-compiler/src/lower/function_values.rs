@@ -95,6 +95,12 @@ pub(super) enum FunctionResultBody<'n, 'a> {
 /// results from concise-factory preparation.
 pub(super) enum FunctionLeafResult<'n, 'a> {
     Factory(PreparedFactory<'n, 'a>),
+    LocalFactory(closures::LocalClosure),
+    CheckConciseFactory {
+        candidate: closures::ConciseFactoryCandidate<'n, 'a>,
+        closure: closures::LocalClosure,
+        fallback: closures::LocalClosure,
+    },
     RuntimeFactory(PreparedRuntimeFactory<'n, 'a>),
     Materialize(closures::LocalClosure),
     Value(ValueId),
@@ -1049,16 +1055,24 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 .prepare_runtime_factory(call, arity, depth)
                 .map(FunctionLeafResult::RuntimeFactory);
         };
-        if let Some(factory) = self.prepare_concise_factory(node, region, depth)? {
-            return Ok(FunctionLeafResult::Factory(
-                PreparedFactory::ClosureMetadata(factory),
-            ));
+        if let Some((candidate, factory)) = self.select_concise_factory(node, depth) {
+            if !factory.checked {
+                return Ok(FunctionLeafResult::CheckConciseFactory {
+                    candidate,
+                    closure: factory,
+                    fallback: closure,
+                });
+            }
+            if let Some(factory) = self.finish_concise_factory_preparation(candidate, factory)? {
+                return Ok(FunctionLeafResult::Factory(
+                    PreparedFactory::ClosureMetadata(factory),
+                ));
+            }
         }
         // Metadata preparation may publish definition costs/capture operations,
         // but it leaves the caller's lexical targets unchanged. Retain the known
         // callee and preserve metadata precedence without a compatibility retry.
-        self.prepare_known_local_function_result(call, closure, region)
-            .map(|factory| FunctionLeafResult::Factory(PreparedFactory::LocalResult(factory)))
+        Ok(FunctionLeafResult::LocalFactory(closure))
     }
 
     pub(super) fn function_value_leaf(
@@ -1158,41 +1172,24 @@ impl<'s, 'a> Lowering<'s, 'a> {
     /// Read-only selection for a direct block-bodied local factory call.
     /// Other callees use the general function-value request; this preserves the
     /// existing direct-block specialization and its admission order.
-    pub(super) fn block_factory_shape(&self, node: &Expression<'_>, depth: usize) -> bool {
+    pub(super) fn block_factory_target(
+        &self,
+        node: &Expression<'_>,
+        depth: usize,
+    ) -> Option<closures::LocalClosure> {
         let Expression::CallExpression(call) = node else {
-            return false;
+            return None;
         };
         if call.optional || invocation::is_method(call) {
-            return false;
+            return None;
         }
         self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
-            .is_some_and(|closure| self.arrow(closure.arrow).get_expression().is_none())
+            .filter(|closure| self.arrow(closure.arrow).get_expression().is_none())
     }
 
-    /// Admit and check a local function-result call without executing source
-    /// arguments or installing its captures/formals. The caller owns the token
-    /// through ordered argument evaluation, body entry and diagnostic unwind.
-    pub(super) fn prepare_local_function_result(
-        &mut self,
-        node: &Expression<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Option<PreparedFunctionResult>, String> {
-        let Expression::CallExpression(call) = node else {
-            return Ok(None);
-        };
-        let Some(closure) =
-            self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
-        else {
-            return Ok(None);
-        };
-        self.prepare_known_local_function_result(call, closure, region)
-            .map(Some)
-    }
-
-    /// A known local call always either prepares or rejects. Optional calls
-    /// keep their result admission and definition checking before call rejection;
-    /// the outer direct-block specialization still uses block_factory_shape.
+    /// Synchronous preparation driver for the frozen helper-state oracle.
+    /// Actual source factories retain these stages across owned checking frames.
+    #[cfg(test)]
     fn prepare_known_local_function_result(
         &mut self,
         call: &CallExpression<'_>,

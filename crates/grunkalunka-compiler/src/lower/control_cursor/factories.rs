@@ -402,7 +402,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
     fn finish_concise_factory_expression<'n>(
         &mut self,
-        mut state: FactoryExpression<'n, 'ast>,
+        state: FactoryExpression<'n, 'ast>,
         factory: closures::PreparedConciseFactory<'n, 'ast>,
         arguments: Vec<ValueId>,
         cursor: &mut Cursor<'s, 'n, 'ast>,
@@ -410,23 +410,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     where
         'ast: 'n,
     {
-        // Completion restores caller bindings before materialization, exactly
-        // as factory_result did before function_value_leaf consumed metadata.
-        // No function-result admission, InlineCall or child body Region belongs
-        // to this path.
-        let result = self
-            .finish_concise_factory(factory, arguments, state.expression.current_region())
-            .and_then(|closure| {
-                self.materialize_closure(
-                    closure,
-                    state.expression.current_region(),
-                    state.node,
-                    state.signature,
-                )
-            });
-        self.restore_factory_expression(&state);
-        state.expression.resume_function_value(result?);
-        self.resume_factory_expression(state, cursor)
+        self.start_returned_factory_check(
+            FactoryMetadataConsumer::Expression(state),
+            factory,
+            arguments,
+            cursor,
+        )
     }
 
     fn finish_runtime_factory_expression<'n>(

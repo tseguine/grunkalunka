@@ -905,6 +905,25 @@ fn const_factory_arguments_preserve_managed_captures() {
 }
 
 #[test]
+fn factory_definition_continuations_preserve_arguments_and_captures() {
+    compare_function_programs(
+        &[
+            "return(x=>y=>x+y)(a)(b);",
+            "return(x=>y=>x+y).call(null,a)(b);",
+            "return(x=>{return y=>x+y;})(a)(b);",
+            "return(x=>{return y=>x+y;}).call(null,a)(b);",
+            "return(x=>a?(y=>x+y):(y=>x-y))(a)(b);",
+            "const f=(x=>y=>x+y)(a);return f(b);",
+            "const f=(x=>a?(y=>x+y):(y=>x-y))(a);return f(b);",
+            "return(x=>()=>x.v===a?a:b)({v:a})();",
+            "return(x=>()=>()=>x)(a)()();",
+            "const inner=()=>a;return(()=>inner)()();",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn concise_function_results_preserve_body_effects_and_callback_identity() {
     compare_functions(&[
         "const make=x=>a?(y=>x+y):(y=>x-y);return make(a)(b);",

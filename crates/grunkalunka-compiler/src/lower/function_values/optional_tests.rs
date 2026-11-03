@@ -1,7 +1,7 @@
 //! Public optional syntax remains a rejected ChainExpression. These separate
 //! helper tests expose the parser's inner optional CallExpression before semantic
-//! building, so they can compare source-leaf rejection with the compatibility
-//! leaf's original admission/check/capture order. They do not establish an
+//! building, so they can compare the extracted preparation stages with the
+//! compatibility leaf's original admission/check/capture order. They do not establish an
 //! admitted optional-syntax route through the source scheduler.
 use super::*;
 use oxc_allocator::{Allocator, ReplaceWith};
@@ -24,7 +24,7 @@ struct Rejection {
     signatures: String,
 }
 
-fn reject_inner_optional_call(source: &str, active: usize, source_owned: bool) -> Rejection {
+fn reject_inner_optional_call(source: &str, active: usize, prepared: bool) -> Rejection {
     let allocator = Allocator::default();
     let mut parsed = Parser::new(&allocator, source, SourceType::mjs()).parse();
     assert!(!parsed.fatal_error && parsed.diagnostics.is_empty());
@@ -99,10 +99,28 @@ fn reject_inner_optional_call(source: &str, active: usize, source_owned: bool) -
     let signature = lowering.function_arity(expression, 0).unwrap_or(1);
     lowering.active_function_results = active;
     lowering.active_function_values = 1;
-    let error = if source_owned {
-        lowering
-            .source_function_value_leaf(expression, &mut region, signature, 0)
-            .err()
+    let error = if prepared {
+        // A source leaf now returns a deferred Check request. This separate
+        // helper oracle retains the frozen preparation-state comparison; actual
+        // queued checking and unwind are exercised by source continuation tests.
+        let result = (|| {
+            let Expression::CallExpression(call) = expression else {
+                unreachable!("extracted inner optional call");
+            };
+            let closure = lowering
+                .closure_target(invocation::callee(call), invocation::depth(call, 1))
+                .expect("known optional helper callee");
+            if lowering
+                .prepare_concise_factory(expression, &mut region, 0)?
+                .is_some()
+            {
+                return Ok(());
+            }
+            lowering
+                .prepare_known_local_function_result(call, closure, &mut region)
+                .map(|_| ())
+        })();
+        result.err()
     } else {
         lowering
             .function_value_leaf(expression, &mut region, signature, 0)

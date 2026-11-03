@@ -28,6 +28,9 @@ mod factories;
 #[cfg(test)]
 mod factory_call_tests;
 #[cfg(test)]
+mod factory_check_tests;
+mod factory_checks;
+#[cfg(test)]
 mod factory_effect_tests;
 #[cfg(test)]
 mod factory_tests;
@@ -62,6 +65,12 @@ std::thread_local! {
     static SCHEDULED_DECLARATION_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static BRIDGED_LIFTED_BODIES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static SCHEDULED_METADATA_FACTORY_CHECKS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static SCHEDULED_LOCAL_FACTORY_CHECKS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static SCHEDULED_RETURNED_FACTORY_CHECKS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -203,6 +212,40 @@ impl FactoryArgumentState<'_, '_> {
     }
 }
 
+/// Metadata preparation retains the original local-result fallback independently
+/// of its checked candidate. Local preparation alone owns result admission.
+enum FactoryCheckResume<'n, 'a> {
+    Metadata {
+        candidate: closures::ConciseFactoryCandidate<'n, 'a>,
+        fallback: closures::LocalClosure,
+        expression_depth: usize,
+    },
+    Local {
+        preparation: function_values::LocalResultPreparation,
+        expression_depth: usize,
+    },
+}
+
+/// Returned metadata is checked under fresh factory bindings, then delivered
+/// under the caller's bindings according to its original consuming position.
+enum FactoryMetadataConsumer<'n, 'a> {
+    Expression(FactoryExpression<'n, 'a>),
+    Declaration {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        local: &'n VariableDeclarator<'a>,
+        output: Region,
+    },
+}
+
+impl FactoryMetadataConsumer<'_, '_> {
+    fn current_region(&mut self) -> &mut Region {
+        match self {
+            Self::Expression(state) => state.expression.current_region(),
+            Self::Declaration { output, .. } => output,
+        }
+    }
+}
+
 enum Frame<'n, 'a> {
     /// Restore this parent before applying its semantic child completion or
     /// unwinding any older source/evaluator frame that belongs to the parent.
@@ -215,6 +258,16 @@ enum Frame<'n, 'a> {
         output: Region,
         node: &'n Expression<'a>,
         signature: usize,
+        depth: usize,
+    },
+    CheckedFactoryExpression {
+        state: FactoryExpression<'n, 'a>,
+        resume: FactoryCheckResume<'n, 'a>,
+        depth: usize,
+    },
+    CheckedFactoryResult {
+        consumer: FactoryMetadataConsumer<'n, 'a>,
+        bindings: closures::FactoryBindings,
         depth: usize,
     },
     MaterializedFunction {
@@ -292,6 +345,12 @@ enum Frame<'n, 'a> {
         local: &'n VariableDeclarator<'a>,
         mutable: bool,
         signature: usize,
+    },
+    CheckedDeclarationFactory {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        local: &'n VariableDeclarator<'a>,
+        candidate: closures::ConciseFactoryCandidate<'n, 'a>,
+        output: Region,
     },
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
@@ -462,6 +521,8 @@ impl Frame<'_, '_> {
         match self {
             Self::ChildBoundary { depth, .. }
             | Self::CheckedMaterialization { depth, .. }
+            | Self::CheckedFactoryExpression { depth, .. }
+            | Self::CheckedFactoryResult { depth, .. }
             | Self::MaterializedFunction { depth, .. }
             | Self::LiftedExpression { depth, .. }
             | Self::LiftedBlock { depth, .. }
@@ -497,6 +558,7 @@ impl Frame<'_, '_> {
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
             Self::MaterializedDeclaration { sequence, .. } => sequence.depth,
+            Self::CheckedDeclarationFactory { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
@@ -645,6 +707,44 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 cursor,
                             );
                         }
+                        Ok(function_values::FunctionLeafResult::LocalFactory(closure)) => {
+                            return self.start_local_factory_preparation(
+                                FactoryExpression {
+                                    expression: Box::new(expression),
+                                    mode,
+                                    previous_result_depth,
+                                    node,
+                                    signature,
+                                    resume: FactoryResume::Value,
+                                },
+                                closure,
+                                depth,
+                                cursor,
+                            );
+                        }
+                        Ok(function_values::FunctionLeafResult::CheckConciseFactory {
+                            candidate,
+                            closure,
+                            fallback,
+                        }) => {
+                            return self.start_factory_expression_check(
+                                FactoryExpression {
+                                    expression: Box::new(expression),
+                                    mode,
+                                    previous_result_depth,
+                                    node,
+                                    signature,
+                                    resume: FactoryResume::Value,
+                                },
+                                FactoryCheckResume::Metadata {
+                                    candidate,
+                                    fallback,
+                                    expression_depth: depth,
+                                },
+                                closure,
+                                cursor,
+                            );
+                        }
                         Ok(function_values::FunctionLeafResult::RuntimeFactory(factory)) => {
                             return self.start_runtime_factory_callee(
                                 FactoryExpression {
@@ -758,6 +858,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 evaluate::EvaluationRun::LowerSyncClosureCallee {
                     node,
                     call,
+                    closure,
                     signature,
                     depth,
                     region_depth,
@@ -773,68 +874,29 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         self.restore_function_result_depth(previous_result_depth);
                         return Err(error);
                     }
-                    let prepared = self.prepare_local_function_result(
-                        callee_node,
-                        expression.current_region(),
-                        callee_depth,
-                    );
-                    match prepared {
-                        Ok(Some(factory)) => {
-                            return self.start_factory_arguments(
-                                FactoryExpression {
-                                    expression: Box::new(expression),
-                                    mode,
-                                    previous_result_depth,
-                                    node: callee_node,
-                                    signature,
-                                    resume: FactoryResume::Callee(
-                                        evaluate::SyncCalleeContinuation {
-                                            node,
-                                            call,
-                                            depth,
-                                            mode: outer_mode,
-                                            result_type,
-                                            number_proven,
-                                        },
-                                    ),
-                                },
-                                function_values::PreparedFactory::LocalResult(factory),
-                                callee_depth,
-                                cursor,
-                            );
-                        }
-                        Ok(None) => {
-                            // Preserve the legacy path if the read-only
-                            // factory shape no longer selects this source.
-                            self.leave_function_value();
-                            self.restore_function_result_depth(previous_result_depth);
-                            let callee = self.prepare_closure_call(
+                    // The producer retained the known local target selected
+                    // by the same direct-block gate. Only context/guard counts
+                    // changed since then; no synchronous fallback is needed.
+                    return self.start_local_factory_preparation(
+                        FactoryExpression {
+                            expression: Box::new(expression),
+                            mode,
+                            previous_result_depth,
+                            node: callee_node,
+                            signature,
+                            resume: FactoryResume::Callee(evaluate::SyncCalleeContinuation {
                                 node,
                                 call,
-                                signature,
-                                expression.current_region(),
                                 depth,
-                                region_depth,
-                            )?;
-                            self.resume_sync_closure_callee(
-                                &mut expression,
-                                evaluate::SyncCalleeContinuation {
-                                    node,
-                                    call,
-                                    depth,
-                                    mode: outer_mode,
-                                    result_type,
-                                    number_proven,
-                                },
-                                callee,
-                            )?;
-                        }
-                        Err(error) => {
-                            self.leave_function_value();
-                            self.restore_function_result_depth(previous_result_depth);
-                            return Err(error);
-                        }
-                    }
+                                mode: outer_mode,
+                                result_type,
+                                number_proven,
+                            }),
+                        },
+                        closure,
+                        callee_depth,
+                        cursor,
+                    );
                 }
                 evaluate::EvaluationRun::LowerBody {
                     node,
@@ -1090,6 +1152,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     }
                     Frame::MaterializedFunction { state, .. } => {
                         self.restore_factory_expression(&state);
+                    }
+                    Frame::CheckedFactoryExpression { state, resume, .. } => {
+                        self.abort_factory_expression_check(state, resume);
+                    }
+                    Frame::CheckedFactoryResult {
+                        consumer, bindings, ..
+                    } => {
+                        self.abort_returned_factory_check(consumer, bindings);
                     }
                     Frame::LiftedExpression {
                         function_value: true,

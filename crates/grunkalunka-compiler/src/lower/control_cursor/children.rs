@@ -158,6 +158,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::CheckedFactoryExpression { state, resume, .. } => {
+                self.resume_factory_expression_check(state, resume, closure, cursor)
+            }
+            Frame::CheckedFactoryResult {
+                consumer, bindings, ..
+            } => self.resume_returned_factory_check(consumer, bindings, closure, cursor),
+            Frame::CheckedDeclarationFactory {
+                sequence,
+                local,
+                candidate,
+                output,
+            } => self.resume_declaration_factory_check(
+                sequence, local, candidate, closure, output, cursor,
+            ),
             Frame::CheckedDeclarationClosure {
                 sequence,
                 local,
