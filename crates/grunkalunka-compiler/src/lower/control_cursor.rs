@@ -218,12 +218,21 @@ enum Frame<'n, 'a> {
         body_completion: Completion,
     },
     /// A for initializer expression runs in its lexical header Region.
-    /// Declaration initializers retain their existing declaration helper.
     ForInitializer {
         source: &'n ForStatement<'a>,
         output: Region,
         depth: usize,
         outer: usize,
+    },
+    /// A declaration completes its ordered initializers before header bindings
+    /// are collected for captured let-cell renewal.
+    ForDeclarationInitializer {
+        source: &'n ForStatement<'a>,
+        output: Region,
+        depth: usize,
+        outer: usize,
+        start: usize,
+        mutable: bool,
     },
     ForPredicate(ForPredicateFrame<'n, 'a>),
     For(ForFrame<'n, 'a>),
@@ -355,6 +364,7 @@ impl Frame<'_, '_> {
             | Self::TryFinallyBody { depth, .. }
             | Self::TryFinallyCleanup { depth, .. } => *depth,
             Self::ForInitializer { depth, .. } => *depth,
+            Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,

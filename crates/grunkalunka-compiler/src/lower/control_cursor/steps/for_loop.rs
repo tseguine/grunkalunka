@@ -14,18 +14,22 @@ impl Lowering<'_, '_> {
     ) -> Result<(), String> {
         // The synthetic header Block is not charged as a source statement.
         // Expression and declaration initializers both emit into that Region.
-        let mut header = self.region(source);
+        let header = self.region(source);
         let outer = self.bindings.len();
-        let mut let_slots = Vec::new();
         if let Some(init) = &source.init {
             match init {
                 ForStatementInit::VariableDeclaration(declaration) => {
                     self.charge_statement(declaration.as_ref())?;
                     let start = self.bindings.len();
-                    self.declaration(declaration, &mut header)?;
-                    if declaration.kind == VariableDeclarationKind::Let {
-                        let_slots.extend(self.bindings[start..].iter().map(|binding| binding.slot));
-                    }
+                    cursor.pending.push(Frame::ForDeclarationInitializer {
+                        source,
+                        output,
+                        depth,
+                        outer,
+                        start,
+                        mutable: declaration.kind == VariableDeclarationKind::Let,
+                    });
+                    return self.start_declaration(declaration, header, depth, cursor);
                 }
                 _ => {
                     cursor.pending.push(Frame::ForInitializer {
@@ -52,15 +56,15 @@ impl Lowering<'_, '_> {
                 depth,
                 outer,
                 header_bindings: self.bindings.len(),
-                let_slots,
+                let_slots: Vec::new(),
             },
             cursor,
         )
     }
 
     /// Resume only after the initializer has emitted its side effects into
-    /// the lexical header. A declaration still uses its original binding
-    /// helper; expression initializers produce no newly visible let bindings.
+    /// the lexical header. Declaration continuations collect their let bindings
+    /// after all values are published; expression initializers add none.
     pub(super) fn finish_for_initializer<'n, 'a>(
         &mut self,
         frame: ForPredicateFrame<'n, 'a>,

@@ -692,8 +692,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     }
 
     /// Publish a completed scalar/managed/Promise initializer into one local
-    /// slot. Both the original synchronous declaration handler and the owned
-    /// source continuation must use the same allocation, IR and binding order.
+    /// slot. Scalar and managed source continuations share the original
+    /// allocation, IR and binding order.
     pub(super) fn commit_local_value(
         &mut self,
         local: &VariableDeclarator<'_>,
@@ -881,9 +881,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 self.discarded(&statement.expression, region, 0)?;
                 Ok(Completion::NORMAL)
             }
-            Statement::VariableDeclaration(declaration) => {
-                self.declaration(declaration, region)?;
-                Ok(Completion::NORMAL)
+            Statement::VariableDeclaration(_) => {
+                unreachable!("runtime declarations are scheduled by the source cursor")
             }
             _ => Err(unsupported(
                 statement,

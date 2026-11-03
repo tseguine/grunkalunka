@@ -1,8 +1,8 @@
 //! Declaration admission, initializer requests and binding publication.
 //!
 //! Each declarator is selected only after its predecessor has completed. The
-//! compatibility driver and source scheduler share these stages while retaining
-//! source charging, constructor selection and publication order.
+//! source scheduler retains source charging, constructor selection and
+//! publication order for statements and for-loop headers.
 use super::*;
 
 pub(super) enum DeclarationInitializer<'n, 'a> {
@@ -47,37 +47,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 declaration,
                 "initialized const or let identifiers are required",
             ));
-        }
-        Ok(())
-    }
-
-    pub(super) fn declaration(
-        &mut self,
-        declaration: &VariableDeclaration<'_>,
-        region: &mut Region,
-    ) -> Result<(), String> {
-        self.admit_declaration(declaration)?;
-        for local in &declaration.declarations {
-            if let DeclarationInitializer::Value(value) = self.prepare_declaration_initializer(
-                local,
-                declaration.kind == VariableDeclarationKind::Let,
-                region,
-            )? {
-                let active = self.begin_declaration_value(value)?;
-                let (source, mode) = active.request();
-                let result = self.evaluate(source, region, 0, mode);
-                match result {
-                    Ok(value) => self.finish_declaration_value(
-                        active,
-                        region,
-                        value.expect("declaration initializer value"),
-                    )?,
-                    Err(error) => {
-                        self.abort_declaration_value(active);
-                        return Err(error);
-                    }
-                }
-            }
         }
         Ok(())
     }

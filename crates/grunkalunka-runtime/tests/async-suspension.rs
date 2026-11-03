@@ -2977,6 +2977,22 @@ fn declaration_initializers_preserve_pending_effects_and_await_order() {
     );
 }
 
+#[test]
+fn for_declaration_initializers_preserve_awaits_and_header_publication() {
+    compare_promises(
+        &[
+            "let n=0;for(let x=await Promise.resolve(a),y=x+b;n<1;n++){return y;}return b;",
+            "for(let f=async x=>{await x;return x+a;},n=0;n<1;n++){return await f(b);}return a;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
     let sources = bodies
         .iter()

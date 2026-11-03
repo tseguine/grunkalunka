@@ -2,15 +2,15 @@
 use super::*;
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
-    pub(super) fn start_declaration<'n>(
+    pub(super) fn start_declaration<'n, 'a>(
         &mut self,
-        source: &'n VariableDeclaration<'ast>,
+        source: &'n VariableDeclaration<'a>,
         output: Region,
         depth: usize,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String>
     where
-        'ast: 'n,
+        'a: 'n,
     {
         self.admit_declaration(source)?;
         self.advance_declaration(
@@ -24,14 +24,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         )
     }
 
-    fn advance_declaration<'n>(
+    fn advance_declaration<'n, 'a>(
         &mut self,
-        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
+        mut sequence: Box<DeclarationSequence<'n, 'a>>,
         mut output: Region,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'n, 'a>,
     ) -> Result<(), String>
     where
-        'ast: 'n,
+        'a: 'n,
     {
         while let Some(local) = sequence.source.declarations.get(sequence.index) {
             let prepared = self.prepare_declaration_initializer(
