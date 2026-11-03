@@ -36,6 +36,19 @@ fn dictionary_static_values_and_aliases_survive_suspension() {
 }
 
 #[test]
+fn array_pop_preserves_live_length_and_saved_results_across_suspension() {
+    compare_promises(
+        &[
+            "let x=[a,b];const old=x;const saved=x.pop((await a,x=[b]),(await b,old.length=1));await a;return saved===a&&old.length===0&&x.length===1?1:0;",
+            "const o={x:a};const x=[o];const saved=x.pop();await b;x[0]=null;await a;return saved===o?1:0;",
+            "const x=[a,b];const take=()=>x.pop();await a;const saved=take();await b;return saved===b&&x.length===1?1:0;",
+            "const x=[a,b];try{x.pop(await Promise.reject(a));}catch(e){return x.length===2&&x[1]===b?1:0;}return 0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn array_at_preserves_snapshots_through_suspended_arguments_and_results() {
     compare_promises(
         &[

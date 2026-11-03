@@ -410,7 +410,7 @@ impl Lowering<'_, '_> {
         enum Shape<'e, 'a> {
             Expr(&'e Expression<'a>, usize),
             Member(&'e Expression<'a>, bool),
-            ArrayAt(&'e Expression<'a>, Option<Type>),
+            ArrayElement(&'e Expression<'a>, Option<Type>),
             Join,
         }
         let mut work = vec![Shape::Expr(node, depth)];
@@ -487,8 +487,13 @@ impl Lowering<'_, '_> {
                                         })
                                         .filter(|ty| ty.is_managed())
                                     });
-                            if let Some(receiver) = crate::lower::array_at::receiver(call) {
-                                work.push(Shape::ArrayAt(receiver, fallback));
+                            if let Some(receiver) =
+                                crate::lower::array_at::receiver(call).or_else(|| {
+                                    crate::lower::array_mutations::operation(call)
+                                        .map(|(_, receiver)| receiver)
+                                })
+                            {
+                                work.push(Shape::ArrayElement(receiver, fallback));
                                 work.push(Shape::Expr(receiver, depth + 1));
                             } else {
                                 values.push(fallback);
@@ -567,8 +572,8 @@ impl Lowering<'_, '_> {
                         _ => values.push(None),
                     }
                 }
-                Shape::ArrayAt(source, fallback) => {
-                    let receiver = match values.pop().expect("at receiver shape") {
+                Shape::ArrayElement(source, fallback) => {
+                    let receiver = match values.pop().expect("array element receiver shape") {
                         Some(Type::ManagedValue) => self.stored.container(source.node_id()),
                         ty => ty,
                     };
@@ -654,6 +659,22 @@ impl Lowering<'_, '_> {
                 call,
                 array: None,
                 index: None,
+                argument: 0,
+                depth,
+            }));
+            work.push(Work::Eval(receiver, depth + 1, Mode::Array));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Managed)
+            && let Expression::CallExpression(call) = node
+            && let Some((crate::lower::array_mutations::Operation::Pop, receiver)) =
+                crate::lower::array_mutations::operation(call)
+            && self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)
+        {
+            work.push(Work::ArrayPop(super::array_pop::Task {
+                node,
+                call,
+                array: None,
                 argument: 0,
                 depth,
             }));
