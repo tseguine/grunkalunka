@@ -54,6 +54,12 @@ pub(super) struct PreparedFunctionResult {
     closure: closures::LocalClosure,
 }
 
+/// Local result admission precedes definition checking and remains owned until
+/// checked call validation produces argument preparation or rejects the call.
+pub(super) struct LocalResultPreparation {
+    admission: FunctionResultActivation,
+}
+
 impl PreparedFunctionResult {
     pub(super) fn arrow(&self) -> oxc_syntax::node::NodeId {
         self.closure.arrow
@@ -1111,20 +1117,48 @@ impl<'s, 'a> Lowering<'s, 'a> {
         mut closure: closures::LocalClosure,
         region: &mut Region,
     ) -> Result<PreparedFunctionResult, String> {
-        let admission = self.begin_function_result(call, FunctionResultKind::Local)?;
-        let checked = (|| {
-            if !closure.checked {
-                self.check_local_closure(&mut closure)?;
-                self.capture_cells(&closure, region);
+        let preparation = self.begin_local_result_preparation(call)?;
+        if !closure.checked {
+            if let Err(error) = self.check_local_closure(&mut closure) {
+                self.abort_local_result_preparation(preparation);
+                return Err(error);
             }
-            self.check_local_call(call, &closure)?;
-            self.charge_closure_expansion(call)
-        })();
+            self.capture_cells(&closure, region);
+        }
+        self.finish_local_result_preparation(preparation, call, closure)
+    }
+
+    pub(super) fn begin_local_result_preparation(
+        &mut self,
+        call: &CallExpression<'_>,
+    ) -> Result<LocalResultPreparation, String> {
+        self.begin_function_result(call, FunctionResultKind::Local)
+            .map(|admission| LocalResultPreparation { admission })
+    }
+
+    /// Checking/capture publication has completed before call validation. This
+    /// consumes the preparation token on both validation failure and success.
+    pub(super) fn finish_local_result_preparation(
+        &mut self,
+        preparation: LocalResultPreparation,
+        call: &CallExpression<'_>,
+        closure: closures::LocalClosure,
+    ) -> Result<PreparedFunctionResult, String> {
+        let checked = self
+            .check_local_call(call, &closure)
+            .and_then(|()| self.charge_closure_expansion(call));
         if let Err(error) = checked {
-            self.finish_function_result(admission);
+            self.abort_local_result_preparation(preparation);
             return Err(error);
         }
-        Ok(PreparedFunctionResult { admission, closure })
+        Ok(PreparedFunctionResult {
+            admission: preparation.admission,
+            closure,
+        })
+    }
+
+    pub(super) fn abort_local_result_preparation(&mut self, preparation: LocalResultPreparation) {
+        self.finish_function_result(preparation.admission);
     }
 
     pub(super) fn abort_function_result_arguments(&mut self, factory: PreparedFunctionResult) {

@@ -34,6 +34,13 @@ pub(super) struct PreparedConciseFactory<'n, 'a> {
     closure: LocalClosure,
 }
 
+/// Shape recognition retains the original call and depth while its independently
+/// selected closure is checked. This stage owns no function/result admission.
+pub(super) struct ConciseFactoryCandidate<'n, 'a> {
+    call: &'n CallExpression<'a>,
+    call_depth: usize,
+}
+
 impl<'n, 'a> PreparedConciseFactory<'n, 'a> {
     pub(super) fn call(&self) -> (&'n CallExpression<'a>, usize) {
         (self.call, self.call_depth)
@@ -813,35 +820,60 @@ impl<'s, 'a> Lowering<'s, 'a> {
         region: &mut Region,
         depth: usize,
     ) -> Result<Option<PreparedConciseFactory<'n, 'ast>>, String> {
-        let Some((Expression::CallExpression(call), call_depth)) = unwrapped_at(expression, depth)
-        else {
-            return Ok(None);
-        };
-        let Some(mut factory) = self.closure_target(
-            invocation::callee(call),
-            invocation::depth(call, call_depth + 1),
-        ) else {
+        let Some((candidate, mut factory)) = self.select_concise_factory(expression, depth) else {
             return Ok(None);
         };
         if !factory.checked {
-            // Read-only shape recognition avoids validating/charging an ordinary
-            // numeric IIFE twice. Actual validation uses its fresh parameter cells.
-            if self
+            self.check_local_closure(&mut factory)?;
+            self.capture_cells(&factory, region);
+        }
+        self.finish_concise_factory_preparation(candidate, factory)
+    }
+
+    /// Select without checking or charging. A known-local consumer must retain
+    /// its own original closure snapshot if it may fall through after this
+    /// metadata stage: checking this candidate does not check that snapshot.
+    pub(super) fn select_concise_factory<'n, 'ast>(
+        &self,
+        expression: &'n Expression<'ast>,
+        depth: usize,
+    ) -> Option<(ConciseFactoryCandidate<'n, 'ast>, LocalClosure)> {
+        let Some((Expression::CallExpression(call), call_depth)) = unwrapped_at(expression, depth)
+        else {
+            return None;
+        };
+        let factory = self.closure_target(
+            invocation::callee(call),
+            invocation::depth(call, call_depth + 1),
+        )?;
+        // Read-only shape recognition avoids validating/charging an ordinary
+        // numeric IIFE twice. Actual validation uses its fresh parameter cells.
+        if !factory.checked
+            && self
                 .arrow(factory.arrow)
                 .get_expression()
                 .and_then(|body| self.closure_target(body, 0))
                 .is_none()
-            {
-                return Ok(None);
-            }
-            self.check_local_closure(&mut factory)?;
-            self.capture_cells(&factory, region);
+        {
+            return None;
         }
+        Some((ConciseFactoryCandidate { call, call_depth }, factory))
+    }
+
+    /// A newly checked candidate has already published its capture operation.
+    /// Preserve the remaining factory flag, call validation and expansion order;
+    /// a successful None may therefore follow checking costs/capture effects.
+    pub(super) fn finish_concise_factory_preparation<'n, 'ast>(
+        &mut self,
+        candidate: ConciseFactoryCandidate<'n, 'ast>,
+        factory: LocalClosure,
+    ) -> Result<Option<PreparedConciseFactory<'n, 'ast>>, String> {
         if !factory.factory || self.arrow(factory.arrow).get_expression().is_none() {
             return Ok(None);
         }
+        let ConciseFactoryCandidate { call, call_depth } = candidate;
         self.check_local_call(call, &factory)?;
-        self.charge_closure_expansion(call.as_ref())?;
+        self.charge_closure_expansion(call)?;
         Ok(Some(PreparedConciseFactory {
             call,
             call_depth,
@@ -887,20 +919,43 @@ impl<'s, 'a> Lowering<'s, 'a> {
         arguments: Vec<ValueId>,
         region: &mut Region,
     ) -> Result<LocalClosure, String> {
+        let (bindings, mut returned) =
+            self.begin_concise_factory_result(factory, arguments, region)?;
+        let checked = if returned.checked {
+            Ok(())
+        } else {
+            self.check_local_closure(&mut returned)
+        };
+        self.restore_factory_bindings(bindings);
+        checked?;
+        Ok(returned)
+    }
+
+    /// Install fresh factory parameters and select the returned metadata. On
+    /// success the caller owns restoration across any returned-definition check;
+    /// setup failure restores immediately, before a continuation can be stored.
+    pub(super) fn begin_concise_factory_result(
+        &mut self,
+        factory: PreparedConciseFactory<'_, '_>,
+        arguments: Vec<ValueId>,
+        region: &mut Region,
+    ) -> Result<(FactoryBindings, LocalClosure), String> {
         let arrow = self.arrow(factory.closure.arrow);
         let checkpoint = self.enter_factory_bindings(factory.closure.captures);
         let result = (|| {
             self.bind_arrow_parameters(arrow, arguments, region)?;
-            let mut returned = self
+            let returned = self
                 .closure_target(arrow.get_expression().expect("checked concise factory"), 0)
                 .expect("checked function result");
-            if !returned.checked {
-                self.check_local_closure(&mut returned)?;
-            }
             Ok(returned)
         })();
-        self.restore_factory_bindings(checkpoint);
-        result
+        match result {
+            Ok(returned) => Ok((checkpoint, returned)),
+            Err(error) => {
+                self.restore_factory_bindings(checkpoint);
+                Err(error)
+            }
+        }
     }
 
     pub(super) fn capture_cells(&self, closure: &LocalClosure, region: &mut Region) {
