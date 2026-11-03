@@ -4,6 +4,12 @@ This is the active execution plan. Each milestone ends in a runnable demonstrati
 measured compatibility evidence, and an updated status. A rejected input is not a
 supported feature; an unattempted test is not a passing test.
 
+**Compiler execution order, updated 2026-11-03:** the maintainer-directed
+[JavaScript feature train](javascript-feature-train.md) prioritizes practical
+features for A1 and broader programs after completion of the source-lowering
+architecture migration. Its ordered slices and stacked-PR workflow are the
+current compiler queue; the dated milestone receipts below retain their scope.
+
 ## Current status (2026-11-01)
 
 **L3/L4/L5 remain in progress, with a much broader synchronous WasmGC source slice.**

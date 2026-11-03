@@ -4,6 +4,12 @@ Date: 2026-11-01. Evidence baseline: master commit [5f3c43c](https://github.com/
 
 **Status: advisory execution steering.** The maintainer asked for this cross-stream review. It records observed implementation, proposed next proof points and existing ownership boundaries. It is not a new language profile, accepted ABI, automatic agent assignment or permission to interrupt unrelated work. [AGENTS.md](../AGENTS.md) remains authoritative for permissions, PR review and merging.
 
+**Current compiler assignment (2026-11-03):** after the completed source-lowering
+migration, the maintainer assigned an impact-ordered
+[JavaScript feature train](javascript-feature-train.md), with A1 priority and
+stacked PRs. That queue supersedes the older proposed compiler ordering below;
+the dated evidence and independently owned application acceptance gates remain.
+
 ## What is currently established
 
 - The maintained Oxc frontend lowers selected JS/TS through verified structured IR to real portable Wasm. Numeric and primitive-return profiles retain their contracts and specialized f64 paths.

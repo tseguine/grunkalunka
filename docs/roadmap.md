@@ -1,5 +1,11 @@
 # Research roadmap
 
+The current maintainer-assigned compiler work is the
+[impact-ordered JavaScript feature train](javascript-feature-train.md)
+(2026-11-03), prioritizing A1 authoring and broader useful language features in
+stacked PRs. The research questions and dated implementation snapshots below
+provide context for that queue.
+
 The maintained JS/TS compiler uses Oxc semantics and a verified structured IR.
 Its independent numeric, primitive, bounded async and synchronous WasmGC
 profiles are executable in the supported subset, not a full JavaScript engine.
