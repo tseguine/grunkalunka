@@ -1,33 +1,4 @@
-//! The shared heap source-control cursor owns mixed If/While/DoWhile
-//! continuations; keep this module's LoopNode entry and focused regressions.
-use super::*;
-use oxc_ast::ast::{DoWhileStatement, WhileStatement};
-
-#[derive(Clone, Copy)]
-pub(super) enum LoopNode<'n, 'a> {
-    While(&'n WhileStatement<'a>),
-    DoWhile(&'n DoWhileStatement<'a>),
-}
-
-impl<'s, 'ast> Lowering<'s, 'ast> {
-    #[inline(never)]
-    pub(super) fn loop_statement_iterative<'n>(
-        &mut self,
-        root: LoopNode<'n, 'ast>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Completion, String>
-    where
-        'ast: 'n,
-    {
-        let root = match root {
-            LoopNode::While(node) => control_cursor::ControlNode::While(node),
-            LoopNode::DoWhile(node) => control_cursor::ControlNode::DoWhile(node),
-        };
-        self.control_statement_iterative(root, region, depth)
-    }
-}
-
+//! Mixed While/DoWhile regressions for the shared cursor.
 #[cfg(test)]
 mod tests {
     #[test]

@@ -1,23 +1,4 @@
-//! The shared heap source-control cursor owns mixed If/While/DoWhile
-//! continuations; this module keeps the If entry and focused regressions.
-use super::*;
-use oxc_ast::ast::IfStatement;
-
-impl<'s, 'ast> Lowering<'s, 'ast> {
-    #[inline(never)]
-    pub(super) fn if_statement_iterative<'n>(
-        &mut self,
-        root: &'n IfStatement<'ast>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Completion, String>
-    where
-        'ast: 'n,
-    {
-        self.control_statement_iterative(control_cursor::ControlNode::If(root), region, depth)
-    }
-}
-
+//! If source-control regressions for the shared cursor.
 #[cfg(test)]
 mod tests {
     #[test]
