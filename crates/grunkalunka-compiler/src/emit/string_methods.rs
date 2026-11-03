@@ -4,7 +4,12 @@ use super::ir;
 pub(super) fn runtime(module: &ir::Module) -> &'static str {
     if module.functions.iter().any(|function| {
         ir::any_operation(&function.body, &mut |op| {
-            matches!(op, ir::Op::ManagedStringRange { .. })
+            matches!(
+                op,
+                ir::Op::ManagedStringRange { .. }
+                    | ir::Op::ManagedStringCharAt { .. }
+                    | ir::Op::ManagedStringCharCodeAt { .. }
+            )
         })
     }) {
         include_str!("string_methods.wat")

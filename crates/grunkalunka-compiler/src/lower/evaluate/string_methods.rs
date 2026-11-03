@@ -36,7 +36,7 @@ impl Lowering<'_, '_> {
             let argument = argument
                 .as_expression()
                 .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
-            task.pending = task.argument < 2
+            task.pending = task.argument < task.method.arguments()
                 && !crate::lower::string_methods::undefined(argument, self.semantic);
             let mode = if task.pending {
                 Mode::Number
@@ -49,7 +49,12 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(argument, depth, mode));
             return Ok(());
         }
-        for (input, default) in task.inputs.iter_mut().zip([0.0, f64::INFINITY]) {
+        for (input, default) in task
+            .inputs
+            .iter_mut()
+            .zip([0.0, f64::INFINITY])
+            .take(task.method.arguments())
+        {
             if input.is_none() {
                 let result = self.value(Type::Number);
                 Self::push(
@@ -63,19 +68,34 @@ impl Lowering<'_, '_> {
                 *input = Some(result);
             }
         }
-        let result = self.value(Type::ManagedValue);
-        Self::push(
-            regions.current(),
-            task.node,
-            Op::ManagedStringRange {
+        let result = self.value(task.method.result());
+        let input = task.receiver.expect("completed String receiver");
+        let index = task.inputs[0].expect("completed String first argument");
+        let operation = match task.method {
+            Method::Slice | Method::Substring => Op::ManagedStringRange {
                 result,
-                input: task.receiver.expect("completed String receiver"),
-                start: task.inputs[0].expect("completed String start"),
+                input,
+                start: index,
                 end: task.inputs[1].expect("completed String end"),
                 substring: matches!(task.method, Method::Substring),
             },
-        );
-        values.push(Value::Managed(result));
+            Method::CharAt => Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            },
+            Method::CharCodeAt => Op::ManagedStringCharCodeAt {
+                result,
+                input,
+                index,
+            },
+        };
+        Self::push(regions.current(), task.node, operation);
+        values.push(if task.method.result() == Type::Number {
+            Value::Number(result)
+        } else {
+            Value::Managed(result)
+        });
         Ok(())
     }
 }

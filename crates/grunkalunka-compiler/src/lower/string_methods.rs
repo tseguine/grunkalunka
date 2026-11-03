@@ -5,6 +5,24 @@ use super::*;
 pub(super) enum Method {
     Slice,
     Substring,
+    CharAt,
+    CharCodeAt,
+}
+
+impl Method {
+    pub(super) fn result(self) -> Type {
+        match self {
+            Self::Slice | Self::Substring | Self::CharAt => Type::ManagedValue,
+            Self::CharCodeAt => Type::Number,
+        }
+    }
+
+    pub(super) fn arguments(self) -> usize {
+        match self {
+            Self::Slice | Self::Substring => 2,
+            Self::CharAt | Self::CharCodeAt => 1,
+        }
+    }
 }
 
 pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expression<'a>, Method)> {
@@ -29,6 +47,8 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
     let method = match name {
         "slice" => Method::Slice,
         "substring" => Method::Substring,
+        "charAt" => Method::CharAt,
+        "charCodeAt" => Method::CharCodeAt,
         _ => return None,
     };
     Some((receiver, method))

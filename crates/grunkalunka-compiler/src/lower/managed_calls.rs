@@ -67,7 +67,7 @@ fn kinds(
         StringConcat,
         Member(bool),
         ArrayElement(Kinds),
-        StringMethod(Kinds),
+        StringMethod(Type, Kinds),
     }
     let mut work = vec![Task::Expr(node, 0)];
     let mut values: Vec<Kinds> = Vec::new();
@@ -103,13 +103,18 @@ fn kinds(
                     [Kind::Primitive].into()
                 });
             }
-            Task::StringMethod(mut fallback) => {
+            Task::StringMethod(result, mut fallback) => {
                 let receiver = values.pop().expect("String method receiver kinds");
+                let result = match result {
+                    Type::ManagedValue => Kind::String,
+                    Type::Number => Kind::Primitive,
+                    _ => unreachable!("String method result kind"),
+                };
                 values.push(if receiver.contains(&Kind::String) {
                     if receiver.len() == 1 {
-                        [Kind::String].into()
+                        [result].into()
                     } else {
-                        fallback.insert(Kind::String);
+                        fallback.insert(result);
                         fallback
                     }
                 } else {
@@ -211,8 +216,8 @@ fn kinds(
                                     .and_then(|calls| calls.get(&call.node_id.get()).cloned())
                             })
                             .unwrap_or_else(|| [Kind::Primitive].into());
-                        if let Some((receiver, _)) = string_methods::call(call) {
-                            work.push(Task::StringMethod(fallback));
+                        if let Some((receiver, method)) = string_methods::call(call) {
+                            work.push(Task::StringMethod(method.result(), fallback));
                             work.push(Task::Expr(receiver, depth + 1));
                         } else if let Some(receiver) = array_at::receiver(call).or_else(|| {
                             array_mutations::operation(call).map(|(_, receiver)| receiver)
