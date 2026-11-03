@@ -146,7 +146,8 @@ test('UI denial preserves an already authorized document view', () => {
 test('unused service, invalid count and failed later call cannot replace current view',
   { timeout: 120_000 }, () => {
     for (const [body, status, attempts] of [
-      ['return 17;', 'ok', 0],
+      // Keep the import represented, but do not call it for valid 0/1 inputs.
+      ['if (a < 0) return choose(a, b); return 17;', 'ok', 0],
       ['return choose(0, b + 1);', 'invalid-count', 1],
       ['choose(0, b); return choose(1, b + 1);', 'invalid-count', 2],
       ['choose(0, b); return 1 / 0;', 'invalid-result', 1],
