@@ -245,17 +245,6 @@ impl Lowering<'_, '_> {
         (self.slots[binding.slot.0].ty == Type::FulfilledPromise).then_some(binding.slot)
     }
 
-    pub(super) fn fulfilled_promise_initializer(
-        &mut self,
-        expression: &Expression<'_>,
-        region: &mut Region,
-    ) -> Result<Option<ValueId>, String> {
-        if !self.fulfilled_promise_shape(expression, 0) {
-            return Ok(None);
-        }
-        self.evaluate(expression, region, 0, evaluate::Mode::Promise)
-    }
-
     // Readonly positive type query. Actual evaluation still checks every source
     // expression, target, payload, intrinsic and depth in the owned cursor.
     pub(super) fn fulfilled_promise_shape(
