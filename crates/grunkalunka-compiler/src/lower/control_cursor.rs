@@ -20,6 +20,8 @@ mod factories;
 mod factory_effect_tests;
 #[cfg(test)]
 mod factory_tests;
+#[cfg(test)]
+mod function_result_tests;
 mod steps;
 
 #[cfg(test)]
@@ -31,6 +33,8 @@ std::thread_local! {
     static BRIDGED_BLOCK_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static BRIDGED_CONCISE_FACTORIES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static BRIDGED_FUNCTION_RESULT_VALUES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -120,7 +124,7 @@ struct FactoryExpression<'n, 'a> {
 
 struct FactoryArguments<'n, 'a> {
     state: FactoryExpression<'n, 'a>,
-    factory: function_values::PreparedLocalFactory<'n, 'a>,
+    factory: function_values::PreparedFactory<'n, 'a>,
     call: &'n CallExpression<'a>,
     expression_depth: usize,
     index: usize,
@@ -258,7 +262,14 @@ enum Frame<'n, 'a> {
     EvaluateFactoryBody {
         state: FactoryExpression<'n, 'a>,
         activation: closures::BlockArrowActivation,
-        factory: function_values::BlockFactory,
+        factory: function_values::LocalFunctionResult,
+        depth: usize,
+    },
+    /// A general concise factory keeps its lexical bindings, result admission
+    /// and body function-value admission until the expression returns a value.
+    EvaluateFactoryValue {
+        state: FactoryExpression<'n, 'a>,
+        factory: function_values::LocalFunctionResult,
         depth: usize,
     },
     TryCatchBody {
@@ -314,6 +325,7 @@ impl Frame<'_, '_> {
             | Self::EvaluateFunctionValue { depth, .. }
             | Self::EvaluateFactoryArgument { depth, .. }
             | Self::EvaluateFactoryBody { depth, .. }
+            | Self::EvaluateFactoryValue { depth, .. }
             | Self::TryCatchBody { depth, .. }
             | Self::TryCatchHandler { depth, .. }
             | Self::TryFinallyBody { depth, .. }
@@ -569,7 +581,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         self.restore_function_result_depth(previous_result_depth);
                         return Err(error);
                     }
-                    let prepared = self.prepare_block_factory(
+                    let prepared = self.prepare_local_function_result(
                         callee_node,
                         expression.current_region(),
                         callee_depth,
@@ -594,7 +606,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                         },
                                     ),
                                 },
-                                function_values::PreparedLocalFactory::Block(factory),
+                                function_values::PreparedFactory::LocalResult(factory),
                                 callee_depth,
                                 cursor,
                             );
@@ -901,7 +913,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         ..
                     } => {
                         self.abort_arrow_block_activation(activation);
-                        self.finish_block_factory(factory);
+                        self.finish_local_function_result(factory);
+                        self.restore_factory_expression(&state);
+                    }
+                    Frame::EvaluateFactoryValue { state, factory, .. } => {
+                        self.leave_function_value();
+                        self.finish_local_function_result(factory);
                         self.restore_factory_expression(&state);
                     }
                     Frame::FunctionReturn { .. } => {

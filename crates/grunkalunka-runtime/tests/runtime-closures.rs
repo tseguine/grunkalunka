@@ -818,6 +818,29 @@ fn concise_factory_discard_and_truthiness_preserve_argument_effects() {
 }
 
 #[test]
+fn concise_function_results_preserve_body_effects_and_callback_identity() {
+    compare_functions(&[
+        "const make=x=>a?(y=>x+y):(y=>x-y);return make(a)(b);",
+        "let n=0;const make=x=>(n=n*10+2,y=>x+y+n);return make((n=n*10+1))(n=n*10+3)+n;",
+        "const id=fn=>fn;return id(y=>y+a)(b);",
+        "const id=fn=>fn;return id.call(null,y=>y+a)(b);",
+        "const seed=x=>{return y=>x+y;};const make=x=>seed(x);return make(a)(b);",
+        "const id=fn=>fn;const apply=(fn,x)=>fn(x);return apply(id(y=>y+a),b);",
+    ]);
+}
+
+#[test]
+fn discarded_and_truthy_concise_results_preserve_body_effects() {
+    compare_function_programs(
+        &[
+            "let n=a;const make=x=>(n+=x,y=>x+y);make(b);return n;",
+            "let n=a;const make=x=>(n+=x,y=>x+y);if(make(b))n+=1;return n;",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn block_factory_effects_preserve_logical_short_circuiting() {
     compare_function_programs(
         &[
