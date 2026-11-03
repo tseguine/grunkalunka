@@ -1521,7 +1521,8 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
             layout::closure_value(function.return_type, gc_closures).wat
         };
         writeln!(header, " (result {result_wat})").unwrap();
-        let (body, remainder) = emit_function(function, header, errors, gc_closures, error_kinds);
+        let (body, remainder) =
+            emit_function(function, header, errors, gc_closures, error_kinds, 0);
         output.push_str(&body);
         needs_remainder |= remainder;
     }

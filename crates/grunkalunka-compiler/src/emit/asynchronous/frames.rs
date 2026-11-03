@@ -176,6 +176,7 @@ impl<'a> Frame<'a> {
                 errors,
                 error_kinds,
                 gc_closures,
+                function_index_offset: 0,
             },
             lanes,
             #[cfg(test)]
