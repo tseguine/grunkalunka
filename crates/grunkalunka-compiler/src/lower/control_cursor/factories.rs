@@ -86,8 +86,34 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         };
         self.advance_factory_arguments(
             Box::new(FactoryArguments {
-                state,
-                factory,
+                state: FactoryArgumentState::Expression { state, factory },
+                call,
+                expression_depth,
+                index: 0,
+                values: Vec::new(),
+            }),
+            cursor,
+        )
+    }
+
+    pub(super) fn start_declaration_factory_arguments<'n>(
+        &mut self,
+        sequence: Box<DeclarationSequence<'n, 'ast>>,
+        prepared: declarations::PreparedDeclarationFactory<'n, 'ast>,
+        output: Region,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        let (call, expression_depth) = prepared.factory().call();
+        self.advance_factory_arguments(
+            Box::new(FactoryArguments {
+                state: FactoryArgumentState::Declaration {
+                    sequence,
+                    prepared,
+                    output,
+                },
                 call,
                 expression_depth,
                 index: 0,
@@ -114,8 +140,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 let source = call.arguments[arguments.index]
                     .as_expression()
                     .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
-                let kind = self.classify_prepared_factory_argument(
-                    &arguments.factory,
+                let kind = self.classify_factory_argument_state(
+                    &arguments.state,
                     call,
                     arguments.index,
                     source,
@@ -134,14 +160,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             let (source, kind, mode) = match prepared {
                 Ok(prepared) => prepared,
                 Err(error) => {
-                    self.abort_prepared_factory(arguments.factory);
-                    self.restore_factory_expression(&arguments.state);
+                    self.abort_factory_argument_state(arguments.state);
                     return Err(error);
                 }
             };
             // Reuse the current Region identity; the child evaluator owns its
             // operations only until this exact continuation receives it back.
-            let output = Self::take_cursor_region(arguments.state.expression.current_region());
+            let output = Self::take_cursor_region(arguments.state.current_region());
             let caller_depth = self.statement_depth;
             cursor.pending.push(Frame::EvaluateFactoryArgument {
                 arguments,
@@ -157,12 +182,17 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             return Ok(());
         }
 
-        let FactoryArguments {
-            mut state,
-            factory,
-            values,
-            ..
-        } = *arguments;
+        let FactoryArguments { state, values, .. } = *arguments;
+        let (mut state, factory) = match state {
+            FactoryArgumentState::Expression { state, factory } => (state, factory),
+            FactoryArgumentState::Declaration {
+                sequence,
+                prepared,
+                output,
+            } => {
+                return self.finish_declaration_factory(sequence, prepared, output, values, cursor);
+            }
+        };
         let factory = match factory {
             function_values::PreparedFactory::LocalResult(factory) => factory,
             function_values::PreparedFactory::ClosureMetadata(factory) => {
@@ -246,7 +276,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     where
         'ast: 'n,
     {
-        *arguments.state.expression.current_region() = output;
+        *arguments.state.current_region() = output;
         if matches!(kind, closures::FactoryArgumentKind::Callback(_)) {
             self.leave_function_value();
         }
@@ -267,8 +297,38 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if matches!(kind, closures::FactoryArgumentKind::Callback(_)) {
             self.leave_function_value();
         }
-        self.abort_prepared_factory(arguments.factory);
-        self.restore_factory_expression(&arguments.state);
+        self.abort_factory_argument_state(arguments.state);
+    }
+
+    fn classify_factory_argument_state(
+        &self,
+        state: &FactoryArgumentState<'_, '_>,
+        call: &CallExpression<'_>,
+        index: usize,
+        expression: &Expression<'_>,
+        depth: usize,
+    ) -> closures::FactoryArgumentKind {
+        match state {
+            FactoryArgumentState::Expression { factory, .. } => {
+                self.classify_prepared_factory_argument(factory, call, index, expression, depth)
+            }
+            FactoryArgumentState::Declaration { prepared, .. } => self.classify_factory_argument(
+                call,
+                prepared.factory().arrow(),
+                index,
+                expression,
+                depth,
+            ),
+        }
+    }
+
+    fn abort_factory_argument_state(&mut self, state: FactoryArgumentState<'_, '_>) {
+        if let FactoryArgumentState::Expression { state, factory } = state {
+            self.abort_prepared_factory(factory);
+            self.restore_factory_expression(&state);
+        }
+        // Declaration metadata has not installed factory bindings and owns no
+        // function/result admission or generated-region context checkpoint.
     }
 
     fn abort_prepared_factory(&mut self, factory: function_values::PreparedFactory<'_, '_>) {

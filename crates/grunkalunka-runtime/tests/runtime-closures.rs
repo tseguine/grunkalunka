@@ -857,6 +857,44 @@ fn concise_factory_discard_and_truthiness_preserve_argument_effects() {
 }
 
 #[test]
+fn const_factory_arguments_preserve_publication_order_and_captures() {
+    compare_function_programs(
+        &[
+            "let n=a;const make=()=>()=>n;const f=make(),g=make();n+=b;return f()+g();",
+            "const make=x=>y=>x+y;const f=make(a),g=make(f(b));return f(b)+g(a);",
+            "const make=x=>y=>x+y;const f=make(a),g=make(b);return f(b)+g(a);",
+            "const make=(a,b)=>x=>a+b+x;const f=make(a,b);return f(a);",
+            "let n=0;const make=(x,y)=>z=>x+y+z+n;const f=make((n=n*10+1,a),(n=n*10+2,b),n=n*10+3);return f(n=n*10+4)+n;",
+            "let n=0;const make=x=>y=>x+y+n;const f=make.call((n=n*10+1,null),(n=n*10+2,a),n=n*10+3);return f(n=n*10+4)+n;",
+            "let n=a;const make=(x,y)=>z=>x+y+z+n;const f=make(n,n+=b,n+=10);return f(a)+n;",
+            "const make=x=>y=>x+y;let n=0;for(let i=0;i<2;i++){const f=make(i+a);n+=f(b);}return n;",
+            "let n=a;const make=x=>y=>x+y;const f=make(n+=b);return n;",
+        ],
+        false,
+    );
+}
+
+#[test]
+fn const_factory_arguments_preserve_callback_snapshots() {
+    compare_functions(&[
+        "let current=x=>x+a;const make=(fn,x)=>y=>fn(y)+x;const f=make(current,(current=x=>x-b,a));return f(b)+current(a);",
+        "const seed=x=>{return y=>x+y;};const make=(fn,x)=>y=>fn(y)+x;const f=make(seed(a),b);return f(a);",
+        "const make=(fn,x)=>y=>fn(y)+x;const f=make(a?(x=>x+a):(x=>x-b),b);return f(a);",
+    ]);
+}
+
+#[test]
+fn const_factory_arguments_preserve_managed_captures() {
+    compare_function_programs(
+        &[
+            "const make=x=>()=>x.x===a?a:b;const read=make({x:a});return read();",
+            "const make=x=>()=>x[0]===a?a:b;const read=make([a]);return read();",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn concise_function_results_preserve_body_effects_and_callback_identity() {
     compare_functions(&[
         "const make=x=>a?(y=>x+y):(y=>x-y);return make(a)(b);",

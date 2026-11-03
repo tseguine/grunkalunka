@@ -19,6 +19,8 @@ mod closure_check_tests;
 #[cfg(test)]
 mod concise_factory_tests;
 #[cfg(test)]
+mod const_factory_tests;
+#[cfg(test)]
 mod declaration_tests;
 mod factories;
 #[cfg(test)]
@@ -51,6 +53,8 @@ std::thread_local! {
     static BRIDGED_RUNTIME_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static BRIDGED_CLOSURE_CHECKS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static SCHEDULED_DECLARATION_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -147,8 +151,7 @@ struct FactoryExpression<'n, 'a> {
 }
 
 struct FactoryArguments<'n, 'a> {
-    state: FactoryExpression<'n, 'a>,
-    factory: function_values::PreparedFactory<'n, 'a>,
+    state: FactoryArgumentState<'n, 'a>,
     call: &'n CallExpression<'a>,
     expression_depth: usize,
     index: usize,
@@ -161,6 +164,29 @@ struct LoweringChildId(usize);
 /// Checking completion is distinct from a future lifted-body publication.
 enum ChildCompletion {
     DefinitionCheck { closure: closures::LocalClosure },
+}
+
+/// Argument scheduling shares one caller Region and ordered classifier. The
+/// consumer owns only the resources acquired by its original entry point.
+enum FactoryArgumentState<'n, 'a> {
+    Expression {
+        state: FactoryExpression<'n, 'a>,
+        factory: function_values::PreparedFactory<'n, 'a>,
+    },
+    Declaration {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        prepared: declarations::PreparedDeclarationFactory<'n, 'a>,
+        output: Region,
+    },
+}
+
+impl FactoryArgumentState<'_, '_> {
+    fn current_region(&mut self) -> &mut Region {
+        match self {
+            Self::Expression { state, .. } => state.expression.current_region(),
+            Self::Declaration { output, .. } => output,
+        }
+    }
 }
 
 enum Frame<'n, 'a> {
@@ -212,6 +238,11 @@ enum Frame<'n, 'a> {
     DeclarationValue {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         active: declarations::ActiveDeclarationValue<'n, 'a>,
+    },
+    /// Completed metadata resumes its next declarator on the main loop,
+    /// including consecutive factories with no arguments to suspend on.
+    AdvanceDeclaration {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
     },
     /// A fresh declaration must validate its body before captures and its
     /// lexical closure binding are published to the next declarator.
@@ -417,6 +448,7 @@ impl Frame<'_, '_> {
             Self::ForInitializer { depth, .. } => *depth,
             Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
+            Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,

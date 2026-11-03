@@ -12,6 +12,20 @@ pub(super) enum DeclarationInitializer<'n, 'a> {
         local: &'n VariableDeclarator<'a>,
         closure: closures::LocalClosure,
     },
+    Factory(PreparedDeclarationFactory<'n, 'a>),
+}
+
+/// Const factory metadata is published after its caller arguments complete.
+/// It owns neither ordinary function-value nor function-result admission.
+pub(super) struct PreparedDeclarationFactory<'n, 'a> {
+    local: &'n VariableDeclarator<'a>,
+    factory: closures::PreparedConciseFactory<'n, 'a>,
+}
+
+impl<'n, 'a> PreparedDeclarationFactory<'n, 'a> {
+    pub(super) fn factory(&self) -> &closures::PreparedConciseFactory<'n, 'a> {
+        &self.factory
+    }
 }
 
 pub(super) struct DeclarationValue<'n, 'a> {
@@ -58,6 +72,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     /// Charge and validate just this local before selecting its initializer.
     /// Const closure metadata may request a disposable definition check;
     /// ordinary values become a typed request without evaluating their source.
+    /// Concise factory arguments are requested once before publishing metadata.
     pub(super) fn prepare_declaration_initializer<'n, 'a>(
         &mut self,
         local: &'n VariableDeclarator<'a>,
@@ -79,16 +94,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         let BindingPattern::BindingIdentifier(identifier) = &local.id else {
             return Err(unsupported(local, "local destructuring is not admitted"));
         };
-        let closure = if !mutable && let Some(initializer) = local.init.as_ref() {
-            match self.closure_target(initializer, 0) {
-                Some(closure) => Some(closure),
-                None => self.factory_result(initializer, region, 0)?,
+        if !mutable && let Some(initializer) = local.init.as_ref() {
+            if let Some(closure) = self.closure_target(initializer, 0) {
+                return self.publish_declaration_closure(local, false, closure, region);
             }
-        } else {
-            None
-        };
-        if let Some(closure) = closure {
-            return self.publish_declaration_closure(local, mutable, closure, region);
+            if let Some(factory) = self.prepare_concise_factory(initializer, region, 0)? {
+                return Ok(DeclarationInitializer::Factory(
+                    PreparedDeclarationFactory { local, factory },
+                ));
+            }
         }
         let value = |source, ty, mode| {
             Ok(DeclarationInitializer::Value(DeclarationValue {
@@ -202,6 +216,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             self.enter_function_value(value.source)?;
         }
         Ok(ActiveDeclarationValue(value))
+    }
+
+    /// Finish under fresh factory parameters, restore the caller, and return
+    /// metadata to its declaration consumer. Publication is a separate phase;
+    /// this path does not force the closure into a runtime function value.
+    pub(super) fn complete_declaration_factory<'n, 'a>(
+        &mut self,
+        prepared: PreparedDeclarationFactory<'n, 'a>,
+        arguments: Vec<ValueId>,
+        region: &mut Region,
+    ) -> Result<(&'n VariableDeclarator<'a>, closures::LocalClosure), String> {
+        let PreparedDeclarationFactory { local, factory } = prepared;
+        self.finish_concise_factory(factory, arguments, region)
+            .map(|closure| (local, closure))
     }
 
     pub(super) fn abort_declaration_value(&mut self, active: ActiveDeclarationValue<'_, '_>) {

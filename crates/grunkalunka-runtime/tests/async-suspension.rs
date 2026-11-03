@@ -2924,6 +2924,23 @@ fn block_factory_call_preserves_async_callee_and_argument_effects() {
 }
 
 #[test]
+fn const_factory_arguments_preserve_await_order_and_async_captures() {
+    compare_promises(
+        &[
+            "const make=x=>async y=>{await x;return x+y;};const f=make(a);return await f(b);",
+            "const make=x=>y=>x+y;const f=make(await a);return f(b);",
+            "const make=x=>y=>x+y;const f=make.call(await a,await b);return f(a);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn concise_function_results_preserve_async_selection_and_captures() {
     compare_promises(
         &["const make=x=>x?(async y=>x+y):(async y=>x-y);return await make(a)(b);"],
