@@ -1,0 +1,336 @@
+{
+  "scope": "Proposed bundle paths against unchanged final-source planner; no selected command execution.",
+  "sourceCommit": "4bef43c35814d7cb747254ad4d4fbac0dc9715dd",
+  "full": true,
+  "reasons": [
+    "global build input changed: scripts/audits/lowering-2026-11-03/cost/Cargo.lock"
+  ],
+  "changedPaths": [
+    "scripts/audits/lowering-2026-11-03/README.md",
+    "scripts/audits/lowering-2026-11-03/analyze.py",
+    "scripts/audits/lowering-2026-11-03/check_factory_variants.py",
+    "scripts/audits/lowering-2026-11-03/check_fixture.py",
+    "scripts/audits/lowering-2026-11-03/check_query_rank.py",
+    "scripts/audits/lowering-2026-11-03/cost/Cargo.lock",
+    "scripts/audits/lowering-2026-11-03/cost/MEASUREMENT.md",
+    "scripts/audits/lowering-2026-11-03/cost/build_probe.py",
+    "scripts/audits/lowering-2026-11-03/cost/focused-manifest.tsv",
+    "scripts/audits/lowering-2026-11-03/cost/manifest.tsv",
+    "scripts/audits/lowering-2026-11-03/cost/probe.rs",
+    "scripts/audits/lowering-2026-11-03/cost/resolve_manifest.py",
+    "scripts/audits/lowering-2026-11-03/cost/results/baseline-build-receipt.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/candidate-build-receipt.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/focused-first-attempt-failure.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/focused-plan-first-attempt.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/focused-plan.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/order-balance-check.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/primary-distribution-analysis.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/primary-metadata.json",
+    "scripts/audits/lowering-2026-11-03/cost/results/primary-summary.json",
+    "scripts/audits/lowering-2026-11-03/cost/run_pairs-primary.py",
+    "scripts/audits/lowering-2026-11-03/cost/run_pairs.py",
+    "scripts/audits/lowering-2026-11-03/cost/sources/affine_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/affine_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_factory_call_effects_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_factory_call_effects_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_factory_missing_outer_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_factory_missing_outer_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_iife_8_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_iife_8_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_iife_9_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/block_iife_9_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/charged_result_7_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/charged_result_7_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/charged_result_8_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/charged_result_8_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/concise_iife_8_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/concise_iife_8_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/const_await_argument_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/const_await_argument_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/const_metadata_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/const_metadata_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/const_optional_error_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/const_optional_error_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/definition_statements_252_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/definition_statements_252_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/definition_statements_253_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/definition_statements_253_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_capture_cells_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_capture_cells_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_locals_128_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_locals_128_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_locals_129_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_locals_129_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_pending_header_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/for_pending_header_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/function_initializer_depth_128_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/function_initializer_depth_128_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/function_initializer_depth_129_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/function_initializer_depth_129_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/gcd_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/gcd_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/invalid_unused_body_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/invalid_unused_body_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/lifted_capacity_256_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/lifted_capacity_256_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/lifted_capacity_over_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/lifted_capacity_over_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/managed_union_result_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/managed_union_result_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/mixed_forwarder_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/mixed_forwarder_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/nested_mutable_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/nested_mutable_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/result_mode_error_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/result_mode_error_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/suspended_async_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/suspended_async_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/zero_arguments_127_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/zero_arguments_127_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/sources/zero_arguments_128_js.js",
+    "scripts/audits/lowering-2026-11-03/cost/sources/zero_arguments_128_ts.ts",
+    "scripts/audits/lowering-2026-11-03/cost/verify_frozen.py",
+    "scripts/audits/lowering-2026-11-03/cost/workload-provenance.json",
+    "scripts/audits/lowering-2026-11-03/factory-cycle-ledger.md",
+    "scripts/audits/lowering-2026-11-03/factory-cycle-without-exhaustiveness.gloss",
+    "scripts/audits/lowering-2026-11-03/factory-cycle.gloss",
+    "scripts/audits/lowering-2026-11-03/fixture/lib.rs",
+    "scripts/audits/lowering-2026-11-03/fixture/lower.rs",
+    "scripts/audits/lowering-2026-11-03/parser/Cargo.lock",
+    "scripts/audits/lowering-2026-11-03/parser/Cargo.toml",
+    "scripts/audits/lowering-2026-11-03/parser/src/main.rs",
+    "scripts/audits/lowering-2026-11-03/query-ranking-certificate.json",
+    "scripts/audits/lowering-2026-11-03/results/factory-cycle-results.json",
+    "scripts/audits/lowering-2026-11-03/results/factory-cycle-summary.json",
+    "scripts/audits/lowering-2026-11-03/results/factory-cycle-syntax.json",
+    "scripts/audits/lowering-2026-11-03/results/factory-cycle-without-exhaustiveness-results.json",
+    "scripts/audits/lowering-2026-11-03/results/factory-cycle-without-exhaustiveness-syntax.json",
+    "scripts/audits/lowering-2026-11-03/results/final-scc-receipt.json",
+    "scripts/audits/lowering-2026-11-03/results/fixture-check.json",
+    "scripts/audits/lowering-2026-11-03/results/glob-sensitivity-check.json",
+    "scripts/audits/lowering-2026-11-03/results/query-ranking-check.json",
+    "scripts/audits/lowering-2026-11-03/results/runtime-parity-receipt.json",
+    "scripts/audits/lowering-2026-11-03/results/source-revisions.json"
+  ],
+  "tests": [
+    "cargo-test:grunkalunka-cli",
+    "cargo-test:grunkalunka-compiler",
+    "cargo-test:grunkalunka-json",
+    "cargo-test:grunkalunka-json-guest",
+    "cargo-test:grunkalunka-layout",
+    "cargo-test:grunkalunka-markdown",
+    "cargo-test:grunkalunka-runtime",
+    "cargo-test:grunkalunka-string-spike",
+    "cargo-test:grunkalunka-wasm-link",
+    "check:a1-note-preview",
+    "check:benchmark-tests",
+    "check:browser-oracle-contracts",
+    "check:build-process-and-source",
+    "check:compat-gap-program-sources",
+    "check:compat-math-abs",
+    "check:compat-math-unary",
+    "check:compat-rejection-inventory",
+    "check:compat-remainder",
+    "check:compat-suite-inventory",
+    "check:compat-watchdog-budget",
+    "check:compiler-compatibility-replay",
+    "check:document-outline",
+    "check:heap-literals",
+    "check:impact-planner-regressions",
+    "check:json-composition",
+    "check:markdown-outline",
+    "check:markdown-portability",
+    "check:node-compile-integration",
+    "check:node-example-contracts",
+    "check:node-execution",
+    "check:p1-bench-tests",
+    "check:p1-native-portability",
+    "check:runner-logger",
+    "check:spike-clippy",
+    "check:spike-format",
+    "check:spike-oracle",
+    "check:spike-run",
+    "check:type-query-fetch",
+    "check:type-query-format",
+    "check:type-query-tests",
+    "check:workspace-clippy",
+    "check:workspace-format",
+    "check:workspace-tests"
+  ],
+  "build": [
+    "a1-note-preview",
+    "browser-oracles",
+    "build-test-sources",
+    "canonical-scripts",
+    "compatibility-fixtures",
+    "example-workflows",
+    "frontend-spike",
+    "grunkalunka-cli",
+    "grunkalunka-compiler",
+    "grunkalunka-json",
+    "grunkalunka-json-guest",
+    "grunkalunka-layout",
+    "grunkalunka-markdown",
+    "grunkalunka-runtime",
+    "grunkalunka-string-spike",
+    "grunkalunka-wasm-link",
+    "node-bench",
+    "node-build",
+    "node-runtime",
+    "p1-bench-unit-tests",
+    "p1-diagnostic-tools",
+    "p1-rustc-wrapper",
+    "type-query-spike"
+  ],
+  "changedOwners": [],
+  "ignoredPaths": [],
+  "canonicalCoverage": {
+    "commands": 34,
+    "mapped": 34
+  },
+  "sourceDependencyAudit": {
+    "valid": true,
+    "consumers": 7,
+    "edges": [
+      {
+        "consumer": "tests/build/benchmark-integration.test.mjs",
+        "dependency": "examples/numeric-workflow/gcd.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tests/build/benchmark-integration.test.mjs",
+        "dependency": "tools/bench/compare.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tests/build/benchmark-integration.test.mjs",
+        "dependency": "tools/bench/numeric.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tests/build/benchmark-integration.test.mjs",
+        "dependency": "tools/bench/portable-gcd.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tools/bench/numeric.mjs",
+        "dependency": "examples/numeric-workflow/gcd.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tools/bench/numeric.mjs",
+        "dependency": "tools/bench/measure.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tools/bench/numeric.mjs",
+        "dependency": "tools/bench/worker.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tools/bench/numeric.mjs",
+        "dependency": "tools/build/compile.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tests/build/benchmark.test.mjs",
+        "dependency": "examples/numeric-workflow/gcd.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tests/build/benchmark.test.mjs",
+        "dependency": "tools/bench/measure.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tests/build/benchmark.test.mjs",
+        "dependency": "tools/bench/node-memory.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "tests/build/benchmark.test.mjs",
+        "dependency": "tools/bench/numeric.mjs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/examples/core_engine_cost.rs",
+        "dependency": "examples/numeric-workflow/gcd.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/tests/core_engine_cost_probe.rs",
+        "dependency": "crates/grunkalunka-runtime/examples/core_engine_cost.rs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/tests/core_engine_cost_probe.rs",
+        "dependency": "examples/numeric-workflow/gcd.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/examples/source_compile_cost.rs",
+        "dependency": "examples/numeric-workflow/gcd.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/examples/source_compile_cost.rs",
+        "dependency": "tests/compatibility/fixtures/affine.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/examples/source_compile_cost.rs",
+        "dependency": "tests/compatibility/fixtures/affine.ts",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/tests/source_compile_cost_probe.rs",
+        "dependency": "crates/grunkalunka-runtime/examples/source_compile_cost.rs",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/tests/source_compile_cost_probe.rs",
+        "dependency": "examples/numeric-workflow/gcd.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/tests/source_compile_cost_probe.rs",
+        "dependency": "tests/compatibility/fixtures/affine.js",
+        "outcome": "selected"
+      },
+      {
+        "consumer": "crates/grunkalunka-runtime/tests/source_compile_cost_probe.rs",
+        "dependency": "tests/compatibility/fixtures/affine.ts",
+        "outcome": "selected"
+      }
+    ],
+    "errors": []
+  },
+  "externalWorkflows": {
+    "advisoryOnly": true,
+    "scope": "independent browser-oracle workflows only",
+    "valid": true,
+    "expectedToTrigger": [],
+    "requiredNotTriggered": [],
+    "errors": [],
+    "workflows": [
+      {
+        "id": "workflow:browser-native-bridge",
+        "file": ".github/workflows/browser-native-bridge.yml",
+        "required": false,
+        "triggered": false,
+        "triggeredBy": [],
+        "requiredBy": [],
+        "execution": "not-triggered"
+      },
+      {
+        "id": "workflow:browser-smoke",
+        "file": ".github/workflows/browser-smoke.yml",
+        "required": false,
+        "triggered": false,
+        "triggeredBy": [],
+        "requiredBy": [],
+        "execution": "not-triggered"
+      }
+    ]
+  }
+}

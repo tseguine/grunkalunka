@@ -1,0 +1,675 @@
+{
+  "processes": 320,
+  "cases": 16,
+  "repetitions": 10,
+  "all_frozen_outputs_matched": true,
+  "environment_load_after": [
+    2.33251953125,
+    3.02392578125,
+    3.70849609375
+  ],
+  "workloads": [
+    {
+      "case": "affine_js",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 48464.765625,
+          "minProcessMedianCompileNs": 36783.046875,
+          "maxProcessMedianCompileNs": 272951.453125,
+          "medianFirstCompileNs": 903577.5,
+          "medianReleaseNs": 68.65625,
+          "medianPeakRssBytes": 5302272.0,
+          "minPeakRssBytes": 5169152,
+          "maxPeakRssBytes": 5402624
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 50096.34375,
+          "minProcessMedianCompileNs": 38111.6875,
+          "maxProcessMedianCompileNs": 341194.140625,
+          "medianFirstCompileNs": 412198.0,
+          "medianReleaseNs": 68.84375,
+          "medianPeakRssBytes": 5337088.0,
+          "minPeakRssBytes": 5304320,
+          "maxPeakRssBytes": 5361664
+        }
+      },
+      "pairedCompileRatios": [
+        2.093012143949965,
+        1.1121589004473456,
+        0.9219023371962187,
+        0.22559884017836734,
+        3.0574702939106078,
+        1.0770621512166394,
+        0.8746138728364296,
+        1.0597750024443875,
+        1.3130747648266972,
+        0.8436158817198166
+      ],
+      "medianPairedCompileRatio": 1.0684185768305134
+    },
+    {
+      "case": "affine_ts",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 46883.40625,
+          "minProcessMedianCompileNs": 33388.03125,
+          "maxProcessMedianCompileNs": 130818.96875,
+          "medianFirstCompileNs": 2448967.0,
+          "medianReleaseNs": 67.359375,
+          "medianPeakRssBytes": 5263360.0,
+          "minPeakRssBytes": 5197824,
+          "maxPeakRssBytes": 5406720
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 50820.7734375,
+          "minProcessMedianCompileNs": 43174.046875,
+          "maxProcessMedianCompileNs": 428436.1875,
+          "medianFirstCompileNs": 458101.0,
+          "medianReleaseNs": 65.6484375,
+          "medianPeakRssBytes": 5339136.0,
+          "minPeakRssBytes": 5296128,
+          "maxPeakRssBytes": 5427200
+        }
+      },
+      "pairedCompileRatios": [
+        3.2750310722809455,
+        1.7402376138575788,
+        1.1044611206812016,
+        1.214535927860801,
+        1.6724883636258128,
+        0.6722422227683549,
+        0.8942424992313633,
+        0.8640180997668251,
+        1.1004619875820925,
+        1.1787885729539516
+      ],
+      "medianPairedCompileRatio": 1.1416248468175767
+    },
+    {
+      "case": "charged_result_7_js",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 762112.75,
+          "minProcessMedianCompileNs": 562522.328125,
+          "maxProcessMedianCompileNs": 2032518.546875,
+          "medianFirstCompileNs": 3683619.0,
+          "medianReleaseNs": 520.265625,
+          "medianPeakRssBytes": 5937152.0,
+          "minPeakRssBytes": 5902336,
+          "maxPeakRssBytes": 6053888
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 749049.1484375,
+          "minProcessMedianCompileNs": 649670.359375,
+          "maxProcessMedianCompileNs": 2588778.1875,
+          "medianFirstCompileNs": 1801591.0,
+          "medianReleaseNs": 380.078125,
+          "medianPeakRssBytes": 6125568.0,
+          "minPeakRssBytes": 5996544,
+          "maxPeakRssBytes": 6160384
+        }
+      },
+      "pairedCompileRatios": [
+        1.1495171253378458,
+        1.1156614052136375,
+        1.2736799826403797,
+        0.6511542529916468,
+        0.9469093457271354,
+        1.1826014361752635,
+        1.601292568917198,
+        0.4438976540848387,
+        1.1783334767072717,
+        1.1727365950041442
+      ],
+      "medianPairedCompileRatio": 1.161126860170995
+    },
+    {
+      "case": "charged_result_7_ts",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 718619.7421875,
+          "minProcessMedianCompileNs": 556026.046875,
+          "maxProcessMedianCompileNs": 1440580.640625,
+          "medianFirstCompileNs": 1774488.5,
+          "medianReleaseNs": 499.890625,
+          "medianPeakRssBytes": 5976064.0,
+          "minPeakRssBytes": 5795840,
+          "maxPeakRssBytes": 6045696
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 713919.1015625,
+          "minProcessMedianCompileNs": 630546.515625,
+          "maxProcessMedianCompileNs": 1347018.765625,
+          "medianFirstCompileNs": 1475905.0,
+          "medianReleaseNs": 353.7890625,
+          "medianPeakRssBytes": 6139904.0,
+          "minPeakRssBytes": 6098944,
+          "maxPeakRssBytes": 6160384
+        }
+      },
+      "pairedCompileRatios": [
+        0.8732084429730823,
+        1.1634931649805165,
+        1.2501140135999136,
+        0.8395504723425116,
+        0.9350526639318102,
+        1.1293433077406312,
+        0.8514133705148661,
+        0.961625259022909,
+        0.9098882508682048,
+        1.0557756122115702
+      ],
+      "medianPairedCompileRatio": 0.9483389614773596
+    },
+    {
+      "case": "charged_result_8_js",
+      "outcome": "error",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 197432.25,
+          "minProcessMedianCompileNs": 164832.625,
+          "maxProcessMedianCompileNs": 800304.640625,
+          "medianFirstCompileNs": 3081781.5,
+          "medianReleaseNs": 26.09375,
+          "medianPeakRssBytes": 4272128.0,
+          "minPeakRssBytes": 4255744,
+          "maxPeakRssBytes": 4370432
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 204440.8359375,
+          "minProcessMedianCompileNs": 177122.5,
+          "maxProcessMedianCompileNs": 524747.171875,
+          "medianFirstCompileNs": 622021.0,
+          "medianReleaseNs": 20.3984375,
+          "medianPeakRssBytes": 4517888.0,
+          "minPeakRssBytes": 4509696,
+          "maxPeakRssBytes": 4579328
+        }
+      },
+      "pairedCompileRatios": [
+        0.927620216317934,
+        1.5758462691950121,
+        1.2443112748462266,
+        0.4642627396360413,
+        0.7969524511650622,
+        0.9258055284659089,
+        1.0471148444405478,
+        2.1706081755792597,
+        0.9471923735787676,
+        0.6617984287339235
+      ],
+      "medianPairedCompileRatio": 0.9374062949483508
+    },
+    {
+      "case": "charged_result_8_ts",
+      "outcome": "error",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 207575.2265625,
+          "minProcessMedianCompileNs": 174564.6875,
+          "maxProcessMedianCompileNs": 838480.0625,
+          "medianFirstCompileNs": 940918.0,
+          "medianReleaseNs": 23.140625,
+          "medianPeakRssBytes": 4321280.0,
+          "minPeakRssBytes": 4255744,
+          "maxPeakRssBytes": 4370432
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 209111.390625,
+          "minProcessMedianCompileNs": 191056.625,
+          "maxProcessMedianCompileNs": 994637.421875,
+          "medianFirstCompileNs": 829837.5,
+          "medianReleaseNs": 20.7109375,
+          "medianPeakRssBytes": 4515840.0,
+          "minPeakRssBytes": 4444160,
+          "maxPeakRssBytes": 4583424
+        }
+      },
+      "pairedCompileRatios": [
+        1.2005841315987806,
+        1.0430411653048635,
+        1.074061158372022,
+        1.1862386076413116,
+        0.8546231410518912,
+        1.2426718341433618,
+        0.6327104470019006,
+        1.0994786932824496,
+        0.7549152702394436,
+        1.0734620262319154
+      ],
+      "medianPairedCompileRatio": 1.0737615923019688
+    },
+    {
+      "case": "lifted_capacity_256_js",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 18211149.546875,
+          "minProcessMedianCompileNs": 15037666.78125,
+          "maxProcessMedianCompileNs": 24461307.359375,
+          "medianFirstCompileNs": 22629793.0,
+          "medianReleaseNs": 5767.6015625,
+          "medianPeakRssBytes": 16220160.0,
+          "minPeakRssBytes": 15683584,
+          "maxPeakRssBytes": 16355328
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 18200267.921875,
+          "minProcessMedianCompileNs": 16053013.0625,
+          "maxProcessMedianCompileNs": 29882739.09375,
+          "medianFirstCompileNs": 25304114.0,
+          "medianReleaseNs": 5968.546875,
+          "medianPeakRssBytes": 16103424.0,
+          "minPeakRssBytes": 15937536,
+          "maxPeakRssBytes": 16592896
+        }
+      },
+      "pairedCompileRatios": [
+        1.029164056416174,
+        1.0625492179767528,
+        1.3730887589885563,
+        1.6045630340897137,
+        0.9832200559841532,
+        0.9897294447171612,
+        0.8532072831688848,
+        0.9853451650556359,
+        0.9230508060284455,
+        1.0265737974411708
+      ],
+      "medianPairedCompileRatio": 1.0081516210791661
+    },
+    {
+      "case": "lifted_capacity_256_ts",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 19419344.140625,
+          "minProcessMedianCompileNs": 15126244.5,
+          "maxProcessMedianCompileNs": 45256263.796875,
+          "medianFirstCompileNs": 25890514.0,
+          "medianReleaseNs": 5547.9375,
+          "medianPeakRssBytes": 16134144.0,
+          "minPeakRssBytes": 15835136,
+          "maxPeakRssBytes": 16314368
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 19730452.40625,
+          "minProcessMedianCompileNs": 14800454.265625,
+          "maxProcessMedianCompileNs": 44522797.640625,
+          "medianFirstCompileNs": 22803530.0,
+          "medianReleaseNs": 6740.3046875,
+          "medianPeakRssBytes": 15984640.0,
+          "minPeakRssBytes": 15687680,
+          "maxPeakRssBytes": 16531456
+        }
+      },
+      "pairedCompileRatios": [
+        0.7019254340071054,
+        1.0248011574278937,
+        0.978461921967809,
+        2.005695838655032,
+        0.9378764651506425,
+        0.8796737619644918,
+        0.983793046647818,
+        0.6865776986863114,
+        1.1460992536148382,
+        1.0588444790291287
+      ],
+      "medianPairedCompileRatio": 0.9811274843078135
+    },
+    {
+      "case": "lifted_capacity_over_js",
+      "outcome": "error",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 9733076.265625,
+          "minProcessMedianCompileNs": 7761149.8125,
+          "maxProcessMedianCompileNs": 15617057.125,
+          "medianFirstCompileNs": 11003823.5,
+          "medianReleaseNs": 26.390625,
+          "medianPeakRssBytes": 5775360.0,
+          "minPeakRssBytes": 5709824,
+          "maxPeakRssBytes": 5812224
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 9917423.4453125,
+          "minProcessMedianCompileNs": 7588127.921875,
+          "maxProcessMedianCompileNs": 21578333.859375,
+          "medianFirstCompileNs": 9657553.5,
+          "medianReleaseNs": 21.109375,
+          "medianPeakRssBytes": 5902336.0,
+          "minPeakRssBytes": 5812224,
+          "maxPeakRssBytes": 5935104
+        }
+      },
+      "pairedCompileRatios": [
+        0.9065604711798909,
+        1.4539185806981556,
+        0.9698422376188934,
+        0.7478633125045645,
+        0.8131958624585569,
+        1.2175958955953152,
+        0.9848592948095473,
+        1.7816602795494938,
+        0.5247696505032154,
+        1.1133231380699875
+      ],
+      "medianPairedCompileRatio": 0.9773507662142203
+    },
+    {
+      "case": "lifted_capacity_over_ts",
+      "outcome": "error",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 7625656.203125,
+          "minProcessMedianCompileNs": 7350792.140625,
+          "maxProcessMedianCompileNs": 12192620.59375,
+          "medianFirstCompileNs": 10694485.5,
+          "medianReleaseNs": 24.5625,
+          "medianPeakRssBytes": 5771264.0,
+          "minPeakRssBytes": 5709824,
+          "maxPeakRssBytes": 5812224
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 8560725.28125,
+          "minProcessMedianCompileNs": 7522768.875,
+          "maxProcessMedianCompileNs": 12437224.921875,
+          "medianFirstCompileNs": 10755519.0,
+          "medianReleaseNs": 20.1328125,
+          "medianPeakRssBytes": 5871616.0,
+          "minPeakRssBytes": 5844992,
+          "maxPeakRssBytes": 5980160
+        }
+      },
+      "pairedCompileRatios": [
+        0.999734429077637,
+        1.2072523879532826,
+        1.6711891914968569,
+        1.0440049798073947,
+        0.8824342031125954,
+        1.0313846231874735,
+        0.9461995366470612,
+        1.166297589975849,
+        1.0995676152648999,
+        1.224291857966043
+      ],
+      "medianPairedCompileRatio": 1.0717862975361472
+    },
+    {
+      "case": "nested_mutable_js",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 408412.109375,
+          "minProcessMedianCompileNs": 336775.8125,
+          "maxProcessMedianCompileNs": 1350785.953125,
+          "medianFirstCompileNs": 2005769.0,
+          "medianReleaseNs": 81.5234375,
+          "medianPeakRssBytes": 5488640.0,
+          "minPeakRssBytes": 5439488,
+          "maxPeakRssBytes": 5558272
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 378103.265625,
+          "minProcessMedianCompileNs": 306850.46875,
+          "maxProcessMedianCompileNs": 1297668.1875,
+          "medianFirstCompileNs": 1078723.5,
+          "medianReleaseNs": 76.875,
+          "medianPeakRssBytes": 5654528.0,
+          "minPeakRssBytes": 5595136,
+          "maxPeakRssBytes": 5664768
+        }
+      },
+      "pairedCompileRatios": [
+        0.8728836269098467,
+        0.8869013304861266,
+        0.9263804067032687,
+        2.4056148819031136,
+        0.9908767914730584,
+        1.0413554046432596,
+        3.186959442639882,
+        0.4661724065417618,
+        0.8324283685056676,
+        0.8708707100520959
+      ],
+      "medianPairedCompileRatio": 0.9066408685946976
+    },
+    {
+      "case": "nested_mutable_ts",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 405031.8203125,
+          "minProcessMedianCompileNs": 333549.390625,
+          "maxProcessMedianCompileNs": 1629902.859375,
+          "medianFirstCompileNs": 2044901.0,
+          "medianReleaseNs": 81.3984375,
+          "medianPeakRssBytes": 5523456.0,
+          "minPeakRssBytes": 5451776,
+          "maxPeakRssBytes": 5582848
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 454677.0703125,
+          "minProcessMedianCompileNs": 326352.359375,
+          "maxProcessMedianCompileNs": 1706516.71875,
+          "medianFirstCompileNs": 1225402.5,
+          "medianReleaseNs": 79.5859375,
+          "medianPeakRssBytes": 5642240.0,
+          "minPeakRssBytes": 5582848,
+          "maxPeakRssBytes": 5664768
+        }
+      },
+      "pairedCompileRatios": [
+        0.7527945564010462,
+        1.0021406755943747,
+        0.9784228919245983,
+        1.3056092291858614,
+        0.6282129481498339,
+        1.1197771287347034,
+        1.1595044446584746,
+        0.9907820826476637,
+        0.9608132244306709,
+        0.8410855936765744
+      ],
+      "medianPairedCompileRatio": 0.984602487286131
+    },
+    {
+      "case": "zero_arguments_127_js",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 3320431.015625,
+          "minProcessMedianCompileNs": 2875489.796875,
+          "maxProcessMedianCompileNs": 7743233.734375,
+          "medianFirstCompileNs": 5937965.0,
+          "medianReleaseNs": 100.5390625,
+          "medianPeakRssBytes": 5640192.0,
+          "minPeakRssBytes": 5603328,
+          "maxPeakRssBytes": 5713920
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 3362029.390625,
+          "minProcessMedianCompileNs": 3029408.0625,
+          "maxProcessMedianCompileNs": 8482751.484375,
+          "medianFirstCompileNs": 3737443.5,
+          "medianReleaseNs": 94.234375,
+          "medianPeakRssBytes": 5814272.0,
+          "minPeakRssBytes": 5795840,
+          "maxPeakRssBytes": 5820416
+        }
+      },
+      "pairedCompileRatios": [
+        1.071889154240894,
+        0.5760547634836737,
+        1.0882783138027023,
+        1.4810991026438014,
+        1.0105859241661683,
+        0.901448557140323,
+        1.0122352024743093,
+        1.0955050274043794,
+        1.1828677319913448,
+        0.9479347300377553
+      ],
+      "medianPairedCompileRatio": 1.0420621783576016
+    },
+    {
+      "case": "zero_arguments_127_ts",
+      "outcome": "ok",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 3196746.234375,
+          "minProcessMedianCompileNs": 2829045.1875,
+          "maxProcessMedianCompileNs": 4032822.984375,
+          "medianFirstCompileNs": 6437049.5,
+          "medianReleaseNs": 99.484375,
+          "medianPeakRssBytes": 5677056.0,
+          "minPeakRssBytes": 5611520,
+          "maxPeakRssBytes": 5726208
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 3073916.09375,
+          "minProcessMedianCompileNs": 2831824.078125,
+          "maxProcessMedianCompileNs": 4738659.75,
+          "medianFirstCompileNs": 3739097.5,
+          "medianReleaseNs": 95.296875,
+          "medianPeakRssBytes": 5810176.0,
+          "minPeakRssBytes": 5783552,
+          "maxPeakRssBytes": 5824512
+        }
+      },
+      "pairedCompileRatios": [
+        1.0706529797739972,
+        0.9645330929949137,
+        1.0139110759608536,
+        0.8271704910615069,
+        1.0309192608657949,
+        0.9812793468775801,
+        0.9693036218968687,
+        1.175022997131224,
+        0.8567965833454195,
+        0.9093980650557063
+      ],
+      "medianPairedCompileRatio": 0.9752914843872245
+    },
+    {
+      "case": "zero_arguments_128_js",
+      "outcome": "error",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 1644432.328125,
+          "minProcessMedianCompileNs": 1402713.203125,
+          "maxProcessMedianCompileNs": 2615522.421875,
+          "medianFirstCompileNs": 2966734.0,
+          "medianReleaseNs": 26.0625,
+          "medianPeakRssBytes": 4614144.0,
+          "minPeakRssBytes": 4542464,
+          "maxPeakRssBytes": 4653056
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 1699567.5234375,
+          "minProcessMedianCompileNs": 1526796.640625,
+          "maxProcessMedianCompileNs": 2386381.171875,
+          "medianFirstCompileNs": 1960948.0,
+          "medianReleaseNs": 20.9921875,
+          "medianPeakRssBytes": 4747264.0,
+          "minPeakRssBytes": 4734976,
+          "maxPeakRssBytes": 4800512
+        }
+      },
+      "pairedCompileRatios": [
+        1.0362397820634135,
+        1.1509241270085446,
+        1.0792024973400136,
+        0.7071986447877471,
+        1.0222281681811698,
+        1.3383487972654595,
+        1.074749747429008,
+        0.9123917852572893,
+        0.9746312369680622,
+        0.9337828960732117
+      ],
+      "medianPairedCompileRatio": 1.0292339751222916
+    },
+    {
+      "case": "zero_arguments_128_ts",
+      "outcome": "error",
+      "revisions": {
+        "baseline": {
+          "processes": 10,
+          "medianCompileNs": 1652335.5078125,
+          "minProcessMedianCompileNs": 1428753.921875,
+          "maxProcessMedianCompileNs": 5324910.4375,
+          "medianFirstCompileNs": 2841504.5,
+          "medianReleaseNs": 25.796875,
+          "medianPeakRssBytes": 4585472.0,
+          "minPeakRssBytes": 4538368,
+          "maxPeakRssBytes": 4640768
+        },
+        "candidate": {
+          "processes": 10,
+          "medianCompileNs": 1637342.2265625,
+          "minProcessMedianCompileNs": 1513722.703125,
+          "maxProcessMedianCompileNs": 3688643.515625,
+          "medianFirstCompileNs": 2408625.5,
+          "medianReleaseNs": 20.9609375,
+          "medianPeakRssBytes": 4743168.0,
+          "minPeakRssBytes": 4714496,
+          "maxPeakRssBytes": 4804608
+        }
+      },
+      "pairedCompileRatios": [
+        0.290453957987345,
+        1.0166140838251287,
+        0.9600762484318882,
+        1.0981147107609102,
+        1.034192910941871,
+        1.1857656929562672,
+        1.0241037201868102,
+        1.0838668628543136,
+        1.0594705497910324,
+        0.9905897797676066
+      ],
+      "medianPairedCompileRatio": 1.0291483155643406
+    }
+  ],
+  "limitations": [
+    "One shared Linux host and one fixed selected workload; no cross-platform inference.",
+    "Fresh processes control allocator history but do not clear OS caches or fix CPU frequency.",
+    "Small timings and RSS deltas may be dominated by scheduling, page granularity, or allocator variation.",
+    "Ratios describe paired observations; no timing threshold or performance-equivalence claim is imposed."
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "case": "charged_result_7_ts",
+  "revision": "candidate",
+  "repetition": 0,
+  "shuffled_index": 0,
+  "original_manifest_index": 5,
+  "pair_order": [
+    "candidate",
+    "baseline"
+  ],
+  "command": [
+    "/workspace/scratch/88caffc5ffb1/lowering-cost/candidate-probe",
+    "measure",
+    "/workspace/scratch/88caffc5ffb1/lowering-cost/focused-manifest.tsv",
+    "charged_result_7_ts",
+    "/workspace/scratch/88caffc5ffb1/lowering-cost/frozen",
+    "9",
+    "64",
+    "8",
+    "linux-proc-status"
+  ],
+  "processWallNs": 5321460,
+  "returncode": 1,
+  "stderr": "lowering cost: sample controls out of range\n",
+  "load_after": [
+    1.7919921875,
+    3.0810546875,
+    4.46875
+  ]
+}

@@ -1,0 +1,839 @@
+{
+  "schema_version": 1,
+  "mode": "check",
+  "catalog_sha256": "78f93421f43cd01088f17ffc003adfb5c0b26663c43af6dec250516d0678a559",
+  "probe_source_sha256": "13f3c789bbd405fb550bdb79886449c32dff4c7ebb944e97977d68f223c9b0d7",
+  "probes": {
+    "candidate": {
+      "path": "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+      "sha256": "fb8e42a6d5d59b5f04e14283c8f938ae86d1d8f5fa35b2219f282998f1f48d1b"
+    }
+  },
+  "matrices": [
+    {
+      "matrix": "corpus",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/corpus/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/corpus"
+          ],
+          "returncode": 0,
+          "stdout": "cases=5796 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 19.734991104000073,
+          "verification": {
+            "matrix": "corpus",
+            "cases": 5796,
+            "compared_output_files": 10767,
+            "artifact_and_diagnostic_files": 10766,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "factory",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/factory/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/factory"
+          ],
+          "returncode": 0,
+          "stdout": "cases=56 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.4525679809994472,
+          "verification": {
+            "matrix": "factory",
+            "cases": 56,
+            "compared_output_files": 95,
+            "artifact_and_diagnostic_files": 94,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "factory-forwarded",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/factory-forwarded/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/factory-forwarded"
+          ],
+          "returncode": 0,
+          "stdout": "cases=10 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.12943350199930137,
+          "verification": {
+            "matrix": "factory-forwarded",
+            "cases": 10,
+            "compared_output_files": 15,
+            "artifact_and_diagnostic_files": 14,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "factory-effects",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/factory-effects/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/factory-effects"
+          ],
+          "returncode": 0,
+          "stdout": "cases=72 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.7245381050015567,
+          "verification": {
+            "matrix": "factory-effects",
+            "cases": 72,
+            "compared_output_files": 125,
+            "artifact_and_diagnostic_files": 124,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "factory-effect-callbacks",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/factory-effect-callbacks/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/factory-effect-callbacks"
+          ],
+          "returncode": 0,
+          "stdout": "cases=20 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.08969425200120895,
+          "verification": {
+            "matrix": "factory-effect-callbacks",
+            "cases": 20,
+            "compared_output_files": 33,
+            "artifact_and_diagnostic_files": 32,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "callback-calls",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/callback-calls/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/callback-calls"
+          ],
+          "returncode": 0,
+          "stdout": "cases=18 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.10637561800103867,
+          "verification": {
+            "matrix": "callback-calls",
+            "cases": 18,
+            "compared_output_files": 37,
+            "artifact_and_diagnostic_files": 36,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "callback-call-limits",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/callback-call-limits/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/callback-call-limits"
+          ],
+          "returncode": 0,
+          "stdout": "cases=30 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.12320664799699443,
+          "verification": {
+            "matrix": "callback-call-limits",
+            "cases": 30,
+            "compared_output_files": 43,
+            "artifact_and_diagnostic_files": 42,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "generic-callees",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/generic-callees/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/generic-callees"
+          ],
+          "returncode": 0,
+          "stdout": "cases=136 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.948626408000564,
+          "verification": {
+            "matrix": "generic-callees",
+            "cases": 136,
+            "compared_output_files": 209,
+            "artifact_and_diagnostic_files": 208,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "callee-extra",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/callee-extra/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/callee-extra"
+          ],
+          "returncode": 0,
+          "stdout": "cases=36 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.0971555400028592,
+          "verification": {
+            "matrix": "callee-extra",
+            "cases": 36,
+            "compared_output_files": 37,
+            "artifact_and_diagnostic_files": 36,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "concise-factories",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/concise-factories/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/concise-factories"
+          ],
+          "returncode": 0,
+          "stdout": "cases=82 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.40496589499889524,
+          "verification": {
+            "matrix": "concise-factories",
+            "cases": 82,
+            "compared_output_files": 143,
+            "artifact_and_diagnostic_files": 142,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "concise-combined",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/concise-combined/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/concise-combined"
+          ],
+          "returncode": 0,
+          "stdout": "cases=4 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.02386424500218709,
+          "verification": {
+            "matrix": "concise-combined",
+            "cases": 4,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "charged-concise",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/charged-concise/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/charged-concise"
+          ],
+          "returncode": 0,
+          "stdout": "cases=38 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.2307923619991925,
+          "verification": {
+            "matrix": "charged-concise",
+            "cases": 38,
+            "compared_output_files": 65,
+            "artifact_and_diagnostic_files": 64,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "charged-boundaries",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/charged-boundaries/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/charged-boundaries"
+          ],
+          "returncode": 0,
+          "stdout": "cases=16 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.2068204440001864,
+          "verification": {
+            "matrix": "charged-boundaries",
+            "cases": 16,
+            "compared_output_files": 25,
+            "artifact_and_diagnostic_files": 24,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "runtime-preparation",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/runtime-preparation/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/runtime-preparation"
+          ],
+          "returncode": 0,
+          "stdout": "cases=58 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.45672006599852466,
+          "verification": {
+            "matrix": "runtime-preparation",
+            "cases": 58,
+            "compared_output_files": 97,
+            "artifact_and_diagnostic_files": 96,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "runtime-continuation",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/runtime-continuation/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/runtime-continuation"
+          ],
+          "returncode": 0,
+          "stdout": "cases=104 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.642286692000198,
+          "verification": {
+            "matrix": "runtime-continuation",
+            "cases": 104,
+            "compared_output_files": 183,
+            "artifact_and_diagnostic_files": 182,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "runtime-managed",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/runtime-managed/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/runtime-managed"
+          ],
+          "returncode": 0,
+          "stdout": "cases=16 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.1479152400024759,
+          "verification": {
+            "matrix": "runtime-managed",
+            "cases": 16,
+            "compared_output_files": 33,
+            "artifact_and_diagnostic_files": 32,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "runtime-order",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/runtime-order/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/runtime-order"
+          ],
+          "returncode": 0,
+          "stdout": "cases=8 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.1253962760019931,
+          "verification": {
+            "matrix": "runtime-order",
+            "cases": 8,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "declarations",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/declarations/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/declarations"
+          ],
+          "returncode": 0,
+          "stdout": "cases=216 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.8084191379966796,
+          "verification": {
+            "matrix": "declarations",
+            "cases": 216,
+            "compared_output_files": 365,
+            "artifact_and_diagnostic_files": 364,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "declaration-boundaries",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/declaration-boundaries/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/declaration-boundaries"
+          ],
+          "returncode": 0,
+          "stdout": "cases=40 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.5990047269988281,
+          "verification": {
+            "matrix": "declaration-boundaries",
+            "cases": 40,
+            "compared_output_files": 69,
+            "artifact_and_diagnostic_files": 68,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "block-factory-call",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/block-factory-call/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/block-factory-call"
+          ],
+          "returncode": 0,
+          "stdout": "cases=84 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.4542610969983798,
+          "verification": {
+            "matrix": "block-factory-call",
+            "cases": 84,
+            "compared_output_files": 133,
+            "artifact_and_diagnostic_files": 132,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "closure-checking",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/closure-checking/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/closure-checking"
+          ],
+          "returncode": 0,
+          "stdout": "cases=59 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 1.584071806002612,
+          "verification": {
+            "matrix": "closure-checking",
+            "cases": 59,
+            "compared_output_files": 99,
+            "artifact_and_diagnostic_files": 98,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "optional-factory",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/optional-factory/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/optional-factory"
+          ],
+          "returncode": 0,
+          "stdout": "cases=82 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.2817375380000158,
+          "verification": {
+            "matrix": "optional-factory",
+            "cases": 82,
+            "compared_output_files": 89,
+            "artifact_and_diagnostic_files": 88,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "unchecked-closure",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/unchecked-closure/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/unchecked-closure"
+          ],
+          "returncode": 0,
+          "stdout": "cases=72 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.38678098599848454,
+          "verification": {
+            "matrix": "unchecked-closure",
+            "cases": 72,
+            "compared_output_files": 127,
+            "artifact_and_diagnostic_files": 126,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "unchecked-closure-depth",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/unchecked-closure-depth/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/unchecked-closure-depth"
+          ],
+          "returncode": 0,
+          "stdout": "cases=80 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 5.484200128998054,
+          "verification": {
+            "matrix": "unchecked-closure-depth",
+            "cases": 80,
+            "compared_output_files": 153,
+            "artifact_and_diagnostic_files": 152,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "unchecked-closure-extra",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/unchecked-closure-extra/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/unchecked-closure-extra"
+          ],
+          "returncode": 0,
+          "stdout": "cases=6 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.022209288999874843,
+          "verification": {
+            "matrix": "unchecked-closure-extra",
+            "cases": 6,
+            "compared_output_files": 11,
+            "artifact_and_diagnostic_files": 10,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "for-declarations",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/for-declarations/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/for-declarations"
+          ],
+          "returncode": 0,
+          "stdout": "cases=62 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.32243653000114136,
+          "verification": {
+            "matrix": "for-declarations",
+            "cases": 62,
+            "compared_output_files": 95,
+            "artifact_and_diagnostic_files": 94,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "for-declaration-boundaries",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/for-declaration-boundaries/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/for-declaration-boundaries"
+          ],
+          "returncode": 0,
+          "stdout": "cases=6 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.06122668399984832,
+          "verification": {
+            "matrix": "for-declaration-boundaries",
+            "cases": 6,
+            "compared_output_files": 11,
+            "artifact_and_diagnostic_files": 10,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "const-metadata",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/const-metadata/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/const-metadata"
+          ],
+          "returncode": 0,
+          "stdout": "cases=76 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.2430158980023407,
+          "verification": {
+            "matrix": "const-metadata",
+            "cases": 76,
+            "compared_output_files": 125,
+            "artifact_and_diagnostic_files": 124,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "const-metadata-managed",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/const-metadata-managed/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/const-metadata-managed"
+          ],
+          "returncode": 0,
+          "stdout": "cases=4 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.034794044000591384,
+          "verification": {
+            "matrix": "const-metadata-managed",
+            "cases": 4,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "declaration-checks",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/declaration-checks/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/declaration-checks"
+          ],
+          "returncode": 0,
+          "stdout": "cases=16 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.041475269998045405,
+          "verification": {
+            "matrix": "declaration-checks",
+            "cases": 16,
+            "compared_output_files": 29,
+            "artifact_and_diagnostic_files": 28,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "const-metadata-zero",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/const-metadata-zero/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/const-metadata-zero"
+          ],
+          "returncode": 0,
+          "stdout": "cases=12 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.17208523099907325,
+          "verification": {
+            "matrix": "const-metadata-zero",
+            "cases": 12,
+            "compared_output_files": 23,
+            "artifact_and_diagnostic_files": 22,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "materialization",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/materialization/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/materialization"
+          ],
+          "returncode": 0,
+          "stdout": "cases=68 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.7972838850000699,
+          "verification": {
+            "matrix": "materialization",
+            "cases": 68,
+            "compared_output_files": 121,
+            "artifact_and_diagnostic_files": 120,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "factory-check-continuation",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/factory-check-continuation/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/factory-check-continuation"
+          ],
+          "returncode": 0,
+          "stdout": "cases=64 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.1927528819978761,
+          "verification": {
+            "matrix": "factory-check-continuation",
+            "cases": 64,
+            "compared_output_files": 93,
+            "artifact_and_diagnostic_files": 92,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "expression-resumption",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/inputs/expression-resumption/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/lowering-bundle-check/portable-final-parity/candidate/expression-resumption"
+          ],
+          "returncode": 0,
+          "stdout": "cases=40 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.1900872709993564,
+          "verification": {
+            "matrix": "expression-resumption",
+            "cases": 40,
+            "compared_output_files": 77,
+            "artifact_and_diagnostic_files": 76,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    }
+  ],
+  "complete": true,
+  "all_match": true,
+  "cases": 7487,
+  "outcomes": {
+    "ok": 6033,
+    "error": 1454
+  },
+  "artifact_and_diagnostic_files": 13520,
+  "metadata_files": 34
+}

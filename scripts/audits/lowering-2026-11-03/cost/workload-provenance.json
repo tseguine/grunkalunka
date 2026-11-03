@@ -1,0 +1,489 @@
+{
+  "cases": 60,
+  "selection": "Fixed before final compiler measurements: small maintained numeric fixtures plus each migrated path and admitted/just-rejected resource boundaries. Every family is paired JS/TS.",
+  "workloads": [
+    {
+      "id": "const_metadata_js",
+      "source_case": "multi_declarator_js",
+      "sha256": "4256e3ae06b3cc6dd10a55fb39c027ad4f325cf049a243a795863dcabde62b2c",
+      "bytes": 93,
+      "expected": "ok",
+      "investigation_origin": "const-metadata-probes/matrix.tsv"
+    },
+    {
+      "id": "const_metadata_ts",
+      "source_case": "multi_declarator_ts",
+      "sha256": "4256e3ae06b3cc6dd10a55fb39c027ad4f325cf049a243a795863dcabde62b2c",
+      "bytes": 93,
+      "expected": "ok",
+      "investigation_origin": "const-metadata-probes/matrix.tsv"
+    },
+    {
+      "id": "zero_arguments_127_js",
+      "source_case": "zero_arguments_127_js",
+      "sha256": "95853ba4cc53cc3165bb286d3637e232ae95bca7f1b4aebe5aaa8c4ee8f7f0d3",
+      "bytes": 1476,
+      "expected": "ok",
+      "investigation_origin": "const-metadata-zero-probes/matrix.tsv"
+    },
+    {
+      "id": "zero_arguments_127_ts",
+      "source_case": "zero_arguments_127_ts",
+      "sha256": "95853ba4cc53cc3165bb286d3637e232ae95bca7f1b4aebe5aaa8c4ee8f7f0d3",
+      "bytes": 1476,
+      "expected": "ok",
+      "investigation_origin": "const-metadata-zero-probes/matrix.tsv"
+    },
+    {
+      "id": "zero_arguments_128_js",
+      "source_case": "zero_arguments_128_js",
+      "sha256": "ba97dc5f7f17680bc827a335d6051337d12eb6c98861bf3f596d3bb5f55c54e0",
+      "bytes": 1488,
+      "expected": "error",
+      "investigation_origin": "const-metadata-zero-probes/matrix.tsv"
+    },
+    {
+      "id": "zero_arguments_128_ts",
+      "source_case": "zero_arguments_128_ts",
+      "sha256": "ba97dc5f7f17680bc827a335d6051337d12eb6c98861bf3f596d3bb5f55c54e0",
+      "bytes": 1488,
+      "expected": "error",
+      "investigation_origin": "const-metadata-zero-probes/matrix.tsv"
+    },
+    {
+      "id": "block_factory_call_effects_js",
+      "source_case": "argument_effects_js",
+      "sha256": "5cb00dbc514efa10310c1c61b9e50a484f36e32f4932a35bfb7c3e27070f2e03",
+      "bytes": 163,
+      "expected": "ok",
+      "investigation_origin": "block-factory-call-probes/matrix.tsv"
+    },
+    {
+      "id": "block_factory_call_effects_ts",
+      "source_case": "argument_effects_ts",
+      "sha256": "5cb00dbc514efa10310c1c61b9e50a484f36e32f4932a35bfb7c3e27070f2e03",
+      "bytes": 163,
+      "expected": "ok",
+      "investigation_origin": "block-factory-call-probes/matrix.tsv"
+    },
+    {
+      "id": "block_factory_missing_outer_js",
+      "source_case": "missing_outer_before_receiver_js",
+      "sha256": "f2e911981c043215f935aa9a4553f0dc0d7f56e081f745e7b997ea81479d22fa",
+      "bytes": 89,
+      "expected": "error",
+      "investigation_origin": "block-factory-call-probes/matrix.tsv"
+    },
+    {
+      "id": "block_factory_missing_outer_ts",
+      "source_case": "missing_outer_before_receiver_ts",
+      "sha256": "f2e911981c043215f935aa9a4553f0dc0d7f56e081f745e7b997ea81479d22fa",
+      "bytes": 89,
+      "expected": "error",
+      "investigation_origin": "block-factory-call-probes/matrix.tsv"
+    },
+    {
+      "id": "charged_result_7_js",
+      "source_case": "result_budget_7_js",
+      "sha256": "769195b61ff5f5e2b61ef67bd2909c5f025aad27db3e8a9f86af5284a17326b4",
+      "bytes": 139,
+      "expected": "ok",
+      "investigation_origin": "charged-concise-probes/matrix.tsv"
+    },
+    {
+      "id": "charged_result_7_ts",
+      "source_case": "result_budget_7_ts",
+      "sha256": "769195b61ff5f5e2b61ef67bd2909c5f025aad27db3e8a9f86af5284a17326b4",
+      "bytes": 139,
+      "expected": "ok",
+      "investigation_origin": "charged-concise-probes/matrix.tsv"
+    },
+    {
+      "id": "charged_result_8_js",
+      "source_case": "result_budget_8_js",
+      "sha256": "4fc4aaea7b6be6301e3d21b13c6e6dfb8fbc1076a788ef9ddb9efb0ced098dec",
+      "bytes": 149,
+      "expected": "error",
+      "investigation_origin": "charged-concise-probes/matrix.tsv"
+    },
+    {
+      "id": "charged_result_8_ts",
+      "source_case": "result_budget_8_ts",
+      "sha256": "4fc4aaea7b6be6301e3d21b13c6e6dfb8fbc1076a788ef9ddb9efb0ced098dec",
+      "bytes": 149,
+      "expected": "error",
+      "investigation_origin": "charged-concise-probes/matrix.tsv"
+    },
+    {
+      "id": "concise_iife_8_js",
+      "source_case": "concise_distinct_8_js",
+      "sha256": "160646e3f1e8fdd3ea4ac164f938c7b9d1c22f24953a3241e56a1bbccf3bac82",
+      "bytes": 107,
+      "expected": "ok",
+      "investigation_origin": "unchecked-closure-depth-fast-probes/matrix.tsv"
+    },
+    {
+      "id": "concise_iife_8_ts",
+      "source_case": "concise_distinct_8_ts",
+      "sha256": "160646e3f1e8fdd3ea4ac164f938c7b9d1c22f24953a3241e56a1bbccf3bac82",
+      "bytes": 107,
+      "expected": "ok",
+      "investigation_origin": "unchecked-closure-depth-fast-probes/matrix.tsv"
+    },
+    {
+      "id": "block_iife_8_js",
+      "source_case": "block_distinct_8_js",
+      "sha256": "c6d304e05ce2ef5f278b4b67f878f70207d5ec58710896b13218205b31ddf42e",
+      "bytes": 187,
+      "expected": "ok",
+      "investigation_origin": "unchecked-closure-depth-fast-probes/matrix.tsv"
+    },
+    {
+      "id": "block_iife_8_ts",
+      "source_case": "block_distinct_8_ts",
+      "sha256": "c6d304e05ce2ef5f278b4b67f878f70207d5ec58710896b13218205b31ddf42e",
+      "bytes": 187,
+      "expected": "ok",
+      "investigation_origin": "unchecked-closure-depth-fast-probes/matrix.tsv"
+    },
+    {
+      "id": "block_iife_9_js",
+      "source_case": "block_distinct_9_js",
+      "sha256": "b60c2a4b82ba6955732ebcc61948cd47f4a7eebf9d63a0b448c2f72c7affe7d3",
+      "bytes": 206,
+      "expected": "error",
+      "investigation_origin": "unchecked-closure-depth-fast-probes/matrix.tsv"
+    },
+    {
+      "id": "block_iife_9_ts",
+      "source_case": "block_distinct_9_ts",
+      "sha256": "b60c2a4b82ba6955732ebcc61948cd47f4a7eebf9d63a0b448c2f72c7affe7d3",
+      "bytes": 206,
+      "expected": "error",
+      "investigation_origin": "unchecked-closure-depth-fast-probes/matrix.tsv"
+    },
+    {
+      "id": "lifted_capacity_256_js",
+      "source_case": "capacity_seed0_64_js",
+      "sha256": "672620b449b34c69dab3dd01a0440eeae6b2851eecf76c7c738e21575db4a940",
+      "bytes": 1480,
+      "expected": "ok",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "lifted_capacity_256_ts",
+      "source_case": "capacity_seed0_64_ts",
+      "sha256": "672620b449b34c69dab3dd01a0440eeae6b2851eecf76c7c738e21575db4a940",
+      "bytes": 1480,
+      "expected": "ok",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "lifted_capacity_over_js",
+      "source_case": "capacity_seed1_64_js",
+      "sha256": "bf53dc36ecb022b8b04a4bf4720075bf203766dd7bd07fdd3ec3983e4aa3f4ab",
+      "bytes": 1501,
+      "expected": "error",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "lifted_capacity_over_ts",
+      "source_case": "capacity_seed1_64_ts",
+      "sha256": "bf53dc36ecb022b8b04a4bf4720075bf203766dd7bd07fdd3ec3983e4aa3f4ab",
+      "bytes": 1501,
+      "expected": "error",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "definition_statements_252_js",
+      "source_case": "definition_statements_252_js",
+      "sha256": "fd218e456814ca16dd8899226775d80d1fc18f5eb2a8d69ac748219135e50f0a",
+      "bytes": 1092,
+      "expected": "ok",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "definition_statements_252_ts",
+      "source_case": "definition_statements_252_ts",
+      "sha256": "fd218e456814ca16dd8899226775d80d1fc18f5eb2a8d69ac748219135e50f0a",
+      "bytes": 1092,
+      "expected": "ok",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "definition_statements_253_js",
+      "source_case": "definition_statements_253_js",
+      "sha256": "e7b1272721f2855f57d662c12e1eecc785565014296e2d0bbd38666093ab6867",
+      "bytes": 1096,
+      "expected": "error",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "definition_statements_253_ts",
+      "source_case": "definition_statements_253_ts",
+      "sha256": "e7b1272721f2855f57d662c12e1eecc785565014296e2d0bbd38666093ab6867",
+      "bytes": 1096,
+      "expected": "error",
+      "investigation_origin": "closure-checking-probes/matrix.tsv"
+    },
+    {
+      "id": "nested_mutable_js",
+      "source_case": "nested_mutable_js",
+      "sha256": "f06f8c89a9ad073b3f12aecd6f6cee4f9e6269f5b8c76bb41ff82bd0cc3bd8b9",
+      "bytes": 75,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "nested_mutable_ts",
+      "source_case": "nested_mutable_ts",
+      "sha256": "f06f8c89a9ad073b3f12aecd6f6cee4f9e6269f5b8c76bb41ff82bd0cc3bd8b9",
+      "bytes": 75,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "suspended_async_js",
+      "source_case": "suspended_async_js",
+      "sha256": "75da24a6b51c618ac12ef3eedeac0308a0a38e90c4446a961eede42529cde199",
+      "bytes": 87,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "suspended_async_ts",
+      "source_case": "suspended_async_ts",
+      "sha256": "75da24a6b51c618ac12ef3eedeac0308a0a38e90c4446a961eede42529cde199",
+      "bytes": 87,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "mixed_forwarder_js",
+      "source_case": "mixed_forwarder_js",
+      "sha256": "10ea7c4e470406d91dd9f353d0a74f5f1e04a29e8cd177fd62a6e1696463bc01",
+      "bytes": 82,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "mixed_forwarder_ts",
+      "source_case": "mixed_forwarder_ts",
+      "sha256": "10ea7c4e470406d91dd9f353d0a74f5f1e04a29e8cd177fd62a6e1696463bc01",
+      "bytes": 82,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "const_await_argument_js",
+      "source_case": "await_argument_js",
+      "sha256": "04541ab98780225c85055e767e50b81f2d1f53f027fc23a8728414bbfcd00ec5",
+      "bytes": 87,
+      "expected": "ok",
+      "investigation_origin": "const-metadata-probes/matrix.tsv"
+    },
+    {
+      "id": "const_await_argument_ts",
+      "source_case": "await_argument_ts",
+      "sha256": "04541ab98780225c85055e767e50b81f2d1f53f027fc23a8728414bbfcd00ec5",
+      "bytes": 87,
+      "expected": "ok",
+      "investigation_origin": "const-metadata-probes/matrix.tsv"
+    },
+    {
+      "id": "for_capture_cells_js",
+      "source_case": "capture_cells_js",
+      "sha256": "d75cecb329d31d8bdb627d30874f9a15d11b9401b8f190a37cce94546374de9e",
+      "bytes": 90,
+      "expected": "ok",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "for_capture_cells_ts",
+      "source_case": "capture_cells_ts",
+      "sha256": "d75cecb329d31d8bdb627d30874f9a15d11b9401b8f190a37cce94546374de9e",
+      "bytes": 90,
+      "expected": "ok",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "for_pending_header_js",
+      "source_case": "pending_header_js",
+      "sha256": "c6a2459d4d145a8954190a64bbc1d8319501e3bfafc83c9ed2a52c2de67b8590",
+      "bytes": 121,
+      "expected": "ok",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "for_pending_header_ts",
+      "source_case": "pending_header_ts",
+      "sha256": "c6a2459d4d145a8954190a64bbc1d8319501e3bfafc83c9ed2a52c2de67b8590",
+      "bytes": 121,
+      "expected": "ok",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "managed_union_result_js",
+      "source_case": "managed_union_result_js",
+      "sha256": "b0f221509d97794677b9c2805204c68711f84f6a187827758268f3f6bdc6c3df",
+      "bytes": 77,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "managed_union_result_ts",
+      "source_case": "managed_union_result_ts",
+      "sha256": "b0f221509d97794677b9c2805204c68711f84f6a187827758268f3f6bdc6c3df",
+      "bytes": 77,
+      "expected": "ok",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "invalid_unused_body_js",
+      "source_case": "invalid_unused_body_js",
+      "sha256": "19e861ed3a7b6c2bf178669a46a0124231b5bff52636f32725f566a0d4239e6d",
+      "bytes": 59,
+      "expected": "error",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "invalid_unused_body_ts",
+      "source_case": "invalid_unused_body_ts",
+      "sha256": "19e861ed3a7b6c2bf178669a46a0124231b5bff52636f32725f566a0d4239e6d",
+      "bytes": 59,
+      "expected": "error",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "result_mode_error_js",
+      "source_case": "result_conversion_before_argument_js",
+      "sha256": "9a8770bb244ebc71cd5ed8e0d1903246326dbe573c9a199a936fe18a7301f0d3",
+      "bytes": 65,
+      "expected": "error",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "result_mode_error_ts",
+      "source_case": "result_conversion_before_argument_ts",
+      "sha256": "9a8770bb244ebc71cd5ed8e0d1903246326dbe573c9a199a936fe18a7301f0d3",
+      "bytes": 65,
+      "expected": "error",
+      "investigation_origin": "materialization-probes/matrix.tsv"
+    },
+    {
+      "id": "function_initializer_depth_128_js",
+      "source_case": "function_initializer_depth_128_js",
+      "sha256": "2f0e524c5fa355a2699a8a26c49c8f0c0a0522238c0069c1a884845c3fc760f6",
+      "bytes": 307,
+      "expected": "ok",
+      "investigation_origin": "declaration-boundary-probes/matrix.tsv"
+    },
+    {
+      "id": "function_initializer_depth_128_ts",
+      "source_case": "function_initializer_depth_128_ts",
+      "sha256": "2f0e524c5fa355a2699a8a26c49c8f0c0a0522238c0069c1a884845c3fc760f6",
+      "bytes": 307,
+      "expected": "ok",
+      "investigation_origin": "declaration-boundary-probes/matrix.tsv"
+    },
+    {
+      "id": "function_initializer_depth_129_js",
+      "source_case": "function_initializer_depth_129_js",
+      "sha256": "9beeed273381dbab53eba6ecb641f082b3d6b382dbe076518ca1e81c3eb6d11e",
+      "bytes": 309,
+      "expected": "error",
+      "investigation_origin": "declaration-boundary-probes/matrix.tsv"
+    },
+    {
+      "id": "function_initializer_depth_129_ts",
+      "source_case": "function_initializer_depth_129_ts",
+      "sha256": "9beeed273381dbab53eba6ecb641f082b3d6b382dbe076518ca1e81c3eb6d11e",
+      "bytes": 309,
+      "expected": "error",
+      "investigation_origin": "declaration-boundary-probes/matrix.tsv"
+    },
+    {
+      "id": "for_locals_128_js",
+      "source_case": "local_count_128_js",
+      "sha256": "e1685326878d0e49a570fdbdeabd897fee53a3d7be69fa3745465bbd0896195f",
+      "bytes": 1113,
+      "expected": "ok",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "for_locals_128_ts",
+      "source_case": "local_count_128_ts",
+      "sha256": "e1685326878d0e49a570fdbdeabd897fee53a3d7be69fa3745465bbd0896195f",
+      "bytes": 1113,
+      "expected": "ok",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "for_locals_129_js",
+      "source_case": "local_count_129_js",
+      "sha256": "ce1fc7376e0658d430268af27e68c64a3eb8d520b04cc6462c657af884e2f6a8",
+      "bytes": 1123,
+      "expected": "error",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "for_locals_129_ts",
+      "source_case": "local_count_129_ts",
+      "sha256": "ce1fc7376e0658d430268af27e68c64a3eb8d520b04cc6462c657af884e2f6a8",
+      "bytes": 1123,
+      "expected": "error",
+      "investigation_origin": "for-declaration-probes/matrix.tsv"
+    },
+    {
+      "id": "const_optional_error_js",
+      "source_case": "optional_js",
+      "sha256": "5b71779b898dbc7658cd10e0007967aa3d9a75239ac6ced53b1998187831ff20",
+      "bytes": 74,
+      "expected": "error",
+      "investigation_origin": "const-metadata-probes/matrix.tsv"
+    },
+    {
+      "id": "const_optional_error_ts",
+      "source_case": "optional_ts",
+      "sha256": "5b71779b898dbc7658cd10e0007967aa3d9a75239ac6ced53b1998187831ff20",
+      "bytes": 74,
+      "expected": "error",
+      "investigation_origin": "const-metadata-probes/matrix.tsv"
+    },
+    {
+      "id": "affine_js",
+      "source_fixture": "/workspace/scratch/88caffc5ffb1/cost-baseline/tests/compatibility/fixtures/affine.js",
+      "sha256": "e49bfe71e8733a17f32fe2bebed89c889792f417fb056eee7c72b646104c09cd",
+      "bytes": 56,
+      "expected": "ok",
+      "note": "maintained source fixture"
+    },
+    {
+      "id": "affine_ts",
+      "source_fixture": "/workspace/scratch/88caffc5ffb1/cost-baseline/tests/compatibility/fixtures/affine.ts",
+      "sha256": "2ceada68cdfc8a4e1672a2fe53e2d01440fe645a643d35335afd82b6c68d1cd8",
+      "bytes": 80,
+      "expected": "ok",
+      "note": "maintained source fixture"
+    },
+    {
+      "id": "gcd_js",
+      "source_fixture": "/workspace/scratch/88caffc5ffb1/cost-baseline/examples/numeric-workflow/gcd.js",
+      "sha256": "2a9393189870c2c2409bba99a3331a7c8956966c51196c2df23f1c09c5e1f784",
+      "bytes": 228,
+      "expected": "ok",
+      "note": "maintained source fixture"
+    },
+    {
+      "id": "gcd_ts",
+      "source_fixture": "/workspace/scratch/88caffc5ffb1/cost-baseline/examples/numeric-workflow/gcd.js",
+      "sha256": "2a9393189870c2c2409bba99a3331a7c8956966c51196c2df23f1c09c5e1f784",
+      "bytes": 228,
+      "expected": "ok",
+      "note": "gcd TS uses identical source under TypeScript parsing"
+    }
+  ],
+  "portable_manifest_sha256": "c5ebc7e70ff9555a39be99fb6001bd338f556b4496e290ab2686b607bcce7ca3",
+  "original_absolute_manifest_sha256": "c3903d5561240b82eb27468220c0d450c33a4c7146085757cba2ecbbea552827",
+  "path_mapping": "Portable sources are byte-identical to the measured absolute-path workload. resolve_manifest.py expands each source path against this manifest directory."
+}

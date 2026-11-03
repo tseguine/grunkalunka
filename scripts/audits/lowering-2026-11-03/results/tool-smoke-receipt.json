@@ -1,0 +1,96 @@
+{
+  "checked_at_utc": "2026-11-03 11:43 UTC",
+  "parser_format": {
+    "command": "cargo fmt --manifest-path parser/Cargo.toml -- --check",
+    "exit_code": 0
+  },
+  "cost_source_format": {
+    "command": "rustfmt --edition2024 --check cost/probe.rs",
+    "exit_code": 0,
+    "measured_and_staged_sha256": "e5a726e1cc43c56616b6d6a5d3529bdaaf1d843dcd8362fe25d1ebb24cc1cdde",
+    "unchanged_measured_source": true
+  },
+  "python_sources_compile": true,
+  "parser_fixture": {
+    "passed": true,
+    "cases": [
+      "direct recursion",
+      "typed callback flow",
+      "macro argument recursion",
+      "parent-defined glob import",
+      "transitive imported alias",
+      "local-enum boxed receiver",
+      "unknown boxed fallback",
+      "comments and strings excluded",
+      "cfg(test) excluded"
+    ]
+  },
+  "query_rank": {
+    "reviewed_source_commit": "16411448823b77252875f051796f005b0331fab2",
+    "semantic_helpers": 9,
+    "reviewed_edges": 17,
+    "zero_increment_graph_acyclic": true,
+    "zero_increment_topological_order": [
+      "block_function_arity_in",
+      "block_expression_arity",
+      "function_arity_in",
+      "arrow_signature_at",
+      "arrow_signature_concise_chain",
+      "arrow_scalar_result_at",
+      "pending_promise_shape_in",
+      "settled_promise_shape_in",
+      "fulfilled_promise_shape_in"
+    ],
+    "finite_overapproximation_states": 81,
+    "finite_overapproximation_transitions": 245,
+    "finite_overapproximation_acyclic": true,
+    "longest_semantic_helper_chain_in_model": 51,
+    "scope": "Consequences of reviewed source premises; not a Rust control-flow or native-byte proof."
+  },
+  "factory_variants": {
+    "syntactic_cycle": true,
+    "with_exhaustive_success_set": {
+      "supports_factory_arm": false,
+      "opposes_factory_arm": true,
+      "state": "opposed",
+      "complete_path_queues_advance": true
+    },
+    "without_exhaustiveness_premise": {
+      "supports_factory_arm": false,
+      "opposes_factory_arm": false,
+      "state": "unknown",
+      "complete_path_queues_advance": true
+    },
+    "scope": "Finite consequences of reviewed source premises; no whole-program acyclicity claim."
+  },
+  "portable_manifest": {
+    "cases": 60,
+    "all_source_hashes_equal_original": true,
+    "caller_directory_differs_from_manifest_directory": true,
+    "baseline_immutable_probe_frozen_files_match": 99,
+    "candidate_immutable_probe_frozen_files_match": 99
+  },
+  "build_wrapper_prepare_only": {
+    "source_clean": true,
+    "selected_dependencies_match_repository_lock": true,
+    "generated_profile_matches_measured": true,
+    "copied_probe_and_lock_byte_equal": true,
+    "new_bundle_binary_build_claimed": false
+  },
+  "timing_runs": {
+    "primary_processes": 840,
+    "focused_processes": 320,
+    "all_results_match_frozen": true,
+    "original_primary_runner_sha256": "03b1219a29e8fd600bdacc252b66f1d1027568377f483c0db7268a3307af4257",
+    "focused_runner_sha256": "9331ea80385257f1861be6e7d5ec0000fa3a9bdfe8f8a0c9ef44f0dd6bbf84fc",
+    "cost_rust_source_sha256": "e5a726e1cc43c56616b6d6a5d3529bdaaf1d843dcd8362fe25d1ebb24cc1cdde"
+  },
+  "ci_preflight": {
+    "full": true,
+    "reason": "nested Cargo.lock is a global build input",
+    "logical_tests": 43,
+    "canonical_commands": 34,
+    "coverage": "34/34",
+    "source_dependency_audit_valid": true
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "commit": "95136720becc4a4fef1745673cbed9282acebe71",
+  "tree": "3c70ad1b3d7f3e6f842377f6c8d432c3e51acaf6",
+  "probe": "/workspace/scratch/88caffc5ffb1/lowering-parity/closure-child-preparation-probe",
+  "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+  "cases": 6899,
+  "artifact_error_files_byte_identical": 12570,
+  "summary_files": 21,
+  "control_records": 106,
+  "control_sha256": "d5e966b8fcee2cee794ded6a60a44e0d8d4d001f0b7bb60a644293b1063ec963",
+  "worktree_clean": true,
+  "runtime_suites_rerun": false,
+  "parts": [
+    "closure-child-preparation-validation.json",
+    "closure-child-preparation-checking-validation.json"
+  ]
+}

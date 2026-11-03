@@ -1,0 +1,16 @@
+zero_arguments_127_js	numeric	js	ok	sources/zero_arguments_127_js.js
+zero_arguments_127_ts	numeric	ts	ok	sources/zero_arguments_127_ts.ts
+zero_arguments_128_js	numeric	js	error	sources/zero_arguments_128_js.js
+zero_arguments_128_ts	numeric	ts	error	sources/zero_arguments_128_ts.ts
+charged_result_7_js	numeric	js	ok	sources/charged_result_7_js.js
+charged_result_7_ts	numeric	ts	ok	sources/charged_result_7_ts.ts
+charged_result_8_js	numeric	js	error	sources/charged_result_8_js.js
+charged_result_8_ts	numeric	ts	error	sources/charged_result_8_ts.ts
+lifted_capacity_256_js	numeric	js	ok	sources/lifted_capacity_256_js.js
+lifted_capacity_256_ts	numeric	ts	ok	sources/lifted_capacity_256_ts.ts
+lifted_capacity_over_js	numeric	js	error	sources/lifted_capacity_over_js.js
+lifted_capacity_over_ts	numeric	ts	error	sources/lifted_capacity_over_ts.ts
+nested_mutable_js	numeric	js	ok	sources/nested_mutable_js.js
+nested_mutable_ts	numeric	ts	ok	sources/nested_mutable_ts.ts
+affine_js	numeric	js	ok	sources/affine_js.js
+affine_ts	numeric	ts	ok	sources/affine_ts.ts

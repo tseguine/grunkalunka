@@ -1,0 +1,1 @@
+export function run(a,b){let f=x=>true;return f(Math.noSuch(a));}

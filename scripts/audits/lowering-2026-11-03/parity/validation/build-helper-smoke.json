@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "mode": "check",
+  "catalog_sha256": "78f93421f43cd01088f17ffc003adfb5c0b26663c43af6dec250516d0678a559",
+  "probe_source_sha256": "13f3c789bbd405fb550bdb79886449c32dff4c7ebb944e97977d68f223c9b0d7",
+  "probes": {
+    "candidate": {
+      "path": "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe/parity-probe",
+      "sha256": "1c85e38bd648caf197e890e098fd25ee659f7322e1caae00f174b867ce2ab420"
+    }
+  },
+  "matrices": [
+    {
+      "matrix": "concise-combined",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe/parity-probe",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe-smoke/inputs/concise-combined/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe-smoke/candidate/concise-combined"
+          ],
+          "returncode": 0,
+          "stdout": "cases=4 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.03481264499714598,
+          "verification": {
+            "matrix": "concise-combined",
+            "cases": 4,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "runtime-order",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe/parity-probe",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe-smoke/inputs/runtime-order/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe-smoke/candidate/runtime-order"
+          ],
+          "returncode": 0,
+          "stdout": "cases=8 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.09286284200061345,
+          "verification": {
+            "matrix": "runtime-order",
+            "cases": 8,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    },
+    {
+      "matrix": "const-metadata-managed",
+      "runs": {
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe/parity-probe",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe-smoke/inputs/const-metadata-managed/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/built-probe-smoke/candidate/const-metadata-managed"
+          ],
+          "returncode": 0,
+          "stdout": "cases=4 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.03299062100268202,
+          "verification": {
+            "matrix": "const-metadata-managed",
+            "cases": 4,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      }
+    }
+  ],
+  "complete": true,
+  "all_match": true,
+  "cases": 16,
+  "outcomes": {
+    "ok": 8,
+    "error": 8
+  },
+  "artifact_and_diagnostic_files": 24,
+  "metadata_files": 3
+}

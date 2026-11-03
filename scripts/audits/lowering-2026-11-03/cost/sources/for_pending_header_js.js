@@ -1,0 +1,1 @@
+export async function run(a,b){const get=async x=>{await x;return x+a;};for(let p=get(b);a<0;){return await p;}return b;}

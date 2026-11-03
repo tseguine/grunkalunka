@@ -1,0 +1,67 @@
+{
+  "scope": "Verification of this fixed-data portable packaging; no new production behavior or performance claim.",
+  "cases": 7487,
+  "matrices": 34,
+  "admitted": 6033,
+  "rejected": 1454,
+  "artifact_and_diagnostic_files": 13520,
+  "metadata_files": 34,
+  "fixed_sources_materialized_and_original_manifests_reconstructed": true,
+  "maintained_generator_cases_reproduced_byte_exactly": 5796,
+  "historical_outputs_match_frozen_hashes": true,
+  "corruption_and_normalization_controls_passed": 8,
+  "independent_final_replay_all_cases_passed": true,
+  "fresh_build_helper_smoke_cases": 16,
+  "independent_predecessor_final_pair_smoke_cases": 4,
+  "catalog": {
+    "bytes": 54439,
+    "sha256": "78f93421f43cd01088f17ffc003adfb5c0b26663c43af6dec250516d0678a559"
+  },
+  "runner": {
+    "bytes": 14659,
+    "sha256": "d10828ac2864137e53aef6c31390a88d71f88a412fa5eedb29610be46e38852b"
+  },
+  "probe_source": {
+    "bytes": 3482,
+    "sha256": "13f3c789bbd405fb550bdb79886449c32dff4c7ebb944e97977d68f223c9b0d7"
+  },
+  "receipts": {
+    "build-helper-receipt.json": {
+      "bytes": 982,
+      "sha256": "f0600f3bfd49b4b0e135870ced235c5ff37cb90e70d0a003e180131ab3f7aafd"
+    },
+    "build-helper-smoke.json": {
+      "bytes": 3383,
+      "sha256": "a03869310a8a42b74d4a2cb57e5a346bded81000dcb9951fb6ffe3da52b2bf49"
+    },
+    "generator-verification.json": {
+      "bytes": 231,
+      "sha256": "ef230348f8a53fd111a6d65c8454eae2dfd2bd0126f67ff51357365ad1a811cd"
+    },
+    "historical-verification.json": {
+      "bytes": 18256,
+      "sha256": "964c405c0710eb658904df015af838ce72361fd40a17a2293afa899e23433efb"
+    },
+    "paired-smoke.json": {
+      "bytes": 2556,
+      "sha256": "e64ea8534b77c6f798d925ea25a164b7d5dbcbf18f4f6116cd1fa062f113df2e"
+    },
+    "portable-final-replay.json": {
+      "bytes": 31657,
+      "sha256": "7acff6205a1fa3d84b170f4c8be665b82893be581c2269e05c96dc90cf4c8073"
+    },
+    "roundtrip-verification.json": {
+      "bytes": 5541,
+      "sha256": "35de96fc0f99cb93c21e0f2ce2ddd59f760b83082b8ce0c494c8efc59bde879a"
+    },
+    "sensitivity-verification.json": {
+      "bytes": 677,
+      "sha256": "117301d72d39266b013764f79ad56a42526113b00a97333905e6874c31a9549d"
+    }
+  },
+  "limitations": [
+    "Historical baselines are heterogeneous; exact original freeze provenance is not invented where not retained.",
+    "No WAT/Wasm/diagnostic bytes are distributed; fresh compiler outputs are compared to fixed independent sizes and hashes.",
+    "Historical runtime and production validation retain their separately stated scopes."
+  ]
+}

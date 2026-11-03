@@ -1,0 +1,1164 @@
+{
+  "time": "2026-11-03 10:59:00 UTC",
+  "master": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c",
+  "prs": [
+    {
+      "number": 462,
+      "head": "a1a8ccf6f9a473d14e23f118e804882ec83d26cc",
+      "base": "ir/2026-11-03-lifted-body-children",
+      "stack": null,
+      "comments": [],
+      "checks": []
+    },
+    {
+      "number": 461,
+      "head": "52dd510f1588608dfac12c71d324856a82d5bb2e",
+      "base": "ir/2026-11-03-lifted-body-stages",
+      "stack": null,
+      "comments": [],
+      "checks": []
+    },
+    {
+      "number": 460,
+      "head": "7ced0f73231dbb5727bc1eb4ba5bcafdaf8948d5",
+      "base": "ir/2026-11-03-factory-check-stages",
+      "stack": null,
+      "comments": [],
+      "checks": []
+    },
+    {
+      "number": 459,
+      "head": "4171d7e61f61db87f3cec2d61f3322b3e830d24d",
+      "base": "ir/2026-11-03-statement-leaves",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 24
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41622041584/job/125870046496"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41622041584/job/125869911065"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41622041584/job/125869911012"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41622041584/job/125869910562"
+        }
+      ]
+    },
+    {
+      "number": 458,
+      "head": "4bfa180f05ea83d00b26f3c7eb462d7b2b15f22d",
+      "base": "ir/2026-11-03-const-metadata-values",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 23
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621658992/job/125868755927"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621658992/job/125868622007"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621658992/job/125868621944"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621658992/job/125868621508"
+        }
+      ]
+    },
+    {
+      "number": 457,
+      "head": "51bd1b55b608c5ca0bf33f0484b14f94ec8f1f18",
+      "base": "ir/2026-11-03-declaration-check-children",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 22
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621337107/job/125867659515"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621337107/job/125867521160"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621337107/job/125867520980"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41621337107/job/125867520562"
+        }
+      ]
+    },
+    {
+      "number": 456,
+      "head": "0488ee18c2db980b607b0f48b2bd13bece41792d",
+      "base": "ir/2026-11-03-local-checking-children",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 21
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41619802496/job/125875386722"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41619802496/job/125862478824"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41619802496/job/125862343437"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41619802496/job/125862343289"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "in_progress",
+          "conclusion": null,
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41619802496/job/125862342965"
+        }
+      ]
+    },
+    {
+      "number": 455,
+      "head": "8e112c4a875cb216414b8edc9f17c45fb150fd3b",
+      "base": "ir/2026-11-03-known-function-results",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 20
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737022/job/125866985836"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737022/job/125855418001"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737022/job/125855298979"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737022/job/125855298931"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737022/job/125855298497"
+        }
+      ]
+    },
+    {
+      "number": 454,
+      "head": "c9a514b03f3f778c295bc853180064683d7cc85d",
+      "base": "ir/2026-11-03-for-declaration-initializers",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 19
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737447/job/125868728506"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737447/job/125855439306"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737447/job/125855299878"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737447/job/125855299655"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617737447/job/125855299386"
+        }
+      ]
+    },
+    {
+      "number": 453,
+      "head": "2f49805a47142a6e4e8e40ae97ee2616da2a614c",
+      "base": "ir/2026-11-03-declaration-initializers",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 18
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617736897/job/125868485605"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617736897/job/125855428666"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617736897/job/125855299128"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617736897/job/125855298846"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617736897/job/125855298474"
+        }
+      ]
+    },
+    {
+      "number": 452,
+      "head": "207b22850bdf6a6540295629845c0aa52dfdd086",
+      "base": "ir/2026-11-03-block-factory-methods",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 17
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617739047/job/125874996612"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617739047/job/125855457950"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617739047/job/125855304820"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617739047/job/125855304386"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41617739047/job/125855304152"
+        }
+      ]
+    },
+    {
+      "number": 451,
+      "head": "f38ec8ef253bc8e2caecc2c12d9f50b3ff624b46",
+      "base": "ir/2026-11-03-closure-check-state",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 16
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839108/job/125860430814"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839108/job/125849058090"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839108/job/125848936184"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839108/job/125848936170"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839108/job/125848935755"
+        }
+      ]
+    },
+    {
+      "number": 450,
+      "head": "be24551a52bed30be6196c58f5e2c27fa0926d29",
+      "base": "ir/2026-11-03-declaration-stages",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 15
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615838993/job/125857615513"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615838993/job/125849067349"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615838993/job/125848936164"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615838993/job/125848936045"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615838993/job/125848935715"
+        }
+      ]
+    },
+    {
+      "number": 449,
+      "head": "7c4449d374355b9ad22dca01258b562e747748ca",
+      "base": "docs/2026-11-03-function-continuations",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 14
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839002/job/125861034518"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839002/job/125849116494"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839002/job/125848936067"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839002/job/125848936016"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41615839002/job/125848935562"
+        }
+      ]
+    },
+    {
+      "number": 448,
+      "head": "6152b7b1e04c177bacef768d94cfbcbd57f69527",
+      "base": "ir/2026-11-03-runtime-factory-values",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 13
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610693764/job/125844196588"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610693764/job/125831665591"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610693764/job/125831533350"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610693764/job/125831533257"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610693764/job/125831532972"
+        }
+      ]
+    },
+    {
+      "number": 447,
+      "head": "c64f222dcda3a682edb55825f820cfd0198cb150",
+      "base": "ir/2026-11-03-runtime-factory-state",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 12
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610169071/job/125841846682"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610169071/job/125829913561"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610169071/job/125829781875"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610169071/job/125829781860"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41610169071/job/125829781420"
+        }
+      ]
+    },
+    {
+      "number": 446,
+      "head": "bcb90a035547ad7accb5589226fa34e45134ac67",
+      "base": "ir/2026-11-03-concise-result-values",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 11
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143821/job/125839553996"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143821/job/125826500621"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143821/job/125826347611"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143821/job/125826347475"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143821/job/125826347197"
+        }
+      ]
+    },
+    {
+      "number": 445,
+      "head": "ae21582bda24e581046e07330feed5097152583d",
+      "base": "ir/2026-11-03-concise-factory-arguments",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 10
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143851/job/125838795511"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143851/job/125826478324"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143851/job/125826347845"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143851/job/125826347784"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41609143851/job/125826347552"
+        }
+      ]
+    },
+    {
+      "number": 444,
+      "head": "089c60d25bef4874ff50b23ad2bd6fa84f8f8d0a",
+      "base": "ir/2026-11-03-concise-factory-state",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 9
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41607955755/job/125833299846"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41607955755/job/125822592059"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41607955755/job/125822403267"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41607955755/job/125822403189"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41607955755/job/125822402736"
+        }
+      ]
+    },
+    {
+      "number": 443,
+      "head": "b5030c11675a1e876517b18c8554bb541ed037d4",
+      "base": "ir/2026-11-03-callee-values",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 8
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026562/job/125827097167"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026562/job/125816046795"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026562/job/125815935294"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026562/job/125815935191"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026562/job/125815934998"
+        }
+      ]
+    },
+    {
+      "number": 442,
+      "head": "f6dd01d19b3291d11263bf6f2502299db4649183",
+      "base": "ir/2026-11-03-callee-admission",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 7
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026558/job/125826350653"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026558/job/125816069882"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026558/job/125815935953"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026558/job/125815935827"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606026558/job/125815935652"
+        }
+      ]
+    },
+    {
+      "number": 441,
+      "head": "4be3567b0f01630393a45f891c4f23c8ff341678",
+      "base": "docs/2026-11-03-lowering-continuations",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 6
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606025924/job/125826589963"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606025924/job/125816046060"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606025924/job/125815933386"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606025924/job/125815933194"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41606025924/job/125815932736"
+        }
+      ]
+    },
+    {
+      "number": 439,
+      "head": "16de589147e86f5ca7be98832c95f21afe07d4e3",
+      "base": "ir/2026-11-03-callbacks",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 5
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930641/job/125809331795"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930641/job/125799324251"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930641/job/125799210704"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930641/job/125799210631"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930641/job/125799210469"
+        }
+      ]
+    },
+    {
+      "number": 438,
+      "head": "425f9b6c7dda02224d64901f67d980cc84a07f84",
+      "base": "ir/2026-11-03-factory-effects",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 4
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930875/job/125810661181"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930875/job/125799330312"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930875/job/125799211022"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930875/job/125799210936"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930875/job/125799210610"
+        }
+      ]
+    },
+    {
+      "number": 437,
+      "head": "fd4bccf53e8b8810f29334c2bd721172244fe40c",
+      "base": "ir/2026-11-03-factory-arguments",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 3
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930840/job/125810490947"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930840/job/125799339563"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930840/job/125799210796"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930840/job/125799210785"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930840/job/125799210474"
+        }
+      ]
+    },
+    {
+      "number": 436,
+      "head": "77f71b5eee01d5ce1d4b3b1564690431e5a9adec",
+      "base": "ir/2026-11-03-factory-continuation-state",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 2
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930677/job/125811155474"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930677/job/125799328096"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930677/job/125799210608"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930677/job/125799210602"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41600930677/job/125799210331"
+        }
+      ]
+    },
+    {
+      "number": 435,
+      "head": "5f974599e5e71c1b2ad1d316277c74c88c58c615",
+      "base": "master",
+      "stack": {
+        "id": 2963533,
+        "number": 440,
+        "base": {
+          "ref": "master",
+          "sha": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c"
+        },
+        "size": 24,
+        "position": 1
+      },
+      "comments": [],
+      "checks": [
+        {
+          "name": "macOS verification (baseline or native fallback)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41589025034/job/125768870041"
+        },
+        {
+          "name": "Native macOS fallback (only if baseline unhealthy) / Native macOS (Apple Silicon)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41589025034/job/125761267458"
+        },
+        {
+          "name": "Checks (Windows)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41589025034/job/125761178326"
+        },
+        {
+          "name": "Checks (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41589025034/job/125761178262"
+        },
+        {
+          "name": "macOS baseline lookup (Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/tseguine/grunkalunka/actions/runs/41589025034/job/125761177911"
+        }
+      ]
+    }
+  ]
+}

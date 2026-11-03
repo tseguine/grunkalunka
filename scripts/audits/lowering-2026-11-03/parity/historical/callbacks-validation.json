@@ -1,0 +1,74 @@
+{
+  "commit": "3cf2d82a4bda4a952f1b7a7cadc5e98e9c24c3c4",
+  "matrices": [
+    {
+      "matrix": "corpus",
+      "cases": 5796,
+      "process_status": 0,
+      "stdout": "cases=5796 expectation_mismatches=0",
+      "stderr": "",
+      "compared_files": 10767,
+      "mismatches": []
+    },
+    {
+      "matrix": "factory",
+      "cases": 56,
+      "process_status": 0,
+      "stdout": "cases=56 expectation_mismatches=0",
+      "stderr": "",
+      "compared_files": 95,
+      "mismatches": []
+    },
+    {
+      "matrix": "factory-forwarded",
+      "cases": 10,
+      "process_status": 0,
+      "stdout": "cases=10 expectation_mismatches=0",
+      "stderr": "",
+      "compared_files": 15,
+      "mismatches": []
+    },
+    {
+      "matrix": "factory-effects",
+      "cases": 72,
+      "process_status": 0,
+      "stdout": "cases=72 expectation_mismatches=0",
+      "stderr": "",
+      "compared_files": 125,
+      "mismatches": []
+    },
+    {
+      "matrix": "factory-effect-callbacks",
+      "cases": 20,
+      "process_status": 0,
+      "stdout": "cases=20 expectation_mismatches=0",
+      "stderr": "",
+      "compared_files": 33,
+      "mismatches": []
+    },
+    {
+      "matrix": "callback-calls",
+      "cases": 18,
+      "process_status": 0,
+      "stdout": "cases=18 expectation_mismatches=0",
+      "stderr": "",
+      "compared_files": 37,
+      "mismatches": []
+    },
+    {
+      "matrix": "callback-call-limits",
+      "cases": 30,
+      "process_status": 0,
+      "stdout": "cases=30 expectation_mismatches=0",
+      "stderr": "",
+      "compared_files": 43,
+      "mismatches": []
+    }
+  ],
+  "control": {
+    "records": 106,
+    "baseline_records": 106,
+    "equal": true,
+    "sha256": "d5e966b8fcee2cee794ded6a60a44e0d8d4d001f0b7bb60a644293b1063ec963"
+  }
+}

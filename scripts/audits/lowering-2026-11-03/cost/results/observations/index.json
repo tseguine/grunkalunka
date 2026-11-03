@@ -1,0 +1,49 @@
+{
+  "columns": [
+    "case",
+    "revision",
+    "repetition",
+    "first_revision",
+    "process_wall_ns",
+    "first_compile_ns",
+    "compile_batch_ns",
+    "release_batch_ns",
+    "memory_checkpoints_rss_peak_pairs",
+    "load_after"
+  ],
+  "memory_checkpoint_order": [
+    "beforeFirstCompile",
+    "afterFirstCompile",
+    "afterFrozenValidation",
+    "afterWarmup",
+    "afterBatches"
+  ],
+  "record_count": 1160,
+  "primary_records": 840,
+  "focused_records": 320,
+  "chunks": [
+    {
+      "file": "primary-000.jsonl",
+      "run": "primary",
+      "records": 527,
+      "sha256": "e5c4403457b727e89f810ec19e2b3cf9c0d551e3baf1f82debe5c8f92419ac52"
+    },
+    {
+      "file": "primary-001.jsonl",
+      "run": "primary",
+      "records": 313,
+      "sha256": "88ac77dc7f9d54536891a34627210400100762773884b19a8abc7f15ee99aa82"
+    },
+    {
+      "file": "focused-000.jsonl",
+      "run": "focused",
+      "records": 320,
+      "sha256": "cc23711789fc7efa3690cd34c8aaebbf78211da1ee3de1c1ea59ce8e5440a613"
+    }
+  ],
+  "preserved_fields": "Every first-call, compile-batch, release-batch and memory checkpoint observation is retained. Shared source/configuration/build metadata is factored into the run metadata files.",
+  "original_raw_jsonl_sha256": {
+    "primary": "32c0ded541561d029ad8859023c0971f562cce2c616425c7c5a4ddca2b5df65b",
+    "focused": "05d85dda12fa2b29c61fc43cb20ead2dd978b8a9878370845af8225b63a60ce4"
+  }
+}

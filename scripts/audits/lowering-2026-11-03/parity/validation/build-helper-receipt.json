@@ -1,0 +1,23 @@
+{
+  "source_commit": "4bef43c35814d7cb747254ad4d4fbac0dc9715dd",
+  "source_tree": "9ea19ddd1ff1dbd0d39c46216d13a22747130735",
+  "command": [
+    "cargo",
+    "build",
+    "-p",
+    "grunkalunka-compiler",
+    "--example",
+    "lowering_parity_snapshot",
+    "--locked",
+    "--offline",
+    "--target-dir",
+    "/workspace/scratch/88caffc5ffb1/target-portable-parity"
+  ],
+  "cargo_version": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+  "cargo_lock_sha256": "9a6c3772ca5babcd7179f2d37ac11215df65ff3640f3e9422806320684144fab",
+  "probe_source_sha256": "13f3c789bbd405fb550bdb79886449c32dff4c7ebb944e97977d68f223c9b0d7",
+  "binary_sha256": "1c85e38bd648caf197e890e098fd25ee659f7322e1caae00f174b867ce2ab420",
+  "profile": "debug",
+  "thread_stack_bytes": 2097152
+}
