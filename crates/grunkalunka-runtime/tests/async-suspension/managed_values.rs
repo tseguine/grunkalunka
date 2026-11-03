@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn dictionary_static_values_and_aliases_survive_suspension() {
+    compare_promises(
+        &[
+            "const d=Object.create(null);d.__proto__=a;const saved=d.__proto__;await b;d.__proto__=b;await a;return saved===a&&d.__proto__===b?1:0;",
+            "let d=Object.create(null);const alias=d;d.constructor=a;await b;d=Object.create(null);d.constructor=b;await a;return alias!==d&&alias.constructor===a&&d.constructor===b?1:0;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn array_at_preserves_snapshots_through_suspended_arguments_and_results() {
     compare_promises(
         &[
