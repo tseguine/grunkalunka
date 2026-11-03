@@ -1,12 +1,20 @@
-# ADR 0020: Shared source-lowering cursor mechanics (proposal and first pilot)
+# ADR 0020: Shared source-lowering cursor mechanics and implementation checkpoints
 
 Date: 2026-11-01
 
-Status: proposed architecture for the remaining cross-phase work; source-control
-and the first source/evaluator continuations are integrated (see dated checkpoints
-below). The original proposal is retained as design history.
+Status: proposed architectural record with implemented checkpoints. Source-control
+and the initial source/evaluator seam are integrated at the frozen master revision
+below; the final effectful-source ownership and compatibility retirement are in
+review. The original proposal and its dated limitations remain design history.
+The [final checkpoint](#final-in-review-source-ownership-and-retirement) describes
+the current implementation scope without asserting formal ADR acceptance or a
+whole-compiler native-stack bound.
 
 ## Context
+
+The proposal through **Explicit boundary** records the original inspection and
+pilot. The dated implementation checkpoints below supersede its statements about
+which migrations or verification were still outstanding.
 
 The maintained compiler lowers original Oxc syntax and semantic identities into
 verified typed region IR. [ADR 0001](0001-explicit-evaluator-control.md) made
@@ -16,10 +24,11 @@ selection with that evaluator. Those decisions and the existing IR remain in
 force. [ADR 0019](0019-wasmgc-runtime.md) owns the accepted GC direction.
 
 An iterative function can still call another iterative function that re-enters
-the first, rebuilding a source-dependent native call stack. The current source
-statement code has separate work loops for sequences, `if`, `for`,
+the first, rebuilding a source-dependent native call stack. At the proposal's
+2026-11-01 inspection, the source statement code had separate work loops for
+sequences, `if`, `for`,
 `while`/`do-while`, try/catch, try/finally and concise function bodies. They
-carry much of the same mechanics but legitimately differ in source semantics.
+carried much of the same mechanics but legitimately differed in source semantics.
 The native-stack acceptance invariant is tracked by
 [stack hygiene #281](https://github.com/tseguine/grunkalunka/issues/281).
 This proposal addresses structural maintenance and composability, not just a
@@ -288,9 +297,9 @@ master [`926a4aa`](https://github.com/tseguine/grunkalunka/commit/926a4aa8bcf7c6
 
 ## In-review continuation series (2026-11-03)
 
-The following dependent PRs are pushed and **unmerged**. They describe the
-implementation under review, not additional claims about the frozen master
-checkpoint above:
+At this checkpoint the following dependent PRs were pushed and **unmerged**.
+They describe the implementation then under review, not additional claims about
+the frozen master checkpoint above:
 
 | PR | Bounded change |
 | --- | --- |
@@ -364,45 +373,109 @@ tests, with no ignored or filtered tests.
 The distinct runtime callee charge, inherited context, complete formal types and
 callee-before-arguments snapshot are explicit in the continuation ownership.
 
-### Work still required after the series for a complete L4/L5 claim
+## Final in-review source ownership and retirement
 
-- **Remaining function crossings:** migrate the compatibility callers of the
-  converted source-owned calculated/async-callee, concise-result and
-  runtime-factory routes. `closures::factory_result`,
-  `function_values::local_function_result`
-  (including the block `.call` fallback), `runtime_function_result` and the
-  compatibility route in `evaluate::prepare_closure_call` still have synchronous
-  argument, function-value or body calls outside those converted routes.
-  `LowerFunctionLeaf` releasing the runner frame does not by itself eliminate
-  `function_value_leaf → local_function_result/factory_result →
-  arrow_block_result → sequence` reentry. Migrate and verify each affected
-  circuit, including its result/context/error continuations.
-- **Source and compatibility call sites:** declarations outside the converted
-  single scalar `let` slice still use `lower.rs::declaration`, including `const`,
-  multiple declarators and specialized function/Promise/managed initializers.
-  The synchronous `evaluate` host retains callback, function-effect and
-  `arrow_block_result` compatibility entry points. Trace their actual
-  source-dependent paths before removal; `Next::Expression` is not universal.
-- **Checking and closure-body materialization:**
-  `closures::{check_closure_at, check_factory_chain}` lower disposable cloned
-  checking state; `function_values::materialize_closure` lowers a cloned child
-  whose output becomes real lifted IR. These ownership domains need explicit
-  continuations while preserving validation order, diagnostics, scratch-state
-  isolation, lifted identities and publication. Migrating caller argument
-  execution does not establish that either path is stack-independent.
-- **Evidence and contracts:** source-depth/expansion guards, the eight-active-
-  block, eight-active-function-result and sixteen-active-function-value limits
-  remain original admission constraints, not proof that all native recursion
-  has been removed.
-  Maintain two-MiB Linux/Windows probes, exact source rejection diagnostics,
-  emitted IR/WAT/Wasm identity where a pure refactor, and native JS /
-  Node-Wasm / Wasmtime execution parity. The async runtime job queue and
-  effect-free source fact queries remain separate ownership domains.
-- **Design closure:** complete the composed SCC inventory, including helper,
-  callback, checking and error edges; remove superseded compatibility paths
-  only after their replacement is verified. Record compiler-time/peak-memory
-  comparisons and the remaining measured exceptions before closing L4/L5/L7.
+The follow-on implementation closes the effectful-source L3/L4 ownership work and
+L5 compatibility retirement that remained after #447. This is a completion claim
+for the maintained source-lowering circuits, under review in dependent PRs. It
+does not change the frozen master `926a4aa` receipt or claim those PRs are merged.
+The [updated inventory](../lowering-cross-phase-reentry.md#final-in-review-effectful-source-ownership)
+records every bounded unit from [#449](https://github.com/tseguine/grunkalunka/pull/449)
+through [#466](https://github.com/tseguine/grunkalunka/pull/466), following the
+[#448](https://github.com/tseguine/grunkalunka/pull/448) documentation checkpoint.
 
-The typed Region IR and runtime scheduler retain their separate contracts.
-Update the L4 completion claim only when admitted mixed-kind and returned-function
-call graphs no longer build a source-depth-dependent native Rust stack.
+The resulting ownership contracts are:
+
+- **Declarations are source continuations.** Ordered declarator preparation,
+  ordinary values, for-header values, const factory metadata, definition checking
+  and identity materialization retain per-local charge and publication order.
+  The next declarator is classified only after the current initializer finishes.
+  Zero-argument factory completion queues declaration advancement, so consecutive
+  metadata declarations do not restart the dispatcher recursively.
+- **Function and factory consumers retain their distinct charges.** Block
+  factories invoked through `.call` use the general local-result continuation;
+  the direct-block special selection and outer-call validation order remain
+  unchanged. Metadata preparation and the const metadata consumer add no Local8
+  or Function16 token; argument-specific admissions remain unchanged. General
+  local and runtime results retain their original
+  result admission, body/callee charges and restoration order. Known-local
+  selection no longer needs a synchronous fallback, including optional-call
+  helper rejection; public optional syntax remains rejected.
+- **Disposable checking owns a distinct child.** The source cursor saves the
+  parent `Lowering` in an owned box and enters the checking child behind a typed
+  boundary. Success publishes source costs and checked closure metadata, while
+  discarding scratch IR. Shared signature interning remains shared, including on
+  errors. Local-result admission precedes checking; metadata preparation adds no
+  result token. If checked metadata preparation returns `None`, the separately
+  retained original local snapshot preserves any later repeated check.
+- **Real lifted bodies have their own publication contract.** Materialization
+  uses the same parent/child switching mechanism but keeps the completed body and
+  lifted pool. The parent is restored before publication; nested lifted functions
+  are still adopted before the original late capacity check. Returned factory
+  metadata is checked with fresh factory bindings installed, then caller bindings
+  are restored before materialization or declaration publication.
+- **Resumption returns to the source loop.** `Next::ResumeExpression` retains the
+  evaluator, mode and caller statement depth. Child completion restores its
+  resources and queues this task; only the source loop calls
+  `advance_owned_expression`. The evaluator returns its request before a source
+  child begins, so an owned evaluator activation is not a retained native runner.
+
+The final retirement removes the synchronous `evaluate` host and
+`EvaluationLease`, the compatibility function/factory/callback drivers,
+`arrow_block_result`, disposable-check drivers and the real-body compatibility
+driver. No alternate interpreter is retained under `cfg(test)`. The optional
+helper regression uses the production checking child and 21 independently frozen
+legacy rejection states, including diagnostics, resource/source counts, Region
+contents and shared signatures. Its original source and extraction provenance
+are committed with the fixture.
+
+The final retirement is published as
+[#466](https://github.com/tseguine/grunkalunka/pull/466), commit
+[`67400f9`](https://github.com/tseguine/grunkalunka/commit/67400f91882124e021f4bf30157930bb91acba31).
+Its source tree `9ea19ddd1ff1dbd0d39c46216d13a22747130735` matches independently
+tested local `4bef43c`.
+Its local compiler receipt has 589 unit and 10 integration tests, strict compiler
+Clippy and formatting, plus 106 impact-planner regression tests. All 7,487 frozen
+compilation cases match their recorded matrix oracles, and 106 CONTROL records
+match. The closure, module callback,
+managed-input, managed-value and storage runtime groups passed, as did all 426
+async-suspension tests with no failures, ignored or filtered tests. Final
+call-graph/value-flow review and bounded cost measurements are complete. The
+[final validation report](../lowering-refactor-validation-2026-11-03.md) owns the
+exact combined artifact/runtime, composed-call-graph and cost receipts.
+Its primary and focused timing results retain the observed workload variation,
+shared-host uncertainty and possible modest cost increase; they do not establish
+performance equivalence or a general speedup.
+
+### Remaining scope and evidence limits
+
+The architecture now has one production source-runner entry from top-level
+function lowering. The completed composed audit confirms removal of the original
+effectful compatibility component. Its remaining seven-node factory/declaration
+cycle includes a `Factory` return edge that the exact producer variants exclude;
+completion queues the next declarator. The separate 25-node fact-query component
+contains 11 unchanged named function bodies and 14 closures. A reviewed ranking
+certificate contracts two generic shape walkers and fixed lexical callbacks into
+nine semantic helpers, bounding native helper nesting through the guarded `calls`
+argument.
+The [validation report](../lowering-refactor-validation-2026-11-03.md#call-graph-audit)
+records the graph, source premises, sensitivity controls and unresolved-call
+limitations. This is not a claim that every compiler helper is acyclic or a
+native-byte bound. Signature, callback-origin, stored-kind and Promise analyses
+retain their fact-query ownership; the async IR splitter, emitter and runtime
+Promise job queue remain separate phases.
+
+Existing source-depth/expansion, eight-active-block/result and
+sixteen-active-function-value limits remain admission constraints. They are not
+substitutes for a native-stack bound. Preserve the 2 MiB admitted and just-over-
+limit probes, exact diagnostics and output/runtime comparisons on supported
+hosts. Local receipts do not establish hosted exact-head CI or merge status;
+measured compiler-time/peak-memory results must retain their workload and host
+limits. [#281](https://github.com/tseguine/grunkalunka/issues/281) retains its
+broader cross-phase acceptance scope.
+
+L6 query consolidation remains optional until demonstrated duplication or a
+concrete source semantic extension needs it. This refactor neither introduces a
+universal dynamic ABI/new CFG nor implements general Get/Set/Call exceptions or
+GC-aware async identity. The typed Region IR and runtime scheduler retain their
+existing contracts.
