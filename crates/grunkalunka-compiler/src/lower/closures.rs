@@ -34,6 +34,16 @@ pub(super) struct PreparedConciseFactory<'n, 'a> {
     closure: LocalClosure,
 }
 
+impl<'n, 'a> PreparedConciseFactory<'n, 'a> {
+    pub(super) fn call(&self) -> (&'n CallExpression<'a>, usize) {
+        (self.call, self.call_depth)
+    }
+
+    pub(super) fn arrow(&self) -> NodeId {
+        self.closure.arrow
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct LocalClosure {
     pub symbol: Option<SymbolId>,

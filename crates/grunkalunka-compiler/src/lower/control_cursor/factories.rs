@@ -5,15 +5,21 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn start_factory_arguments<'n>(
         &mut self,
         state: FactoryExpression<'n, 'ast>,
-        factory: function_values::PreparedBlockFactory,
+        factory: function_values::PreparedLocalFactory<'n, 'ast>,
         expression_depth: usize,
         cursor: &mut Cursor<'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
     {
-        let Expression::CallExpression(call) = state.node else {
-            unreachable!("prepared block factory is a direct call");
+        let (call, expression_depth) = match &factory {
+            function_values::PreparedLocalFactory::Block(_) => {
+                let Expression::CallExpression(call) = state.node else {
+                    unreachable!("prepared block factory is a direct call");
+                };
+                (call.as_ref(), expression_depth)
+            }
+            function_values::PreparedLocalFactory::Concise(factory) => factory.call(),
         };
         self.advance_factory_arguments(
             Box::new(FactoryArguments {
@@ -65,7 +71,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             let (source, kind, mode) = match prepared {
                 Ok(prepared) => prepared,
                 Err(error) => {
-                    self.abort_block_factory_arguments(arguments.factory);
+                    self.abort_local_factory_arguments(arguments.factory);
                     self.restore_factory_expression(&arguments.state);
                     return Err(error);
                 }
@@ -94,6 +100,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             values,
             ..
         } = *arguments;
+        let factory = match factory {
+            function_values::PreparedLocalFactory::Block(factory) => factory,
+            function_values::PreparedLocalFactory::Concise(factory) => {
+                #[cfg(test)]
+                BRIDGED_CONCISE_FACTORIES.with(|count| count.set(count.get() + 1));
+                return self.finish_concise_factory_expression(state, factory, values, cursor);
+            }
+        };
         let started = self.begin_block_factory_body(
             factory,
             values,
@@ -159,8 +173,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if matches!(kind, closures::FactoryArgumentKind::Callback(_)) {
             self.leave_function_value();
         }
-        self.abort_block_factory_arguments(arguments.factory);
+        self.abort_local_factory_arguments(arguments.factory);
         self.restore_factory_expression(&arguments.state);
+    }
+
+    fn abort_local_factory_arguments(
+        &mut self,
+        factory: function_values::PreparedLocalFactory<'_, '_>,
+    ) {
+        if let function_values::PreparedLocalFactory::Block(factory) = factory {
+            self.abort_block_factory_arguments(factory);
+        }
+        // Concise closure metadata owns no active function-result charge.
     }
 
     /// The callee consumer alone owns an extra function-value admission.
@@ -195,6 +219,48 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         self.restore_factory_expression(&state);
         emitted?;
 
+        self.resume_factory_expression(state, cursor)
+    }
+
+    fn finish_concise_factory_expression<'n>(
+        &mut self,
+        mut state: FactoryExpression<'n, 'ast>,
+        factory: closures::PreparedConciseFactory<'n, 'ast>,
+        arguments: Vec<ValueId>,
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        // Completion restores caller bindings before materialization, exactly
+        // as factory_result did before function_value_leaf consumed metadata.
+        // No function-result admission, InlineCall or child body Region belongs
+        // to this path.
+        let result = self
+            .finish_concise_factory(factory, arguments, state.expression.current_region())
+            .and_then(|closure| {
+                self.materialize_closure(
+                    closure,
+                    state.expression.current_region(),
+                    state.node,
+                    state.signature,
+                )
+            });
+        self.restore_factory_expression(&state);
+        state.expression.resume_function_value(result?);
+        self.resume_factory_expression(state, cursor)
+    }
+
+    /// Both factory kinds have restored their own state before delivering the
+    /// result to this shared expression/callee consumer.
+    fn resume_factory_expression<'n>(
+        &mut self,
+        mut state: FactoryExpression<'n, 'ast>,
+        cursor: &mut Cursor<'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
         if let FactoryResume::Callee(continuation) = state.resume {
             let callee = state
                 .expression

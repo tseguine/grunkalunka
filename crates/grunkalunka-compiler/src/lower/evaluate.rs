@@ -1354,11 +1354,10 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         }
     }
 
-    /// Preserve the merged function-valued leaf suspension on both the
-    /// synchronous evaluator wrapper and the shared source/evaluator bridge.
-    /// This may itself evaluate a constructor, so it stays outside the large
-    /// evaluator runner frame.
-    pub(super) fn resume_lowered_function_leaf<'e, 'a>(
+    /// The synchronous compatibility host handles its function-valued leaf
+    /// after releasing the large evaluator runner. Source-owned leaves use
+    /// their typed factory selection and argument continuations instead.
+    fn resume_lowered_function_leaf<'e, 'a>(
         &mut self,
         cursor: &mut EvaluationCursor<'e, 'a>,
         node: &'e Expression<'a>,
