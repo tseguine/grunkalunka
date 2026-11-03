@@ -1,0 +1,14 @@
+{
+  "id": "check:a1-ui-service",
+  "command": "node",
+  "args": [
+    "--test",
+    "tests/applications/a1-ui-service.test.mjs"
+  ],
+  "dependsOn": [
+    "grunkalunka-runtime"
+  ],
+  "paths": [
+    "tests/applications/a1-ui-service.test.mjs"
+  ]
+}
