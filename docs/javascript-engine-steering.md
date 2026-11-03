@@ -100,7 +100,7 @@ on the heap while the source cursor drives the Function-mode child. The shared
 for effect completion or callback-value delivery, preserving callback admission,
 signature provenance and context restoration.
 
-The published tip is
+At the callback-argument checkpoint, the published tip was
 [`425f9b6`](https://github.com/tseguine/grunkalunka/commit/425f9b6c7dda02224d64901f67d980cc84a07f84).
 Its matching source tree passed 500 compiler tests, 118 runtime-closure tests,
 targeted async/module callback tests, formatting and strict compiler Clippy.
@@ -108,6 +108,46 @@ The [cross-phase inventory](lowering-cross-phase-reentry.md#in-review-argumentef
 records exact artifact/diagnostic parity against the frozen baseline and routing
 sensitivity checks. These local receipts do not imply a hosted pass or integration
 into the master checkpoint.
+
+### Follow-on callee and function-result units
+
+The newer dependent sequence is
+[#441](https://github.com/tseguine/grunkalunka/pull/441) →
+[#442](https://github.com/tseguine/grunkalunka/pull/442) →
+[#443](https://github.com/tseguine/grunkalunka/pull/443) →
+[#444](https://github.com/tseguine/grunkalunka/pull/444) →
+[#445](https://github.com/tseguine/grunkalunka/pull/445) →
+[#446](https://github.com/tseguine/grunkalunka/pull/446) →
+[#447](https://github.com/tseguine/grunkalunka/pull/447). The last three units schedule
+charged concise results, stage runtime-factory ownership and schedule runtime
+factory callees/arguments. These follow-ons to
+documentation checkpoint
+[#439](https://github.com/tseguine/grunkalunka/pull/439) add no integrated master
+claims. They extend native stack #440; the maintainer handles registration where
+connector support is unavailable. Native membership and hosted check results
+are checked separately from the local implementation receipts.
+
+The callee pair separates validation/direct-slot snapshots from effectful
+construction, then schedules non-slot synchronous, awaited and Pending-mode
+callees through `LowerClosureCallee` / `EvaluateFunctionValue`. The next pair
+stages and schedules concise closure-metadata factory arguments, restoring caller
+bindings before materialization and retaining their zero result-admission charge.
+The charged concise unit adds `EvaluateFactoryValue` for general expression
+bodies: it retains the eight-result token and body function-value admission,
+starts expression depth at zero, preserves caller statement depth, and delivers
+the completed `ValueId` without a second materialization.
+
+Runtime factories use `EvaluateRuntimeFactoryCallee` followed by the shared
+argument continuation. This preserves ordinary admission even for slot callees,
+inherited result depth, callee snapshots, complete formal signatures, discarded
+inputs, and expansion after argument effects. The compatibility wrapper remains
+synchronous and shares the same argument classifier.
+
+The [follow-on receipt and residual inventory](lowering-cross-phase-reentry.md#in-review-callee-and-function-result-continuations)
+separate local compiler, runtime, artifact and routing evidence. The published
+implementation tip is #447, tree `3a12c294a2d55d26ae12f3672d6d00192511cd43`.
+These receipts do not establish a hosted pass, merge, or complete source-lowering
+SCC migration.
 
 ### Ordered implementation units
 
@@ -123,10 +163,11 @@ into the master checkpoint.
 
 The inspected L4 call paths, owned-state requirements and first native-stack
 observation are collected in [cross-phase reentry](lowering-cross-phase-reentry.md).
-After the in-review argument/effect/callback series,
-remaining L4/L5 work is concise returned factories; runtime/calculated/async
-callees; source consumers and compatibility entries still executing synchronously;
-and disposable closure checking plus real lifted-body materialization. The
+After the source-owned argument/effect/callback, calculated/async-callee and
+concise-result and runtime-factory continuations, remaining L4/L5 work includes
+declarations and other compatibility callers still executing synchronously,
+including block-factory `.call`; and disposable closure
+checking plus real lifted-body materialization. The
 [residual-path inventory](lowering-cross-phase-reentry.md#residual-native-reentry-circuits-after-this-series)
 names those call sites. The final composed SCC audit,
 compiler-time/peak-memory comparisons and removal of superseded paths remain
