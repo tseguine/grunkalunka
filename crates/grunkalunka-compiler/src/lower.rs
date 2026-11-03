@@ -38,6 +38,7 @@ mod invocation;
 #[cfg(test)]
 mod loop_statements;
 mod managed_calls;
+mod string_methods;
 pub(super) use managed_calls::infer as infer_managed_calls;
 mod module_functions;
 mod object_create;

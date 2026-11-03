@@ -3,6 +3,103 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn string_ranges_clamp_number_endpoints_and_copy_utf16_units() {
+    for body in [
+        "const s='abcdef';const t=s.slice(a,b);return t.length*100+(t==='abcdef'?10:0)+(t==='a'?1:0);",
+        "const s='abcdef';const t=s.substring(a,b);return t.length*100+(t==='abcdef'?10:0)+(t==='a'?1:0);",
+        "const s='abcdef';const t=s.slice(a+0.75,b+2.25);return t.length*10+(t==='bc'?1:0);",
+        "const s='abcdef';const t=s.substring(a+0.75,b+2.25);return t.length*10+(t==='bc'?1:0);",
+        "return 'abcdef'.slice(4,1)===''&&'abcdef'.substring(4,1)==='bcd'?1:0;",
+        r"const s='\0A\u{1f600}\ud800e\u0301';return s.slice(2,3)==='\ud83d'&&s.substring(4,3)==='\ude00'&&s.slice(-3)==='\ud800e\u0301'?1:0;",
+        "return ''.slice(a,b)===''&&''.substring(a,b)===''?1:0;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_ranges_keep_defaults_argument_effects_and_receiver_snapshots() {
+    for body in [
+        "const s='abcdef';return s.slice()===s&&s.substring()===s&&s.slice(undefined,undefined)===s&&s.substring(undefined,undefined)===s?1:0;",
+        "let n=0;const t=(n=1,'abcdef').slice((n=n*10+2,1),(n=n*10+3,4),(n=n*10+4,0));return t==='bcd'?n:-1;",
+        "let n=0;const t=(n=1,'abcdef').substring(void(n=n*10+2),void(n=n*10+3),(n=n*10+4,0));return t==='abcdef'?n:-1;",
+        "let s='abcdef';const t=s['slice']((s='changed',1),3);return t==='bc'&&s==='changed'?1:0;",
+        "const undefined=2;return 'abcdef'.substring(undefined)==='cdef'?1:0;",
+        "let n=0;'abcdef'.slice((n=1,2),(n=n*10+2,4),n=n*10+3);return n;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_ranges_compose_helpers_captures_fields_and_ordinary_method_calls() {
+    for source in [
+        "function preview(s,n){return s.slice(0,n);}export function run(a,b){const text=preview('Heading: Notes',8);const use=()=>text+'!';return use()==='Heading:!'?text.length:0;}",
+        "export function run(a,b){const source={text:'abcdef'};const selected=source.text.substring(1,4);const box={text:selected};source.text='changed';return box.text.length+(box.text==='bcd'?10:0);}",
+        "export function run(a,b){const o={slice:(x,y)=>x+y,substring:(x)=>x};return o.slice(a,b)+o.substring(a);}",
+        "function text(n){return 'ordinary';}export function run(a,b){const o={slice:text};return o.slice(a).length;}",
+    ] {
+        compare_sources(
+            source,
+            &source.replace("run(a,b)", "run(a: number,b: number)"),
+        );
+    }
+    compare_sources(
+        "export function run(a,b){const s='abcdef';return s.slice(1,3).length;}",
+        "export function run(a: number,b: number){const s: number='abcdef';return (s as boolean).slice(1,3).length;}",
+    );
+}
+
+#[test]
+fn string_ranges_reject_unproven_receivers_and_unrepresented_coercions() {
+    for body in [
+        "return 'abc'.slice('1').length;",
+        "return 'abc'.substring(null).length;",
+        "return 'abc'.slice(true).length;",
+        "return 'abc'.substring({}).length;",
+        "const s=a?'abc':null;return s.slice(0).length;",
+        "let s='abc';s=a;return s.substring(0).length;",
+        "const preview=()=>a?'abc'.slice(0,2):null;const label=preview();const use=()=>label+'!';return use().length;",
+        "const o={text:'abc'};o.text=a?'abc':null;return o.text.substring(0).length;",
+        "const s='abc';return s?.slice(0).length;",
+        "const s='abc';return s.slice?.(0).length;",
+        "const s='abc';return s.slice(...[0]).length;",
+        "const key='slice';return 'abc'[key](0).length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
+fn string_range_chains_keep_the_existing_small_stack_boundary() {
+    for (depth, admitted) in [(24, true), (140, false)] {
+        let source = format!(
+            "export function run(a,b){{return 'abcdef'{}.length;}}",
+            ".slice(0)".repeat(depth)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || grunkalunka_compiler::compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted);
+        if let Err(error) = result {
+            assert!(error.contains("nesting"), "{error}");
+        }
+    }
+}
+
+#[test]
 fn string_values_compare_content_and_keep_property_snapshots() {
     let source = "export function run(a,b){const o={x:'same'};const saved=o.x;o.x='other';return saved==='same'&&o.x==='other'&&saved!==o.x?a:b;}";
     compare_sources(source, source);

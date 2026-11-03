@@ -469,6 +469,13 @@ impl Lowering<'_, '_> {
                         {
                             values.push(Some(Type::ManagedObject))
                         }
+                        Expression::CallExpression(call)
+                            if crate::lower::string_methods::call(call).is_some_and(
+                                |(receiver, _)| self.stored.string(receiver.node_id()),
+                            ) =>
+                        {
+                            values.push(Some(Type::ManagedValue));
+                        }
                         Expression::CallExpression(call) => {
                             let fallback =
                                 managed_calls::function(call, self.semantic, self.functions)
@@ -644,6 +651,24 @@ impl Lowering<'_, '_> {
         {
             work.push(Work::Managed(ManagedWork::ReferenceProjection { node, ty }));
             work.push(Work::Eval(node, depth, Mode::Managed));
+            return Ok(true);
+        }
+        if matches!(mode, Mode::Managed)
+            && let Expression::CallExpression(call) = node
+            && let Some((receiver, method)) = crate::lower::string_methods::call(call)
+            && self.stored.string(receiver.node_id())
+        {
+            work.push(Work::StringMethod(super::string_methods::Task {
+                node,
+                call,
+                method,
+                receiver: None,
+                inputs: [None; 2],
+                argument: 0,
+                pending: false,
+                depth,
+            }));
+            work.push(Work::Eval(receiver, depth + 1, Mode::Managed));
             return Ok(true);
         }
         if matches!(mode, Mode::Managed)
