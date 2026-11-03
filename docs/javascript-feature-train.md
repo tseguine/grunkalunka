@@ -22,7 +22,7 @@ architecture-wide migration is not a gate for this train.
 | --- | --- | --- |
 | 1 | Capability calls composed with ordinary functions | Let A1 handlers organize policy in named helpers and captured callbacks while invoking the existing explicit Rust/WIT service. First admit numeric named helpers in `compile_ui_import`, then closures and captured state, preserving the current service ABI. |
 | 2 | Runtime collection access and updates | Select headings by runtime position, inspect lists and maintain keyed application state. Start with array `.at(Number)` using the existing sparse-array storage; then expand computed keys and updates as their runtime key semantics become available. |
-| 3 | Practical Strings and common operators | Measure and construct headings, status labels and search text. Start with UTF-16 `.length`, character access and String concatenation; add useful conversions and methods in response to source programs. |
+| 3 | Practical Strings and common operators | Measure and construct headings, status labels and search text. Start with UTF-16 `.length` and String concatenation; then character access, useful conversions and methods in response to source programs. |
 | 4 | Everyday bindings and iteration | Make record/list processing natural: object and array binding patterns, defaults and array `for...of`, followed by commonly needed control forms. Reuse the source cursor and existing per-iteration binding machinery. |
 | 5 | Synchronous source errors | Let ordinary handlers recover from invalid operations. Extend the existing normal/throw seam into synchronous execution and add catchable failures as runtime operations need them. |
 | 6 | Broader calls, receivers and object construction | Support ordinary methods, dynamic `this`, less restrictive callable signatures and reusable model objects. Constructors/classes follow concrete consumers. |
@@ -53,11 +53,28 @@ first slice useful without silently changing the meaning of ordinary syntax.
    negative positions, sparse misses and source-ordered argument effects.
 4. **String length.** Admit `.length` on known managed Strings, counting UTF-16
    code units through helpers, captures and existing supported source contexts.
+5. **String concatenation.** Admit binary `+` between known Strings, preserving
+   UTF-16 contents and the left snapshot across right-side effects or awaits.
 
-These are implementation goals at this document's introduction. The feature PRs
-and their exact-head test results record completion; this list is not execution
-evidence. String construction and more general collection updates are the next
-extensions after this batch.
+## First batch completion
+
+The dependency train implements these five slices. The existing suites retain
+source oracles and deliberate admission boundaries:
+
+| Implemented slice | Executable coverage |
+| --- | --- |
+| A1 named helpers and captured handlers | [`a1_ui_import.rs`](../crates/grunkalunka-runtime/tests/a1_ui_import.rs) compares native JS, Node-Wasm and the actual Rust/WIT provider, including call arguments, state and capability denial. |
+| Runtime array positions | [`managed-arrays.rs`](../crates/grunkalunka-runtime/tests/managed-arrays.rs) covers Number positions, holes, negative indexing, operand order and saved selections. |
+| String length and concatenation | [`managed-strings.rs`](../crates/grunkalunka-runtime/tests/managed-strings.rs) covers UTF-16, snapshots, helpers, captures, erased TS types, depth limits and the private concatenation-length guard. |
+| Suspension composition | [`async-suspension/managed_values.rs`](../crates/grunkalunka-runtime/tests/async-suspension/managed_values.rs) compares selected values and saved String operands across awaits. |
+
+The combined A1 fixtures select headings at runtime, construct and measure known
+String labels, then invoke the service through captured handlers. They preserve
+selected values and label snapshots after mutation. The boxed `.at` result is
+observed through equality; it is not assumed to be a known String. These fixtures
+extend compiler authoring evidence while the application acceptance below remains
+separate. Local verification receipts, hosted checks and merge state are recorded
+by the feature PRs; suite presence alone does not establish a hosted result.
 
 ## A1 scope and existing evidence
 

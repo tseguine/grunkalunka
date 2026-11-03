@@ -406,6 +406,39 @@ fn imported_service_composes_with_gc_captures_and_function_identities() {
 }
 
 #[test]
+fn imported_handler_combines_runtime_headings_and_string_labels() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             const headings=['One','Two😀'];
+             const name=a>0?'Two😀':'';
+             const label=name+' selected';
+             const selected=headings.at(a>0?-1:0);
+             let dispatch=()=>choose(name.length>0&&label.length>0&&selected===name?1:0,b);
+             const saved=dispatch;
+             dispatch=()=>choose(0,b);
+             return saved()+label.length;
+           }"#,
+    );
+}
+
+#[test]
+fn imported_handler_keeps_selected_and_label_snapshots_after_mutation() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             const headings=['One','Two'];
+             const selected=headings.at(a>0?-1:0);
+             headings[1]='renamed';
+             let name='One';
+             const label=name+(name=a>0?'Two':'',' selected');
+             let dispatch=()=>choose(selected===name&&label==='One selected'&&label.length===12?1:0,b);
+             return dispatch()+label.length;
+           }"#,
+    );
+}
+
+#[test]
 fn unsupported_module_and_import_forms_remain_rejected() {
     let valid = source(false, false);
     let unsupported = [
