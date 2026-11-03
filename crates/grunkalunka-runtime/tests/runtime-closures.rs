@@ -799,6 +799,27 @@ fn block_factory_effects_preserve_logical_short_circuiting() {
 }
 
 #[test]
+fn local_call_callback_factories_preserve_order_and_parameter_snapshots() {
+    compare_functions(&[
+        "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a),b);",
+        "const make=x=>{return y=>x+y;};const apply=(fn,x)=>{return fn(x);};return apply(make(a),b);",
+        "const make=x=>{return y=>x+y;};const combine=(f,g,x)=>f(x)+g(x);return combine(make(a),make(b),a);",
+        "let n=0;const make=x=>{n=n*10+1;return y=>x+y;};const apply=(fn,x)=>fn(x);return apply(make(a),(n=n*10+2,b),n=n*10+3)+n;",
+        "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return apply.call(null,make(a),b);",
+        "const make=x=>{return y=>x+y;};const apply=(fn,x)=>fn(x);return a?apply(make(a),b):apply(make(b),a);",
+    ]);
+}
+
+#[test]
+fn runtime_call_callback_factories_preserve_callee_snapshots() {
+    compare_functions(&[
+        "const make=x=>{return y=>x+y;};const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+1;return apply(make(a),b);",
+        "const make=x=>{return y=>x+y;};const apply=a?(fn,x)=>fn(x):(fn,x)=>fn(x)+1;return apply.call(null,make(a),b);",
+        "const make=x=>{return y=>x+y;};let apply=(fn,x)=>fn(x);return apply(make(a),(apply=(fn,x)=>fn(x)+10,b))+apply(y=>y,a);",
+    ]);
+}
+
+#[test]
 fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))

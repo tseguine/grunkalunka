@@ -191,18 +191,24 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
-            Frame::EvaluateFunctionEffect {
+            Frame::EvaluateFunctionValue {
                 mut expression,
                 mode,
                 node,
-                effect,
+                resume,
                 previous_result_depth,
                 ..
             } => {
                 *expression.current_region() = output_region;
                 self.leave_function_value();
                 self.restore_function_result_depth(previous_result_depth);
-                self.complete_function_effect(expression.as_mut(), node, effect);
+                match resume {
+                    FunctionValueResume::Effect(effect) => {
+                        self.complete_function_effect(expression.as_mut(), node, effect);
+                    }
+                    FunctionValueResume::Callback => expression
+                        .resume_callback_argument(value.expect("callback function result")),
+                }
                 self.advance_owned_expression(*expression, mode, cursor)
             }
             Frame::EvaluateFactoryArgument {
@@ -382,7 +388,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             Frame::DiscardExpression { .. }
-            | Frame::EvaluateFunctionEffect { .. }
+            | Frame::EvaluateFunctionValue { .. }
             | Frame::EvaluateFactoryArgument { .. }
             | Frame::ScalarLet { .. }
             | Frame::ReturnValue { .. }
