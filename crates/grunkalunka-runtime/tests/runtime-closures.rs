@@ -763,6 +763,42 @@ fn returned_block_factory_callbacks_preserve_callee_and_capture_identity() {
 }
 
 #[test]
+fn discarded_and_truthy_block_factories_preserve_construction_effects() {
+    // The constructed closure is not invoked. Its argument and factory-body
+    // effects must still run exactly once before truthiness or discard.
+    compare_function_programs(
+        &[
+            "let n=a;const make=()=>{n+=b;return ()=>n;};make();return n;",
+            "let n=0;const make=x=>{n=n*10+2;return ()=>x+n;};make((n=n*10+1));return n;",
+            "let n=0;const make=x=>{n=n*10+2;return ()=>x+n;};if(make((n=n*10+1)))n=n*10+3;return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};return make(b)?n:b;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};return +!!make(b)+n;",
+            "let n=0;const make=(fn,x)=>{n=n*10+3;return ()=>fn(x);};make((n=n*10+1,y=>y+b),(n=n*10+2,a));return n;",
+            "let n=0;const seed=x=>{n=n*10+1;return y=>x+y;};const make=(fn,x)=>{n=n*10+3;return ()=>fn(x);};if(make(seed(a),(n=n*10+2,b)))n=n*10+4;return n;",
+            "let n=0;const make=x=>{n=n*10+3;return ()=>x;};make((n=n*10+1),n=n*10+2);return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};const touch=x=>{make(x);return n;};return touch(b);",
+        ],
+        false,
+    );
+}
+
+#[test]
+fn block_factory_effects_preserve_logical_short_circuiting() {
+    compare_function_programs(
+        &[
+            "let n=a;const make=x=>{n+=x;return ()=>n;};a&&make(b);return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};a||make(b);return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};const left=a?null:false;left??make(b);return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};make(b)&&(n+=4);return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};make(b)||(n+=4);return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};make(b)??(n+=4);return n;",
+            "let n=a;const make=x=>{n+=x;return ()=>n;};if(a&&make(b))n+=4;return n;",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))

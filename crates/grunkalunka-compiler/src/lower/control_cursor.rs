@@ -11,6 +11,8 @@ use oxc_ast::ast::{
 
 mod factories;
 #[cfg(test)]
+mod factory_effect_tests;
+#[cfg(test)]
 mod factory_tests;
 mod steps;
 
@@ -218,6 +220,17 @@ enum Frame<'n, 'a> {
         result_type: Type,
         depth: usize,
     },
+    /// Discard and truthiness still evaluate a function's construction effects.
+    /// Keep the parent expression suspended while its Function-mode child runs
+    /// through this same scheduler, including any returned-factory body.
+    EvaluateFunctionEffect {
+        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
+        mode: evaluate::Mode,
+        node: &'n Expression<'a>,
+        effect: evaluate::FunctionEffect,
+        previous_result_depth: usize,
+        depth: usize,
+    },
     /// One source argument is running in the caller's lexical environment.
     /// A callback holds its own function-value admission across suspension.
     EvaluateFactoryArgument {
@@ -283,6 +296,7 @@ impl Frame<'_, '_> {
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
             | Self::EvaluateBody { depth, .. }
+            | Self::EvaluateFunctionEffect { depth, .. }
             | Self::EvaluateFactoryArgument { depth, .. }
             | Self::EvaluateFactoryBody { depth, .. }
             | Self::TryCatchBody { depth, .. }
@@ -459,14 +473,28 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     region_depth,
                     effect,
                 } => {
-                    self.resume_lowered_function_effect(
-                        &mut expression,
+                    let previous_result_depth =
+                        self.enter_function_result_depth(Some(region_depth));
+                    if let Err(error) = self.enter_function_value(node) {
+                        self.restore_function_result_depth(previous_result_depth);
+                        return Err(error);
+                    }
+                    let output = Self::take_cursor_region(expression.current_region());
+                    cursor.pending.push(Frame::EvaluateFunctionEffect {
+                        expression: Box::new(expression),
+                        mode,
                         node,
-                        signature,
-                        depth,
-                        region_depth,
                         effect,
-                    )?;
+                        previous_result_depth,
+                        depth: self.statement_depth,
+                    });
+                    cursor.next = Some(Next::Expression {
+                        source: node,
+                        output,
+                        depth,
+                        mode: evaluate::Mode::Function(signature),
+                    });
+                    return Ok(());
                 }
                 evaluate::EvaluationRun::LowerSyncClosureCallee {
                     node,
@@ -798,6 +826,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 match frame {
                     Frame::EvaluateBody { activation, .. } => {
                         self.abort_arrow_block_activation(activation);
+                    }
+                    Frame::EvaluateFunctionEffect {
+                        previous_result_depth,
+                        ..
+                    } => {
+                        self.leave_function_value();
+                        self.restore_function_result_depth(previous_result_depth);
                     }
                     Frame::EvaluateFactoryArgument {
                         arguments, kind, ..

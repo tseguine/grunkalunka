@@ -191,6 +191,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::EvaluateFunctionEffect {
+                mut expression,
+                mode,
+                node,
+                effect,
+                previous_result_depth,
+                ..
+            } => {
+                *expression.current_region() = output_region;
+                self.leave_function_value();
+                self.restore_function_result_depth(previous_result_depth);
+                self.complete_function_effect(expression.as_mut(), node, effect);
+                self.advance_owned_expression(*expression, mode, cursor)
+            }
             Frame::EvaluateFactoryArgument {
                 arguments, kind, ..
             } => self.resume_factory_argument(arguments, kind, output_region, value, cursor),
@@ -368,6 +382,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             Frame::DiscardExpression { .. }
+            | Frame::EvaluateFunctionEffect { .. }
             | Frame::EvaluateFactoryArgument { .. }
             | Frame::ScalarLet { .. }
             | Frame::ReturnValue { .. }
