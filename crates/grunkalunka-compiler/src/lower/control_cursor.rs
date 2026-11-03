@@ -32,6 +32,9 @@ mod factory_tests;
 #[cfg(test)]
 mod function_result_tests;
 mod initializers;
+mod materialization;
+#[cfg(test)]
+mod materialization_tests;
 #[cfg(test)]
 mod runtime_factory_tests;
 mod steps;
@@ -55,6 +58,8 @@ std::thread_local! {
     static BRIDGED_CLOSURE_CHECKS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static SCHEDULED_DECLARATION_FACTORIES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static BRIDGED_LIFTED_BODIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -161,9 +166,16 @@ struct FactoryArguments<'n, 'a> {
 /// A boundary owns exactly one suspended Lowering in Cursor's LIFO state stack.
 struct LoweringChildId(usize);
 
-/// Checking completion is distinct from a future lifted-body publication.
-enum ChildCompletion {
-    DefinitionCheck { closure: closures::LocalClosure },
+/// Disposable checks and real lifted bodies have distinct publication rules.
+enum ChildCompletion<'n, 'a> {
+    DefinitionCheck {
+        closure: closures::LocalClosure,
+    },
+    LiftedBody {
+        completion: function_values::LiftedClosure,
+        output: Region,
+        node: &'n Expression<'a>,
+    },
 }
 
 /// Argument scheduling shares one caller Region and ordered classifier. The
@@ -194,7 +206,27 @@ enum Frame<'n, 'a> {
     /// unwinding any older source/evaluator frame that belongs to the parent.
     ChildBoundary {
         child: LoweringChildId,
-        completion: ChildCompletion,
+        completion: ChildCompletion<'n, 'a>,
+        depth: usize,
+    },
+    CheckedMaterialization {
+        output: Region,
+        node: &'n Expression<'a>,
+        signature: usize,
+        depth: usize,
+    },
+    MaterializedFunction {
+        state: FactoryExpression<'n, 'a>,
+        depth: usize,
+    },
+    LiftedExpression {
+        completion: function_values::LiftedBodyCompletion,
+        function_value: bool,
+        depth: usize,
+    },
+    LiftedBlock {
+        completion: function_values::LiftedBodyCompletion,
+        activation: closures::BlockArrowActivation,
         depth: usize,
     },
     CheckedLocalCall {
@@ -419,6 +451,10 @@ impl Frame<'_, '_> {
     fn depth(&self) -> usize {
         match self {
             Self::ChildBoundary { depth, .. }
+            | Self::CheckedMaterialization { depth, .. }
+            | Self::MaterializedFunction { depth, .. }
+            | Self::LiftedExpression { depth, .. }
+            | Self::LiftedBlock { depth, .. }
             | Self::CheckedLocalCall { depth, .. }
             | Self::CheckExpression { depth, .. }
             | Self::CheckBlock { depth, .. }
@@ -464,6 +500,7 @@ enum Outcome {
     Expression(Region, Option<ValueId>),
     CheckBody { region: Region, factory: bool },
     CheckedClosure(closures::LocalClosure),
+    LiftedBody(Region),
 }
 
 /// One active source-lowering machine. Language-specific transitions own
@@ -590,6 +627,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     resume: FactoryResume::Value,
                                 },
                                 factory,
+                                cursor,
+                            );
+                        }
+                        Ok(function_values::FunctionLeafResult::Materialize(closure)) => {
+                            return self.start_function_materialization(
+                                FactoryExpression {
+                                    expression: Box::new(expression),
+                                    mode,
+                                    previous_result_depth,
+                                    node,
+                                    signature,
+                                    resume: FactoryResume::Value,
+                                },
+                                closure,
                                 cursor,
                             );
                         }
@@ -957,6 +1008,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
                 let completed = cursor.completed.take().expect("completed source child");
                 match completed {
+                    Outcome::LiftedBody(region) => {
+                        let frame = cursor.pending.pop().expect("lifted child boundary");
+                        self.finish_materializing_child(frame, region, &mut cursor)?;
+                    }
                     Outcome::CheckBody { region, factory } => {
                         let frame = cursor.pending.pop().expect("checking child boundary");
                         // This boundary must restore its parent before any
@@ -995,6 +1050,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 match frame {
                     Frame::ChildBoundary { child, .. } => {
                         cursor.leave_lowering_child(self, child);
+                    }
+                    Frame::MaterializedFunction { state, .. } => {
+                        self.restore_factory_expression(&state);
+                    }
+                    Frame::LiftedExpression {
+                        function_value: true,
+                        ..
+                    } => {
+                        self.leave_function_value();
+                    }
+                    Frame::LiftedBlock { activation, .. } => {
+                        self.abort_arrow_block_activation(activation);
                     }
                     Frame::CheckExpression {
                         function_value: true,

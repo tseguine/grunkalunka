@@ -1,6 +1,7 @@
 //! Effect-free function signature queries and constructor/call leaves for the
 //! shared typed evaluator. Queries never execute source arguments or conditions.
 use super::*;
+use oxc_ast::ast::ArrowFunctionExpression;
 use std::collections::BTreeMap;
 
 #[cfg(test)]
@@ -95,6 +96,7 @@ pub(super) enum FunctionResultBody<'n, 'a> {
 pub(super) enum FunctionLeafResult<'n, 'a> {
     Factory(PreparedFactory<'n, 'a>),
     RuntimeFactory(PreparedRuntimeFactory<'n, 'a>),
+    Materialize(closures::LocalClosure),
     Value(ValueId),
 }
 
@@ -113,6 +115,45 @@ pub(super) struct PreparedLiftedClosure<'s, 'a> {
     pub(super) lowering: Box<Lowering<'s, 'a>>,
     pub(super) body: Region,
     pub(super) completion: LiftedClosure,
+}
+
+#[derive(Clone, Copy)]
+enum LiftedBodyKind {
+    Direct {
+        mode: evaluate::Mode,
+        result_type: Type,
+    },
+    Fulfill {
+        materialize: bool,
+    },
+    Settle {
+        materialize: bool,
+    },
+}
+
+/// Body completion owns the entry prefix when a block or settlement runs in a
+/// separate Region. The returned value remains in the active lifted child.
+pub(super) struct LiftedBodyCompletion {
+    arrow: oxc_syntax::node::NodeId,
+    kind: LiftedBodyKind,
+    prefix: Option<Region>,
+}
+
+pub(super) enum LiftedBodyRequest<'a> {
+    Expression {
+        source: &'a Expression<'a>,
+        output: Region,
+        mode: evaluate::Mode,
+    },
+    Block {
+        arrow: &'a ArrowFunctionExpression<'a>,
+        result_type: Type,
+    },
+}
+
+enum NonCallFunctionValue {
+    Value(ValueId),
+    Materialize(closures::LocalClosure),
 }
 
 impl<'s, 'a> Lowering<'s, 'a> {
@@ -993,8 +1034,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
     ) -> Result<FunctionLeafResult<'n, 'a>, String> {
         let Expression::CallExpression(call) = node else {
             return self
-                .function_value_leaf(node, region, arity, depth)
-                .map(FunctionLeafResult::Value);
+                .prepare_non_call_function_value(node, region, arity, depth)
+                .map(|prepared| match prepared {
+                    NonCallFunctionValue::Value(value) => FunctionLeafResult::Value(value),
+                    NonCallFunctionValue::Materialize(closure) => {
+                        FunctionLeafResult::Materialize(closure)
+                    }
+                });
         };
         let Some(closure) =
             self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
@@ -1033,7 +1079,26 @@ impl<'s, 'a> Lowering<'s, 'a> {
             } else {
                 self.local_function_result(call, region, arity, depth)
             }
-        } else if let Some((function, actual)) = self.named_module_function(node, depth) {
+        } else {
+            match self.prepare_non_call_function_value(node, region, arity, depth)? {
+                NonCallFunctionValue::Value(value) => Ok(value),
+                NonCallFunctionValue::Materialize(closure) => {
+                    self.materialize_closure(closure, region, node, arity)
+                }
+            }
+        }
+    }
+
+    /// Select non-call constructors without entering their checking or real
+    /// body. Module and runtime slots keep their original immediate operations.
+    fn prepare_non_call_function_value(
+        &mut self,
+        node: &Expression<'_>,
+        region: &mut Region,
+        arity: usize,
+        depth: usize,
+    ) -> Result<NonCallFunctionValue, String> {
+        if let Some((function, actual)) = self.named_module_function(node, depth) {
             if actual != arity {
                 return Err(unsupported(
                     node,
@@ -1042,14 +1107,14 @@ impl<'s, 'a> Lowering<'s, 'a> {
             }
             let result = self.value(Type::Closure(arity));
             Self::push(region, node, Op::ModuleClosure { result, function });
-            Ok(result)
+            Ok(NonCallFunctionValue::Value(result))
         } else if let Some((slot, actual)) = self.runtime_closure_callee(node, depth) {
             if actual != arity {
                 return Err(unsupported(node, "function value arity mismatch"));
             }
             let result = self.value(Type::Closure(arity));
             Self::push(region, node, Op::Load { result, slot });
-            Ok(result)
+            Ok(NonCallFunctionValue::Value(result))
         } else {
             let closure = match self.closure_target(node, depth) {
                 Some(closure) => closure,
@@ -1057,7 +1122,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     .factory_result(node, region, depth)?
                     .ok_or_else(|| unsupported(node, "expected a known function constructor"))?,
             };
-            self.materialize_closure(closure, region, node, arity)
+            Ok(NonCallFunctionValue::Materialize(closure))
         }
     }
 
@@ -1498,11 +1563,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
         let PreparedLiftedClosure {
             mut lowering,
-            mut body,
+            body,
             completion,
         } = self.prepare_lifted_closure(closure, node, arity)?;
-        let returned = lowering.lower_lifted_closure_body(&completion, &mut body)?;
-        body.exit = Exit::Return(returned);
+        let body = lowering.lower_lifted_closure_body(&completion, body)?;
         self.finish_lifted_closure(completion, lowering, body, region, node)
     }
 
@@ -1677,27 +1741,19 @@ impl<'s, 'a> Lowering<'s, 'a> {
         })
     }
 
-    fn lower_lifted_closure_body(
+    /// Choose the original body mode and Region ownership before scheduling.
+    /// Only eager settlement changes await allowance; it restores that flag
+    /// after the body has produced its original completion Region.
+    pub(super) fn prepare_lifted_body(
         &mut self,
         completion: &LiftedClosure,
-        body: &mut Region,
-    ) -> Result<ValueId, String> {
+        body: Region,
+    ) -> (LiftedBodyCompletion, LiftedBodyRequest<'a>) {
         let arrow = self.arrow(completion.closure.arrow);
-        let returned = if completion.asynchronous {
-            if let Some(expression) = arrow.get_expression() {
-                self.async_result(expression, body, 0)?
-            } else {
-                let region = self.arrow_block_result(arrow, 0, Type::General)?;
-                let result = self.value(Type::General);
-                Self::push(
-                    body,
-                    arrow,
-                    Op::InlineCall {
-                        result,
-                        body: region,
-                    },
-                );
-                result
+        let kind = if completion.asynchronous {
+            LiftedBodyKind::Direct {
+                mode: evaluate::Mode::AsyncReturn,
+                result_type: Type::General,
             }
         } else if arrow.r#async
             && (completion.return_type == Type::SettledPromise
@@ -1705,107 +1761,153 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     && (awaited::owns_throw(arrow, self.semantic)
                         || self.settled_results.contains(&arrow.node_id.get()))))
         {
-            // Close the primitive completion synchronously. Materialization below
-            // adds no job; the caller's await schedules its reaction.
             self.allow_await = true;
-            let region = if let Some(expression) = arrow.get_expression() {
-                let mut region = self.region(arrow);
-                let value = self
-                    .evaluate(expression, &mut region, 0, evaluate::Mode::General)?
-                    .expect("primitive settlement");
-                region.exit = Exit::Return(value);
-                region
-            } else {
-                self.arrow_block_result(arrow, 0, Type::General)?
-            };
-            self.allow_await = false;
-            let result = self.value(Type::SettledPromise);
-            Self::push(
-                body,
-                arrow,
-                Op::SettlePromise {
-                    result,
-                    body: region,
-                },
-            );
-            if completion.return_type == Type::Promise {
-                let input = result;
-                let result = self.value(Type::Promise);
-                Self::push(body, arrow, Op::MaterializePromise { result, input });
-                result
-            } else {
-                result
+            LiftedBodyKind::Settle {
+                materialize: completion.return_type == Type::Promise,
             }
         } else if arrow.r#async {
-            let input = if let Some(expression) = arrow.get_expression() {
-                self.evaluate(expression, body, 0, evaluate::Mode::General)?
-                    .expect("eager async primitive completion")
+            LiftedBodyKind::Fulfill {
+                materialize: completion.return_type == Type::Promise,
+            }
+        } else {
+            let mode = match completion.return_type {
+                Type::Closure(signature) => evaluate::Mode::Function(signature),
+                Type::AsyncValue => evaluate::Mode::AsyncValue,
+                Type::Promise => evaluate::Mode::Pending,
+                Type::SettledPromise => evaluate::Mode::Settled,
+                Type::FulfilledPromise => evaluate::Mode::Promise,
+                ty if ty.is_managed() => evaluate::Mode::managed(ty),
+                Type::General => evaluate::Mode::General,
+                _ => evaluate::Mode::Number,
+            };
+            LiftedBodyKind::Direct {
+                mode,
+                result_type: completion.return_type,
+            }
+        };
+        let (mode, result_type) = match kind {
+            LiftedBodyKind::Direct { mode, result_type } => (mode, result_type),
+            LiftedBodyKind::Fulfill { .. } | LiftedBodyKind::Settle { .. } => {
+                (evaluate::Mode::General, Type::General)
+            }
+        };
+        let (prefix, request) = if let Some(source) = arrow.get_expression() {
+            let (prefix, output) = if matches!(kind, LiftedBodyKind::Settle { .. }) {
+                (Some(body), self.region(arrow))
             } else {
-                let region = self.arrow_block_result(arrow, 0, Type::General)?;
-                let result = self.value(Type::General);
+                (None, body)
+            };
+            (
+                prefix,
+                LiftedBodyRequest::Expression {
+                    source,
+                    output,
+                    mode,
+                },
+            )
+        } else {
+            (Some(body), LiftedBodyRequest::Block { arrow, result_type })
+        };
+        (
+            LiftedBodyCompletion {
+                arrow: completion.closure.arrow,
+                kind,
+                prefix,
+            },
+            request,
+        )
+    }
+
+    /// Finish a concise value or a completed block in the still-active real
+    /// child. InlineCall, settlement and fulfillment keep their allocation order.
+    pub(super) fn finish_lifted_body(
+        &mut self,
+        completion: LiftedBodyCompletion,
+        mut finished: Region,
+        value: Option<ValueId>,
+    ) -> Region {
+        let arrow = self.arrow(completion.arrow);
+        let (mut body, mut result) = if let Some(mut prefix) = completion.prefix {
+            let result = if matches!(completion.kind, LiftedBodyKind::Settle { .. }) {
+                if let Some(value) = value {
+                    finished.exit = Exit::Return(value);
+                }
+                self.allow_await = false;
+                let result = self.value(Type::SettledPromise);
                 Self::push(
-                    body,
+                    &mut prefix,
+                    arrow,
+                    Op::SettlePromise {
+                        result,
+                        body: finished,
+                    },
+                );
+                result
+            } else {
+                debug_assert!(value.is_none(), "separate non-settlement Region is a block");
+                let ty = match completion.kind {
+                    LiftedBodyKind::Direct { result_type, .. } => result_type,
+                    LiftedBodyKind::Fulfill { .. } => Type::General,
+                    LiftedBodyKind::Settle { .. } => unreachable!("handled settlement"),
+                };
+                let result = self.value(ty);
+                Self::push(
+                    &mut prefix,
                     arrow,
                     Op::InlineCall {
                         result,
-                        body: region,
+                        body: finished,
                     },
                 );
                 result
             };
-            let result = self.value(Type::FulfilledPromise);
-            Self::push(body, arrow, Op::FulfillPromise { result, input });
-            if completion.return_type == Type::Promise {
-                let input = result;
-                let result = self.value(Type::Promise);
-                Self::push(body, arrow, Op::MaterializePromise { result, input });
-                result
-            } else {
-                result
-            }
-        } else if let Some(expression) = arrow.get_expression() {
-            if let Type::Closure(signature) = completion.return_type {
-                self.function_value(expression, body, signature, 0)?
-            } else if completion.return_type == Type::AsyncValue {
-                self.evaluate(expression, body, 0, evaluate::Mode::AsyncValue)?
-                    .expect("raw private mixed result")
-            } else if completion.return_type == Type::Promise {
-                self.evaluate(expression, body, 0, evaluate::Mode::Pending)?
-                    .expect("forwarded pending Promise identity")
-            } else if completion.return_type == Type::SettledPromise {
-                self.evaluate(expression, body, 0, evaluate::Mode::Settled)?
-                    .expect("forwarded settled result")
-            } else if completion.return_type == Type::FulfilledPromise {
-                self.evaluate(expression, body, 0, evaluate::Mode::Promise)?
-                    .expect("fulfilled Promise closure result")
-            } else if completion.return_type.is_managed() {
-                self.evaluate(
-                    expression,
-                    body,
-                    0,
-                    evaluate::Mode::managed(completion.return_type),
-                )?
-                .expect("managed private result")
-            } else if completion.return_type == Type::General {
-                self.evaluate(expression, body, 0, evaluate::Mode::General)?
-                    .expect("General result")
-            } else {
-                self.expression(expression, body, 0)?
-            }
+            (prefix, result)
         } else {
-            let region = self.arrow_block_result(arrow, 0, completion.return_type)?;
-            let result = self.value(completion.return_type);
-            Self::push(
-                body,
-                arrow,
-                Op::InlineCall {
-                    result,
-                    body: region,
-                },
-            );
-            result
+            (finished, value.expect("concise lifted body value"))
         };
-        Ok(returned)
+        if let LiftedBodyKind::Fulfill { .. } = completion.kind {
+            let input = result;
+            result = self.value(Type::FulfilledPromise);
+            Self::push(&mut body, arrow, Op::FulfillPromise { result, input });
+        }
+        if matches!(
+            completion.kind,
+            LiftedBodyKind::Fulfill { materialize: true }
+                | LiftedBodyKind::Settle { materialize: true }
+        ) {
+            let input = result;
+            result = self.value(Type::Promise);
+            Self::push(&mut body, arrow, Op::MaterializePromise { result, input });
+        }
+        body.exit = Exit::Return(result);
+        body
+    }
+
+    fn lower_lifted_closure_body(
+        &mut self,
+        completion: &LiftedClosure,
+        body: Region,
+    ) -> Result<Region, String> {
+        let (completion, request) = self.prepare_lifted_body(completion, body);
+        match request {
+            LiftedBodyRequest::Expression {
+                source,
+                mut output,
+                mode,
+            } => {
+                let value = if let evaluate::Mode::Function(signature) = mode {
+                    self.function_value(source, &mut output, signature, 0)?
+                } else {
+                    self.evaluate(source, &mut output, 0, mode)?
+                        .expect("lifted expression result")
+                };
+                Ok(self.finish_lifted_body(completion, output, Some(value)))
+            }
+            LiftedBodyRequest::Block { arrow, result_type } => {
+                let body = self.arrow_block_result(arrow, 0, result_type)?;
+                Ok(self.finish_lifted_body(completion, body, None))
+            }
+        }
     }
 
     /// A successful body publishes nested functions before the final capacity
