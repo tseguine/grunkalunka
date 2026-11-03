@@ -3,6 +3,9 @@
 use super::*;
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+mod optional_tests;
+
 /// Function-valued result calls have one shared eight-active-call budget.
 /// Admission is a move-only token so a future heap continuation can own the
 /// charge until its argument, body and result phases finish or unwind.
@@ -970,28 +973,23 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 .function_value_leaf(node, region, arity, depth)
                 .map(FunctionLeafResult::Value);
         };
-        if self
-            .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
-            .is_none()
-        {
+        let Some(closure) =
+            self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
+        else {
             return self
                 .prepare_runtime_factory(call, arity, depth)
                 .map(FunctionLeafResult::RuntimeFactory);
-        }
+        };
         if let Some(factory) = self.prepare_concise_factory(node, region, depth)? {
             return Ok(FunctionLeafResult::Factory(
                 PreparedFactory::ClosureMetadata(factory),
             ));
         }
-        if let Some(factory) = self.prepare_local_function_result(node, region, depth)? {
-            return Ok(FunctionLeafResult::Factory(PreparedFactory::LocalResult(
-                factory,
-            )));
-        }
-        // The concise-factory stage already ran. Do not repeat factory_result
-        // through the compatibility leaf before taking its local-result path.
-        self.local_function_result(call, region, arity, depth)
-            .map(FunctionLeafResult::Value)
+        // Metadata preparation may publish definition costs/capture operations,
+        // but it leaves the caller's lexical targets unchanged. Retain the known
+        // callee and preserve metadata precedence without a compatibility retry.
+        self.prepare_known_local_function_result(call, closure, region)
+            .map(|factory| FunctionLeafResult::Factory(PreparedFactory::LocalResult(factory)))
     }
 
     pub(super) fn function_value_leaf(
@@ -1095,17 +1093,24 @@ impl<'s, 'a> Lowering<'s, 'a> {
         let Expression::CallExpression(call) = node else {
             return Ok(None);
         };
-        if call.optional {
-            return Ok(None);
-        }
-        let Some(mut closure) =
+        let Some(closure) =
             self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
         else {
             return Ok(None);
         };
-        // The general source leaf includes represented .call invocations.
-        // Their receiver and surplus arguments use the same ordered classifier;
-        // block_factory_shape still limits the outer direct-call specialization.
+        self.prepare_known_local_function_result(call, closure, region)
+            .map(Some)
+    }
+
+    /// A known local call always either prepares or rejects. Optional calls
+    /// keep their result admission and definition checking before call rejection;
+    /// the outer direct-block specialization still uses block_factory_shape.
+    fn prepare_known_local_function_result(
+        &mut self,
+        call: &CallExpression<'_>,
+        mut closure: closures::LocalClosure,
+        region: &mut Region,
+    ) -> Result<PreparedFunctionResult, String> {
         let admission = self.begin_function_result(call, FunctionResultKind::Local)?;
         let checked = (|| {
             if !closure.checked {
@@ -1113,13 +1118,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 self.capture_cells(&closure, region);
             }
             self.check_local_call(call, &closure)?;
-            self.charge_closure_expansion(call.as_ref())
+            self.charge_closure_expansion(call)
         })();
         if let Err(error) = checked {
             self.finish_function_result(admission);
             return Err(error);
         }
-        Ok(Some(PreparedFunctionResult { admission, closure }))
+        Ok(PreparedFunctionResult { admission, closure })
     }
 
     pub(super) fn abort_function_result_arguments(&mut self, factory: PreparedFunctionResult) {
