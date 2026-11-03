@@ -6,6 +6,8 @@ use super::*;
 use std::cell::Cell;
 mod managed;
 mod own_keys;
+#[cfg(test)]
+mod ownership_tests;
 mod tasks;
 mod values;
 use tasks::Work;
@@ -23,8 +25,7 @@ struct LogicalLeft<'e, 'a> {
 }
 
 /// All evaluator Regions are owned directly by the resumable activation.
-/// The synchronous `evaluate` API uses a separate restoration lease; source
-/// scheduling will be able to move an activation without borrowing its caller.
+/// Source scheduling moves the activation without borrowing its caller.
 struct Regions {
     root: Region,
     children: Vec<Region>,
@@ -36,39 +37,6 @@ pub(super) struct EvaluationCursor<'e, 'a> {
     values: Vec<Value>,
     #[cfg(test)]
     _entry: crate::evaluator_tests::Entry,
-}
-
-/// Restore the caller's Region even when a synchronous evaluation returns an
-/// error through an early `?`. The cursor itself has no borrow of this Region.
-struct EvaluationLease<'r, 'e, 'a> {
-    destination: &'r mut Region,
-    cursor: EvaluationCursor<'e, 'a>,
-}
-
-impl<'r, 'e, 'a> EvaluationLease<'r, 'e, 'a> {
-    fn new(
-        destination: &'r mut Region,
-        expression: &'e Expression<'a>,
-        depth: usize,
-        mode: Mode,
-    ) -> Self {
-        let root = Region {
-            id: destination.id,
-            span: destination.span,
-            operations: std::mem::take(&mut destination.operations),
-            exit: std::mem::replace(&mut destination.exit, Exit::Fallthrough),
-        };
-        Self {
-            destination,
-            cursor: EvaluationCursor::new(root, expression, depth, mode),
-        }
-    }
-}
-
-impl Drop for EvaluationLease<'_, '_, '_> {
-    fn drop(&mut self) {
-        std::mem::swap(&mut *self.destination, &mut self.cursor.regions.root);
-    }
 }
 
 /// A discarded closure value is evaluated for its source effects but does not
@@ -206,15 +174,22 @@ std::thread_local! {
     static TRUTHY_FUNCTION_YIELDS: Cell<usize> = const { Cell::new(0) };
 }
 
-/// Test-only guard: a yielded task must have returned from its own
-/// evaluator work runner before the synchronous compatibility host resumes.
+/// Source scheduling must release the native evaluator runner before any
+/// child or resumed expression enters it again.
 #[cfg(test)]
 struct ActiveEvaluationRunner;
 
 #[cfg(test)]
 impl ActiveEvaluationRunner {
     fn enter() -> Self {
-        ACTIVE_EVALUATOR_RUNNERS.with(|count| count.set(count.get() + 1));
+        ACTIVE_EVALUATOR_RUNNERS.with(|count| {
+            assert_eq!(
+                count.get(),
+                0,
+                "source work must not nest evaluator runners"
+            );
+            count.set(1);
+        });
         Self
     }
 }
@@ -257,8 +232,7 @@ impl<'e, 'a> EvaluationCursor<'e, 'a> {
     }
 
     /// The source-owned factory continuation has materialized its callee.
-    /// Consume the temporary function result, just as prepare_closure_call
-    /// returned a bare ValueId before scheduling the outer call.
+    /// Consume the temporary function result before scheduling the outer call.
     pub(super) fn pop_function_value(&mut self) -> Option<ValueId> {
         match self.values.pop()? {
             Value::Function(value) => Some(value),
@@ -470,19 +444,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         self.function_result_depth = previous;
     }
 
-    /// Synchronous compatibility callers use the same depth checkpoint as
-    /// the shared source/evaluator machine, with original diagnostic order.
-    fn with_function_result_context<T>(
-        &mut self,
-        region_depth: Option<usize>,
-        lower: impl FnOnce(&mut Self) -> Result<T, String>,
-    ) -> Result<T, String> {
-        let previous = self.enter_function_result_depth(region_depth);
-        let result = lower(self);
-        self.restore_function_result_depth(previous);
-        result
-    }
-
     fn schedule_discarded_logical<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
@@ -517,8 +478,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         work.push(Work::Eval(&logical.left, depth + 1, left_mode));
     }
 
-    // Region temporaries must stay outside evaluate's frame: constructor checks
-    // can re-enter that cursor on the existing two-MiB native-stack budget.
+    // Keep Region temporaries outside the large evaluator runner's frame.
     fn finish_discarded_logical(
         &mut self,
         node: &Expression<'_>,
@@ -1006,8 +966,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         Ok(true)
     }
 
-    // Keep A1 continuation temporaries out of every evaluator activation.
-    // Constructor validation can re-enter the evaluator on a 2 MiB native stack.
+    // Keep A1 continuation temporaries outside the large evaluator runner.
     #[inline(never)]
     fn resume_ui_call<'e, 'a>(
         &mut self,
@@ -1253,139 +1212,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         Ok(())
     }
 
-    pub(super) fn evaluate<'e, 'a>(
-        &mut self,
-        expression: &'e Expression<'a>,
-        region: &mut Region,
-        depth: usize,
-        mode: Mode,
-    ) -> Result<Option<ValueId>, String> {
-        let mut lease = EvaluationLease::new(region, expression, depth, mode);
-        // The large evaluator runner returns before a source block is lowered.
-        // Only this small compatibility wrapper remains on the native stack.
-        // A future source/evaluator machine will own this outer dispatch loop.
-        loop {
-            #[cfg(test)]
-            let prior_runner_depth = ACTIVE_EVALUATOR_RUNNERS.with(Cell::get);
-            let next = self.run_evaluation(&mut lease.cursor, mode);
-            #[cfg(test)]
-            assert_eq!(
-                ACTIVE_EVALUATOR_RUNNERS.with(Cell::get),
-                prior_runner_depth,
-                "source-body requests must not retain the native evaluator runner"
-            );
-            match next? {
-                EvaluationRun::Complete(result) => return Ok(result),
-                EvaluationRun::CheckLocalClosure {
-                    mut closure,
-                    continuation,
-                } => {
-                    self.check_local_closure(&mut closure)?;
-                    self.resume_checked_local_call(&mut lease.cursor, continuation, closure)?;
-                }
-                EvaluationRun::LowerFunctionLeaf {
-                    node,
-                    signature,
-                    depth,
-                    region_depth,
-                } => {
-                    self.resume_lowered_function_leaf(
-                        &mut lease.cursor,
-                        node,
-                        signature,
-                        depth,
-                        region_depth,
-                    )?;
-                }
-                EvaluationRun::LowerFunctionEffect {
-                    node,
-                    signature,
-                    depth,
-                    region_depth,
-                    effect,
-                } => {
-                    self.resume_lowered_function_effect(
-                        &mut lease.cursor,
-                        node,
-                        signature,
-                        depth,
-                        region_depth,
-                        effect,
-                    )?;
-                }
-                EvaluationRun::LowerCallbackArgument {
-                    node,
-                    signature,
-                    depth,
-                    region_depth,
-                } => {
-                    let value = self.with_function_result_context(Some(region_depth), |lower| {
-                        lower.callback_argument(
-                            node,
-                            lease.cursor.current_region(),
-                            signature,
-                            depth,
-                        )
-                    })?;
-                    lease.cursor.resume_function_value(value);
-                }
-                EvaluationRun::LowerClosureCallee {
-                    node,
-                    signature,
-                    depth,
-                    region_depth,
-                } => {
-                    let value = self.with_function_result_context(Some(region_depth), |lower| {
-                        lower.function_value(node, lease.cursor.current_region(), signature, depth)
-                    })?;
-                    lease.cursor.resume_function_value(value);
-                }
-                EvaluationRun::LowerSyncClosureCallee {
-                    node,
-                    call,
-                    closure: _,
-                    signature,
-                    depth,
-                    region_depth,
-                    mode,
-                    result_type,
-                    number_proven,
-                } => {
-                    let callee = self.prepare_closure_call(
-                        node,
-                        call,
-                        signature,
-                        lease.cursor.regions.current(),
-                        depth,
-                        region_depth,
-                    )?;
-                    self.resume_sync_closure_callee(
-                        &mut lease.cursor,
-                        SyncCalleeContinuation {
-                            node,
-                            call,
-                            depth,
-                            mode,
-                            result_type,
-                            number_proven,
-                        },
-                        callee,
-                    )?;
-                }
-                EvaluationRun::LowerBody {
-                    node,
-                    arrow,
-                    result_type,
-                    parent_depth,
-                } => {
-                    let arrow = self.arrow(arrow);
-                    let body = self.arrow_block_result(arrow, parent_depth, result_type)?;
-                    self.resume_lowered_block_body(&mut lease.cursor, node, result_type, body);
-                }
-            }
-        }
-    }
-
     pub(super) fn resume_checked_local_call<'e, 'a>(
         &mut self,
         cursor: &mut EvaluationCursor<'e, 'a>,
@@ -1464,53 +1290,8 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         Ok(())
     }
 
-    /// The synchronous compatibility host handles its function-valued leaf
-    /// after releasing the large evaluator runner. Source-owned leaves use
-    /// their typed factory selection and argument continuations instead.
-    fn resume_lowered_function_leaf<'e, 'a>(
-        &mut self,
-        cursor: &mut EvaluationCursor<'e, 'a>,
-        node: &'e Expression<'a>,
-        signature: usize,
-        depth: usize,
-        region_depth: Option<usize>,
-    ) -> Result<(), String>
-    where
-        'lower_a: 'e + 'a,
-    {
-        let result = self.with_function_result_context(region_depth, |lower| {
-            lower.function_value_leaf(node, cursor.regions.current(), signature, depth)
-        })?;
-        cursor.values.push(Value::Function(result));
-        Ok(())
-    }
-
-    /// Evaluate a discarded or truthy function value after releasing the large
-    /// evaluator runner. Preserve its sixteen-active-function-value guard and
-    /// all constructor/capture side effects; Boolean(true) is emitted only
-    /// after those effects have finished.
-    pub(super) fn resume_lowered_function_effect<'e, 'a>(
-        &mut self,
-        cursor: &mut EvaluationCursor<'e, 'a>,
-        node: &'e Expression<'a>,
-        signature: usize,
-        depth: usize,
-        region_depth: usize,
-        effect: FunctionEffect,
-    ) -> Result<(), String>
-    where
-        'lower_a: 'e + 'a,
-    {
-        self.with_function_result_context(Some(region_depth), |lower| {
-            lower.function_value(node, cursor.regions.current(), signature, depth)
-        })?;
-        self.complete_function_effect(cursor, node, effect);
-        Ok(())
-    }
-
     /// Construction has completed and its resource/context checkpoints have
-    /// been restored. Both source-owned and compatibility callers consume the
-    /// unused closure identically before the parent evaluator resumes.
+    /// been restored. Consume the unused closure before the parent resumes.
     pub(super) fn complete_function_effect(
         &mut self,
         cursor: &mut EvaluationCursor<'_, '_>,
@@ -1531,8 +1312,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         }
     }
 
-    /// Complete a returned-function factory source body without reentering
-    /// function_value_leaf/local_function_result on the Rust call stack.
+    /// Complete a returned-function factory body on its suspended evaluator.
     /// The source CallExpression owns the original Op::InlineCall span.
     pub(super) fn resume_block_factory<'e, 'a>(
         &mut self,
@@ -1555,8 +1335,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
 
     /// Resume the original synchronous closure call once a function-valued
     /// callee (possibly a returned factory) has been fully materialized.
-    /// Result-mode routing occurs after callee effects, before arguments,
-    /// exactly as in the previous direct prepare_closure_call path.
+    /// Result-mode routing occurs after callee effects, before arguments.
     pub(super) fn resume_sync_closure_callee<'e, 'a>(
         &mut self,
         cursor: &mut EvaluationCursor<'e, 'a>,
@@ -3083,8 +2862,8 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         continue;
                     }
                     if let Some(signature) = self.function_arity(node, depth) {
-                        // Function constructor/factory evaluation may reenter
-                        // another source cursor; release the large runner first.
+                        // The source cursor owns constructor/factory effects;
+                        // release the evaluator runner before requesting them.
                         #[cfg(test)]
                         DISCARDED_FUNCTION_YIELDS.with(|count| count.set(count.get() + 1));
                         return Ok(EvaluationRun::LowerFunctionEffect {
@@ -4611,27 +4390,8 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         }
     }
 
-    // Call effects share validation and callee-before-arguments evaluation.
-    pub(super) fn prepare_closure_call(
-        &mut self,
-        node: &Expression<'_>,
-        call: &CallExpression<'_>,
-        signature: usize,
-        region: &mut Region,
-        depth: usize,
-        region_depth: usize,
-    ) -> Result<ValueId, String> {
-        match self.prepare_closure_callee(node, call, signature, region, depth)? {
-            PreparedClosureCallee::Ready(value) => Ok(value),
-            PreparedClosureCallee::Function { source, depth } => self
-                .with_function_result_context(Some(region_depth), |lower| {
-                    lower.function_value(source, region, signature, depth)
-                }),
-        }
-    }
-
     /// Preserve call-admission diagnostics before taking the callee snapshot.
-    /// A non-slot callee remains unevaluated so either host can own its work.
+    /// A non-slot callee remains unevaluated for its source-owned request.
     fn prepare_closure_callee<'e, 'a>(
         &mut self,
         node: &Expression<'_>,
@@ -4769,8 +4529,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         }
     }
 
-    // Keep this dispatch outside the large cursor frame: deeply nested constructor
-    // validation re-enters evaluate on the existing two-MiB native-stack contract.
+    // Keep this dispatch outside the large evaluator runner's frame.
     fn stored_async_value(
         &mut self,
         node: &Expression<'_>,
@@ -4830,57 +4589,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             Self::push(region, node, Op::AwaitSite { site });
         }
         Self::push(region, node, kind);
-    }
-}
-
-#[cfg(test)]
-mod cursor_region_ownership_tests {
-    use super::*;
-
-    #[test]
-    fn production_evaluation_lease_restores_root_on_success_and_error() {
-        // Exercise EvaluationLease::new itself, not a test-only copy of the
-        // Region-transfer logic.
-        let allocator = oxc_allocator::Allocator::default();
-        let parsed = oxc_parser::Parser::new(&allocator, "1;", oxc_span::SourceType::mjs()).parse();
-        assert!(!parsed.fatal_error && parsed.diagnostics.is_empty());
-        let Statement::ExpressionStatement(statement) = &parsed.program.body[0] else {
-            panic!("expected expression statement");
-        };
-        let expression = &statement.expression;
-        let mut region = Region {
-            id: RegionId(17),
-            span: oxc_span::Span::new(2, 9),
-            operations: Vec::new(),
-            exit: Exit::Fallthrough,
-        };
-
-        {
-            let mut lease = EvaluationLease::new(&mut region, expression, 0, Mode::Number);
-            assert_eq!(lease.cursor.regions.root.id, RegionId(17));
-            assert_eq!(lease.cursor.regions.root.span, oxc_span::Span::new(2, 9));
-            lease.cursor.regions.root.exit = Exit::Yield(ValueId(3));
-        }
-        assert_eq!(region.id, RegionId(17));
-        assert_eq!(region.span, oxc_span::Span::new(2, 9));
-        assert!(matches!(region.exit, Exit::Yield(ValueId(3))));
-
-        fn failing_evaluation(
-            destination: &mut Region,
-            expression: &Expression<'_>,
-        ) -> Result<(), &'static str> {
-            let mut lease = EvaluationLease::new(destination, expression, 0, Mode::Number);
-            lease.cursor.regions.root.exit = Exit::Return(ValueId(4));
-            Err("deliberate diagnostic")
-        }
-
-        assert_eq!(
-            failing_evaluation(&mut region, expression),
-            Err("deliberate diagnostic")
-        );
-        assert_eq!(region.id, RegionId(17));
-        assert_eq!(region.span, oxc_span::Span::new(2, 9));
-        assert!(matches!(region.exit, Exit::Return(ValueId(4))));
     }
 }
 

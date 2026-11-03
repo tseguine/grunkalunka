@@ -1,8 +1,8 @@
 //! Public optional syntax remains a rejected ChainExpression. These separate
 //! helper tests expose the parser's inner optional CallExpression before semantic
-//! building, so they can compare the extracted preparation stages with the
-//! compatibility leaf's original admission/check/capture order. They do not establish an
-//! admitted optional-syntax route through the source scheduler.
+//! building, so they can compare the actual preparation/checking stages with
+//! frozen legacy admission, capture, resource and builder-state observations.
+//! They do not establish an admitted optional-syntax source route.
 use super::*;
 use oxc_allocator::{Allocator, ReplaceWith};
 use oxc_parser::Parser;
@@ -24,7 +24,7 @@ struct Rejection {
     signatures: String,
 }
 
-fn reject_inner_optional_call(source: &str, active: usize, prepared: bool) -> Rejection {
+fn reject_inner_optional_call(source: &str, active: usize) -> Rejection {
     let allocator = Allocator::default();
     let mut parsed = Parser::new(&allocator, source, SourceType::mjs()).parse();
     assert!(!parsed.fatal_error && parsed.diagnostics.is_empty());
@@ -96,43 +96,49 @@ fn reject_inner_optional_call(source: &str, active: usize, prepared: bool) -> Re
         unreachable!();
     };
     let expression = &last.expression;
-    let signature = lowering.function_arity(expression, 0).unwrap_or(1);
+    // Keep the original pre-driver signature query: it can intern identities
+    // even though these rejecting prepared stages never consume its result.
+    let _ = lowering.function_arity(expression, 0).unwrap_or(1);
     lowering.active_function_results = active;
     lowering.active_function_values = 1;
-    let error = if prepared {
-        // A source leaf now returns a deferred Check request. This separate
-        // helper oracle retains the frozen preparation-state comparison; actual
-        // queued checking and unwind are exercised by source continuation tests.
-        let result = (|| {
-            let Expression::CallExpression(call) = expression else {
-                unreachable!("extracted inner optional call");
-            };
-            let closure = lowering
-                .closure_target(invocation::callee(call), invocation::depth(call, 1))
-                .expect("known optional helper callee");
-            if let Some((candidate, mut factory)) = lowering.select_concise_factory(expression, 0) {
-                if !factory.checked {
-                    factory = lowering.check_closure_for_test(factory)?;
-                    lowering.capture_cells(&factory, &mut region);
-                }
-                if lowering
-                    .finish_concise_factory_preparation(candidate, factory)?
-                    .is_some()
-                {
-                    return Ok(());
-                }
+    // Source syntax keeps its ChainExpression and rejects before this helper.
+    // Exercise the extracted stages with the real owned checking child, without
+    // adding a statement or value admission to the frozen helper contract.
+    let result = (|| {
+        let Expression::CallExpression(call) = expression else {
+            unreachable!("extracted inner optional call");
+        };
+        let mut closure = lowering
+            .closure_target(invocation::callee(call), invocation::depth(call, 1))
+            .expect("known optional helper callee");
+        if let Some((candidate, mut factory)) = lowering.select_concise_factory(expression, 0) {
+            if !factory.checked {
+                factory = lowering.check_closure_for_test(factory)?;
+                lowering.capture_cells(&factory, &mut region);
             }
-            lowering
-                .prepare_known_local_function_result(call, closure, &mut region)
-                .map(|_| ())
-        })();
-        result.err()
-    } else {
+            if lowering
+                .finish_concise_factory_preparation(candidate, factory)?
+                .is_some()
+            {
+                return Ok(());
+            }
+        }
+        let preparation = lowering.begin_local_result_preparation(call)?;
+        if !closure.checked {
+            closure = match lowering.check_closure_for_test(closure) {
+                Ok(closure) => closure,
+                Err(error) => {
+                    lowering.abort_local_result_preparation(preparation);
+                    return Err(error);
+                }
+            };
+            lowering.capture_cells(&closure, &mut region);
+        }
         lowering
-            .function_value_leaf(expression, &mut region, signature, 0)
-            .err()
-    }
-    .expect("the extracted optional call must still reject");
+            .finish_local_result_preparation(preparation, call, closure)
+            .map(|_| ())
+    })();
+    let error = result.expect_err("the extracted optional call must still reject");
     assert_eq!(lowering.statement_depth, 0);
     assert_eq!(lowering.return_type, Type::Number);
     assert!(!lowering.in_loop_body);
@@ -151,12 +157,25 @@ fn reject_inner_optional_call(source: &str, active: usize, prepared: bool) -> Re
     }
 }
 
+fn frozen_rejection(name: &str, source: &str, active: usize) -> &'static str {
+    let key = format!("{name}/{active}");
+    let record = include_str!("./optional_rejections.txt")
+        .lines()
+        .filter_map(|line| line.split_once('\t'))
+        .find_map(|(case, record)| (case == key).then_some(record))
+        .expect("every optional helper case has a frozen legacy state");
+    let (original_source, expected) = record.split_once('\t').expect("source and complete state");
+    assert_eq!(source, original_source, "frozen source for {key}");
+    expected
+}
+
 #[test]
-fn inner_optional_call_preserves_compatibility_rejection_and_state() {
+fn inner_optional_call_preserves_frozen_rejection_and_state() {
     std::thread::Builder::new()
         .stack_size(2 * 1024 * 1024)
         .spawn(|| {
-            // Frozen on dafef1f before replacing its source-leaf fallback.
+            // Full legacy states were captured independently at 511db645,
+            // before deleting any compatibility driver; see fixture provenance.
             for (name, source, diagnostic, at_limit) in [
                 (
                     "checked",
@@ -202,15 +221,15 @@ fn inner_optional_call_preserves_compatibility_rejection_and_state() {
                 ),
             ] {
                 for active in [0, 7, 8] {
-                    let expected = reject_inner_optional_call(source, active, false);
-                    let actual = reject_inner_optional_call(source, active, true);
+                    let expected = frozen_rejection(name, source, active);
+                    let actual = reject_inner_optional_call(source, active);
                     let diagnostic = if active == 8 {
                         at_limit.unwrap_or(diagnostic)
                     } else {
                         diagnostic
                     };
                     assert_eq!(actual.error, diagnostic, "{name}, active={active}");
-                    assert_eq!(actual, expected, "{name}, active={active}");
+                    assert_eq!(format!("{actual:?}"), expected, "{name}, active={active}");
                     assert_eq!(actual.active_results, active);
                     assert_eq!(actual.active_values, 1);
                     assert_eq!(actual.expansions, 0);

@@ -8,16 +8,16 @@ use oxc_ast::{
 use oxc_syntax::node::NodeId;
 
 /// The caller's lexical bindings and source-charge mode are restored only
-/// after an invoked function's parameters/body have finished. This token may
-/// be held in a future heap continuation while a factory body is suspended.
+/// after an invoked function's parameters/body have finished. A heap
+/// continuation retains this token while a factory body is suspended.
 pub(super) struct FactoryBindings {
     previous: Vec<NumericBinding>,
     charging: bool,
 }
 
 /// The source-ordered classification shared by concise and block-bodied local
-/// factories. Classification is read-only; a future source continuation can
-/// schedule the corresponding expression or callback without rerunning it.
+/// factories. Classification is read-only; a source continuation schedules
+/// the corresponding expression or callback without rerunning it.
 #[derive(Clone, Copy)]
 pub(super) enum FactoryArgumentKind {
     Discard,
@@ -59,8 +59,8 @@ pub(super) struct PreparedClosureCheck<'s, 'a> {
     pub(super) region: Region,
 }
 
-/// Body selection retains the original checking order while allowing either
-/// the compatibility driver or the source cursor to own the actual lowering.
+/// Body selection retains the original checking order while the source cursor
+/// owns the actual lowering in its disposable child.
 pub(super) enum ClosureCheckBody<'a> {
     Returned(LocalClosure),
     Expression {
@@ -83,9 +83,8 @@ pub(crate) struct LocalClosure {
     pub result: Type,
 }
 
-/// Context that must eventually move to the heap with a suspended
-/// block-arrow source-body request. For now the synchronous lowering path
-/// captures and restores it as one typed value on success and error.
+/// Context retained with a suspended block-arrow source-body request and
+/// restored as one typed value on success and error.
 struct BlockArrowCheckpoint {
     source: source_control::SourceContext,
     allow_await: bool,
@@ -116,15 +115,15 @@ impl BlockArrowCheckpoint {
 
 /// The suspended block-arrow activation owns the function mode and lexical
 /// restoration checkpoint. The body itself is a separate owned request, so
-/// source lowering can eventually yield without borrowing the evaluator stack.
+/// source lowering yields without borrowing the evaluator stack.
 pub(super) struct BlockArrowActivation {
     arrow: NodeId,
     result_type: Type,
     checkpoint: BlockArrowCheckpoint,
 }
 
-/// Owned source region plus the original body AST to be scheduled by a
-/// future cross-phase LowerBody task. No evaluator work/Region is borrowed.
+/// Owned source region plus the original body AST for a LowerBody task.
+/// No evaluator work/Region is borrowed.
 pub(super) struct ArrowBodyRequest<'n, 'a> {
     pub(super) statements: &'n [Statement<'a>],
     pub(super) region: Region,
@@ -316,24 +315,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
         Ok(())
     }
 
-    pub(super) fn check_local_closure(&mut self, closure: &mut LocalClosure) -> Result<(), String> {
-        // Direct concise-arrow factory chains have their own worklist. Keep
-        // ordinary checking as a separate driver: folding worklist storage into
-        // its native frame regressed the 2 MiB truthiness-depth probe.
-        let factory = self
-            .arrow(closure.arrow)
-            .get_expression()
-            .and_then(|expression| self.closure_target(expression, 0))
-            .is_some();
-        if factory {
-            self.check_factory_chain(closure, 0)
-        } else {
-            self.check_closure_at(closure, 0)
-        }
-    }
-
     /// Preserve definition admission, scratch allocation and parameter order
-    /// before either checking driver enters the body. No caller-owned IR is
+    /// before the checking child enters the body. No caller-owned IR is
     /// published by this preparation or by dropping its result on an error.
     pub(super) fn prepare_closure_check(
         &self,
@@ -539,45 +522,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
-    fn check_closure_at(
-        &mut self,
-        closure: &mut LocalClosure,
-        factory_depth: usize,
-    ) -> Result<(), String> {
-        let arrow = self.arrow(closure.arrow);
-        let PreparedClosureCheck {
-            lowering: mut check,
-            mut region,
-        } = self.prepare_closure_check(closure, factory_depth)?;
-        match check.prepare_closure_check_body(closure)? {
-            ClosureCheckBody::Returned(mut returned) => {
-                if !returned.checked {
-                    check.check_factory_chain(&mut returned, factory_depth + 1)?;
-                }
-                check.capture_cells(&returned, &mut region);
-                closure.factory = true;
-            }
-            ClosureCheckBody::Expression { source, mode } => {
-                if let evaluate::Mode::Function(arity) = mode {
-                    check.function_value(source, &mut region, arity, 0)?;
-                } else {
-                    check.evaluate(source, &mut region, 0, mode)?;
-                }
-            }
-            ClosureCheckBody::Block {
-                result_type,
-                factory,
-            } => {
-                region = check.arrow_block_result(arrow, 0, result_type)?;
-                if factory {
-                    closure.factory = true;
-                }
-            }
-        }
-        self.finish_closure_check(&check, closure, &region);
-        Ok(())
-    }
-
     /// Successful checking publishes only source costs and closure metadata.
     /// Scratch identities, generated operations and lifted bodies remain owned
     /// by the disposable child, while signature interning stays shared.
@@ -598,106 +542,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.local_count = check.local_count;
         self.statement_count = check.statement_count;
         closure.checked = true;
-    }
-
-    fn check_factory_chain(
-        &mut self,
-        closure: &mut LocalClosure,
-        factory_depth: usize,
-    ) -> Result<(), String> {
-        // Each nested factory has its own disposable Lowering clone. Keep
-        // the clones, their regions and the post-child capture continuation on
-        // the heap; the eight-factory budget is a source limit, not a promise
-        // about Rust frame size.
-        enum Work<'s, 'a> {
-            Enter {
-                parent: Box<Lowering<'s, 'a>>,
-                closure: LocalClosure,
-                factory_depth: usize,
-            },
-            AfterChild {
-                parent: Box<Lowering<'s, 'a>>,
-                closure: LocalClosure,
-                region: Box<Region>,
-            },
-        }
-
-        let mut work = vec![Work::Enter {
-            parent: Box::new(self.clone()),
-            closure: closure.clone(),
-            factory_depth,
-        }];
-        let mut results = Vec::new();
-        while let Some(task) = work.pop() {
-            match task {
-                Work::Enter {
-                    mut parent,
-                    mut closure,
-                    factory_depth,
-                } => {
-                    let arrow = parent.arrow(closure.arrow);
-                    let PreparedClosureCheck {
-                        lowering: mut check,
-                        mut region,
-                    } = parent.prepare_closure_check(&closure, factory_depth)?;
-                    match check.prepare_closure_check_body(&mut closure)? {
-                        ClosureCheckBody::Returned(returned) => {
-                            if !returned.checked {
-                                // Child factory checking resumes here after the descendant
-                                // has updated the disposable lowering's source budgets.
-                                work.push(Work::AfterChild {
-                                    parent,
-                                    closure,
-                                    region: Box::new(region),
-                                });
-                                work.push(Work::Enter {
-                                    parent: check,
-                                    closure: returned,
-                                    factory_depth: factory_depth + 1,
-                                });
-                                continue;
-                            }
-                            check.capture_cells(&returned, &mut region);
-                            closure.factory = true;
-                        }
-                        ClosureCheckBody::Expression { source, mode } => {
-                            if let evaluate::Mode::Function(arity) = mode {
-                                check.function_value(source, &mut region, arity, 0)?;
-                            } else {
-                                check.evaluate(source, &mut region, 0, mode)?;
-                            }
-                        }
-                        ClosureCheckBody::Block {
-                            result_type,
-                            factory,
-                        } => {
-                            region = check.arrow_block_result(arrow, 0, result_type)?;
-                            if factory {
-                                closure.factory = true;
-                            }
-                        }
-                    }
-                    parent.finish_closure_check(&check, &mut closure, &region);
-                    results.push((parent, closure));
-                }
-                Work::AfterChild {
-                    mut parent,
-                    mut closure,
-                    mut region,
-                } => {
-                    let (check, returned) = results.pop().expect("checked nested factory");
-                    check.capture_cells(&returned, &mut region);
-                    closure.factory = true;
-                    parent.finish_closure_check(&check, &mut closure, &region);
-                    results.push((parent, closure));
-                }
-            }
-        }
-        let (parent, checked) = results.pop().expect("checked root closure");
-        self.local_count = parent.local_count;
-        self.statement_count = parent.statement_count;
-        *closure = checked;
-        Ok(())
     }
 
     pub(super) fn check_local_call(
@@ -775,61 +619,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
-    pub(super) fn evaluate_factory_argument(
-        &mut self,
-        kind: FactoryArgumentKind,
-        expression: &Expression<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Option<ValueId>, String> {
-        match kind {
-            FactoryArgumentKind::Discard => {
-                self.evaluate(expression, region, depth, evaluate::Mode::Discard)?;
-                Ok(None)
-            }
-            FactoryArgumentKind::Callback(signature) => self
-                .callback_argument(expression, region, signature, depth)
-                .map(Some),
-            FactoryArgumentKind::Scalar(mode) => Ok(Some(
-                self.evaluate(expression, region, depth, mode)?
-                    .expect("factory scalar argument"),
-            )),
-        }
-    }
-
-    pub(super) fn factory_result(
-        &mut self,
-        expression: &Expression<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Option<LocalClosure>, String> {
-        let Some(factory) = self.prepare_concise_factory(expression, region, depth)? else {
-            return Ok(None);
-        };
-        let arguments = self.evaluate_concise_factory_arguments(&factory, region)?;
-        self.finish_concise_factory(factory, arguments, region)
-            .map(Some)
-    }
-
-    /// Recognize and validate a concise closure-returning factory before any
-    /// caller arguments run. Keep the original unwrapped call and source depth
-    /// so a suspended argument phase can retain exactly the same context.
-    pub(super) fn prepare_concise_factory<'n, 'ast>(
-        &mut self,
-        expression: &'n Expression<'ast>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Option<PreparedConciseFactory<'n, 'ast>>, String> {
-        let Some((candidate, mut factory)) = self.select_concise_factory(expression, depth) else {
-            return Ok(None);
-        };
-        if !factory.checked {
-            self.check_local_closure(&mut factory)?;
-            self.capture_cells(&factory, region);
-        }
-        self.finish_concise_factory_preparation(candidate, factory)
-    }
-
     /// Select without checking or charging. A known-local consumer must retain
     /// its own original closure snapshot if it may fall through after this
     /// metadata stage: checking this candidate does not check that snapshot.
@@ -881,56 +670,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }))
     }
 
-    fn evaluate_concise_factory_arguments(
-        &mut self,
-        factory: &PreparedConciseFactory<'_, '_>,
-        region: &mut Region,
-    ) -> Result<Vec<ValueId>, String> {
-        let call = factory.call;
-        // Source arguments finish left-to-right before the creator's bindings
-        // replace the caller's. Every specialization gets fresh parameter slots.
-        let mut arguments = Vec::new();
-        for (index, argument) in call.arguments.iter().enumerate() {
-            let argument = argument
-                .as_expression()
-                .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
-            let kind = self.classify_factory_argument(
-                call,
-                factory.closure.arrow,
-                index,
-                argument,
-                factory.call_depth + 1,
-            );
-            if let Some(value) =
-                self.evaluate_factory_argument(kind, argument, region, factory.call_depth + 1)?
-            {
-                arguments.push(value);
-            }
-        }
-        Ok(arguments)
-    }
-
-    /// Select and validate the returned closure under the fresh factory
-    /// parameters, then restore the caller before that closure is materialized
-    /// or published by its consumer. This stage owns restoration on every error.
-    pub(super) fn finish_concise_factory(
-        &mut self,
-        factory: PreparedConciseFactory<'_, '_>,
-        arguments: Vec<ValueId>,
-        region: &mut Region,
-    ) -> Result<LocalClosure, String> {
-        let (bindings, mut returned) =
-            self.begin_concise_factory_result(factory, arguments, region)?;
-        let checked = if returned.checked {
-            Ok(())
-        } else {
-            self.check_local_closure(&mut returned)
-        };
-        self.restore_factory_bindings(bindings);
-        checked?;
-        Ok(returned)
-    }
-
     /// Install fresh factory parameters and select the returned metadata. On
     /// success the caller owns restoration across any returned-definition check;
     /// setup failure restores immediately, before a continuation can be stored.
@@ -974,9 +713,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
-    /// Prepare the source block with the same ordered directive admission,
-    /// without entering another native source-control dispatcher. Both the
-    /// original synchronous path and a future yielding path use this request.
+    /// Prepare the source block with its ordered directive admission. The
+    /// source cursor retains this request while its body is suspended.
     #[inline(never)]
     pub(super) fn prepare_arrow_block_body<'n>(
         &mut self,
@@ -1067,30 +805,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.active_block_calls -= 1;
     }
 
-    /// Synchronous compatibility entry. Future L4 work moves this source-body
-    /// request onto the common scheduler while suspending its evaluator state.
-    pub(super) fn arrow_block_result<'n>(
-        &mut self,
-        arrow: &'n ArrowFunctionExpression<'a>,
-        parent_depth: usize,
-        result_type: Type,
-    ) -> Result<Region, String>
-    where
-        'a: 'n,
-    {
-        let (activation, request) =
-            self.begin_arrow_block_activation(arrow, parent_depth, result_type)?;
-        let ArrowBodyRequest {
-            statements,
-            mut region,
-        } = request;
-        let completion = self.sequence(statements, &mut region, 0);
-        self.finish_arrow_block_activation(activation, region, completion)
-    }
-
-    /// The post-source-body continuation is independent of the Rust stack
-    /// frame that entered the block. The future cross-phase scheduler can
-    /// call this with its heap-owned completed Region and Completion.
+    /// Complete the source body's owned Region and Completion after its
+    /// continuation restores the block-arrow activation.
     #[inline(never)]
     pub(super) fn complete_arrow_block_body(
         &mut self,
