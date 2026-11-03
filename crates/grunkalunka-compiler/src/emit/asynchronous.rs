@@ -1179,7 +1179,7 @@ pub(crate) fn emit_async(module: &ir::Module) -> Result<String, String> {
         output.push_str(cells::MEMORY);
     }
     if has_closures {
-        output.push_str(&closures::table(module, true, starters, gc_closures));
+        output.push_str(&closures::table(module, true, starters, gc_closures, 0));
     }
     if gc_closures {
         output.push_str(&super::gc_closures::module_globals(module));

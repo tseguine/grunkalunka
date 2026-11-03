@@ -58,7 +58,9 @@ impl grunkalunka::a1::ui::Host for Host {
 
 fn engine() -> Engine {
     let mut config = Config::new();
-    config.consume_fuel(true);
+    config
+        .consume_fuel(true)
+        .collector(wasmtime::Collector::Copying);
     Engine::new(&config).unwrap()
 }
 
@@ -282,6 +284,7 @@ fn compare_composed_source(source: &str) {
         let (mut store, instance) = linked(&engine, &component, true);
         let mut observations = Vec::new();
         for a in [-3.0, 0.0, 1.0, 3.0] {
+            store.gc(None).unwrap();
             store.set_fuel(100_000).unwrap();
             store.data_mut().calls.clear();
             store.data_mut().visible = 0;
@@ -358,6 +361,48 @@ fn imported_service_composes_with_named_forward_and_recursive_helpers() {
     ] {
         compare_composed_source(source);
     }
+}
+
+#[test]
+fn imported_service_composes_with_runtime_closures_and_shared_cells() {
+    for body in [
+        "let state=a;let dispatch=x=>choose(state+x,b);state+=1;return dispatch(b)+state;",
+        "let n=a;let f=x=>choose((n+=x),b);const old=f;f=x=>choose((n-=x),b);return old(b)+f(b)+n;",
+        "let make=x=>y=>choose(x+y,b);const first=make(a),second=make(b);return first(b)*10+second(a);",
+        "let first=()=>a,last=()=>b;for(let i=0;i<3;i++){const f=()=>choose(i,b);if(i===0)first=f;last=f;}return first()*10+last();",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function select(x, count) { return choose(x, count); }
+           export function run(a, b) { let f=x=>select(x+a,b);return f(b); }"#,
+    );
+}
+
+#[test]
+fn imported_service_composes_with_gc_captures_and_function_identities() {
+    for body in [
+        "let state={expanded:a};const initial=state;let dispatch=()=>choose(state.expanded===a?1:0,b);state={expanded:b};return dispatch()+(initial===state?10:20);",
+        "let x=a;let f=()=>choose(x,b);const handlers=[f];x=b;return handlers[0]()+(handlers[0]===f?10:20);",
+        "let make=x=>{const state={expanded:x};return ()=>choose(state.expanded===a?1:0,b);};const f=make(a),g=make(b);return f()*10+g()+(f===g?100:200);",
+    ] {
+        compare_composed_source(&format!(
+            "import {{ selectVisible as choose }} from \"grunkalunka:a1/ui\";\n\
+             export function run(a, b) {{ {body} }}"
+        ));
+    }
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function handler(x, count) { return choose(x, count); }
+           export function run(a, b) {
+             const actions={handler};const alias=handler;
+             return actions.handler(a,b)+(actions.handler===alias?10:20);
+           }"#,
+    );
 }
 
 #[test]

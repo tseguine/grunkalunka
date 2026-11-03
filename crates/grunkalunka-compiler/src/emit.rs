@@ -1104,27 +1104,27 @@ fn emit_verified(
             .functions
             .iter()
             .any(|f| !ir::captured_cells(&f.body).is_empty());
-    if has_cells && !gc_closures {
-        output.push_str(cells::MEMORY);
-    }
     if has_ui_import {
-        // Ordinary direct calls account for the imported function. Closure
-        // table targets and the captured-cell entry wrapper need a separate
-        // composition increment before this profile can admit those paths.
-        if has_cells {
-            return Err(
-                "A1 scalar import cannot yet compose with closures or captured cells".into(),
-            );
-        }
+        // Core imports must precede the captured-cell memory/global definitions.
         output.push_str(
             "(import \"grunkalunka:a1/ui\" \"select-visible\" (func $ui_select_visible (param f64 f64) (result f64)))\n",
         );
+    }
+    let function_index_offset = usize::from(has_ui_import);
+    if has_cells && !gc_closures {
+        output.push_str(cells::MEMORY);
     }
     if gc_closures {
         output.push_str(gc_closures::TYPES);
     }
     if has_closures {
-        output.push_str(&closures::table(module, false, false, gc_closures));
+        output.push_str(&closures::table(
+            module,
+            false,
+            false,
+            gc_closures,
+            function_index_offset,
+        ));
     }
     if gc_closures {
         output.push_str(&gc_closures::module_globals(module));
@@ -1163,7 +1163,7 @@ fn emit_verified(
             false,
             gc_closures,
             false,
-            usize::from(has_ui_import),
+            function_index_offset,
         );
         needs_remainder |= remainder;
         output.push_str(&body);
@@ -1176,7 +1176,11 @@ fn emit_verified(
         output.push_str(cells::ALLOCATOR);
         output.push_str("(func (export \"run\") (param f64 f64)");
         writeln!(output, " (result {})", layout::value(entry_type).wat).unwrap();
-        output.push_str("i32.const 0 global.set $cell_top\nlocal.get 0 local.get 1 call 0)\n");
+        writeln!(
+            output,
+            "i32.const 0 global.set $cell_top\nlocal.get 0 local.get 1 call {function_index_offset})"
+        )
+        .unwrap();
     }
     if has_closures && !gc_closures {
         output.push_str(closures::FRAME_ALLOCATOR);
