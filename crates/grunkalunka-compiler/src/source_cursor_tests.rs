@@ -93,6 +93,49 @@ fn declaration_definition_checks_stay_on_one_source_cursor() {
 }
 
 #[test]
+fn factory_checks_and_metadata_materialization_use_one_source_cursor() {
+    for (body, asynchronous, admitted) in [
+        ("return(x=>y=>x+y)(a)(b);", false, true),
+        ("return(x=>{return y=>x+y;})(a)(b);", false, true),
+        ("const f=(x=>y=>x+y)(a);return f(b);", false, true),
+        ("return(x=>()=>x.v===a?a:b)({v:a})();", false, true),
+        (
+            "return await(x=>async y=>{await x;return x+y;})(a)(b);",
+            true,
+            true,
+        ),
+        ("return(x=>y=>Math.noSuch(x))(a)(b);", false, false),
+        (
+            "return(x=>{const unused=()=>Math.noSuch(x);return y=>x+y;})(a)(b);",
+            false,
+            false,
+        ),
+    ] {
+        for typescript in [false, true] {
+            let prefix = if asynchronous { "async " } else { "" };
+            let source = format!("export {prefix}function run(a,b){{{body}}}");
+            std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || {
+                    let (result, maximum, entries, _) = observe(|| {
+                        if asynchronous {
+                            crate::compile_async(&source, typescript).map(|_| ())
+                        } else {
+                            crate::compile(&source, typescript).map(|_| ())
+                        }
+                    });
+                    assert_eq!(result.is_ok(), admitted, "{body}: {result:?}");
+                    assert_eq!(maximum, 1, "factory checking nested the source cursor");
+                    assert_eq!(entries, 1, "factory checking reentered the source cursor");
+                })
+                .expect("2 MiB factory checking source-cursor thread")
+                .join()
+                .expect("factory checking and materialization share one source cursor");
+        }
+    }
+}
+
+#[test]
 fn nested_real_lifted_bodies_use_one_source_cursor() {
     for (body, asynchronous) in [
         ("let f=x=>{let g=y=>x+y;return g(a);};return f(b);", false),

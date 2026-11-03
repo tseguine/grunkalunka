@@ -97,6 +97,21 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 });
                 self.start_closure_materialization(closure, output, source, signature, cursor)
             }
+            declarations::DeclarationInitializer::CheckFactory {
+                local,
+                candidate,
+                closure,
+            } => {
+                #[cfg(test)]
+                SCHEDULED_METADATA_FACTORY_CHECKS.with(|count| count.set(count.get() + 1));
+                cursor.pending.push(Frame::CheckedDeclarationFactory {
+                    sequence,
+                    local,
+                    candidate,
+                    output,
+                });
+                self.start_closure_check(closure, 0, cursor)
+            }
             declarations::DeclarationInitializer::Factory(prepared) => {
                 #[cfg(test)]
                 SCHEDULED_DECLARATION_FACTORIES.with(|count| count.set(count.get() + 1));
@@ -157,18 +172,41 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         &mut self,
         sequence: Box<DeclarationSequence<'n, 'ast>>,
         prepared: declarations::PreparedDeclarationFactory<'n, 'ast>,
-        mut output: Region,
+        output: Region,
         arguments: Vec<ValueId>,
         cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
     {
-        let (local, closure) =
-            self.complete_declaration_factory(prepared, arguments, &mut output)?;
-        // Completion restored the caller before publication, any definition
-        // check, or selection of the next initializer.
-        let next = self.publish_declaration_closure(local, false, closure, &mut output)?;
+        let (local, factory) = prepared.into_parts();
+        self.start_returned_factory_check(
+            FactoryMetadataConsumer::Declaration {
+                sequence,
+                local,
+                output,
+            },
+            factory,
+            arguments,
+            cursor,
+        )
+    }
+
+    pub(super) fn resume_declaration_factory_check<'n>(
+        &mut self,
+        sequence: Box<DeclarationSequence<'n, 'ast>>,
+        local: &'n VariableDeclarator<'ast>,
+        candidate: closures::ConciseFactoryCandidate<'n, 'ast>,
+        closure: closures::LocalClosure,
+        mut output: Region,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        self.capture_cells(&closure, &mut output);
+        let next =
+            self.finish_declaration_factory_preparation(local, candidate, closure, &mut output)?;
         self.schedule_declaration_initializer(sequence, next, output, cursor)
     }
 }

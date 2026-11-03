@@ -502,6 +502,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 )?;
             }
             Frame::ChildBoundary { .. }
+            | Frame::CheckedFactoryExpression { .. }
+            | Frame::CheckedFactoryResult { .. }
+            | Frame::CheckedDeclarationFactory { .. }
             | Frame::CheckedMaterialization { .. }
             | Frame::MaterializedFunction { .. }
             | Frame::LiftedExpression { .. }

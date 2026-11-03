@@ -2941,6 +2941,22 @@ fn const_factory_arguments_preserve_await_order_and_async_captures() {
 }
 
 #[test]
+fn factory_definition_continuations_preserve_async_captures_and_jobs() {
+    compare_promises(
+        &[
+            "return await(x=>async y=>{await x;return x+y;})(a)(b);",
+            "const f=(x=>async y=>{await x;return x+y;})(a);return await f(b);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn concise_function_results_preserve_async_selection_and_captures() {
     compare_promises(
         &["const make=x=>x?(async y=>x+y):(async y=>x-y);return await make(a)(b);"],

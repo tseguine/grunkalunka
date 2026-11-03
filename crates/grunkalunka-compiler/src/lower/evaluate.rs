@@ -183,6 +183,7 @@ pub(super) enum EvaluationRun<'e, 'a> {
     LowerSyncClosureCallee {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
+        closure: closures::LocalClosure,
         signature: usize,
         depth: usize,
         region_depth: usize,
@@ -1342,6 +1343,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 EvaluationRun::LowerSyncClosureCallee {
                     node,
                     call,
+                    closure: _,
                     signature,
                     depth,
                     region_depth,
@@ -3743,7 +3745,8 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         let number_proven = self.numeric_result_shape(node, depth);
                         let callee_expression = invocation::callee(call);
                         let callee_depth = invocation::depth(call, depth + 1);
-                        if self.block_factory_shape(callee_expression, callee_depth)
+                        if let Some(closure) =
+                            self.block_factory_target(callee_expression, callee_depth)
                             && self
                                 .runtime_closure_callee(callee_expression, callee_depth)
                                 .is_none()
@@ -3754,6 +3757,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             return Ok(EvaluationRun::LowerSyncClosureCallee {
                                 node,
                                 call,
+                                closure,
                                 signature: arity,
                                 depth: depth + 1,
                                 region_depth,
