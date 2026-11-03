@@ -25,11 +25,15 @@ mod closures;
 mod control_cursor;
 mod declarations;
 mod evaluate;
+#[cfg(test)]
 mod finalizers;
+#[cfg(test)]
 mod for_statements;
 mod function_values;
+#[cfg(test)]
 mod if_statements;
 mod invocation;
+#[cfg(test)]
 mod loop_statements;
 mod managed_calls;
 pub(super) use managed_calls::infer as infer_managed_calls;
@@ -327,18 +331,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 .filter(|f| f.module_value.is_some())
                 .count()
             + 256
-    }
-
-    // Number and Boolean results can be discarded without exposing a value kind.
-    // Keep numeric lowering byte-identical; never retry a partially emitted tree.
-    fn discarded(
-        &mut self,
-        expression: &Expression<'_>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<(), String> {
-        self.evaluate(expression, region, depth, evaluate::Mode::Discard)?;
-        Ok(())
     }
 
     pub fn region(&mut self, node: &impl GetSpan) -> Region {
@@ -722,24 +714,23 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         Ok(())
     }
 
-    fn statement<'n>(
+    /// The scheduler owns every expression and source-control transition.
+    /// This boundary admits only intrinsic, erased, or rejected statements.
+    fn statement_leaf<'n>(
         &mut self,
         statement: &'n Statement<'ast>,
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
-        // All source blocks and control nodes use the shared heap cursor.
-        // This leaf boundary only handles ordinary statements; retain the
-        // original depth save/restore, including on a diagnostic.
         let outer = std::mem::replace(&mut self.statement_depth, depth);
-        let result = self.statement_inner(statement, region, depth);
+        let result = self.statement_leaf_inner(statement, region, depth);
         self.statement_depth = outer;
         result
     }
 
-    fn statement_inner<'n>(
+    fn statement_leaf_inner(
         &mut self,
-        statement: &'n Statement<'ast>,
+        statement: &Statement<'ast>,
         region: &mut Region,
         depth: usize,
     ) -> Result<Completion, String> {
@@ -769,120 +760,38 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 Ok(Completion::BREAK)
             }
             Statement::EmptyStatement(_) => Ok(Completion::NORMAL),
-            Statement::DoWhileStatement(statement) => self.loop_statement_iterative(
-                loop_statements::LoopNode::DoWhile(statement),
-                region,
-                depth,
-            ),
-            Statement::ForStatement(statement) => {
-                self.for_statement_iterative(statement, region, depth)
-            }
-            Statement::WhileStatement(statement) => self.loop_statement_iterative(
-                loop_statements::LoopNode::While(statement),
-                region,
-                depth,
-            ),
-            Statement::IfStatement(statement) => {
-                self.if_statement_iterative(statement, region, depth)
-            }
-            Statement::BlockStatement(block) => {
-                let mut child = self.region(block.as_ref());
-                let visible = self.bindings.len();
-                let returns = self.sequence(&block.body, &mut child, depth + 1)?;
-                self.bindings.truncate(visible);
-                Self::push(region, block.as_ref(), Op::Block(child));
-                Ok(returns)
-            }
-            Statement::TryStatement(statement) => {
-                self.try_statement(statement.as_ref(), region, depth)
-            }
-            Statement::ThrowStatement(statement) => {
-                if !self.allow_await {
-                    return Err(unsupported(
-                        statement.as_ref(),
-                        "statement is outside the numeric experiment",
-                    ));
-                }
-                let mode = if self.promise_parameters.identities
-                    && self.has_promise_choice(&statement.argument, 0)
-                {
-                    evaluate::Mode::AsyncValue
-                } else {
-                    evaluate::Mode::General
-                };
-                let value = self
-                    .evaluate(&statement.argument, region, 0, mode)?
-                    .expect("throw reason");
-                region.exit = Exit::Throw(value);
-                Ok(Completion::THROW)
-            }
-            Statement::ReturnStatement(statement) => {
-                if statement.argument.is_none()
-                    && matches!(
-                        self.return_type,
-                        Type::General | Type::AsyncValue | Type::ManagedValue
-                    )
-                    && (self.active_block_calls != 0 || self.allow_await)
+            Statement::ReturnStatement(statement) if statement.argument.is_none() => {
+                if matches!(
+                    self.return_type,
+                    Type::General | Type::AsyncValue | Type::ManagedValue
+                ) && (self.active_block_calls != 0 || self.allow_await)
                 {
                     self.return_undefined(statement.as_ref(), region);
-                    return Ok(Completion::RETURN);
-                }
-                let expression =
-                    statement
-                        .argument
-                        .as_ref()
-                        .ok_or(if self.return_type == Type::General {
-                            "return must have a primitive expression"
-                        } else {
-                            "return must have a numeric expression"
-                        })?;
-                let value = if let Type::Closure(arity) = self.return_type {
-                    self.function_value(expression, region, arity, 0)?
-                } else if self.return_type == Type::AsyncValue {
-                    self.evaluate(expression, region, 0, evaluate::Mode::AsyncValue)?
-                        .expect("raw mixed return")
-                } else if self.return_type == Type::Promise {
-                    self.evaluate(expression, region, 0, evaluate::Mode::Pending)?
-                        .expect("pending Promise return")
-                } else if self.return_type == Type::SettledPromise {
-                    self.evaluate(expression, region, 0, evaluate::Mode::Settled)?
-                        .expect("forwarded settled return")
-                } else if self.return_type == Type::FulfilledPromise {
-                    self.evaluate(expression, region, 0, evaluate::Mode::Promise)?
-                        .expect("fulfilled Promise return")
-                } else if self.return_type.is_managed() {
-                    self.evaluate(
-                        expression,
-                        region,
-                        0,
-                        if self.return_type == Type::ManagedObject {
-                            evaluate::Mode::Object
-                        } else if self.return_type == Type::ManagedArray {
-                            evaluate::Mode::Array
-                        } else {
-                            evaluate::Mode::Managed
-                        },
-                    )?
-                    .expect("managed return")
-                } else if self.return_type == Type::General {
-                    if self.allow_await {
-                        self.async_result(expression, region, 0)?
-                    } else {
-                        self.evaluate(expression, region, 0, evaluate::Mode::General)?
-                            .expect("General expression result")
-                    }
+                    Ok(Completion::RETURN)
                 } else {
-                    self.expression(expression, region, 0)?
-                };
-                region.exit = Exit::Return(value);
-                Ok(Completion::RETURN)
+                    Err(if self.return_type == Type::General {
+                        "return must have a primitive expression"
+                    } else {
+                        "return must have a numeric expression"
+                    }
+                    .into())
+                }
             }
-            Statement::ExpressionStatement(statement) => {
-                self.discarded(&statement.expression, region, 0)?;
-                Ok(Completion::NORMAL)
-            }
-            Statement::VariableDeclaration(_) => {
-                unreachable!("runtime declarations are scheduled by the source cursor")
+            Statement::ThrowStatement(statement) if !self.allow_await => Err(unsupported(
+                statement.as_ref(),
+                "statement is outside the numeric experiment",
+            )),
+            Statement::IfStatement(_)
+            | Statement::WhileStatement(_)
+            | Statement::DoWhileStatement(_)
+            | Statement::ForStatement(_)
+            | Statement::BlockStatement(_)
+            | Statement::TryStatement(_)
+            | Statement::ReturnStatement(_)
+            | Statement::ThrowStatement(_)
+            | Statement::ExpressionStatement(_)
+            | Statement::VariableDeclaration(_) => {
+                unreachable!("source continuations own control and expression statements")
             }
             _ => Err(unsupported(
                 statement,

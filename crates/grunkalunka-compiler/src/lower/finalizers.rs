@@ -1,27 +1,4 @@
-//! Lexical try/catch/finally lowering is owned by the shared source
-//! continuation cursor. This file retains the entry point and source probes.
-use super::*;
-use oxc_ast::ast::TryStatement;
-
-impl<'s, 'ast> Lowering<'s, 'ast> {
-    pub(super) fn try_statement<'n>(
-        &mut self,
-        statement: &'n TryStatement<'ast>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Completion, String>
-    where
-        'ast: 'n,
-    {
-        let node = if statement.finalizer.is_some() {
-            control_cursor::ControlNode::TryFinally(statement)
-        } else {
-            control_cursor::ControlNode::TryCatch(statement)
-        };
-        self.control_statement_iterative(node, region, depth)
-    }
-}
-
+//! Try/catch/finally source regressions for the shared cursor.
 #[cfg(test)]
 mod stack_hygiene_tests {
     #[test]

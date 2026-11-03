@@ -1,23 +1,4 @@
-//! The shared source-control cursor now schedules ForStatement alongside
-//! If/While/DoWhile. Keep the entry and lexical-cell regressions separate.
-use super::*;
-use oxc_ast::ast::ForStatement;
-
-impl<'s, 'ast> Lowering<'s, 'ast> {
-    #[inline(never)]
-    pub(super) fn for_statement_iterative<'n>(
-        &mut self,
-        root: &'n ForStatement<'ast>,
-        region: &mut Region,
-        depth: usize,
-    ) -> Result<Completion, String>
-    where
-        'ast: 'n,
-    {
-        self.control_statement_iterative(control_cursor::ControlNode::For(root), region, depth)
-    }
-}
-
+//! For-header and lexical-cell regressions for the shared cursor.
 #[cfg(test)]
 mod tests {
     use crate::ir::{Op, SlotId};

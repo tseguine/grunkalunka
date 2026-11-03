@@ -799,8 +799,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     {
         #[cfg(test)]
         let _entry = crate::source_cursor_tests::entry();
-        // The root has already been charged by statement_inner. Every direct
-        // nested control node is charged exactly once when its Enter runs.
+        // The root is a raw sequence or an already charged control node.
+        // Nested source controls are admitted exactly once when Enter runs.
         let saved_context = self.source_context();
         let original_depth = saved_context.statement_depth;
         let root_output = Self::take_cursor_region(region);
@@ -933,11 +933,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     mode: evaluate::Mode::Discard,
                                 });
                             } else {
-                                // The child may still run a source function body
-                                // through the existing expression evaluator.
+                                // Only intrinsic, erased, or rejected statements
+                                // remain at this source leaf boundary.
                                 self.statement_depth =
                                     cursor.pending.last().map_or(original_depth, Frame::depth);
-                                let completion = self.statement(source, &mut output, depth)?;
+                                let completion = self.statement_leaf(source, &mut output, depth)?;
                                 cursor.completed = Some(Outcome::Statement(output, completion));
                             }
                         }
