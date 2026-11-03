@@ -158,6 +158,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::CheckedDeclarationClosure {
+                sequence,
+                local,
+                output,
+            } => self.resume_declaration_closure(sequence, local, closure, output, cursor),
             Frame::CheckedLocalCall {
                 mut expression,
                 mode,

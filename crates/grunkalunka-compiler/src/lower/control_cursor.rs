@@ -213,6 +213,13 @@ enum Frame<'n, 'a> {
         sequence: Box<DeclarationSequence<'n, 'a>>,
         active: declarations::ActiveDeclarationValue<'n, 'a>,
     },
+    /// A fresh declaration must validate its body before captures and its
+    /// lexical closure binding are published to the next declarator.
+    CheckedDeclarationClosure {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        local: &'n VariableDeclarator<'a>,
+        output: Region,
+    },
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
         source: &'n IfStatement<'a>,
@@ -410,6 +417,7 @@ impl Frame<'_, '_> {
             Self::ForInitializer { depth, .. } => *depth,
             Self::ForDeclarationInitializer { depth, .. } => *depth,
             Self::DeclarationValue { sequence, .. } => sequence.depth,
+            Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
