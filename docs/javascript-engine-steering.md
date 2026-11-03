@@ -34,7 +34,11 @@ cross-phase native-stack recursion has been eliminated or an explicit,
 measured exception has been justified. The proof is semantic and stack
 behavior, not merely that individual functions now use a `Vec<Work>`.
 
-### Integrated baseline
+### Integrated baseline (updated 2026-11-03)
+
+The lowering checkpoint below is current through master
+[`926a4aa`](https://github.com/tseguine/grunkalunka/commit/926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c);
+the document's earlier cross-stream review retains its own dated evidence baseline.
 
 - [#381](https://github.com/tseguine/grunkalunka/pull/381) centralized
   source admission, cursor tasks and Region handoff.
@@ -47,24 +51,71 @@ behavior, not merely that individual functions now use a `Vec<Work>`.
   expression stack was merged through #394: evaluator task/value vocabulary
   and six function-result context crossings were consolidated. A forced-inline
   regression in the 2 MiB Windows truthiness test was bisected and fixed before
-  merge. The expression scheduler is still a separate native call boundary.
+  merge. This step alone retained a separate native expression-call boundary.
 - The [#395–#396](https://github.com/tseguine/grunkalunka/pull/396)
   source stack was merged through #396: a cursor now owns pending work,
   completed results and source-control continuations; for-loop transitions
   have a dedicated typed module. The combined exact head passed its applicable
   hosted checks. This is a **source-control** milestone, not a complete
   expression/function-body stack-safety proof.
+- [#398–#421](https://github.com/tseguine/grunkalunka/pull/421) integrated
+  typed source/expression requests for predicates, discard, for headers,
+  direct returns and async throw reasons; owned evaluator state and block-arrow
+  activations then made block-bodied `LocalCall` yield to the same source cursor.
+- [#427](https://github.com/tseguine/grunkalunka/pull/427) integrated the
+  #422–#425 scalar-`let`/closure-return/async-return stack and shared local
+  publication.
+  [#428](https://github.com/tseguine/grunkalunka/pull/428) releases the large
+  evaluator runner before discarded/truthy function effects, while
+  [#430](https://github.com/tseguine/grunkalunka/pull/430) owns function-result
+  charges and factory binding restoration across phases.
+- [#431](https://github.com/tseguine/grunkalunka/pull/431) routes direct
+  zero-argument local returned block factories through the same source cursor,
+  including the returned callee in `get()()`;
+  [#433](https://github.com/tseguine/grunkalunka/pull/433) adds runtime-oracle
+  and 2 MiB source coverage. [#432](https://github.com/tseguine/grunkalunka/pull/432)
+  shares factory argument classification/evaluation but retains synchronous
+  argument execution at this frozen master checkpoint.
 - [ADR 0020](adr/0020-source-lowering-control-kernel.md) records the
   constraints. [#281](https://github.com/tseguine/grunkalunka/issues/281)
   remains the native-stack-hygiene evidence tracker.
+
+### In-review series (2026-11-03)
+
+The pushed, unmerged sequence
+[#435](https://github.com/tseguine/grunkalunka/pull/435) →
+[#436](https://github.com/tseguine/grunkalunka/pull/436) →
+[#437](https://github.com/tseguine/grunkalunka/pull/437) →
+[#438](https://github.com/tseguine/grunkalunka/pull/438) adds shared returned-factory
+completion, ordered scalar/callback/surplus arguments for direct local block
+factories, source-owned Discard/Truthy function construction and ordinary-call
+callback continuations. These changes cover both function results and immediately
+invoked returned callees, preserving caller-scope argument snapshots, Region
+identity, source limits and error order.
+
+The callback-argument unit adds `LowerCallbackArgument` for
+`Work::LocalCall` and `Work::ClosureCall`, keeping their pending argument work
+on the heap while the source cursor drives the Function-mode child. The shared
+`EvaluateFunctionValue` frame uses `FunctionValueResume::{Effect, Callback}`
+for effect completion or callback-value delivery, preserving callback admission,
+signature provenance and context restoration.
+
+The published tip is
+[`425f9b6`](https://github.com/tseguine/grunkalunka/commit/425f9b6c7dda02224d64901f67d980cc84a07f84).
+Its matching source tree passed 500 compiler tests, 118 runtime-closure tests,
+targeted async/module callback tests, formatting and strict compiler Clippy.
+The [cross-phase inventory](lowering-cross-phase-reentry.md#in-review-argumenteffectcallback-continuation-series)
+records exact artifact/diagnostic parity against the frozen baseline and routing
+sensitivity checks. These local receipts do not imply a hosted pass or integration
+into the master checkpoint.
 
 ### Ordered implementation units
 
 | Unit | Scope and architectural result | Required evidence / completion criterion |
 | --- | --- | --- |
 | **L1 — Cross-phase call graph and baselines** | Identify real strongly connected components involving `control_cursor`, `statement_inner`, `evaluate`, `function_value`, `closures`, `sequence` and remaining function-body/result helpers. Distinguish syntactic direct nesting from callback, inlining and error reentry. Retain source/IR/async-backend phase boundaries. | A reproducible inventory of edges and SCCs, accepted mixed-source programs and just-over-budget diagnostic cases at 2 MiB on supported Linux/Windows hosts. No assumption that source depth equals native stack depth. |
-| **L2 — Owned expression request/result seam** | Introduce a typed *compiler* child-expression request and matching typed result/region ownership protocol to the owned source cursor. Reuse ADR 0001/0016's evaluator, not a second evaluator or a new language-value universe. Keep the existing `Mode`, source AST identity and request-site context. | One small source-control consumer can schedule, suspend, and resume expression lowering with identical emitted IR/Wasm, side-effect ordering, first diagnostics and 2 MiB behavior. No recursive legacy fallback on that converted path. |
-| **L3 — Source expression consumers** | Migrate condition evaluations (if/loops), discarded statements, declarations and for init/test/update, then return/throw/catch/finally edges onto the shared request/result protocol. Consolidate dynamic context and lexical-region ownership per continuation; preserve source charging and `Completion` algebra. | Composed branch/loop/try/lexical cases admit or reject exactly as before; nested expression effects execute once and in order; 2 MiB accepted/rejected boundaries and generated bytes are compared. Migrate consumers in small units, not as one indiscriminate rewrite. |
+| **L2 — Owned expression request/result seam** | The bounded seam is integrated: typed *compiler* requests/results and owned Regions connect the source cursor to ADR 0001/0016's evaluator. Extend this protocol for remaining consumers while preserving `Mode`, source AST identity and request-site context. | Preserve the established schedule/suspend/resume path, emitted IR/Wasm, side-effect ordering, first diagnostics and 2 MiB behavior. No recursive legacy fallback on a converted path. |
+| **L3 — Source expression consumers** | Predicates, discard, for headers, direct/closure/async returns, async throw reasons and single scalar `let` initializers are integrated. Complete remaining declaration/helper crossings and consolidate dynamic context and lexical-region ownership per continuation; preserve source charging and `Completion` algebra. | Composed branch/loop/try/lexical cases admit or reject exactly as before; nested expression effects execute once and in order; 2 MiB accepted/rejected boundaries and generated bytes are compared. Migrate consumers in small units, not as one indiscriminate rewrite. |
 | **L4 — Function/closure-body reentry** | Move actual source-dependent evaluator → function-value/closure factory → body → statement/evaluator cycles onto resumable continuations. Include return-value modes, captures, inline calls, async bodies, expanded/returned factories and signature provenance. | Mixed expression/body nesting no longer creates proportional native Rust call frames. Existing 2 MiB returned-function, callback and truthiness probes pass without raising stacks or altering resource limits; returned-function and early-return semantics agree with native JS / generated Wasm. |
 | **L5 — Retire duplicate paths and consolidate ownership** | Remove remaining source-dependent recursive dispatch fallbacks only after the replacement handles the entire affected SCC. Simplify saved `Lowering` modes, bindings, region roots and restoration on errors. Split source-specific transitions into modules when a common mechanism is proven (as for for loops). | Static call graph no longer contains admitted source-depth-dependent lowering SCCs, with measured exceptions documented. No stale compatibility path, missing source charge, altered first diagnostic, or leaked lexical scope. |
 | **L6 — Facts, extensibility and future semantics** | Review effect-free function signatures, callback origins, stored kinds and Promise/input analysis for genuine duplicate traversal/fixed-point rules. Keep these *queries* distinct from effectful lowering; introduce an extensible normal/throw source-operation interface only when a concrete dynamic Get/Set/Call implementation needs it. | A new supported source feature crosses one well-defined semantic boundary without duplicating fact propagation, using observable JS errors rather than invalid-IR traps. No blanket new CFG, universal dynamic ABI, or ambient host capability as a prerequisite. |
@@ -72,16 +123,25 @@ behavior, not merely that individual functions now use a `Vec<Work>`.
 
 The inspected L4 call paths, owned-state requirements and first native-stack
 observation are collected in [cross-phase reentry](lowering-cross-phase-reentry.md).
-These are the implementation targets, not a claim that L4 is complete.
+After the in-review argument/effect/callback series,
+remaining L4/L5 work is concise returned factories; runtime/calculated/async
+callees; source consumers and compatibility entries still executing synchronously;
+and disposable closure checking plus real lifted-body materialization. The
+[residual-path inventory](lowering-cross-phase-reentry.md#residual-native-reentry-circuits-after-this-series)
+names those call sites. The final composed SCC audit,
+compiler-time/peak-memory comparisons and removal of superseded paths remain
+L7 closure work. No individual handoff establishes completion of those units.
 
-**Implementation order:** L1 and a small L2 proof first; then convert actual L3/L4
-SCCs incrementally, using L5 as cleanup after each verified replacement. L6
-is optional until a specific source semantic extension requires it; L7
-evidence runs throughout, not only at the end. Multiple independently scoped
-PRs may be in flight. Test and rebase-merge compatible stacks as a batch when
-the current exact-head checks, review and ownership rules permit; a caretaker
-may repair CI without silently changing semantics. The temporary historical
-branch refs from already integrated batches do not constitute unmerged code.
+**Implementation order:** maintain the L1 inventory and integrated L2 seam while
+converting actual L3/L4 SCCs incrementally, using L5 as cleanup after each verified
+replacement. L6 is optional until a specific source semantic extension requires it; L7
+evidence runs throughout, not only at the end. The maintainer authorized dependent
+PR series using native PR stacking on 2026-11-03; keep each unit reviewable and
+record its parent branch/PR. Where connector support is unavailable, push the
+dependent branches and leave native PR stack registration to the maintainer.
+Current exact-head checks, review and ownership rules still apply; a caretaker
+may repair CI without silently changing semantics. Historical refs from integrated
+batches do not constitute unmerged code.
 
 **Preserve:** Oxc semantic identities, typed Region IR and verifier, WasmGC,
 specialized numeric and known-value paths, guest and host scheduling

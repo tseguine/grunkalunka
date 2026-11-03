@@ -2,8 +2,9 @@
 
 Date: 2026-11-01
 
-Status: proposed architecture for the remaining cross-phase work; its bounded
-source-control pilot is integrated and verified (see checkpoint below).
+Status: proposed architecture for the remaining cross-phase work; source-control
+and the first source/evaluator continuations are integrated (see dated checkpoints
+below). The original proposal is retained as design history.
 
 ## Context
 
@@ -227,10 +228,11 @@ requires an explicit result-stack/region-ownership contract and must migrate
 each actual SCC as a whole. It should not be claimed merely by replacing a
 recursive call with another `Vec<Work>`.
 
-## Cross-phase checkpoint (2026-11-02)
+## Integrated master checkpoint (2026-11-03)
 
 The design's initial source/evaluator integration is **implemented**, but
-the overall native-stack SCC migration is not complete:
+the overall native-stack SCC migration is not complete. This checkpoint describes
+master [`926a4aa`](https://github.com/tseguine/grunkalunka/commit/926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c):
 
 - [#398–#402](https://github.com/tseguine/grunkalunka/pull/402)
   integrated typed source-to-expression requests, outcomes and explicit
@@ -254,37 +256,106 @@ the overall native-stack SCC migration is not complete:
   suspended evaluator and arrow checkpoint; diagnostic unwinding restores
   the nested activation contexts in reverse order. These changes are
   integrated at master `d519917` (2026-11-02).
+- [#427](https://github.com/tseguine/grunkalunka/pull/427) integrated the
+  #422–#425 stack: single numeric and primitive-General `let` initializers,
+  closure-valued returns, async `Mode::AsyncReturn` resolution, and shared
+  local-slot/binding publication. The predecessor PRs are included in that
+  integration rather than all being individually marked merged.
+- [#428](https://github.com/tseguine/grunkalunka/pull/428) makes discarded and
+  truthy function values yield `LowerFunctionEffect` before their constructor
+  effects run. This releases the large evaluator runner frame; its compatibility
+  resume still calls `function_value` synchronously and is not a complete
+  same-source-cursor migration of those effects.
+- [#430](https://github.com/tseguine/grunkalunka/pull/430), including #429,
+  gives function-result admission and factory caller bindings owned checkpoints.
+  Both successful completion and diagnostic unwinding restore lexical state,
+  source charging and the existing resource counters.
+- [#431](https://github.com/tseguine/grunkalunka/pull/431) moves direct
+  zero-argument local block-factory results onto the existing source cursor.
+  `EvaluateFactoryBody` suspends function-value evaluation;
+  `LowerSyncClosureCallee` / `EvaluateFactoryCallee` also covers an immediately
+  invoked returned function such as `get()()`. The factory body completes before
+  the outer call's arguments and result-mode conversion resume.
+- [#433](https://github.com/tseguine/grunkalunka/pull/433) adds native JS,
+  Node-Wasm and Wasmtime comparisons plus JS/TS 2 MiB probes for that returned
+  block-factory callee family. These tests are maintained with the compiler and
+  runtime suites, not a separate CI workflow.
+- [#432](https://github.com/tseguine/grunkalunka/pull/432) shares the existing
+  factory argument classification and compatibility evaluation through
+  `FactoryArgumentKind::{Discard, Callback(signature), Scalar(Mode)}`. This is
+  preparation for ordered argument continuations; argument-bearing factories
+  still evaluate those arguments synchronously at this checkpoint.
 
-### Work still required for a complete L4/L5 claim
+## In-review continuation series (2026-11-03)
 
-- **Source statements not yet handed off:** variable declarations and
-  specialized function/managed/Promise/async return paths can call a separate
-  synchronous evaluator through `statement_inner` or helper methods. The
-  [#422–#425](https://github.com/tseguine/grunkalunka/pull/425) work-in-flight
-  stack pilots single numeric and primitive-General `let` declarations,
-  closure-valued returns and async `Mode::AsyncReturn` resolution.
-  These remain **unverified/unmerged at this checkpoint**.
-- **Returned function-value factories:** `LowerFunctionLeaf` safely releases
-  the large evaluator runner but the wrapper
+The following dependent PRs are pushed and **unmerged**. They describe the
+implementation under review, not additional claims about the frozen master
+checkpoint above:
+
+| PR | Bounded change |
+| --- | --- |
+| [#435](https://github.com/tseguine/grunkalunka/pull/435) | One `FactoryExpression` and explicit value/callee continuation share returned-factory completion, lexical restoration and diagnostic unwinding. |
+| [#436](https://github.com/tseguine/grunkalunka/pull/436) | Direct argument-bearing local block factories schedule scalar, callback and surplus-discard arguments through `Next::Expression`, retaining caller-scope snapshots before installing captures/formals. Both function-value results and immediately invoked returned callees use this path. |
+| [#437](https://github.com/tseguine/grunkalunka/pull/437) | Source-owned discarded/truthy function construction suspends the parent evaluator and schedules a Function-mode child on the same source cursor. Completion restores the original Region and resource/depth checkpoints before truthiness or parent execution resumes. |
+| [#438](https://github.com/tseguine/grunkalunka/pull/438) | `Work::LocalCall` and `Work::ClosureCall` queue their next argument continuation and yield `LowerCallbackArgument`. The source cursor schedules a Function-mode child and resumes the pending call with exactly one callback value. |
+
+The published series tip is
+[`425f9b6`](https://github.com/tseguine/grunkalunka/commit/425f9b6c7dda02224d64901f67d980cc84a07f84),
+with tested source tree `6ead7eca6fccb4e39cd11ccd7af37eaf9618ae68`.
+The final local receipt covers 500 compiler tests, 118 runtime-closure tests,
+callback-focused async/module tests, 2 MiB source probes, formatting and strict
+compiler Clippy. Frozen-baseline comparisons preserve WAT/Wasm, admission and
+first diagnostics for 5,796 corpus plus 206 targeted cases, and private IR for
+106 CONTROL records. The detailed receipt and routing-sensitivity evidence are
+in the [cross-phase inventory](../lowering-cross-phase-reentry.md#in-review-argumenteffectcallback-continuation-series).
+Hosted checks and merge status remain separate; this checkpoint adds no
+whole-SCC or compiler-performance completion claim.
+
+The reviewed callback implementation shares `EvaluateFunctionValue` with
+function effects, using `FunctionValueResume::{Effect, Callback}` to distinguish
+the consumer. It retains the callback-specific admission guard, original
+expression depth, Region identity and result-depth restoration. Local calls use
+the callback's inferred signature; runtime closure calls use the formal's complete
+signature. Both success and diagnostic unwinding release the owned resource and
+depth checkpoints before the parent resumes or the error propagates.
+
+### Work still required after the series for a complete L4/L5 claim
+
+- **Remaining function crossings:** migrate concise returned factories and
+  runtime/calculated/async callees. `closures::factory_result`,
+  `function_values::{local_function_result, runtime_function_result}` and the
+  non-slot route in `evaluate::prepare_closure_call` still have synchronous
+  argument, function-value or body calls outside the converted paths.
+  `LowerFunctionLeaf` releasing the runner frame does not by itself eliminate
   `function_value_leaf → local_function_result/factory_result →
-  arrow_block_result` can still enter nested evaluators and source cursors
-  through native Rust calls. That entire remaining SCC requires a typed
-  request/resume path, including ordered arguments, lexical captures,
-  function-result signatures and error restoration.
-- **Compatibility call sites:** direct `evaluate` and `arrow_block_result`
-  entry points are retained for other callers. Removing them requires
-  tracing their actual source-dependent call paths rather than declaring
-  the single source-owned `Next::Expression` vertical slice universal.
+  arrow_block_result → sequence` reentry. Migrate and verify each affected
+  circuit, including its result/context/error continuations.
+- **Source and compatibility call sites:** declarations outside the converted
+  single scalar `let` slice still use `lower.rs::declaration`, including `const`,
+  multiple declarators and specialized function/Promise/managed initializers.
+  The synchronous `evaluate` host retains callback, function-effect and
+  `arrow_block_result` compatibility entry points. Trace their actual
+  source-dependent paths before removal; `Next::Expression` is not universal.
+- **Checking and closure-body materialization:**
+  `closures::{check_closure_at, check_factory_chain}` lower disposable cloned
+  checking state; `function_values::materialize_closure` lowers a cloned child
+  whose output becomes real lifted IR. These ownership domains need explicit
+  continuations while preserving validation order, diagnostics, scratch-state
+  isolation, lifted identities and publication. Migrating caller argument
+  execution does not establish that either path is stack-independent.
 - **Evidence and contracts:** source-depth/expansion guards, the eight-active-
-  block and sixteen-active-function-value limits remain original admission
-  constraints, not proof that all native recursion has been removed.
+  block, eight-active-function-result and sixteen-active-function-value limits
+  remain original admission constraints, not proof that all native recursion
+  has been removed.
   Maintain two-MiB Linux/Windows probes, exact source rejection diagnostics,
   emitted IR/WAT/Wasm identity where a pure refactor, and native JS /
   Node-Wasm / Wasmtime execution parity. The async runtime job queue and
   effect-free source fact queries remain separate ownership domains.
+- **Design closure:** complete the composed SCC inventory, including helper,
+  callback, checking and error edges; remove superseded compatibility paths
+  only after their replacement is verified. Record compiler-time/peak-memory
+  comparisons and the remaining measured exceptions before closing L4/L5/L7.
 
-The next architecture decision is about **resumable function-value factory
-and declaration continuations**, not replacing the typed Region IR or
-redesigning the runtime scheduler. Update the L4 completion claim only
-when admitted mixed-kind and returned-function call graphs no longer build
-a source-depth-dependent native Rust stack.
+The typed Region IR and runtime scheduler retain their separate contracts.
+Update the L4 completion claim only when admitted mixed-kind and returned-function
+call graphs no longer build a source-depth-dependent native Rust stack.
