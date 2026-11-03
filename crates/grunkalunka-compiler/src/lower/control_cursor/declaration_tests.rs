@@ -1,6 +1,62 @@
 //! Declarations schedule one initializer at a time while preserving publication.
 use super::SCHEDULED_DECLARATION_VALUES;
 
+#[test]
+fn for_headers_schedule_all_initializers_before_the_test() {
+    for (source, asynchronous, expected) in [
+        (
+            "export function run(a,b){const step=x=>{return x+a;};let n=0;for(let x=step(a),y=x+b;x<b;x++){n+=y;}return n;}",
+            false,
+            3,
+        ),
+        (
+            "export function run(a,b){for(let f=()=>a,n=0;n<1;n++){return f();}return b;}",
+            false,
+            2,
+        ),
+        (
+            "export function run(a,b){let n=0;for(const x=a;n<1;n++){n+=x;}return n;}",
+            false,
+            2,
+        ),
+        (
+            "export function run(a,b){let f=()=>a;for(let x=0;x<2;x++){f=()=>x;}return f();}",
+            false,
+            2,
+        ),
+        (
+            "export async function run(a,b){let n=0;for(let x=await Promise.resolve(a),y=x+b;n<1;n++){return y;}return b;}",
+            true,
+            3,
+        ),
+    ] {
+        for typescript in [false, true] {
+            let (result, scheduled) = on_small_stack(source, asynchronous, typescript);
+            assert!(
+                result.is_ok(),
+                "{source}, typescript={typescript}: {result:?}"
+            );
+            assert_eq!(
+                scheduled, expected,
+                "for header bypassed ordered initializer scheduling: {source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn for_header_initializers_do_not_publish_their_own_binding_early() {
+    let source = "export function run(a,b){for(let x=x;x<b;x++){}return a;}";
+    for typescript in [false, true] {
+        let (result, scheduled) = on_small_stack(source, false, typescript);
+        assert_eq!(
+            result.unwrap_err(),
+            "unsupported at bytes 35..36: reference is not an initialized numeric parameter or local"
+        );
+        assert_eq!(scheduled, 1);
+    }
+}
+
 fn on_small_stack(
     source: &str,
     asynchronous: bool,

@@ -367,6 +367,35 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::ForDeclarationInitializer {
+                source,
+                output,
+                depth,
+                outer,
+                start,
+                mutable,
+            } => {
+                let let_slots = if mutable {
+                    self.bindings[start..]
+                        .iter()
+                        .map(|binding| binding.slot)
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                self.finish_for_initializer(
+                    ForPredicateFrame {
+                        source,
+                        output,
+                        header: finished_region,
+                        depth,
+                        outer,
+                        header_bindings: self.bindings.len(),
+                        let_slots,
+                    },
+                    cursor,
+                )?;
+            }
             Frame::EvaluateBody {
                 mut expression,
                 mode,
