@@ -98,6 +98,23 @@ pub(super) enum FunctionLeafResult<'n, 'a> {
     Value(ValueId),
 }
 
+/// A real lifted body retains its checked closure and result policy until the
+/// parent publishes its nested bodies followed by the enclosing function.
+pub(super) struct LiftedClosure {
+    closure: closures::LocalClosure,
+    signature: usize,
+    return_type: Type,
+    asynchronous: bool,
+}
+
+/// Real materialization starts from an owned child with fresh function IR and
+/// remapped captured cells. It is distinct from disposable definition checking.
+pub(super) struct PreparedLiftedClosure<'s, 'a> {
+    pub(super) lowering: Box<Lowering<'s, 'a>>,
+    pub(super) body: Region,
+    pub(super) completion: LiftedClosure,
+}
+
 impl<'s, 'a> Lowering<'s, 'a> {
     pub(super) fn named_module_function(
         &self,
@@ -1475,6 +1492,21 @@ impl<'s, 'a> Lowering<'s, 'a> {
         node: &Expression<'_>,
         arity: usize,
     ) -> Result<ValueId, String> {
+        self.admit_lifted_closure(node)?;
+        if !closure.checked {
+            self.check_local_closure(&mut closure)?;
+        }
+        let PreparedLiftedClosure {
+            mut lowering,
+            mut body,
+            completion,
+        } = self.prepare_lifted_closure(closure, node, arity)?;
+        let returned = lowering.lower_lifted_closure_body(&completion, &mut body)?;
+        body.exit = Exit::Return(returned);
+        self.finish_lifted_closure(completion, lowering, body, region, node)
+    }
+
+    pub(super) fn admit_lifted_closure(&self, node: &Expression<'_>) -> Result<(), String> {
         // Check before scratch validation can enter another source body.
         if self.lifting_depth + self.active_block_calls >= 8 {
             return Err(unsupported(
@@ -1482,9 +1514,17 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 "at most 8 active runtime-closure lowering frames are admitted",
             ));
         }
-        if !closure.checked {
-            self.check_local_closure(&mut closure)?;
-        }
+        Ok(())
+    }
+
+    /// Called only after the initial lifting admission and definition check.
+    /// Validation and expansion charging precede cloning the real body state.
+    pub(super) fn prepare_lifted_closure(
+        &mut self,
+        closure: closures::LocalClosure,
+        node: &Expression<'_>,
+        arity: usize,
+    ) -> Result<PreparedLiftedClosure<'s, 'a>, String> {
         let arrow = self.arrow(closure.arrow);
         if self.arrow_signature(arrow) != Some(arity) {
             return Err(unsupported(node, "function value signature mismatch"));
@@ -1534,7 +1574,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
             ));
         }
         self.charge_closure_expansion(node)?;
-        let mut child = self.clone();
+        let mut child = Box::new(self.clone());
         child.bindings.clear();
         child.slots.clear();
         child.values.clear();
@@ -1625,14 +1665,32 @@ impl<'s, 'a> Lowering<'s, 'a> {
         );
         child.initialize_general_parameters(&mut body);
         child.bindings.extend(capture_bindings);
-        let returned = if asynchronous {
+        Ok(PreparedLiftedClosure {
+            lowering: child,
+            body,
+            completion: LiftedClosure {
+                closure,
+                signature: arity,
+                return_type,
+                asynchronous,
+            },
+        })
+    }
+
+    fn lower_lifted_closure_body(
+        &mut self,
+        completion: &LiftedClosure,
+        body: &mut Region,
+    ) -> Result<ValueId, String> {
+        let arrow = self.arrow(completion.closure.arrow);
+        let returned = if completion.asynchronous {
             if let Some(expression) = arrow.get_expression() {
-                child.async_result(expression, &mut body, 0)?
+                self.async_result(expression, body, 0)?
             } else {
-                let region = child.arrow_block_result(arrow, 0, Type::General)?;
-                let result = child.value(Type::General);
+                let region = self.arrow_block_result(arrow, 0, Type::General)?;
+                let result = self.value(Type::General);
                 Self::push(
-                    &mut body,
+                    body,
                     arrow,
                     Op::InlineCall {
                         result,
@@ -1642,52 +1700,51 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 result
             }
         } else if arrow.r#async
-            && (return_type == Type::SettledPromise
-                || (return_type == Type::Promise
+            && (completion.return_type == Type::SettledPromise
+                || (completion.return_type == Type::Promise
                     && (awaited::owns_throw(arrow, self.semantic)
                         || self.settled_results.contains(&arrow.node_id.get()))))
         {
             // Close the primitive completion synchronously. Materialization below
             // adds no job; the caller's await schedules its reaction.
-            child.allow_await = true;
+            self.allow_await = true;
             let region = if let Some(expression) = arrow.get_expression() {
-                let mut region = child.region(arrow);
-                let value = child
+                let mut region = self.region(arrow);
+                let value = self
                     .evaluate(expression, &mut region, 0, evaluate::Mode::General)?
                     .expect("primitive settlement");
                 region.exit = Exit::Return(value);
                 region
             } else {
-                child.arrow_block_result(arrow, 0, Type::General)?
+                self.arrow_block_result(arrow, 0, Type::General)?
             };
-            child.allow_await = false;
-            let result = child.value(Type::SettledPromise);
+            self.allow_await = false;
+            let result = self.value(Type::SettledPromise);
             Self::push(
-                &mut body,
+                body,
                 arrow,
                 Op::SettlePromise {
                     result,
                     body: region,
                 },
             );
-            if return_type == Type::Promise {
+            if completion.return_type == Type::Promise {
                 let input = result;
-                let result = child.value(Type::Promise);
-                Self::push(&mut body, arrow, Op::MaterializePromise { result, input });
+                let result = self.value(Type::Promise);
+                Self::push(body, arrow, Op::MaterializePromise { result, input });
                 result
             } else {
                 result
             }
         } else if arrow.r#async {
             let input = if let Some(expression) = arrow.get_expression() {
-                child
-                    .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
+                self.evaluate(expression, body, 0, evaluate::Mode::General)?
                     .expect("eager async primitive completion")
             } else {
-                let region = child.arrow_block_result(arrow, 0, Type::General)?;
-                let result = child.value(Type::General);
+                let region = self.arrow_block_result(arrow, 0, Type::General)?;
+                let result = self.value(Type::General);
                 Self::push(
-                    &mut body,
+                    body,
                     arrow,
                     Op::InlineCall {
                         result,
@@ -1696,56 +1753,50 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 );
                 result
             };
-            let result = child.value(Type::FulfilledPromise);
-            Self::push(&mut body, arrow, Op::FulfillPromise { result, input });
-            if return_type == Type::Promise {
+            let result = self.value(Type::FulfilledPromise);
+            Self::push(body, arrow, Op::FulfillPromise { result, input });
+            if completion.return_type == Type::Promise {
                 let input = result;
-                let result = child.value(Type::Promise);
-                Self::push(&mut body, arrow, Op::MaterializePromise { result, input });
+                let result = self.value(Type::Promise);
+                Self::push(body, arrow, Op::MaterializePromise { result, input });
                 result
             } else {
                 result
             }
         } else if let Some(expression) = arrow.get_expression() {
-            if let Type::Closure(signature) = return_type {
-                child.function_value(expression, &mut body, signature, 0)?
-            } else if return_type == Type::AsyncValue {
-                child
-                    .evaluate(expression, &mut body, 0, evaluate::Mode::AsyncValue)?
+            if let Type::Closure(signature) = completion.return_type {
+                self.function_value(expression, body, signature, 0)?
+            } else if completion.return_type == Type::AsyncValue {
+                self.evaluate(expression, body, 0, evaluate::Mode::AsyncValue)?
                     .expect("raw private mixed result")
-            } else if return_type == Type::Promise {
-                child
-                    .evaluate(expression, &mut body, 0, evaluate::Mode::Pending)?
+            } else if completion.return_type == Type::Promise {
+                self.evaluate(expression, body, 0, evaluate::Mode::Pending)?
                     .expect("forwarded pending Promise identity")
-            } else if return_type == Type::SettledPromise {
-                child
-                    .evaluate(expression, &mut body, 0, evaluate::Mode::Settled)?
+            } else if completion.return_type == Type::SettledPromise {
+                self.evaluate(expression, body, 0, evaluate::Mode::Settled)?
                     .expect("forwarded settled result")
-            } else if return_type == Type::FulfilledPromise {
-                child
-                    .evaluate(expression, &mut body, 0, evaluate::Mode::Promise)?
+            } else if completion.return_type == Type::FulfilledPromise {
+                self.evaluate(expression, body, 0, evaluate::Mode::Promise)?
                     .expect("fulfilled Promise closure result")
-            } else if return_type.is_managed() {
-                child
-                    .evaluate(
-                        expression,
-                        &mut body,
-                        0,
-                        evaluate::Mode::managed(return_type),
-                    )?
-                    .expect("managed private result")
-            } else if return_type == Type::General {
-                child
-                    .evaluate(expression, &mut body, 0, evaluate::Mode::General)?
+            } else if completion.return_type.is_managed() {
+                self.evaluate(
+                    expression,
+                    body,
+                    0,
+                    evaluate::Mode::managed(completion.return_type),
+                )?
+                .expect("managed private result")
+            } else if completion.return_type == Type::General {
+                self.evaluate(expression, body, 0, evaluate::Mode::General)?
                     .expect("General result")
             } else {
-                child.expression(expression, &mut body, 0)?
+                self.expression(expression, body, 0)?
             }
         } else {
-            let region = child.arrow_block_result(arrow, 0, return_type)?;
-            let result = child.value(return_type);
+            let region = self.arrow_block_result(arrow, 0, completion.return_type)?;
+            let result = self.value(completion.return_type);
             Self::push(
-                &mut body,
+                body,
                 arrow,
                 Op::InlineCall {
                     result,
@@ -1754,7 +1805,21 @@ impl<'s, 'a> Lowering<'s, 'a> {
             );
             result
         };
-        body.exit = Exit::Return(returned);
+        Ok(returned)
+    }
+
+    /// A successful body publishes nested functions before the final capacity
+    /// check. A late capacity error therefore keeps that nested pool, while a
+    /// body error never reaches this completion and publishes no child IR.
+    pub(super) fn finish_lifted_closure(
+        &mut self,
+        completion: LiftedClosure,
+        mut child: Box<Lowering<'s, 'a>>,
+        body: Region,
+        region: &mut Region,
+        node: &Expression<'_>,
+    ) -> Result<ValueId, String> {
+        let arrow = self.arrow(completion.closure.arrow);
         self.lifted = std::mem::take(&mut child.lifted);
         // Nested construction may have consumed the remaining module capacity.
         if self.lifted_base + self.lifted.len() >= self.lifted_limit() {
@@ -1767,14 +1832,15 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.lifted.push(std::rc::Rc::new(
             child.finish(body, arrow.params.items.len()),
         ));
-        let result = self.value(Type::Closure(arity));
+        let result = self.value(Type::Closure(completion.signature));
         Self::push(
             region,
             node,
             Op::MakeClosure {
                 result,
                 function,
-                captures: closure
+                captures: completion
+                    .closure
                     .captures
                     .iter()
                     .map(|binding| binding.slot)
