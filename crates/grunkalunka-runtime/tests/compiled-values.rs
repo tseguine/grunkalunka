@@ -176,6 +176,32 @@ fn js_and_ts_primitive_returns_match_original_js_in_both_engines() {
     compare_primitive_sources(source_pairs());
 }
 
+#[test]
+fn string_search_returns_boolean_values_in_the_primitive_profile() {
+    compare_primitive_sources(
+        [
+            "export function run(a,b){return 'abc'.startsWith('a',a);}",
+            "export function run(a,b){return 'abc'.includes('b',a);}",
+            "export function run(a,b){let flag='abc'.includes('a');flag='abc'.startsWith('b');return flag;}",
+            "function has(s,n){return s.includes(n);}export function run(a,b){return has('abc','b');}",
+            "export function run(a,b){const box={found:'abc'.includes('a')};return box.found===true;}",
+            "export function run(a,b){return 'abc'.includes('a')&&'abc'.startsWith('b');}",
+        ]
+        .map(|js| (js.to_owned(), js.replace("run(a,b)", "run(a:number,b:number)")))
+        .into(),
+    );
+    // Own-property reads retain the existing unknown boxed carrier; the public
+    // primitive result profile does not acquire an unchecked Boolean projection.
+    let error = compile_value(
+        "export function run(a,b){const box={found:'abc'.includes('a')};return box.found;}",
+        false,
+    )
+    .err()
+    .expect("boxed properties still require a supported managed consumer");
+    assert!(error.contains("unsupported"), "{error}");
+    assert!(!error.contains("internal IR"), "{error}");
+}
+
 fn compare_primitive_sources(pairs: Vec<(String, String)>) {
     use std::io::Write;
     use std::process::{Command, Stdio};

@@ -660,17 +660,30 @@ impl Lowering<'_, '_> {
             && let Some((receiver, method)) = crate::lower::string_methods::call(call)
             && self.stored.string(receiver.node_id())
             && (matches!(mode, Mode::Managed)
-                || (method.result() == Type::Number
-                    && matches!(
-                        mode,
-                        Mode::Number | Mode::General | Mode::Predicate | Mode::Discard
-                    )))
+                || (method.result() != Type::ManagedValue
+                    && matches!(mode, Mode::Number | Mode::General | Mode::Predicate))
+                || (method.result() == Type::Number && matches!(mode, Mode::Discard)))
         {
             if method.result() == Type::Number {
                 if matches!(mode, Mode::Discard) {
                     work.push(Work::Forget);
                 } else {
                     number_consumer(work, node, mode)?;
+                }
+            } else if method.result() == Type::Predicate {
+                match mode {
+                    Mode::Predicate => (),
+                    Mode::General => work.push(Work::Pack(node)),
+                    Mode::Managed => {
+                        work.push(Work::Managed(ManagedWork::Primitive(node)));
+                        work.push(Work::Pack(node));
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            node,
+                            "String search returns a Boolean, not a Number",
+                        ));
+                    }
                 }
             }
             work.push(Work::StringMethod(super::string_methods::Task {

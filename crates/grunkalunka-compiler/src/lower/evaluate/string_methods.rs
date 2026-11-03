@@ -36,9 +36,19 @@ impl Lowering<'_, '_> {
             let argument = argument
                 .as_expression()
                 .ok_or_else(|| unsupported(task.node, "spread call arguments are not admitted"))?;
+            let needle =
+                matches!(task.method, Method::StartsWith | Method::Includes) && task.argument == 0;
+            if needle && !self.stored.string(argument.node_id()) {
+                return Err(unsupported(
+                    argument,
+                    "String search requires a known String needle",
+                ));
+            }
             task.pending = task.argument < task.method.arguments()
-                && !crate::lower::string_methods::undefined(argument, self.semantic);
-            let mode = if task.pending {
+                && (needle || !crate::lower::string_methods::undefined(argument, self.semantic));
+            let mode = if needle {
+                Mode::Managed
+            } else if task.pending {
                 Mode::Number
             } else {
                 Mode::Discard
@@ -49,10 +59,22 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(argument, depth, mode));
             return Ok(());
         }
+        let search = matches!(task.method, Method::StartsWith | Method::Includes);
+        if search && task.inputs[0].is_none() {
+            return Err(unsupported(
+                task.node,
+                "String search requires a known String needle",
+            ));
+        }
+        let defaults = if search {
+            [0.0, 0.0]
+        } else {
+            [0.0, f64::INFINITY]
+        };
         for (input, default) in task
             .inputs
             .iter_mut()
-            .zip([0.0, f64::INFINITY])
+            .zip(defaults)
             .take(task.method.arguments())
         {
             if input.is_none() {
@@ -70,31 +92,39 @@ impl Lowering<'_, '_> {
         }
         let result = self.value(task.method.result());
         let input = task.receiver.expect("completed String receiver");
-        let index = task.inputs[0].expect("completed String first argument");
+        let first = task.inputs[0].expect("completed String first argument");
         let operation = match task.method {
             Method::Slice | Method::Substring => Op::ManagedStringRange {
                 result,
                 input,
-                start: index,
+                start: first,
                 end: task.inputs[1].expect("completed String end"),
                 substring: matches!(task.method, Method::Substring),
             },
             Method::CharAt => Op::ManagedStringCharAt {
                 result,
                 input,
-                index,
+                index: first,
             },
             Method::CharCodeAt => Op::ManagedStringCharCodeAt {
                 result,
                 input,
-                index,
+                index: first,
+            },
+            Method::StartsWith | Method::Includes => Op::ManagedStringSearch {
+                result,
+                input,
+                search: first,
+                position: task.inputs[1].expect("completed String search position"),
+                includes: matches!(task.method, Method::Includes),
             },
         };
         Self::push(regions.current(), task.node, operation);
-        values.push(if task.method.result() == Type::Number {
-            Value::Number(result)
-        } else {
-            Value::Managed(result)
+        values.push(match task.method.result() {
+            Type::ManagedValue => Value::Managed(result),
+            Type::Number => Value::Number(result),
+            Type::Predicate => Value::Predicate(result),
+            _ => unreachable!("known String method result"),
         });
         Ok(())
     }

@@ -937,6 +937,51 @@ fn string_concat_requires_visible_managed_operands_and_result() {
 }
 
 #[test]
+fn string_search_requires_managed_operands_number_position_and_predicate_result() {
+    let mut module = crate::lower_source(
+        "export function run(a,b){return 'abcdef'.includes('bc',a)?1:0;}",
+        false,
+    )
+    .unwrap();
+    let function = &mut module.functions[0];
+    let index = function
+        .body
+        .operations
+        .iter()
+        .position(|op| matches!(op.kind, Op::ManagedStringSearch { .. }))
+        .unwrap();
+    let Op::ManagedStringSearch {
+        result,
+        input,
+        search,
+        position,
+        includes,
+    } = function.body.operations[index].kind
+    else {
+        unreachable!()
+    };
+    verify_module(&module).unwrap();
+    module.functions[0].values[result.0] = Type::Number;
+    assert!(verify_module(&module).is_err());
+    module.functions[0].values[result.0] = Type::Predicate;
+    for (input, search, position) in [
+        (position, search, position),
+        (input, position, position),
+        (input, search, input),
+        (input, search, result),
+    ] {
+        module.functions[0].body.operations[index].kind = Op::ManagedStringSearch {
+            result,
+            input,
+            search,
+            position,
+            includes,
+        };
+        assert!(verify_module(&module).is_err());
+    }
+}
+
+#[test]
 fn string_character_operations_keep_text_index_and_result_types() {
     for (expression, expected) in [
         ("'abc'.charAt(a).length", Type::ManagedValue),
