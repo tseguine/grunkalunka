@@ -76,15 +76,76 @@ extend compiler authoring evidence while the application acceptance below remain
 separate. Local verification receipts, hosted checks and merge state are recorded
 by the feature PRs; suite presence alone does not establish a hosted result.
 
+## Second implementation batch
+
+The second batch starts from [`a14de50`](https://github.com/tseguine/grunkalunka/commit/a14de5097004691e0f469c232efb048752eb9e80),
+after the first native stack was merged. It continues the collection and String
+families in this dependency order:
+
+| Slice | Practical behavior | Executable coverage |
+| --- | --- | --- |
+| Null-prototype dictionaries | Construct `Object.create(null)` and use static own keys, including `constructor`, `toString` and `__proto__`. Track null-prototype origins through helpers, aliases and captures. | `managed-source.rs` and `async-suspension/managed_values.rs` |
+| Runtime dictionary reads | Select an own value using a proven String key; preserve the receiver before evaluating the key and return undefined for a missing entry. | The same source/suspension suites plus the IR verifier tests |
+| Runtime dictionary writes | Assign a boxed value through a proven String key while preserving receiver, key and assigned-value snapshots. Conservatively widen property facts through aliases for dynamic writes. | The same source/suspension suites plus the IR verifier tests |
+| Array `pop` | Remove and return the last value, preserving holes, identity, argument effects and the current length after argument evaluation. | `managed-arrays.rs`, suspension and IR verifier tests |
+| String ranges | Copy UTF-16 ranges with `slice` and `substring`, including their different negative-index and endpoint-order rules. | `managed-strings.rs`, suspension and IR verifier tests |
+| String code units | Read a code unit with `charAt` or its numeric value with `charCodeAt`, including empty/NaN out-of-range results. | The same String/suspension suites |
+| String search | Use `startsWith` and `includes` with a proven String needle and Number position. | The same String/suspension suites |
+| A1 composition | Use dictionaries for keyed state, pop a heading history, derive/search labels in helpers, and invoke the existing service through a captured handler. | `a1_ui_import.rs` compares native JS, Node-Wasm and the actual Rust/WIT provider |
+
+The A1 fixtures also retain receiver/key snapshots when a dictionary assignment
+changes its receiver during key evaluation and changes the key while evaluating
+the assigned value. Lookup and pop results stay boxed and are observed through
+equality; those operations do not promise a String or callable result merely
+because one tested entry has that type.
+
+### Deliberate remaining limits
+
+Runtime dictionary keys require a proven String and an all-null-prototype
+receiver. Ordinary-object prototype lookup, descriptors, general key coercion,
+optional access, and typed projections from unknown dictionary values remain
+separate work. The constructor recognizes the unshadowed intrinsic
+`Object.create(null)` or literal-computed `Object['create'](null)`, with exactly
+one literal null argument through supported wrappers. Dynamic writes admit
+plain `=` assignment; compound assignment, updates and deletion remain separate.
+
+The new array mutation is `pop`. `push` is deferred because an array may already
+have the maximum valid length; its overflow requires a source RangeError path,
+not a private runtime trap. General Number bracket indexing remains separate
+because it also addresses named properties for non-index Numbers.
+
+String methods require proven String receivers, Number positions/endpoints and,
+for search, explicit proven String needles. Missing or supported explicit undefined
+positions use the method's normal default, and surplus arguments retain their
+effects. General coercion, borrowed calls, optional calls and prototype changes
+remain outside these slices. Broader binding/iteration and synchronous source
+errors remain the next feature families in the working order above.
+
+Local validation, hosted gates and native stack membership are recorded on the
+individual PRs. These compiler authoring fixtures do not complete or reassign
+the independent A1 application acceptance below.
+
 ## A1 scope and existing evidence
 
-The current minimal A1 selector already compiles. Its remaining application
-acceptance includes connecting input to the source-imported service and the same
-state/reflow/repaint path, readable glyphs and an equivalent native Rust client.
-See [A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
+The separate A1 application stack, [#477](https://github.com/tseguine/grunkalunka/pull/477)
+through [#480](https://github.com/tseguine/grunkalunka/pull/480), covers the service
+host, source-driven input/repaint path and readable text. Its application-level
+execution evidence and acceptance are tracked there; this language stack adds
+authoring capabilities and composition coverage against the existing service.
+
+Application validation and acceptance for source-imported input, the shared
+state/reflow/repaint path, readable glyphs and equivalent native Rust behavior
+are tracked in that separate stack. See
+[A1 acceptance](a1-note-preview.md#candidate-next-a1-acceptance-and-compiler-priorities)
 and [the scalar service profile](a1-ui-source-import.md). The language train makes
-that application code easier to author; it does not mark those integration gates
-complete or reassign their implementation interfaces.
+that application code easier to author; its compiler fixtures do not establish
+those application acceptance gates.
+
+The subsequent typed view-action or resource boundary is coordinated in
+[#483](https://github.com/tseguine/grunkalunka/issues/483). It needs a separately
+assigned authority, ownership, lifetime and failure contract shared with the
+application stream. That coordination leaves the current scalar A1 stack and
+this compiler feature train free to finish their assigned work.
 
 Recent merged work already supplies managed references across related async
 activations ([#375](https://github.com/tseguine/grunkalunka/pull/375),
