@@ -22,6 +22,8 @@ mod factory_effect_tests;
 mod factory_tests;
 #[cfg(test)]
 mod function_result_tests;
+#[cfg(test)]
+mod runtime_factory_tests;
 mod steps;
 
 #[cfg(test)]
@@ -35,6 +37,8 @@ std::thread_local! {
     static BRIDGED_CONCISE_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static BRIDGED_FUNCTION_RESULT_VALUES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static BRIDGED_RUNTIME_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -250,6 +254,13 @@ enum Frame<'n, 'a> {
         previous_result_depth: usize,
         depth: usize,
     },
+    /// Runtime result callees retain their ordinary function-value admission
+    /// and result token before the shared caller-argument phase can start.
+    EvaluateRuntimeFactoryCallee {
+        state: FactoryExpression<'n, 'a>,
+        factory: function_values::PreparedRuntimeFactory<'n, 'a>,
+        depth: usize,
+    },
     /// One source argument is running in the caller's lexical environment.
     /// A callback holds its own function-value admission across suspension.
     EvaluateFactoryArgument {
@@ -323,6 +334,7 @@ impl Frame<'_, '_> {
             | Self::Sequence { depth, .. }
             | Self::EvaluateBody { depth, .. }
             | Self::EvaluateFunctionValue { depth, .. }
+            | Self::EvaluateRuntimeFactoryCallee { depth, .. }
             | Self::EvaluateFactoryArgument { depth, .. }
             | Self::EvaluateFactoryBody { depth, .. }
             | Self::EvaluateFactoryValue { depth, .. }
@@ -478,6 +490,20 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 },
                                 factory,
                                 depth,
+                                cursor,
+                            );
+                        }
+                        Ok(function_values::FunctionLeafResult::RuntimeFactory(factory)) => {
+                            return self.start_runtime_factory_callee(
+                                FactoryExpression {
+                                    expression: Box::new(expression),
+                                    mode,
+                                    previous_result_depth,
+                                    node,
+                                    signature,
+                                    resume: FactoryResume::Value,
+                                },
+                                factory,
                                 cursor,
                             );
                         }
@@ -905,6 +931,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         arguments, kind, ..
                     } => {
                         self.abort_factory_argument(*arguments, kind);
+                    }
+                    Frame::EvaluateRuntimeFactoryCallee { state, factory, .. } => {
+                        self.leave_function_value();
+                        self.abort_runtime_factory(factory);
+                        self.restore_factory_expression(&state);
                     }
                     Frame::EvaluateFactoryBody {
                         state,

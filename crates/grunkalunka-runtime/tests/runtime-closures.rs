@@ -2438,6 +2438,21 @@ fn primitive_factory_leaves_keep_numeric_coercion_and_predicate_positions() {
 }
 
 #[test]
+fn runtime_factory_continuations_preserve_callee_and_argument_snapshots() {
+    compare_functions(&[
+        "let make=x=>()=>x+a;return make((make=x=>()=>x-b,a))()+make(b)();",
+        "let f=x=>()=>x+a;let g=x=>()=>x-b;return(a?f:g)(b)();",
+        "let n=0;let make=x=>()=>x+n;return(n=n*10+1,make)((n=n*10+2,a),n=n*10+3)()+n;",
+        "let f=x=>()=>x+a;let g=x=>()=>x-b;return(f=g)(a)()+f(b)();",
+        "let fn=x=>x+a;let make=(fn,x)=>()=>fn(x);return make(fn,(fn=x=>x-b,b))()+fn(a);",
+        "let n=0;let make=x=>()=>x+n;return make.call((n=1,null),(n=n*10+2,a),n=n*10+3)()+n;",
+        "const seed=x=>{return y=>x+y;};let make=(fn,x)=>()=>fn(x);return make(seed(a),b)();",
+        "const step=x=>{return x+a;};let make=x=>()=>x;return make(step(b))();",
+        "let make=x=>()=>x;return +make(null)();",
+    ]);
+}
+
+#[test]
 fn runtime_factory_calls_bound_native_cursor_reentry() {
     for (count, admitted) in [(8, true), (9, false)] {
         let mut expression = "a".to_string();
