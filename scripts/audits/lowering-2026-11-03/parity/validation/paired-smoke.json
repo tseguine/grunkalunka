@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "mode": "compare",
+  "catalog_sha256": "78f93421f43cd01088f17ffc003adfb5c0b26663c43af6dec250516d0678a559",
+  "probe_source_sha256": "13f3c789bbd405fb550bdb79886449c32dff4c7ebb944e97977d68f223c9b0d7",
+  "probes": {
+    "baseline": {
+      "path": "/workspace/scratch/88caffc5ffb1/lowering-parity/callbacks-probe",
+      "sha256": "a80f2f54d8cf5fec5273696cfd4d25df41e290d7a2c0dc32c3feb0fe7589800d"
+    },
+    "candidate": {
+      "path": "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+      "sha256": "fb8e42a6d5d59b5f04e14283c8f938ae86d1d8f5fa35b2219f282998f1f48d1b"
+    }
+  },
+  "matrices": [
+    {
+      "matrix": "concise-combined",
+      "runs": {
+        "baseline": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/callbacks-probe",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/paired-smoke/inputs/concise-combined/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/paired-smoke/baseline/concise-combined"
+          ],
+          "returncode": 0,
+          "stdout": "cases=4 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.04856324100182974,
+          "verification": {
+            "matrix": "concise-combined",
+            "cases": 4,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        },
+        "candidate": {
+          "command": [
+            "/workspace/scratch/88caffc5ffb1/lowering-parity/driver-retirement-callee-probe",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/paired-smoke/inputs/concise-combined/manifest.tsv",
+            "/workspace/scratch/88caffc5ffb1/portable-parity-supplement/paired-smoke/candidate/concise-combined"
+          ],
+          "returncode": 0,
+          "stdout": "cases=4 expectation_mismatches=0\n",
+          "stderr": "",
+          "seconds": 0.06293392600127845,
+          "verification": {
+            "matrix": "concise-combined",
+            "cases": 4,
+            "compared_output_files": 9,
+            "artifact_and_diagnostic_files": 8,
+            "normalized_observe_case_ids": [],
+            "all_match": true
+          }
+        }
+      },
+      "baseline_candidate_bytes_equal": true
+    }
+  ],
+  "complete": true,
+  "all_match": true,
+  "cases": 4,
+  "outcomes": {
+    "ok": 4
+  },
+  "artifact_and_diagnostic_files": 8,
+  "metadata_files": 1
+}

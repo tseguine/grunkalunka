@@ -1,0 +1,50 @@
+{
+  "purpose": "Predeclared confirmation of primary material outliers and matched admission/JS/TS controls; retain primary and all follow-up samples separately.",
+  "source_builds_unchanged": true,
+  "families": [
+    "charged_result_8",
+    "charged_result_7",
+    "lifted_capacity_over",
+    "lifted_capacity_256",
+    "zero_arguments_127",
+    "zero_arguments_128",
+    "affine",
+    "nested_mutable"
+  ],
+  "cases": [
+    "zero_arguments_127_js",
+    "zero_arguments_127_ts",
+    "zero_arguments_128_js",
+    "zero_arguments_128_ts",
+    "charged_result_7_js",
+    "charged_result_7_ts",
+    "charged_result_8_js",
+    "charged_result_8_ts",
+    "lifted_capacity_256_js",
+    "lifted_capacity_256_ts",
+    "lifted_capacity_over_js",
+    "lifted_capacity_over_ts",
+    "nested_mutable_js",
+    "nested_mutable_ts",
+    "affine_js",
+    "affine_ts"
+  ],
+  "configuration": {
+    "repetitions": 10,
+    "samples": 9,
+    "iterations": 64,
+    "warmup": 8,
+    "cpu": 0
+  },
+  "primary_run": {
+    "processes": 840,
+    "cases": 60,
+    "repetitions": 7,
+    "runner_sha256": "03b1219a29e8fd600bdacc252b66f1d1027568377f483c0db7268a3307af4257"
+  },
+  "followup_runner_sha256": "f55065487be2f58470f6257f2100ee7bd61e871a8767ba03b8ff26512c11523a",
+  "changes_to_runner": "Optional explicit CPU affinity and larger allowed iteration count only; timing/validation/output boundaries unchanged.",
+  "decision_rule": "Report every selected case and every pair. Confirm whether the primary ratios persist under longer batches; do not discard outliers or infer statistical equivalence.",
+  "measurement_difference": "Follow-up pins one available logical CPU and retains64 outcomes per timed batch rather than5; its RSS values must not be pooled with the primary configuration.",
+  "status": "Frozen plan before running follow-up."
+}

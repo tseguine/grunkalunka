@@ -1,0 +1,58 @@
+# Bounded query: can the result forwarded from publish_declaration_closure
+# to schedule_declaration_initializer match that scheduler's Factory arm?
+# This does not model all execution paths or prove the complete graph acyclic.
+
+# S1: parser call sites at source tree e8ef039e517b157f820b4694c3d0a99b1e628891.
+staticEdge("advanceFactoryArguments", "finishDeclarationFactory");
+staticEdge("advanceFactoryArguments", "finishConciseFactoryExpression");
+staticEdge("finishConciseFactoryExpression", "startReturnedFactoryCheck");
+staticEdge("finishDeclarationFactory", "startReturnedFactoryCheck");
+staticEdge("startReturnedFactoryCheck", "resumeReturnedFactoryCheck");
+staticEdge("resumeReturnedFactoryCheck", "scheduleDeclarationInitializer");
+staticEdge("scheduleDeclarationInitializer", "startDeclarationFactoryArguments");
+staticEdge("startDeclarationFactoryArguments", "advanceFactoryArguments");
+
+# D1: ordinary positive transitive closure of syntactic calls.
+syntacticReach(x, y) <- staticEdge(x, y);
+syntacticReach(x, z) <- syntacticReach(x, y) & staticEdge(y, z);
+
+# S2a-c: actual successful return expressions in publish_declaration_closure.
+# These are conservative possible outcomes, not claims all occur at this caller.
+successfulOutput("publishDeclarationClosure", "Complete");
+successfulOutput("publishDeclarationClosure", "Materialize");
+successfulOutput("publishDeclarationClosure", "CheckClosure");
+
+# S2d: exhaustive body inspection: no other successful return expression exists.
+# This explicit premise is the source of exclusion; absent facts never exclude.
+onlySuccessfulVariants("publishDeclarationClosure", "Complete", "Materialize", "CheckClosure");
+
+# S3: resume_returned_factory_check forwards this exact result without conversion.
+forwardsResult("publishDeclarationClosure", "scheduleDeclarationInitializer");
+
+# S4: in schedule_declaration_initializer only the Factory match arm directly
+# invokes start_declaration_factory_arguments. Rust enum matching is exact.
+directFactoryArm("scheduleDeclarationInitializer", "Factory");
+
+# S5: these Rust enum discriminants are distinct by their declarations.
+distinctVariant("Complete", "Factory");
+distinctVariant("Materialize", "Factory");
+distinctVariant("CheckClosure", "Factory");
+
+# D2: exact discriminant matching for the modeled call site.
+canMatchFactory(p, s) <- forwardsResult(p, s) & successfulOutput(p, v) & directFactoryArm(s, v);
+
+# D3: exhaustive successful-output set plus explicit enum inequality excludes
+# Factory, independent of whether that output is absent from positive evidence.
+excludedOutput(p, "Factory") <- onlySuccessfulVariants(p, a, b, c) & distinctVariant(a, "Factory") & distinctVariant(b, "Factory") & distinctVariant(c, "Factory");
+!canMatchFactory(p, s) <- forwardsResult(p, s) & excludedOutput(p, v) & directFactoryArm(s, v);
+
+# S6: Complete enqueues AdvanceDeclaration and sets cursor.completed, returning
+# without calling advance_declaration. Only this branch is modeled as queued.
+queuesFrame("scheduleDeclarationInitializer", "Complete", "AdvanceDeclaration");
+queuedAfterPublish(p, frame) <- successfulOutput(p, v) & forwardsResult(p, s) & queuesFrame(s, v, frame);
+
+? syntacticReach("scheduleDeclarationInitializer", "scheduleDeclarationInitializer");
+? successfulOutput("publishDeclarationClosure", variant);
+? excludedOutput("publishDeclarationClosure", "Factory");
+? canMatchFactory("publishDeclarationClosure", "scheduleDeclarationInitializer");
+? queuedAfterPublish("publishDeclarationClosure", "AdvanceDeclaration");

@@ -1,0 +1,210 @@
+{
+  "cases": 7487,
+  "matrices": [
+    {
+      "matrix": "corpus",
+      "cases": 5796,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "factory",
+      "cases": 56,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "factory-forwarded",
+      "cases": 10,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "factory-effects",
+      "cases": 72,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "factory-effect-callbacks",
+      "cases": 20,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "callback-calls",
+      "cases": 18,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "callback-call-limits",
+      "cases": 30,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "generic-callees",
+      "cases": 136,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "callee-extra",
+      "cases": 36,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "concise-factories",
+      "cases": 82,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "concise-combined",
+      "cases": 4,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "charged-concise",
+      "cases": 38,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "charged-boundaries",
+      "cases": 16,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "runtime-preparation",
+      "cases": 58,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "runtime-continuation",
+      "cases": 104,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "runtime-managed",
+      "cases": 16,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "runtime-order",
+      "cases": 8,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "declarations",
+      "cases": 216,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "declaration-boundaries",
+      "cases": 40,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "block-factory-call",
+      "cases": 84,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "closure-checking",
+      "cases": 59,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "optional-factory",
+      "cases": 82,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "unchecked-closure",
+      "cases": 72,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "unchecked-closure-depth",
+      "cases": 80,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "unchecked-closure-extra",
+      "cases": 6,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "for-declarations",
+      "cases": 62,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "for-declaration-boundaries",
+      "cases": 6,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "const-metadata",
+      "cases": 76,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "const-metadata-managed",
+      "cases": 4,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "declaration-checks",
+      "cases": 16,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "const-metadata-zero",
+      "cases": 12,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "materialization",
+      "cases": 68,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "factory-check-continuation",
+      "cases": 64,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    },
+    {
+      "matrix": "expression-resumption",
+      "cases": 40,
+      "source_bytes_roundtrip": true,
+      "original_manifest_exactly_reconstructed": true
+    }
+  ],
+  "passed": true
+}

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "cases": [
+    "direct recursion",
+    "typed callback flow",
+    "macro argument recursion",
+    "parent-defined glob import",
+    "transitive imported alias",
+    "local-enum boxed receiver",
+    "unknown boxed fallback",
+    "comments and strings excluded",
+    "cfg(test) excluded"
+  ]
+}

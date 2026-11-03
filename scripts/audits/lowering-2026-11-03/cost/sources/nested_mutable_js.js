@@ -1,0 +1,1 @@
+export function run(a,b){let f=x=>{let g=y=>x+y;return g(a);};return f(b);}

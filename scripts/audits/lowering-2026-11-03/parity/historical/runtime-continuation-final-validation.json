@@ -1,0 +1,72 @@
+{
+  "commit": "9da092b748e9aef706ca0cb52acb71fd9ba837eb",
+  "tree": "3a12c294a2d55d26ae12f3672d6d00192511cd43",
+  "worktree_clean": true,
+  "probe": "/workspace/scratch/88caffc5ffb1/lowering-parity/runtime-continuation-probe",
+  "probe_sha256": "cc0481724a22372fca780b5cf52b2415417ddc19f388f9b195e95f888ea9a0a4",
+  "parity_cases": 6500,
+  "parity_main_cases": 6314,
+  "runtime_result_cases": 186,
+  "artifact_error_files_byte_identical": 11908,
+  "summary_files": 17,
+  "normalized_discovery_summary_metadata": 3,
+  "parity_receipt": "/workspace/scratch/88caffc5ffb1/lowering-parity/runtime-continuation-validation.json",
+  "control_records": 106,
+  "control_sha256": "d5e966b8fcee2cee794ded6a60a44e0d8d4d001f0b7bb60a644293b1063ec963",
+  "runtime_suites": [
+    {
+      "suite": "runtime-closures",
+      "log": "/workspace/scratch/88caffc5ffb1/lowering-parity/runtime-continuation-runtime-closures.log",
+      "process_status": 0,
+      "wall_seconds": 45.467,
+      "status": "ok",
+      "passed": 125,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_seconds": 33.01
+    },
+    {
+      "suite": "async-suspension",
+      "log": "/workspace/scratch/88caffc5ffb1/lowering-parity/runtime-continuation-async-suspension.log",
+      "process_status": 0,
+      "wall_seconds": 444.242,
+      "status": "ok",
+      "passed": 419,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_seconds": 438.44
+    },
+    {
+      "suite": "module-callback-inputs",
+      "log": "/workspace/scratch/88caffc5ffb1/lowering-parity/runtime-continuation-module-callback-inputs.log",
+      "process_status": 0,
+      "wall_seconds": 9.923,
+      "status": "ok",
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_seconds": 7.01
+    },
+    {
+      "suite": "managed-closure-inputs",
+      "log": "/workspace/scratch/88caffc5ffb1/lowering-parity/runtime-continuation-managed-closure-inputs.log",
+      "process_status": 0,
+      "wall_seconds": 11.212,
+      "status": "ok",
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_seconds": 6.87
+    }
+  ],
+  "runtime_total_passed": 562,
+  "all_new_runtime_tests_passed": true
+}

@@ -1,0 +1,438 @@
+{
+  "probe": "/workspace/scratch/88caffc5ffb1/lowering-parity/closure-child-preparation-probe",
+  "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+  "cases": [
+    {
+      "id": "concise_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "nested_block_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "nested_block_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "general_result_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "general_result_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "predicate_result_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "predicate_result_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "factory_result_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "factory_result_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_factory_result_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_factory_result_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_factory_result_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_factory_result_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callback_parameter_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callback_parameter_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_object_parameter_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_object_parameter_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_array_parameter_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_array_parameter_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_union_parameter_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_union_parameter_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "selected_unchecked_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "selected_unchecked_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "branch_unchecked_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "branch_unchecked_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "call_projection_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "call_projection_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_effect_order_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_effect_order_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "capture_argument_mutation_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "capture_argument_mutation_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "body_nested_declaration_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "body_nested_declaration_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callee_bad_before_argument_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callee_bad_before_argument_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callee_bad_before_missing_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callee_bad_before_missing_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "missing_argument_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "missing_argument_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "bad_callback_argument_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "bad_callback_argument_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callee_bad_spread_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callee_bad_spread_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "valid_callee_spread_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "valid_callee_spread_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "bad_body_local_tdz_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "bad_body_local_tdz_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "checked_named_control_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "checked_named_control_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "awaited_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "awaited_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "started_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "started_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "promise_input_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "promise_input_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "pending_input_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "pending_input_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "mixed_input_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "mixed_input_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_callback_input_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_callback_input_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_managed_input_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_managed_input_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_callee_bad_argument_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_callee_bad_argument_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_missing_argument_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_missing_argument_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_nested_initializers_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_nested_initializers_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    }
+  ]
+}

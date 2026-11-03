@@ -1,0 +1,156 @@
+{
+  "probe": "/workspace/scratch/88caffc5ffb1/lowering-parity/closure-child-preparation-probe",
+  "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+  "cases": [
+    {
+      "id": "concise_distinct_1_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_1_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_2_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_2_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_3_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_3_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_4_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_4_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_5_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_5_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_6_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_6_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_7_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_7_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_8_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_8_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_9_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_9_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_10_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_10_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_12_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_12_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_15_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_15_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "concise_distinct_16_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    }
+  ]
+}

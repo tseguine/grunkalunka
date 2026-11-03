@@ -1,0 +1,22 @@
+{
+  "reviewed_source_commit": "16411448823b77252875f051796f005b0331fab2",
+  "semantic_helpers": 9,
+  "reviewed_edges": 17,
+  "zero_increment_graph_acyclic": true,
+  "zero_increment_topological_order": [
+    "block_function_arity_in",
+    "block_expression_arity",
+    "function_arity_in",
+    "arrow_signature_at",
+    "arrow_signature_concise_chain",
+    "arrow_scalar_result_at",
+    "pending_promise_shape_in",
+    "settled_promise_shape_in",
+    "fulfilled_promise_shape_in"
+  ],
+  "finite_overapproximation_states": 81,
+  "finite_overapproximation_transitions": 245,
+  "finite_overapproximation_acyclic": true,
+  "longest_semantic_helper_chain_in_model": 51,
+  "scope": "Consequences of reviewed source premises; not a Rust control-flow or native-byte proof."
+}

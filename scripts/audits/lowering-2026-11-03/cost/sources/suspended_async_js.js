@@ -1,0 +1,1 @@
+export async function run(a,b){let f=async x=>{await b;return x+a;};return await f(a);}

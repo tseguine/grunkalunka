@@ -1,0 +1,1 @@
+export function run(a,b){let n=0;const make=(x,y)=>{n=n*10+5;return z=>x+y+z+n;};return make.call((n=n*10+1,null),(n=n*10+2,a),(n=n*10+3,b),n=n*10+4)(n=n*10+6)+n;}

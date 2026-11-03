@@ -1,0 +1,216 @@
+{
+  "source_commit": "16411448823b77252875f051796f005b0331fab2",
+  "scope": "Nine semantic helpers; the two generic shape walkers and fourteen fixed lexical callback closures are contracted into their caller/callee edges.",
+  "functions": {
+    "A": "arrow_signature_at",
+    "C": "arrow_signature_concise_chain",
+    "S": "arrow_scalar_result_at",
+    "F": "function_arity_in",
+    "B": "block_function_arity_in",
+    "E": "block_expression_arity",
+    "P": "pending_promise_shape_in",
+    "T": "settled_promise_shape_in",
+    "U": "fulfilled_promise_shape_in"
+  },
+  "edges": [
+    {
+      "from": "A",
+      "to": "C",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 6,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "function_values.rs:255-263",
+      "reason": "Only non-async direct-arrow bodies with calls+1<8 enter the chain."
+    },
+    {
+      "from": "A",
+      "to": "F",
+      "minimum_calls_increment": 1,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "function_values.rs:321",
+      "reason": "Body syntax depth resets to zero; calls is passed as calls+1."
+    },
+    {
+      "from": "A",
+      "to": "B",
+      "minimum_calls_increment": 1,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "function_values.rs:322",
+      "reason": "Block body query receives calls+1."
+    },
+    {
+      "from": "A",
+      "to": "S",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "function_values.rs:324",
+      "reason": "Scalar fallback preserves calls after the entry calls>=8 guard."
+    },
+    {
+      "from": "C",
+      "to": "A",
+      "minimum_calls_increment": 1,
+      "max_source_calls": 6,
+      "max_target_calls": 7,
+      "variable_increment": true,
+      "source_site": "function_values.rs:359-364,416-419",
+      "reason": "The entry precondition excludes both early-call branches on the first iteration; any eventual call follows at least one current_calls increment. A failed binding setup returns without that call."
+    },
+    {
+      "from": "C",
+      "to": "S",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 6,
+      "max_target_calls": 6,
+      "variable_increment": true,
+      "source_site": "function_values.rs:424-430",
+      "reason": "Reconstruction reads saved frame.calls. These are >= chain entry calls and <=6; reconstruction iterations return before the next frame."
+    },
+    {
+      "from": "F",
+      "to": "A",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 8,
+      "max_target_calls": 8,
+      "variable_increment": true,
+      "source_site": "function_values.rs:766,890,980",
+      "reason": "Stored work calls never fall below this invocation entry calls; arrow_signature_at rejects calls>=8."
+    },
+    {
+      "from": "F",
+      "to": "B",
+      "minimum_calls_increment": 1,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": true,
+      "source_site": "function_values.rs:730-735,897-934",
+      "reason": "FactoryArguments is only scheduled after the calls>=8 rejection; the later block query receives the saved calls+1."
+    },
+    {
+      "from": "B",
+      "to": "E",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 8,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "block_results.rs:58-63",
+      "reason": "Return bodies are visited sequentially, with unchanged calls and depth+1."
+    },
+    {
+      "from": "E",
+      "to": "F",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 8,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "block_results.rs:87",
+      "reason": "Heap worklist forwards calls unchanged."
+    },
+    {
+      "from": "S",
+      "to": "P",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 8,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "function_values.rs:485-489",
+      "reason": "Iterator callbacks forward the same captured calls."
+    },
+    {
+      "from": "S",
+      "to": "T",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 8,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "function_values.rs:495-499",
+      "reason": "Iterator callbacks forward the same captured calls."
+    },
+    {
+      "from": "S",
+      "to": "U",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 8,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "function_values.rs:505-509",
+      "reason": "Iterator callbacks forward the same captured calls."
+    },
+    {
+      "from": "P",
+      "to": "F",
+      "minimum_calls_increment": 1,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "pending.rs:17,59-64",
+      "reason": "Entry calls>=8 guard precedes call-kind query with calls+1."
+    },
+    {
+      "from": "T",
+      "to": "F",
+      "minimum_calls_increment": 1,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "awaited.rs:204,210-216,351-384",
+      "reason": "settled_shape invokes the supplied call_kind callback; captured calls+1 is preserved."
+    },
+    {
+      "from": "T",
+      "to": "U",
+      "minimum_calls_increment": 0,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "awaited.rs:219,351-384",
+      "reason": "settled_shape may invoke its fulfilled callback with unchanged captured calls."
+    },
+    {
+      "from": "U",
+      "to": "F",
+      "minimum_calls_increment": 1,
+      "max_source_calls": 7,
+      "max_target_calls": 8,
+      "variable_increment": false,
+      "source_site": "awaited.rs:284-305,389-462",
+      "reason": "Known-closure bodies are queued as source expressions in fulfilled_shape. The function-arity callback path checks calls>=8 and passes calls+1."
+    }
+  ],
+  "zero_increment_graph_acyclic": true,
+  "zero_increment_topological_order": [
+    "block_function_arity_in",
+    "block_expression_arity",
+    "function_arity_in",
+    "arrow_signature_at",
+    "arrow_signature_concise_chain",
+    "arrow_scalar_result_at",
+    "pending_promise_shape_in",
+    "settled_promise_shape_in",
+    "fulfilled_promise_shape_in"
+  ],
+  "finite_overapproximation_states": 81,
+  "finite_overapproximation_acyclic": true,
+  "counter_domain": [
+    0,
+    8
+  ],
+  "preconditions": [
+    "Source entry wrappers initialize calls to zero.",
+    "Every in-component work item or captured callback preserves its invocation entry calls or increases it.",
+    "The chain reentry gate and FactoryArguments scheduling guard are interpreted as documented per source sites."
+  ],
+  "limitations": [
+    "This is a reviewed source-level ranking certificate, not rustc control-flow verification.",
+    "Counter bounds limit nested helper activations in the inspected component, not machine stack bytes or all compiler stages.",
+    "Syntax depth may reset without weakening the separate calls rank.",
+    "Iterator worklists may perform repeated sequential work; the certificate bounds nesting, not total compilation time."
+  ]
+}

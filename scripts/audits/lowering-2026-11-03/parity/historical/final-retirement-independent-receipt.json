@@ -1,0 +1,34 @@
+{
+  "source_commit": "4bef43c35814d7cb747254ad4d4fbac0dc9715dd",
+  "source_tree": "9ea19ddd1ff1dbd0d39c46216d13a22747130735",
+  "published_commit": "67400f91882124e021f4bf30157930bb91acba31",
+  "published_pr": 466,
+  "published_tree_mapping": "Root verified identical tree9ea19ddd; independent builds used source4bef.",
+  "artifact_parity": {
+    "cases": 7487,
+    "matrices": 34,
+    "files": 13554,
+    "all_match": true,
+    "probe_sha256": "fb8e42a6d5d59b5f04e14283c8f938ae86d1d8f5fa35b2219f282998f1f48d1b",
+    "artifact_diagnostic_files": 13520,
+    "summary_metadata_files": 34,
+    "accepted": 6033,
+    "rejected": 1454
+  },
+  "async_suspension": {
+    "passed": 426,
+    "failed": 0,
+    "ignored": 0,
+    "seconds": 512.99,
+    "log": "lowering-parity/final-retirement-async.log",
+    "log_sha256": "27901aca375dd5a2c75eb5fd61b52019c7c89e49e9a2e54814677d2cdb904392",
+    "command": "cargo test -p grunkalunka-runtime --test async-suspension --locked --offline",
+    "clean_compiler_runtime_packages_before_build": true
+  },
+  "cost_frozen_outputs": {
+    "cases": 60,
+    "files": 99,
+    "all_match": true,
+    "timed_pairs_started": true
+  }
+}

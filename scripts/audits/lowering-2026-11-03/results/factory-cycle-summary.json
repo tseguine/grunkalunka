@@ -1,0 +1,18 @@
+{
+  "bounded_query": "canMatchFactory('publishDeclarationClosure', 'scheduleDeclarationInitializer')",
+  "syntax_passed": true,
+  "source_commit": "16411448823b77252875f051796f005b0331fab2",
+  "support_count": 0,
+  "opposition_count": 6,
+  "opposing_sources": [
+    "onlySuccessfulVariants('publishDeclarationClosure', 'Complete', 'Materialize', 'CheckClosure')",
+    "forwardsResult('publishDeclarationClosure', 'scheduleDeclarationInitializer')",
+    "directFactoryArm('scheduleDeclarationInitializer', 'Factory')",
+    "distinctVariant('Complete', 'Factory')",
+    "distinctVariant('Materialize', 'Factory')",
+    "distinctVariant('CheckClosure', 'Factory')"
+  ],
+  "sensitivity_without_exhaustive_return_premise": "requested query has no result: unknown, not false",
+  "probabilities_interpreted": false,
+  "scope": "Only the direct Factory match at this producer/consumer return edge; not whole-program acyclicity."
+}

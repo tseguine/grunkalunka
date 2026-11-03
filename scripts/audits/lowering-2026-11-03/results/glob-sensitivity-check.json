@@ -1,0 +1,8 @@
+{
+  "current_fixture_passes": true,
+  "pre_fix_resolver_misses_alias_cycle": true,
+  "alias_cycle": [
+    "crate::lower::alias_child::child",
+    "crate::lower::alias_target::target"
+  ]
+}

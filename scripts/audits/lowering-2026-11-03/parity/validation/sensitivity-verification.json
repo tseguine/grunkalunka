@@ -1,0 +1,37 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "case": "recorded observe with fixed actual accepted",
+      "passed": true
+    },
+    {
+      "case": "changed diagnostic bytes",
+      "passed": true
+    },
+    {
+      "case": "changed actual status",
+      "passed": true
+    },
+    {
+      "case": "wrong profile in summary",
+      "passed": true
+    },
+    {
+      "case": "CRLF metadata is not normalized",
+      "passed": true
+    },
+    {
+      "case": "extra output file",
+      "passed": true
+    },
+    {
+      "case": "missing output file",
+      "passed": true
+    },
+    {
+      "case": "historical observe requires explicit option",
+      "passed": true
+    }
+  ]
+}

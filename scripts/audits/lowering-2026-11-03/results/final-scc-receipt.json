@@ -1,0 +1,1873 @@
+{
+  "scope": "Frozen manual source-lowering call inventory; parser and resolution limitations apply.",
+  "baseline": {
+    "commit": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c",
+    "tree": "30bafc7a28c98aea808c7d9a6475f432def28084",
+    "summary": {
+      "files": 56,
+      "functions_and_closures": 1120,
+      "syntactic_call_sites": 10037,
+      "edges": 3908,
+      "edge_precision": {
+        "direct_path": 1296,
+        "external_callback_argument_overapproximation": 637,
+        "typed_receiver": 1608,
+        "conservative_method_name": 328,
+        "callback_flow": 39
+      },
+      "unresolved_or_conservative_sites": 7123,
+      "unresolved_modules": 0,
+      "callback_flow_iterations": 3,
+      "cyclic_components": 2,
+      "lowering_cyclic_components": 2,
+      "public_reachable_lowering_cyclic_components": 2,
+      "unparsed_expression_macros": 0
+    },
+    "graph_sha256": "a2569df97e29b8b30ae2697448a658e7eab1d39c909e97f01e31b19283bfb77a",
+    "inventory_sha256": "7ce4207717b692dfc85a9e688d489be6008cf8947459b1e72d052a098d2cc97d",
+    "components": [
+      {
+        "nodes": 48,
+        "named_functions": 37,
+        "classification": "effectful_compatibility_reentry",
+        "members": [
+          {
+            "id": "crate::lower::Lowering::declaration",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 5,
+              "line": 735
+            },
+            "body_sha256": "961201d4685528cd3649403e179ce22ef246f85d78d8054fe31985660d52b7a2"
+          },
+          {
+            "id": "crate::lower::Lowering::discarded",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 5,
+              "line": 333
+            },
+            "body_sha256": "1aaa1fcc0c5b4fb928199c29ae8ca560966cd3cf271a560332c5757d63336afa"
+          },
+          {
+            "id": "crate::lower::Lowering::expression",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 5,
+              "line": 523
+            },
+            "body_sha256": "70f08e701fe3b125c2e305d54fff80e16627d8b2d1936468f53dc3b3d64d8afa"
+          },
+          {
+            "id": "crate::lower::Lowering::predicate",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 5,
+              "line": 534
+            },
+            "body_sha256": "66c00b66d4809996bee331e56cbc412ebb98c347674c483521c7b78e932b609b"
+          },
+          {
+            "id": "crate::lower::Lowering::sequence",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 9,
+              "line": 547
+            },
+            "body_sha256": "11307451fae1b1c5fa814a808bf71e1233353f5eb4a9ec2ffabdf2b554770989"
+          },
+          {
+            "id": "crate::lower::Lowering::statement",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 5,
+              "line": 976
+            },
+            "body_sha256": "e9fee3a7114101c241ba3886dc349ee6f56ea4e01e25c59df04556b5e1176da6"
+          },
+          {
+            "id": "crate::lower::Lowering::statement_inner",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 5,
+              "line": 991
+            },
+            "body_sha256": "61330bc8ef20c5f9cf6a360b18fecd05822e2f18a01de33d543bd2b77fa2366f"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::fulfilled_promise_initializer",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 16,
+              "line": 248
+            },
+            "body_sha256": "53ad082caf0f03c5a0c47a94cc64c429ee5f46c884542f316867f29a3c12d392"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::arrow_block_result",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 1041
+            },
+            "body_sha256": "b4e56074e5a7495d626140dc689ad0aae6cd778fbf6e0b4959044c389e65b673"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::check_closure_at",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 5,
+              "line": 286
+            },
+            "body_sha256": "e7e8eb1a226efae00c0af6408e137feb264017e5b6e8def0ad2c99cd81a276b1"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::check_factory_chain",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 5,
+              "line": 488
+            },
+            "body_sha256": "0928568de2692de50f925cc6b45288c0fee4c6af106bb337d8a0c2bc1a704b76"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::check_local_closure",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 270
+            },
+            "body_sha256": "44757cbbc1d8e233f9d6ff18fb5cfb4f135a1ac379edf6be425b0fee463ed1ae"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::evaluate_factory_argument",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 837
+            },
+            "body_sha256": "b17bdf79774a252205c2fc881ab71cd4745ce045639355c52fe568a92da657fb"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::factory_result",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 859
+            },
+            "body_sha256": "69b990f03d24e39e2103245cdf37063ee03b7aa3dc5639f3a2d57c4a6d073750"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::factory_result::closure@916:23",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 23,
+              "line": 916
+            },
+            "body_sha256": "11cfd21b945120ab1097aec3bd88cebe96a7a0294492db12dcdc950b1710f214"
+          },
+          {
+            "id": "crate::lower::control_cursor::Lowering::advance_owned_expression",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor.rs",
+            "position": {
+              "column": 5,
+              "line": 386
+            },
+            "body_sha256": "1d2cc318d16b0f02077081b44b879f19f06f563be7a9bfa1769a8db3509e6b76"
+          },
+          {
+            "id": "crate::lower::control_cursor::Lowering::control_statement_iterative",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor.rs",
+            "position": {
+              "column": 16,
+              "line": 587
+            },
+            "body_sha256": "e6142a91b9ba62bd5a3dc88bb2c8f9819c69f9d06f68542193f242a861b77dee"
+          },
+          {
+            "id": "crate::lower::control_cursor::Lowering::control_statement_iterative::closure@604:23",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor.rs",
+            "position": {
+              "column": 23,
+              "line": 604
+            },
+            "body_sha256": "85f9b412b0e7d03dc6dba283b35500532e8437e624a3750e4e255770f9d4de72"
+          },
+          {
+            "id": "crate::lower::control_cursor::steps::Lowering::begin_control",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/steps.rs",
+            "position": {
+              "column": 16,
+              "line": 10
+            },
+            "body_sha256": "0c18defea428cb79771b9be34b9b6f5d3743ef197441d4dcc503bde707c88d60"
+          },
+          {
+            "id": "crate::lower::control_cursor::steps::Lowering::resume_control",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/steps.rs",
+            "position": {
+              "column": 16,
+              "line": 322
+            },
+            "body_sha256": "b5648504c0370b78612aa5be9b50bc3cb80feae9e83aa76a76a73c71e6f52ab7"
+          },
+          {
+            "id": "crate::lower::control_cursor::steps::for_loop::Lowering::begin_for_loop",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/steps/for_loop.rs",
+            "position": {
+              "column": 16,
+              "line": 8
+            },
+            "body_sha256": "5947c356d3553039fc7411a04cc3b8da8e6be270cd0cb881f5cb4f848c108f2c"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::evaluate",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 1182
+            },
+            "body_sha256": "02de2df2865f1f5e4c02eccd1cb7d3cc979ecf64dc98564d8dc277d982716512"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::prepare_closure_call",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 4378
+            },
+            "body_sha256": "bf60b96fb6047f41ad0af22982896b001b2ca1289f330fe7c01627ca19bdca59"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::prepare_closure_call::closure@4425:67",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 67,
+              "line": 4425
+            },
+            "body_sha256": "cef5a6db10c3cd3e45890a1766c9827a1e4691dee13c73960b64f2caa33b4624"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_effect",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 1306
+            },
+            "body_sha256": "6e93777f428453eae5210280156916dd266497dbadd066a55e2bcf3f0656a34c"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_effect::closure@1318:63",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 63,
+              "line": 1318
+            },
+            "body_sha256": "d8bd8870773b9ef9f647778c493727854344b38f7d699f57b92de3f589e6f3ef"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_leaf",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 1284
+            },
+            "body_sha256": "2e9568558ea9c887507b517a4a5194423f15ae68990e2eaa69d36ef25adc2440"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_leaf::closure@1295:70",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 70,
+              "line": 1295
+            },
+            "body_sha256": "38293e4883faa12e642f2486b4e11e3d27baf00b9607c5aef1d143225e864d7f"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::run_evaluation",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 1424
+            },
+            "body_sha256": "ab405400639ca9f5d81d98776d4e4bec2185d65c656cbb876f74b7f0c4a35dfa"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::run_evaluation::closure@1890:87",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 87,
+              "line": 1890
+            },
+            "body_sha256": "c9209269f72cc87b4bc1c69153206229553739361c2b0256743f5ae7e36a7a93"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::run_evaluation::closure@2050:87",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 87,
+              "line": 2050
+            },
+            "body_sha256": "75c518f7f2b4eb17284b24df017101dd801399544a645ec89ad79d7c82615467"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::with_function_result_context",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 5,
+              "line": 401
+            },
+            "body_sha256": "e5cbd13166118507734e04f3cc93b722f3f7712ee8fa62fcb69ee57c369c66c5"
+          },
+          {
+            "id": "crate::lower::finalizers::Lowering::try_statement",
+            "file": "crates/grunkalunka-compiler/src/lower/finalizers.rs",
+            "position": {
+              "column": 16,
+              "line": 7
+            },
+            "body_sha256": "e1003c61b57a96ce2d0915c6d0dfdd71ece71c4e6bb2c06e6a604e0974bf7106"
+          },
+          {
+            "id": "crate::lower::for_statements::Lowering::for_statement_iterative",
+            "file": "crates/grunkalunka-compiler/src/lower/for_statements.rs",
+            "position": {
+              "column": 16,
+              "line": 8
+            },
+            "body_sha256": "63436a382e7f2a3ad1e518de1c035096cfa3c7f2669f4d8f490d1ed7ef03aba7"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::begin_zero_block_factory",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 976
+            },
+            "body_sha256": "cc2c4b48d675fed2083eccbd4e9aca7ab6a92f5cac3202ca7b4fff814ffdc7a6"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::begin_zero_block_factory::closure@1011:25",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 25,
+              "line": 1011
+            },
+            "body_sha256": "729c512991371cb52f02ba0882123424f28302fa7151e99c6cc17e47209c31b8"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::callback_argument",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 432
+            },
+            "body_sha256": "d330b695863039ae61cbf45d270ed04a98c7336d7f3d9df8a7d3c1d11493a36d"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_value",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 864
+            },
+            "body_sha256": "d26758dc6498e7b7b3db1fd011fc84e695cd29074fd7282575710e72e034b7c6"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_value_leaf",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 881
+            },
+            "body_sha256": "78933ff791ecaab04c1a72bdc85147f99d94e0e689c0f13dfbe2d197709397cc"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::local_function_result",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 1167
+            },
+            "body_sha256": "695fb468a1a77e87ae26e8aee21a68765a347b8945dea315fe515e0182cd8212"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::local_function_result::closure@1175:23",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 23,
+              "line": 1175
+            },
+            "body_sha256": "5b1f801caf823923acc4346933413bdf7a44bcfa4b9ba7f0416674128196747c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::local_function_result::closure@1175:23::closure@1209:27",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 27,
+              "line": 1209
+            },
+            "body_sha256": "f834c841239a5cb2774685ea40d99039ee4ec1f1f3d9ff2a2bc98040077e2a50"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::materialize_closure",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 1231
+            },
+            "body_sha256": "0a1b4601fba31b94ab47d387055064d23a2ef8606891f309f19d5b33c3ccb992"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::runtime_function_result",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 1061
+            },
+            "body_sha256": "c76ec34e2500ea881338df9d745e108f0036dc0704b8130e0ccd6735e57bd8ac"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::runtime_function_result::closure@1069:23",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 23,
+              "line": 1069
+            },
+            "body_sha256": "2eeccf64c722d3079deeb2a71bbcdd9eb55a0376ec55f02fb87c80b3dfc15bce"
+          },
+          {
+            "id": "crate::lower::if_statements::Lowering::if_statement_iterative",
+            "file": "crates/grunkalunka-compiler/src/lower/if_statements.rs",
+            "position": {
+              "column": 16,
+              "line": 8
+            },
+            "body_sha256": "0e8c8781850a96ab32c34e1dbcd5f43878a7bedf6c387ddd80f110f8219240ac"
+          },
+          {
+            "id": "crate::lower::loop_statements::Lowering::loop_statement_iterative",
+            "file": "crates/grunkalunka-compiler/src/lower/loop_statements.rs",
+            "position": {
+              "column": 16,
+              "line": 14
+            },
+            "body_sha256": "45c8f0a080b5f69fddc0b3a10bbb238a73c00d236eb1d24c11e93c18a0e11311"
+          },
+          {
+            "id": "crate::lower::pending::Lowering::async_result",
+            "file": "crates/grunkalunka-compiler/src/lower/pending.rs",
+            "position": {
+              "column": 16,
+              "line": 6
+            },
+            "body_sha256": "c9c7155bc98763471361f42eb012535872ddcf496c253035d335b17f9db801b5"
+          }
+        ],
+        "internal_edges": 147,
+        "internal_edge_precision": {
+          "typed_receiver": 136,
+          "direct_path": 6,
+          "callback_flow": 5
+        }
+      },
+      {
+        "nodes": 25,
+        "named_functions": 11,
+        "classification": "fact_queries",
+        "members": [
+          {
+            "id": "crate::lower::awaited::Lowering::fulfilled_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 16,
+              "line": 269
+            },
+            "body_sha256": "babe1cb77bf351ed676c3202d762dcd64098e71fe7ac62f0a1e7d0f4b19f48d9"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::fulfilled_promise_shape_in::closure@295:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 295
+            },
+            "body_sha256": "c89770674349635dfc69c1b6f2eda388bc55e8c6cfe32ab061e374b7bbdbe0ed"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 16,
+              "line": 197
+            },
+            "body_sha256": "24d6206958ea84175039ca0537d726bc153896f8eec2eecb3e6d5be4d7e5c3ab"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in::closure@210:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 210
+            },
+            "body_sha256": "04a45bb7f5e4f7de9f49d6d2b61f8d0558986e6204fc47cd55c53fb923c4c1f9"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in::closure@219:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 219
+            },
+            "body_sha256": "42e51c660e0b00c38f0615179b185f9072ceb7180ac6f979e06b5f73c158d18f"
+          },
+          {
+            "id": "crate::lower::awaited::fulfilled_shape",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 12,
+              "line": 400
+            },
+            "body_sha256": "c8319b28cc1ed9e258d7c1323aa03456d41a74a1e4c96176d1fce7c22c9690bb"
+          },
+          {
+            "id": "crate::lower::awaited::settled_shape",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 12,
+              "line": 362
+            },
+            "body_sha256": "6e3b4b12c6999414ca977f114d3628d3b4b0a15f37044c8186ec7eb991d7b81d"
+          },
+          {
+            "id": "crate::lower::block_results::Lowering::block_expression_arity",
+            "file": "crates/grunkalunka-compiler/src/lower/block_results.rs",
+            "position": {
+              "column": 5,
+              "line": 71
+            },
+            "body_sha256": "788387059da6b5bddaf6713af4b1d911490cc4d7a2008d52e7b7d906ff74c973"
+          },
+          {
+            "id": "crate::lower::block_results::Lowering::block_function_arity_in",
+            "file": "crates/grunkalunka-compiler/src/lower/block_results.rs",
+            "position": {
+              "column": 16,
+              "line": 45
+            },
+            "body_sha256": "ef0d4efa2999d06cdc3aee127029553fed51bf1bb832742d8bcca0d614b93912"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 316
+            },
+            "body_sha256": "bcc2ed8f0d6e5a51eb135ba157996ef236cd5cc250b847d3f6b761b33afba60f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@346:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 346
+            },
+            "body_sha256": "e6445a7643a58a22afa746822f6232d0eccb7eadb7334db6fd402079c2748d6c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@346:73::closure@348:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 348
+            },
+            "body_sha256": "116eb64010983b700df80d48a9655dcc80db35bbd6f2e89f30af90241d716f2f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@356:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 356
+            },
+            "body_sha256": "1ea31970d01eab31ce9b22a2142666d223821f3b33c7f83044b20ee3da0dba76"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@356:73::closure@358:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 358
+            },
+            "body_sha256": "9a3c851e927cb213c3ec3be779f7375b6175b64ad2acc7560f4bcf5d41609556"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@366:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 366
+            },
+            "body_sha256": "047626e03b64ebe77b6a64ed050798cc67dd1b89945f3f63b0afade6af4cc83c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@366:73::closure@368:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 368
+            },
+            "body_sha256": "76eb4254a469e2ffac012d9bdd93d2d77b8cc83d9d82125a92e7ae8ca12ecc7d"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 105
+            },
+            "body_sha256": "d8999fec34751b52386e83d6475533bbc8572a32231b7a9ff4859763fe21cfe1"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@182:27",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 27,
+              "line": 182
+            },
+            "body_sha256": "52a8aeaf422f4ca225ece81fee2c5be7f67348b7da0a3be2414639e0bc2d0a2d"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@183:26",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 26,
+              "line": 183
+            },
+            "body_sha256": "76e3abd03f0a565200a3434d9de6b16ddd15e828419ac272467c25b6b2661a0f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@185:21",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 21,
+              "line": 185
+            },
+            "body_sha256": "9bc4c5ca85f0aa14e4bec2daa6eb8a6d63b03e2742b6d30e4a0cc4d9dfd327d2"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_concise_chain",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 200
+            },
+            "body_sha256": "d8f6069f61f612a6fd22210b672ec009bd15580a83ad837e1ca1758df85124c3"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 492
+            },
+            "body_sha256": "23275eb73b9bed66fe81928f316ca4d74915512f26da62cfdb0415802963bda8"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in::closure@608:80",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 80,
+              "line": 608
+            },
+            "body_sha256": "4e1c5d5d6093c88f1b5e981bc1c582fc5eda5b6105971ed1b519ff2d966c2bb8"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in::closure@826:37",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 37,
+              "line": 826
+            },
+            "body_sha256": "e08277a720848b995800ed826e52464df4bee08d221f2b25f33b8d3a9091be51"
+          },
+          {
+            "id": "crate::lower::pending::Lowering::pending_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/pending.rs",
+            "position": {
+              "column": 16,
+              "line": 20
+            },
+            "body_sha256": "f8b2d54028fbd0e210e3ea1db55f17babdd72d5753385dd2ea35a169fab2ddf8"
+          }
+        ],
+        "internal_edges": 37,
+        "internal_edge_precision": {
+          "typed_receiver": 20,
+          "direct_path": 2,
+          "callback_flow": 4,
+          "external_callback_argument_overapproximation": 11
+        }
+      }
+    ]
+  },
+  "composed_pre_retirement": {
+    "commit": "16411448823b77252875f051796f005b0331fab2",
+    "tree": "e8ef039e517b157f820b4694c3d0a99b1e628891",
+    "summary": {
+      "files": 58,
+      "functions_and_closures": 1213,
+      "syntactic_call_sites": 10256,
+      "edges": 4044,
+      "edge_precision": {
+        "direct_path": 1292,
+        "external_callback_argument_overapproximation": 640,
+        "typed_receiver": 1746,
+        "conservative_method_name": 327,
+        "callback_flow": 39
+      },
+      "unresolved_or_conservative_sites": 7208,
+      "unresolved_modules": 0,
+      "callback_flow_iterations": 3,
+      "cyclic_components": 3,
+      "lowering_cyclic_components": 3,
+      "public_reachable_lowering_cyclic_components": 3,
+      "unparsed_expression_macros": 0
+    },
+    "graph_sha256": "9f4866b05149ba9d47efd2163f50a9ead7931937cd3027927ecdb68745fbe252",
+    "inventory_sha256": "8d78384b49a4c7910366d25e56cec713424d84dc6b62d1e4ba7a45a51b858f6e",
+    "components": [
+      {
+        "nodes": 35,
+        "named_functions": 26,
+        "classification": "effectful_compatibility_reentry",
+        "members": [
+          {
+            "id": "crate::lower::Lowering::sequence",
+            "file": "crates/grunkalunka-compiler/src/lower.rs",
+            "position": {
+              "column": 9,
+              "line": 518
+            },
+            "body_sha256": "11307451fae1b1c5fa814a808bf71e1233353f5eb4a9ec2ffabdf2b554770989"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::arrow_block_result",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 1072
+            },
+            "body_sha256": "b4e56074e5a7495d626140dc689ad0aae6cd778fbf6e0b4959044c389e65b673"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::check_closure_at",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 5,
+              "line": 542
+            },
+            "body_sha256": "ca357456fc79b32a59bb94ab1d1ffc617a898557dd8bcf89169107f375a11e08"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::check_factory_chain",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 5,
+              "line": 603
+            },
+            "body_sha256": "7a75b39223c4e9f743606b0ee45c1488b091c706b3671e78a22b24534c6ae8be"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::check_local_closure",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 319
+            },
+            "body_sha256": "44757cbbc1d8e233f9d6ff18fb5cfb4f135a1ac379edf6be425b0fee463ed1ae"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::evaluate_concise_factory_arguments",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 5,
+              "line": 884
+            },
+            "body_sha256": "039dae119f5bd348f746b15e9eaa87ea653f38f8c4afc3dd9eef5b3c4eb4d5fc"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::evaluate_factory_argument",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 778
+            },
+            "body_sha256": "b17bdf79774a252205c2fc881ab71cd4745ce045639355c52fe568a92da657fb"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::factory_result",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 800
+            },
+            "body_sha256": "706345459f8e199f411c4f24cea6d80859e2f87d587c41d3cdca860f9d973e38"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::finish_concise_factory",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 916
+            },
+            "body_sha256": "280c22655a4571e0381f3a5a9549620b96f8753da772f2b20060761871654fd2"
+          },
+          {
+            "id": "crate::lower::closures::Lowering::prepare_concise_factory",
+            "file": "crates/grunkalunka-compiler/src/lower/closures.rs",
+            "position": {
+              "column": 16,
+              "line": 817
+            },
+            "body_sha256": "164bd2e392a0f4ac7028ae7b52b1997d6fde4080039e249525a4427a3afd6b14"
+          },
+          {
+            "id": "crate::lower::control_cursor::Lowering::advance_owned_expression",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor.rs",
+            "position": {
+              "column": 5,
+              "line": 652
+            },
+            "body_sha256": "4186b7adf6b5330d2ed9c205c3e2da12fffba7b79acc4e78f6f63ee9fe19cb4f"
+          },
+          {
+            "id": "crate::lower::control_cursor::Lowering::control_statement_iterative",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor.rs",
+            "position": {
+              "column": 16,
+              "line": 933
+            },
+            "body_sha256": "33210ec2968612841f52d22b20debc847d8e9a0644e60fb5130f781a33ed216d"
+          },
+          {
+            "id": "crate::lower::control_cursor::Lowering::control_statement_iterative::closure@950:23",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor.rs",
+            "position": {
+              "column": 23,
+              "line": 950
+            },
+            "body_sha256": "418a9ca6478d8ad56f838073693cb5528a7f0c353c329e78f5c46b668e9c39a7"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::evaluate",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 1256
+            },
+            "body_sha256": "df0246b6cc0a54b250e7dc2a4a5b1bd20bf245f74e02d85f1504fedf5ddd450f"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::evaluate::closure@1322:87",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 87,
+              "line": 1322
+            },
+            "body_sha256": "44d15c69b9b2973d347dd718410b60426a01b587d3e442dd134684038758c4ff"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::evaluate::closure@1338:87",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 87,
+              "line": 1338
+            },
+            "body_sha256": "fe49ad862e9f9a7c78db918caa92570eebf98474cbb605b47bdc301a6cb27a51"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::prepare_closure_call",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 4615
+            },
+            "body_sha256": "eaa6d09b32c26f76d3ac4a1cc461a22388fb5fe558aa147b2433c2a5e4deda6c"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::prepare_closure_call::closure@4627:67",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 67,
+              "line": 4627
+            },
+            "body_sha256": "6e3d3b1b5ed7f28d9a17ef0c8503d587552d206ef98b0e86bd2831550261ec00"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_effect",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 16,
+              "line": 1492
+            },
+            "body_sha256": "fe33e8e3c5253b05743e45902220b419b34a671fa8f0a5b310b552366ff25b36"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_effect::closure@1504:63",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 63,
+              "line": 1504
+            },
+            "body_sha256": "d8bd8870773b9ef9f647778c493727854344b38f7d699f57b92de3f589e6f3ef"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_leaf",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 5,
+              "line": 1470
+            },
+            "body_sha256": "2e9568558ea9c887507b517a4a5194423f15ae68990e2eaa69d36ef25adc2440"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::resume_lowered_function_leaf::closure@1481:70",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 70,
+              "line": 1481
+            },
+            "body_sha256": "38293e4883faa12e642f2486b4e11e3d27baf00b9607c5aef1d143225e864d7f"
+          },
+          {
+            "id": "crate::lower::evaluate::Lowering::with_function_result_context",
+            "file": "crates/grunkalunka-compiler/src/lower/evaluate.rs",
+            "position": {
+              "column": 5,
+              "line": 475
+            },
+            "body_sha256": "e5cbd13166118507734e04f3cc93b722f3f7712ee8fa62fcb69ee57c369c66c5"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::callback_argument",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 588
+            },
+            "body_sha256": "464df2bed9d2bececfda74d363f0c598a48a2901d638fea6900169dc9f13864f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_value",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 1017
+            },
+            "body_sha256": "d26758dc6498e7b7b3db1fd011fc84e695cd29074fd7282575710e72e034b7c6"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_value_leaf",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 1078
+            },
+            "body_sha256": "053f768856bed3bfb408029bb9e5e2b464dbcf27dbf4a28d14245237b093c5d9"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::local_function_result",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 1486
+            },
+            "body_sha256": "695fb468a1a77e87ae26e8aee21a68765a347b8945dea315fe515e0182cd8212"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::local_function_result::closure@1494:23",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 23,
+              "line": 1494
+            },
+            "body_sha256": "5b1f801caf823923acc4346933413bdf7a44bcfa4b9ba7f0416674128196747c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::local_function_result::closure@1494:23::closure@1528:27",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 27,
+              "line": 1528
+            },
+            "body_sha256": "f834c841239a5cb2774685ea40d99039ee4ec1f1f3d9ff2a2bc98040077e2a50"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::lower_lifted_closure_body",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 1883
+            },
+            "body_sha256": "09464174b49dab4d0f1595e36706c1958343ab6b8a1393bd8501df7d022e8616"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::materialize_closure",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 1550
+            },
+            "body_sha256": "1809ea1005be1eba52d6ef5e5d1ed2a7a4f2ec5bb2cc2aa9597917798e148916"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::prepare_non_call_function_value",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 1108
+            },
+            "body_sha256": "c65b8f584f07a5dbdf0d7411368ffb76e5518fc42c322ebd64b8d7a01382d18f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::runtime_function_result",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 1421
+            },
+            "body_sha256": "55231281ca65391d225dfa4fbb1ac236c9aa3048cfcde8b99e97fbe3da6f6a39"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::runtime_function_result::closure@1429:26",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 26,
+              "line": 1429
+            },
+            "body_sha256": "7354efb5d07b292e51095e3f445bb44112c63fe0f23076aee2a928145ba22436"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::source_function_value_leaf",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 1034
+            },
+            "body_sha256": "a9c9c40b9078a8a1b22a86a80a229c3c717308647ad6b6dd7554cad033c1dd24"
+          }
+        ],
+        "internal_edges": 68,
+        "internal_edge_precision": {
+          "typed_receiver": 59,
+          "direct_path": 4,
+          "callback_flow": 5
+        }
+      },
+      {
+        "nodes": 7,
+        "named_functions": 7,
+        "classification": "factory_declaration_variant_cycle",
+        "members": [
+          {
+            "id": "crate::lower::control_cursor::factories::Lowering::advance_factory_arguments",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factories.rs",
+            "position": {
+              "column": 5,
+              "line": 126
+            },
+            "body_sha256": "d731e5db452f187307590097068a6c2c4125c09c7fdae42d1ed51064a78a2079"
+          },
+          {
+            "id": "crate::lower::control_cursor::factories::Lowering::finish_concise_factory_expression",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factories.rs",
+            "position": {
+              "column": 5,
+              "line": 403
+            },
+            "body_sha256": "9e9dd2fbd2f46c6ca79500a10bcdbb03892c34e4581345961330ce82b42d7cfa"
+          },
+          {
+            "id": "crate::lower::control_cursor::factories::Lowering::start_declaration_factory_arguments",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factories.rs",
+            "position": {
+              "column": 16,
+              "line": 99
+            },
+            "body_sha256": "f1f8424c665d554539c2a86b22e876fcf342eb71bf3be500a594975fd724e8cf"
+          },
+          {
+            "id": "crate::lower::control_cursor::factory_checks::Lowering::resume_returned_factory_check",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factory_checks.rs",
+            "position": {
+              "column": 16,
+              "line": 195
+            },
+            "body_sha256": "a5d57ef4599968d8cc4ce9b1e4e5d1b60f4efd679fb7a6e6789d6da872a22177"
+          },
+          {
+            "id": "crate::lower::control_cursor::factory_checks::Lowering::start_returned_factory_check",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factory_checks.rs",
+            "position": {
+              "column": 16,
+              "line": 160
+            },
+            "body_sha256": "5fe1f0708403929679a8dc61728ab83b74a30b6df0b7992a8c7432ea8911c1c2"
+          },
+          {
+            "id": "crate::lower::control_cursor::initializers::Lowering::finish_declaration_factory",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/initializers.rs",
+            "position": {
+              "column": 16,
+              "line": 171
+            },
+            "body_sha256": "654ab8ede485c3cdd7d2248a77f0f292be6d17e5816f634ea9ffcb68c5b945de"
+          },
+          {
+            "id": "crate::lower::control_cursor::initializers::Lowering::schedule_declaration_initializer",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/initializers.rs",
+            "position": {
+              "column": 16,
+              "line": 54
+            },
+            "body_sha256": "5044d01df1a1b836e067d9de8e5a96c7b75c6d1b8e31d6839255fcaa8ec63dc5"
+          }
+        ],
+        "internal_edges": 8,
+        "internal_edge_precision": {
+          "typed_receiver": 8
+        }
+      },
+      {
+        "nodes": 25,
+        "named_functions": 11,
+        "classification": "fact_queries",
+        "members": [
+          {
+            "id": "crate::lower::awaited::Lowering::fulfilled_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 16,
+              "line": 258
+            },
+            "body_sha256": "babe1cb77bf351ed676c3202d762dcd64098e71fe7ac62f0a1e7d0f4b19f48d9"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::fulfilled_promise_shape_in::closure@284:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 284
+            },
+            "body_sha256": "c89770674349635dfc69c1b6f2eda388bc55e8c6cfe32ab061e374b7bbdbe0ed"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 16,
+              "line": 197
+            },
+            "body_sha256": "24d6206958ea84175039ca0537d726bc153896f8eec2eecb3e6d5be4d7e5c3ab"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in::closure@210:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 210
+            },
+            "body_sha256": "04a45bb7f5e4f7de9f49d6d2b61f8d0558986e6204fc47cd55c53fb923c4c1f9"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in::closure@219:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 219
+            },
+            "body_sha256": "42e51c660e0b00c38f0615179b185f9072ceb7180ac6f979e06b5f73c158d18f"
+          },
+          {
+            "id": "crate::lower::awaited::fulfilled_shape",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 12,
+              "line": 389
+            },
+            "body_sha256": "c8319b28cc1ed9e258d7c1323aa03456d41a74a1e4c96176d1fce7c22c9690bb"
+          },
+          {
+            "id": "crate::lower::awaited::settled_shape",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 12,
+              "line": 351
+            },
+            "body_sha256": "6e3b4b12c6999414ca977f114d3628d3b4b0a15f37044c8186ec7eb991d7b81d"
+          },
+          {
+            "id": "crate::lower::block_results::Lowering::block_expression_arity",
+            "file": "crates/grunkalunka-compiler/src/lower/block_results.rs",
+            "position": {
+              "column": 5,
+              "line": 71
+            },
+            "body_sha256": "788387059da6b5bddaf6713af4b1d911490cc4d7a2008d52e7b7d906ff74c973"
+          },
+          {
+            "id": "crate::lower::block_results::Lowering::block_function_arity_in",
+            "file": "crates/grunkalunka-compiler/src/lower/block_results.rs",
+            "position": {
+              "column": 16,
+              "line": 45
+            },
+            "body_sha256": "ef0d4efa2999d06cdc3aee127029553fed51bf1bb832742d8bcca0d614b93912"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 455
+            },
+            "body_sha256": "bcc2ed8f0d6e5a51eb135ba157996ef236cd5cc250b847d3f6b761b33afba60f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@485:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 485
+            },
+            "body_sha256": "e6445a7643a58a22afa746822f6232d0eccb7eadb7334db6fd402079c2748d6c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@485:73::closure@487:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 487
+            },
+            "body_sha256": "116eb64010983b700df80d48a9655dcc80db35bbd6f2e89f30af90241d716f2f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@495:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 495
+            },
+            "body_sha256": "1ea31970d01eab31ce9b22a2142666d223821f3b33c7f83044b20ee3da0dba76"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@495:73::closure@497:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 497
+            },
+            "body_sha256": "9a3c851e927cb213c3ec3be779f7375b6175b64ad2acc7560f4bcf5d41609556"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@505:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 505
+            },
+            "body_sha256": "047626e03b64ebe77b6a64ed050798cc67dd1b89945f3f63b0afade6af4cc83c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@505:73::closure@507:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 507
+            },
+            "body_sha256": "76eb4254a469e2ffac012d9bdd93d2d77b8cc83d9d82125a92e7ae8ca12ecc7d"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 244
+            },
+            "body_sha256": "d8999fec34751b52386e83d6475533bbc8572a32231b7a9ff4859763fe21cfe1"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@321:27",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 27,
+              "line": 321
+            },
+            "body_sha256": "52a8aeaf422f4ca225ece81fee2c5be7f67348b7da0a3be2414639e0bc2d0a2d"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@322:26",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 26,
+              "line": 322
+            },
+            "body_sha256": "76e3abd03f0a565200a3434d9de6b16ddd15e828419ac272467c25b6b2661a0f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@324:21",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 21,
+              "line": 324
+            },
+            "body_sha256": "9bc4c5ca85f0aa14e4bec2daa6eb8a6d63b03e2742b6d30e4a0cc4d9dfd327d2"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_concise_chain",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 339
+            },
+            "body_sha256": "d8f6069f61f612a6fd22210b672ec009bd15580a83ad837e1ca1758df85124c3"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 645
+            },
+            "body_sha256": "23275eb73b9bed66fe81928f316ca4d74915512f26da62cfdb0415802963bda8"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in::closure@761:80",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 80,
+              "line": 761
+            },
+            "body_sha256": "4e1c5d5d6093c88f1b5e981bc1c582fc5eda5b6105971ed1b519ff2d966c2bb8"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in::closure@979:37",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 37,
+              "line": 979
+            },
+            "body_sha256": "e08277a720848b995800ed826e52464df4bee08d221f2b25f33b8d3a9091be51"
+          },
+          {
+            "id": "crate::lower::pending::Lowering::pending_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/pending.rs",
+            "position": {
+              "column": 16,
+              "line": 10
+            },
+            "body_sha256": "f8b2d54028fbd0e210e3ea1db55f17babdd72d5753385dd2ea35a169fab2ddf8"
+          }
+        ],
+        "internal_edges": 37,
+        "internal_edge_precision": {
+          "typed_receiver": 20,
+          "direct_path": 2,
+          "callback_flow": 4,
+          "external_callback_argument_overapproximation": 11
+        }
+      }
+    ]
+  },
+  "final": {
+    "build_commit": "4bef43c35814d7cb747254ad4d4fbac0dc9715dd",
+    "published_commit": "67400f91882124e021f4bf30157930bb91acba31",
+    "tree": "9ea19ddd1ff1dbd0d39c46216d13a22747130735",
+    "published_tree_independently_read_from_github": true,
+    "summary": {
+      "files": 58,
+      "functions_and_closures": 1176,
+      "syntactic_call_sites": 10048,
+      "edges": 3900,
+      "edge_precision": {
+        "direct_path": 1277,
+        "external_callback_argument_overapproximation": 633,
+        "typed_receiver": 1630,
+        "conservative_method_name": 326,
+        "callback_flow": 34
+      },
+      "unresolved_or_conservative_sites": 7132,
+      "unresolved_modules": 0,
+      "callback_flow_iterations": 3,
+      "cyclic_components": 2,
+      "lowering_cyclic_components": 2,
+      "public_reachable_lowering_cyclic_components": 2,
+      "unparsed_expression_macros": 0
+    },
+    "graph_sha256": "777bb059d7219109487ab95102baaeb48d1a7d15c88df23d53ac111320d4b75d",
+    "inventory_sha256": "aa9b707213f9544436c76c87035866434312dc65c2face83b379a17254a75615",
+    "components": [
+      {
+        "nodes": 7,
+        "named_functions": 7,
+        "classification": "factory_declaration_variant_cycle",
+        "members": [
+          {
+            "id": "crate::lower::control_cursor::factories::Lowering::advance_factory_arguments",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factories.rs",
+            "position": {
+              "column": 5,
+              "line": 126
+            },
+            "body_sha256": "d731e5db452f187307590097068a6c2c4125c09c7fdae42d1ed51064a78a2079"
+          },
+          {
+            "id": "crate::lower::control_cursor::factories::Lowering::finish_concise_factory_expression",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factories.rs",
+            "position": {
+              "column": 5,
+              "line": 403
+            },
+            "body_sha256": "9e9dd2fbd2f46c6ca79500a10bcdbb03892c34e4581345961330ce82b42d7cfa"
+          },
+          {
+            "id": "crate::lower::control_cursor::factories::Lowering::start_declaration_factory_arguments",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factories.rs",
+            "position": {
+              "column": 16,
+              "line": 99
+            },
+            "body_sha256": "f1f8424c665d554539c2a86b22e876fcf342eb71bf3be500a594975fd724e8cf"
+          },
+          {
+            "id": "crate::lower::control_cursor::factory_checks::Lowering::resume_returned_factory_check",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factory_checks.rs",
+            "position": {
+              "column": 16,
+              "line": 195
+            },
+            "body_sha256": "a5d57ef4599968d8cc4ce9b1e4e5d1b60f4efd679fb7a6e6789d6da872a22177"
+          },
+          {
+            "id": "crate::lower::control_cursor::factory_checks::Lowering::start_returned_factory_check",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/factory_checks.rs",
+            "position": {
+              "column": 16,
+              "line": 160
+            },
+            "body_sha256": "5fe1f0708403929679a8dc61728ab83b74a30b6df0b7992a8c7432ea8911c1c2"
+          },
+          {
+            "id": "crate::lower::control_cursor::initializers::Lowering::finish_declaration_factory",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/initializers.rs",
+            "position": {
+              "column": 16,
+              "line": 171
+            },
+            "body_sha256": "654ab8ede485c3cdd7d2248a77f0f292be6d17e5816f634ea9ffcb68c5b945de"
+          },
+          {
+            "id": "crate::lower::control_cursor::initializers::Lowering::schedule_declaration_initializer",
+            "file": "crates/grunkalunka-compiler/src/lower/control_cursor/initializers.rs",
+            "position": {
+              "column": 16,
+              "line": 54
+            },
+            "body_sha256": "5044d01df1a1b836e067d9de8e5a96c7b75c6d1b8e31d6839255fcaa8ec63dc5"
+          }
+        ],
+        "internal_edges": 8,
+        "internal_edge_precision": {
+          "typed_receiver": 8
+        }
+      },
+      {
+        "nodes": 25,
+        "named_functions": 11,
+        "classification": "fact_queries",
+        "members": [
+          {
+            "id": "crate::lower::awaited::Lowering::fulfilled_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 16,
+              "line": 258
+            },
+            "body_sha256": "babe1cb77bf351ed676c3202d762dcd64098e71fe7ac62f0a1e7d0f4b19f48d9"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::fulfilled_promise_shape_in::closure@284:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 284
+            },
+            "body_sha256": "c89770674349635dfc69c1b6f2eda388bc55e8c6cfe32ab061e374b7bbdbe0ed"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 16,
+              "line": 197
+            },
+            "body_sha256": "24d6206958ea84175039ca0537d726bc153896f8eec2eecb3e6d5be4d7e5c3ab"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in::closure@210:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 210
+            },
+            "body_sha256": "04a45bb7f5e4f7de9f49d6d2b61f8d0558986e6204fc47cd55c53fb923c4c1f9"
+          },
+          {
+            "id": "crate::lower::awaited::Lowering::settled_promise_shape_in::closure@219:13",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 13,
+              "line": 219
+            },
+            "body_sha256": "42e51c660e0b00c38f0615179b185f9072ceb7180ac6f979e06b5f73c158d18f"
+          },
+          {
+            "id": "crate::lower::awaited::fulfilled_shape",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 12,
+              "line": 389
+            },
+            "body_sha256": "c8319b28cc1ed9e258d7c1323aa03456d41a74a1e4c96176d1fce7c22c9690bb"
+          },
+          {
+            "id": "crate::lower::awaited::settled_shape",
+            "file": "crates/grunkalunka-compiler/src/lower/awaited.rs",
+            "position": {
+              "column": 12,
+              "line": 351
+            },
+            "body_sha256": "6e3b4b12c6999414ca977f114d3628d3b4b0a15f37044c8186ec7eb991d7b81d"
+          },
+          {
+            "id": "crate::lower::block_results::Lowering::block_expression_arity",
+            "file": "crates/grunkalunka-compiler/src/lower/block_results.rs",
+            "position": {
+              "column": 5,
+              "line": 71
+            },
+            "body_sha256": "788387059da6b5bddaf6713af4b1d911490cc4d7a2008d52e7b7d906ff74c973"
+          },
+          {
+            "id": "crate::lower::block_results::Lowering::block_function_arity_in",
+            "file": "crates/grunkalunka-compiler/src/lower/block_results.rs",
+            "position": {
+              "column": 16,
+              "line": 45
+            },
+            "body_sha256": "ef0d4efa2999d06cdc3aee127029553fed51bf1bb832742d8bcca0d614b93912"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 455
+            },
+            "body_sha256": "bcc2ed8f0d6e5a51eb135ba157996ef236cd5cc250b847d3f6b761b33afba60f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@485:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 485
+            },
+            "body_sha256": "e6445a7643a58a22afa746822f6232d0eccb7eadb7334db6fd402079c2748d6c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@485:73::closure@487:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 487
+            },
+            "body_sha256": "116eb64010983b700df80d48a9655dcc80db35bbd6f2e89f30af90241d716f2f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@495:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 495
+            },
+            "body_sha256": "1ea31970d01eab31ce9b22a2142666d223821f3b33c7f83044b20ee3da0dba76"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@495:73::closure@497:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 497
+            },
+            "body_sha256": "9a3c851e927cb213c3ec3be779f7375b6175b64ad2acc7560f4bcf5d41609556"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@505:73",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 73,
+              "line": 505
+            },
+            "body_sha256": "047626e03b64ebe77b6a64ed050798cc67dd1b89945f3f63b0afade6af4cc83c"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at::closure@505:73::closure@507:48",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 48,
+              "line": 507
+            },
+            "body_sha256": "76eb4254a469e2ffac012d9bdd93d2d77b8cc83d9d82125a92e7ae8ca12ecc7d"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 244
+            },
+            "body_sha256": "d8999fec34751b52386e83d6475533bbc8572a32231b7a9ff4859763fe21cfe1"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@321:27",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 27,
+              "line": 321
+            },
+            "body_sha256": "52a8aeaf422f4ca225ece81fee2c5be7f67348b7da0a3be2414639e0bc2d0a2d"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@322:26",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 26,
+              "line": 322
+            },
+            "body_sha256": "76e3abd03f0a565200a3434d9de6b16ddd15e828419ac272467c25b6b2661a0f"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_at::closure@324:21",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 21,
+              "line": 324
+            },
+            "body_sha256": "9bc4c5ca85f0aa14e4bec2daa6eb8a6d63b03e2742b6d30e4a0cc4d9dfd327d2"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::arrow_signature_concise_chain",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 5,
+              "line": 339
+            },
+            "body_sha256": "d8f6069f61f612a6fd22210b672ec009bd15580a83ad837e1ca1758df85124c3"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 16,
+              "line": 630
+            },
+            "body_sha256": "23275eb73b9bed66fe81928f316ca4d74915512f26da62cfdb0415802963bda8"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in::closure@746:80",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 80,
+              "line": 746
+            },
+            "body_sha256": "4e1c5d5d6093c88f1b5e981bc1c582fc5eda5b6105971ed1b519ff2d966c2bb8"
+          },
+          {
+            "id": "crate::lower::function_values::Lowering::function_arity_in::closure@964:37",
+            "file": "crates/grunkalunka-compiler/src/lower/function_values.rs",
+            "position": {
+              "column": 37,
+              "line": 964
+            },
+            "body_sha256": "e08277a720848b995800ed826e52464df4bee08d221f2b25f33b8d3a9091be51"
+          },
+          {
+            "id": "crate::lower::pending::Lowering::pending_promise_shape_in",
+            "file": "crates/grunkalunka-compiler/src/lower/pending.rs",
+            "position": {
+              "column": 16,
+              "line": 10
+            },
+            "body_sha256": "f8b2d54028fbd0e210e3ea1db55f17babdd72d5753385dd2ea35a169fab2ddf8"
+          }
+        ],
+        "internal_edges": 37,
+        "internal_edge_precision": {
+          "typed_receiver": 20,
+          "direct_path": 2,
+          "callback_flow": 4,
+          "external_callback_argument_overapproximation": 11
+        }
+      }
+    ]
+  },
+  "query_bodies_preserved": [
+    {
+      "id": "crate::lower::awaited::Lowering::fulfilled_promise_shape_in",
+      "body_sha256": "babe1cb77bf351ed676c3202d762dcd64098e71fe7ac62f0a1e7d0f4b19f48d9",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::awaited::Lowering::settled_promise_shape_in",
+      "body_sha256": "24d6206958ea84175039ca0537d726bc153896f8eec2eecb3e6d5be4d7e5c3ab",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::awaited::fulfilled_shape",
+      "body_sha256": "c8319b28cc1ed9e258d7c1323aa03456d41a74a1e4c96176d1fce7c22c9690bb",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::awaited::settled_shape",
+      "body_sha256": "6e3b4b12c6999414ca977f114d3628d3b4b0a15f37044c8186ec7eb991d7b81d",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::block_results::Lowering::block_expression_arity",
+      "body_sha256": "788387059da6b5bddaf6713af4b1d911490cc4d7a2008d52e7b7d906ff74c973",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::block_results::Lowering::block_function_arity_in",
+      "body_sha256": "ef0d4efa2999d06cdc3aee127029553fed51bf1bb832742d8bcca0d614b93912",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::function_values::Lowering::arrow_scalar_result_at",
+      "body_sha256": "bcc2ed8f0d6e5a51eb135ba157996ef236cd5cc250b847d3f6b761b33afba60f",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::function_values::Lowering::arrow_signature_at",
+      "body_sha256": "d8999fec34751b52386e83d6475533bbc8572a32231b7a9ff4859763fe21cfe1",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::function_values::Lowering::arrow_signature_concise_chain",
+      "body_sha256": "d8f6069f61f612a6fd22210b672ec009bd15580a83ad837e1ca1758df85124c3",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::function_values::Lowering::function_arity_in",
+      "body_sha256": "23275eb73b9bed66fe81928f316ca4d74915512f26da62cfdb0415802963bda8",
+      "baseline_equals_final": true
+    },
+    {
+      "id": "crate::lower::pending::Lowering::pending_promise_shape_in",
+      "body_sha256": "f8b2d54028fbd0e210e3ea1db55f17babdd72d5753385dd2ea35a169fab2ddf8",
+      "baseline_equals_final": true
+    }
+  ],
+  "factory_model_source_bodies_preserved": [
+    {
+      "id": "crate::lower::declarations::Lowering::publish_declaration_closure",
+      "body_sha256": "74bffaea9aa160ac0c90b54dc468688486662c0ece4e4336ca92f65122328d57",
+      "reviewed_composition_equals_final": true
+    },
+    {
+      "id": "crate::lower::control_cursor::factory_checks::Lowering::resume_returned_factory_check",
+      "body_sha256": "a5d57ef4599968d8cc4ce9b1e4e5d1b60f4efd679fb7a6e6789d6da872a22177",
+      "reviewed_composition_equals_final": true
+    },
+    {
+      "id": "crate::lower::control_cursor::initializers::Lowering::schedule_declaration_initializer",
+      "body_sha256": "5044d01df1a1b836e067d9de8e5a96c7b75c6d1b8e31d6839255fcaa8ec63dc5",
+      "reviewed_composition_equals_final": true
+    }
+  ],
+  "query_ranking_check": {
+    "reviewed_source_commit": "16411448823b77252875f051796f005b0331fab2",
+    "semantic_helpers": 9,
+    "reviewed_edges": 17,
+    "zero_increment_graph_acyclic": true,
+    "zero_increment_topological_order": [
+      "block_function_arity_in",
+      "block_expression_arity",
+      "function_arity_in",
+      "arrow_signature_at",
+      "arrow_signature_concise_chain",
+      "arrow_scalar_result_at",
+      "pending_promise_shape_in",
+      "settled_promise_shape_in",
+      "fulfilled_promise_shape_in"
+    ],
+    "finite_overapproximation_states": 81,
+    "finite_overapproximation_transitions": 245,
+    "finite_overapproximation_acyclic": true,
+    "longest_semantic_helper_chain_in_model": 51,
+    "scope": "Consequences of reviewed source premises; not a Rust control-flow or native-byte proof."
+  },
+  "factory_value_flow_check": {
+    "bounded_query": "canMatchFactory('publishDeclarationClosure', 'scheduleDeclarationInitializer')",
+    "syntax_passed": true,
+    "source_commit": "16411448823b77252875f051796f005b0331fab2",
+    "support_count": 0,
+    "opposition_count": 6,
+    "opposing_sources": [
+      "onlySuccessfulVariants('publishDeclarationClosure', 'Complete', 'Materialize', 'CheckClosure')",
+      "forwardsResult('publishDeclarationClosure', 'scheduleDeclarationInitializer')",
+      "directFactoryArm('scheduleDeclarationInitializer', 'Factory')",
+      "distinctVariant('Complete', 'Factory')",
+      "distinctVariant('Materialize', 'Factory')",
+      "distinctVariant('CheckClosure', 'Factory')"
+    ],
+    "sensitivity_without_exhaustive_return_premise": "requested query has no result: unknown, not false",
+    "probabilities_interpreted": false,
+    "scope": "Only the direct Factory match at this producer/consumer return edge; not whole-program acyclicity."
+  },
+  "fixture_check": {
+    "passed": true,
+    "cases": [
+      "direct recursion",
+      "typed callback flow",
+      "macro argument recursion",
+      "parent-defined glob import",
+      "transitive imported alias",
+      "local-enum boxed receiver",
+      "unknown boxed fallback",
+      "comments and strings excluded",
+      "cfg(test) excluded"
+    ]
+  },
+  "tool_sha256": {
+    "parser/src/main.rs": "3b1e1fc9fad043bcf64140dbade24bdf2c82a2ad7a896009f546dc9c27584d54",
+    "parser/Cargo.toml": "d8d8064811f8b7bcfa528562273871e286bf9415eedad79a50ae27e053031b60",
+    "parser/Cargo.lock": "869c052d4b51220fc2f47298b45a349285986798cda4217fe9b5a3f77d941db2",
+    "analyze.py": "6b3d355abcdd809dd42caab52f33c20de020ae3f5682a5528e07dcfee0e39fd0",
+    "check_fixture.py": "7d74b5c5dd1f907b4ec2743381eeab702aaee8a3d4aa0f916de00cb0038fae11",
+    "fixture/lib.rs": "48a2056fa3254fc829170938451215d224a37e99df809a324a80520b317b38c5",
+    "fixture/lower.rs": "205bdb8f56641514a1f052be09aa65150725311fd895c79a2ac2dc6a51bdbf12",
+    "check_query_rank.py": "c282910de8c16ea0cb233646acbe40dd7f22837aceb86167f4f70580d6128a35",
+    "query-ranking-certificate.json": "1049a20fc9ff4c020324988021c3f16e30bbab8543f533eaf9031a3d14c426fc"
+  },
+  "limitations": [
+    "Not rustc type checking or macro expansion; unresolved calls are retained, not certified absent.",
+    "Method-name fallback and unknown external callback invocation are overapproximations and may create false cycles.",
+    "Conditional compilation other than exact cfg(test) is retained conservatively. Derive-generated methods and external dependencies are outside parsed bodies.",
+    "Function-pointer flows through heap fields, returned closures, complex patterns or trait objects may remain unresolved.",
+    "SCCs show possible native call cycles, not source-dependent runtime depth. Manual body/guard/queue classification and exercised 2 MiB boundaries remain necessary."
+  ]
+}

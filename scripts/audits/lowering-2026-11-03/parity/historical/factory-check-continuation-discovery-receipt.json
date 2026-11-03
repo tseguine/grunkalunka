@@ -1,0 +1,390 @@
+{
+  "probe": "/workspace/scratch/88caffc5ffb1/lowering-parity/closure-child-preparation-probe",
+  "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+  "cases": [
+    {
+      "id": "metadata_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_iife_call_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_iife_call_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_iife_call_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_iife_call_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "const_metadata_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "const_metadata_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "const_conditional_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "const_conditional_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "managed_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "nested_factory_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "nested_factory_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "identifier_factory_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "identifier_factory_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_missing_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_missing_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_missing_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_missing_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_missing_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_missing_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_spread_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_spread_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_spread_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_spread_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_spread_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_spread_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_bad_body_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_bad_body_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_bad_unused_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_bad_unused_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_bad_formal_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_bad_formal_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_bad_formal_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "block_bad_formal_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_bad_formal_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_bad_formal_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "awaited_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "awaited_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "const_awaited_iife_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "const_awaited_iife_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "local_guard_0_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "local_guard_0_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "local_guard_7_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "local_guard_7_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "local_guard_8_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "local_guard_8_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_guard_0_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_guard_0_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_guard_7_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_guard_7_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_guard_8_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "metadata_guard_8_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_context_0_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_context_0_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_context_7_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_context_7_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_context_8_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_context_8_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    }
+  ]
+}

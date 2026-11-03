@@ -1,0 +1,1 @@
+export async function run(a,b){const make=x=>y=>x+y;const f=make(await a);return f(b);}

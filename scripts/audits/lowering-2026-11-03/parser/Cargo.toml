@@ -1,0 +1,13 @@
+[package]
+name = "lowering-call-inventory"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+syn = { version = "=2.0.119", features = ["full", "visit", "extra-traits"] }
+quote = "=1.0.47"
+proc-macro2 = { version = "=1.0.107", features = ["span-locations"] }
+serde_json = "=1.0.154"

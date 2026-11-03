@@ -1,0 +1,1 @@
+export function run(a,b){const make=x=>(b,y=>x+y);return make((make((make((make((make((make((make((make(a),a)),a)),a)),a)),a)),a)),a))(b);}

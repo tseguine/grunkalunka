@@ -1,0 +1,218 @@
+{
+  "processes": 320,
+  "cases": 16,
+  "all_outputs_matched": true,
+  "primary_preserved": true,
+  "workloads": [
+    {
+      "case": "affine_js",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 1.0176282372430747,
+      "focused_median_paired_ratio": 1.0684185768305134,
+      "focused_ratio_range": [
+        0.22559884017836734,
+        3.0574702939106078
+      ],
+      "focused_baseline_median_ns": 48464.765625,
+      "focused_candidate_median_ns": 50096.34375,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 34816.0
+    },
+    {
+      "case": "affine_ts",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 0.851069873130089,
+      "focused_median_paired_ratio": 1.1416248468175767,
+      "focused_ratio_range": [
+        0.6722422227683549,
+        3.2750310722809455
+      ],
+      "focused_baseline_median_ns": 46883.40625,
+      "focused_candidate_median_ns": 50820.7734375,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 75776.0
+    },
+    {
+      "case": "charged_result_7_js",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 1.0288070804538012,
+      "focused_median_paired_ratio": 1.161126860170995,
+      "focused_ratio_range": [
+        0.4438976540848387,
+        1.601292568917198
+      ],
+      "focused_baseline_median_ns": 762112.75,
+      "focused_candidate_median_ns": 749049.1484375,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 188416.0
+    },
+    {
+      "case": "charged_result_7_ts",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 0.9973068538412905,
+      "focused_median_paired_ratio": 0.9483389614773596,
+      "focused_ratio_range": [
+        0.8395504723425116,
+        1.2501140135999136
+      ],
+      "focused_baseline_median_ns": 718619.7421875,
+      "focused_candidate_median_ns": 713919.1015625,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 163840.0
+    },
+    {
+      "case": "charged_result_8_js",
+      "outcome": "error",
+      "primary_median_paired_ratio": 1.5788837808174112,
+      "focused_median_paired_ratio": 0.9374062949483508,
+      "focused_ratio_range": [
+        0.4642627396360413,
+        2.1706081755792597
+      ],
+      "focused_baseline_median_ns": 197432.25,
+      "focused_candidate_median_ns": 204440.8359375,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 245760.0
+    },
+    {
+      "case": "charged_result_8_ts",
+      "outcome": "error",
+      "primary_median_paired_ratio": 1.0170188292365783,
+      "focused_median_paired_ratio": 1.0737615923019688,
+      "focused_ratio_range": [
+        0.6327104470019006,
+        1.2426718341433618
+      ],
+      "focused_baseline_median_ns": 207575.2265625,
+      "focused_candidate_median_ns": 209111.390625,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 194560.0
+    },
+    {
+      "case": "lifted_capacity_256_js",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 0.9434300883113961,
+      "focused_median_paired_ratio": 1.0081516210791661,
+      "focused_ratio_range": [
+        0.8532072831688848,
+        1.6045630340897137
+      ],
+      "focused_baseline_median_ns": 18211149.546875,
+      "focused_candidate_median_ns": 18200267.921875,
+      "focused_difference_between_revision_median_peak_RSS_bytes": -116736.0
+    },
+    {
+      "case": "lifted_capacity_256_ts",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 0.9721533610714159,
+      "focused_median_paired_ratio": 0.9811274843078135,
+      "focused_ratio_range": [
+        0.6865776986863114,
+        2.005695838655032
+      ],
+      "focused_baseline_median_ns": 19419344.140625,
+      "focused_candidate_median_ns": 19730452.40625,
+      "focused_difference_between_revision_median_peak_RSS_bytes": -149504.0
+    },
+    {
+      "case": "lifted_capacity_over_js",
+      "outcome": "error",
+      "primary_median_paired_ratio": 1.04843107379039,
+      "focused_median_paired_ratio": 0.9773507662142203,
+      "focused_ratio_range": [
+        0.5247696505032154,
+        1.7816602795494938
+      ],
+      "focused_baseline_median_ns": 9733076.265625,
+      "focused_candidate_median_ns": 9917423.4453125,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 126976.0
+    },
+    {
+      "case": "lifted_capacity_over_ts",
+      "outcome": "error",
+      "primary_median_paired_ratio": 1.2505812058393568,
+      "focused_median_paired_ratio": 1.0717862975361472,
+      "focused_ratio_range": [
+        0.8824342031125954,
+        1.6711891914968569
+      ],
+      "focused_baseline_median_ns": 7625656.203125,
+      "focused_candidate_median_ns": 8560725.28125,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 100352.0
+    },
+    {
+      "case": "nested_mutable_js",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 0.6114021757452932,
+      "focused_median_paired_ratio": 0.9066408685946976,
+      "focused_ratio_range": [
+        0.4661724065417618,
+        3.186959442639882
+      ],
+      "focused_baseline_median_ns": 408412.109375,
+      "focused_candidate_median_ns": 378103.265625,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 165888.0
+    },
+    {
+      "case": "nested_mutable_ts",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 1.07747169410888,
+      "focused_median_paired_ratio": 0.984602487286131,
+      "focused_ratio_range": [
+        0.6282129481498339,
+        1.3056092291858614
+      ],
+      "focused_baseline_median_ns": 405031.8203125,
+      "focused_candidate_median_ns": 454677.0703125,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 118784.0
+    },
+    {
+      "case": "zero_arguments_127_js",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 0.9315247081540942,
+      "focused_median_paired_ratio": 1.0420621783576016,
+      "focused_ratio_range": [
+        0.5760547634836737,
+        1.4810991026438014
+      ],
+      "focused_baseline_median_ns": 3320431.015625,
+      "focused_candidate_median_ns": 3362029.390625,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 174080.0
+    },
+    {
+      "case": "zero_arguments_127_ts",
+      "outcome": "ok",
+      "primary_median_paired_ratio": 1.1822043187151874,
+      "focused_median_paired_ratio": 0.9752914843872245,
+      "focused_ratio_range": [
+        0.8271704910615069,
+        1.175022997131224
+      ],
+      "focused_baseline_median_ns": 3196746.234375,
+      "focused_candidate_median_ns": 3073916.09375,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 133120.0
+    },
+    {
+      "case": "zero_arguments_128_js",
+      "outcome": "error",
+      "primary_median_paired_ratio": 1.2030277131896794,
+      "focused_median_paired_ratio": 1.0292339751222916,
+      "focused_ratio_range": [
+        0.7071986447877471,
+        1.3383487972654595
+      ],
+      "focused_baseline_median_ns": 1644432.328125,
+      "focused_candidate_median_ns": 1699567.5234375,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 133120.0
+    },
+    {
+      "case": "zero_arguments_128_ts",
+      "outcome": "error",
+      "primary_median_paired_ratio": 0.8590726980214781,
+      "focused_median_paired_ratio": 1.0291483155643406,
+      "focused_ratio_range": [
+        0.290453957987345,
+        1.1857656929562672
+      ],
+      "focused_baseline_median_ns": 1652335.5078125,
+      "focused_candidate_median_ns": 1637342.2265625,
+      "focused_difference_between_revision_median_peak_RSS_bytes": 157696.0
+    }
+  ],
+  "conclusion": "The primary outlier magnitudes did not persist in the declared confirmation. Shared-host variability remains large, including simple controls. A modest TS lifted-capacity rejection increase remains possible; equivalence and a general speedup are not established.",
+  "protocol_difference": "Confirmation uses CPU0 affinity,12 batches of32 calls,8 warmups and10 pairs. Keep its timing and RSS summaries separate from primary."
+}

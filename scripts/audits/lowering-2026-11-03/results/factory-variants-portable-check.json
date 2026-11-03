@@ -1,0 +1,16 @@
+{
+  "syntactic_cycle": true,
+  "with_exhaustive_success_set": {
+    "supports_factory_arm": false,
+    "opposes_factory_arm": true,
+    "state": "opposed",
+    "complete_path_queues_advance": true
+  },
+  "without_exhaustiveness_premise": {
+    "supports_factory_arm": false,
+    "opposes_factory_arm": false,
+    "state": "unknown",
+    "complete_path_queues_advance": true
+  },
+  "scope": "Finite consequences of reviewed source premises; no whole-program acyclicity claim."
+}

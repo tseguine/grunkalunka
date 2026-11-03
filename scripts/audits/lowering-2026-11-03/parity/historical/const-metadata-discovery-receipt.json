@@ -1,0 +1,462 @@
+{
+  "probe": "/workspace/scratch/88caffc5ffb1/lowering-parity/closure-child-preparation-probe",
+  "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+  "cases": [
+    {
+      "id": "scalar_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "scalar_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "multi_declarator_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "multi_declarator_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "separate_captures_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "separate_captures_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "shadowed_formals_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "shadowed_formals_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "ordered_effects_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "ordered_effects_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "call_receiver_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "call_receiver_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "capture_snapshot_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "capture_snapshot_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callback_snapshot_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "callback_snapshot_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_callback_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "returned_callback_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_callback_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "conditional_callback_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "wrapped_initializer_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "wrapped_initializer_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "unused_metadata_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "unused_metadata_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "nested_declaration_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "nested_declaration_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "loop_declaration_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "loop_declaration_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "object_capture_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "object_capture_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "array_capture_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "array_capture_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_callee_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "async_callee_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "await_argument_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "await_argument_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "await_receiver_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "await_receiver_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "missing_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "missing_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "spread_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "spread_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "first_argument_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "first_argument_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "receiver_before_spread_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "receiver_before_spread_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "first_declarator_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "first_declarator_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "later_declarator_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "later_declarator_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "invalid_unused_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "invalid_unused_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "optional_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "optional_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_14_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_14_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_15_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_15_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_16_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_16_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_17_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "value_budget_17_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "result_budget_7_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "result_budget_7_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "result_budget_8_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "result_budget_8_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "result_budget_9_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "result_budget_9_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_126_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_126_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_127_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_127_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_128_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_128_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_129_js",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    },
+    {
+      "id": "argument_depth_129_ts",
+      "status": 0,
+      "stdout": "cases=1 expectation_mismatches=0\n",
+      "stderr": ""
+    }
+  ]
+}

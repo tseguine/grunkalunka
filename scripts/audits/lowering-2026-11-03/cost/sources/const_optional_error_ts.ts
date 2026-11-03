@@ -1,0 +1,1 @@
+export function run(a,b){const make=x=>y=>x+y;const f=make?.(a);return b;}

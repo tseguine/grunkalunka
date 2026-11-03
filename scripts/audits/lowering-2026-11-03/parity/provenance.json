@@ -1,0 +1,1083 @@
+{
+  "schema_version": 1,
+  "expected_output_policy": "Only pre-existing baseline files are read; no compiler is invoked and no candidate outputs supply expectations.",
+  "source_generator": {
+    "path": "generate-corpus.mjs",
+    "bytes": 2321,
+    "sha256": "39013fdff94d112ae52caa3d9cc2550e82fb2756758525f1f5913094eb26d894",
+    "pinned_repository_commit": "926a4aa8bcf7c6082a3d09d795a7e8cd7bfea91c",
+    "pinned_repository_tree": "30bafc7a28c98aea808c7d9a6475f432def28084",
+    "command": "node generate-corpus.mjs PINNED_BASELINE_CHECKOUT NEW_OUTPUT_DIRECTORY",
+    "entry_points": [
+      "tests/compatibility/corpus.mjs",
+      "tests/compatibility/program-sources.mjs",
+      "tests/compatibility/primitive-values.mjs"
+    ],
+    "direct_fixture_overrides": [
+      "tests/compatibility/fixtures/affine.js",
+      "tests/compatibility/fixtures/affine.ts"
+    ],
+    "reconstruction_validation": "validation/generator-verification.json",
+    "input_policy": "All source text is also included; replay does not import any repository fixture at runtime."
+  },
+  "repository_origin_files": [
+    {
+      "repository_path": "tests/compatibility/arithmetic-predicate-bindings.mjs",
+      "bytes": 6307,
+      "sha256": "9d836d093e2a52f5014b5c46240f6448527f2a8896e61afdeb66d699e52d49eb"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game/.gitattributes",
+      "bytes": 117,
+      "sha256": "6267a5f1f62881c04d7033267699ca63f48980123c493b2e6ef2f21f3b30f3b5"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game/LICENSE.md",
+      "bytes": 1616,
+      "sha256": "e5dd0024dd43d92434808c8e1df3c09870a2832744283232aa1dc16c737237b1"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game/README.md",
+      "bytes": 2556,
+      "sha256": "f3ee984add82b54845a479e997ce57ffb2d8c6538c515d4933d47f21c85ea306"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game/adapted.txt",
+      "bytes": 353,
+      "sha256": "c5b5bdc7eda21e95258cfe42c6c1b7f86aad6f811c828a7be0876b1351312283"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game/manifest.json",
+      "bytes": 2104,
+      "sha256": "5b1368be0b984d7d0dcc1909f74e8867418e39151de48921558006553e5f28ad"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game/original.js",
+      "bytes": 1034,
+      "sha256": "5e0fbb1731bc20e7db499abafb8a6fedf9ed96707c23563c2bbfd498583ebbc3"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game/reference.txt",
+      "bytes": 315,
+      "sha256": "08add7d47ade65f3bbbc9e262194aadb066ed177fad6b31197219a96b5347052"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game.mjs",
+      "bytes": 1063,
+      "sha256": "27a0535a781d427ea922b9ff7e40b89f5162c043182932e6c149c9173c126685"
+    },
+    {
+      "repository_path": "tests/compatibility/benchmarks-game.test.mjs",
+      "bytes": 2311,
+      "sha256": "1cf411a879fcf48b1320573fea6bc43159f3fe7c96cf6e30f92795c50fff3841"
+    },
+    {
+      "repository_path": "tests/compatibility/boolean-literals.mjs",
+      "bytes": 1318,
+      "sha256": "f1b7ed263f4b89958292b31004f867bbabadc1f23f3bbea7426902dbd5539758"
+    },
+    {
+      "repository_path": "tests/compatibility/check.mjs",
+      "bytes": 14668,
+      "sha256": "4c84daec57a3b1cabbb71b364815f27794d7597bc6ab6b3294e9b8db31c94afb"
+    },
+    {
+      "repository_path": "tests/compatibility/comma-sequences.mjs",
+      "bytes": 1243,
+      "sha256": "0f86ad96d3cd996e6756463b5f0b48eb66d8f4671ef17a2caad92439a693c44f"
+    },
+    {
+      "repository_path": "tests/compatibility/const-boolean.mjs",
+      "bytes": 7706,
+      "sha256": "d11d08729cb34808e346dd3db0fac2829ac480ddc7e4688c5570c92dc7b8fb8a"
+    },
+    {
+      "repository_path": "tests/compatibility/corpus.mjs",
+      "bytes": 30071,
+      "sha256": "b9a42e78d4a3af8b868053b045f4bd525991947c674c4e34917509e0879ce675"
+    },
+    {
+      "repository_path": "tests/compatibility/directives.mjs",
+      "bytes": 3805,
+      "sha256": "fd63a571c4faac92dd52fc4708444a331357b0d2cc3a7a71151efbc95bea54a0"
+    },
+    {
+      "repository_path": "tests/compatibility/discarded-predicate-bindings.mjs",
+      "bytes": 6972,
+      "sha256": "ad21bdcec64a92ddaf38cc23cc6888e2ecc41c48ce7e55d35d7f4d8a766958a8"
+    },
+    {
+      "repository_path": "tests/compatibility/discarded-values.mjs",
+      "bytes": 9448,
+      "sha256": "43fa49eec3d660047142a5b950e6df7d632266f7f4c21932af72cbc273b81d31"
+    },
+    {
+      "repository_path": "tests/compatibility/empty-statements.mjs",
+      "bytes": 1898,
+      "sha256": "8deefc7e91f9f17cce9eff7f09a76e34e3079015eb68c4a1617acedd4f6979f1"
+    },
+    {
+      "repository_path": "tests/compatibility/fixtures/affine.js",
+      "bytes": 56,
+      "sha256": "e49bfe71e8733a17f32fe2bebed89c889792f417fb056eee7c72b646104c09cd"
+    },
+    {
+      "repository_path": "tests/compatibility/fixtures/affine.ts",
+      "bytes": 80,
+      "sha256": "2ceada68cdfc8a4e1672a2fe53e2d01440fe645a643d35335afd82b6c68d1cd8"
+    },
+    {
+      "repository_path": "tests/compatibility/fixtures/primitive-strict-equality/gap-null.js",
+      "bytes": 58,
+      "sha256": "118acccdd3b18a2781b63f60f0af995d5f4193bcb39376b2a8cff7d6dcc1d521"
+    },
+    {
+      "repository_path": "tests/compatibility/fixtures/primitive-strict-equality/gap-null.ts",
+      "bytes": 72,
+      "sha256": "3e52992de9447af387d1a30952b5f0e23a54b04fe52f8779246bbc940fd00adc"
+    },
+    {
+      "repository_path": "tests/compatibility/fixtures/primitive-strict-equality/gap-undefined.js",
+      "bytes": 68,
+      "sha256": "a31795309b3926250fba5f2ff4123810096bb59b3a8fe9a9176bca777d13897e"
+    },
+    {
+      "repository_path": "tests/compatibility/fixtures/primitive-strict-equality/gap-undefined.ts",
+      "bytes": 82,
+      "sha256": "6fd1aa00691a8fe48677c09546679d59e2d3f47eed1caa4111ff832d5afda5a0"
+    },
+    {
+      "repository_path": "tests/compatibility/function-logical-assignment.mjs",
+      "bytes": 654,
+      "sha256": "9c83910dce1f6ebd3f6b9cea0d581c288bbf1c8ba022a2ac481d4cba1dfd2956"
+    },
+    {
+      "repository_path": "tests/compatibility/gap-oracle.mjs",
+      "bytes": 503,
+      "sha256": "62e2fb322d45aef67d34d6d00f41610e0f26af5ae20fef92fc507de81d820e6a"
+    },
+    {
+      "repository_path": "tests/compatibility/gap-oracle.test.mjs",
+      "bytes": 3013,
+      "sha256": "1b4b67bf3b922f9c317fa9b64fa4f9cca19c12f03a11a3d1872e01d7d63936ad"
+    },
+    {
+      "repository_path": "tests/compatibility/general-const-bindings.mjs",
+      "bytes": 2203,
+      "sha256": "9d219206512c9d3aeb20ebf02763197f35b81a304225688684ddeec1c102ff83"
+    },
+    {
+      "repository_path": "tests/compatibility/general-discard.mjs",
+      "bytes": 2876,
+      "sha256": "3dbae13dec9afe418e1b94cfc6dc9628e687d15f171db43e44fcda22f16d5765"
+    },
+    {
+      "repository_path": "tests/compatibility/general-logical-assignment.mjs",
+      "bytes": 4205,
+      "sha256": "4ab9f2f11115e4ca59f9037777ea69e7b6638a780d246e9478e7740ce81da9bb"
+    },
+    {
+      "repository_path": "tests/compatibility/general-logical.mjs",
+      "bytes": 3327,
+      "sha256": "7b084f20541311bb117e7077c3782fc6690bcf7f4b1061282fb54a2010ee7637"
+    },
+    {
+      "repository_path": "tests/compatibility/general-parameters.mjs",
+      "bytes": 1731,
+      "sha256": "4df9f41de6da11e5e7bfa2b799f885c9d7c243330af01755599148d18dfaff31"
+    },
+    {
+      "repository_path": "tests/compatibility/general-tonumber.mjs",
+      "bytes": 6917,
+      "sha256": "0f8ad069f47b0b6d9c501f8b43a91718fa8194117eaef6d00a14197d33998847"
+    },
+    {
+      "repository_path": "tests/compatibility/general-truthiness.mjs",
+      "bytes": 1599,
+      "sha256": "3dc47e3e49d8f005ebdd1734574e3b179521ee64321d0c70d1d6a24362d5e0f2"
+    },
+    {
+      "repository_path": "tests/compatibility/general-updates.mjs",
+      "bytes": 1693,
+      "sha256": "f845dd7522eb6333ce69633c0d454ae11d3d60253e853d753abca011901584a4"
+    },
+    {
+      "repository_path": "tests/compatibility/generic-declarations.mjs",
+      "bytes": 5771,
+      "sha256": "9f0a2d193cc9ec46317a73b80038c31d85db82e984aef0c4b45890596bebf633"
+    },
+    {
+      "repository_path": "tests/compatibility/hashbangs.mjs",
+      "bytes": 4003,
+      "sha256": "a6b34c87bcc01dfd9e0cdf03017052f72c9e6ee3f940e0c1af60cab28becf29c"
+    },
+    {
+      "repository_path": "tests/compatibility/heap-frames.mjs",
+      "bytes": 3967,
+      "sha256": "9a02ee6f74e4bdecc83e3c89c2c2c903f74de715be865d280a04342e4b157a4f"
+    },
+    {
+      "repository_path": "tests/compatibility/heap-json.mjs",
+      "bytes": 3646,
+      "sha256": "f82dea132aee194cdf923b4a9fe11e1a9711007e576b134c2511df84ec605459"
+    },
+    {
+      "repository_path": "tests/compatibility/higher-callback-shapes.mjs",
+      "bytes": 817,
+      "sha256": "cd5108949c8f8cf34ef4375cb78f13f1a2a011268e28835401266cf141d46463"
+    },
+    {
+      "repository_path": "tests/compatibility/implicit-let.mjs",
+      "bytes": 3112,
+      "sha256": "290c34ffe52398434ee58058da55121405aee6d9462b080606423e7a4965043c"
+    },
+    {
+      "repository_path": "tests/compatibility/intrinsic-numbers.mjs",
+      "bytes": 4097,
+      "sha256": "1a3df35133ef2ba42f8c31638d7c6d155613e9f6a5d7fc28b0197c2fce35f2bd"
+    },
+    {
+      "repository_path": "tests/compatibility/known-local-extra-arguments.mjs",
+      "bytes": 505,
+      "sha256": "621106cf93f442fb22966afdbe5bcaeab7ad20ee94d685ecf6b533ea627b3ec9"
+    },
+    {
+      "repository_path": "tests/compatibility/local-arrows.mjs",
+      "bytes": 2392,
+      "sha256": "d090606f4ea4ff0ca3a59c041da907373065946aa1f32c0be50c5049b7d2344e"
+    },
+    {
+      "repository_path": "tests/compatibility/lowering-gaps.mjs",
+      "bytes": 5789,
+      "sha256": "70699215ad6951ecc02dc449fe4a0bd8d4c3c62294d1e58dbba09ffaea2f50b2"
+    },
+    {
+      "repository_path": "tests/compatibility/lowering-regressions.mjs",
+      "bytes": 1350,
+      "sha256": "20263b9cb94db5d5b0f420bc9f3bac3e0de92401fdcb75f0e9ca197bf142e6cf"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-arrays.mjs",
+      "bytes": 2152,
+      "sha256": "f4a1556a817e851e9a35f324e5bb8d567f20b7573e27857a520b4bfa6974fe32"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-captures.mjs",
+      "bytes": 3732,
+      "sha256": "bb6ebc09f14a145e5480df5105300c36c5c0903cd5f96880973011087c67561d"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-closure-inputs.mjs",
+      "bytes": 4860,
+      "sha256": "be946fbc808502a76922c2b99370e5a77157e61718579329e3726709e5661a24"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-closure-results.mjs",
+      "bytes": 6522,
+      "sha256": "328f1394fa489d66665fb412f756cb9dcf6c2f0f11defdf94a3434f8b2e2dd61"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-function-values.mjs",
+      "bytes": 2764,
+      "sha256": "f4971553c6dbe4443a64a6361c25e3bacfbc9cde020f673b43092a587c019247"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-logical.mjs",
+      "bytes": 3620,
+      "sha256": "95707bdfd1d340d65b85e0e1f098ab3c02d373c621de9f028d9efbcbd1ef3b4f"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-objects.mjs",
+      "bytes": 1287,
+      "sha256": "8bb82a00b5b73bc9103ece40f728dd97d9474b8c29c9ffb19d5305b294b49adc"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-strings.mjs",
+      "bytes": 6612,
+      "sha256": "560a758a6bff24f94a9d9e5c7135e414be5070cb0b41e2765861dbfe98a26ff0"
+    },
+    {
+      "repository_path": "tests/compatibility/managed-typeof.mjs",
+      "bytes": 4087,
+      "sha256": "659e64fab345b132b21d5cec6f58d6d8c31aa0080e950b22067a8519c07226f8"
+    },
+    {
+      "repository_path": "tests/compatibility/module-callback-inputs.mjs",
+      "bytes": 4523,
+      "sha256": "bd74282ca677b2bade403f568bc2aa94be8df31d741aa10efcd064ac4cc3343a"
+    },
+    {
+      "repository_path": "tests/compatibility/module-declaration-values.mjs",
+      "bytes": 2820,
+      "sha256": "6d285ff28b724a8f94c8e46855b27bef5ec392844920c581f71af5ebf2abbc45"
+    },
+    {
+      "repository_path": "tests/compatibility/multiple-declarators.mjs",
+      "bytes": 3900,
+      "sha256": "83b74acfe0a4d761fa61df2ad5cb545e22c8a897b443423586b1a097945091c6"
+    },
+    {
+      "repository_path": "tests/compatibility/mutable-general-locals.mjs",
+      "bytes": 4449,
+      "sha256": "d54588c96d78cb3e02d0eae5927cd0441b96d038e2cc2a41406f4dd4befe9ff8"
+    },
+    {
+      "repository_path": "tests/compatibility/nested-container-receivers.mjs",
+      "bytes": 5342,
+      "sha256": "829dc1021d6394883243b0225927a136d76f01e834fb2d8c88247dfcfdd4694f"
+    },
+    {
+      "repository_path": "tests/compatibility/nested-runtime-factories.mjs",
+      "bytes": 574,
+      "sha256": "21dff83a376b10dafb619a79d0a4db5a88d7cee2770eaac907438ee10fbd39ad"
+    },
+    {
+      "repository_path": "tests/compatibility/nullish-assignment.mjs",
+      "bytes": 1233,
+      "sha256": "e5bebb7ab734580be7347dd3c9b2741e7787c5badb4e7cf38f5c0b688ed2371f"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-bit-not.mjs",
+      "bytes": 3803,
+      "sha256": "5225fde6ef88db2952134f292d126719c70fc1aec6506833b06fc4dc6c931884"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-bitwise-binary.mjs",
+      "bytes": 4226,
+      "sha256": "a4701b7486b960cdc0cf00a9641257af40910db8d5086966e5f1732a27238cce"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-bitwise-compounds.mjs",
+      "bytes": 5352,
+      "sha256": "6cf5d212157f50a3cadca11a8a6e7f8eaa7124026c98302790b9fb9c5287c076"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-boolean-arithmetic.mjs",
+      "bytes": 7114,
+      "sha256": "b67a8ca2a622c51646b3e28a7a91aca7fdebb2d8384c2c52edee206e2c7df81d"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-boolean-complement.mjs",
+      "bytes": 3680,
+      "sha256": "26d692912a7131e20c11db7fa2a9083fe22739b0b094f63dc3e61a11694ba91d"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-boolean-unary.mjs",
+      "bytes": 4136,
+      "sha256": "ba592084c84970ac372f05155ffaff1b79feaa796e2e8e35c5243d3185962a81"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-break.mjs",
+      "bytes": 3987,
+      "sha256": "d6ad169e5df27cf2ea5d72df187ed0ca990d59fe2abd0f033ac7f1800ae5f578"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-calls.mjs",
+      "bytes": 11501,
+      "sha256": "80adf0cefb97cf6f7b1700f2c3a709adc647fd2423c313acbefe1acf717ceca7"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-continue.mjs",
+      "bytes": 6136,
+      "sha256": "fed3b2f7664e6be141462cd592e1ef94b65946c2e6539b32347175fe354ffe9b"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-do.mjs",
+      "bytes": 4085,
+      "sha256": "2ecc2504b6f0a1a86a6c7dcac5f27aa9bafebc890e9b7ae5b43815ade9bb468a"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-equality.mjs",
+      "bytes": 2590,
+      "sha256": "8f312b6fc5a5e49ea13237fbf55023680586f9c1e0ef62b8d94688bc8e59a5bb"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-for.mjs",
+      "bytes": 5537,
+      "sha256": "b408a588d981125a8ec22990d3a65e2eeef097429c8ccdc43277044ebd62f19f"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-logical-assignment.mjs",
+      "bytes": 6318,
+      "sha256": "b9c62608ab3a08d5b4c3b1ac62de19ede6cdb42a9c3c93ead0a5e3432599d4f8"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-logical.mjs",
+      "bytes": 1459,
+      "sha256": "4885bc4fbf47477c112f658bbc4b0f047e6823f8ce801bba0c6ba115faf4ac92"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-math-abs-kernel.test.mjs",
+      "bytes": 4755,
+      "sha256": "eaf3abbe0e50cc65e9e94890c31f68c63033b5fccaa6e172cd7ed7cf4e93ed7c"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-math-abs.mjs",
+      "bytes": 6629,
+      "sha256": "016fd8e5a5856695f38be3a454c377120a9d4bb1a9035df56b35cca43b46dc30"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-math-unary-kernel.test.mjs",
+      "bytes": 4947,
+      "sha256": "262e542b2e4f4421ae6096f641ae7fcbc0dd37985680f9bc439f0518d82865cc"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-math-unary.mjs",
+      "bytes": 5141,
+      "sha256": "0950ef7f8f704d791a133ee7dc8d3015174e80f495483b0a425c819628e23c52"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-remainder.mjs",
+      "bytes": 4826,
+      "sha256": "a7680df646fde7b54a1224931fee660f8c4dbc73fb8b48525fb8568a298b7694"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-shifts.mjs",
+      "bytes": 4205,
+      "sha256": "83d3e92a18bfb5757352b3d22f427460874b99974461acea842cf3dbc2de6cd4"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-statements.mjs",
+      "bytes": 3047,
+      "sha256": "2ade0ce276e0ad82db74d21f1709822903bac8cf8116e73575a5dd4efd37aef1"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-ts-write-targets.mjs",
+      "bytes": 5973,
+      "sha256": "c059e1ae12862757c250d17b8e3e868b5182823e70457e5ea8ef28a0dbbc7b92"
+    },
+    {
+      "repository_path": "tests/compatibility/numeric-updates.mjs",
+      "bytes": 1677,
+      "sha256": "3cc6df7377a88919195de4fb7bf0759992185c9bc57aa5f0e7c09eababe68c26"
+    },
+    {
+      "repository_path": "tests/compatibility/predicate-conditional.mjs",
+      "bytes": 2007,
+      "sha256": "598928e80a63ab527b153c625691def24297a90c0fb0af44e4bfe1e756cdebe7"
+    },
+    {
+      "repository_path": "tests/compatibility/predicate-logical.mjs",
+      "bytes": 1717,
+      "sha256": "580881c260accd4e359c4e2a834c8a7bed24dee06942f6e61a32755b6463cb59"
+    },
+    {
+      "repository_path": "tests/compatibility/predicate-not.mjs",
+      "bytes": 1059,
+      "sha256": "be2996d088236ce73c76ac4fccaf8015f0ac6f2071fa46b845f7f7924439ef8b"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-bitwise.mjs",
+      "bytes": 6210,
+      "sha256": "5b629af9f8e719e4655e864fd3af99b897389648c4aab221f1653725ffdc9c17"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-compound.mjs",
+      "bytes": 3099,
+      "sha256": "a3d5fa20aa3856ca03dc96f8db96758a551cfc78e4ad3af677e5a4a43d326988"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-factory-leaves.mjs",
+      "bytes": 620,
+      "sha256": "32444131d909afeb4549a76a93a23b3633ec087077b890ad878d94af31a4653a"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-loose-equality.mjs",
+      "bytes": 6930,
+      "sha256": "687bb3df6122324b52c8b2e35e686cf02633675d60458a158b8e089d1719a4ce"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-nullish.mjs",
+      "bytes": 1574,
+      "sha256": "53ba28a7becc911d3767ccee44e21c2b6a2862b4fdfe356cc3fe253e11c60861"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-relational.mjs",
+      "bytes": 3488,
+      "sha256": "f78a362f8ff59abc95bd8b33740ae561c09a11e08578f0ac469d045b21fba3f9"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-result-callbacks.mjs",
+      "bytes": 640,
+      "sha256": "1a117e77a64bf6748d09a8b37903bd172bad9c5407240cd5cd6f9a10e06751ef"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-strict-equality.mjs",
+      "bytes": 4470,
+      "sha256": "8a41ce635a0002114c50fa6ffbd103d31bd24782cf61c70b57b03e83ac2affdc"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-values-check.mjs",
+      "bytes": 11954,
+      "sha256": "a58c27d920c00428c2db3b3af63313166bf3e0a1467e5de736db46bce2bcfcfa"
+    },
+    {
+      "repository_path": "tests/compatibility/primitive-values.mjs",
+      "bytes": 21542,
+      "sha256": "5592fa0ce81900f4f93a6bea6911e401e052c379e259947c1a4158096bf5e179"
+    },
+    {
+      "repository_path": "tests/compatibility/program-sources.mjs",
+      "bytes": 1550,
+      "sha256": "3b71717202beb655179a5989cefe0cd9a358e12d7b39aaa234a34bba7cab02ff"
+    },
+    {
+      "repository_path": "tests/compatibility/program-sources.test.mjs",
+      "bytes": 1951,
+      "sha256": "06e698142139842139ffe8d8524661c8797235647b68e4904e9490a96ff89fa8"
+    },
+    {
+      "repository_path": "tests/compatibility/rejection-inventory.json",
+      "bytes": 244114,
+      "sha256": "3190a39dea74ca43b667950c75cfd836e6dffbd3c399d4d033f5d05e9d3d4134"
+    },
+    {
+      "repository_path": "tests/compatibility/rejection-inventory.mjs",
+      "bytes": 6832,
+      "sha256": "141d097c93c12e4a8072385748b5580a3ad86af5fc389ff67eb8819acf0b382f"
+    },
+    {
+      "repository_path": "tests/compatibility/rejection-inventory.test.mjs",
+      "bytes": 48108,
+      "sha256": "690d179b05b43b296e776fd4539ed3c13092f30dfdcb2efa07c97a87397643e5"
+    },
+    {
+      "repository_path": "tests/compatibility/remainder-kernel.test.mjs",
+      "bytes": 5668,
+      "sha256": "e450f964cc96da0a236e8bab2f0e705fe8e634481ee961f214be05977300294a"
+    },
+    {
+      "repository_path": "tests/compatibility/returned-function-callbacks.mjs",
+      "bytes": 654,
+      "sha256": "aacdce45ad6a018cf656fa0c2c5df1694d4a10c97e729cb9838c0754238d5fdc"
+    },
+    {
+      "repository_path": "tests/compatibility/runtime-block-factories.mjs",
+      "bytes": 790,
+      "sha256": "f487e257eff5f52f3b31b2b9defe59b7df9c57a21a00c212bc358379bde33a91"
+    },
+    {
+      "repository_path": "tests/compatibility/runtime-extra-arguments.mjs",
+      "bytes": 539,
+      "sha256": "ffd5069c2a11f4e3c9d3cf96ce1f8abc1972f31106df782de22ada5f3c9470e4"
+    },
+    {
+      "repository_path": "tests/compatibility/stored-function-calls.mjs",
+      "bytes": 5256,
+      "sha256": "231da65c3bc171b87e119eb53640f09a4014fc8ec0aeef7bb18293f6b6733df6"
+    },
+    {
+      "repository_path": "tests/compatibility/strict-boolean-equality.mjs",
+      "bytes": 5431,
+      "sha256": "63ab55042706abfde9dcbf7a6a21a5e6ca360137710c12ef3820aa5529e7dde0"
+    },
+    {
+      "repository_path": "tests/compatibility/suites.json",
+      "bytes": 9784,
+      "sha256": "68b96ec9f5276d42999189a1abe8149d8430c0cafe617536660d1667fbb7bf4d"
+    },
+    {
+      "repository_path": "tests/compatibility/suites.mjs",
+      "bytes": 2838,
+      "sha256": "690ccc3d4d3f872be8ccaaba44c1cc1675a2e270900c5ae2bbe4259cee20a503"
+    },
+    {
+      "repository_path": "tests/compatibility/suites.test.mjs",
+      "bytes": 3481,
+      "sha256": "3a94657c46b8f35ea5fff51e829331a05ccbda316d2db0ffd9f0249eb7db9c43"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/.gitattributes",
+      "bytes": 43,
+      "sha256": "9e05e49561ff1072ab07be790a5e332d393b667c92a1a08d2d8de13ed09a523c"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/README.md",
+      "bytes": 1873,
+      "sha256": "e9d566e22a84613e274f50573c2824dedebdff47f53712203ddb6966460c70c2"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/manifest.json",
+      "bytes": 5829,
+      "sha256": "e51f3fc71e219f16e9a974fce940f766bc8dfe531d72592208b64ce8e0f1c52d"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/originals/LICENSE",
+      "bytes": 2213,
+      "sha256": "4dd9244dfe8197c75348c4b24ab53d29d3b1cfad143ac76b5a3d8942aa354ce0"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/originals/S11.4.7_A4.1.js",
+      "bytes": 483,
+      "sha256": "6985e8248dc993b1feacf6c91cb93948e277cc4d07754d6b75b8f006ef9092fe"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/originals/S11.4.7_A4.2.js",
+      "bytes": 772,
+      "sha256": "59ae10986c3602ef0cb2c5ef199300b73cffe3a3f7ee04d6ee43b4bcf84463df"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/originals/S11.5.1_A4_T1.1.js",
+      "bytes": 1596,
+      "sha256": "143f65cc5a4b8aa347e19c1884ec777df51e1dd137fb94089e8e0beef7a5a86c"
+    },
+    {
+      "repository_path": "tests/compatibility/test262/originals/S11.5.1_A4_T4.js",
+      "bytes": 1218,
+      "sha256": "a16730b80f3e4de2e9a45bf970c2e57f40e787b72e3ae9a172b3bc91a1644029"
+    },
+    {
+      "repository_path": "tests/compatibility/test262.mjs",
+      "bytes": 1414,
+      "sha256": "7d8a89c0c3cf906ff0d807bd19358dffc63e6ed12b5edd04573e525c2411a70f"
+    },
+    {
+      "repository_path": "tests/compatibility/test262.test.mjs",
+      "bytes": 1305,
+      "sha256": "b4bf2a3a01b862f3ad5800f5bdbfc25a1e55589c9f5ff289e7d44709a557313b"
+    },
+    {
+      "repository_path": "tests/compatibility/type-annotations.mjs",
+      "bytes": 6274,
+      "sha256": "acbf1168f77b2cd137aa62c5138597dc1186a99649e7108d95b9183553d43ba1"
+    },
+    {
+      "repository_path": "tests/compatibility/type-declarations.mjs",
+      "bytes": 9250,
+      "sha256": "d339693d9cd0e9420eb8cb0f374f74d371cc7b3ac7f96ce43602fec17cac7a6a"
+    },
+    {
+      "repository_path": "tests/compatibility/type-only-module-items.mjs",
+      "bytes": 7566,
+      "sha256": "0d7b7b30dfc06a57b5637377d0e6a02f1603f26fb20a22bef944c1964303e8df"
+    },
+    {
+      "repository_path": "tests/compatibility/typescript/.gitattributes",
+      "bytes": 28,
+      "sha256": "e1c0fa1882a9d9fd989bb27d5864909c04f95f353cf87a13d79062783e5a98f4"
+    },
+    {
+      "repository_path": "tests/compatibility/typescript/LICENSE.txt",
+      "bytes": 9141,
+      "sha256": "527adf9d4c760f7367c2aeffed6a89afba8ba40ea1b0efbc8f56496ad30ea9cf"
+    },
+    {
+      "repository_path": "tests/compatibility/typescript/README.md",
+      "bytes": 2943,
+      "sha256": "115504769f9816b592e6cbe3af7ceacbfb4d57a2e01cb7e87742b37dd928d9c9"
+    },
+    {
+      "repository_path": "tests/compatibility/typescript/expressions.txt",
+      "bytes": 192,
+      "sha256": "19f0e424d8fe4a6b43d4b11cbad0ea7eb3a30e2a52b52fdeba9d9f002ddea7f1"
+    },
+    {
+      "repository_path": "tests/compatibility/typescript/manifest.json",
+      "bytes": 3588,
+      "sha256": "8903182bcb216523c2a5c4e708cce167d0f84d302bf34f603df9313b7c8c17dd"
+    },
+    {
+      "repository_path": "tests/compatibility/typescript-erasure.mjs",
+      "bytes": 4772,
+      "sha256": "c900b4a255a02b30d5ee58c58dfedd9184e0df9f0099a379f8def6bc39715bf4"
+    },
+    {
+      "repository_path": "tests/compatibility/typescript.mjs",
+      "bytes": 2382,
+      "sha256": "c60d43f38c2447e1ef1c86967a52a05daf83ae44214acc0bb88fb0d8a694f97f"
+    },
+    {
+      "repository_path": "tests/compatibility/unary-predicate-bindings.mjs",
+      "bytes": 5648,
+      "sha256": "50598680d4f270ea897338398638beaa167f0bb582530f6add79dc03e483032c"
+    },
+    {
+      "repository_path": "tests/compatibility/void.mjs",
+      "bytes": 1057,
+      "sha256": "5556f4c3e3a27c568743cec987afcb2dc26ef7a7923175612b935d1745dffb01"
+    },
+    {
+      "repository_path": "tests/compatibility/watchdog-budget.mjs",
+      "bytes": 1708,
+      "sha256": "4369ee7836fcd773d508a91c671d3f077f881fe85aa504735802383fdad5b9f5"
+    },
+    {
+      "repository_path": "tests/compatibility/watchdog-budget.test.mjs",
+      "bytes": 4497,
+      "sha256": "27cfb935b67c62218303cecfc541822b8d2c2aea481abf857b252b10a8a0564c"
+    }
+  ],
+  "archived_receipts": [
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/final-retirement-validation.json",
+      "path": "historical/final-retirement-validation.json",
+      "bytes": 17990,
+      "sha256": "99b5cb07efad68d1032c46e2ca03896b4e08c875b78fab9bf71b3b90878bd33d"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/final-retirement-independent-receipt.json",
+      "path": "historical/final-retirement-independent-receipt.json",
+      "bytes": 1158,
+      "sha256": "248a6bca2c7403f9e29420d97004c73b7506750da6824132b1959a7dc0e32e19"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/callbacks-validation.json",
+      "path": "historical/callbacks-validation.json",
+      "bytes": 1780,
+      "sha256": "eb504d3b8420110f5ef4a326e50193673c083b2ff7a81364e32530d4e4b71c4a"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/callee-continuation-validation.json",
+      "path": "historical/callee-continuation-validation.json",
+      "bytes": 4525,
+      "sha256": "4764165eb603341ef8fb36f9147bf3cf63a3a0ba4e9008a37aaeb2351e5d636a"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/runtime-continuation-final-validation.json",
+      "path": "historical/runtime-continuation-final-validation.json",
+      "bytes": 2305,
+      "sha256": "59dd9416385ce120088765697bab7c20181bf7ec6f7fbb93d34ba91100af7f70"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/closure-child-preparation-final-validation.json",
+      "path": "historical/closure-child-preparation-final-validation.json",
+      "bytes": 678,
+      "sha256": "ef4c2bec2a8874c7bc38ed52015417c6286c25c3dc093b0c850b441faa65325a"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/expression-resumption-validation.json",
+      "path": "historical/expression-resumption-validation.json",
+      "bytes": 18152,
+      "sha256": "887c54dadab8627da785ea994034677473b1a3a2ac6f29f8d8a5def674e891c0"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/github-snapshot-through-462.json",
+      "path": "historical/github-snapshot-through-462.json",
+      "bytes": 39972,
+      "sha256": "99c03096baa49a9fd24ae87d929a771abc89ce11a01deec1e00a9acf7ed3ff8d"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/block-factory-call-discovery/receipt.json",
+      "path": "historical/block-factory-call-discovery-receipt.json",
+      "bytes": 11985,
+      "sha256": "233c4543bcaede40005ace65321dafb52380523911bf855c599a42027e9e1cef"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/closure-checking-discovery/receipt.json",
+      "path": "historical/closure-checking-discovery-receipt.json",
+      "bytes": 8645,
+      "sha256": "a0760f93afecd75f43416069411c77d29923e84be0d3adb079cc0fee2fb1551d"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/const-metadata-discovery/receipt.json",
+      "path": "historical/const-metadata-discovery-receipt.json",
+      "bytes": 10760,
+      "sha256": "ee4be0f7c9dce8731db9541b85d0e1f1c03b1127ab3f4a93855f0da214130ea0"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/const-metadata-managed-discovery/receipt.json",
+      "path": "historical/const-metadata-managed-discovery-receipt.json",
+      "bytes": 718,
+      "sha256": "19a66abe3b1287b830dccc06c11916acdef91ccda73c249b1098fb6de0e0f15c"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/const-metadata-zero-discovery/receipt.json",
+      "path": "historical/const-metadata-zero-discovery-receipt.json",
+      "bytes": 1896,
+      "sha256": "94223ca55378e04e57a8869a510d2f58a6a059bdb72ff18950635f7d220646a5"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/declaration-boundary-discovery/receipt.json",
+      "path": "historical/declaration-boundary-discovery-receipt.json",
+      "bytes": 6227,
+      "sha256": "e5269327ffa3c0a4fdeb3dc2fc635370a6bbaef9c810053a874c19ba5b0bb958"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/expression-resumption-discovery/receipt.json",
+      "path": "historical/expression-resumption-discovery-receipt.json",
+      "bytes": 5830,
+      "sha256": "c155633a1e89681869616f0dfa81453a118b90b5471b9cb71863369e5b230e9e"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/factory-check-continuation-discovery/receipt.json",
+      "path": "historical/factory-check-continuation-discovery-receipt.json",
+      "bytes": 9178,
+      "sha256": "f959179afe2502fab03923df2ec6d9ece2e9e4c4915026c3736d1391e9098207"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/for-declaration-boundary-discovery/receipt.json",
+      "path": "historical/for-declaration-boundary-discovery-receipt.json",
+      "bytes": 1040,
+      "sha256": "fc186ce631dd2afe6f3a81f76eb49f44b3ab691e18156a72e62c0d7140079ab1"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/for-declaration-discovery/receipt.json",
+      "path": "historical/for-declaration-discovery-receipt.json",
+      "bytes": 9026,
+      "sha256": "1af27d66374b0c4f325424a9edf8925d884d01890eb2e0b73e41051d55846d87"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/materialization-discovery/receipt.json",
+      "path": "historical/materialization-discovery-receipt.json",
+      "bytes": 9908,
+      "sha256": "38f0dd08b757459c05d1e6ff461cb8199e01f23b614b1599524087eaab4e24f1"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/optional-factory-discovery/receipt.json",
+      "path": "historical/optional-factory-discovery-receipt.json",
+      "bytes": 11975,
+      "sha256": "d27dd9cb4af7cf7888e18cb6f59507259f73bb952b2c380d873e81d3d78a4460"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/unchecked-closure-depth-discovery/receipt.json",
+      "path": "historical/unchecked-closure-depth-discovery-receipt.json",
+      "bytes": 3757,
+      "sha256": "58e2bbef657a6bdfe4b947ca7084b54335362d5da3c2cba6018a0aa2b55174b3"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/unchecked-closure-depth-fast-discovery/receipt.json",
+      "path": "historical/unchecked-closure-depth-fast-discovery-receipt.json",
+      "bytes": 11408,
+      "sha256": "c3859fb586f4944340fb51ba8e9d00127cd7ce0bdbef64695384f2df69395bae"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/unchecked-closure-discovery/receipt.json",
+      "path": "historical/unchecked-closure-discovery-receipt.json",
+      "bytes": 10468,
+      "sha256": "fe336f48190e5666071aee38e9d33024d0de45ed7a054212b6aed77de072d680"
+    },
+    {
+      "historical_path": "/workspace/scratch/88caffc5ffb1/lowering-parity/unchecked-closure-extra-discovery/receipt.json",
+      "path": "historical/unchecked-closure-extra-discovery-receipt.json",
+      "bytes": 1076,
+      "sha256": "3ed6e361571c55941d78680b671d856dbfd64ed6796e7f8e7729a8f07634dcfc"
+    }
+  ],
+  "historical_normalization_matrices": [
+    "runtime-continuation",
+    "runtime-managed",
+    "runtime-order"
+  ],
+  "historical_observe_manifest_matrices": [
+    "factory",
+    "factory-forwarded",
+    "factory-effects",
+    "factory-effect-callbacks",
+    "callback-calls",
+    "callback-call-limits"
+  ],
+  "provenance_limits": [
+    "Historical baselines came from several pre-conversion snapshots; a single original freeze revision is not asserted for all matrices.",
+    "Where no standalone source generator was retained, complete fixed source bytes are the reproducible input authority.",
+    "Original absolute paths in archived receipts identify historical files only; the portable runner does not depend on them.",
+    "Source snapshots integrated onto different publication parents are distinguished from identical-tree mappings."
+  ],
+  "probe_source_and_published_mappings": [
+    {
+      "historical_probe_name": "callbacks-probe",
+      "probe_sha256": "a80f2f54d8cf5fec5273696cfd4d25df41e290d7a2c0dc32c3feb0fe7589800d",
+      "published_commit": "16de589147e86f5ca7be98832c95f21afe07d4e3",
+      "published_pr": 439,
+      "published_tree": "ab68a859997511ae2367e58dcbf94afb8da58ed3",
+      "mapping": "identical source tree",
+      "mapping_evidence": "Source/probe identity retained in session validation; published heads in archived GitHub snapshot and local Git object trees. Final mapping also retained in independent final receipt.",
+      "identity_qualification": "The retained comparison receipt names3cf2d82a4bda4a952f1b7a7cadc5e98e9c24c3c4;16de589 is the later documented source reference for the unchanged callback-era compiler. The standalone original binary build receipt was not retained, so this is a code-era reference rather than a newly proved exact build-commit attestation.",
+      "historical_comparison_commit": "3cf2d82a4bda4a952f1b7a7cadc5e98e9c24c3c4",
+      "reference_source_commit": "16de589147e86f5ca7be98832c95f21afe07d4e3",
+      "reference_source_tree": "ab68a859997511ae2367e58dcbf94afb8da58ed3"
+    },
+    {
+      "historical_probe_name": "callee-continuation-probe",
+      "probe_sha256": "e11967dafc2c8bdbea2f1a136ec1932ebf81db36caa404968fecdf7667288f4b",
+      "source_commit": "59629b137de824d7e769a9378ac7032fb5f299d7",
+      "source_tree": "25836c35da7a96c0db155cc04559eaab86e3cb06",
+      "published_commit": "f6dd01d19b3291d11263bf6f2502299db4649183",
+      "published_pr": 442,
+      "published_tree": "25836c35da7a96c0db155cc04559eaab86e3cb06",
+      "mapping": "identical source tree",
+      "mapping_evidence": "Source/probe identity retained in session validation; published heads in archived GitHub snapshot and local Git object trees. Final mapping also retained in independent final receipt."
+    },
+    {
+      "historical_probe_name": "runtime-continuation-probe",
+      "probe_sha256": "cc0481724a22372fca780b5cf52b2415417ddc19f388f9b195e95f888ea9a0a4",
+      "source_commit": "9da092b748e9aef706ca0cb52acb71fd9ba837eb",
+      "source_tree": "3a12c294a2d55d26ae12f3672d6d00192511cd43",
+      "published_commit": "c64f222dcda3a682edb55825f820cfd0198cb150",
+      "published_pr": 447,
+      "published_tree": "3a12c294a2d55d26ae12f3672d6d00192511cd43",
+      "mapping": "identical source tree",
+      "mapping_evidence": "Source/probe identity retained in session validation; published heads in archived GitHub snapshot and local Git object trees. Final mapping also retained in independent final receipt."
+    },
+    {
+      "historical_probe_name": "closure-child-preparation-probe",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "source_commit": "95136720becc4a4fef1745673cbed9282acebe71",
+      "source_tree": "3c70ad1b3d7f3e6f842377f6c8d432c3e51acaf6",
+      "published_commit": "be24551a52bed30be6196c58f5e2c27fa0926d29",
+      "published_pr": 450,
+      "published_tree": "b0ec2ac2bd6c9c37919c5e3366e9eeabc83bb51f",
+      "mapping": "published unit reference only; composed whole trees differ",
+      "mapping_evidence": "Source/probe identity retained in session validation; published heads in archived GitHub snapshot and local Git object trees. Final mapping also retained in independent final receipt."
+    },
+    {
+      "historical_probe_name": "lifted-child-continuation-probe",
+      "probe_sha256": "34c3d1e03b5e73db78774b1fe8adaa9f6ba53ab6376889fda76fd25c46e55962",
+      "source_commit": "4f00e5f23825b241aa9e0621e0c0215ae5e10313",
+      "source_tree": "03b368169d99ee939b2934a0fa0ab01c510aca81",
+      "published_commit": "52dd510f1588608dfac12c71d324856a82d5bb2e",
+      "published_pr": 461,
+      "published_tree": "3fc3b2c745c25fb7cbb696cb7d14adb0c1cdccec",
+      "mapping": "published unit reference only; composed whole trees differ",
+      "mapping_evidence": "Source/probe identity retained in session validation; published heads in archived GitHub snapshot and local Git object trees. Final mapping also retained in independent final receipt."
+    },
+    {
+      "historical_probe_name": "driver-retirement-callee-probe",
+      "probe_sha256": "fb8e42a6d5d59b5f04e14283c8f938ae86d1d8f5fa35b2219f282998f1f48d1b",
+      "source_commit": "4bef43c35814d7cb747254ad4d4fbac0dc9715dd",
+      "source_tree": "9ea19ddd1ff1dbd0d39c46216d13a22747130735",
+      "published_commit": "67400f91882124e021f4bf30157930bb91acba31",
+      "published_pr": 466,
+      "published_tree": "9ea19ddd1ff1dbd0d39c46216d13a22747130735",
+      "mapping": "identical source tree",
+      "mapping_evidence": "Source/probe identity retained in session validation; published heads in archived GitHub snapshot and local Git object trees. Final mapping also retained in independent final receipt."
+    }
+  ],
+  "pre_conversion_freeze_receipts": [
+    {
+      "matrix": "block-factory-call",
+      "archived_receipt": "historical/block-factory-call-discovery-receipt.json",
+      "probe_sha256": "cc0481724a22372fca780b5cf52b2415417ddc19f388f9b195e95f888ea9a0a4",
+      "cases_observed": 84,
+      "source_mapping": "runtime-continuation-probe"
+    },
+    {
+      "matrix": "closure-checking",
+      "archived_receipt": "historical/closure-checking-discovery-receipt.json",
+      "probe_sha256": "cc0481724a22372fca780b5cf52b2415417ddc19f388f9b195e95f888ea9a0a4",
+      "cases_observed": 59,
+      "source_mapping": "runtime-continuation-probe"
+    },
+    {
+      "matrix": "optional-factory",
+      "archived_receipt": "historical/optional-factory-discovery-receipt.json",
+      "probe_sha256": "cc0481724a22372fca780b5cf52b2415417ddc19f388f9b195e95f888ea9a0a4",
+      "cases_observed": 82,
+      "source_mapping": "runtime-continuation-probe"
+    },
+    {
+      "matrix": "declaration-boundaries",
+      "archived_receipt": "historical/declaration-boundary-discovery-receipt.json",
+      "probe_sha256": "cc0481724a22372fca780b5cf52b2415417ddc19f388f9b195e95f888ea9a0a4",
+      "cases_observed": 40,
+      "source_mapping": "runtime-continuation-probe"
+    },
+    {
+      "matrix": "unchecked-closure",
+      "archived_receipt": "historical/unchecked-closure-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 72,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "unchecked-closure-depth",
+      "archived_receipt": "historical/unchecked-closure-depth-fast-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 80,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "unchecked-closure-extra",
+      "archived_receipt": "historical/unchecked-closure-extra-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 6,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "for-declarations",
+      "archived_receipt": "historical/for-declaration-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 62,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "for-declaration-boundaries",
+      "archived_receipt": "historical/for-declaration-boundary-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 6,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "const-metadata",
+      "archived_receipt": "historical/const-metadata-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 76,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "const-metadata-managed",
+      "archived_receipt": "historical/const-metadata-managed-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 4,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "const-metadata-zero",
+      "archived_receipt": "historical/const-metadata-zero-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 12,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "materialization",
+      "archived_receipt": "historical/materialization-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 68,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "factory-check-continuation",
+      "archived_receipt": "historical/factory-check-continuation-discovery-receipt.json",
+      "probe_sha256": "4030d2a8b64c0f7187de9d4833c3fa7d46cd04b3c8e844fdfc0b8d0097aef100",
+      "cases_observed": 64,
+      "source_mapping": "closure-child-preparation-probe"
+    },
+    {
+      "matrix": "expression-resumption",
+      "archived_receipt": "historical/expression-resumption-discovery-receipt.json",
+      "probe_sha256": "34c3d1e03b5e73db78774b1fe8adaa9f6ba53ab6376889fda76fd25c46e55962",
+      "cases_observed": 40,
+      "source_mapping": "lifted-child-continuation-probe"
+    }
+  ],
+  "earlier_comparison_evidence": [
+    {
+      "matrices": [
+        "corpus",
+        "factory",
+        "factory-forwarded",
+        "factory-effects",
+        "factory-effect-callbacks",
+        "callback-calls",
+        "callback-call-limits"
+      ],
+      "receipt": "historical/callbacks-validation.json",
+      "qualification": "Successful pre-later-conversion comparison is retained; it is not an original per-case freeze receipt."
+    },
+    {
+      "matrices": [
+        "runtime-preparation",
+        "runtime-continuation",
+        "runtime-managed",
+        "runtime-order"
+      ],
+      "baseline_probe_mapping": "callee-continuation-probe",
+      "qualification": "The 186-case runtime matrix baseline was identified in session verification against the immutable596 source. Complete frozen bytes/statuses and later comparisons are preserved; no standalone original freeze receipt was retained for each of these matrices."
+    }
+  ],
+  "unassigned_original_freeze_provenance": "For matrices without an explicit freeze-receipt entry, fixed source/status/output hashes and successful historical comparison receipts remain authoritative. An exact original freeze command or compiler revision is not invented.",
+  "packaging_snapshot_tool": {
+    "path": "historical/snapshot_frozen.py",
+    "purpose": "Reads original independent frozen files only; never invokes current or historical compiler code.",
+    "sha256": "5be1c085510c4943cc2c82c0189e11988fdaca556e3841a6fd866aa79bfc2486"
+  }
+}

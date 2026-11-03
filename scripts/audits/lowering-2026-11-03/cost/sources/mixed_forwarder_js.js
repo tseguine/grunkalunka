@@ -1,0 +1,1 @@
+export async function run(a,b){let f=x=>x;return await f(a?Promise.resolve(b):a);}

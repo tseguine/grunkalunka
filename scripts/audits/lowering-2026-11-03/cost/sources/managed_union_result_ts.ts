@@ -1,0 +1,1 @@
+export function run(a,b){let f=x=>x?{v:x}:[x];const o=f(a);return o===o?a:b;}
