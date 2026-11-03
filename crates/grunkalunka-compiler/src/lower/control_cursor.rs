@@ -9,6 +9,7 @@ use oxc_ast::ast::{
     BlockStatement, DoWhileStatement, ForStatement, IfStatement, TryStatement, WhileStatement,
 };
 
+mod factories;
 mod steps;
 
 #[cfg(test)]
@@ -78,6 +79,23 @@ struct ForFrame<'n, 'a> {
     header_bindings: usize,
     let_slots: Vec<SlotId>,
     old_loop: bool,
+}
+
+/// Both function-valued expressions and immediately invoked returned functions
+/// suspend the same evaluator while a factory runs. Only the final consumer
+/// differs; keep its function-value charge and resume action explicit.
+enum FactoryResume<'n, 'a> {
+    Value,
+    Callee(evaluate::SyncCalleeContinuation<'n, 'a>),
+}
+
+struct FactoryExpression<'n, 'a> {
+    expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
+    mode: evaluate::Mode,
+    previous_result_depth: usize,
+    node: &'n Expression<'a>,
+    signature: usize,
+    resume: FactoryResume<'n, 'a>,
 }
 
 enum Frame<'n, 'a> {
@@ -192,32 +210,9 @@ enum Frame<'n, 'a> {
     /// A source-owned function-valued call is waiting for its zero-argument,
     /// block-bodied factory to complete. This owns all three nested checkpoints.
     EvaluateFactoryBody {
-        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
-        mode: evaluate::Mode,
+        state: FactoryExpression<'n, 'a>,
         activation: closures::BlockArrowActivation,
         factory: function_values::ZeroBlockFactory,
-        previous_result_depth: usize,
-        node: &'n Expression<'a>,
-        signature: usize,
-        depth: usize,
-    },
-    /// A synchronous closure call is awaiting a returned block factory used
-    /// as its callee. Its own arguments and result-mode conversion have not
-    /// run; the original evaluation work stack remains with this frame.
-    EvaluateFactoryCallee {
-        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
-        mode: evaluate::Mode,
-        activation: closures::BlockArrowActivation,
-        factory: function_values::ZeroBlockFactory,
-        previous_result_depth: usize,
-        callee_node: &'n Expression<'a>,
-        signature: usize,
-        outer_node: &'n Expression<'a>,
-        outer_call: &'n CallExpression<'a>,
-        outer_depth: usize,
-        outer_mode: evaluate::Mode,
-        result_type: Type,
-        number_proven: bool,
         depth: usize,
     },
     TryCatchBody {
@@ -271,7 +266,6 @@ impl Frame<'_, '_> {
             | Self::Sequence { depth, .. }
             | Self::EvaluateBody { depth, .. }
             | Self::EvaluateFactoryBody { depth, .. }
-            | Self::EvaluateFactoryCallee { depth, .. }
             | Self::TryCatchBody { depth, .. }
             | Self::TryCatchHandler { depth, .. }
             | Self::TryFinallyBody { depth, .. }
@@ -418,13 +412,16 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             #[cfg(test)]
                             BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(count.get() + 1));
                             cursor.pending.push(Frame::EvaluateFactoryBody {
-                                expression: Box::new(expression),
-                                mode,
+                                state: FactoryExpression {
+                                    expression: Box::new(expression),
+                                    mode,
+                                    previous_result_depth,
+                                    node,
+                                    signature,
+                                    resume: FactoryResume::Value,
+                                },
                                 activation,
                                 factory,
-                                previous_result_depth,
-                                node,
-                                signature,
                                 depth: 0,
                             });
                             cursor.next = Some(Next::Enter {
@@ -495,20 +492,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         Ok(Some((factory, activation, request))) => {
                             #[cfg(test)]
                             BRIDGED_ZERO_ARG_FACTORIES.with(|count| count.set(count.get() + 1));
-                            cursor.pending.push(Frame::EvaluateFactoryCallee {
-                                expression: Box::new(expression),
-                                mode,
+                            cursor.pending.push(Frame::EvaluateFactoryBody {
+                                state: FactoryExpression {
+                                    expression: Box::new(expression),
+                                    mode,
+                                    previous_result_depth,
+                                    node: callee_node,
+                                    signature,
+                                    resume: FactoryResume::Callee(
+                                        evaluate::SyncCalleeContinuation {
+                                            node,
+                                            call,
+                                            depth,
+                                            mode: outer_mode,
+                                            result_type,
+                                            number_proven,
+                                        },
+                                    ),
+                                },
                                 activation,
                                 factory,
-                                previous_result_depth,
-                                callee_node,
-                                signature,
-                                outer_node: node,
-                                outer_call: call,
-                                outer_depth: depth,
-                                outer_mode,
-                                result_type,
-                                number_proven,
                                 depth: 0,
                             });
                             cursor.next = Some(Next::Enter {
@@ -803,25 +806,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         self.abort_arrow_block_activation(activation);
                     }
                     Frame::EvaluateFactoryBody {
+                        state,
                         activation,
                         factory,
-                        previous_result_depth,
                         ..
                     } => {
                         self.abort_arrow_block_activation(activation);
                         self.finish_zero_block_factory(factory);
-                        self.restore_function_result_depth(previous_result_depth);
-                    }
-                    Frame::EvaluateFactoryCallee {
-                        activation,
-                        factory,
-                        previous_result_depth,
-                        ..
-                    } => {
-                        self.abort_arrow_block_activation(activation);
-                        self.finish_zero_block_factory(factory);
-                        self.leave_function_value();
-                        self.restore_function_result_depth(previous_result_depth);
+                        self.restore_factory_expression(&state);
                     }
                     Frame::FunctionReturn { .. } => {
                         self.leave_function_value();
