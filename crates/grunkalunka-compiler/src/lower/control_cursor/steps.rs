@@ -12,7 +12,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         source: ControlNode<'n, 'a>,
         output: Region,
         depth: usize,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String> {
         match source {
             ControlNode::TryFinally(source) => {
@@ -185,12 +185,22 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         frame: Frame<'n, 'ast>,
         output_region: Region,
         value: Option<ValueId>,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
     {
         match frame {
+            Frame::CheckExpression { function_value, .. } => {
+                if function_value {
+                    self.leave_function_value();
+                }
+                cursor.completed = Some(Outcome::CheckBody {
+                    region: output_region,
+                    factory: false,
+                });
+                Ok(())
+            }
             Frame::EvaluateFunctionValue {
                 mut expression,
                 mode,
@@ -361,7 +371,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         frame: Frame<'n, 'ast>,
         finished_region: Region,
         completion: Completion,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -396,6 +406,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     cursor,
                 )?;
             }
+            Frame::CheckBlock {
+                activation,
+                factory,
+                ..
+            } => {
+                let region = self.finish_arrow_block_activation(
+                    activation,
+                    finished_region,
+                    Ok(completion),
+                )?;
+                cursor.completed = Some(Outcome::CheckBody { region, factory });
+            }
             Frame::EvaluateBody {
                 mut expression,
                 mode,
@@ -427,7 +449,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     cursor,
                 )?;
             }
-            Frame::DiscardExpression { .. }
+            Frame::ChildBoundary { .. }
+            | Frame::CheckedLocalCall { .. }
+            | Frame::CheckExpression { .. }
+            | Frame::CheckReturnedClosure { .. }
+            | Frame::DiscardExpression { .. }
             | Frame::EvaluateFunctionValue { .. }
             | Frame::EvaluateRuntimeFactoryCallee { .. }
             | Frame::EvaluateFactoryArgument { .. }

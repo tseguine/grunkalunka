@@ -121,10 +121,33 @@ struct ClosureCallResult {
     number_proven: bool,
 }
 
+/// Unchecked local callees resume their original validation and result routing
+/// after disposable definition checking has supplied complete closure metadata.
+pub(super) enum LocalCallPreparation<'e, 'a> {
+    Ordinary {
+        node: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        depth: usize,
+        mode: Mode,
+    },
+    Awaited {
+        node: &'e Expression<'a>,
+        argument: &'e Expression<'a>,
+        call: &'e CallExpression<'a>,
+        depth: usize,
+        mode: Mode,
+        site: Option<usize>,
+    },
+}
+
 /// One resumable run segment either completes the requested expression or
 /// yields a source-body or function-leaf task while the caller keeps the cursor.
 pub(super) enum EvaluationRun<'e, 'a> {
     Complete(Option<ValueId>),
+    CheckLocalClosure {
+        closure: closures::LocalClosure,
+        continuation: LocalCallPreparation<'e, 'a>,
+    },
     LowerFunctionLeaf {
         node: &'e Expression<'a>,
         signature: usize,
@@ -1252,6 +1275,13 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             );
             match next? {
                 EvaluationRun::Complete(result) => return Ok(result),
+                EvaluationRun::CheckLocalClosure {
+                    mut closure,
+                    continuation,
+                } => {
+                    self.check_local_closure(&mut closure)?;
+                    self.resume_checked_local_call(&mut lease.cursor, continuation, closure)?;
+                }
                 EvaluationRun::LowerFunctionLeaf {
                     node,
                     signature,
@@ -1352,6 +1382,84 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 }
             }
         }
+    }
+
+    pub(super) fn resume_checked_local_call<'e, 'a>(
+        &mut self,
+        cursor: &mut EvaluationCursor<'e, 'a>,
+        continuation: LocalCallPreparation<'e, 'a>,
+        closure: closures::LocalClosure,
+    ) -> Result<(), String> {
+        self.capture_cells(&closure, cursor.regions.current());
+        self.finish_local_call_preparation(&mut cursor.work, continuation, closure)
+    }
+
+    fn finish_local_call_preparation<'e, 'a>(
+        &self,
+        work: &mut Vec<Work<'e, 'a>>,
+        continuation: LocalCallPreparation<'e, 'a>,
+        closure: closures::LocalClosure,
+    ) -> Result<(), String> {
+        match continuation {
+            LocalCallPreparation::Ordinary {
+                node,
+                call,
+                depth,
+                mode,
+            } => {
+                self.check_local_call(call, &closure)?;
+                if closure.factory {
+                    return Err(unsupported(
+                        node,
+                        "function-valued local calls require an immutable closure binding",
+                    ));
+                }
+                call_result(
+                    work,
+                    node,
+                    mode,
+                    closure.result,
+                    self.numeric_result_shape(node, depth),
+                )?;
+                work.push(Work::LocalCall {
+                    node,
+                    call,
+                    closure,
+                    index: 0,
+                    arguments: Vec::new(),
+                    depth: depth + 1,
+                    site: None,
+                });
+            }
+            LocalCallPreparation::Awaited {
+                node,
+                argument,
+                call,
+                depth,
+                mode,
+                site,
+            } => {
+                self.check_local_call(call, &closure)?;
+                // AwaitCall produces General even for a known Number result.
+                // The caller's Await was queued before definition checking.
+                work.pop().expect("scheduled caller await");
+                if closure.result == Type::Number && matches!(mode, Mode::Number) {
+                    work.push(Work::NumberFromGeneral(node));
+                } else {
+                    call_result(work, node, mode, Type::General, false)?;
+                }
+                work.push(Work::LocalCall {
+                    node: argument,
+                    call,
+                    closure,
+                    index: 0,
+                    arguments: Vec::new(),
+                    depth: depth + 1,
+                    site,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// The synchronous compatibility host handles its function-valued leaf
@@ -1755,7 +1863,7 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     work.push(Work::Await(node, rejected, ty, site));
                     if let Some((Expression::CallExpression(call), call_depth)) =
                         closures::unwrapped_at(argument, argument_depth)
-                        && let Some(mut closure) = self.closure_target(
+                        && let Some(closure) = self.closure_target(
                             invocation::callee(call),
                             invocation::depth(call, call_depth + 1),
                         )
@@ -1773,28 +1881,21 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 "a rejected async-call result would require a Promise-valued reason",
                             ));
                         }
-                        if !closure.checked {
-                            self.check_local_closure(&mut closure)?;
-                            self.capture_cells(&closure, regions.current());
-                        }
-                        self.check_local_call(call, &closure)?;
-                        // AwaitCall produces a General completion pair even
-                        // when the normal body result is known Number.
-                        work.pop().expect("scheduled caller await");
-                        if closure.result == Type::Number && matches!(mode, Mode::Number) {
-                            work.push(Work::NumberFromGeneral(node));
-                        } else {
-                            call_result(work, node, mode, Type::General, false)?;
-                        }
-                        work.push(Work::LocalCall {
-                            node: argument,
+                        let continuation = LocalCallPreparation::Awaited {
+                            node,
+                            argument,
                             call,
-                            closure,
-                            index: 0,
-                            arguments: Vec::new(),
-                            depth: call_depth + 1,
+                            depth: call_depth,
+                            mode,
                             site,
-                        });
+                        };
+                        if !closure.checked {
+                            return Ok(EvaluationRun::CheckLocalClosure {
+                                closure,
+                                continuation,
+                            });
+                        }
+                        self.finish_local_call_preparation(work, continuation, closure)?;
                         continue;
                     }
                     for extra in operand.extras.iter().rev() {
@@ -3683,40 +3784,26 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
-                        && let Some(mut closure) = self.closure_target(
+                        && let Some(closure) = self.closure_target(
                             invocation::callee(call),
                             invocation::depth(call, depth + 1),
                         )
                     {
                         let arrow = self.arrow(closure.arrow);
                         self.check_arrow(arrow)?;
-                        if !closure.checked {
-                            self.check_local_closure(&mut closure)?;
-                            self.capture_cells(&closure, regions.current());
-                        }
-                        self.check_local_call(call, &closure)?;
-                        if closure.factory {
-                            return Err(unsupported(
-                                node,
-                                "function-valued local calls require an immutable closure binding",
-                            ));
-                        }
-                        call_result(
-                            work,
-                            node,
-                            mode,
-                            closure.result,
-                            self.numeric_result_shape(node, depth),
-                        )?;
-                        work.push(Work::LocalCall {
+                        let continuation = LocalCallPreparation::Ordinary {
                             node,
                             call,
-                            closure,
-                            index: 0,
-                            arguments: Vec::new(),
-                            depth: depth + 1,
-                            site: None,
-                        });
+                            depth,
+                            mode,
+                        };
+                        if !closure.checked {
+                            return Ok(EvaluationRun::CheckLocalClosure {
+                                closure,
+                                continuation,
+                            });
+                        }
+                        self.finish_local_call_preparation(work, continuation, closure)?;
                         continue;
                     }
                     if self.fulfilled_promise_slot(node, depth).is_some() {

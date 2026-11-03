@@ -7,7 +7,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         source: &'n VariableDeclaration<'a>,
         output: Region,
         depth: usize,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String>
     where
         'a: 'n,
@@ -28,7 +28,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         &mut self,
         mut sequence: Box<DeclarationSequence<'n, 'a>>,
         mut output: Region,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String>
     where
         'a: 'n,
@@ -69,7 +69,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         active: declarations::ActiveDeclarationValue<'n, 'ast>,
         mut output: Region,
         value: ValueId,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,

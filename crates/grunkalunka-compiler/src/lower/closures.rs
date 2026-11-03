@@ -47,9 +47,23 @@ impl<'n, 'a> PreparedConciseFactory<'n, 'a> {
 /// Disposable checking owns its cloned state and original scratch Region.
 /// Only definition costs and checked closure metadata return to the caller;
 /// the borrowed signature table retains its existing shared identity.
-struct PreparedClosureCheck<'s, 'a> {
-    lowering: Box<Lowering<'s, 'a>>,
-    region: Region,
+pub(super) struct PreparedClosureCheck<'s, 'a> {
+    pub(super) lowering: Box<Lowering<'s, 'a>>,
+    pub(super) region: Region,
+}
+
+/// Body selection retains the original checking order while allowing either
+/// the compatibility driver or the source cursor to own the actual lowering.
+pub(super) enum ClosureCheckBody<'a> {
+    Returned(LocalClosure),
+    Expression {
+        source: &'a Expression<'a>,
+        mode: evaluate::Mode,
+    },
+    Block {
+        result_type: Type,
+        factory: bool,
+    },
 }
 
 #[derive(Clone)]
@@ -314,7 +328,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
     /// Preserve definition admission, scratch allocation and parameter order
     /// before either checking driver enters the body. No caller-owned IR is
     /// published by this preparation or by dropping its result on an error.
-    fn prepare_closure_check(
+    pub(super) fn prepare_closure_check(
         &self,
         closure: &LocalClosure,
         factory_depth: usize,
@@ -397,6 +411,127 @@ impl<'s, 'a> Lowering<'s, 'a> {
         })
     }
 
+    /// Classify a prepared checking body without lowering it. Signature facts
+    /// retain their existing shared interning and left-to-right query order.
+    pub(super) fn prepare_closure_check_body(
+        &self,
+        closure: &mut LocalClosure,
+    ) -> Result<ClosureCheckBody<'a>, String> {
+        let arrow = self.arrow(closure.arrow);
+        if let Some(expression) = arrow.get_expression() {
+            if arrow.r#async
+                && (self.closure_target(expression, 0).is_some()
+                    || self.function_arity(expression, 0).is_some())
+            {
+                return Err(unsupported(
+                    expression,
+                    "awaited async arrows require primitive results",
+                ));
+            }
+            if let Some(returned) = self.closure_target(expression, 0) {
+                return Ok(ClosureCheckBody::Returned(returned));
+            }
+            if let Some(arity) = self.function_arity(expression, 0) {
+                return Ok(ClosureCheckBody::Expression {
+                    source: expression,
+                    mode: evaluate::Mode::Function(arity),
+                });
+            }
+            closure.result = if !arrow.r#async
+                && (self
+                    .promise_parameters
+                    .mixed_results
+                    .contains(&arrow.node_id.get())
+                    || self.has_promise_choice(expression, 0)
+                        && !self.pending_promise_shape(expression, 0))
+            {
+                Type::AsyncValue
+            } else if self.pending_promise_shape(expression, 0) {
+                if arrow.r#async {
+                    Type::General
+                } else {
+                    Type::Promise
+                }
+            } else if self.settled_promise_shape_in(
+                expression,
+                0,
+                &std::collections::BTreeMap::new(),
+                0,
+            ) {
+                if arrow.r#async {
+                    return Err(unsupported(
+                        expression,
+                        "async Promise-valued returns require Promise adoption",
+                    ));
+                }
+                Type::SettledPromise
+            } else if self.fulfilled_promise_shape(expression, 0) {
+                if arrow.r#async {
+                    return Err(unsupported(
+                        expression,
+                        "async Promise-valued returns require Promise adoption",
+                    ));
+                }
+                Type::FulfilledPromise
+            } else if !arrow.r#async
+                && let Some(ty) = self.managed_kinds.results.get(&arrow.node_id.get())
+            {
+                *ty
+            } else if self.numeric_result_shape(expression, 0) {
+                Type::Number
+            } else {
+                Type::General
+            };
+            let mode = if arrow.r#async && closure.result == Type::General {
+                evaluate::Mode::AsyncReturn
+            } else if closure.result.is_managed() {
+                evaluate::Mode::managed(closure.result)
+            } else if closure.result == Type::AsyncValue {
+                evaluate::Mode::AsyncValue
+            } else if closure.result == Type::Promise {
+                evaluate::Mode::Pending
+            } else if closure.result == Type::SettledPromise {
+                evaluate::Mode::Settled
+            } else if closure.result == Type::FulfilledPromise {
+                evaluate::Mode::Promise
+            } else if closure.result == Type::General {
+                evaluate::Mode::General
+            } else {
+                evaluate::Mode::Number
+            };
+            Ok(ClosureCheckBody::Expression {
+                source: expression,
+                mode,
+            })
+        } else if let Some(arity) = self.block_function_arity(arrow, 0) {
+            if arrow.r#async {
+                return Err(unsupported(
+                    arrow,
+                    "awaited async arrows require primitive results",
+                ));
+            }
+            Ok(ClosureCheckBody::Block {
+                result_type: Type::Closure(arity),
+                factory: true,
+            })
+        } else {
+            let inferred = self.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
+            closure.result = if arrow.r#async && awaited::owns_finally(arrow, self.semantic) {
+                Type::General
+            } else if inferred == Type::Promise {
+                inferred
+            } else if self.arrow_fulfilled_promise_result(arrow) {
+                Type::FulfilledPromise
+            } else {
+                inferred
+            };
+            Ok(ClosureCheckBody::Block {
+                result_type: closure.result,
+                factory: false,
+            })
+        }
+    }
+
     fn check_closure_at(
         &mut self,
         closure: &mut LocalClosure,
@@ -407,116 +542,30 @@ impl<'s, 'a> Lowering<'s, 'a> {
             lowering: mut check,
             mut region,
         } = self.prepare_closure_check(closure, factory_depth)?;
-        if let Some(expression) = arrow.get_expression() {
-            if arrow.r#async
-                && (check.closure_target(expression, 0).is_some()
-                    || check.function_arity(expression, 0).is_some())
-            {
-                return Err(unsupported(
-                    expression,
-                    "awaited async arrows require primitive results",
-                ));
-            }
-            if let Some(mut returned) = check.closure_target(expression, 0) {
+        match check.prepare_closure_check_body(closure)? {
+            ClosureCheckBody::Returned(mut returned) => {
                 if !returned.checked {
                     check.check_factory_chain(&mut returned, factory_depth + 1)?;
                 }
                 check.capture_cells(&returned, &mut region);
                 closure.factory = true;
-            } else if let Some(arity) = check.function_arity(expression, 0) {
-                check.function_value(expression, &mut region, arity, 0)?;
-            } else {
-                closure.result = if !arrow.r#async
-                    && (check
-                        .promise_parameters
-                        .mixed_results
-                        .contains(&arrow.node_id.get())
-                        || check.has_promise_choice(expression, 0)
-                            && !check.pending_promise_shape(expression, 0))
-                {
-                    Type::AsyncValue
-                } else if check.pending_promise_shape(expression, 0) {
-                    if arrow.r#async {
-                        Type::General
-                    } else {
-                        Type::Promise
-                    }
-                } else if check.settled_promise_shape_in(
-                    expression,
-                    0,
-                    &std::collections::BTreeMap::new(),
-                    0,
-                ) {
-                    if arrow.r#async {
-                        return Err(unsupported(
-                            expression,
-                            "async Promise-valued returns require Promise adoption",
-                        ));
-                    }
-                    Type::SettledPromise
-                } else if check.fulfilled_promise_shape(expression, 0) {
-                    if arrow.r#async {
-                        return Err(unsupported(
-                            expression,
-                            "async Promise-valued returns require Promise adoption",
-                        ));
-                    }
-                    Type::FulfilledPromise
-                } else if !arrow.r#async
-                    && let Some(ty) = check.managed_kinds.results.get(&arrow.node_id.get())
-                {
-                    *ty
-                } else if check.numeric_result_shape(expression, 0) {
-                    Type::Number
+            }
+            ClosureCheckBody::Expression { source, mode } => {
+                if let evaluate::Mode::Function(arity) = mode {
+                    check.function_value(source, &mut region, arity, 0)?;
                 } else {
-                    Type::General
-                };
-                if arrow.r#async && closure.result == Type::General {
-                    check.async_result(expression, &mut region, 0)?;
-                } else {
-                    check.evaluate(
-                        expression,
-                        &mut region,
-                        0,
-                        if closure.result.is_managed() {
-                            evaluate::Mode::managed(closure.result)
-                        } else if closure.result == Type::AsyncValue {
-                            evaluate::Mode::AsyncValue
-                        } else if closure.result == Type::Promise {
-                            evaluate::Mode::Pending
-                        } else if closure.result == Type::SettledPromise {
-                            evaluate::Mode::Settled
-                        } else if closure.result == Type::FulfilledPromise {
-                            evaluate::Mode::Promise
-                        } else if closure.result == Type::General {
-                            evaluate::Mode::General
-                        } else {
-                            evaluate::Mode::Number
-                        },
-                    )?;
+                    check.evaluate(source, &mut region, 0, mode)?;
                 }
             }
-        } else if let Some(arity) = check.block_function_arity(arrow, 0) {
-            if arrow.r#async {
-                return Err(unsupported(
-                    arrow,
-                    "awaited async arrows require primitive results",
-                ));
+            ClosureCheckBody::Block {
+                result_type,
+                factory,
+            } => {
+                region = check.arrow_block_result(arrow, 0, result_type)?;
+                if factory {
+                    closure.factory = true;
+                }
             }
-            region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
-            closure.factory = true;
-        } else {
-            let inferred = check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
-            closure.result = if arrow.r#async && awaited::owns_finally(arrow, self.semantic) {
-                Type::General
-            } else if inferred == Type::Promise {
-                inferred
-            } else if check.arrow_fulfilled_promise_result(arrow) {
-                Type::FulfilledPromise
-            } else {
-                inferred
-            };
-            region = check.arrow_block_result(arrow, 0, closure.result)?;
         }
         self.finish_closure_check(&check, closure, &region);
         Ok(())
@@ -525,7 +574,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
     /// Successful checking publishes only source costs and closure metadata.
     /// Scratch identities, generated operations and lifted bodies remain owned
     /// by the disposable child, while signature interning stays shared.
-    fn finish_closure_check(
+    pub(super) fn finish_closure_check(
         &mut self,
         check: &Lowering<'s, 'a>,
         closure: &mut LocalClosure,
@@ -584,17 +633,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                         lowering: mut check,
                         mut region,
                     } = parent.prepare_closure_check(&closure, factory_depth)?;
-                    if let Some(expression) = arrow.get_expression() {
-                        if arrow.r#async
-                            && (check.closure_target(expression, 0).is_some()
-                                || check.function_arity(expression, 0).is_some())
-                        {
-                            return Err(unsupported(
-                                expression,
-                                "awaited async arrows require primitive results",
-                            ));
-                        }
-                        if let Some(returned) = check.closure_target(expression, 0) {
+                    match check.prepare_closure_check_body(&mut closure)? {
+                        ClosureCheckBody::Returned(returned) => {
                             if !returned.checked {
                                 // Child factory checking resumes here after the descendant
                                 // has updated the disposable lowering's source budgets.
@@ -612,103 +652,23 @@ impl<'s, 'a> Lowering<'s, 'a> {
                             }
                             check.capture_cells(&returned, &mut region);
                             closure.factory = true;
-                        } else if let Some(arity) = check.function_arity(expression, 0) {
-                            check.function_value(expression, &mut region, arity, 0)?;
-                        } else {
-                            closure.result = if !arrow.r#async
-                                && (check
-                                    .promise_parameters
-                                    .mixed_results
-                                    .contains(&arrow.node_id.get())
-                                    || check.has_promise_choice(expression, 0)
-                                        && !check.pending_promise_shape(expression, 0))
-                            {
-                                Type::AsyncValue
-                            } else if check.pending_promise_shape(expression, 0) {
-                                if arrow.r#async {
-                                    Type::General
-                                } else {
-                                    Type::Promise
-                                }
-                            } else if check.settled_promise_shape_in(
-                                expression,
-                                0,
-                                &std::collections::BTreeMap::new(),
-                                0,
-                            ) {
-                                if arrow.r#async {
-                                    return Err(unsupported(
-                                        expression,
-                                        "async Promise-valued returns require Promise adoption",
-                                    ));
-                                }
-                                Type::SettledPromise
-                            } else if check.fulfilled_promise_shape(expression, 0) {
-                                if arrow.r#async {
-                                    return Err(unsupported(
-                                        expression,
-                                        "async Promise-valued returns require Promise adoption",
-                                    ));
-                                }
-                                Type::FulfilledPromise
-                            } else if !arrow.r#async
-                                && let Some(ty) =
-                                    check.managed_kinds.results.get(&arrow.node_id.get())
-                            {
-                                *ty
-                            } else if check.numeric_result_shape(expression, 0) {
-                                Type::Number
+                        }
+                        ClosureCheckBody::Expression { source, mode } => {
+                            if let evaluate::Mode::Function(arity) = mode {
+                                check.function_value(source, &mut region, arity, 0)?;
                             } else {
-                                Type::General
-                            };
-                            if arrow.r#async && closure.result == Type::General {
-                                check.async_result(expression, &mut region, 0)?;
-                            } else {
-                                check.evaluate(
-                                    expression,
-                                    &mut region,
-                                    0,
-                                    if closure.result.is_managed() {
-                                        evaluate::Mode::managed(closure.result)
-                                    } else if closure.result == Type::AsyncValue {
-                                        evaluate::Mode::AsyncValue
-                                    } else if closure.result == Type::Promise {
-                                        evaluate::Mode::Pending
-                                    } else if closure.result == Type::SettledPromise {
-                                        evaluate::Mode::Settled
-                                    } else if closure.result == Type::FulfilledPromise {
-                                        evaluate::Mode::Promise
-                                    } else if closure.result == Type::General {
-                                        evaluate::Mode::General
-                                    } else {
-                                        evaluate::Mode::Number
-                                    },
-                                )?;
+                                check.evaluate(source, &mut region, 0, mode)?;
                             }
                         }
-                    } else if let Some(arity) = check.block_function_arity(arrow, 0) {
-                        if arrow.r#async {
-                            return Err(unsupported(
-                                arrow,
-                                "awaited async arrows require primitive results",
-                            ));
+                        ClosureCheckBody::Block {
+                            result_type,
+                            factory,
+                        } => {
+                            region = check.arrow_block_result(arrow, 0, result_type)?;
+                            if factory {
+                                closure.factory = true;
+                            }
                         }
-                        region = check.arrow_block_result(arrow, 0, Type::Closure(arity))?;
-                        closure.factory = true;
-                    } else {
-                        let inferred =
-                            check.arrow_scalar_result(arrow, &std::collections::BTreeMap::new());
-                        closure.result =
-                            if arrow.r#async && awaited::owns_finally(arrow, parent.semantic) {
-                                Type::General
-                            } else if inferred == Type::Promise {
-                                inferred
-                            } else if check.arrow_fulfilled_promise_result(arrow) {
-                                Type::FulfilledPromise
-                            } else {
-                                inferred
-                            };
-                        region = check.arrow_block_result(arrow, 0, closure.result)?;
                     }
                     parent.finish_closure_check(&check, &mut closure, &region);
                     results.push((parent, closure));
