@@ -12,6 +12,12 @@ pub(super) enum DeclarationInitializer<'n, 'a> {
         local: &'n VariableDeclarator<'a>,
         closure: closures::LocalClosure,
     },
+    Materialize {
+        local: &'n VariableDeclarator<'a>,
+        mutable: bool,
+        closure: closures::LocalClosure,
+        signature: usize,
+    },
     Factory(PreparedDeclarationFactory<'n, 'a>),
 }
 
@@ -277,9 +283,12 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 .ok_or_else(|| {
                     unsupported(initializer, "function value requires a known signature")
                 })?;
-            let value = self.materialize_closure(closure, region, initializer, arity)?;
-            self.commit_function_local(local, region, Type::Closure(arity), value, mutable)?;
-            return Ok(DeclarationInitializer::Complete);
+            return Ok(DeclarationInitializer::Materialize {
+                local,
+                mutable,
+                closure,
+                signature: arity,
+            });
         }
         // An alias reuses an already validated source body and its cost.
         if closure.symbol.is_none() {
@@ -301,6 +310,17 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         debug_assert!(closure.checked && closure.symbol.is_none());
         self.capture_cells(&closure, region);
         self.commit_declaration_closure(local, closure)
+    }
+
+    pub(super) fn finish_declaration_materialization(
+        &mut self,
+        local: &VariableDeclarator<'_>,
+        mutable: bool,
+        signature: usize,
+        region: &mut Region,
+        value: ValueId,
+    ) -> Result<(), String> {
+        self.commit_function_local(local, region, Type::Closure(signature), value, mutable)
     }
 
     fn commit_declaration_closure(

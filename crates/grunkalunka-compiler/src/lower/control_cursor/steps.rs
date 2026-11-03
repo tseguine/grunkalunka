@@ -265,6 +265,23 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 value.expect("declaration initializer value"),
                 cursor,
             ),
+            Frame::MaterializedDeclaration {
+                mut sequence,
+                local,
+                mutable,
+                signature,
+            } => {
+                let mut output = output_region;
+                self.finish_declaration_materialization(
+                    local,
+                    mutable,
+                    signature,
+                    &mut output,
+                    value.expect("materialized declaration initializer"),
+                )?;
+                sequence.index += 1;
+                self.advance_declaration(sequence, output, cursor)
+            }
             Frame::DiscardExpression { .. } => {
                 // Mode::Discard already evaluates side effects and produces
                 // no statement value. Resume sequential completion normally.
@@ -497,6 +514,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::EvaluateFactoryValue { .. }
             | Frame::DeclarationValue { .. }
             | Frame::CheckedDeclarationClosure { .. }
+            | Frame::MaterializedDeclaration { .. }
             | Frame::ReturnValue { .. }
             | Frame::FunctionReturn { .. }
             | Frame::ThrowValue { .. }
