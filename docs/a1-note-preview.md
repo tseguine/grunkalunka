@@ -1,5 +1,40 @@
 # A1 candidate: source-scripted Markdown outline presentation
 
+## Current application stack (2026-11-03)
+
+The maintainer has assigned an independent A1 application stack from master,
+with the ongoing IR feature train retaining compiler/lowering ownership. The
+new [source-driven interaction](a1-service-interaction.md) connects the real
+Markdown/WIT document, native pointer hit, compiled JS/TS service import, Rust
+action state and native reflow/paint. A native Rust control exercises the same
+private scalar action. The [bitmap text service](a1-bitmap-text.md) now paints
+printable ASCII, wraps long labels and keeps pointer geometry in step with text.
+
+The single-activation development command is:
+
+```sh
+node examples/note-preview/build.mjs
+node examples/note-preview/interact.mjs --profile granted --note ./notes.md --out ./action-result --x 24 --y 40 --debug
+```
+
+It saves before/after native frames, the resulting HTML, portable compiled
+component bytes and an action receipt. See the interaction guide for replay
+and denial. Hosted validation and native stack membership are tracked in the
+implementation PRs; checked-in tests are not an execution receipt.
+
+A1 remains **Planned** against its full acceptance criteria. This stack exercises
+one headless source-driven transition. The collapsed panel remains inert; general
+Unicode typography, persistent application state/input, typed record/resource
+views and an interactive distribution still need work. It does not select a final
+public API or require changes in the IR stream. The existing local package below
+continues to package the older static preview, not the new interaction command.
+
+The sections below retain the earlier static-preview demonstrations and dated
+steering. Statements that source interaction or glyphs are absent describe those
+earlier slices; this current section and its linked guides describe the new path.
+
+## Initial presentation slice
+
 This is the first **application-integration** unit following the maintainer's
 A1 workstream assignment, informed by [candidate #54](https://github.com/tseguine/grunkalunka/issues/54)
 and [steering #52](https://github.com/tseguine/grunkalunka/issues/52).
