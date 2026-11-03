@@ -783,6 +783,30 @@ fn discarded_and_truthy_block_factories_preserve_construction_effects() {
 }
 
 #[test]
+fn block_factory_call_preserves_argument_order_and_capture_identity() {
+    compare_functions(&[
+        "const make=()=>{return ()=>a+b;};return make.call()();",
+        "let n=0;const make=(x,y)=>{n=n*10+5;return z=>x+y+z+n;};return make.call((n=n*10+1,null),(n=n*10+2,a),(n=n*10+3,b),n=n*10+4)(n=n*10+6)+n;",
+        "let n=a;const make=(x,y)=>{return z=>x+y+z+n;};return make.call((n+=1,null),n,(n+=b),n+=10)(a)+n;",
+        "const make=(a,b)=>{return x=>a+b+x;};return make.call(null,a,b)(a);",
+        "let current=x=>x+a;const make=(fn,x)=>{return ()=>fn(x);};return make.call(null,current,(current=x=>x-b,a))()+current(b);",
+        "const seed=x=>{return y=>x+y;};const make=(fn,x)=>{return ()=>fn(x);};return make.call(null,seed.call(null,a),b)();",
+        "const make=x=>{return y=>x+y;};return (b?make.call(null,a):make.call(null,b))(a);",
+    ]);
+}
+
+#[test]
+fn block_factory_call_preserves_discarded_and_truthy_construction_effects() {
+    compare_function_programs(
+        &[
+            "let n=0;const make=x=>{n=n*10+4;return ()=>x+n;};make.call((n=n*10+1,null),(n=n*10+2,a),n=n*10+3);return n;",
+            "let n=0;const make=x=>{n=n*10+4;return ()=>x+n;};if(make.call((n=n*10+1,null),(n=n*10+2,a),n=n*10+3))n=n*10+5;return n;",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn concise_factory_arguments_preserve_scope_effects_and_cells() {
     compare_functions(&[
         "const make=x=>y=>x+y;return make(a)(b);",
