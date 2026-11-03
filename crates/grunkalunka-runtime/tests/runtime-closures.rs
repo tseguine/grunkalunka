@@ -783,6 +783,41 @@ fn discarded_and_truthy_block_factories_preserve_construction_effects() {
 }
 
 #[test]
+fn concise_factory_arguments_preserve_scope_effects_and_cells() {
+    compare_functions(&[
+        "const make=x=>y=>x+y;return make(a)(b);",
+        "let n=0;const make=(x,y)=>z=>x*100+y*10+z+n;return make((n=n*10+1),(n=n*10+2),n=n*10+3)(n=n*10+4)+n;",
+        "const make=(a,b)=>x=>a+b+x;return make(a,b)(a);",
+        "const inner=x=>x+a;const make=()=>inner;return make()(b);",
+        "const make=x=>y=>x+y;return (make(a))(b);",
+        "const make=x=>y=>x+y;return make.call(null,a)(b);",
+        "const make=x=>y=>x+y;return a?make(a)(b):make(b)(a);",
+        "const make=x=>y=>x+y;return(b?make(a):make(b))(a);",
+        "const make=x=>y=>x+y;const wrap=x=>{return make(x);};return wrap(a)(b);",
+    ]);
+}
+
+#[test]
+fn concise_factory_callbacks_preserve_argument_identity() {
+    compare_functions(&[
+        "const seed=x=>{return y=>x+y;};const make=(fn,x)=>y=>fn(y)+x;return make(seed(a),b)(a);",
+        "let f=x=>x+a;const make=(fn,x)=>y=>fn(y)+x;return make(f,(f=x=>x-b,a))(b)+f(a);",
+        "const make=x=>y=>x+y;const apply=(fn,x)=>fn(x);return apply(make(a),b);",
+    ]);
+}
+
+#[test]
+fn concise_factory_discard_and_truthiness_preserve_argument_effects() {
+    compare_function_programs(
+        &[
+            "let n=a;const make=x=>y=>x+y;make(n+=b);return n;",
+            "let n=0;const make=x=>y=>x+y;if(make(n=n*10+1))n=n*10+2;return n;",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn block_factory_effects_preserve_logical_short_circuiting() {
     compare_function_programs(
         &[

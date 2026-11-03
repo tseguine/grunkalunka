@@ -180,6 +180,7 @@ fn selected_async_await_operands_keep_the_selected_reactions() {
 fn calculated_async_callees_preserve_awaited_construction_and_argument_order() {
     compare_promises(
         &[
+            "const make=x=>async y=>x+y;return await(b?make(a):make(b))(a);",
             "const get=()=>{return async x=>{await x;return x+a;};};return await(b?get():get())(b);",
             "const get=()=>{return async x=>{await x;return x+a;};};return await(a,get())(b);",
             "const get=()=>{return async x=>{await x;return x+a;};};return await(b?get():get()).call(null,b);",

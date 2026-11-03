@@ -36,6 +36,30 @@ impl PreparedBlockFactory {
     }
 }
 
+/// These factories share ordered caller arguments, but only the block-bodied
+/// function-result path owns an active-result admission token.
+pub(super) enum PreparedLocalFactory<'n, 'a> {
+    Block(PreparedBlockFactory),
+    Concise(closures::PreparedConciseFactory<'n, 'a>),
+}
+
+impl PreparedLocalFactory<'_, '_> {
+    pub(super) fn arrow(&self) -> oxc_syntax::node::NodeId {
+        match self {
+            Self::Block(factory) => factory.arrow(),
+            Self::Concise(factory) => factory.arrow(),
+        }
+    }
+}
+
+/// A source-owned leaf either selects a factory continuation or completes its
+/// remaining compatibility path. Selection is consumed once, including None
+/// results from concise-factory preparation.
+pub(super) enum FunctionLeafResult<'n, 'a> {
+    Factory(PreparedLocalFactory<'n, 'a>),
+    Value(ValueId),
+}
+
 impl<'s, 'a> Lowering<'s, 'a> {
     pub(super) fn named_module_function(
         &self,
@@ -903,6 +927,42 @@ impl<'s, 'a> Lowering<'s, 'a> {
             .map(|value| value.expect("function evaluation result"));
         self.leave_function_value();
         result
+    }
+
+    pub(super) fn source_function_value_leaf<'n>(
+        &mut self,
+        node: &'n Expression<'a>,
+        region: &mut Region,
+        arity: usize,
+        depth: usize,
+    ) -> Result<FunctionLeafResult<'n, 'a>, String> {
+        let Expression::CallExpression(call) = node else {
+            return self
+                .function_value_leaf(node, region, arity, depth)
+                .map(FunctionLeafResult::Value);
+        };
+        if self
+            .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
+            .is_none()
+        {
+            return self
+                .runtime_function_result(call, region, arity, depth)
+                .map(FunctionLeafResult::Value);
+        }
+        if let Some(factory) = self.prepare_concise_factory(node, region, depth)? {
+            return Ok(FunctionLeafResult::Factory(PreparedLocalFactory::Concise(
+                factory,
+            )));
+        }
+        if let Some(factory) = self.prepare_block_factory(node, region, depth)? {
+            return Ok(FunctionLeafResult::Factory(PreparedLocalFactory::Block(
+                factory,
+            )));
+        }
+        // The concise-factory stage already ran. Do not repeat factory_result
+        // through the compatibility leaf before taking its local-result path.
+        self.local_function_result(call, region, arity, depth)
+            .map(FunctionLeafResult::Value)
     }
 
     pub(super) fn function_value_leaf(

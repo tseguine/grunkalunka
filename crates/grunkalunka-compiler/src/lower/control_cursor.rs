@@ -13,6 +13,8 @@ use oxc_ast::ast::{
 mod callback_tests;
 #[cfg(test)]
 mod callee_tests;
+#[cfg(test)]
+mod concise_factory_tests;
 mod factories;
 #[cfg(test)]
 mod factory_effect_tests;
@@ -27,6 +29,8 @@ std::thread_local! {
     static SCHEDULED_FUNCTION_RETURNS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static BRIDGED_BLOCK_FACTORIES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static BRIDGED_CONCISE_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -116,7 +120,7 @@ struct FactoryExpression<'n, 'a> {
 
 struct FactoryArguments<'n, 'a> {
     state: FactoryExpression<'n, 'a>,
-    factory: function_values::PreparedBlockFactory,
+    factory: function_values::PreparedLocalFactory<'n, 'a>,
     call: &'n CallExpression<'a>,
     expression_depth: usize,
     index: usize,
@@ -443,10 +447,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     region_depth,
                 } => {
                     let previous_result_depth = self.enter_function_result_depth(region_depth);
-                    let prepared =
-                        self.prepare_block_factory(node, expression.current_region(), depth);
+                    let prepared = self.source_function_value_leaf(
+                        node,
+                        expression.current_region(),
+                        signature,
+                        depth,
+                    );
                     match prepared {
-                        Ok(Some(factory)) => {
+                        Ok(function_values::FunctionLeafResult::Factory(factory)) => {
                             return self.start_factory_arguments(
                                 FactoryExpression {
                                     expression: Box::new(expression),
@@ -461,15 +469,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                 cursor,
                             );
                         }
-                        Ok(None) => {
+                        Ok(function_values::FunctionLeafResult::Value(value)) => {
                             self.restore_function_result_depth(previous_result_depth);
-                            self.resume_lowered_function_leaf(
-                                &mut expression,
-                                node,
-                                signature,
-                                depth,
-                                region_depth,
-                            )?;
+                            expression.resume_function_value(value);
                         }
                         Err(error) => {
                             self.restore_function_result_depth(previous_result_depth);
@@ -592,7 +594,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                         },
                                     ),
                                 },
-                                factory,
+                                function_values::PreparedLocalFactory::Block(factory),
                                 callee_depth,
                                 cursor,
                             );
