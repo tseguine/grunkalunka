@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn array_at_preserves_snapshots_through_suspended_arguments_and_results() {
+    compare_promises(
+        &[
+            "const x=[a,b];const selected=x.at((await a,0),(await b,x[0]=b));await a;return selected===b?1:0;",
+            "let x=[a,b];const old=x;const selected=x.at((await a,x=[b],-1),(await b,old.length=1));await a;return selected===a&&old!==x?1:0;",
+            "const o={x:a};const x=[o];const saved=x.at(0);await b;x[0]=null;await a;return saved===o?1:0;",
+            "const x=Object.keys({...{first:a,second:b}});await a;return x.at(-1)==='second'?1:0;",
+        ],
+        &[(4.0, 2.0), (-0.0, 0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn object_keys_nullable_input_uses_a_catchable_typeerror() {
     compare_promises(
         &[

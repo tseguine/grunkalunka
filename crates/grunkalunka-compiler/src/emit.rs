@@ -2,6 +2,7 @@
 //! materialized immediately: later source-cell stores cannot change a value.
 use std::fmt::Write;
 
+mod array_at;
 mod asynchronous;
 mod cells;
 mod closures;
@@ -316,6 +317,16 @@ impl Emitter<'_> {
                 self.get(*array);
                 self.managed_key(key);
                 self.output.push_str("call $gc_array_get\n");
+                self.set(*result);
+            }
+            Op::ManagedArrayAt {
+                result,
+                array,
+                index,
+            } => {
+                self.get(*array);
+                self.get(*index);
+                self.output.push_str("call $gc_array_at\n");
                 self.set(*result);
             }
             Op::ManagedArraySetOwn { array, key, value } => {
@@ -1192,6 +1203,7 @@ fn emit_verified(
         output.push_str(include_str!("emit/managed.wat"));
         output.push_str(managed_spread::runtime(module));
         output.push_str(own_keys::runtime(module));
+        output.push_str(array_at::runtime(module));
     }
     output.push_str(")\n");
     Ok(output)

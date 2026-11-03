@@ -11,6 +11,33 @@ fn module() -> Module {
 }
 
 #[test]
+fn array_at_checks_its_receiver_and_index_before_emission() {
+    let source = "export function run(a,b){const x=[a,b];return x.at(a)===b?1:0;}";
+    for wrong_index in [false, true] {
+        let mut module = crate::lower_source(source, false).unwrap();
+        let function = &mut module.functions[0];
+        let operation = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let Op::ManagedArrayAt { array, index, .. } = &mut operation.kind {
+                    Some((array, index))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        if wrong_index {
+            *operation.1 = *operation.0;
+        } else {
+            *operation.0 = *operation.1;
+        }
+        assert!(verify_module(&module).unwrap_err().contains("value type"));
+    }
+}
+
+#[test]
 fn array_lengths_include_holes_without_dense_allocation() {
     for length in [0, 2, 1 << 31, u32::MAX] {
         let mut m = module();

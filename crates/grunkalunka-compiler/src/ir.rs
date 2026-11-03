@@ -501,6 +501,11 @@ pub(crate) enum Op {
         result: ValueId,
         array: ValueId,
     },
+    ManagedArrayAt {
+        result: ValueId,
+        array: ValueId,
+        index: ValueId,
+    },
     ManagedArrayGetOwn {
         result: ValueId,
         array: ValueId,
@@ -1211,6 +1216,15 @@ impl Verifier<'_> {
             Op::ManagedArrayLength { result, array } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::ManagedArrayAt {
+                result,
+                array,
+                index,
+            } => {
+                self.value(*array, Type::ManagedArray, visible, span)?;
+                self.value(*index, Type::Number, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedArrayResize { array, .. } => {
                 self.value(*array, Type::ManagedArray, visible, span)?;

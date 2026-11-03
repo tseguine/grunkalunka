@@ -2,6 +2,68 @@
 mod common;
 
 #[test]
+fn array_at_reads_runtime_number_positions_and_sparse_holes() {
+    for source in [
+        "export function run(a,b){const x=[b,,a];return x.at(a)===b?1:0;}",
+        "export function run(a,b){const x=[a,,b];return x.at(1)===undefined&&x.at(-2)===undefined&&x.at(3)===undefined&&x.at(-4)===undefined?1:0;}",
+        "export function run(a,b){const x=[a,b];return x.at()===a&&x.at(-0.9)===a&&x.at(1.9)===b&&x.at(-1.9)===b?1:0;}",
+        "export function run(a,b){const x=[];return x.at(a)===undefined?1:0;}",
+        "export function run(a,b){const x=[];x[4294967294]=a;x['-1']=b;return x.at(-1)===a&&x.at(-4294967295)===undefined&&x.at(4294967295)===undefined?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_at_snapshots_receiver_and_index_before_surplus_argument_effects() {
+    for source in [
+        "export function run(a,b){let x=[a,b];const old=x;let i=0;const value=x.at((x=[b],i++),(old[0]=b,i++));return value===b&&old!==x&&i===2?1:0;}",
+        "export function run(a,b){const x=[a,b];const saved=x.at(-1,x.length=1);return saved===a&&x.length===1?1:0;}",
+        "export function run(a,b){let n=0;const x=[a,b];(n++,x).at((n=n*10+2,0),(n=n*10+3,0));return n;}",
+        "export function run(a,b){const x=[a,b];const saved=x.at(0);x[0]=b;return saved===a&&x.at(0)===b?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_at_transports_managed_elements_and_composes_with_helpers() {
+    for source in [
+        "export function run(a,b){const o={x:a};const child=[b];const x=[o,child,'text',null,false,undefined];return x.at(0)===o&&x.at(1)===child&&x.at(2)==='text'&&x.at(3)===null&&x.at(4)===false&&typeof x.at(5)==='undefined'?1:0;}",
+        "export function run(a,b){const f=()=>a;const x=[f];return x.at(0)===f?1:0;}",
+        "function pick(x,i){return x.at(i);} export function run(a,b){const x=[a,b];return pick(x,1)===b?1:0;}",
+        "export function run(a,b){const x=[a,b,a];let n=0;for(let i=0;i<x.length;i++){if(x.at(i)===a)n++;}return n;}",
+        "export function run(a,b){const x=Object.keys({...{first:a,second:b}});return x.at(-1)==='second'?1:0;}",
+        "export function run(a,b){const o={at:()=>a};return o.at();}",
+    ] {
+        common::compare_sources(source, source);
+    }
+    common::compare_sources(
+        "export function run(a,b){const x=[a,b];return x['at'](-1)===b?1:0;}",
+        "export function run(a:string,b:boolean):void{const x:number=[a,b];return x[('at' as string)]((-1 as number))===b?1:0;}",
+    );
+}
+
+#[test]
+fn array_at_keeps_unsupported_receivers_coercions_and_overrides_explicit() {
+    for body in [
+        "const x=[a];return x.at('0')===a?1:0;",
+        "const x=[a];return x.at(null)===a?1:0;",
+        "const x=[a];x.at=()=>b;return x.at(0);",
+        "const x=[a];x['at']=()=>b;return x.at(0);",
+        "const x=[a];return x.at.call(x,0);",
+        "const x=a?[a]:null;return x.at(0);",
+        "const x=[a];return x.at(...[0]);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, typed).err().unwrap();
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
 fn empty_array_length_is_a_number() {
     common::compare_sources(
         "export function run(a,b){const x=[];return x.length;}",

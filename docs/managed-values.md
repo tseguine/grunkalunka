@@ -293,8 +293,9 @@ valid unsigned integer literals through 2^32-1, retain the assigned Number resul
 remove truncated elements and leave holes on subsequent growth. Erased TS wrappers
 and parentheses are checked under the existing expression-depth budget.
 
-Every Object.prototype intrinsic key and every Array.prototype String key except
-the array's own `length` rejects for an array receiver, including shadowed keys.
+Property reads and writes reject every Object.prototype intrinsic key and every
+Array.prototype String key except the array's own `length`, including shadowed
+keys. Direct `at` calls have the supported specialization below.
 Tests compare this boundary with the native intrinsic names. The additional Array
 guard does not restrict ordinary objects' own keys such as `map` or `push`.
 Prototype mutation and foreign references remain unavailable in this profile.
@@ -306,6 +307,34 @@ requires a primitive-result proof/projection, and exporting an array requires a
 reference-aware boundary. Those existing gap fixtures remain rejected; construction
 and equality tests do not claim those gaps are closed. Synchronous array captures
 are supported; suspended managed async frames remain unsupported.
+
+### Runtime element selection with `at`
+
+Known arrays support [the `at` operation](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.at)
+through `array.at(index)` and `array['at'](index)` with a Number
+index; omitting it selects zero. Indexing follows Number `ToIntegerOrInfinity`:
+fractions truncate toward zero, NaN and signed zero select zero, negative indices
+count from the current length, and out-of-range positions and holes return
+Undefined. Large sparse lengths do not allocate dense storage.
+
+The receiver and index are evaluated once in source order. Surplus argument
+effects run before the operation reads the array's current length and element.
+The selected value is an immutable boxed snapshot, preserving object/array/function
+identity and String/primitive values. It composes with supported helpers, loops,
+`Object.keys`, and async suspension, using the existing traced value lanes.
+
+This specializes the intrinsic only for known arrays: admitted source cannot
+replace their `at` property, mutate their prototypes or import a foreign array.
+Ordinary objects with their own callable `at` retain the ordinary call path.
+Non-Number index coercion, borrowed `.at.call`, optional calls, spread arguments,
+generic computed properties and arbitrary boxed-element numeric arithmetic remain
+separate work. TypeScript annotations do not widen this admission.
+
+The private `ManagedArrayAt` operation takes a checked Array and Number and
+returns a managed value. The Wasm helper reuses sparse array lookup and the
+existing unsigned decimal key formatter; no host operation or public ABI changes.
+The existing `managed-arrays` and `async-suspension` suites compare native
+JavaScript, Node-Wasm and Wasmtime results and argument order.
 
 ## Short-circuit values and defaults
 
