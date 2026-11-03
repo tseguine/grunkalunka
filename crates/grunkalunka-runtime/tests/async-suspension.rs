@@ -2908,6 +2908,22 @@ fn suspended_control_flow_matches_native_results_and_job_order() {
 }
 
 #[test]
+fn block_factory_call_preserves_async_callee_and_argument_effects() {
+    compare_promises(
+        &[
+            "const make=x=>{return async y=>{await x;return x+y;};};return await make.call(null,a)(b);",
+            "const make=x=>{return y=>x+y;};return make.call(await a,await b)(a);",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn concise_function_results_preserve_async_selection_and_captures() {
     compare_promises(
         &["const make=x=>x?(async y=>x+y):(async y=>x-y);return await make(a)(b);"],

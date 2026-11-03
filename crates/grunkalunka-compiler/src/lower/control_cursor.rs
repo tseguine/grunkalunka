@@ -17,6 +17,8 @@ mod callee_tests;
 mod concise_factory_tests;
 mod factories;
 #[cfg(test)]
+mod factory_call_tests;
+#[cfg(test)]
 mod factory_effect_tests;
 #[cfg(test)]
 mod factory_tests;

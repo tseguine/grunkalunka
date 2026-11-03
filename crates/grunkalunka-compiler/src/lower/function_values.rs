@@ -1103,13 +1103,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
         else {
             return Ok(None);
         };
-        // Block method calls retain their existing compatibility path. Concise
-        // methods share the ordinary argument classifier, including .call's
-        // discarded receiver and original source-expression depth.
-        if invocation::is_method(call) && self.arrow(closure.arrow).get_expression().is_none() {
-            return Ok(None);
-        }
-
+        // The general source leaf includes represented .call invocations.
+        // Their receiver and surplus arguments use the same ordered classifier;
+        // block_factory_shape still limits the outer direct-call specialization.
         let admission = self.begin_function_result(call, FunctionResultKind::Local)?;
         let checked = (|| {
             if !closure.checked {
