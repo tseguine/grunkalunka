@@ -4,6 +4,7 @@ use oxc_ast::ast::{ObjectExpression, ObjectPropertyKind, PropertyKey, PropertyKi
 mod arrays;
 
 pub(super) enum ManagedWork<'e, 'a> {
+    DictionaryNew(&'e Expression<'a>),
     Array(arrays::ArrayWork<'e, 'a>),
     ArrayLength(&'e Expression<'a>),
     StringLength(&'e Expression<'a>),
@@ -120,16 +121,22 @@ fn checked_key(node: &impl GetSpan, key: Vec<u16>) -> Result<Vec<u16>, String> {
 fn member<'e, 'a>(
     node: &'e Expression<'a>,
     array: bool,
+    dictionary: bool,
     depth: usize,
 ) -> Result<Option<(&'e Expression<'a>, Vec<u16>)>, String> {
     match node {
         Expression::StaticMemberExpression(m) if !m.optional => Ok(Some((
             &m.object,
-            member_key(node, m.property.name.encode_utf16().collect(), array)?,
+            member_key(
+                node,
+                m.property.name.encode_utf16().collect(),
+                array,
+                dictionary,
+            )?,
         ))),
         Expression::ComputedMemberExpression(m) if !m.optional => {
-            let key = computed_key(node, &m.expression, array, depth + 1)?;
-            Ok(Some((&m.object, member_key(node, key, array)?)))
+            let key = computed_key(node, &m.expression, array, dictionary, depth + 1)?;
+            Ok(Some((&m.object, member_key(node, key, array, dictionary)?)))
         }
         _ => Ok(None),
     }
@@ -158,7 +165,15 @@ fn number_consumer<'e, 'a>(
     Ok(())
 }
 
-fn member_key(node: &impl GetSpan, key: Vec<u16>, array: bool) -> Result<Vec<u16>, String> {
+fn member_key(
+    node: &impl GetSpan,
+    key: Vec<u16>,
+    array: bool,
+    dictionary: bool,
+) -> Result<Vec<u16>, String> {
+    if dictionary {
+        return Ok(key);
+    }
     let key = checked_key(node, key)?;
     const ARRAY_INHERITED: &[&str] = &[
         "at",
@@ -215,9 +230,10 @@ fn computed_key(
     node: &impl GetSpan,
     key: &Expression<'_>,
     array: bool,
+    dictionary: bool,
     depth: usize,
 ) -> Result<Vec<u16>, String> {
-    let key = if array {
+    let key = if array || dictionary {
         closures::unwrapped_at(key, depth)
             .ok_or_else(|| unsupported(node, "expression nesting exceeds this experiment's limit"))?
             .0
@@ -244,6 +260,7 @@ fn computed_key(
 fn assignment_member<'e, 'a>(
     node: &'e Expression<'a>,
     array: bool,
+    dictionary: bool,
     depth: usize,
 ) -> Result<Option<(&'e Expression<'a>, Vec<u16>)>, String> {
     let Expression::AssignmentExpression(a) = node else {
@@ -255,11 +272,16 @@ fn assignment_member<'e, 'a>(
     match target {
         SimpleAssignmentTarget::StaticMemberExpression(m) if !m.optional => Ok(Some((
             &m.object,
-            member_key(node, m.property.name.encode_utf16().collect(), array)?,
+            member_key(
+                node,
+                m.property.name.encode_utf16().collect(),
+                array,
+                dictionary,
+            )?,
         ))),
         SimpleAssignmentTarget::ComputedMemberExpression(m) if !m.optional => {
-            let key = computed_key(node, &m.expression, array, depth + 1)?;
-            Ok(Some((&m.object, member_key(node, key, array)?)))
+            let key = computed_key(node, &m.expression, array, dictionary, depth + 1)?;
+            Ok(Some((&m.object, member_key(node, key, array, dictionary)?)))
         }
         _ => Ok(None),
     }
@@ -291,7 +313,13 @@ impl Lowering<'_, '_> {
                 "stored function field requires a complete agreeing signature",
             ));
         }
-        let Some((object, key)) = member(node, self.member_array(node, depth), depth)? else {
+        let Some((object, key)) = member(
+            node,
+            self.member_array(node, depth),
+            self.member_dictionary(node),
+            depth,
+        )?
+        else {
             return Ok(false);
         };
         let receiver = self.receiver_type(object, depth + 1);
@@ -360,6 +388,20 @@ impl Lowering<'_, '_> {
         object
             .is_some_and(|object| self.receiver_type(object, depth + 1) == Some(Type::ManagedArray))
     }
+
+    fn member_dictionary(&self, node: &Expression<'_>) -> bool {
+        let object = match node {
+            Expression::StaticMemberExpression(m) => Some(&m.object),
+            Expression::ComputedMemberExpression(m) => Some(&m.object),
+            Expression::AssignmentExpression(a) => match a.left.as_simple_assignment_target() {
+                Some(SimpleAssignmentTarget::StaticMemberExpression(m)) => Some(&m.object),
+                Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => Some(&m.object),
+                _ => None,
+            },
+            _ => None,
+        };
+        object.is_some_and(|object| self.stored.dictionary(object.node_id()))
+    }
     pub(in crate::lower) fn managed_source_type(
         &self,
         node: &Expression<'_>,
@@ -421,6 +463,11 @@ impl Lowering<'_, '_> {
                             if object_keys::is_call(call, self.semantic) =>
                         {
                             values.push(Some(Type::ManagedArray))
+                        }
+                        Expression::CallExpression(call)
+                            if object_create::argument(call, self.semantic).is_some() =>
+                        {
+                            values.push(Some(Type::ManagedObject))
                         }
                         Expression::CallExpression(call) => {
                             let fallback =
@@ -569,6 +616,14 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
+        if matches!(mode, Mode::Object)
+            && let Expression::CallExpression(call) = node
+            && let Some(argument) = object_create::argument(call, self.semantic)
+        {
+            work.push(Work::Managed(ManagedWork::DictionaryNew(node)));
+            work.push(Work::Eval(argument, depth + 1, Mode::Discard));
+            return Ok(true);
+        }
         if let Some(ty) = match mode {
             Mode::Object => Some(Type::ManagedObject),
             Mode::Array => Some(Type::ManagedArray),
@@ -601,7 +656,7 @@ impl Lowering<'_, '_> {
         }
         if self.member_array(node, depth)
             && let Expression::AssignmentExpression(a) = node
-            && let Some((object, key)) = assignment_member(node, true, depth)?
+            && let Some((object, key)) = assignment_member(node, true, false, depth)?
             && key.as_slice() == [108, 101, 110, 103, 116, 104]
         {
             if a.operator != AssignmentOperator::Assign {
@@ -919,7 +974,12 @@ impl Lowering<'_, '_> {
                 return Ok(true);
             }
             if self.managed_source_type(node, depth) == Some(Type::ManagedValue)
-                && let Some((object, key)) = member(node, self.member_array(node, depth), depth)?
+                && let Some((object, key)) = member(
+                    node,
+                    self.member_array(node, depth),
+                    self.member_dictionary(node),
+                    depth,
+                )?
             {
                 let receiver = self.receiver_type(object, depth + 1);
                 if !matches!(receiver, Some(Type::ManagedObject | Type::ManagedArray)) {
@@ -940,9 +1000,12 @@ impl Lowering<'_, '_> {
                 ));
                 return Ok(true);
             }
-            if let Some((object, key)) =
-                assignment_member(node, self.member_array(node, depth), depth)?
-            {
+            if let Some((object, key)) = assignment_member(
+                node,
+                self.member_array(node, depth),
+                self.member_dictionary(node),
+                depth,
+            )? {
                 let Expression::AssignmentExpression(a) = node else {
                     unreachable!()
                 };
@@ -1003,6 +1066,11 @@ impl Lowering<'_, '_> {
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<(), String> {
         match task {
+            ManagedWork::DictionaryNew(node) => {
+                let result = self.value(Type::ManagedObject);
+                Self::push(regions.current(), node, Op::ManagedObjectNew { result });
+                values.push(Value::Object(result));
+            }
             ManagedWork::ConcatRight { node, right, depth } => {
                 let left = values.pop().expect("String addition left operand").id();
                 work.push(Work::Managed(ManagedWork::Concat { node, left }));

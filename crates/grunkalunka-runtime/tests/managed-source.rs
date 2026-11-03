@@ -5,6 +5,75 @@ use grunkalunka_runtime::{Value, ValueInstance};
 mod common;
 
 #[test]
+fn dictionary_static_keys_have_no_inherited_properties() {
+    for body in [
+        "const d=Object.create(null);return d.constructor===undefined&&d.__proto__===undefined&&d.toString===undefined&&Object.keys(d).length===0?a:b;",
+        "const d=Object.create(null);d.toString=a;d.constructor=b;d.length=3;return d.toString===a&&d.constructor===b&&d.length===3?a:b;",
+        "const d=Object.create(null);const child={x:a};d.__proto__=child;const saved=d.__proto__;d.__proto__=null;const keys=Object.keys(d);return saved===child&&d.__proto__===null&&keys.length===1&&keys[0]==='__proto__'?a:b;",
+        r"const d=Object['create']((null));d['\ud800\0']=a;d['\ufffd\0']=b;return d['\ud800\0']===a&&d['\ufffd\0']===b?a:b;",
+        "const d=Object.create(null);d.__proto__=a;const copy={...d};return Object.keys(copy)[0]==='__proto__'?a:b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn dictionary_provenance_survives_helpers_aliases_and_erased_types() {
+    for source in [
+        "function make(){return Object.create(null);}function set(d,v){d.constructor=v;return d;}function get(d){return d.constructor;}export function run(a,b){const d=set(make(),a);return get(d)===a?a:b;}",
+        "export function run(a,b){let d=Object.create(null);const saved=d;d=Object.create(null);saved.__proto__=a;d.__proto__=b;return saved!==d&&saved.__proto__===a&&d.__proto__===b?a:b;}",
+        "export function run(a,b){const wrapper={d:Object.create(null)};const get=()=>wrapper.d;get().constructor=a;return wrapper.d.constructor===a?a:b;}",
+        "export function run(a,b){const Object={create:x=>x};return Object.create(a);}",
+    ] {
+        common::compare_sources(source, source);
+    }
+    common::compare_sources(
+        "export function run(a,b){const d=Object.create(null);d.__proto__=a;return d.__proto__===a?a:b;}",
+        "type Object=never;export function run(a:string,b:object):void{const d:number=(Object as unknown)['create'](null as number);d['__proto__' as never]=a;return d['__proto__' as never]===a?a:b;}",
+    );
+}
+
+#[test]
+fn dictionary_admission_requires_a_proven_null_prototype() {
+    for body in [
+        "const d={};return d.constructor===undefined?a:b;",
+        "const d=a?Object.create(null):{};return d.__proto__===undefined?a:b;",
+        "let d=Object.create(null);d={};d.__proto__=null;return a;",
+        "const d=Object.create(null);const copy={...d};return copy.constructor===undefined?a:b;",
+        "const d=Object.create({});return d.x===undefined?a:b;",
+        "const d=Object.create();return a;",
+        "const d=Object.create(null,{});return a;",
+        "const d=Object.create.call(null,null);return a;",
+        "const d=Object.create(...[null]);return a;",
+        "const d=Object?.create(null);return a;",
+        "const d=Object.create(null);const key='x';return d[key]===undefined?a:b;",
+    ] {
+        for typed in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    for (depth, admitted) in [(16, true), (140, false)] {
+        let source = format!(
+            "export function run(a,b){{const d=Object.create({}null{});return d.constructor===undefined?a:b;}}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted, "{:?}", result.as_ref().err());
+    }
+}
+
+#[test]
 fn source_object_aliases_preserve_identity() {
     compare("const o={};const alias=o;return o===alias?a:b;");
     compare("const o={};const fresh={};return o!==fresh?a:b;");

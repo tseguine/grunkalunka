@@ -18,6 +18,7 @@ use crate::ir::{
 use crate::{is_type_declaration, unsupported};
 
 mod array_at;
+mod array_mutations;
 mod async_values;
 mod awaited;
 mod block_results;
@@ -39,6 +40,7 @@ mod loop_statements;
 mod managed_calls;
 pub(super) use managed_calls::infer as infer_managed_calls;
 mod module_functions;
+mod object_create;
 mod object_keys;
 pub(super) use module_functions::plan as plan_module_functions;
 mod pending;

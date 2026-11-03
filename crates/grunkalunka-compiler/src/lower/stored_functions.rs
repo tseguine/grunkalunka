@@ -6,10 +6,12 @@ use oxc_ast::{
 };
 use oxc_syntax::{GetNodeId, node::NodeId};
 use std::collections::{BTreeMap, BTreeSet};
+mod mutations;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Origin {
     Object(NodeId),
+    NullObject(NodeId),
     Array(NodeId),
     Arrow(NodeId),
     Named(SymbolId),
@@ -57,6 +59,14 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
     before != entry.len()
 }
 impl Fields {
+    pub(super) fn dictionary(&self, node: NodeId) -> bool {
+        self.values.get(&node).is_some_and(|values| {
+            !values.is_empty()
+                && values
+                    .iter()
+                    .all(|origin| matches!(origin, Origin::NullObject(_)))
+        })
+    }
     pub(super) fn string(&self, node: NodeId) -> bool {
         self.values
             .get(&node)
@@ -65,7 +75,7 @@ impl Fields {
     pub(super) fn container(&self, node: NodeId) -> Option<Type> {
         let values = self.values.get(&node)?;
         let ty = match values.first()? {
-            Origin::Object(_) => Type::ManagedObject,
+            Origin::Object(_) | Origin::NullObject(_) => Type::ManagedObject,
             Origin::Array(_) => Type::ManagedArray,
             _ => return None,
         };
@@ -74,8 +84,10 @@ impl Fields {
             .all(|origin| {
                 matches!(
                     (ty, origin),
-                    (Type::ManagedObject, Origin::Object(_))
-                        | (Type::ManagedArray, Origin::Array(_))
+                    (
+                        Type::ManagedObject,
+                        Origin::Object(_) | Origin::NullObject(_)
+                    ) | (Type::ManagedArray, Origin::Array(_))
                 )
             })
             .then_some(ty)
@@ -110,6 +122,7 @@ impl Fields {
                 node.kind(),
                 AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
             ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
+                || matches!(node.kind(), AstKind::CallExpression(call) if object_create::argument(call, semantic).is_some())
         }) {
             return Self::default();
         }
@@ -119,6 +132,7 @@ impl Fields {
         let mut rules = Vec::new();
         let mut fields: BTreeMap<NodeId, BTreeMap<Key, Option<NodeId>>> = BTreeMap::new();
         let mut writes = Vec::new();
+        let mut mutations = Vec::new();
         let mut functions = BTreeMap::new();
         let parameters = |parameters: &oxc_ast::ast::FormalParameters<'_>| {
             parameters
@@ -132,7 +146,19 @@ impl Fields {
         };
         for node in semantic.nodes().iter() {
             let id = node.id();
+            if let AstKind::CallExpression(call) = node.kind()
+                && let Some(mutation) = mutations::call(call)
+            {
+                mutations.push(mutation);
+            }
             let rule = match node.kind() {
+                AstKind::CallExpression(call)
+                    if object_create::argument(call, semantic).is_some() =>
+                {
+                    fields.insert(id, BTreeMap::new());
+                    values.insert(id, BTreeSet::from([Origin::NullObject(id)]));
+                    None
+                }
                 AstKind::StringLiteral(_) => {
                     values.insert(id, BTreeSet::from([Origin::String]));
                     None
@@ -362,6 +388,7 @@ impl Fields {
             }
         }
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
+        let mut index_deletes = BTreeSet::new();
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
             let mut symbol_additions = definitions
@@ -416,7 +443,10 @@ impl Fields {
                     Rule::Member(receiver, key) => {
                         let mut found = Alternatives::new();
                         for origin in get(receiver) {
-                            if let Origin::Object(object) | Origin::Array(object) = origin {
+                            if let Origin::Object(object)
+                            | Origin::NullObject(object)
+                            | Origin::Array(object) = origin
+                            {
                                 match fields.get(&object).and_then(|own| own.get(key)) {
                                     Some(Some(value)) => found.extend(get(value)),
                                     _ => {
@@ -425,6 +455,9 @@ impl Fields {
                                 }
                                 if let Some(written) = field_writes.get(&(object, key.clone())) {
                                     found.extend(written);
+                                }
+                                if index_deletes.contains(&object) && mutations::array_index(key) {
+                                    found.insert(Origin::Other);
                                 }
                             } else {
                                 found.insert(Origin::Other);
@@ -438,7 +471,10 @@ impl Fields {
             let mut write_additions = Vec::new();
             for (receiver, key, value) in &writes {
                 for origin in get(receiver) {
-                    if let Origin::Object(object) | Origin::Array(object) = origin {
+                    if let Origin::Object(object)
+                    | Origin::NullObject(object)
+                    | Origin::Array(object) = origin
+                    {
                         write_additions.push(((object, key.clone()), get(value)));
                         if matches!(origin, Origin::Array(_))
                             && key.as_slice() == [108, 101, 110, 103, 116, 104]
@@ -460,7 +496,19 @@ impl Fields {
                     }
                 }
             }
+            let mut deleted = Vec::new();
+            for mutation in &mutations {
+                let mutations::Mutation::IndexDelete(receiver) = mutation;
+                for origin in get(receiver) {
+                    if let Origin::Array(array) = origin {
+                        deleted.push(array);
+                    }
+                }
+            }
             let mut changed = false;
+            for array in deleted {
+                changed |= index_deletes.insert(array);
+            }
             for (symbol, found) in symbol_additions {
                 changed |= extend(&mut bindings, symbol, found);
             }
