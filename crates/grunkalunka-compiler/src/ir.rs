@@ -532,6 +532,11 @@ pub(crate) enum Op {
         result: ValueId,
         units: Vec<u16>,
     },
+    // Known-String specialization; the checked projection traps on malformed IR.
+    ManagedStringLength {
+        result: ValueId,
+        input: ValueId,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1305,6 +1310,10 @@ impl Verifier<'_> {
                 u32::try_from(units.len())
                     .map_err(|_| invalid(span, "managed String exceeds Wasm32 length"))?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedStringLength { result, input } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;

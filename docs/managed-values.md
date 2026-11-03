@@ -256,7 +256,7 @@ and reference-aware async frames remain separate work. Managed properties cannot
 be returned directly through the primitive ABI; observations must produce a supported primitive result.
 Known typed function values in managed containers and calls through proven
 compatible own fields are supported as detailed below; opaque dynamic calls
-remain separate work. String methods, indexing, length, concatenation and coercions
+remain separate work. String methods, indexing, concatenation and coercions
 also remain separate work. Unsupported branches
 are checked even when a particular input would not execute them.
 
@@ -275,6 +275,25 @@ String contents can be mutated by admitted source. This fixes large static keys
 through the same construction path. Source-size and production fuel limits are
 unchanged. Large semantic probes use an explicit bounded core-engine fuel budget
 and separately assert controlled exhaustion at the public runtime's normal budget.
+
+## Source String length
+
+Known String receivers admit `.length` and static `['length']` reads. The result
+is a Number counting UTF-16 code units: an astral character occupies two units,
+and a lone surrogate or NUL occupies one. The receiver executes once through the
+ordinary expression cursor. Saved values keep their original length after a
+local or property is replaced; captured bindings observe the current value.
+The same operation works with admitted helper results and values retained across
+primitive awaits.
+
+The existing finite source-flow facts now distinguish String origins from other
+boxed values. Admission requires every receiver alternative to be a String;
+TypeScript annotations and assertions do not establish that proof. The backend
+reads the traced UTF-16 payload through a checked private projection, with no
+new allocation or host call. Unknown or mixed-kind receivers, dynamic property
+keys, optional access, and String property writes remain outside this slice.
+Native JS, Node-Wasm and Wasmtime tests cover code-unit counts, source effects,
+helpers, captures, snapshots, erased types and async settlement traces.
 
 ## Synchronous source arrays
 

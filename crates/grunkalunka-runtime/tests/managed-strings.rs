@@ -70,10 +70,72 @@ fn string_values_keep_effects_and_erased_type_annotations() {
 }
 
 #[test]
+fn string_length_counts_utf16_code_units_including_lone_surrogates() {
+    for literal in [
+        "''",
+        "'hello'",
+        r"'\u{1f600}'",
+        r"'\ud800\0\udfff'",
+        r"'e\u0301'",
+    ] {
+        let source = format!("export function run(a,b){{return {literal}.length;}}");
+        compare_sources(&source, &source);
+    }
+}
+
+#[test]
+fn string_length_preserves_receiver_effects_and_saved_values() {
+    for source in [
+        "export function run(a,b){let n=0;let s='x';const saved=s;const len=(n++,s='long',saved).length;return len*100+n*10+s.length;}",
+        "export function run(a,b){const o={text:'old'};const saved=o.text;o.text='new text';return saved.length*10+o.text['length'];}",
+        "export function run(a,b){const x=['a','bc'];return x[0].length*10+x[1].length;}",
+        "export function run(a,b){const s=a?'x':'';const o={n:s.length};return s.length?(o.n===1?a:b):(o.n===0?b:a);}",
+        "export function run(a,b){return (typeof a).length;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
+fn string_length_composes_helpers_closures_and_erased_types() {
+    for source in [
+        "function measure(s){return s.length;}function text(a){return a?'two':'x';}export function run(a,b){return measure(text(a));}",
+        "export function run(a,b){let s='old';const f=()=>s.length;const old=f();s='longer';return old*10+f();}",
+        "export function run(a,b){const f=s=>s.length;return f('one')+f('four');}",
+        "function text(){return 'three';}export function run(a,b){const f=()=>text();return f().length;}",
+    ] {
+        compare_sources(source, source);
+    }
+    compare_sources(
+        "function text(s){return s;}export function run(a,b){const s='xy';return text(s)['length'];}",
+        "function text(s:number):boolean{return s;}export function run(a:string,b:object):void{const s:number='xy';return (text(s) as unknown)['length' as never];}",
+    );
+}
+
+#[test]
+fn string_length_requires_known_string_receivers_and_static_reads() {
+    for source in [
+        "export function run(a,b){const s=a?'x':null;return s.length;}",
+        "export function run(a,b){const s=a?'x':[];return s.length;}",
+        "function length(s){return s.length;}export function run(a,b){return length('x')+length(a);}",
+        "export function run(a,b){const s='x';const key='length';return s[key];}",
+        "export function run(a,b){const s='x';s.length=2;return s.length;}",
+        "export function run(a,b){const s='x';return s?.length;}",
+    ] {
+        for typed in [false, true] {
+            let error = grunkalunka_compiler::compile(source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
 fn unimplemented_string_operations_and_reference_frames_reject_explicitly() {
     for body in [
         "return 'text';",
-        "const s='text';return s.length;",
         "const s='text';return s[0];",
         "return +'1';",
         "return 1+'x';",
@@ -103,7 +165,7 @@ fn unimplemented_string_operations_and_reference_frames_reject_explicitly() {
 fn string_helper_queries_keep_source_depth_off_the_native_stack() {
     for (depth, admitted) in [(16, true), (140, false)] {
         let source = format!(
-            "function identity(v){{return {}v{};}} export function run(a,b){{return identity('x')==='x'?a:b;}}",
+            "function identity(v){{return {}v{};}} export function run(a,b){{return identity('x').length;}}",
             "(".repeat(depth),
             ")".repeat(depth)
         );

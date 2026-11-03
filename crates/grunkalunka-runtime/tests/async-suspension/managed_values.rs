@@ -14,6 +14,19 @@ fn array_at_preserves_snapshots_through_suspended_arguments_and_results() {
 }
 
 #[test]
+fn string_length_keeps_utf16_snapshots_across_suspension() {
+    compare_promises(
+        &[
+            r"const s='\ud800\u{1f600}';await b;return s.length;",
+            "let s='old';const saved=s;const f=()=>s.length;await a;s='longer';await b;return saved['length']*10+f();",
+            "const o={text:a?'one':''};const saved=o.text;await b;o.text='replacement';return saved.length*100+o.text.length;",
+            "let n=0;const s='three';return (await a,n++,s).length+n;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn object_keys_nullable_input_uses_a_catchable_typeerror() {
     compare_promises(
         &[
