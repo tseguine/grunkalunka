@@ -15,6 +15,8 @@ mod callback_tests;
 mod callee_tests;
 #[cfg(test)]
 mod concise_factory_tests;
+#[cfg(test)]
+mod declaration_tests;
 mod factories;
 #[cfg(test)]
 mod factory_call_tests;
@@ -24,6 +26,7 @@ mod factory_effect_tests;
 mod factory_tests;
 #[cfg(test)]
 mod function_result_tests;
+mod initializers;
 #[cfg(test)]
 mod runtime_factory_tests;
 mod steps;
@@ -33,6 +36,8 @@ std::thread_local! {
     static BRIDGED_LOCAL_BODIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static SCHEDULED_FUNCTION_RETURNS: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static SCHEDULED_DECLARATION_VALUES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static BRIDGED_BLOCK_FACTORIES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
@@ -45,6 +50,14 @@ std::thread_local! {
 }
 
 type Next<'n, 'a> = source_control::StatementTask<'n, 'a, ControlNode<'n, 'a>>;
+
+/// A declaration publishes one completed binding before selecting its next
+/// initializer. The child expression owns the output Region while suspended.
+struct DeclarationSequence<'n, 'a> {
+    source: &'n VariableDeclaration<'a>,
+    index: usize,
+    depth: usize,
+}
 
 #[derive(Clone, Copy)]
 pub(super) enum ControlNode<'n, 'a> {
@@ -155,13 +168,11 @@ enum Frame<'n, 'a> {
     ThrowValue {
         depth: usize,
     },
-    /// One source-charged scalar let binding awaits its initializer ValueId.
-    /// The declaration slot and visible binding are published only after its
-    /// initializer side effects finish, as on the original statement path.
-    ScalarLet {
-        local: &'n VariableDeclarator<'a>,
-        ty: Type,
-        depth: usize,
+    /// One admitted initializer is pending; its token owns any function-value
+    /// charge and the sequence retains per-declarator publication order.
+    DeclarationValue {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        active: declarations::ActiveDeclarationValue<'n, 'a>,
     },
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
@@ -325,7 +336,6 @@ impl Frame<'_, '_> {
             | Self::ReturnValue { depth }
             | Self::FunctionReturn { depth }
             | Self::ThrowValue { depth }
-            | Self::ScalarLet { depth, .. }
             | Self::IfPredicate { depth, .. }
             | Self::If { depth, .. }
             | Self::WhilePredicate { depth, .. }
@@ -345,6 +355,7 @@ impl Frame<'_, '_> {
             | Self::TryFinallyBody { depth, .. }
             | Self::TryFinallyCleanup { depth, .. } => *depth,
             Self::ForInitializer { depth, .. } => *depth,
+            Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
@@ -405,46 +416,6 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Type::ManagedArray => evaluate::Mode::Array,
             Type::Closure(_) => return None,
         })
-    }
-
-    /// Select the original direct Number/General source initializer path,
-    /// without executing any expression or changing the local-binding state.
-    /// Function-valued, Promise and managed inputs retain their own handlers.
-    fn scalar_let_initializer<'n>(
-        &self,
-        declaration: &'n VariableDeclaration<'ast>,
-    ) -> Option<(&'n VariableDeclarator<'ast>, Type)> {
-        if declaration.kind != VariableDeclarationKind::Let
-            || declaration.declare
-            || declaration.declarations.len() != 1
-        {
-            return None;
-        }
-        let local = declaration.declarations.first()?;
-        if local.definite {
-            return None;
-        }
-        let BindingPattern::BindingIdentifier(identifier) = &local.id else {
-            return None;
-        };
-        let symbol = identifier.symbol_id.get()?;
-        let initializer = local.init.as_ref()?;
-        if self.promise_parameters.is_mixed(&symbol)
-            || self.function_arity(initializer, 0).is_some()
-            || self.pending_promise_shape(initializer, 0)
-            || self.fulfilled_promise_shape(initializer, 0)
-            || self.managed_source_type(initializer, 0).is_some()
-        {
-            return None;
-        }
-        let ty = if self.general_bindings.contains(&symbol)
-            || !self.numeric_result_shape(initializer, 0)
-        {
-            Type::General
-        } else {
-            Type::Number
-        };
-        Some((local, ty))
     }
 
     /// Drive one owned expression activation until it yields a source-body
@@ -830,32 +801,11 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                                     mode,
                                 });
                             } else if let Statement::VariableDeclaration(declaration) = source
-                                && let Some((local, ty)) = self.scalar_let_initializer(declaration)
+                                && !is_type_declaration(source)
                             {
-                                // Match statement_inner -> declaration's admission
-                                // and first-local charge before evaluating any source.
                                 self.statement_depth = depth;
                                 self.admit_source_statement(source, depth)?;
-                                if self.source_charging && self.local_count >= 128 {
-                                    return Err(unsupported(
-                                        local,
-                                        "at most 128 source locals are admitted",
-                                    ));
-                                }
-                                if self.source_charging {
-                                    self.local_count += 1;
-                                }
-                                cursor.pending.push(Frame::ScalarLet { local, ty, depth });
-                                cursor.next = Some(Next::Expression {
-                                    source: local.init.as_ref().expect("eligible initializer"),
-                                    output,
-                                    depth: 0,
-                                    mode: if ty == Type::General {
-                                        evaluate::Mode::General
-                                    } else {
-                                        evaluate::Mode::Number
-                                    },
-                                });
+                                self.start_declaration(declaration, output, depth, &mut cursor)?;
                             } else if let Statement::ExpressionStatement(statement) = source {
                                 // A discard expression is another typed leaf
                                 // request. Preserve the original statement
@@ -956,6 +906,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     }
                     Frame::FunctionReturn { .. } => {
                         self.leave_function_value();
+                    }
+                    Frame::DeclarationValue { active, .. } => {
+                        self.abort_declaration_value(active);
                     }
                     _ => {}
                 }

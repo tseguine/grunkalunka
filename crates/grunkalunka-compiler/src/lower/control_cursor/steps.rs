@@ -230,18 +230,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 value.expect("concise function-result body value"),
                 cursor,
             ),
-            Frame::ScalarLet { local, ty, .. } => {
-                let mut output = output_region;
-                self.commit_local_value(
-                    local,
-                    &mut output,
-                    ty,
-                    value.expect("scalar let initializer result"),
-                    true,
-                )?;
-                cursor.completed = Some(Outcome::Statement(output, Completion::NORMAL));
-                Ok(())
-            }
+            Frame::DeclarationValue { sequence, active } => self.resume_declaration_value(
+                sequence,
+                active,
+                output_region,
+                value.expect("declaration initializer value"),
+                cursor,
+            ),
             Frame::DiscardExpression { .. } => {
                 // Mode::Discard already evaluates side effects and produces
                 // no statement value. Resume sequential completion normally.
@@ -408,7 +403,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             | Frame::EvaluateRuntimeFactoryCallee { .. }
             | Frame::EvaluateFactoryArgument { .. }
             | Frame::EvaluateFactoryValue { .. }
-            | Frame::ScalarLet { .. }
+            | Frame::DeclarationValue { .. }
             | Frame::ReturnValue { .. }
             | Frame::FunctionReturn { .. }
             | Frame::ThrowValue { .. }
