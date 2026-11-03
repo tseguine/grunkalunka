@@ -36,6 +36,13 @@ pub(super) enum StatementTask<'n, 'a, N> {
         depth: usize,
         mode: evaluate::Mode,
     },
+    /// A completed source child returns an existing evaluator to the main loop.
+    /// Resuming does not create or admit another source expression.
+    ResumeExpression {
+        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
+        mode: evaluate::Mode,
+        statement_depth: usize,
+    },
 }
 
 /// Dynamic source-control state whose value is local to one entry into the

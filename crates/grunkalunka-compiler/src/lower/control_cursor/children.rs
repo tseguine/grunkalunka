@@ -176,7 +176,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 ..
             } => {
                 self.resume_checked_local_call(expression.as_mut(), continuation, closure)?;
-                self.advance_owned_expression(*expression, mode, cursor)
+                self.queue_owned_expression(expression, mode, cursor);
+                Ok(())
             }
             Frame::CheckReturnedClosure { mut output, .. } => {
                 self.capture_cells(&closure, &mut output);

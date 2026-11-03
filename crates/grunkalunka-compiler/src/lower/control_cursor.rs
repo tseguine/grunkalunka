@@ -22,6 +22,8 @@ mod concise_factory_tests;
 mod const_factory_tests;
 #[cfg(test)]
 mod declaration_tests;
+#[cfg(test)]
+mod expression_host_tests;
 mod factories;
 #[cfg(test)]
 mod factory_call_tests;
@@ -565,6 +567,22 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         })
     }
 
+    /// Queue a resumed evaluator after its child has restored caller resources.
+    /// Only the main source loop enters the evaluator host, including when an
+    /// empty argument list completes a factory in the same lowering transition.
+    fn queue_owned_expression<'n>(
+        &self,
+        expression: Box<evaluate::EvaluationCursor<'n, 'ast>>,
+        mode: evaluate::Mode,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) {
+        cursor.next = Some(Next::ResumeExpression {
+            expression,
+            mode,
+            statement_depth: self.statement_depth,
+        });
+    }
+
     /// Drive one owned expression activation until it yields a source-body
     /// request or completes. The source scheduler owns any yielded activation
     /// and continues without recursively entering another source cursor.
@@ -578,6 +596,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     where
         'ast: 'n,
     {
+        #[cfg(test)]
+        let _host = expression_host_tests::entry();
         loop {
             match self.run_evaluation(&mut expression, mode)? {
                 evaluate::EvaluationRun::Complete(value) => {
@@ -1010,6 +1030,14 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             let expression =
                                 evaluate::EvaluationCursor::new(output, source, depth, mode);
                             self.advance_owned_expression(expression, mode, &mut cursor)?;
+                        }
+                        Next::ResumeExpression {
+                            expression,
+                            mode,
+                            statement_depth,
+                        } => {
+                            self.statement_depth = statement_depth;
+                            self.advance_owned_expression(*expression, mode, &mut cursor)?;
                         }
                     }
                     continue;
