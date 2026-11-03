@@ -1,8 +1,8 @@
 //! Declaration admission, initializer requests and binding publication.
 //!
 //! Each declarator is selected only after its predecessor has completed. The
-//! compatibility driver exposes these stages for a source-scheduler continuation
-//! while retaining source charging, constructor selection and publication order.
+//! compatibility driver and source scheduler share these stages while retaining
+//! source charging, constructor selection and publication order.
 use super::*;
 
 pub(super) enum DeclarationInitializer<'n, 'a> {

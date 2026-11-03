@@ -1237,6 +1237,29 @@ fn compare_functions(bodies: &[&str]) {
     compare_function_programs(bodies, true);
 }
 
+#[test]
+fn declaration_initializers_publish_values_in_source_order() {
+    compare_function_programs(
+        &[
+            "const x=a,y=x+b,z=y+x;return z;",
+            "let x=a,y=(x=b,x),z=(x=a,y);return x+y+z;",
+            "let n=0;const x=(n=n*10+1,a),y=(n=n*10+2,x+b);return x+y+n;",
+            "const step=x=>{return x+a;};const x=step(b),y=step(x);return x+y;",
+        ],
+        false,
+    );
+}
+
+#[test]
+fn declaration_initializers_preserve_function_snapshots_and_captures() {
+    compare_functions(&[
+        "let f=x=>x+a,g=f;f=x=>x-b;return g(a)+f(b);",
+        "const f=a?(x=>x+a):(x=>x-b);return f(b);",
+        "let n=0;const f=(n=n*10+1,x=>x+n);return f(a)+n;",
+        "const step=x=>{let f=y=>x+y;return f(b);};const value=step(a);return value;",
+    ]);
+}
+
 fn compare_function_programs(bodies: &[&str], require_call: bool) {
     let inputs = [
         (4.0, 2.0),

@@ -2957,6 +2957,26 @@ fn runtime_factory_continuations_preserve_async_arguments_and_jobs() {
     );
 }
 
+#[test]
+fn declaration_initializers_preserve_pending_effects_and_await_order() {
+    compare_promises(
+        &[
+            "const f=async x=>{await x;return x+b;};const p=f(a),q=f(b);return(await p)+(await q);",
+            "let n=0;const f=async x=>{n=n*10+x;await x;return n;};const p=f(1),q=(n=n*10+2,f(3));return(await p)+(await q)+n;",
+            "let x=a,y=await Promise.resolve(x+b);return x+y;",
+            "const p=Promise.resolve(a),f=async()=>await p;return await f();",
+            "const seed=async x=>{await x;return x+a;};let f=async y=>await seed(y);return await f(b);",
+            "const o={x:a},f=async()=>o.x===a?a:b;return await f();",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
     let sources = bodies
         .iter()
