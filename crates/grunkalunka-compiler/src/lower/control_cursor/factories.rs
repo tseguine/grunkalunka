@@ -469,6 +469,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 .expect("returned factory callee function");
             self.resume_sync_closure_callee(state.expression.as_mut(), continuation, callee)?;
         }
-        self.advance_owned_expression(*state.expression, state.mode, cursor)
+        self.queue_owned_expression(state.expression, state.mode, cursor);
+        Ok(())
     }
 }

@@ -238,7 +238,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         expression.resume_function_value(value.expect("function child result"))
                     }
                 }
-                self.advance_owned_expression(*expression, mode, cursor)
+                self.queue_owned_expression(expression, mode, cursor);
+                Ok(())
             }
             Frame::EvaluateFactoryArgument {
                 arguments, kind, ..
@@ -483,7 +484,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     Ok(completion),
                 )?;
                 self.resume_lowered_block_body(expression.as_mut(), node, result_type, body);
-                self.advance_owned_expression(*expression, mode, cursor)?;
+                self.queue_owned_expression(expression, mode, cursor);
             }
             Frame::EvaluateFactoryBody {
                 state,
