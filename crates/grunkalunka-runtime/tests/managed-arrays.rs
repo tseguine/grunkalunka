@@ -2,6 +2,138 @@
 mod common;
 
 #[test]
+fn array_pop_removes_current_elements_holes_and_sparse_extremes() {
+    for source in [
+        "export function run(a,b){const x=[];return x.pop()===undefined&&x.length===0?1:0;}",
+        "export function run(a,b){const x=[a,b];const last=x.pop();return last===b&&x.length===1&&x[1]===undefined?1:0;}",
+        "export function run(a,b){const x=[a,,];const last=x.pop();return last===undefined&&x.length===1&&x[0]===a?1:0;}",
+        "export function run(a,b){const x=[a,undefined];const last=x.pop();const keys=Object.keys(x);return last===undefined&&keys.length===1&&keys.at(0)==='0'?1:0;}",
+        "export function run(a,b){const x=[];x.length=4294967295;return x.pop()===undefined&&x.length===4294967294?1:0;}",
+        "export function run(a,b){const x=[];x[4294967294]=a;x['01']=b;x[4294967295]='named';const last=x.pop();return last===a&&x.length===4294967294&&x[4294967294]===undefined&&x['01']===b&&x[4294967295]==='named'?1:0;}",
+        "export function run(a,b){const x=[a,b];x.pop();x.length=2;return x[1]===undefined&&x.pop()===undefined&&x.pop()===a&&x.pop()===undefined&&x.length===0?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_pop_snapshots_receiver_before_all_surplus_argument_effects() {
+    for source in [
+        "export function run(a,b){let x=[a,b];const old=x;let n=0;const value=(n++,x).pop((x=[b],n=n*10+2,old[1]=a),(n=n*10+3,old.length=1));return value===a&&old.length===0&&x.length===1&&n===123?1:0;}",
+        "export function run(a,b){const x=[a,b];const last=x.pop(x.pop());return last===a&&x.length===0?1:0;}",
+        "export function run(a,b){const x=[a,b];let n=0;const last=x.pop((n++,x.length=0),(n++,x[2]=a));return last===a&&n===2&&x.length===2&&x[2]===undefined?1:0;}",
+        "export function run(a,b){const x=[a];return x.pop({x:b},[b],'ignored',()=>b)===a&&x.length===0?1:0;}",
+    ] {
+        common::compare_sources(source, source);
+    }
+}
+
+#[test]
+fn array_pop_transports_snapshots_through_helpers_and_captures() {
+    for source in [
+        "function take(x){return x.pop();}export function run(a,b){const o={x:a};const x=[o];const saved=take(x);x[0]=b;return saved===o&&x[0]===b?1:0;}",
+        "export function run(a,b){let x=[a,b];const take=()=>x.pop();const first=take();x=[a];return first===b&&take()===a&&x.length===0?1:0;}",
+        "export function run(a,b){const f=()=>a;const child=[b];const o={x:a};const x=[o,child,f,'text',null,false,undefined];const u=x.pop();const n=x.pop();const nil=x.pop();const text=x.pop();const fn=x.pop();const array=x.pop();const obj=x.pop();return u===undefined&&n===false&&nil===null&&text==='text'&&fn===f&&array===child&&obj===o&&x.length===0?1:0;}",
+        "export function run(a,b){const x=[];x[0]=x;return x.pop()===x&&x.length===0?1:0;}",
+        "export function run(a,b){const x=[[a,b]];return x[0].pop()===b&&x[0].length===1?1:0;}",
+        "export function run(a,b){const x=[a,b];let n=0;while(x.length){if(x.pop()===a)n++;}return n;}",
+        "export function run(a,b){const x=[a];x['01']='named';x.pop();return x['01']==='named'?1:0;}",
+        "export function run(a,b){const o={pop:()=>a};return o.pop();}",
+    ] {
+        common::compare_sources(source, source);
+    }
+    common::compare_sources(
+        "export function run(a,b){const x=[a,b];return x['pop']()===b&&x.length===1?1:0;}",
+        "export function run(a:string,b:boolean):void{const x:number=[a,b];return (x as string)[('pop' as string)]()===b&&x.length===1?1:0;}",
+    );
+}
+
+#[test]
+fn array_pop_invalidates_indexed_receiver_string_and_callable_proofs() {
+    for source in [
+        "export function run(a,b){const x=['text'];x.pop();return x[0].length;}",
+        "export function run(a,b){const x=['text'];const alias=x;alias.pop();return x[0].length;}",
+        "function take(x){x.pop();return 0;}export function run(a,b){const x=['text'];take(x);return x[0].length;}",
+        "export function run(a,b){const o={items:['text']};o.items.pop();return o.items[0].length;}",
+        "export function run(a,b){const x=['text'];const take=()=>x.pop();take();return x[0].length;}",
+        "export function run(a,b){const x=[()=>a];x.pop();return x[0]();}",
+        "export function run(a,b){const x=[[a]];x.pop();return x[0].length;}",
+        "export function run(a,b){const x=[{value:a}];x.pop();return x[0].value===a?1:0;}",
+        "export function run(a,b){const x=['text'];return x.pop().length;}",
+        "export function run(a,b){const x=['text'];return (x.pop() as string).length;}",
+    ] {
+        let error = grunkalunka_compiler::compile(source, true)
+            .err()
+            .unwrap_or_else(|| panic!("admitted {source}"));
+        assert!(!error.contains("internal IR"), "{source}: {error}");
+    }
+}
+
+#[test]
+fn array_pop_keeps_unknown_receivers_overrides_and_borrowing_explicit() {
+    for body in [
+        "return a.pop();",
+        "const x=a?[a]:null;return x.pop();",
+        "const x=[a];x.pop=()=>b;return x.pop();",
+        "const x=[a];x['pop']=()=>b;return x.pop();",
+        "const x=[a];return x.pop.call(x);",
+        "const x=[a];return x.pop?.();",
+        "const x=[a];return x?.pop();",
+        "const x=[a];return x.pop(...[b]);",
+        "const x=[a];return x.pop();",
+        "const x=[a];return x.push(b);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
+fn array_pop_argument_cursors_keep_native_stack_and_count_bounds() {
+    for (count, admitted, nested) in [
+        (64, true, true),
+        (140, false, true),
+        (1000, true, false),
+        (1001, false, false),
+    ] {
+        let expression = if nested {
+            format!("{}0{}", "x.pop(".repeat(count), ")".repeat(count))
+        } else {
+            format!("x.pop({})", vec!["a"; count].join(","))
+        };
+        let source =
+            format!("export function run(a,b){{const x=[a,b];{expression};return x.length;}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || grunkalunka_compiler::compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(
+            result.is_ok(),
+            admitted,
+            "count={count}, nested={nested}: {:?}",
+            result.as_ref().err()
+        );
+        if let Err(error) = result {
+            if nested {
+                // Exhausted shape queries may report the enclosing source
+                // rejection before the evaluator's explicit nesting guard.
+                assert!(error.contains("unsupported"), "{error}");
+                assert!(!error.contains("internal IR"), "{error}");
+            } else {
+                assert!(error.contains("1000"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
 fn array_at_reads_runtime_number_positions_and_sparse_holes() {
     for source in [
         "export function run(a,b){const x=[b,,a];return x.at(a)===b?1:0;}",

@@ -38,6 +38,48 @@ fn array_at_checks_its_receiver_and_index_before_emission() {
 }
 
 #[test]
+fn array_pop_checks_its_receiver_and_boxed_result_before_emission() {
+    let source = "export function run(a,b){const x=[a,b];return x.pop()===b?1:0;}";
+    for wrong_result in [false, true] {
+        let mut module = crate::lower_source(source, false).unwrap();
+        let function = &mut module.functions[0];
+        let number = ValueId(
+            function
+                .values
+                .iter()
+                .position(|ty| *ty == Type::Number)
+                .unwrap(),
+        );
+        let operation = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let Op::ManagedArrayPop { result, array } = &mut operation.kind {
+                    Some((result, array))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        if wrong_result {
+            function.values[operation.0.0] = Type::Number;
+        } else {
+            *operation.1 = number;
+        }
+        let error = verify_module(&module).unwrap_err();
+        assert!(
+            error.contains(if wrong_result {
+                "result value"
+            } else {
+                "value type"
+            }),
+            "{error}"
+        );
+    }
+}
+
+#[test]
 fn array_lengths_include_holes_without_dense_allocation() {
     for length in [0, 2, 1 << 31, u32::MAX] {
         let mut m = module();

@@ -65,7 +65,7 @@ fn kinds(
         Join,
         StringConcat,
         Member(bool),
-        ArrayAt(Kinds),
+        ArrayElement(Kinds),
     }
     let mut work = vec![Task::Expr(node, 0)];
     let mut values: Vec<Kinds> = Vec::new();
@@ -75,8 +75,8 @@ fn kinds(
                 let right = values.pop().expect("right source kinds");
                 values.last_mut().expect("left source kinds").extend(right);
             }
-            Task::ArrayAt(fallback) => {
-                let receiver = values.pop().expect("at receiver source kinds");
+            Task::ArrayElement(fallback) => {
+                let receiver = values.pop().expect("array element receiver source kinds");
                 values.push(if receiver.contains(&Kind::Array) {
                     [
                         Kind::Primitive,
@@ -189,8 +189,10 @@ fn kinds(
                                     .and_then(|calls| calls.get(&call.node_id.get()).cloned())
                             })
                             .unwrap_or_else(|| [Kind::Primitive].into());
-                        if let Some(receiver) = array_at::receiver(call) {
-                            work.push(Task::ArrayAt(fallback));
+                        if let Some(receiver) = array_at::receiver(call).or_else(|| {
+                            array_mutations::operation(call).map(|(_, receiver)| receiver)
+                        }) {
+                            work.push(Task::ArrayElement(fallback));
                             work.push(Task::Expr(receiver, depth + 1));
                         } else {
                             values.push(fallback);

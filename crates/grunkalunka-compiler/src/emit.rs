@@ -3,6 +3,7 @@
 use std::fmt::Write;
 
 mod array_at;
+mod array_pop;
 mod asynchronous;
 mod cells;
 mod closures;
@@ -372,6 +373,11 @@ impl Emitter<'_> {
                 self.managed_key(key);
                 self.get(*value);
                 self.output.push_str("call $gc_array_set\n");
+            }
+            Op::ManagedArrayPop { result, array } => {
+                self.get(*array);
+                self.output.push_str("call $gc_array_pop\n");
+                self.set(*result);
             }
             Op::ManagedObjectNew { result } => {
                 self.output.push_str("call $gc_object_new\n");
@@ -1251,6 +1257,7 @@ fn emit_verified(
         output.push_str(managed_spread::runtime(module));
         output.push_str(own_keys::runtime(module));
         output.push_str(array_at::runtime(module));
+        output.push_str(array_pop::runtime(module));
         output.push_str(string_concat::runtime(module));
     }
     output.push_str(")\n");
