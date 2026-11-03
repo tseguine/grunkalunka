@@ -121,6 +121,9 @@ fn string_length_requires_known_string_receivers_and_static_reads() {
         "export function run(a,b){const s='x';const key='length';return s[key];}",
         "export function run(a,b){const s='x';s.length=2;return s.length;}",
         "export function run(a,b){const s='x';return s?.length;}",
+        "function s(x){if(x)return 'x';}export function run(a,b){return s(a).length;}",
+        "function s(x){return x?'x':null;}export function run(a,b){return s(a).length;}",
+        "export function run(a,b){let s='x';const length=()=>s.length;s=a;return length();}",
     ] {
         for typed in [false, true] {
             let error = grunkalunka_compiler::compile(source, typed)
@@ -128,6 +131,122 @@ fn string_length_requires_known_string_receivers_and_static_reads() {
                 .unwrap_or_else(|| panic!("admitted {source}"));
             assert!(error.contains("unsupported"), "{source}: {error}");
             assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    assert!(grunkalunka_compiler::compile(
+        "export function run(a:number,b:object){const text:string=a;return (text as string).length;}",
+        true,
+    ).is_err());
+}
+
+#[test]
+fn string_concat_keeps_lossless_utf16_contents_and_empty_values() {
+    for source in [
+        r"export function run(a,b){return ('\ud800'+'\udfff')==='\ud800\udfff'?a:b;}",
+        r"export function run(a,b){return ('\u{1f600}'+'\0x').length;}",
+        r"export function run(a,b){return ('e'+'\u0301')!=='\u00e9'?a:b;}",
+        "export function run(a,b){const s=a?'x':'';return (''+s)===(s+'')&&(''+'').length===0?a:b;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
+fn string_concat_snapshots_left_before_right_effects() {
+    for source in [
+        "export function run(a,b){let n=0;let s='left';const text=(n=n*10+1,s)+(n=n*10+2,s='right');return text==='leftright'&&s==='right'&&n===12?a:b;}",
+        "export function run(a,b){const o={s:'old'};const text=o.s+(o.s='new');return text==='oldnew'&&o.s==='new'?a:b;}",
+        "export function run(a,b){let s='';for(let i=0;i<3;i++){s=s+'x';}return s.length;}",
+        "export function run(a,b){let n=0;(n++,'a')+(n++,'b');return n;}",
+    ] {
+        compare_sources(source, source);
+    }
+}
+
+#[test]
+fn string_concat_composes_helpers_captures_and_erased_types() {
+    for source in [
+        "function join(x,y){return x+y;}export function run(a,b){return join('prefix:','body').length;}",
+        "export function run(a,b){const suffix='!';const f=x=>x+suffix;return f('hello')==='hello!'?a:b;}",
+        "export function run(a,b){const parts=['one','two'];const o={label:parts[0]+parts[1]};return o.label.length;}",
+    ] {
+        compare_sources(source, source);
+    }
+    compare_sources(
+        "function join(x,y){return x+y;}export function run(a,b){const label=join('a','bc');return label.length;}",
+        "function join(x:number,y:boolean):object{return x+y;}export function run(a:string,b:object):void{const label:number=join('a','bc');return (label as never).length;}",
+    );
+}
+
+#[test]
+fn string_concat_keeps_mixed_coercion_and_compound_assignment_outside_this_slice() {
+    for body in [
+        "return ('x'+a).length;",
+        "return (a+'x').length;",
+        "return ('x'+null).length;",
+        "return ({}+'x').length;",
+        "const value=a?'x':b;return (value+'x').length;",
+        "let text='x';text+='y';return text.length;",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for typed in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
+fn string_concat_length_growth_traps_before_wasm32_wraparound() {
+    let plain =
+        grunkalunka_compiler::compile("export function run(a,b){return 'plain'.length;}", false)
+            .unwrap();
+    assert!(!plain.wat.contains("$gc_string_concat"));
+    let artifact =
+        grunkalunka_compiler::compile("export function run(a,b){return ('a'+'b').length;}", false)
+            .unwrap();
+    // Exercise the actual private allocation guard without allocating multi-GB
+    // arrays. Overflow is a resource trap, not an admitted JS thrown value.
+    let base = artifact.wat.trim_end().strip_suffix(')').unwrap();
+    let wat = format!("{base}(export \"length\" (func $gc_concat_length)))");
+    let engine = wasmtime::Engine::default();
+    let wasm = wat::parse_str(wat).unwrap();
+    let module = wasmtime::Module::from_binary(&engine, &wasm).unwrap();
+    let mut store = wasmtime::Store::new(&engine, ());
+    let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
+    let length = instance
+        .get_typed_func::<(u32, u32), u32>(&mut store, "length")
+        .unwrap();
+    for (left, right, expected) in [
+        (0, 0, 0),
+        (2, 3, 5),
+        (u32::MAX, 0, u32::MAX),
+        (1 << 31, (1 << 31) - 1, u32::MAX),
+    ] {
+        assert_eq!(length.call(&mut store, (left, right)).unwrap(), expected);
+    }
+    for (left, right) in [(u32::MAX, 1), (1 << 31, 1 << 31), (u32::MAX, u32::MAX)] {
+        assert!(length.call(&mut store, (left, right)).is_err());
+    }
+}
+
+#[test]
+fn string_concat_nesting_uses_the_existing_bounded_cursor() {
+    for (terms, admitted) in [(64, true), (140, false)] {
+        let expression = vec!["'x'"; terms].join("+");
+        let source = format!("export function run(a,b){{return ({expression}).length;}}");
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || grunkalunka_compiler::compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted);
+        if let Err(error) = result {
+            assert!(error.contains("nesting"), "{error}");
         }
     }
 }

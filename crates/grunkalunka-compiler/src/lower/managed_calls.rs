@@ -63,6 +63,7 @@ fn kinds(
     enum Task<'e, 'a> {
         Expr(&'e Expression<'a>, usize),
         Join,
+        StringConcat,
         Member(bool),
         ArrayAt(Kinds),
     }
@@ -87,6 +88,17 @@ fn kinds(
                     .into()
                 } else {
                     fallback
+                });
+            }
+            Task::StringConcat => {
+                let right = values.pop().expect("right addition kinds");
+                let left = values.pop().expect("left addition kinds");
+                values.push(if left.is_empty() || right.is_empty() {
+                    Kinds::new()
+                } else if left.iter().chain(&right).all(|kind| *kind == Kind::String) {
+                    [Kind::String].into()
+                } else {
+                    [Kind::Primitive].into()
                 });
             }
             Task::Member(length) => {
@@ -119,6 +131,11 @@ fn kinds(
                     Expression::StringLiteral(_) => values.push([Kind::String].into()),
                     Expression::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
                         values.push([Kind::String].into());
+                    }
+                    Expression::BinaryExpression(b) if b.operator == BinaryOperator::Addition => {
+                        work.push(Task::StringConcat);
+                        work.push(Task::Expr(&b.right, depth + 1));
+                        work.push(Task::Expr(&b.left, depth + 1));
                     }
                     Expression::NullLiteral(_) | Expression::BooleanLiteral(_) => {
                         values.push([Kind::GeneralPrimitive].into());

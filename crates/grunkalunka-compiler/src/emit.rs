@@ -16,6 +16,7 @@ mod own_keys;
 mod relational;
 #[cfg(test)]
 mod stack_hygiene_tests;
+mod string_concat;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -307,6 +308,16 @@ impl Emitter<'_> {
                 self.output.push_str(
                     "struct.get $gc_value 2\nref.cast (ref $gc_key)\narray.len\nf64.convert_i32_u\n",
                 );
+                self.set(*result);
+            }
+            Op::ManagedStringConcat {
+                result,
+                left,
+                right,
+            } => {
+                self.get(*left);
+                self.get(*right);
+                self.output.push_str("call $gc_string_concat\n");
                 self.set(*result);
             }
             Op::ManagedArrayNew { result, length } => {
@@ -1215,6 +1226,7 @@ fn emit_verified(
         output.push_str(managed_spread::runtime(module));
         output.push_str(own_keys::runtime(module));
         output.push_str(array_at::runtime(module));
+        output.push_str(string_concat::runtime(module));
     }
     output.push_str(")\n");
     Ok(output)

@@ -537,6 +537,11 @@ pub(crate) enum Op {
         result: ValueId,
         input: ValueId,
     },
+    ManagedStringConcat {
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1314,6 +1319,15 @@ impl Verifier<'_> {
             Op::ManagedStringLength { result, input } => {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::ManagedStringConcat {
+                result,
+                left,
+                right,
+            } => {
+                self.value(*left, Type::ManagedValue, visible, span)?;
+                self.value(*right, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;
