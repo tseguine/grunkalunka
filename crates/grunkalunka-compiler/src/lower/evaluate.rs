@@ -103,6 +103,24 @@ enum PreparedClosureCallee<'e, 'a> {
     },
 }
 
+/// Argument evaluation starts only after the callee has been snapshotted.
+/// Ordinary synchronous calls also defer their result-mode conversion until
+/// that point; awaited calls already scheduled it before their source prefixes.
+struct ClosureCallContinuation<'e, 'a> {
+    node: &'e Expression<'a>,
+    call: &'e CallExpression<'a>,
+    depth: usize,
+    effect: ClosureEffect,
+    site: Option<usize>,
+    result: Option<ClosureCallResult>,
+}
+
+struct ClosureCallResult {
+    mode: Mode,
+    ty: Type,
+    number_proven: bool,
+}
+
 /// One resumable run segment either completes the requested expression or
 /// yields a source-body or function-leaf task while the caller keeps the cursor.
 pub(super) enum EvaluationRun<'e, 'a> {
@@ -124,6 +142,14 @@ pub(super) enum EvaluationRun<'e, 'a> {
     /// The next call argument is a function value. The corresponding call
     /// Work is already queued and will consume exactly this returned value.
     LowerCallbackArgument {
+        node: &'e Expression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: usize,
+    },
+    /// The call has passed admission, and its continuation is queued before
+    /// requesting the non-slot callee's Function-mode construction.
+    LowerClosureCallee {
         node: &'e Expression<'a>,
         signature: usize,
         depth: usize,
@@ -216,9 +242,9 @@ impl<'e, 'a> EvaluationCursor<'e, 'a> {
         }
     }
 
-    /// The queued LocalCall or ClosureCall consumes this callback through its
-    /// ordinary argument-result path when evaluation resumes.
-    pub(super) fn resume_callback_argument(&mut self, value: ValueId) {
+    /// The queued call argument or callee continuation consumes this one
+    /// Function result when its suspended evaluator resumes.
+    pub(super) fn resume_function_value(&mut self, value: ValueId) {
         self.values.push(Value::Function(value));
     }
 
@@ -1270,7 +1296,18 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             depth,
                         )
                     })?;
-                    lease.cursor.resume_callback_argument(value);
+                    lease.cursor.resume_function_value(value);
+                }
+                EvaluationRun::LowerClosureCallee {
+                    node,
+                    signature,
+                    depth,
+                    region_depth,
+                } => {
+                    let value = self.with_function_result_context(Some(region_depth), |lower| {
+                        lower.function_value(node, lease.cursor.current_region(), signature, depth)
+                    })?;
+                    lease.cursor.resume_function_value(value);
                 }
                 EvaluationRun::LowerSyncClosureCallee {
                     node,
@@ -1425,16 +1462,54 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
             result_type,
             number_proven,
         } = continuation;
-        call_result(&mut cursor.work, node, mode, result_type, number_proven)?;
-        cursor.work.push(Work::ClosureCall {
+        Self::resume_closure_callee(
+            &mut cursor.work,
+            ClosureCallContinuation {
+                node,
+                call,
+                depth,
+                effect: ClosureEffect::Sync,
+                site: None,
+                result: Some(ClosureCallResult {
+                    mode,
+                    ty: result_type,
+                    number_proven,
+                }),
+            },
+            callee,
+        )
+    }
+
+    fn resume_closure_callee<'e, 'a>(
+        work: &mut Vec<Work<'e, 'a>>,
+        continuation: ClosureCallContinuation<'e, 'a>,
+        callee: ValueId,
+    ) -> Result<(), String> {
+        let ClosureCallContinuation {
+            node,
+            call,
+            depth,
+            effect,
+            site,
+            result,
+        } = continuation;
+        if let Some(ClosureCallResult {
+            mode,
+            ty,
+            number_proven,
+        }) = result
+        {
+            call_result(work, node, mode, ty, number_proven)?;
+        }
+        work.push(Work::ClosureCall {
             node,
             call,
             callee,
-            effect: ClosureEffect::Sync,
+            effect,
             index: 0,
             arguments: Vec::new(),
             depth,
-            site: None,
+            site,
         });
         Ok(())
     }
@@ -2026,25 +2101,27 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                     depth,
                     site,
                 } => {
-                    let region_depth = regions.children.len();
-                    let callee = self.prepare_closure_call(
-                        node,
-                        call,
+                    if let Some(request) = self.schedule_closure_callee(
+                        ClosureCallContinuation {
+                            node,
+                            call,
+                            depth,
+                            effect: ClosureEffect::Await,
+                            site,
+                            result: None,
+                        },
                         signature,
-                        regions.current(),
-                        depth,
-                        region_depth,
-                    )?;
-                    work.push(Work::ClosureCall {
-                        node,
-                        call,
-                        callee,
-                        effect: ClosureEffect::Await,
-                        index: 0,
-                        arguments: Vec::new(),
-                        depth,
-                        site,
-                    });
+                        regions,
+                        work,
+                    )? {
+                        return Ok(request);
+                    }
+                }
+                Work::ResumeClosureCallee(continuation) => {
+                    let Value::Function(callee) = values.pop().expect("constructed callee") else {
+                        unreachable!("callee construction returns a Function value");
+                    };
+                    Self::resume_closure_callee(work, continuation, callee)?;
                 }
                 Work::ClosureCall {
                     node,
@@ -3205,29 +3282,25 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                     "call does not return a pending Promise identity",
                                 ));
                             }
-                            let region_depth = regions.children.len();
-                            let callee = self.prepare_closure_call(
-                                node,
-                                call,
-                                signature,
-                                regions.current(),
-                                depth + 1,
-                                region_depth,
-                            )?;
-                            work.push(Work::ClosureCall {
-                                node,
-                                call,
-                                callee,
-                                effect: if asynchronous {
-                                    ClosureEffect::Start
-                                } else {
-                                    ClosureEffect::Sync
+                            if let Some(request) = self.schedule_closure_callee(
+                                ClosureCallContinuation {
+                                    node,
+                                    call,
+                                    depth: depth + 1,
+                                    effect: if asynchronous {
+                                        ClosureEffect::Start
+                                    } else {
+                                        ClosureEffect::Sync
+                                    },
+                                    site: None,
+                                    result: None,
                                 },
-                                index: 0,
-                                arguments: Vec::new(),
-                                depth: depth + 1,
-                                site: None,
-                            });
+                                signature,
+                                regions,
+                                work,
+                            )? {
+                                return Ok(request);
+                            }
                             continue;
                         }
                         return Err(unsupported(
@@ -3589,25 +3662,25 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                                 number_proven,
                             });
                         }
-                        let callee = self.prepare_closure_call(
-                            node,
-                            call,
+                        if let Some(request) = self.schedule_closure_callee(
+                            ClosureCallContinuation {
+                                node,
+                                call,
+                                depth: depth + 1,
+                                effect: ClosureEffect::Sync,
+                                site: None,
+                                result: Some(ClosureCallResult {
+                                    mode,
+                                    ty: result_type,
+                                    number_proven,
+                                }),
+                            },
                             arity,
-                            regions.current(),
-                            depth + 1,
-                            region_depth,
-                        )?;
-                        call_result(work, node, mode, result_type, number_proven)?;
-                        work.push(Work::ClosureCall {
-                            node,
-                            call,
-                            callee,
-                            effect: ClosureEffect::Sync,
-                            index: 0,
-                            arguments: Vec::new(),
-                            depth: depth + 1,
-                            site: None,
-                        });
+                            regions,
+                            work,
+                        )? {
+                            return Ok(request);
+                        }
                         continue;
                     }
                     if let Expression::CallExpression(call) = node
@@ -4412,6 +4485,40 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
         }
         work.push(Work::Eval(argument, depth + 1, Mode::AsyncValue));
         Ok(true)
+    }
+
+    /// A direct slot finishes immediately. Other callees suspend their parent
+    /// with the exact post-callee conversion and call effect still on its Work
+    /// stack, so no arguments can execute before the returned snapshot.
+    fn schedule_closure_callee<'e, 'a>(
+        &mut self,
+        continuation: ClosureCallContinuation<'e, 'a>,
+        signature: usize,
+        regions: &mut Regions,
+        work: &mut Vec<Work<'e, 'a>>,
+    ) -> Result<Option<EvaluationRun<'e, 'a>>, String> {
+        let prepared = self.prepare_closure_callee(
+            continuation.node,
+            continuation.call,
+            signature,
+            regions.current(),
+            continuation.depth,
+        )?;
+        match prepared {
+            PreparedClosureCallee::Ready(callee) => {
+                Self::resume_closure_callee(work, continuation, callee)?;
+                Ok(None)
+            }
+            PreparedClosureCallee::Function { source, depth } => {
+                work.push(Work::ResumeClosureCallee(continuation));
+                Ok(Some(EvaluationRun::LowerClosureCallee {
+                    node: source,
+                    signature,
+                    depth,
+                    region_depth: regions.children.len(),
+                }))
+            }
+        }
     }
 
     // Call effects share validation and callee-before-arguments evaluation.

@@ -11,6 +11,8 @@ use oxc_ast::ast::{
 
 #[cfg(test)]
 mod callback_tests;
+#[cfg(test)]
+mod callee_tests;
 mod factories;
 #[cfg(test)]
 mod factory_effect_tests;
@@ -100,6 +102,7 @@ enum FactoryResume<'n, 'a> {
 enum FunctionValueResume {
     Effect(evaluate::FunctionEffect),
     Callback,
+    Callee,
 }
 
 struct FactoryExpression<'n, 'a> {
@@ -475,7 +478,8 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     }
                 }
                 request @ (evaluate::EvaluationRun::LowerFunctionEffect { .. }
-                | evaluate::EvaluationRun::LowerCallbackArgument { .. }) => {
+                | evaluate::EvaluationRun::LowerCallbackArgument { .. }
+                | evaluate::EvaluationRun::LowerClosureCallee { .. }) => {
                     let (node, signature, depth, region_depth, resume) = match request {
                         evaluate::EvaluationRun::LowerFunctionEffect {
                             node,
@@ -502,12 +506,26 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                             region_depth,
                             FunctionValueResume::Callback,
                         ),
+                        evaluate::EvaluationRun::LowerClosureCallee {
+                            node,
+                            signature,
+                            depth,
+                            region_depth,
+                        } => (
+                            node,
+                            signature,
+                            depth,
+                            region_depth,
+                            FunctionValueResume::Callee,
+                        ),
                         _ => unreachable!("matched a function-value request"),
                     };
                     let previous_result_depth =
                         self.enter_function_result_depth(Some(region_depth));
                     let admitted = match resume {
-                        FunctionValueResume::Effect(_) => self.enter_function_value(node),
+                        FunctionValueResume::Effect(_) | FunctionValueResume::Callee => {
+                            self.enter_function_value(node)
+                        }
                         FunctionValueResume::Callback => self.enter_callback_argument(node),
                     };
                     if let Err(error) = admitted {

@@ -820,6 +820,20 @@ fn runtime_call_callback_factories_preserve_callee_snapshots() {
 }
 
 #[test]
+fn calculated_callees_preserve_construction_order_and_argument_snapshots() {
+    compare_functions(&[
+        "const get=()=>{return x=>x+a;};return(b?get():get())(b);",
+        "const get=()=>{return x=>x+a;};return(a,get())(b);",
+        "const get=()=>{return x=>x+a;};return(get()||get())(b);",
+        "const get=()=>{return x=>x+a;};return(get()??get())(b);",
+        "const get=()=>{return x=>x+a;};return(b?get():get()).call(null,b);",
+        "let n=0;let f=(x,y)=>x+y;const g=(x,y)=>x-y;return(n=n*10+1,f)(n=n*10+2,(f=g,b))+n;",
+        "let n=0;const f=x=>x;const g=x=>x+10;return(n=n*10+1,b?f:g)((n=n*10+2,a),n=n*10+3)+n;",
+        "const get=()=>{return(fn,x)=>fn(x);};const make=x=>{return y=>x+y;};return(b?get():get())(make(a),b);",
+    ]);
+}
+
+#[test]
 fn function_results_keep_wide_leaf_calls_and_small_stack_limits() {
     let parameters = (0..1000)
         .map(|i| format!("p{i}"))

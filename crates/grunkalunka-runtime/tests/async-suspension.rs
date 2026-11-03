@@ -177,6 +177,43 @@ fn selected_async_await_operands_keep_the_selected_reactions() {
 }
 
 #[test]
+fn calculated_async_callees_preserve_awaited_construction_and_argument_order() {
+    compare_promises(
+        &[
+            "const get=()=>{return async x=>{await x;return x+a;};};return await(b?get():get())(b);",
+            "const get=()=>{return async x=>{await x;return x+a;};};return await(a,get())(b);",
+            "const get=()=>{return async x=>{await x;return x+a;};};return await(b?get():get()).call(null,b);",
+            "let n=0;const next=async()=>{n=n*10+2;return b;};const f=async x=>{n=n*10+3;return x;};return await(n=n*10+1,f)(await next())+n;",
+            "let n=0;const make=x=>{n=n*10+2;return y=>x+y;};const f=async(fn,x)=>fn(x);return await(n=n*10+1,f)(make(a),b)+n;",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
+fn calculated_async_callees_preserve_started_jobs_and_promise_inputs() {
+    compare_promises(
+        &[
+            "const get=()=>{return async x=>{await x;return x+a;};};return(b?get():get())(b);",
+            "const get=()=>{return async x=>{await x;return x+a;};};return(b?get():get()).call(null,b);",
+            "const get=()=>{return async x=>{await x;return x+a;};};const consume=async p=>await p;return await consume((b?get():get())(b));",
+            "const f=x=>Promise.resolve(x+a);const g=x=>Promise.resolve(x+b);const consume=async p=>await p;return await consume((a?f:g)(b));",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
+#[test]
 fn selected_async_await_operands_preserve_prefixes_and_snapshots() {
     compare_promises(
         &[

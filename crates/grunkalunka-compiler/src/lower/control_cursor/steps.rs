@@ -206,8 +206,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     FunctionValueResume::Effect(effect) => {
                         self.complete_function_effect(expression.as_mut(), node, effect);
                     }
-                    FunctionValueResume::Callback => expression
-                        .resume_callback_argument(value.expect("callback function result")),
+                    FunctionValueResume::Callback | FunctionValueResume::Callee => {
+                        expression.resume_function_value(value.expect("function child result"))
+                    }
                 }
                 self.advance_owned_expression(*expression, mode, cursor)
             }
