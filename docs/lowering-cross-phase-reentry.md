@@ -60,7 +60,7 @@ historical claims:
 | [#437](https://github.com/tseguine/grunkalunka/pull/437) | The source-owned Discard/Truthy function-effect path schedules a Function-mode child. It restores the original Region, function-value admission and aggregate result-depth checkpoint before completing the effect and resuming the parent. |
 | [#438](https://github.com/tseguine/grunkalunka/pull/438) | `Work::LocalCall` and `Work::ClosureCall` queue the next argument position, yield `LowerCallbackArgument` and consume the resulting Function value through their ordinary argument-result path. |
 
-The published tip is
+At the callback-argument checkpoint, the published tip was
 [`425f9b6`](https://github.com/tseguine/grunkalunka/commit/425f9b6c7dda02224d64901f67d980cc84a07f84).
 Its source tree `6ead7eca6fccb4e39cd11ccd7af37eaf9618ae68` matches the locally
 tested implementation. The final local verification receipt in
@@ -86,26 +86,83 @@ Local calls retain inferred callback signatures, while runtime closure calls
 retain the formal's complete signature. Success and diagnostic unwind both
 restore the resource/depth checkpoints exactly once.
 
+## In-review callee and function-result continuations
+
+This follow-on checkpoint preserves the master `926a4aa` and #438 receipts above.
+[#439](https://github.com/tseguine/grunkalunka/pull/439) is their documentation
+checkpoint. These dependent PRs extend native stack #440; each PR records its
+parent branch. Native membership, hosted checks and integration are separate
+states. The maintainer handles native registration where connector support is
+unavailable.
+
+| PR | Source-owned coverage and remaining boundary |
+| --- | --- |
+| [#441](https://github.com/tseguine/grunkalunka/pull/441) | `PreparedClosureCallee::{Ready, Function}` separates validation/direct-slot snapshots from effectful non-slot construction. The prerequisite alone retains synchronous evaluation. |
+| [#442](https://github.com/tseguine/grunkalunka/pull/442) | `LowerClosureCallee` and `Work::ResumeClosureCallee` cover source-owned synchronous, awaited and Pending-mode closure calls. `EvaluateFunctionValue` owns the non-slot child with `FunctionValueResume::Callee`; direct-slot loads and the direct block-factory specialization retain their original order. The synchronous `evaluate` host consumes the same request through `function_value`. |
+| [#443](https://github.com/tseguine/grunkalunka/pull/443) | `PreparedConciseFactory` and prepare/evaluate-arguments/finish stages retain the known-local closure-metadata contract in the synchronous wrapper. |
+| [#444](https://github.com/tseguine/grunkalunka/pull/444) | `source_function_value_leaf` selects metadata preparation once and extends `FactoryArguments` to its ordered arguments. It restores caller bindings before real closure materialization. There is no eight-active-result token, body Region or InlineCall on this metadata path. |
+| [#445](https://github.com/tseguine/grunkalunka/pull/445) | `PreparedFactory::LocalResult` also admits general concise bodies; `EvaluateFactoryValue` retains factory bindings/result admission plus the body's ordinary function-value charge. The body starts at expression depth zero with inherited caller statement/result context and the same Region. Completion returns the existing body-produced `ValueId` after restoration. Direct block method calls retain their compatibility path. |
+| [#446](https://github.com/tseguine/grunkalunka/pull/446) | `PreparedRuntimeFactory` owns admission and validated call/signature metadata; `finish_runtime_factory` charges expansion and emits `ClosureCall` after callee and arguments complete. This prerequisite retains synchronous callee/argument execution. |
+| [#447](https://github.com/tseguine/grunkalunka/pull/447) | `EvaluateRuntimeFactoryCallee` schedules all runtime-factory callees, including slots, with ordinary function-value admission and inherited result depth. It releases that admission before `FactoryArguments` evaluates complete-formal inputs and discarded receiver/surplus effects. `PreparedFactory::Runtime` retains the callee snapshot and result token through final expansion and Function-valued `ClosureCall` emission. The compatibility wrapper remains synchronous and shares the same argument classifier. |
+
+The published implementation tip is
+[`c64f222`](https://github.com/tseguine/grunkalunka/commit/c64f222dcda3a682edb55825f820cfd0198cb150),
+with tested source tree `3a12c294a2d55d26ae12f3672d6d00192511cd43`.
+The local receipts below are scoped to their exact heads and do not establish
+hosted CI or integration into the frozen master:
+
+| Checkpoint | Observed local verification |
+| --- | --- |
+| #442, tree `25836c35da7a96c0db155cc04559eaab86e3cb06` | 506 compiler tests; 119 runtime-closure, all 417 async-suspension and 9 module-callback tests; 6,174 exact WAT/Wasm/diagnostic/admission comparisons and 106 unchanged CONTROL records. Formatting and strict compiler Clippy passed. Separate Sync/Await/Start test overlays on the predecessor compile the admitted sources but fail their zero-bridge assertions. |
+| #443, tree `113f62d1cd26eafc1ea50296ebe2f0e42aae9301` | 506 compiler tests and strict compiler Clippy/formatting after integration; 6,260 exact compilation comparisons. The isolated staging extraction separately preserved 52 concise cases and 106 CONTROL records. |
+| #444, tree `1c27adfcb4273a1e259db1a7b12987da2dcedaac` | 512 compiler tests; 122 runtime-closure, all 417 async-suspension and 9 module-callback tests; 6,260 exact compilation comparisons and 106 unchanged CONTROL records. Formatting and strict compiler Clippy passed. Three predecessor overlays detect missing ordinary, callback/effect and awaited-async metadata routing. |
+| #445, tree `2316518037a40846ee2a2e9a243d6e66a76e75e7` | 519 compiler tests and strict compiler Clippy/formatting passed; 6,314 continuation cases plus 186 runtime-result cases retain exact compilation parity, with 106 unchanged CONTROL records. All 124 runtime-closure tests and 19 affected async tests passed (399 async tests filtered); the async checks are selected, not a full-suite receipt. Two predecessor overlays detect missing synchronous and async body routing. Exact probes preserve result nesting 7/8, body function-value nesting 13/14, the admitted 100+100 wrapper reset, and caller-depth branch boundary 63/64. |
+| #446, tree `1eb2f26a0792985536ca9012833986074394c384` | 519 compiler tests and strict compiler Clippy/formatting passed; 186 frozen runtime-factory cases preserve all 318 artifact/error files, plus 106 unchanged CONTROL records. Integrated source `29ef879` and independently rebased prerequisite `d8ec2f9` match the published tree. This synchronous split does not establish runtime-factory scheduling. |
+| #447, tree `3a12c294a2d55d26ae12f3672d6d00192511cd43` | 529 compiler tests and strict compiler Clippy/formatting passed; 6,500 exact compilation comparisons cover 11,908 emitted WAT/Wasm/error files, with 106 unchanged CONTROL records. All 125 runtime-closure, 419 async-suspension, 9 module-callback and 9 managed-closure-input tests passed, with no ignored or filtered tests. Three predecessor overlays detect missing callee, typed-argument and async routing. Private-IR tests preserve callee/call spans and snapshots; limit probes preserve runtime8/ordinary16/callback8 ordering and expansion after argument effects. |
+
+The metadata and charged probes intentionally exercise different budgets. The
+metadata argument ladder remains admitted at fifteen and rejects at sixteen
+active function-value cursors. General concise results instead preserve their
+eight-active-result token, plus a separate body function-value admission. The
+charged body already supplies a function `ValueId` under its factory bindings;
+the metadata path restores its caller before materializing. These are different
+ownership contracts even though they share argument scheduling.
+
+The runtime-factory path has its own callee context. It acquires runtime-result
+admission before validation, then ordinary function-value admission even for a
+slot callee. It inherits the existing result-depth context, releases the callee
+charge before callback admission, and retains the result token until all argument
+effects and final emission finish. Normal completion and diagnostic unwind
+restore only the resources each continuation owns.
+
+The final impact check passed all 106 planner regression tests. Its advisory
+shadow plan selects the compiler/runtime owners and their existing downstream
+checks. The standalone platform rehearsal retains a previously reproduced
+failure on unchanged master `926a4aa`: its expected-command assertion omits
+existing dependency selections, before any selected build/test executes. No CI
+ownership, source admission or command selection was weakened for this series.
+
 ## Residual native reentry circuits after this series
 
-The inspected synchronous routes remaining outside the converted source-owned
-paths are:
+After #447, the following synchronous routes remain. A request being handled by
+`advance_owned_expression` is distinct from that same request being consumed by
+the compatibility `evaluate` host:
 
 | Route | Current calls and ownership boundary |
 | --- | --- |
 | Source declarations | `lower.rs::declaration` handles `const`, multiple declarators and function/Promise/managed initializers outside `scalar_let_initializer`. It calls `factory_result`, `function_value`, `evaluate` and scalar/Promise adapters synchronously. Preserve per-declarator admission, argument effects and binding publication. |
-| Concise/local function results | `closures::factory_result` evaluates arguments through `evaluate_factory_argument`; `function_values::local_function_result` retains synchronous argument and concise-result/body paths for compatibility callers. Preserve caller captures, fresh formals, signatures and result charges. |
-| Runtime function results | `function_values::runtime_function_result` constructs its callee through `function_value` and evaluates callback/scalar/surplus arguments through synchronous helpers. Preserve the callee snapshot before arguments and the complete result signature. |
-| Calculated/async callees | The non-slot arm of `evaluate::prepare_closure_call` calls `function_value`; awaited/start and remaining calculated-callee routes reach that helper outside the direct block-factory bridge. Their callee-construction phase is distinct from the migrated `ClosureCall` callback arguments. |
-| Synchronous evaluator host | `evaluate` still handles yielded callback arguments through `callback_argument`, function effects through `function_value`, and `LowerBody` through `arrow_block_result`. Source-owned scheduling does not replace these compatibility entry points automatically. |
-| Disposable definition checking | `closures::check_closure_at` and `check_factory_chain` call expression/function/body lowering on cloned checking state. Definitions are validated even when their runtime effects never execute; checking order, diagnostics and scratch identities must remain isolated. |
+| Compatibility local factories and block `.call` | `closures::factory_result` still evaluates caller arguments through its synchronous stage; `function_values::local_function_result` retains argument and concise-result/block-body evaluation for compatibility callers. `prepare_local_function_result` deliberately leaves block method calls on that route even when the outer evaluator is source-owned. Preserve caller captures, fresh formals, signatures and the metadata/result charge distinction. |
+| Compatibility runtime function results | Source-owned `source_function_value_leaf` selects the new runtime continuation. `function_value_leaf` still calls synchronous `runtime_function_result`, which constructs its callee through `function_value` and evaluates arguments through the shared classifier and compatibility argument evaluator. Migrate the remaining callers before retiring that wrapper; preserve the distinct callee admission/context and complete formal/result signatures. |
+| Compatibility calculated/async callee construction | Source-owned `LowerClosureCallee` requests now schedule a child. The synchronous `evaluate` host still handles those requests through `function_value`, while its direct-block compatibility route calls `prepare_closure_call`. Releasing the large runner preserves a native host frame and is not equivalent to source-owned suspension. |
+| Synchronous evaluator host | `evaluate` also handles yielded callback arguments through `callback_argument`, function effects through `function_value`, function leaves through `function_value_leaf`, and `LowerBody` through `arrow_block_result`. Source-owned scheduling does not replace these compatibility entry points automatically. |
+| Disposable definition checking | `closures::check_closure_at` and `check_factory_chain` call expression/function/body lowering on cloned checking state. Direct factory chains already use a local worklist, but their helper crossings can reenter other lowerers. Definitions are validated even when runtime effects never execute; checking order, diagnostics and scratch identities must remain isolated. |
 | Lifted closure-body materialization | `function_values::materialize_closure` lowers a cloned child through `evaluate`, `function_value` or `arrow_block_result`, then publishes real lifted function IR and `MakeClosure`. Its result ownership and publication differ from disposable checking state. |
 
 A remaining `arrow_block_result → sequence` crossing can still enter another
 source cursor, whose body may repeat one of the expression/function routes.
-The source-owned argument/effect/callback continuations do not by themselves
-eliminate these composed native cycles or the separately owned checking and
-materialization activations.
+The converted argument/effect/callback, callee, concise-result and runtime-factory
+routes do not by themselves eliminate these composed native cycles or the
+separately owned checking and materialization activations.
 
 The original eight-active-block, eight-active-function-result and
 sixteen-active-function-value budgets remain admission constraints. They do not
@@ -125,8 +182,10 @@ acyclic.
 | `EvaluationCursor` | Original Oxc expressions, requested modes, pending `Work`, typed values, source nesting charge and owned unfinished Regions, including the output root |
 | Call/argument continuation | Source call/callee, argument index and left-to-right `ValueId` snapshots, signature/result type, pending await site and captures; factory arguments must finish in caller scope before fresh formals are published |
 | Block-arrow activation | Return type, loop/await flags, inline and statement depths, visible bindings/closures, source charging, body Region and its completion contract |
-| Factory activation | Function-result admission, caller binding/source-charging checkpoint and result-depth checkpoint; the callee route also owns its function-value charge until completion/unwind |
-| `EvaluateFunctionValue` | Suspended evaluator, original Region handoff, caller statement depth, function-value admission and aggregate result-depth checkpoint; `FunctionValueResume` either completes an effect or supplies one callback value to the pending call |
+| Local factory activation | A metadata preparation owns no result token and restores caller bindings before materialization. General block/concise results own the eight-result admission and caller binding/source-charging checkpoint; `FactoryExpression` owns result-depth restoration and any direct-callee charge. |
+| `EvaluateFactoryValue` | General concise body expression, inherited caller statement depth, installed factory bindings, result admission and body function-value charge; completion restores the caller and delivers the body's existing `ValueId` in the original Region |
+| `EvaluateFunctionValue` | Suspended evaluator, original Region handoff, caller statement depth, function-value admission and aggregate result-depth checkpoint; `FunctionValueResume::{Effect, Callback, Callee}` selects effect completion or callback/callee value delivery |
+| `EvaluateRuntimeFactoryCallee` / runtime `FactoryArguments` | Runtime-result admission and validated call/signature metadata span callee construction, ordered arguments and final emission. The callee owns ordinary function-value admission with inherited result depth; completion releases that charge before arguments and retains its `ValueId` snapshot. |
 | Source cursor | Pending source-body request, lexical scope, abrupt `Completion` and the typed continuation consuming the completed Region or expression result |
 
 Every pending value and Region needs one explicit owner. A suspension cannot
@@ -137,10 +196,12 @@ result value is allocated, as well as the source order of effects.
 
 ## Remaining L4/L5 work and evidence
 
-1. **Remaining function and source circuits:** migrate concise returned
-   factories, runtime/calculated/async callees and the source consumers listed
-   above. Keep the converted factory/effect/callback arguments covered for
-   callee-before-arguments order, snapshots, complete signatures and first errors.
+1. **Remaining function and source circuits:** address the declaration,
+   block-method and synchronous compatibility callers listed above. Keep the
+   converted factory/effect/callback, callee, concise-result and runtime-factory
+   routes covered for
+   callee-before-arguments order, snapshots, complete signatures, distinct result
+   charges and first errors.
 2. **Checking and materialization activations:** preserve disposable checking
    state separately from the child state that publishes lifted IR. Give both
    bounded continuation ownership without weakening unused-definition validation
