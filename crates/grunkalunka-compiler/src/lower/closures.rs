@@ -44,6 +44,14 @@ impl<'n, 'a> PreparedConciseFactory<'n, 'a> {
     }
 }
 
+/// Disposable checking owns its cloned state and original scratch Region.
+/// Only definition costs and checked closure metadata return to the caller;
+/// the borrowed signature table retains its existing shared identity.
+struct PreparedClosureCheck<'s, 'a> {
+    lowering: Box<Lowering<'s, 'a>>,
+    region: Region,
+}
+
 #[derive(Clone)]
 pub(crate) struct LocalClosure {
     pub symbol: Option<SymbolId>,
@@ -288,9 +296,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
     }
 
     pub(super) fn check_local_closure(&mut self, closure: &mut LocalClosure) -> Result<(), String> {
-        // Only concise-arrow factory chains need explicit continuation
-        // scheduling. Ordinary arrows keep the existing lower-frame layout:
-        // expanding this frame regresses the 2 MiB truthiness-depth probe.
+        // Direct concise-arrow factory chains have their own worklist. Keep
+        // ordinary checking as a separate driver: folding worklist storage into
+        // its native frame regressed the 2 MiB truthiness-depth probe.
         let factory = self
             .arrow(closure.arrow)
             .get_expression()
@@ -303,11 +311,14 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
-    fn check_closure_at(
-        &mut self,
-        closure: &mut LocalClosure,
+    /// Preserve definition admission, scratch allocation and parameter order
+    /// before either checking driver enters the body. No caller-owned IR is
+    /// published by this preparation or by dropping its result on an error.
+    fn prepare_closure_check(
+        &self,
+        closure: &LocalClosure,
         factory_depth: usize,
-    ) -> Result<(), String> {
+    ) -> Result<PreparedClosureCheck<'s, 'a>, String> {
         let arrow = self.arrow(closure.arrow);
         if factory_depth > 8 {
             return Err(unsupported(
@@ -323,7 +334,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
         )?;
         // Validate unused bodies too, without running effects or publishing their
         // scratch values/slots in the real function's verified IR.
-        let mut check = self.clone();
+        let mut check = Box::new(self.clone());
         if arrow.r#async {
             // AwaitCall owns the callee's return/rejection boundary and retains
             // the caller's separate reaction job.
@@ -380,6 +391,22 @@ impl<'s, 'a> Lowering<'s, 'a> {
             arguments.push(value);
         }
         check.bind_arrow_parameters(arrow, arguments, &mut region)?;
+        Ok(PreparedClosureCheck {
+            lowering: check,
+            region,
+        })
+    }
+
+    fn check_closure_at(
+        &mut self,
+        closure: &mut LocalClosure,
+        factory_depth: usize,
+    ) -> Result<(), String> {
+        let arrow = self.arrow(closure.arrow);
+        let PreparedClosureCheck {
+            lowering: mut check,
+            mut region,
+        } = self.prepare_closure_check(closure, factory_depth)?;
         if let Some(expression) = arrow.get_expression() {
             if arrow.r#async
                 && (check.closure_target(expression, 0).is_some()
@@ -491,9 +518,22 @@ impl<'s, 'a> Lowering<'s, 'a> {
             };
             region = check.arrow_block_result(arrow, 0, closure.result)?;
         }
+        self.finish_closure_check(&check, closure, &region);
+        Ok(())
+    }
+
+    /// Successful checking publishes only source costs and closure metadata.
+    /// Scratch identities, generated operations and lifted bodies remain owned
+    /// by the disposable child, while signature interning stays shared.
+    fn finish_closure_check(
+        &mut self,
+        check: &Lowering<'s, 'a>,
+        closure: &mut LocalClosure,
+        region: &Region,
+    ) {
         // Include transitive references recorded by nested (even unused) arrows,
         // but exclude unrelated bindings and erased type-only references.
-        let referenced = crate::ir::referenced_cells(&region);
+        let referenced = crate::ir::referenced_cells(region);
         closure
             .captures
             .retain(|binding| referenced.contains(&binding.slot));
@@ -502,7 +542,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.local_count = check.local_count;
         self.statement_count = check.statement_count;
         closure.checked = true;
-        Ok(())
     }
 
     fn check_factory_chain(
@@ -527,22 +566,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
             },
         }
 
-        let finish = |parent: &mut Lowering<'s, 'a>,
-                      check: &Lowering<'s, 'a>,
-                      closure: &mut LocalClosure,
-                      region: &Region| {
-            // Include transitive references recorded by nested (even unused)
-            // arrows, but exclude erased type-only references.
-            let referenced = crate::ir::referenced_cells(region);
-            closure
-                .captures
-                .retain(|binding| referenced.contains(&binding.slot));
-            // Definition costs are charged just once, including unused bodies.
-            parent.local_count = check.local_count;
-            parent.statement_count = check.statement_count;
-            closure.checked = true;
-        };
-
         let mut work = vec![Work::Enter {
             parent: Box::new(self.clone()),
             closure: closure.clone(),
@@ -557,79 +580,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     factory_depth,
                 } => {
                     let arrow = parent.arrow(closure.arrow);
-                    if factory_depth > 8 {
-                        return Err(unsupported(
-                            arrow,
-                            "at most 8 nested factory results are admitted",
-                        ));
-                    }
-                    parent.check_arrow_kind(
-                        arrow,
-                        (parent.allow_await && factory_depth == 0)
-                            || parent.allow_async_closures
-                            || awaited::immediate_async_arrow(arrow, parent.semantic),
-                    )?;
-                    // Validate unused bodies too, without running effects or publishing their
-                    // scratch values/slots in the real function's verified IR.
-                    let mut check = Box::new(parent.as_ref().clone());
-                    if arrow.r#async {
-                        // AwaitCall owns the callee's return/rejection boundary and retains
-                        // the caller's separate reaction job.
-                        check.allow_await = true;
-                    }
-                    check.function_result_depth = 0;
-                    check.bindings = closure.captures.clone();
-                    let mut region = check.region(arrow);
-                    let mut arguments = Vec::new();
-                    for parameter in &arrow.params.items {
-                        let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern
-                        else {
-                            unreachable!("checked parameter");
-                        };
-                        if let Some(arity) = parent
-                            .callback_parameters
-                            .get(&arrow.node_id.get())
-                            .and_then(|parameters| {
-                                parameters
-                                    .get(&identifier.symbol_id.get().expect("parameter symbol"))
-                            })
-                        {
-                            // A type-only input to disposable definition checking. This SSA
-                            // value has no runtime target and never reaches published IR;
-                            // actual calls construct/load and verify complete closure pairs.
-                            arguments.push(check.value(Type::Closure(*arity)));
-                            continue;
-                        }
-                        if let Some(ty) = parent
-                            .promise_parameters
-                            .parameter(&identifier.symbol_id.get().expect("parameter symbol"))
-                        {
-                            // Disposable type-only input, like callback pairs above; actual
-                            // calls must provide a fully defined, verified Promise value.
-                            arguments.push(check.value(ty));
-                            continue;
-                        }
-                        if let Some(ty) = parent
-                            .managed_kinds
-                            .inputs
-                            .get(&identifier.symbol_id.get().expect("parameter symbol"))
-                        {
-                            arguments.push(check.value(*ty));
-                            continue;
-                        }
-
-                        let value = check.value(Type::Number);
-                        Self::push(
-                            &mut region,
-                            parameter,
-                            Op::Constant {
-                                result: value,
-                                value: 0.0,
-                            },
-                        );
-                        arguments.push(value);
-                    }
-                    check.bind_arrow_parameters(arrow, arguments, &mut region)?;
+                    let PreparedClosureCheck {
+                        lowering: mut check,
+                        mut region,
+                    } = parent.prepare_closure_check(&closure, factory_depth)?;
                     if let Some(expression) = arrow.get_expression() {
                         if arrow.r#async
                             && (check.closure_target(expression, 0).is_some()
@@ -756,7 +710,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                             };
                         region = check.arrow_block_result(arrow, 0, closure.result)?;
                     }
-                    finish(&mut parent, &check, &mut closure, &region);
+                    parent.finish_closure_check(&check, &mut closure, &region);
                     results.push((parent, closure));
                 }
                 Work::AfterChild {
@@ -767,7 +721,7 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     let (check, returned) = results.pop().expect("checked nested factory");
                     check.capture_cells(&returned, &mut region);
                     closure.factory = true;
-                    finish(&mut parent, &check, &mut closure, &region);
+                    parent.finish_closure_check(&check, &mut closure, &region);
                     results.push((parent, closure));
                 }
             }
