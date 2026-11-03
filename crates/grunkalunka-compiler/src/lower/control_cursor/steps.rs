@@ -215,6 +215,13 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Frame::EvaluateFactoryArgument {
                 arguments, kind, ..
             } => self.resume_factory_argument(arguments, kind, output_region, value, cursor),
+            Frame::EvaluateFactoryValue { state, factory, .. } => self.finish_factory_value(
+                state,
+                factory,
+                output_region,
+                value.expect("concise function-result body value"),
+                cursor,
+            ),
             Frame::ScalarLet { local, ty, .. } => {
                 let mut output = output_region;
                 self.commit_local_value(
@@ -391,6 +398,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             Frame::DiscardExpression { .. }
             | Frame::EvaluateFunctionValue { .. }
             | Frame::EvaluateFactoryArgument { .. }
+            | Frame::EvaluateFactoryValue { .. }
             | Frame::ScalarLet { .. }
             | Frame::ReturnValue { .. }
             | Frame::FunctionReturn { .. }

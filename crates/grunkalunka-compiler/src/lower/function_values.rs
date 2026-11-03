@@ -16,47 +16,58 @@ struct FunctionResultActivation {
     _kind: FunctionResultKind,
 }
 
-/// An admitted local block factory keeps both its eight-active-function-result
+/// An admitted local factory keeps both its eight-active-function-result
 /// charge and the caller's lexical state while its source body is suspended.
-pub(super) struct BlockFactory {
+pub(super) struct LocalFunctionResult {
     admission: FunctionResultActivation,
     bindings: closures::FactoryBindings,
 }
 
 /// Arguments run in the caller's environment while this token keeps the
 /// function-result admission and the selected source closure alive.
-pub(super) struct PreparedBlockFactory {
+pub(super) struct PreparedFunctionResult {
     admission: FunctionResultActivation,
     closure: closures::LocalClosure,
 }
 
-impl PreparedBlockFactory {
+impl PreparedFunctionResult {
     pub(super) fn arrow(&self) -> oxc_syntax::node::NodeId {
         self.closure.arrow
     }
 }
 
-/// These factories share ordered caller arguments, but only the block-bodied
+/// These factories share ordered caller arguments, but only the general
 /// function-result path owns an active-result admission token.
-pub(super) enum PreparedLocalFactory<'n, 'a> {
-    Block(PreparedBlockFactory),
-    Concise(closures::PreparedConciseFactory<'n, 'a>),
+pub(super) enum PreparedFactory<'n, 'a> {
+    LocalResult(PreparedFunctionResult),
+    ClosureMetadata(closures::PreparedConciseFactory<'n, 'a>),
 }
 
-impl PreparedLocalFactory<'_, '_> {
+impl PreparedFactory<'_, '_> {
     pub(super) fn arrow(&self) -> oxc_syntax::node::NodeId {
         match self {
-            Self::Block(factory) => factory.arrow(),
-            Self::Concise(factory) => factory.arrow(),
+            Self::LocalResult(factory) => factory.arrow(),
+            Self::ClosureMetadata(factory) => factory.arrow(),
         }
     }
+}
+
+/// Body entry retains the distinct context of each local function-result path.
+/// A concise expression owns an ordinary function-value admission and runs in
+/// the caller's Region; a block owns its existing arrow activation and Region.
+pub(super) enum FunctionResultBody<'n, 'a> {
+    Block {
+        activation: closures::BlockArrowActivation,
+        request: closures::ArrowBodyRequest<'n, 'a>,
+    },
+    Expression(&'n Expression<'a>),
 }
 
 /// A source-owned leaf either selects a factory continuation or completes its
 /// remaining compatibility path. Selection is consumed once, including None
 /// results from concise-factory preparation.
 pub(super) enum FunctionLeafResult<'n, 'a> {
-    Factory(PreparedLocalFactory<'n, 'a>),
+    Factory(PreparedFactory<'n, 'a>),
     Value(ValueId),
 }
 
@@ -950,12 +961,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 .map(FunctionLeafResult::Value);
         }
         if let Some(factory) = self.prepare_concise_factory(node, region, depth)? {
-            return Ok(FunctionLeafResult::Factory(PreparedLocalFactory::Concise(
-                factory,
-            )));
+            return Ok(FunctionLeafResult::Factory(
+                PreparedFactory::ClosureMetadata(factory),
+            ));
         }
-        if let Some(factory) = self.prepare_block_factory(node, region, depth)? {
-            return Ok(FunctionLeafResult::Factory(PreparedLocalFactory::Block(
+        if let Some(factory) = self.prepare_local_function_result(node, region, depth)? {
+            return Ok(FunctionLeafResult::Factory(PreparedFactory::LocalResult(
                 factory,
             )));
         }
@@ -1041,8 +1052,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
     }
 
     /// Read-only selection for a direct block-bodied local factory call.
-    /// Concise, runtime, optional and method calls retain their existing leaf
-    /// paths until their distinct callee/result continuations are migrated.
+    /// Other callees use the general function-value request; this preserves the
+    /// existing direct-block specialization and its admission order.
     pub(super) fn block_factory_shape(&self, node: &Expression<'_>, depth: usize) -> bool {
         let Expression::CallExpression(call) = node else {
             return false;
@@ -1054,19 +1065,19 @@ impl<'s, 'a> Lowering<'s, 'a> {
             .is_some_and(|closure| self.arrow(closure.arrow).get_expression().is_none())
     }
 
-    /// Admit and check a direct local block factory without executing source
+    /// Admit and check a local function-result call without executing source
     /// arguments or installing its captures/formals. The caller owns the token
     /// through ordered argument evaluation, body entry and diagnostic unwind.
-    pub(super) fn prepare_block_factory(
+    pub(super) fn prepare_local_function_result(
         &mut self,
         node: &Expression<'_>,
         region: &mut Region,
         depth: usize,
-    ) -> Result<Option<PreparedBlockFactory>, String> {
+    ) -> Result<Option<PreparedFunctionResult>, String> {
         let Expression::CallExpression(call) = node else {
             return Ok(None);
         };
-        if call.optional || invocation::is_method(call) {
+        if call.optional {
             return Ok(None);
         }
         let Some(mut closure) =
@@ -1074,9 +1085,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
         else {
             return Ok(None);
         };
-        // factory_result returns None for block-bodied factories, without
-        // charging or evaluating any source; preserve that selection.
-        if self.arrow(closure.arrow).get_expression().is_some() {
+        // Block method calls retain their existing compatibility path. Concise
+        // methods share the ordinary argument classifier, including .call's
+        // discarded receiver and original source-expression depth.
+        if invocation::is_method(call) && self.arrow(closure.arrow).get_expression().is_none() {
             return Ok(None);
         }
 
@@ -1093,10 +1105,10 @@ impl<'s, 'a> Lowering<'s, 'a> {
             self.finish_function_result(admission);
             return Err(error);
         }
-        Ok(Some(PreparedBlockFactory { admission, closure }))
+        Ok(Some(PreparedFunctionResult { admission, closure }))
     }
 
-    pub(super) fn abort_block_factory_arguments(&mut self, factory: PreparedBlockFactory) {
+    pub(super) fn abort_function_result_arguments(&mut self, factory: PreparedFunctionResult) {
         self.finish_function_result(factory.admission);
     }
 
@@ -1104,40 +1116,42 @@ impl<'s, 'a> Lowering<'s, 'a> {
     /// captured environment, then yield the body to the existing source cursor.
     /// Consuming the preparation token also makes this helper own every error
     /// before the caller can publish a pending body frame.
-    pub(super) fn begin_block_factory_body<'n>(
+    pub(super) fn begin_function_result_body<'n>(
         &mut self,
-        factory: PreparedBlockFactory,
+        factory: PreparedFunctionResult,
         arguments: Vec<ValueId>,
         region: &mut Region,
         arity: usize,
-    ) -> Result<
-        (
-            BlockFactory,
-            closures::BlockArrowActivation,
-            closures::ArrowBodyRequest<'n, 'a>,
-        ),
-        String,
-    >
+    ) -> Result<(LocalFunctionResult, FunctionResultBody<'n, 'a>), String>
     where
         'a: 'n,
     {
-        let PreparedBlockFactory { admission, closure } = factory;
+        let PreparedFunctionResult { admission, closure } = factory;
         let arrow = self.arrow(closure.arrow);
         let bindings = self.enter_factory_bindings(closure.captures);
         let started = (|| {
             self.bind_arrow_parameters(arrow, arguments, region)?;
-            let parent_depth =
-                (self.inline_depth + self.statement_depth).max(self.function_result_depth) + 1;
-            self.begin_arrow_block_activation(arrow, parent_depth, Type::Closure(arity))
+            if let Some(body) = arrow.get_expression() {
+                self.enter_function_value(body)?;
+                Ok(FunctionResultBody::Expression(body))
+            } else {
+                let parent_depth =
+                    (self.inline_depth + self.statement_depth).max(self.function_result_depth) + 1;
+                let (activation, request) =
+                    self.begin_arrow_block_activation(arrow, parent_depth, Type::Closure(arity))?;
+                Ok(FunctionResultBody::Block {
+                    activation,
+                    request,
+                })
+            }
         })();
         match started {
-            Ok((activation, request)) => Ok((
-                BlockFactory {
+            Ok(body) => Ok((
+                LocalFunctionResult {
                     admission,
                     bindings,
                 },
-                activation,
-                request,
+                body,
             )),
             Err(error) => {
                 self.restore_factory_bindings(bindings);
@@ -1147,9 +1161,9 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
     }
 
-    /// After block-arrow completion (or on source diagnostic unwind), restore
+    /// After body completion (or on source diagnostic unwind), restore
     /// the caller's lexical state and then release the function-result charge.
-    pub(super) fn finish_block_factory(&mut self, factory: BlockFactory) {
+    pub(super) fn finish_local_function_result(&mut self, factory: LocalFunctionResult) {
         self.restore_factory_bindings(factory.bindings);
         self.finish_function_result(factory.admission);
     }

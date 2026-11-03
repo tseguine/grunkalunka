@@ -2907,6 +2907,19 @@ fn suspended_control_flow_matches_native_results_and_job_order() {
     );
 }
 
+#[test]
+fn concise_function_results_preserve_async_selection_and_captures() {
+    compare_promises(
+        &["const make=x=>x?(async y=>x+y):(async y=>x-y);return await make(a)(b);"],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
     let sources = bodies
         .iter()
