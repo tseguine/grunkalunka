@@ -9,6 +9,8 @@ use oxc_ast::ast::{
     BlockStatement, DoWhileStatement, ForStatement, IfStatement, TryStatement, WhileStatement,
 };
 
+#[cfg(test)]
+mod callback_tests;
 mod factories;
 #[cfg(test)]
 mod factory_effect_tests;
@@ -91,6 +93,13 @@ struct ForFrame<'n, 'a> {
 enum FactoryResume<'n, 'a> {
     Value,
     Callee(evaluate::SyncCalleeContinuation<'n, 'a>),
+}
+
+/// Function-mode children share region, source-depth and admission ownership.
+/// Only the consuming evaluator action and callback-specific entry guard differ.
+enum FunctionValueResume {
+    Effect(evaluate::FunctionEffect),
+    Callback,
 }
 
 struct FactoryExpression<'n, 'a> {
@@ -220,14 +229,13 @@ enum Frame<'n, 'a> {
         result_type: Type,
         depth: usize,
     },
-    /// Discard and truthiness still evaluate a function's construction effects.
-    /// Keep the parent expression suspended while its Function-mode child runs
-    /// through this same scheduler, including any returned-factory body.
-    EvaluateFunctionEffect {
+    /// A function construction or callback argument suspends its evaluator
+    /// while the Function-mode child runs on this same source scheduler.
+    EvaluateFunctionValue {
         expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
         mode: evaluate::Mode,
         node: &'n Expression<'a>,
-        effect: evaluate::FunctionEffect,
+        resume: FunctionValueResume,
         previous_result_depth: usize,
         depth: usize,
     },
@@ -296,7 +304,7 @@ impl Frame<'_, '_> {
             | Self::Block { depth, .. }
             | Self::Sequence { depth, .. }
             | Self::EvaluateBody { depth, .. }
-            | Self::EvaluateFunctionEffect { depth, .. }
+            | Self::EvaluateFunctionValue { depth, .. }
             | Self::EvaluateFactoryArgument { depth, .. }
             | Self::EvaluateFactoryBody { depth, .. }
             | Self::TryCatchBody { depth, .. }
@@ -466,25 +474,52 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         }
                     }
                 }
-                evaluate::EvaluationRun::LowerFunctionEffect {
-                    node,
-                    signature,
-                    depth,
-                    region_depth,
-                    effect,
-                } => {
+                request @ (evaluate::EvaluationRun::LowerFunctionEffect { .. }
+                | evaluate::EvaluationRun::LowerCallbackArgument { .. }) => {
+                    let (node, signature, depth, region_depth, resume) = match request {
+                        evaluate::EvaluationRun::LowerFunctionEffect {
+                            node,
+                            signature,
+                            depth,
+                            region_depth,
+                            effect,
+                        } => (
+                            node,
+                            signature,
+                            depth,
+                            region_depth,
+                            FunctionValueResume::Effect(effect),
+                        ),
+                        evaluate::EvaluationRun::LowerCallbackArgument {
+                            node,
+                            signature,
+                            depth,
+                            region_depth,
+                        } => (
+                            node,
+                            signature,
+                            depth,
+                            region_depth,
+                            FunctionValueResume::Callback,
+                        ),
+                        _ => unreachable!("matched a function-value request"),
+                    };
                     let previous_result_depth =
                         self.enter_function_result_depth(Some(region_depth));
-                    if let Err(error) = self.enter_function_value(node) {
+                    let admitted = match resume {
+                        FunctionValueResume::Effect(_) => self.enter_function_value(node),
+                        FunctionValueResume::Callback => self.enter_callback_argument(node),
+                    };
+                    if let Err(error) = admitted {
                         self.restore_function_result_depth(previous_result_depth);
                         return Err(error);
                     }
                     let output = Self::take_cursor_region(expression.current_region());
-                    cursor.pending.push(Frame::EvaluateFunctionEffect {
+                    cursor.pending.push(Frame::EvaluateFunctionValue {
                         expression: Box::new(expression),
                         mode,
                         node,
-                        effect,
+                        resume,
                         previous_result_depth,
                         depth: self.statement_depth,
                     });
@@ -827,7 +862,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                     Frame::EvaluateBody { activation, .. } => {
                         self.abort_arrow_block_activation(activation);
                     }
-                    Frame::EvaluateFunctionEffect {
+                    Frame::EvaluateFunctionValue {
                         previous_result_depth,
                         ..
                     } => {

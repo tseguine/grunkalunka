@@ -103,9 +103,7 @@ pub(super) enum EvaluationRun<'e, 'a> {
         depth: usize,
         region_depth: Option<usize>,
     },
-    /// A synchronous closure call's *callee* is a block-bodied factory.
-    /// The evaluator's Work and value stacks remain owned while the source
-    /// cursor lowers that factory before argument evaluation resumes.
+    /// Construct a function whose value is consumed only for its effects.
     LowerFunctionEffect {
         node: &'e Expression<'a>,
         signature: usize,
@@ -113,6 +111,16 @@ pub(super) enum EvaluationRun<'e, 'a> {
         region_depth: usize,
         effect: FunctionEffect,
     },
+    /// The next call argument is a function value. The corresponding call
+    /// Work is already queued and will consume exactly this returned value.
+    LowerCallbackArgument {
+        node: &'e Expression<'a>,
+        signature: usize,
+        depth: usize,
+        region_depth: usize,
+    },
+    /// A synchronous closure call's callee is a block-bodied factory. Its
+    /// arguments remain pending until the factory has produced the callee.
     LowerSyncClosureCallee {
         node: &'e Expression<'a>,
         call: &'e CallExpression<'a>,
@@ -196,6 +204,12 @@ impl<'e, 'a> EvaluationCursor<'e, 'a> {
             Value::Function(value) => Some(value),
             _ => unreachable!("returned factory materialized a function value"),
         }
+    }
+
+    /// The queued LocalCall or ClosureCall consumes this callback through its
+    /// ordinary argument-result path when evaluation resumes.
+    pub(super) fn resume_callback_argument(&mut self, value: ValueId) {
+        self.values.push(Value::Function(value));
     }
 
     pub(super) fn into_region(self) -> Region {
@@ -1232,6 +1246,22 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                         effect,
                     )?;
                 }
+                EvaluationRun::LowerCallbackArgument {
+                    node,
+                    signature,
+                    depth,
+                    region_depth,
+                } => {
+                    let value = self.with_function_result_context(Some(region_depth), |lower| {
+                        lower.callback_argument(
+                            node,
+                            lease.cursor.current_region(),
+                            signature,
+                            depth,
+                        )
+                    })?;
+                    lease.cursor.resume_callback_argument(value);
+                }
                 EvaluationRun::LowerSyncClosureCallee {
                     node,
                     call,
@@ -1896,19 +1926,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             depth,
                         );
                         let function = self.function_arity(argument, depth);
-                        if let Some(arity) = function {
-                            let region_depth = regions.children.len();
-                            let value =
-                                self.with_function_result_context(Some(region_depth), |lower| {
-                                    lower.callback_argument(
-                                        argument,
-                                        regions.current(),
-                                        arity,
-                                        depth,
-                                    )
-                                })?;
-                            arguments.push(value);
-                        }
                         work.push(Work::LocalCall {
                             node,
                             call,
@@ -1918,9 +1935,18 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             depth,
                             site,
                         });
-                        if function.is_none() {
-                            work.push(Work::Eval(argument, depth, scalar_mode));
+                        if let Some(signature) = function {
+                            // Yield before callback construction can lower a
+                            // source body. The queued call consumes its result
+                            // just like a scalar argument on the next run.
+                            return Ok(EvaluationRun::LowerCallbackArgument {
+                                node: argument,
+                                signature,
+                                depth,
+                                region_depth: regions.children.len(),
+                            });
                         }
+                        work.push(Work::Eval(argument, depth, scalar_mode));
                     } else {
                         self.charge_closure_expansion(node)?;
                         self.active_local_calls += 1;
@@ -2056,22 +2082,6 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             .borrow()
                             .parameter(signature, actual_index)
                             .expect("checked signature");
-                        let callback = if let Type::Closure(signature) = parameter {
-                            let region_depth = regions.children.len();
-                            let value =
-                                self.with_function_result_context(Some(region_depth), |lower| {
-                                    lower.callback_argument(
-                                        argument,
-                                        regions.current(),
-                                        signature,
-                                        depth,
-                                    )
-                                })?;
-                            arguments.push(value);
-                            true
-                        } else {
-                            false
-                        };
                         work.push(Work::ClosureCall {
                             node,
                             call,
@@ -2082,26 +2092,34 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                             depth,
                             site,
                         });
-                        if !callback {
-                            let mode = if parameter == Type::ManagedObject {
-                                Mode::Object
-                            } else if parameter == Type::ManagedArray {
-                                Mode::Array
-                            } else if parameter == Type::ManagedValue {
-                                Mode::Managed
-                            } else if parameter == Type::AsyncValue {
-                                Mode::AsyncValue
-                            } else if parameter == Type::Promise {
-                                Mode::Pending
-                            } else if parameter == Type::FulfilledPromise {
-                                Mode::Promise
-                            } else if parameter == Type::General {
-                                Mode::General
-                            } else {
-                                Mode::Number
-                            };
-                            work.push(Work::Eval(argument, depth, mode));
+                        if let Type::Closure(signature) = parameter {
+                            // Runtime calls require the parameter's complete
+                            // signature, not the argument's inferred signature.
+                            return Ok(EvaluationRun::LowerCallbackArgument {
+                                node: argument,
+                                signature,
+                                depth,
+                                region_depth: regions.children.len(),
+                            });
                         }
+                        let mode = if parameter == Type::ManagedObject {
+                            Mode::Object
+                        } else if parameter == Type::ManagedArray {
+                            Mode::Array
+                        } else if parameter == Type::ManagedValue {
+                            Mode::Managed
+                        } else if parameter == Type::AsyncValue {
+                            Mode::AsyncValue
+                        } else if parameter == Type::Promise {
+                            Mode::Pending
+                        } else if parameter == Type::FulfilledPromise {
+                            Mode::Promise
+                        } else if parameter == Type::General {
+                            Mode::General
+                        } else {
+                            Mode::Number
+                        };
+                        work.push(Work::Eval(argument, depth, mode));
                     } else {
                         self.charge_closure_expansion(node)?;
                         let Type::Closure(signature) = self.values[callee.0] else {
