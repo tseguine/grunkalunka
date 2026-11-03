@@ -197,6 +197,7 @@ pub(super) enum Work<'e, 'a> {
         depth: usize,
         site: Option<usize>,
     },
+    ResumeClosureCallee(ClosureCallContinuation<'e, 'a>),
     RestoreBindings(Vec<NumericBinding>, bool),
     Sequence {
         remaining: &'e [Expression<'a>],
