@@ -43,6 +43,47 @@ fn non_call_function_leaves_schedule_real_bodies() {
 }
 
 #[test]
+fn identity_declarations_schedule_real_bodies_before_publication() {
+    for (body, expected_bodies) in [
+        ("const f=()=>a;return f===f?a:b;", 1),
+        ("const f=()=>a,g=f;return [g][0]===f?a:b;", 1),
+        ("const f=()=>0,g=()=>0;return f!==g?a:b;", 2),
+        ("for(const f=()=>a;;){return f===f?a:b;}return b;", 1),
+        (
+            "let n=a;const f=()=>n;const x=[f];n=b;return x[0]===f&&f()===b?a:b;",
+            1,
+        ),
+    ] {
+        for typescript in [false, true] {
+            let (result, bridged) = on_small_stack(body, false, typescript);
+            assert!(result.is_ok(), "{body}: {result:?}");
+            assert_eq!(
+                bridged, expected_bodies,
+                "identity declarations must build each fresh function once: {body}"
+            );
+        }
+    }
+}
+
+#[test]
+fn identity_declarations_preserve_nested_body_publication() {
+    for typescript in [false, true] {
+        let source = "export function run(a,b){const f=()=>{const g=()=>a;const o={g};return o.g===g?a:b;};return f===f?f():b;}";
+        let module = crate::lower_source(source, typescript).unwrap();
+        assert_eq!(module.functions.len(), 3);
+        for (body, expected) in [(0, FunctionId(2)), (2, FunctionId(1))] {
+            let mut constructed = Vec::new();
+            crate::ir::visit_operations(&module.functions[body].body, &mut |operation| {
+                if let Op::MakeClosure { function, .. } = operation {
+                    constructed.push(*function);
+                }
+            });
+            assert_eq!(constructed, [expected]);
+        }
+    }
+}
+
+#[test]
 fn lifted_async_and_promise_bodies_keep_their_source_scheduler() {
     for body in [
         "let f=async x=>{await b;return x+a;};return await f(a);",

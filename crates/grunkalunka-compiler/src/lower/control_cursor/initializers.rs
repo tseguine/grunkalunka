@@ -79,6 +79,24 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 });
                 self.start_closure_check(closure, 0, cursor)
             }
+            declarations::DeclarationInitializer::Materialize {
+                local,
+                mutable,
+                closure,
+                signature,
+            } => {
+                let source = local.init.as_ref().expect("closure initializer");
+                // Identity-bearing declarations already selected their
+                // signature. They own lifting admission, but do not acquire
+                // the ordinary function-value guard used by value requests.
+                cursor.pending.push(Frame::MaterializedDeclaration {
+                    sequence,
+                    local,
+                    mutable,
+                    signature,
+                });
+                self.start_closure_materialization(closure, output, source, signature, cursor)
+            }
             declarations::DeclarationInitializer::Factory(prepared) => {
                 #[cfg(test)]
                 SCHEDULED_DECLARATION_FACTORIES.with(|count| count.set(count.get() + 1));

@@ -283,6 +283,14 @@ enum Frame<'n, 'a> {
         local: &'n VariableDeclarator<'a>,
         output: Region,
     },
+    /// Publish a runtime identity only after its real lifted body completes.
+    /// This declaration owns no ordinary function-value admission token.
+    MaterializedDeclaration {
+        sequence: Box<DeclarationSequence<'n, 'a>>,
+        local: &'n VariableDeclarator<'a>,
+        mutable: bool,
+        signature: usize,
+    },
     /// The If source is suspended until its condition yields a predicate.
     IfPredicate {
         source: &'n IfStatement<'a>,
@@ -486,6 +494,7 @@ impl Frame<'_, '_> {
             Self::DeclarationValue { sequence, .. } => sequence.depth,
             Self::AdvanceDeclaration { sequence } => sequence.depth,
             Self::CheckedDeclarationClosure { sequence, .. } => sequence.depth,
+            Self::MaterializedDeclaration { sequence, .. } => sequence.depth,
             Self::ForPredicate(frame) => frame.depth,
             Self::For(frame) => frame.depth,
             Self::ForUpdate { frame, .. } => frame.depth,
