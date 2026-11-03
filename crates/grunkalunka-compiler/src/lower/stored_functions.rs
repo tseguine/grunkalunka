@@ -376,7 +376,14 @@ impl Fields {
                     m.property.name.encode_utf16().collect(),
                 )),
                 AstKind::ComputedMemberExpression(m) if !m.optional => {
-                    key(&m.expression).map(|key| Rule::Member(m.object.node_id(), key))
+                    if let Some(key) = key(&m.expression) {
+                        Some(Rule::Member(m.object.node_id(), key))
+                    } else {
+                        // A dynamic read is an unknown boxed value, not an
+                        // unresolved fact that a conditional can silently omit.
+                        values.insert(id, BTreeSet::from([Origin::Other]));
+                        None
+                    }
                 }
                 _ => {
                     values.insert(id, BTreeSet::from([Origin::Other]));

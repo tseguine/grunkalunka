@@ -46,7 +46,7 @@ fn dictionary_admission_requires_a_proven_null_prototype() {
         "const d=Object.create.call(null,null);return a;",
         "const d=Object.create(...[null]);return a;",
         "const d=Object?.create(null);return a;",
-        "const d=Object.create(null);const key='x';return d[key]===undefined?a:b;",
+        "const d={};const key='x';return d[key]===undefined?a:b;",
     ] {
         for typed in [false, true] {
             let source = format!("export function run(a,b){{{body}}}");
@@ -60,6 +60,83 @@ fn dictionary_admission_requires_a_proven_null_prototype() {
     for (depth, admitted) in [(16, true), (140, false)] {
         let source = format!(
             "export function run(a,b){{const d=Object.create({}null{});return d.constructor===undefined?a:b;}}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted, "{:?}", result.as_ref().err());
+    }
+}
+
+#[test]
+fn dictionary_reads_accept_runtime_string_keys_and_snapshot_values() {
+    for body in [
+        "const d=Object.create(null);d.left=a;d.right=b;const key=a?'left':'right';return d[key]===(a?a:b)?a:b;",
+        "const d=Object.create(null);d.sta=a;d.stb=b;const key='st'+(a?'a':'b');return d[key]===(a?a:b)?a:b;",
+        "const d=Object.create(null);d.number=a;return d[typeof b]===a?a:b;",
+        "const d=Object.create(null);d.x=a;let key='x';const saved=d[key];d.x=b;key='missing';return saved===a&&d[key]===undefined?a:b;",
+        "const d=Object.create(null);const child={};const f=()=>a;d.child=child;d.f=f;const key=a?'child':'f';return d[key]===(a?child:f)?a:b;",
+        "const d=Object.create(null);d.__proto__=a;d.constructor=b;const key=a?'__proto__':'constructor';return d[key]===(a?a:b)?a:b;",
+        r"const d=Object.create(null);d['\ud800\0']=a;d['']=b;const key=a?'\ud800\0':'';return d[key]===(a?a:b)?a:b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn dictionary_reads_evaluate_receiver_then_key_and_keep_both_effects() {
+    for body in [
+        "let n=0;let d=Object.create(null);const old=d;d.x=a;const saved=(n=n*10+1,d)[(n=n*10+2,d=Object.create(null),'x')];return saved===a&&n===12&&d!==old?a:b;",
+        "const d=Object.create(null);d.x=a;const value=d[(d.x=b,'x')];return value===b?a:b;",
+        "const d=Object.create(null);d.x=a;let key='x';const next=()=>{key='missing';return 'x';};return d[next()]===a&&key==='missing'?a:b;",
+    ] {
+        compare(body);
+    }
+    let source = "function key(a){return a?'x':'y';}function get(d,k){return d[k];}export function run(a,b){const d=Object.create(null);d.x=a;d.y=b;return get(d,key(a))===(a?a:b)?a:b;}";
+    common::compare_sources(source, source);
+    common::compare_sources(
+        "export function run(a,b){const d=Object.create(null);d.x=a;const key='x';return d[key]===a?a:b;}",
+        "export function run(a:string,b:object):void{const d:number=Object.create(null);d.x=a;const key:boolean='x';return (d as unknown)[key as number]===a?a:b;}",
+    );
+}
+
+#[test]
+fn dictionary_reads_keep_unknown_values_and_receivers_unproven() {
+    for body in [
+        "const d=Object.create(null);return d[a]===undefined?a:b;",
+        "const d=Object.create(null);const key=a?'x':b;return d[key]===undefined?a:b;",
+        "const d=Object.create(null);const key=['x'].at(a);return d[key]===undefined?a:b;",
+        "const d=a?Object.create(null):{};const key='x';return d[key]===undefined?a:b;",
+        "const d=Object.create(null);const key='x';return d?.[key]===undefined?a:b;",
+        "const d=Object.create(null);d.x=a;const key='x';const s=b?'ok':d[key];return s.length;",
+        "const d=Object.create(null);const key='x';const o=a?{}:d[key];return o.x===undefined?a:b;",
+        "const d=Object.create(null);const key='x';const f=a?()=>a:d[key];return f();",
+        // The source admits this named array property, although key provenance
+        // recognizes only canonical array indices below u32::MAX.
+        "const xs=[a];const value=b?'s':xs[4294967295];return value.length;",
+        "const d=Object.create(null);const key='x';const s:string=a;return d[s]===undefined?a:b;",
+    ] {
+        let typed_only = body.contains(":string");
+        for typed in [false, true] {
+            if typed_only && !typed {
+                continue;
+            }
+            let source = format!("export function run(a,b){{{body}}}");
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    for (depth, admitted) in [(16, true), (140, false)] {
+        let source = format!(
+            "export function run(a,b){{const d=Object.create(null);const key='x';return d[{}key{}]===undefined?a:b;}}",
             "(".repeat(depth),
             ")".repeat(depth)
         );

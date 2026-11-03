@@ -616,6 +616,9 @@ impl Lowering<'_, '_> {
         values: &mut Vec<Value>,
         work: &mut Vec<Work<'e, 'a>>,
     ) -> Result<bool, String> {
+        if matches!(mode, Mode::Managed) && self.schedule_dictionary_read(node, depth, work)? {
+            return Ok(true);
+        }
         if matches!(mode, Mode::Object)
             && let Expression::CallExpression(call) = node
             && let Some(argument) = object_create::argument(call, self.semantic)

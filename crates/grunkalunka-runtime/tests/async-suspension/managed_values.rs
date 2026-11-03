@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn dictionary_reads_preserve_receiver_and_value_snapshots_across_await() {
+    compare_promises(
+        &[
+            "let d=Object.create(null);const old=d;d.x=a;const value=d[(await a,d=Object.create(null),'x')];await b;return value===a&&d!==old?1:0;",
+            "const d=Object.create(null);d.x=a;const key='x';const value=d[(await b,d.x=b,key)];await a;d.x=a;return value===b?1:0;",
+            "const d=Object.create(null);d.__proto__=a;const key=(await b,'__proto__');const value=d[key];await a;return value===a?1:0;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn dictionary_static_values_and_aliases_survive_suspension() {
     compare_promises(
         &[

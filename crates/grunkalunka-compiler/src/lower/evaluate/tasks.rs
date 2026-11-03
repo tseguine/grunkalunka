@@ -7,6 +7,7 @@ use super::*;
 
 pub(super) enum Work<'e, 'a> {
     ArrayAt(array_at::Task<'e, 'a>),
+    Dictionary(dictionary::Task<'e, 'a>),
     OwnKeys(own_keys::Task<'e, 'a>),
     Managed(managed::ManagedWork<'e, 'a>),
     Eval(&'e Expression<'a>, usize, Mode),
