@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn string_characters_preserve_inputs_and_results_across_suspension() {
+    compare_promises(
+        &[
+            "let s='abc';const c=s.charAt((await a,s='xyz',1),(await b,s='later'));await a;return c==='b'&&s==='later'?1:0;",
+            "let s='abc';const n=s.charCodeAt((await a,s='xyz',1),(await b,s='later'));await a;return n===98&&s==='later'?1:0;",
+            r"const c='\u{1f600}'.charAt((await a,1));await b;return c==='\ude00'&&c.length===1?1:0;",
+            "let n=0;const code='abc'.charCodeAt(void(await a,n=1),(await b,n=n*10+2));await a;return code===97?n:-1;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_ranges_save_receiver_and_endpoints_across_awaits() {
     compare_promises(
         &[

@@ -325,7 +325,9 @@ impl Fields {
                         .iter()
                         .filter_map(|argument| argument.as_expression().map(GetNodeId::node_id))
                         .collect(),
-                    string_methods::call(call).map(|(receiver, _)| receiver.node_id()),
+                    string_methods::call(call)
+                        .filter(|(_, method)| method.result() == Type::ManagedValue)
+                        .map(|(receiver, _)| receiver.node_id()),
                 )),
                 AstKind::AssignmentExpression(a)
                     if matches!(

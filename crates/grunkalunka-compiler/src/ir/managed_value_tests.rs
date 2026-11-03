@@ -937,6 +937,54 @@ fn string_concat_requires_visible_managed_operands_and_result() {
 }
 
 #[test]
+fn string_character_operations_keep_text_index_and_result_types() {
+    for (expression, expected) in [
+        ("'abc'.charAt(a).length", Type::ManagedValue),
+        ("'abc'.charCodeAt(a)", Type::Number),
+    ] {
+        let mut module = crate::lower_source(
+            &format!("export function run(a,b){{return {expression};}}"),
+            false,
+        )
+        .unwrap();
+        let function = &mut module.functions[0];
+        let operation = function
+            .body
+            .operations
+            .iter()
+            .find(|op| {
+                matches!(
+                    op.kind,
+                    Op::ManagedStringCharAt { .. } | Op::ManagedStringCharCodeAt { .. }
+                )
+            })
+            .unwrap();
+        let (result, input, index) = match operation.kind {
+            Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringCharCodeAt {
+                result,
+                input,
+                index,
+            } => (result, input, index),
+            _ => unreachable!(),
+        };
+        verify_module(&module).unwrap();
+        module.functions[0].values[result.0] = Type::Predicate;
+        assert!(verify_module(&module).is_err());
+        module.functions[0].values[result.0] = expected;
+        module.functions[0].values[input.0] = Type::Number;
+        assert!(verify_module(&module).is_err());
+        module.functions[0].values[input.0] = Type::ManagedValue;
+        module.functions[0].values[index.0] = Type::ManagedValue;
+        assert!(verify_module(&module).is_err());
+    }
+}
+
+#[test]
 fn string_ranges_require_managed_text_and_visible_number_endpoints() {
     let mut module = crate::lower_source(
         "export function run(a,b){return 'abcdef'.slice(a,b).length;}",

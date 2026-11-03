@@ -471,7 +471,10 @@ impl Lowering<'_, '_> {
                         }
                         Expression::CallExpression(call)
                             if crate::lower::string_methods::call(call).is_some_and(
-                                |(receiver, _)| self.stored.string(receiver.node_id()),
+                                |(receiver, method)| {
+                                    method.result() == Type::ManagedValue
+                                        && self.stored.string(receiver.node_id())
+                                },
                             ) =>
                         {
                             values.push(Some(Type::ManagedValue));
@@ -653,11 +656,23 @@ impl Lowering<'_, '_> {
             work.push(Work::Eval(node, depth, Mode::Managed));
             return Ok(true);
         }
-        if matches!(mode, Mode::Managed)
-            && let Expression::CallExpression(call) = node
+        if let Expression::CallExpression(call) = node
             && let Some((receiver, method)) = crate::lower::string_methods::call(call)
             && self.stored.string(receiver.node_id())
+            && (matches!(mode, Mode::Managed)
+                || (method.result() == Type::Number
+                    && matches!(
+                        mode,
+                        Mode::Number | Mode::General | Mode::Predicate | Mode::Discard
+                    )))
         {
+            if method.result() == Type::Number {
+                if matches!(mode, Mode::Discard) {
+                    work.push(Work::Forget);
+                } else {
+                    number_consumer(work, node, mode)?;
+                }
+            }
             work.push(Work::StringMethod(super::string_methods::Task {
                 node,
                 call,

@@ -3,6 +3,113 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn string_characters_use_utf16_units_and_number_index_normalization() {
+    for body in [
+        r"const s='\0\u{1f600}\ud800\uffff';return s.charCodeAt(a);",
+        r"const s='\0\u{1f600}\ud800\uffff';return s.charCodeAt(a+1.75);",
+        "const s='abc';const c=s.charAt(a-0.75);return c.length*10+(c==='a'?1:0)+(c==='b'?2:0);",
+        r"const s='\u{1f600}';return s.charAt(0)==='\ud83d'&&s['charAt'](1)==='\ude00'&&s.charAt(0)+s.charAt(1)===s?1:0;",
+        r"return '\0\u8000\uffff'.charCodeAt(1)+'\0\u8000\uffff'.charCodeAt(2);",
+        "return ''.charCodeAt(a);",
+        "return ''.charAt(a).length;",
+        r"const s='\0A';return (s.charAt(a)?10:0)+(s.charCodeAt(a)?1:0);",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_characters_keep_default_indices_effects_and_snapshots() {
+    for body in [
+        "return 'abc'.charAt()==='a'&&'abc'.charAt(undefined)==='a'&&'abc'.charCodeAt()===97&&'abc'.charCodeAt(undefined)===97?1:0;",
+        "let n=0;const c=(n=1,'abc').charAt((n=n*10+2,1),(n=n*10+3,2),(n=n*10+4,0));return c==='b'?n:-1;",
+        "let n=0;const c=(n=1,'abc').charCodeAt(void(n=n*10+2),(n=n*10+3,2));return c===97?n:-1;",
+        "let s='abc';const c=s.charAt((s='xyz',1));return c==='b'&&s==='xyz'?1:0;",
+        "let s='abc';const c=s.charCodeAt((s='xyz',1));return c===98&&s==='xyz'?1:0;",
+        "const undefined=2;return 'abc'.charAt(undefined)==='c'&&'abc'.charCodeAt(undefined)===99?1:0;",
+        "let n=0;'abc'.charCodeAt((n=1,0),(n=n*10+2));'abc'.charAt((n=n*10+3,0));return n;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_characters_compose_numeric_helpers_and_captured_string_results() {
+    for source in [
+        "function code(s,i){return s.charCodeAt(i);}export function run(a,b){return code('abc',a);}",
+        "function first(s){return s.charAt(0);}export function run(a,b){const text=first('Heading');const use=()=>text+'!';return use()==='H!'?text.length:0;}",
+        "export function run(a,b){let s='abc';const code=()=>s.charCodeAt(a);const character=()=>s.charAt(a);return code()+character().length;}",
+        "export function run(a,b){const o={text:'abc'.charAt(1)};return o.text.charCodeAt(0);}",
+        "export function run(a,b){const o={charAt:(x)=>x,charCodeAt:()=>true};const f=()=>o.charCodeAt();return f()===true?o.charAt(a):b;}",
+        "export function run(a,b){const code='abc'.charCodeAt(a);return typeof code==='number'?code:b;}",
+    ] {
+        compare_sources(
+            source,
+            &source.replace("run(a,b)", "run(a: number,b: number)"),
+        );
+    }
+    compare_sources(
+        "export function run(a,b){const s='abc';return s.charCodeAt(a)+s.charAt(b).length;}",
+        "export function run(a: number,b: number){const s: number='abc';return (s as boolean).charCodeAt(a as never)+s.charAt(b).length;}",
+    );
+}
+
+#[test]
+fn string_characters_preserve_receiver_and_result_kind_guards() {
+    for body in [
+        "return 'abc'.charAt('1').length;",
+        "return 'abc'.charCodeAt(null);",
+        "return 'abc'.charAt(true).length;",
+        "return 'abc'.charCodeAt({});",
+        "const s=a?'abc':null;return s.charAt(0).length;",
+        "const s=a?'abc':{charCodeAt:()=>1};return s.charCodeAt(0);",
+        "return 'abc'.charCodeAt(a).length;",
+        "return 'abc'.charCodeAt(a)+'x';",
+        "return 'abc'.charAt?.(0).length;",
+        "return 'abc'.charCodeAt(...[0]);",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+}
+
+#[test]
+fn string_character_queries_keep_small_native_stack_limits() {
+    for (depth, admitted) in [(24, true), (140, false)] {
+        for source in [
+            format!(
+                "export function run(a,b){{return 'abc'{}.length;}}",
+                ".charAt(0)".repeat(depth)
+            ),
+            format!(
+                "export function run(a,b){{return {}a{};}}",
+                "'abc'.charCodeAt(".repeat(depth),
+                ")".repeat(depth)
+            ),
+        ] {
+            let result = std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || grunkalunka_compiler::compile(&source, false))
+                .unwrap()
+                .join()
+                .unwrap();
+            assert_eq!(result.is_ok(), admitted);
+            if let Err(error) = result {
+                assert!(error.contains("nesting"), "{error}");
+            }
+        }
+    }
+}
+
+#[test]
 fn string_ranges_clamp_number_endpoints_and_copy_utf16_units() {
     for body in [
         "const s='abcdef';const t=s.slice(a,b);return t.length*100+(t==='abcdef'?10:0)+(t==='a'?1:0);",

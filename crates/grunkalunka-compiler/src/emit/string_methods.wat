@@ -39,3 +39,27 @@
   local.get $text i32.const 0 local.get $source local.get $first local.get $count
   array.copy $gc_key $gc_key
   i32.const 5 f64.const 0 local.get $text struct.new $gc_value)
+
+;; A character is one code unit, not a Unicode scalar value. Bounds precede the
+;; integer conversion, so negative and unbounded Number positions cannot trap.
+(func $gc_string_char_code_at (param $value (ref null $gc_value)) (param $index f64)
+  (result f64) (local $text (ref null $gc_key))
+  local.get $value call $gc_string_key local.set $text
+  local.get $index call $gc_string_integer local.set $index
+  local.get $index f64.const 0 f64.ge
+  local.get $index local.get $text array.len f64.convert_i32_u f64.lt i32.and
+  if (result f64)
+    local.get $text local.get $index i32.trunc_f64_u array.get_u $gc_key f64.convert_i32_u
+  else f64.const nan end)
+
+(func $gc_string_char_at (param $value (ref null $gc_value)) (param $index f64)
+  (result (ref null $gc_value)) (local $unit f64)
+  local.get $value local.get $index call $gc_string_char_code_at local.set $unit
+  i32.const 5 f64.const 0
+  local.get $unit local.get $unit f64.ne
+  if (result (ref null $gc_key))
+    i32.const 0 array.new_default $gc_key
+  else
+    local.get $unit i32.trunc_f64_u i32.const 1 array.new $gc_key
+  end
+  struct.new $gc_value)

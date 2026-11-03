@@ -553,6 +553,16 @@ pub(crate) enum Op {
         end: ValueId,
         substring: bool,
     },
+    ManagedStringCharAt {
+        result: ValueId,
+        input: ValueId,
+        index: ValueId,
+    },
+    ManagedStringCharCodeAt {
+        result: ValueId,
+        input: ValueId,
+        index: ValueId,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1379,6 +1389,24 @@ impl Verifier<'_> {
                 self.value(*start, Type::Number, visible, span)?;
                 self.value(*end, Type::Number, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.value(*index, Type::Number, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedStringCharCodeAt {
+                result,
+                input,
+                index,
+            } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.value(*index, Type::Number, visible, span)?;
+                self.define(*result, Type::Number, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;

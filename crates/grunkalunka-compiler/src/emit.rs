@@ -356,6 +356,27 @@ impl Emitter<'_> {
                 .unwrap();
                 self.set(*result);
             }
+            Op::ManagedStringCharAt {
+                result,
+                input,
+                index,
+            }
+            | Op::ManagedStringCharCodeAt {
+                result,
+                input,
+                index,
+            } => {
+                self.get(*input);
+                self.get(*index);
+                self.output.push_str(
+                    if matches!(operation.kind, Op::ManagedStringCharAt { .. }) {
+                        "call $gc_string_char_at\n"
+                    } else {
+                        "call $gc_string_char_code_at\n"
+                    },
+                );
+                self.set(*result);
+            }
             Op::ManagedArrayNew { result, length } => {
                 writeln!(
                     self.output,

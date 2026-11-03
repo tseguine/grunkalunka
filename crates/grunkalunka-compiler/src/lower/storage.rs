@@ -12,7 +12,7 @@ type CallResults<'a> = BTreeMap<NodeId, Option<Vec<&'a Expression<'a>>>>;
 #[derive(Clone, Copy)]
 pub(super) enum NumberCalls<'s, 'a> {
     Proven(&'s BTreeSet<NodeId>),
-    Returns(&'s CallResults<'a>),
+    Returns(&'s CallResults<'a>, &'s BTreeSet<NodeId>),
 }
 
 // The same completion algebra as statement lowering, without evaluating source
@@ -299,12 +299,13 @@ pub(super) fn number_result_shape<'a>(
                     }
                     continue;
                 }
-                if let NumberCalls::Proven(known) = calls
-                    && known.contains(&call.node_id.get())
-                {
+                let known = match calls {
+                    NumberCalls::Proven(known) | NumberCalls::Returns(_, known) => known,
+                };
+                if known.contains(&call.node_id.get()) {
                     continue;
                 }
-                if let NumberCalls::Returns(known) = calls
+                if let NumberCalls::Returns(known, _) = calls
                     && let Some(results) = known.get(&call.node_id.get())
                 {
                     let Some(results) = results else {
@@ -632,6 +633,20 @@ pub(crate) fn general_mutable_bindings(
             .collect::<Vec<_>>();
         callbacks::named_async_targets(&returns, functions, &named_definitions, &calls)
     };
+    // Intrinsic Number results are source facts, independent of closure return
+    // convergence. Same-name ordinary methods retain their own call signatures.
+    let intrinsic_numbers: BTreeSet<_> = semantic
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let AstKind::CallExpression(call) = node.kind() else {
+                return None;
+            };
+            let (receiver, method) = string_methods::call(call)?;
+            (method.result() == Type::Number && stored.string(receiver.node_id()))
+                .then_some(call.node_id.get())
+        })
+        .collect();
     let mut call_results = BTreeMap::new();
     for node in semantic.nodes().iter() {
         let AstKind::CallExpression(call) = node.kind() else {
@@ -692,7 +707,8 @@ pub(crate) fn general_mutable_bindings(
             let AstKind::CallExpression(call) = node.kind() else {
                 return None;
             };
-            let known = call_results.contains_key(&call.node_id.get());
+            let known = call_results.contains_key(&call.node_id.get())
+                || intrinsic_numbers.contains(&call.node_id.get());
             let fulfilled = awaited::intrinsic(call, semantic)
                 .ok()
                 .flatten()
@@ -878,7 +894,7 @@ pub(crate) fn general_mutable_bindings(
                 0,
                 semantic,
                 functions,
-                NumberCalls::Returns(&call_results),
+                NumberCalls::Returns(&call_results, &intrinsic_numbers),
                 |callee| {
                     if !targets.contains_key(&callee) && !numeric_callbacks.contains(&callee) {
                         return false;
@@ -898,7 +914,7 @@ pub(crate) fn general_mutable_bindings(
                     arrows[body],
                     semantic,
                     functions,
-                    NumberCalls::Returns(&call_results),
+                    NumberCalls::Returns(&call_results, &intrinsic_numbers),
                     |callee| {
                         if !targets.contains_key(&callee) && !numeric_callbacks.contains(&callee) {
                             return false;
@@ -954,7 +970,7 @@ pub(crate) fn general_mutable_bindings(
                 0,
                 semantic,
                 functions,
-                NumberCalls::Returns(&call_results),
+                NumberCalls::Returns(&call_results, &intrinsic_numbers),
                 |callee| {
                     numbers.contains(&callee)
                         && (targets.contains_key(&callee) || numeric_callbacks.contains(&callee))
@@ -1001,7 +1017,7 @@ pub(crate) fn general_mutable_bindings(
         pending.extend(inputs.iter().copied());
     }
     let storage: BTreeSet<_> = candidates.difference(&numbers).copied().collect();
-    let number_calls = call_results
+    let mut number_calls: BTreeSet<_> = call_results
         .iter()
         .filter_map(|(id, results)| {
             results
@@ -1013,7 +1029,7 @@ pub(crate) fn general_mutable_bindings(
                             0,
                             semantic,
                             functions,
-                            NumberCalls::Returns(&call_results),
+                            NumberCalls::Returns(&call_results, &intrinsic_numbers),
                             |callee| {
                                 !storage.contains(&callee)
                                     && (targets.contains_key(&callee)
@@ -1026,6 +1042,7 @@ pub(crate) fn general_mutable_bindings(
                 .then_some(*id)
         })
         .collect();
+    number_calls.extend(intrinsic_numbers);
     let mut general_results = BTreeSet::new();
     loop {
         let previous = general_results.len();
