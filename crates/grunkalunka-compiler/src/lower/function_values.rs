@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 mod optional_tests;
 
 /// Function-valued result calls have one shared eight-active-call budget.
-/// Admission is a move-only token so a future heap continuation can own the
+/// Admission is a move-only token so a heap continuation can own the
 /// charge until its argument, body and result phases finish or unwind.
 #[derive(Clone, Copy)]
 enum FunctionResultKind {
@@ -90,9 +90,9 @@ pub(super) enum FunctionResultBody<'n, 'a> {
     Expression(&'n Expression<'a>),
 }
 
-/// A source-owned leaf either selects a factory continuation or completes its
-/// remaining compatibility path. Selection is consumed once, including None
-/// results from concise-factory preparation.
+/// A source-owned leaf selects checking, argument or materialization work, or
+/// completes a direct module/slot value. Selection is consumed once, including
+/// None results from concise-factory preparation.
 pub(super) enum FunctionLeafResult<'n, 'a> {
     Factory(PreparedFactory<'n, 'a>),
     LocalFactory(closures::LocalClosure),
@@ -568,8 +568,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
         if number { Type::Number } else { Type::General }
     }
 
-    /// Callback admission is held by either the synchronous wrapper or an
-    /// owned source continuation until its Function-mode expression finishes.
+    /// An owned source continuation holds callback admission until its
+    /// Function-mode expression finishes.
     pub(super) fn enter_callback_argument(
         &mut self,
         expression: &Expression<'_>,
@@ -583,21 +583,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
             ));
         }
         self.enter_function_value(expression)
-    }
-
-    pub(super) fn callback_argument(
-        &mut self,
-        expression: &Expression<'_>,
-        region: &mut Region,
-        arity: usize,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        self.enter_callback_argument(expression)?;
-        let result = self
-            .evaluate(expression, region, depth, evaluate::Mode::Function(arity))
-            .map(|value| value.expect("function evaluation result"));
-        self.leave_function_value();
-        result
     }
 
     pub(super) fn function_assignment_target(
@@ -993,9 +978,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
         results.pop().expect("root signature query")
     }
 
-    /// Function-value admission belongs to the source expression cursor,
-    /// not to a particular native evaluator stack frame. Both synchronous
-    /// compatibility callers and source-owned continuations use this policy.
+    /// Source continuations own function-value admission through expression
+    /// completion and restore it on every diagnostic path.
     pub(super) fn enter_function_value(
         &mut self,
         expression: &Expression<'_>,
@@ -1012,23 +996,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
 
     pub(super) fn leave_function_value(&mut self) {
         self.active_function_values -= 1;
-    }
-
-    pub(super) fn function_value(
-        &mut self,
-        expression: &Expression<'_>,
-        region: &mut Region,
-        arity: usize,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        // Constructors can run scalar comma prefixes, which can construct
-        // another function. Preserve the same sixteen-active-cursor bound.
-        self.enter_function_value(expression)?;
-        let result = self
-            .evaluate(expression, region, depth, evaluate::Mode::Function(arity))
-            .map(|value| value.expect("function evaluation result"));
-        self.leave_function_value();
-        result
     }
 
     pub(super) fn source_function_value_leaf<'n>(
@@ -1075,34 +1042,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         Ok(FunctionLeafResult::LocalFactory(closure))
     }
 
-    pub(super) fn function_value_leaf(
-        &mut self,
-        node: &Expression<'_>,
-        region: &mut Region,
-        arity: usize,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        if let Expression::CallExpression(call) = node {
-            if self
-                .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
-                .is_none()
-            {
-                self.runtime_function_result(call, region, arity, depth)
-            } else if let Some(closure) = self.factory_result(node, region, depth)? {
-                self.materialize_closure(closure, region, node, arity)
-            } else {
-                self.local_function_result(call, region, arity, depth)
-            }
-        } else {
-            match self.prepare_non_call_function_value(node, region, arity, depth)? {
-                NonCallFunctionValue::Value(value) => Ok(value),
-                NonCallFunctionValue::Materialize(closure) => {
-                    self.materialize_closure(closure, region, node, arity)
-                }
-            }
-        }
-    }
-
     /// Select non-call constructors without entering their checking or real
     /// body. Module and runtime slots keep their original immediate operations.
     fn prepare_non_call_function_value(
@@ -1112,6 +1051,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
         arity: usize,
         depth: usize,
     ) -> Result<NonCallFunctionValue, String> {
+        debug_assert!(
+            !matches!(
+                node,
+                Expression::CallExpression(_) | Expression::ParenthesizedExpression(_)
+            ) && erased_inner(node).is_none(),
+            "source function leaves are unwrapped before non-call selection"
+        );
         if let Some((function, actual)) = self.named_module_function(node, depth) {
             if actual != arity {
                 return Err(unsupported(
@@ -1130,12 +1076,12 @@ impl<'s, 'a> Lowering<'s, 'a> {
             Self::push(region, node, Op::Load { result, slot });
             Ok(NonCallFunctionValue::Value(result))
         } else {
-            let closure = match self.closure_target(node, depth) {
-                Some(closure) => closure,
-                None => self
-                    .factory_result(node, region, depth)?
-                    .ok_or_else(|| unsupported(node, "expected a known function constructor"))?,
-            };
+            // Work::Eval consumes erased/parenthesized wrappers before the
+            // Function leaf, and direct calls selected a factory above. No
+            // effectful factory fallback belongs to this non-call branch.
+            let closure = self
+                .closure_target(node, depth)
+                .ok_or_else(|| unsupported(node, "expected a known function constructor"))?;
             Ok(NonCallFunctionValue::Materialize(closure))
         }
     }
@@ -1185,29 +1131,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
         self.closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
             .filter(|closure| self.arrow(closure.arrow).get_expression().is_none())
-    }
-
-    /// Synchronous preparation driver for the frozen helper-state oracle.
-    /// Actual source factories retain these stages across owned checking frames.
-    #[cfg(test)]
-    fn prepare_known_local_function_result(
-        &mut self,
-        call: &CallExpression<'_>,
-        mut closure: closures::LocalClosure,
-        region: &mut Region,
-    ) -> Result<PreparedFunctionResult, String> {
-        let preparation = self.begin_local_result_preparation(call)?;
-        if !closure.checked {
-            closure = match self.check_closure_for_test(closure) {
-                Ok(closure) => closure,
-                Err(error) => {
-                    self.abort_local_result_preparation(preparation);
-                    return Err(error);
-                }
-            };
-            self.capture_cells(&closure, region);
-        }
-        self.finish_local_result_preparation(preparation, call, closure)
     }
 
     pub(super) fn begin_local_result_preparation(
@@ -1421,44 +1344,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         closures::FactoryArgumentKind::Scalar(mode)
     }
 
-    fn runtime_function_result(
-        &mut self,
-        call: &CallExpression<'_>,
-        region: &mut Region,
-        expected: usize,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        let factory = self.prepare_runtime_factory(call, expected, depth)?;
-        let evaluated = (|| {
-            let call = factory.call;
-            let depth = factory.depth;
-            let signature = factory.signature;
-            // Runtime factories always construct even a slot callee through
-            // function_value. Its admission, source span and inherited result
-            // depth differ from ordinary closure-call preparation's fast path.
-            let callee = self.function_value(
-                invocation::callee(call),
-                region,
-                signature,
-                invocation::depth(call, depth + 1),
-            )?;
-            let mut arguments = Vec::new();
-            for (index, argument) in call.arguments.iter().enumerate() {
-                let expression = argument
-                    .as_expression()
-                    .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
-                let kind = self.classify_runtime_factory_argument(&factory, index);
-                if let Some(value) =
-                    self.evaluate_factory_argument(kind, expression, region, depth + 1)?
-                {
-                    arguments.push(value);
-                }
-            }
-            Ok((callee, arguments))
-        })();
-        self.finish_runtime_factory(factory, region, evaluated)
-    }
-
     /// Emission is charged only after all callee and argument effects finish.
     /// This consumes the admission token and restores it on evaluation errors,
     /// expansion-limit errors and successful Function-valued completion alike.
@@ -1484,90 +1369,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         });
         self.finish_function_result(factory.admission);
         result
-    }
-
-    fn local_function_result(
-        &mut self,
-        call: &CallExpression<'_>,
-        region: &mut Region,
-        arity: usize,
-        depth: usize,
-    ) -> Result<ValueId, String> {
-        let activation = self.begin_function_result(call, FunctionResultKind::Local)?;
-        let result = (|| {
-            let mut closure = self
-                .closure_target(invocation::callee(call), invocation::depth(call, depth + 1))
-                .ok_or_else(|| {
-                    unsupported(call, "function results require a known local callee")
-                })?;
-            if !closure.checked {
-                self.check_local_closure(&mut closure)?;
-                self.capture_cells(&closure, region);
-            }
-            self.check_local_call(call, &closure)?;
-            self.charge_closure_expansion(call)?;
-            let arrow = self.arrow(closure.arrow);
-            let mut arguments = Vec::new();
-            for (index, argument) in call.arguments.iter().enumerate() {
-                let expression = argument
-                    .as_expression()
-                    .ok_or_else(|| unsupported(call, "spread call arguments are not admitted"))?;
-                let kind = self.classify_factory_argument(
-                    call,
-                    closure.arrow,
-                    index,
-                    expression,
-                    depth + 1,
-                );
-                if let Some(value) =
-                    self.evaluate_factory_argument(kind, expression, region, depth + 1)?
-                {
-                    arguments.push(value);
-                }
-            }
-            // Fresh formals and the caller's capture identity switch only
-            // after all caller argument effects have finished in source order.
-            let checkpoint = self.enter_factory_bindings(closure.captures);
-            let result = (|| {
-                self.bind_arrow_parameters(arrow, arguments, region)?;
-                if let Some(body) = arrow.get_expression() {
-                    self.function_value(body, region, arity, 0)
-                } else {
-                    let parent_depth = (self.inline_depth + self.statement_depth)
-                        .max(self.function_result_depth)
-                        + 1;
-                    let body =
-                        self.arrow_block_result(arrow, parent_depth, Type::Closure(arity))?;
-                    let result = self.value(Type::Closure(arity));
-                    Self::push(region, call, Op::InlineCall { result, body });
-                    Ok(result)
-                }
-            })();
-            self.restore_factory_bindings(checkpoint);
-            result
-        })();
-        self.finish_function_result(activation);
-        result
-    }
-
-    pub(super) fn materialize_closure(
-        &mut self,
-        mut closure: closures::LocalClosure,
-        region: &mut Region,
-        node: &Expression<'_>,
-        arity: usize,
-    ) -> Result<ValueId, String> {
-        self.admit_lifted_closure(node)?;
-        if !closure.checked {
-            self.check_local_closure(&mut closure)?;
-        }
-        let PreparedLiftedClosure {
-            mut lowering,
-            body,
-            completion,
-        } = self.prepare_lifted_closure(closure, node, arity)?;
-        let body = lowering.lower_lifted_closure_body(&completion, body)?;
-        self.finish_lifted_closure(completion, lowering, body, region, node)
     }
 
     pub(super) fn admit_lifted_closure(&self, node: &Expression<'_>) -> Result<(), String> {
@@ -1881,33 +1682,6 @@ impl<'s, 'a> Lowering<'s, 'a> {
         }
         body.exit = Exit::Return(result);
         body
-    }
-
-    fn lower_lifted_closure_body(
-        &mut self,
-        completion: &LiftedClosure,
-        body: Region,
-    ) -> Result<Region, String> {
-        let (completion, request) = self.prepare_lifted_body(completion, body);
-        match request {
-            LiftedBodyRequest::Expression {
-                source,
-                mut output,
-                mode,
-            } => {
-                let value = if let evaluate::Mode::Function(signature) = mode {
-                    self.function_value(source, &mut output, signature, 0)?
-                } else {
-                    self.evaluate(source, &mut output, 0, mode)?
-                        .expect("lifted expression result")
-                };
-                Ok(self.finish_lifted_body(completion, output, Some(value)))
-            }
-            LiftedBodyRequest::Block { arrow, result_type } => {
-                let body = self.arrow_block_result(arrow, 0, result_type)?;
-                Ok(self.finish_lifted_body(completion, body, None))
-            }
-        }
     }
 
     /// A successful body publishes nested functions before the final capacity
