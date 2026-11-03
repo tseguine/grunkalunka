@@ -45,7 +45,7 @@ fn key(node: &Expression<'_>) -> Option<Key> {
     match closures::unwrapped(node, 0)? {
         Expression::StringLiteral(s) => Some(s.value.encode_utf16().collect()),
         Expression::NumericLiteral(n)
-            if n.value >= 0.0 && n.value < f64::from(u32::MAX) && n.value.fract() == 0.0 =>
+            if n.value >= 0.0 && n.value <= f64::from(u32::MAX) && n.value.fract() == 0.0 =>
         {
             Some((n.value as u32).to_string().encode_utf16().collect())
         }
@@ -365,6 +365,11 @@ impl Fields {
                         Some(SimpleAssignmentTarget::ComputedMemberExpression(m)) => {
                             if let Some(key) = key(&m.expression) {
                                 writes.push((m.object.node_id(), key, a.right.node_id()));
+                            } else {
+                                mutations.push(mutations::Mutation::AnyKeyWrite {
+                                    receiver: m.object.node_id(),
+                                    value: a.right.node_id(),
+                                });
                             }
                         }
                         _ => (),
@@ -395,6 +400,7 @@ impl Fields {
             }
         }
         let mut field_writes: BTreeMap<(NodeId, Key), Alternatives> = BTreeMap::new();
+        let mut wildcard_writes: BTreeMap<NodeId, Alternatives> = BTreeMap::new();
         let mut index_deletes = BTreeSet::new();
         loop {
             let get = |id: &NodeId| values.get(id).cloned().unwrap_or_default();
@@ -463,6 +469,9 @@ impl Fields {
                                 if let Some(written) = field_writes.get(&(object, key.clone())) {
                                     found.extend(written);
                                 }
+                                if let Some(written) = wildcard_writes.get(&object) {
+                                    found.extend(written);
+                                }
                                 if index_deletes.contains(&object) && mutations::array_index(key) {
                                     found.insert(Origin::Other);
                                 }
@@ -504,17 +513,36 @@ impl Fields {
                 }
             }
             let mut deleted = Vec::new();
+            let mut wildcard_additions = Vec::new();
             for mutation in &mutations {
-                let mutations::Mutation::IndexDelete(receiver) = mutation;
-                for origin in get(receiver) {
-                    if let Origin::Array(array) = origin {
-                        deleted.push(array);
+                match mutation {
+                    mutations::Mutation::IndexDelete(receiver) => {
+                        for origin in get(receiver) {
+                            if let Origin::Array(array) = origin {
+                                deleted.push(array);
+                            }
+                        }
+                    }
+                    mutations::Mutation::AnyKeyWrite { receiver, value } => {
+                        // A computed write may replace any key of every source
+                        // allocation reached through aliases, captures or calls.
+                        for origin in get(receiver) {
+                            if let Origin::Object(object)
+                            | Origin::NullObject(object)
+                            | Origin::Array(object) = origin
+                            {
+                                wildcard_additions.push((object, get(value)));
+                            }
+                        }
                     }
                 }
             }
             let mut changed = false;
             for array in deleted {
                 changed |= index_deletes.insert(array);
+            }
+            for (object, found) in wildcard_additions {
+                changed |= extend(&mut wildcard_writes, object, found);
             }
             for (symbol, found) in symbol_additions {
                 changed |= extend(&mut bindings, symbol, found);

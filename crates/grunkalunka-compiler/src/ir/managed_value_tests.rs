@@ -1,6 +1,34 @@
 use super::*;
 
 #[test]
+fn dictionary_dynamic_write_checks_every_operand_before_emission() {
+    let source = "export function run(a,b){const d=Object.create(null);const key='x';d[key]=a;return d.x===a?1:0;}";
+    for invalid in 0..4 {
+        let mut module = crate::lower_source(source, false).unwrap();
+        let function = &mut module.functions[0];
+        let (object, key, value) = function
+            .body
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let Op::ManagedSetOwnDynamic { object, key, value } = &mut operation.kind {
+                    Some((object, key, value))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        match invalid {
+            0 => *object = *key,
+            1 => *key = *object,
+            2 => *value = *object,
+            _ => *value = ValueId(usize::MAX),
+        }
+        assert!(verify_module(&module).is_err());
+    }
+}
+
+#[test]
 fn dictionary_dynamic_read_checks_operands_and_result_before_emission() {
     let source = "export function run(a,b){const d=Object.create(null);d.x=a;const key='x';return d[key]===a?1:0;}";
     for invalid in 0..4 {

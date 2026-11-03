@@ -269,6 +269,12 @@ impl Emitter<'_> {
                 self.get(*value);
                 self.output.push_str("call $gc_set\n");
             }
+            Op::ManagedSetOwnDynamic { object, key, value } => {
+                self.get(*object);
+                self.managed_key_value(*key);
+                self.get(*value);
+                self.output.push_str("call $gc_set\n");
+            }
             Op::ManagedObjectSpread { object, input } => {
                 self.get(*object);
                 self.get(*input);
