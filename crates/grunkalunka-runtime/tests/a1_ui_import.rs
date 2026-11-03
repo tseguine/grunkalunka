@@ -439,6 +439,52 @@ fn imported_handler_keeps_selected_and_label_snapshots_after_mutation() {
 }
 
 #[test]
+fn imported_handler_combines_keyed_state_history_and_label_methods() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           function labelFor(name) { return name.slice(2).substring(0,5); }
+           function keyFor(label) { return label.slice(0,3); }
+           export function run(a, b) {
+             const label=labelFor(a>0?'# One😀':'# Two😀');
+             const key=keyFor(label);
+             const state=Object.create(null);
+             state[key]=label;
+             const history=[label,'stale'];
+             const removed=history.pop();
+             const selected=history.pop();
+             state[key]=selected;
+             const dispatch=()=>choose(
+               state[key]===label&&removed==='stale'&&history.length===0&&
+               label.startsWith('One')&&label.includes('😀')&&
+               label.charAt(0)==='O'&&label.charCodeAt(0)===79?1:0,b);
+             return dispatch()+label.length;
+           }"#,
+    );
+}
+
+#[test]
+fn imported_handler_keeps_dictionary_assignment_snapshots_during_pop() {
+    compare_composed_source(
+        r#"import { selectVisible as choose } from "grunkalunka:a1/ui";
+           export function run(a, b) {
+             let state=Object.create(null);
+             const original=state;
+             let key='current';
+             const history=['One😀','Two'];
+             const selected=state[(state=Object.create(null),key)]=
+               history.pop((key='changed'));
+             const label='Two😀 selected'.slice(0,5);
+             const dispatch=()=>choose(
+               selected==='Two'&&original.current===selected&&
+               original.changed===undefined&&state.current===undefined&&
+               state!==original&&key==='changed'&&history.length===1&&
+               label.substring(0,3)==='Two'&&a>0?1:0,b);
+             return dispatch()+label.length;
+           }"#,
+    );
+}
+
+#[test]
 fn unsupported_module_and_import_forms_remain_rejected() {
     let valid = source(false, false);
     let unsupported = [
