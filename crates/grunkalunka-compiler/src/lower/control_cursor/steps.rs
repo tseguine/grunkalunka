@@ -377,6 +377,9 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         'ast: 'n,
     {
         match frame {
+            Frame::AdvanceDeclaration { sequence } => {
+                self.advance_declaration(sequence, finished_region, cursor)?;
+            }
             Frame::ForDeclarationInitializer {
                 source,
                 output,

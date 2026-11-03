@@ -24,7 +24,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         )
     }
 
-    fn advance_declaration<'n>(
+    pub(super) fn advance_declaration<'n>(
         &mut self,
         mut sequence: Box<DeclarationSequence<'n, 'ast>>,
         mut output: Region,
@@ -41,34 +41,66 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
             )?;
             match prepared {
                 declarations::DeclarationInitializer::Complete => sequence.index += 1,
-                declarations::DeclarationInitializer::CheckClosure { local, closure } => {
-                    cursor.pending.push(Frame::CheckedDeclarationClosure {
-                        sequence,
-                        local,
-                        output,
-                    });
-                    return self.start_closure_check(closure, 0, cursor);
-                }
-                declarations::DeclarationInitializer::Value(value) => {
-                    let active = self.begin_declaration_value(value)?;
-                    let (source, mode) = active.request();
-                    #[cfg(test)]
-                    SCHEDULED_DECLARATION_VALUES.with(|count| count.set(count.get() + 1));
-                    cursor
-                        .pending
-                        .push(Frame::DeclarationValue { sequence, active });
-                    cursor.next = Some(Next::Expression {
-                        source,
-                        output,
-                        depth: 0,
-                        mode,
-                    });
-                    return Ok(());
+                request => {
+                    return self
+                        .schedule_declaration_initializer(sequence, request, output, cursor);
                 }
             }
         }
         cursor.completed = Some(Outcome::Statement(output, Completion::NORMAL));
         Ok(())
+    }
+
+    pub(super) fn schedule_declaration_initializer<'n>(
+        &mut self,
+        mut sequence: Box<DeclarationSequence<'n, 'ast>>,
+        prepared: declarations::DeclarationInitializer<'n, 'ast>,
+        output: Region,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        match prepared {
+            declarations::DeclarationInitializer::Complete => {
+                sequence.index += 1;
+                // Even a zero-argument metadata factory returns to the main
+                // loop before selecting the next declarator. Consecutive
+                // factories must not recursively restart this sequence.
+                cursor.pending.push(Frame::AdvanceDeclaration { sequence });
+                cursor.completed = Some(Outcome::Statement(output, Completion::NORMAL));
+                Ok(())
+            }
+            declarations::DeclarationInitializer::CheckClosure { local, closure } => {
+                cursor.pending.push(Frame::CheckedDeclarationClosure {
+                    sequence,
+                    local,
+                    output,
+                });
+                self.start_closure_check(closure, 0, cursor)
+            }
+            declarations::DeclarationInitializer::Factory(prepared) => {
+                #[cfg(test)]
+                SCHEDULED_DECLARATION_FACTORIES.with(|count| count.set(count.get() + 1));
+                self.start_declaration_factory_arguments(sequence, prepared, output, cursor)
+            }
+            declarations::DeclarationInitializer::Value(value) => {
+                let active = self.begin_declaration_value(value)?;
+                let (source, mode) = active.request();
+                #[cfg(test)]
+                SCHEDULED_DECLARATION_VALUES.with(|count| count.set(count.get() + 1));
+                cursor
+                    .pending
+                    .push(Frame::DeclarationValue { sequence, active });
+                cursor.next = Some(Next::Expression {
+                    source,
+                    output,
+                    depth: 0,
+                    mode,
+                });
+                Ok(())
+            }
+        }
     }
 
     pub(super) fn resume_declaration_value<'n>(
@@ -101,5 +133,24 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         self.finish_declaration_closure_check(local, closure, &mut output)?;
         sequence.index += 1;
         self.advance_declaration(sequence, output, cursor)
+    }
+
+    pub(super) fn finish_declaration_factory<'n>(
+        &mut self,
+        sequence: Box<DeclarationSequence<'n, 'ast>>,
+        prepared: declarations::PreparedDeclarationFactory<'n, 'ast>,
+        mut output: Region,
+        arguments: Vec<ValueId>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
+    ) -> Result<(), String>
+    where
+        'ast: 'n,
+    {
+        let (local, closure) =
+            self.complete_declaration_factory(prepared, arguments, &mut output)?;
+        // Completion restored the caller before publication, any definition
+        // check, or selection of the next initializer.
+        let next = self.publish_declaration_closure(local, false, closure, &mut output)?;
+        self.schedule_declaration_initializer(sequence, next, output, cursor)
     }
 }
