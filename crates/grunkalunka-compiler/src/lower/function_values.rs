@@ -16,6 +16,17 @@ struct FunctionResultActivation {
     _kind: FunctionResultKind,
 }
 
+/// Runtime factory admission spans callee construction, ordered arguments and
+/// the final Function-valued call. Source validation completes before effects.
+struct PreparedRuntimeFactory<'n, 'a> {
+    admission: FunctionResultActivation,
+    call: &'n CallExpression<'a>,
+    depth: usize,
+    signature: usize,
+    parameter_count: usize,
+    result_type: Type,
+}
+
 /// An admitted local factory keeps both its eight-active-function-result
 /// charge and the caller's lexical state while its source body is suspended.
 pub(super) struct LocalFunctionResult {
@@ -1168,15 +1179,17 @@ impl<'s, 'a> Lowering<'s, 'a> {
         self.finish_function_result(factory.admission);
     }
 
-    fn runtime_function_result(
+    /// Acquire the runtime result charge before signature and call validation.
+    /// A failed preparation restores only that charge; no callee or arguments
+    /// have run and no output Region is retained by the returned token.
+    fn prepare_runtime_factory<'n, 'ast>(
         &mut self,
-        call: &CallExpression<'_>,
-        region: &mut Region,
+        call: &'n CallExpression<'ast>,
         expected: usize,
         depth: usize,
-    ) -> Result<ValueId, String> {
-        let activation = self.begin_function_result(call, FunctionResultKind::Runtime)?;
-        let result = (|| {
+    ) -> Result<PreparedRuntimeFactory<'n, 'ast>, String> {
+        let admission = self.begin_function_result(call, FunctionResultKind::Runtime)?;
+        let validated = (|| {
             let signature = self
                 .function_arity(invocation::callee(call), invocation::depth(call, depth + 1))
                 .ok_or_else(|| unsupported(call, "runtime factory requires a function callee"))?;
@@ -1204,6 +1217,40 @@ impl<'s, 'a> Lowering<'s, 'a> {
                     "runtime factory result signature mismatch",
                 ));
             }
+            Ok((signature, parameter_count, result_type))
+        })();
+        match validated {
+            Ok((signature, parameter_count, result_type)) => Ok(PreparedRuntimeFactory {
+                admission,
+                call,
+                depth,
+                signature,
+                parameter_count,
+                result_type,
+            }),
+            Err(error) => {
+                self.finish_function_result(admission);
+                Err(error)
+            }
+        }
+    }
+
+    fn runtime_function_result(
+        &mut self,
+        call: &CallExpression<'_>,
+        region: &mut Region,
+        expected: usize,
+        depth: usize,
+    ) -> Result<ValueId, String> {
+        let factory = self.prepare_runtime_factory(call, expected, depth)?;
+        let evaluated = (|| {
+            let call = factory.call;
+            let depth = factory.depth;
+            let signature = factory.signature;
+            let parameter_count = factory.parameter_count;
+            // Runtime factories always construct even a slot callee through
+            // function_value. Its admission, source span and inherited result
+            // depth differ from ordinary closure-call preparation's fast path.
             let callee = self.function_value(
                 invocation::callee(call),
                 region,
@@ -1257,11 +1304,26 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 };
                 arguments.push(value);
             }
-            self.charge_closure_expansion(call)?;
-            let result = self.value(result_type);
+            Ok((callee, arguments))
+        })();
+        self.finish_runtime_factory(factory, region, evaluated)
+    }
+
+    /// Emission is charged only after all callee and argument effects finish.
+    /// This consumes the admission token and restores it on evaluation errors,
+    /// expansion-limit errors and successful Function-valued completion alike.
+    fn finish_runtime_factory(
+        &mut self,
+        factory: PreparedRuntimeFactory<'_, '_>,
+        region: &mut Region,
+        evaluated: Result<(ValueId, Vec<ValueId>), String>,
+    ) -> Result<ValueId, String> {
+        let result = evaluated.and_then(|(callee, arguments)| {
+            self.charge_closure_expansion(factory.call)?;
+            let result = self.value(factory.result_type);
             Self::push(
                 region,
-                call,
+                factory.call,
                 Op::ClosureCall {
                     result,
                     callee,
@@ -1269,8 +1331,8 @@ impl<'s, 'a> Lowering<'s, 'a> {
                 },
             );
             Ok(result)
-        })();
-        self.finish_function_result(activation);
+        });
+        self.finish_function_result(factory.admission);
         result
     }
 
