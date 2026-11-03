@@ -1,5 +1,5 @@
 //! A1-specific host adapter for the independently reusable native semantic
-//! layout and RGB painter. This is *not* an HTML parser, font engine or DOM.
+//! layout, bounded bitmap text service and RGB painter. This is not HTML or DOM.
 //! A trusted host passes only validated visible WIT heading records over stdin;
 //! no note source, path, network or guest capability enters this process.
 
@@ -8,6 +8,9 @@ use grunkalunka_layout::paint::{PaintNode, Rgb, paint};
 use grunkalunka_layout::semantic::{Element, ElementKind, default_style, layout_semantic};
 use std::fmt::Write as _;
 use std::io::{self, Read, Write};
+
+#[path = "a1_note_scene/text.rs"]
+mod text;
 
 const VIEW_WIDTH: u32 = 320;
 const VIEW_HEIGHT: u32 = 160;
@@ -237,8 +240,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
     }
-    let semantic = layout_semantic(&elements, VIEW_WIDTH, VIEW_HEIGHT)
+    // Widths come from actual native content boxes. Retain the measured glyph
+    // plans while updating heights, then reflow before painting or hit testing.
+    let initial = layout_semantic(&elements, VIEW_WIDTH, VIEW_HEIGHT)
         .map_err(|error| io::Error::other(format!("native semantic layout: {error:?}")))?;
+    let mut text_plans = Vec::with_capacity(initial.text_boxes.len());
+    for anchor in &initial.text_boxes {
+        let plan = text::TextPlan::new(anchor.text, anchor.content.width)
+            .map_err(|error| io::Error::other(format!("A1 text measurement: {error:?}")))?;
+        let element = &mut elements[anchor.node];
+        element.measured_text_height = element.measured_text_height.max(plan.height());
+        text_plans.push((anchor.node, plan));
+    }
+    let semantic = layout_semantic(&elements, VIEW_WIDTH, VIEW_HEIGHT)
+        .map_err(|error| io::Error::other(format!("measured native layout: {error:?}")))?;
     let paints: Vec<_> = elements
         .iter()
         .zip(colors)
@@ -248,8 +263,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             border: None,
         })
         .collect();
-    let canvas = paint(&semantic.frame, &paints, Rgb::WHITE)
+    let mut canvas = paint(&semantic.frame, &paints, Rgb::WHITE)
         .map_err(|error| io::Error::other(format!("native RGB paint: {error:?}")))?;
+    for (node, plan) in text_plans {
+        let content = semantic.frame.boxes[node]
+            .ok_or("A1 measured text lost its layout box")?
+            .content;
+        plan.paint(&mut canvas, content, Rgb::BLACK)
+            .map_err(|error| io::Error::other(format!("A1 text painting: {error:?}")))?;
+    }
 
     let mut stdout = io::stdout().lock();
     if let Some((x, y)) = hit {

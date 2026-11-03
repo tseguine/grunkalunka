@@ -174,3 +174,37 @@ test('invalid activation or forged document metadata fails before frame publicat
   headings[0].end = document.sourceBytes.length + 1;
   assert.throws(() => activate({ document: { ...document, headings } }));
 });
+
+function pixel(ppm, x, y) {
+  const header = Buffer.from('P6\n320 160\n255\n');
+  assert.ok(ppm.subarray(0, header.length).equals(header));
+  const start = header.length + (y * 320 + x) * 3;
+  return [...ppm.subarray(start, start + 3)];
+}
+
+test('actual WIT heading text is painted as glyphs with transparent inset', () => {
+  const { previousPixels, before } = activate();
+  assert.deepEqual(pixel(previousPixels, 26, 42), [0, 0, 0], 'R ink');
+  assert.deepEqual(pixel(previousPixels, 30, 42), [87, 164, 118], 'R transparent edge');
+  assert.deepEqual(pixel(previousPixels, 24, 40), [87, 164, 118], 'row inset');
+  const report = call(executable, ['--report'], before.input).toString('utf8');
+  assert.match(report, /\t526f6f74\n/, 'original Root text remains in native anchors');
+});
+
+test('long actual WIT labels reflow following glyphs and pointer targets together', async () => {
+  const note = join(scratch, 'wrapped.md');
+  await writeFile(note, '# ' + 'A'.repeat(96) + '\n# End\n');
+  const wrapped = await loadNoteDocument({ profile: 'granted', note });
+  const result = activate({ document: wrapped, x: 24, y: 71 });
+  assert.equal(result.heading.index, 1, 'second heading moved below three lines');
+  assert.equal(result.heading.start, wrapped.headings[1].start);
+  const report = call(executable, ['--report'], result.before.input).toString('utf8');
+  const rows = report.trimEnd().split('\n').slice(1).map(line => line.split('\t'));
+  const first = rows.find(row => row[1] === '4');
+  const second = rows.find(row => row[1] === '5');
+  assert.deepEqual([Number(first[3]), Number(first[5])], [40, 29]);
+  assert.deepEqual([Number(second[2]), Number(second[3])], [24, 71]);
+  assert.equal(Buffer.from(second[9], 'hex').toString('utf8'), 'End');
+  assert.deepEqual(pixel(result.previousPixels, 26, 73), [0, 0, 0], 'reflowed E ink');
+  assert.equal(result.after.visibleCount, 0);
+});
