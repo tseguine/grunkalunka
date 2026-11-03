@@ -59,6 +59,7 @@ fn kinds(
     bindings: &BTreeMap<SymbolId, Kinds>,
     returns: &[Kinds],
     closure_calls: Option<&BTreeMap<NodeId, Kinds>>,
+    stored: &stored_functions::Fields,
 ) -> Kinds {
     enum Task<'e, 'a> {
         Expr(&'e Expression<'a>, usize),
@@ -66,6 +67,7 @@ fn kinds(
         StringConcat,
         Member(bool),
         ArrayElement(Kinds),
+        StringMethod(Kinds),
     }
     let mut work = vec![Task::Expr(node, 0)];
     let mut values: Vec<Kinds> = Vec::new();
@@ -101,6 +103,19 @@ fn kinds(
                     [Kind::Primitive].into()
                 });
             }
+            Task::StringMethod(mut fallback) => {
+                let receiver = values.pop().expect("String method receiver kinds");
+                values.push(if receiver.contains(&Kind::String) {
+                    if receiver.len() == 1 {
+                        [Kind::String].into()
+                    } else {
+                        fallback.insert(Kind::String);
+                        fallback
+                    }
+                } else {
+                    fallback
+                });
+            }
             Task::Member(length) => {
                 let receiver = values.pop().expect("receiver source kinds");
                 values.push(
@@ -116,6 +131,13 @@ fn kinds(
             Task::Expr(node, depth) => {
                 if depth > 128 {
                     values.push(Kinds::new());
+                    continue;
+                }
+                // A generic managed ABI does not erase a final positive source
+                // fact. Keep String helper/field/capture results composable;
+                // any Other alternative prevents this refinement.
+                if stored.string(node.node_id()) {
+                    values.push([Kind::String].into());
                     continue;
                 }
                 if let Some(inner) = erased_inner(node) {
@@ -189,7 +211,10 @@ fn kinds(
                                     .and_then(|calls| calls.get(&call.node_id.get()).cloned())
                             })
                             .unwrap_or_else(|| [Kind::Primitive].into());
-                        if let Some(receiver) = array_at::receiver(call).or_else(|| {
+                        if let Some((receiver, _)) = string_methods::call(call) {
+                            work.push(Task::StringMethod(fallback));
+                            work.push(Task::Expr(receiver, depth + 1));
+                        } else if let Some(receiver) = array_at::receiver(call).or_else(|| {
                             array_mutations::operation(call).map(|(_, receiver)| receiver)
                         }) {
                             work.push(Task::ArrayElement(fallback));
@@ -447,14 +472,16 @@ pub(crate) fn infer(
         let mut changed = false;
         for (symbol, value) in &definitions {
             let next = value
-                .map(|v| kinds(v, semantic, functions, &bindings, &returns, None))
+                .map(|v| kinds(v, semantic, functions, &bindings, &returns, None, stored))
                 .unwrap_or_else(|| [Kind::GeneralPrimitive].into());
             changed |= extend(&mut bindings, *symbol, next);
         }
         for (index, call) in &calls {
             for (symbol, actual) in parameters[*index].iter().zip(invocation::arguments(call)) {
                 if let (Some(symbol), Some(actual)) = (symbol, actual.as_expression()) {
-                    let next = kinds(actual, semantic, functions, &bindings, &returns, None);
+                    let next = kinds(
+                        actual, semantic, functions, &bindings, &returns, None, stored,
+                    );
                     changed |= extend(&mut bindings, *symbol, next);
                 }
             }
@@ -467,7 +494,7 @@ pub(crate) fn infer(
                 let next = statement
                     .argument
                     .as_ref()
-                    .map(|v| kinds(v, semantic, functions, &bindings, &returns, None))
+                    .map(|v| kinds(v, semantic, functions, &bindings, &returns, None, stored))
                     .unwrap_or_else(|| [Kind::Primitive].into());
                 let before = returns[index].len();
                 returns[index].extend(next);
@@ -697,6 +724,7 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
                         &bindings,
                         &returns,
                         Some(&call_kinds),
+                        stored,
                     )
                 })
                 .unwrap_or_else(|| [Kind::GeneralPrimitive].into());
@@ -711,6 +739,7 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
                     &bindings,
                     &returns,
                     Some(&call_kinds),
+                    stored,
                 );
                 changed |= extend(&mut bindings, *symbol, next);
             }
@@ -728,6 +757,7 @@ pub(super) fn closure_kinds(flow: ClosureFlow<'_, '_, '_>) -> ClosureKinds {
                     &bindings,
                     &returns,
                     Some(&call_kinds),
+                    stored,
                 ));
             }
             changed |= extend(&mut results, *body, next);

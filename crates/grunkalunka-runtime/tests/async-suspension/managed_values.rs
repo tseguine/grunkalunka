@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn string_ranges_save_receiver_and_endpoints_across_awaits() {
+    compare_promises(
+        &[
+            "let s='abcdef';const text=s.slice((await a,s='changed',1),(await b,3));await a;return text==='bc'&&s==='changed'?1:0;",
+            "let n=0;const text='abcdef'.substring((await a,n=1,4),(await b,n=n*10+2,1),(await a,n=n*10+3));await b;return text==='bcd'?n:-1;",
+            "let n=0;const text='abcdef'.slice(void(await a,n=1),void(await b,n=n*10+2));await a;return text==='abcdef'?n:-1;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn dictionary_writes_preserve_receiver_and_key_snapshots_across_await() {
     compare_promises(
         &[

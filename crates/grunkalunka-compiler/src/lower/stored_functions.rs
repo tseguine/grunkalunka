@@ -24,7 +24,7 @@ enum Rule {
     Copy(Vec<NodeId>),
     Symbol(SymbolId),
     Member(NodeId, Key),
-    Call(NodeId, Vec<NodeId>),
+    Call(NodeId, Vec<NodeId>, Option<NodeId>),
     StringConcat(NodeId, NodeId),
 }
 struct FunctionFlow {
@@ -325,6 +325,7 @@ impl Fields {
                         .iter()
                         .filter_map(|argument| argument.as_expression().map(GetNodeId::node_id))
                         .collect(),
+                    string_methods::call(call).map(|(receiver, _)| receiver.node_id()),
                 )),
                 AstKind::AssignmentExpression(a)
                     if matches!(
@@ -428,7 +429,19 @@ impl Fields {
                             BTreeSet::from([Origin::Other])
                         }
                     }
-                    Rule::Call(callee, arguments) => {
+                    Rule::Call(callee, arguments, string_receiver) => {
+                        if let Some(receiver) = string_receiver {
+                            let origins = get(receiver);
+                            if !origins.is_empty()
+                                && origins.iter().all(|origin| *origin == Origin::String)
+                            {
+                                additions.push((*id, BTreeSet::from([Origin::String])));
+                                continue;
+                            }
+                        }
+                        // Preserve ordinary methods with the same spelling. If
+                        // a provisional String later gains Other, this path adds
+                        // that alternative rather than laundering a String proof.
                         let mut found = Alternatives::new();
                         for target in get(callee) {
                             if let Some(function) = functions.get(&target) {

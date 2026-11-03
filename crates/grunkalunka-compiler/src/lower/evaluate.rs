@@ -11,6 +11,7 @@ mod managed;
 mod own_keys;
 #[cfg(test)]
 mod ownership_tests;
+mod string_methods;
 mod tasks;
 mod values;
 use tasks::Work;
@@ -1457,6 +1458,9 @@ impl<'lower_s, 'lower_a> Lowering<'lower_s, 'lower_a> {
                 Work::ArrayAt(task) => self.resume_array_at(task, regions, values, work)?,
                 Work::ArrayPop(task) => self.resume_array_pop(task, regions, values, work)?,
                 Work::Dictionary(task) => self.resume_dictionary(task, regions, values, work)?,
+                Work::StringMethod(task) => {
+                    self.resume_string_method(task, regions, values, work)?
+                }
                 Work::OwnKeys(task) => self.resume_own_keys(task, regions, values, work)?,
                 Work::Managed(task) => {
                     self.complete_managed(task, regions, values, work)?;

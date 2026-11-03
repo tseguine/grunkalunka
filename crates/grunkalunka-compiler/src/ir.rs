@@ -546,6 +546,13 @@ pub(crate) enum Op {
         left: ValueId,
         right: ValueId,
     },
+    ManagedStringRange {
+        result: ValueId,
+        input: ValueId,
+        start: ValueId,
+        end: ValueId,
+        substring: bool,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1359,6 +1366,18 @@ impl Verifier<'_> {
             } => {
                 self.value(*left, Type::ManagedValue, visible, span)?;
                 self.value(*right, Type::ManagedValue, visible, span)?;
+                self.define(*result, Type::ManagedValue, visible, span)?;
+            }
+            Op::ManagedStringRange {
+                result,
+                input,
+                start,
+                end,
+                ..
+            } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.value(*start, Type::Number, visible, span)?;
+                self.value(*end, Type::Number, visible, span)?;
                 self.define(*result, Type::ManagedValue, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {

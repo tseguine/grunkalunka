@@ -937,6 +937,50 @@ fn string_concat_requires_visible_managed_operands_and_result() {
 }
 
 #[test]
+fn string_ranges_require_managed_text_and_visible_number_endpoints() {
+    let mut module = crate::lower_source(
+        "export function run(a,b){return 'abcdef'.slice(a,b).length;}",
+        false,
+    )
+    .unwrap();
+    let function = &mut module.functions[0];
+    let index = function
+        .body
+        .operations
+        .iter()
+        .position(|op| matches!(op.kind, Op::ManagedStringRange { .. }))
+        .unwrap();
+    let Op::ManagedStringRange {
+        result,
+        input,
+        start,
+        end,
+        substring,
+    } = function.body.operations[index].kind
+    else {
+        unreachable!()
+    };
+    verify_module(&module).unwrap();
+    module.functions[0].values[result.0] = Type::Number;
+    assert!(verify_module(&module).is_err());
+    module.functions[0].values[result.0] = Type::ManagedValue;
+    for (input, start, end) in [
+        (start, start, end),
+        (input, input, end),
+        (input, start, result),
+    ] {
+        module.functions[0].body.operations[index].kind = Op::ManagedStringRange {
+            result,
+            input,
+            start,
+            end,
+            substring,
+        };
+        assert!(verify_module(&module).is_err());
+    }
+}
+
+#[test]
 fn managed_nullish_predicate_keeps_the_carrier_type_boundary() {
     let mut module = primitive_comparison();
     module.functions[0].body.operations[6].kind = Op::ManagedIsNullish {

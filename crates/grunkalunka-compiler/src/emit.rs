@@ -18,6 +18,7 @@ mod relational;
 #[cfg(test)]
 mod stack_hygiene_tests;
 mod string_concat;
+mod string_methods;
 pub(crate) use asynchronous::emit_async;
 
 use crate::ir::{self, Binary, Compare, Exit, Function, Op, Region, Type, Unary, ValueId};
@@ -335,6 +336,24 @@ impl Emitter<'_> {
                 self.get(*left);
                 self.get(*right);
                 self.output.push_str("call $gc_string_concat\n");
+                self.set(*result);
+            }
+            Op::ManagedStringRange {
+                result,
+                input,
+                start,
+                end,
+                substring,
+            } => {
+                self.get(*input);
+                self.get(*start);
+                self.get(*end);
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_string_range",
+                    i32::from(*substring)
+                )
+                .unwrap();
                 self.set(*result);
             }
             Op::ManagedArrayNew { result, length } => {
@@ -1259,6 +1278,7 @@ fn emit_verified(
         output.push_str(array_at::runtime(module));
         output.push_str(array_pop::runtime(module));
         output.push_str(string_concat::runtime(module));
+        output.push_str(string_methods::runtime(module));
     }
     output.push_str(")\n");
     Ok(output)
