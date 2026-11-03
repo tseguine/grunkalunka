@@ -16,7 +16,13 @@ pub(super) const FRAME_ALLOCATOR: &str = r#"(func $closure_frame (param $bytes i
   local.get $old)
 "#;
 
-pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool, gc: bool) -> String {
+pub(super) fn table(
+    module: &ir::Module,
+    outlined: bool,
+    starters: bool,
+    gc: bool,
+    function_index_offset: usize,
+) -> String {
     let params = if gc {
         "(ref null $gc_frame) (ref null $gc_frame)"
     } else {
@@ -81,8 +87,10 @@ pub(super) fn table(module: &ir::Module, outlined: bool, starters: bool, gc: boo
             let target = if outlined {
                 format!("$closure_body{i}")
             } else {
-                i.to_string()
+                (i + function_index_offset).to_string()
             };
+            // FunctionId remains the logical table slot in numeric pairs and
+            // GC function objects. Only its target is a core function index.
             writeln!(output, "(elem (i32.const {i}) func {target})").unwrap();
         }
     }
