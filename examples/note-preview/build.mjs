@@ -12,6 +12,7 @@ export const buildCommands = Object.freeze([
   ['build', '-p', 'grunkalunka-markdown', '--example', 'outline_guest',
     '--target', 'wasm32-unknown-unknown', '--locked', '--offline'],
   ['build', '-p', 'grunkalunka-runtime', '--example', 'a1_note_preview', '--locked', '--offline'],
+  ['build', '-p', 'grunkalunka-runtime', '--example', 'a1_ui_action', '--locked', '--offline'],
   ['build', '-p', 'grunkalunka-layout', '--example', 'a1_note_scene', '--locked', '--offline'],
 ]);
 

@@ -55,6 +55,58 @@ action creates a fresh component Store; there is no persistent JS object state o
 window/device loop. The current heading action collapses the outline, and the
 collapsed panel is inert, so this is not yet a reversible expand/collapse UI.
 The native control shares the private scalar action semantics; it does not
-establish the proposed owned record/resource view API. Readable glyphs, broader
-text support and interactive packaging are separately documented work. A1 remains
+establish the proposed owned record/resource view API. The [bounded bitmap service](a1-bitmap-text.md) supplies printable ASCII glyphs
+and shared text/hit geometry. Broader typography and interactive packaging
+remain separate work. A1 remains
 in progress as an integration target, not declared complete by this slice.
+
+## Run and inspect one input activation
+
+After the normal locked dependencies and Wasm target are available, the existing
+build command now also builds the action host:
+
+```sh
+node examples/note-preview/build.mjs
+node examples/note-preview/interact.mjs --profile granted --note ./notes.md --out ./action-result --x 24 --y 40 --debug
+```
+
+Coordinates address the native 320 by 160 frame. For a short first level-one
+heading, `24,40` targets its row. The default source requests collapse. A miss
+preserves the current view. `--collapsed` starts with an inert collapsed panel.
+`--ui-profile denied` independently denies mutation while leaving an already
+authorized document readable. `--profile denied` does not open even a missing
+`--note` path and provides no heading target.
+
+The command refuses an existing output directory and publishes only complete
+outputs after successful native execution:
+
+| File | Meaning |
+| --- | --- |
+| `before.ppm` | Native RGB frame before the pointer action |
+| `preview.ppm` | Native RGB frame after the committed action, or the unchanged frame |
+| `index.html` | Inert semantic HTML for the resulting state |
+| `action.component.wasm` | Portable compiler-produced service component used by the action |
+| `receipt.json` | Actual document read/cleanup counters, pointer hit, action status and service state |
+| `debug.json` | Optional before/after native scene inputs, including granted label data as hex |
+
+The receipt distinguishes no hit, a handler with no committed transition, UI
+policy failure and a committed action that leaves the same visible count.
+Execution/resource traps fail the command and leave its output destination absent.
+The selected note is not rewritten or copied into the output, and its filesystem
+path is not recorded in the receipt or debug data.
+
+The emitted component can be reused without recompiling the source:
+
+```sh
+node examples/note-preview/interact.mjs --profile granted --note ./notes.md --out ./replay-result --x 24 --y 40 --component ./action-result/action.component.wasm
+```
+
+Component input is bounded at 4 MiB. Reusing portable component bytes still needs
+this application host and its native executables; these outputs are a development
+experiment, not a self-contained interactive distribution. The older static
+preview package remains separate.
+
+`node --test tests/applications/a1-interaction-run.test.mjs` builds through the
+documented command and exercises invocation from an unrelated working directory,
+artifact replay, document/UI denial, output preservation and no publication after
+a guest fuel trap. Its paired registration uses the existing canonical CI.
