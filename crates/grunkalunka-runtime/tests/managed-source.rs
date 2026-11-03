@@ -151,6 +151,81 @@ fn dictionary_reads_keep_unknown_values_and_receivers_unproven() {
 }
 
 #[test]
+fn dictionary_writes_create_replace_and_return_rhs_snapshots() {
+    for body in [
+        "const d=Object.create(null);const key=a?'left':'right';const assigned=d[key]=a;const saved=d[key];d[key]=b;return assigned===a&&saved===a&&d[key]===b?a:b;",
+        "const d=Object.create(null);for(let i=0;i<2;i++){const key=i?'constructor':'__proto__';d[key]=i?b:a;}const keys=Object.keys(d);return d.__proto__===a&&d.constructor===b&&keys.length===2&&keys[0]==='__proto__'&&keys[1]==='constructor'?a:b;",
+        "const d=Object.create(null);const key='__proto__';const child={x:a};d[key]=child;return d[key]===child&&d.x===undefined?a:b;",
+        "const d=Object.create(null);let key='4294967295';d[key]=a;key='0';d[key]=b;const keys=Object.keys(d);return keys.length===2&&keys[0]==='0'&&keys[1]==='4294967295'?a:b;",
+        r"const d=Object.create(null);let key='\ud800\0';d[key]=a;key='';d[key]=b;return d['\ud800\0']===a&&d['']===b?a:b;",
+        "const d=Object.create(null);const key='self';d[key]=d;const saved=d[key];d[key]=null;return saved===d&&d[key]===null?a:b;",
+        "const d=Object.create(null);const key='label';const label=d[key]='abc';const child=d[key]={x:a};return label.length===3&&child.x===a?a:b;",
+        "const d=Object.create(null);const key='x';d[key]=a;const xs=['safe'];xs[4294967295]=b;return xs[0].length===4&&d[key]===a?a:b;",
+    ] {
+        compare(body);
+    }
+}
+
+#[test]
+fn dictionary_writes_snapshot_receiver_and_key_before_rhs_effects() {
+    for body in [
+        "let n=0;let d=Object.create(null);const old=d;let key='first';(n=n*10+1,d)[(n=n*10+2,key)]=(n=n*10+3,key='second',d=Object.create(null),b);return old.first===b&&d.first===undefined&&old.second===undefined&&n===123?a:b;",
+        "const d=Object.create(null);let key='x';const rhs=()=>{key='y';return a;};const assigned=d[key]=rhs();return assigned===a&&d.x===a&&d.y===undefined&&key==='y'?a:b;",
+        "const old=Object.create(null);const next=Object.create(null);let d=old;const key=()=>{d=next;return 'x';};d[key()]=a;return old.x===a&&next.x===undefined?a:b;",
+        "const d=Object.create(null);d[(d.x=b,'x')]=(d.x=a,b);return d.x===b?a:b;",
+    ] {
+        compare(body);
+    }
+    let source = "function make(){return Object.create(null);}function set(d,k,v){return d[k]=v;}export function run(a,b){const d=make();const saved=set(d,'x',a);const write=k=>d[k]=b;write('y');return saved===a&&d.x===a&&d.y===b?a:b;}";
+    common::compare_sources(source, source);
+    common::compare_sources(
+        "export function run(a,b){const d=Object.create(null);const key='x';d[key]=a;return d[key]===a?a:b;}",
+        "export function run(a:string,b:object):void{const d:number=Object.create(null);const key:boolean='x';(d as never)[key as number]=a;return d[key]===a?a:b;}",
+    );
+}
+
+#[test]
+fn dictionary_writes_reject_unsupported_targets_keys_and_projections() {
+    for body in [
+        "const d={};const key='x';d[key]=a;return a;",
+        "const d=a?Object.create(null):{};const key='x';d[key]=a;return a;",
+        "const d=Object.create(null);d[a]=b;return a;",
+        "const d=Object.create(null);const key=a?'x':null;d[key]=b;return a;",
+        "const d=Object.create(null);const key=['x'].at(0);d[key]=b;return a;",
+        "const d=Object.create(null);const key='x';d[key]+=a;return a;",
+        "const d=Object.create(null);const key='x';d[key]??=a;return a;",
+        "const d=Object.create(null);const key='x';d[key]++;return a;",
+        "const d=Object.create(null);const key='x';delete d[key];return a;",
+        "const d=Object.create(null);const key='x';d.x='old';const alias=d;alias[key]=a;return d.x.length;",
+        "const d=Object.create(null);const key='x';d.x={};const alias=d;alias[key]=a;return d.x.y===undefined?a:b;",
+        "const d=Object.create(null);const key='x';d.x=()=>a;const alias=d;alias[key]=b;return d.x();",
+    ] {
+        for typed in [false, true] {
+            let source = format!("export function run(a,b){{{body}}}");
+            let error = compile(&source, typed)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    for (depth, admitted) in [(16, true), (140, false)] {
+        let source = format!(
+            "export function run(a,b){{const d=Object.create(null);const key='x';d[{}key{}]=a;return d.x===a?a:b;}}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted, "{:?}", result.as_ref().err());
+    }
+}
+
+#[test]
 fn source_object_aliases_preserve_identity() {
     compare("const o={};const alias=o;return o===alias?a:b;");
     compare("const o={};const fresh={};return o!==fresh?a:b;");
