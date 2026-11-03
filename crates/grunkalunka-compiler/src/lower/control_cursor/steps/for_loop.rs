@@ -4,13 +4,13 @@
 //! renewal while the parent scheduler owns source traversal and resume order.
 use super::*;
 
-impl Lowering<'_, '_> {
+impl<'s, 'ast> Lowering<'s, 'ast> {
     pub(super) fn begin_for_loop<'n, 'a>(
         &mut self,
         source: &'n ForStatement<'a>,
         output: Region,
         depth: usize,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String> {
         // The synthetic header Block is not charged as a source statement.
         // Expression and declaration initializers both emit into that Region.
@@ -68,7 +68,7 @@ impl Lowering<'_, '_> {
     pub(super) fn finish_for_initializer<'n, 'a>(
         &mut self,
         frame: ForPredicateFrame<'n, 'a>,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String> {
         let source = frame.source;
         let mut condition = self.region(source);
@@ -112,7 +112,7 @@ impl Lowering<'_, '_> {
         frame: ForPredicateFrame<'n, 'a>,
         mut condition: Region,
         predicate: ValueId,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String> {
         let ForPredicateFrame {
             source,
@@ -151,7 +151,7 @@ impl Lowering<'_, '_> {
         frame: ForFrame<'n, 'a>,
         finished_region: Region,
         completion: Completion,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String> {
         // Body locals are not visible to the update, but the header bindings
         // remain live. Restore the outer loop flag before evaluating the step.
@@ -185,7 +185,7 @@ impl Lowering<'_, '_> {
         finished_region: Region,
         completion: Completion,
         mut step: Option<Region>,
-        cursor: &mut Cursor<'n, 'a>,
+        cursor: &mut Cursor<'s, 'n, 'a>,
     ) -> Result<(), String> {
         let ForFrame {
             source,

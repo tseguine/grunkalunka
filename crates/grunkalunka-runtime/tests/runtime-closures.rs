@@ -19,6 +19,21 @@ mod discarded_logical;
 mod for_let_cells;
 
 #[test]
+fn disposable_iife_checks_preserve_captures_effects_and_lifted_identity() {
+    compare_function_programs(
+        &[
+            "return(x=>x+a)(b);",
+            "return(x=>{return(y=>{if(y)return y+x;return x;})(b);})(a);",
+            "return(x=>{let unused=()=>x;return x;})(a);",
+            "let n=0;return(x=>(n+=x,n+a))((n+=b,b))+n;",
+            "return((fn,x)=>fn(x))(x=>x+a,b);",
+            "return(o=>o.x===a?a:b)({x:a});",
+        ],
+        false,
+    );
+}
+
+#[test]
 fn eager_async_closures_keep_synchronous_prefix_effects() {
     compare_functions(&[
         "let n=a;const f=a?async x=>(n+=x,x):async x=>(n-=x,x);f(b);return n;",

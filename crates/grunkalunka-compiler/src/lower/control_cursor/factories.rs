@@ -6,7 +6,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         &mut self,
         mut state: FactoryExpression<'n, 'ast>,
         factory: function_values::PreparedRuntimeFactory<'n, 'ast>,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -46,7 +46,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         factory: function_values::PreparedRuntimeFactory<'n, 'ast>,
         output: Region,
         callee: ValueId,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -69,7 +69,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         state: FactoryExpression<'n, 'ast>,
         factory: function_values::PreparedFactory<'n, 'ast>,
         expression_depth: usize,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -100,7 +100,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     fn advance_factory_arguments<'n>(
         &mut self,
         mut arguments: Box<FactoryArguments<'n, 'ast>>,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -241,7 +241,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         kind: closures::FactoryArgumentKind,
         output: Region,
         value: Option<ValueId>,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -300,7 +300,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         factory: function_values::LocalFunctionResult,
         finished_region: Region,
         completion: Completion,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -325,7 +325,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         factory: function_values::LocalFunctionResult,
         output: Region,
         value: ValueId,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -345,7 +345,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         mut state: FactoryExpression<'n, 'ast>,
         factory: closures::PreparedConciseFactory<'n, 'ast>,
         arguments: Vec<ValueId>,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -375,7 +375,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         factory: function_values::PreparedRuntimeFactory<'n, 'ast>,
         callee: ValueId,
         arguments: Vec<ValueId>,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -397,7 +397,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     fn resume_factory_expression<'n>(
         &mut self,
         mut state: FactoryExpression<'n, 'ast>,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,

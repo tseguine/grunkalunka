@@ -2993,6 +2993,25 @@ fn for_declaration_initializers_preserve_awaits_and_header_publication() {
     );
 }
 
+#[test]
+fn disposable_awaited_iife_checks_preserve_inputs_and_async_jobs() {
+    compare_promises(
+        &[
+            "return await(async x=>{await b;return x+a;})(b);",
+            "return await(p=>p)(Promise.resolve(a));",
+            "return await(p=>p)(a?Promise.resolve(b):a);",
+            "return await((fn,x)=>fn(x))(async y=>{await a;return y+b;},a);",
+            "return await(async o=>{await b;return o.x===a?a:b;})({x:a});",
+        ],
+        &[
+            (4.0, 2.0),
+            (0.0, -0.0),
+            (-0.0, -2.0),
+            (f64::NAN, f64::INFINITY),
+        ],
+    );
+}
+
 fn compare_promises(bodies: &[&str], vectors: &[(f64, f64)]) {
     let sources = bodies
         .iter()

@@ -58,6 +58,68 @@ fn observe<T>(run: impl FnOnce() -> T) -> (T, usize, usize, usize) {
 }
 
 #[test]
+fn unchecked_local_callees_use_one_source_cursor() {
+    for (body, asynchronous) in [
+        (
+            "return(x=>{return(y=>{if(y)return y+x;return x;})(b);})(a);",
+            false,
+        ),
+        ("return await(async x=>{await b;return x+a;})(b);", true),
+    ] {
+        for typescript in [false, true] {
+            let prefix = if asynchronous { "async " } else { "" };
+            let source = format!("export {prefix}function run(a,b){{{body}}}");
+            std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn(move || {
+                    let (result, maximum, entries, _) = observe(|| {
+                        if asynchronous {
+                            crate::compile_async(&source, typescript).map(|_| ())
+                        } else {
+                            crate::compile(&source, typescript).map(|_| ())
+                        }
+                    });
+                    assert!(result.is_ok(), "{body}: {result:?}");
+                    assert_eq!(maximum, 1, "checking must not nest the source dispatcher");
+                    assert_eq!(
+                        entries, 1,
+                        "checking must not reenter the source dispatcher"
+                    );
+                })
+                .expect("2 MiB source checking thread")
+                .join()
+                .expect("checking and body lowering share one source cursor");
+        }
+    }
+}
+
+#[test]
+fn unchecked_local_error_unwinds_one_source_cursor() {
+    for typescript in [false, true] {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                let (result, maximum, entries, _) = observe(|| {
+                    crate::compile(
+                        "export function run(a,b){return(x=>Math.noSuch(x))(Math.noOther(a));}",
+                        typescript,
+                    )
+                    .map(|_| ())
+                });
+                assert_eq!(
+                    result.unwrap_err(),
+                    "unsupported at bytes 35..49: expression is outside the numeric experiment"
+                );
+                assert_eq!(maximum, 1);
+                assert_eq!(entries, 1);
+            })
+            .expect("2 MiB failed checking thread")
+            .join()
+            .expect("checking errors must restore the source cursor");
+    }
+}
+
+#[test]
 fn discarded_control_body_preserves_aggregate_expression_depth_limit() {
     for control in ["if(a)", "while(a)", "for(;a;)"] {
         for (branches, admitted) in [(126, true), (127, false)] {

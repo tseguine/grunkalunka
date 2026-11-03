@@ -13,6 +13,9 @@ use oxc_ast::ast::{
 mod callback_tests;
 #[cfg(test)]
 mod callee_tests;
+mod children;
+#[cfg(test)]
+mod closure_check_tests;
 #[cfg(test)]
 mod concise_factory_tests;
 #[cfg(test)]
@@ -46,6 +49,8 @@ std::thread_local! {
     static BRIDGED_FUNCTION_RESULT_VALUES: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
     static BRIDGED_RUNTIME_FACTORIES: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(0) };
+    static BRIDGED_CLOSURE_CHECKS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -150,7 +155,41 @@ struct FactoryArguments<'n, 'a> {
     values: Vec<ValueId>,
 }
 
+/// A boundary owns exactly one suspended Lowering in Cursor's LIFO state stack.
+struct LoweringChildId(usize);
+
+/// Checking completion is distinct from a future lifted-body publication.
+enum ChildCompletion {
+    DefinitionCheck { closure: closures::LocalClosure },
+}
+
 enum Frame<'n, 'a> {
+    /// Restore this parent before applying its semantic child completion or
+    /// unwinding any older source/evaluator frame that belongs to the parent.
+    ChildBoundary {
+        child: LoweringChildId,
+        completion: ChildCompletion,
+        depth: usize,
+    },
+    CheckedLocalCall {
+        expression: Box<evaluate::EvaluationCursor<'n, 'a>>,
+        mode: evaluate::Mode,
+        continuation: evaluate::LocalCallPreparation<'n, 'a>,
+        depth: usize,
+    },
+    CheckExpression {
+        function_value: bool,
+        depth: usize,
+    },
+    CheckBlock {
+        activation: closures::BlockArrowActivation,
+        factory: bool,
+        depth: usize,
+    },
+    CheckReturnedClosure {
+        output: Region,
+        depth: usize,
+    },
     /// A charged expression statement awaits a Discard-mode completion.
     DiscardExpression {
         depth: usize,
@@ -341,6 +380,11 @@ enum Frame<'n, 'a> {
 impl Frame<'_, '_> {
     fn depth(&self) -> usize {
         match self {
+            Self::ChildBoundary { depth, .. }
+            | Self::CheckedLocalCall { depth, .. }
+            | Self::CheckExpression { depth, .. }
+            | Self::CheckBlock { depth, .. }
+            | Self::CheckReturnedClosure { depth, .. } => *depth,
             Self::DiscardExpression { depth }
             | Self::ReturnValue { depth }
             | Self::FunctionReturn { depth }
@@ -378,17 +422,23 @@ impl Frame<'_, '_> {
 enum Outcome {
     Statement(Region, Completion),
     Expression(Region, Option<ValueId>),
+    CheckBody { region: Region, factory: bool },
+    CheckedClosure(closures::LocalClosure),
 }
 
 /// One active source-lowering machine. Language-specific transitions own
 /// their variant-specific Frame data but never allocate another scheduler.
-struct Cursor<'n, 'a> {
+struct Cursor<'s, 'n, 'a> {
     pending: Vec<Frame<'n, 'a>>,
     next: Option<Next<'n, 'a>>,
     completed: Option<Outcome>,
+    // Reuse the large child's preparation box for its suspended parent; stack
+    // growth moves only pointers, and restoration swaps into the active state.
+    #[allow(clippy::vec_box)]
+    parents: Vec<Box<Lowering<'s, 'a>>>,
 }
 
-impl<'n, 'a> Cursor<'n, 'a> {
+impl<'s, 'n, 'a> Cursor<'s, 'n, 'a> {
     fn new(root: ControlNode<'n, 'a>, output: Region, depth: usize) -> Self {
         Self {
             pending: Vec::new(),
@@ -399,6 +449,7 @@ impl<'n, 'a> Cursor<'n, 'a> {
                 charge: source_control::SourceCharge::Charged,
             }),
             completed: None,
+            parents: Vec::new(),
         }
     }
 }
@@ -436,7 +487,7 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         &mut self,
         mut expression: evaluate::EvaluationCursor<'n, 'ast>,
         mode: evaluate::Mode,
-        cursor: &mut Cursor<'n, 'ast>,
+        cursor: &mut Cursor<'s, 'n, 'ast>,
     ) -> Result<(), String>
     where
         'ast: 'n,
@@ -446,6 +497,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 evaluate::EvaluationRun::Complete(value) => {
                     cursor.completed = Some(Outcome::Expression(expression.into_region(), value));
                     return Ok(());
+                }
+                evaluate::EvaluationRun::CheckLocalClosure {
+                    closure,
+                    continuation,
+                } => {
+                    cursor.pending.push(Frame::CheckedLocalCall {
+                        expression: Box::new(expression),
+                        mode,
+                        continuation,
+                        depth: self.statement_depth,
+                    });
+                    return self.start_closure_check(closure, 0, cursor);
                 }
                 evaluate::EvaluationRun::LowerFunctionLeaf {
                     node,
@@ -854,6 +917,17 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
 
                 let completed = cursor.completed.take().expect("completed source child");
                 match completed {
+                    Outcome::CheckBody { region, factory } => {
+                        let frame = cursor.pending.pop().expect("checking child boundary");
+                        // This boundary must restore its parent before any
+                        // parent statement-depth write or continuation runs.
+                        self.finish_checking_child(frame, region, factory, &mut cursor);
+                    }
+                    Outcome::CheckedClosure(closure) => {
+                        let frame = cursor.pending.pop().expect("checked closure consumer");
+                        self.statement_depth = frame.depth();
+                        self.resume_checked_closure(frame, closure, &mut cursor)?;
+                    }
                     Outcome::Statement(finished_region, completion) => {
                         let Some(frame) = cursor.pending.pop() else {
                             *region = finished_region;
@@ -879,6 +953,18 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
         if result.is_err() {
             while let Some(frame) = cursor.pending.pop() {
                 match frame {
+                    Frame::ChildBoundary { child, .. } => {
+                        cursor.leave_lowering_child(self, child);
+                    }
+                    Frame::CheckExpression {
+                        function_value: true,
+                        ..
+                    } => {
+                        self.leave_function_value();
+                    }
+                    Frame::CheckBlock { activation, .. } => {
+                        self.abort_arrow_block_activation(activation);
+                    }
                     Frame::EvaluateBody { activation, .. } => {
                         self.abort_arrow_block_activation(activation);
                     }
@@ -924,6 +1010,10 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                 }
             }
         }
+        debug_assert!(
+            cursor.parents.is_empty(),
+            "balanced child Lowering ownership"
+        );
         self.restore_source_context(saved_context);
         result
     }
