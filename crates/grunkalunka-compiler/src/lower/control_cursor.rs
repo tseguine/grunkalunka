@@ -939,15 +939,35 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
     where
         'ast: 'n,
     {
-        #[cfg(test)]
-        let _entry = crate::source_cursor_tests::entry();
         // The root is a raw sequence or an already charged control node.
         // Nested source controls are admitted exactly once when Enter runs.
         let saved_context = self.source_context();
-        let original_depth = saved_context.statement_depth;
         let root_output = Self::take_cursor_region(region);
-        let mut cursor = Cursor::new(root, root_output, depth);
+        let cursor = Cursor::new(root, root_output, depth);
+        let completed = self.run_source_cursor(cursor, saved_context, Ok(()))?;
+        let Outcome::Statement(output, completion) = completed else {
+            unreachable!("source statement entry must complete a statement");
+        };
+        *region = output;
+        Ok(completion)
+    }
+
+    /// Run one owned cursor, including restoration after failed initialization.
+    /// The caller saves the parent context before installing any child state.
+    fn run_source_cursor<'n>(
+        &mut self,
+        mut cursor: Cursor<'s, 'n, 'ast>,
+        saved_context: source_control::SourceContext,
+        initialized: Result<(), String>,
+    ) -> Result<Outcome, String>
+    where
+        'ast: 'n,
+    {
+        #[cfg(test)]
+        let _entry = crate::source_cursor_tests::entry();
+        let original_depth = saved_context.statement_depth;
         let result = (|| {
+            initialized?;
             loop {
                 #[cfg(test)]
                 crate::source_cursor_tests::pending(cursor.pending.len());
@@ -1118,14 +1138,15 @@ impl<'s, 'ast> Lowering<'s, 'ast> {
                         self.finish_checking_child(frame, region, factory, &mut cursor);
                     }
                     Outcome::CheckedClosure(closure) => {
-                        let frame = cursor.pending.pop().expect("checked closure consumer");
+                        let Some(frame) = cursor.pending.pop() else {
+                            return Ok(Outcome::CheckedClosure(closure));
+                        };
                         self.statement_depth = frame.depth();
                         self.resume_checked_closure(frame, closure, &mut cursor)?;
                     }
                     Outcome::Statement(finished_region, completion) => {
                         let Some(frame) = cursor.pending.pop() else {
-                            *region = finished_region;
-                            return Ok(completion);
+                            return Ok(Outcome::Statement(finished_region, completion));
                         };
                         self.statement_depth = frame.depth();
                         self.resume_control(frame, finished_region, completion, &mut cursor)?;

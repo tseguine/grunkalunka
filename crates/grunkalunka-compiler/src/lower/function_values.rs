@@ -1198,10 +1198,13 @@ impl<'s, 'a> Lowering<'s, 'a> {
     ) -> Result<PreparedFunctionResult, String> {
         let preparation = self.begin_local_result_preparation(call)?;
         if !closure.checked {
-            if let Err(error) = self.check_local_closure(&mut closure) {
-                self.abort_local_result_preparation(preparation);
-                return Err(error);
-            }
+            closure = match self.check_closure_for_test(closure) {
+                Ok(closure) => closure,
+                Err(error) => {
+                    self.abort_local_result_preparation(preparation);
+                    return Err(error);
+                }
+            };
             self.capture_cells(&closure, region);
         }
         self.finish_local_result_preparation(preparation, call, closure)

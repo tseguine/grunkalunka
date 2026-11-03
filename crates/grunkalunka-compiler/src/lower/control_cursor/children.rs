@@ -30,6 +30,29 @@ impl<'s, 'n, 'a> Cursor<'s, 'n, 'a> {
 }
 
 impl<'s, 'ast> Lowering<'s, 'ast> {
+    /// Exercise the production checking stages without a synthetic statement,
+    /// value admission or source charge in helper-state regression tests.
+    #[cfg(test)]
+    pub(in crate::lower) fn check_closure_for_test(
+        &mut self,
+        closure: closures::LocalClosure,
+    ) -> Result<closures::LocalClosure, String> {
+        let saved_context = self.source_context();
+        let mut cursor = Cursor {
+            pending: Vec::new(),
+            next: None,
+            completed: None,
+            parents: Vec::new(),
+        };
+        // Initialization can already install a child and fail its body
+        // admission. Pass that failure through the same reverse unwind.
+        let initialized = self.start_closure_check(closure, 0, &mut cursor);
+        match self.run_source_cursor(cursor, saved_context, initialized)? {
+            Outcome::CheckedClosure(closure) => Ok(closure),
+            _ => unreachable!("checking root must return checked metadata"),
+        }
+    }
+
     pub(super) fn start_closure_check<'n>(
         &mut self,
         mut closure: closures::LocalClosure,
