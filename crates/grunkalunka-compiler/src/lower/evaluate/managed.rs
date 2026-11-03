@@ -6,6 +6,7 @@ mod arrays;
 pub(super) enum ManagedWork<'e, 'a> {
     Array(arrays::ArrayWork<'e, 'a>),
     ArrayLength(&'e Expression<'a>),
+    StringLength(&'e Expression<'a>),
     ResizeReceiver {
         node: &'e Expression<'a>,
         right: &'e Expression<'a>,
@@ -141,7 +142,7 @@ fn number_consumer<'e, 'a>(
         _ => {
             return Err(unsupported(
                 node,
-                "array length requires a numeric value position",
+                "length requires a numeric value position",
             ));
         }
     }
@@ -307,11 +308,11 @@ impl Lowering<'_, '_> {
         ));
         Ok(true)
     }
-    pub(in crate::lower) fn array_length_receiver<'e, 'a>(
+    pub(in crate::lower) fn managed_length_receiver<'e, 'a>(
         &self,
         node: &'e Expression<'a>,
         depth: usize,
-    ) -> Option<&'e Expression<'a>> {
+    ) -> Option<(&'e Expression<'a>, Type)> {
         let (node, depth) = closures::unwrapped_at(node, depth)?;
         let receiver = match node {
             Expression::StaticMemberExpression(m) if !m.optional && m.property.name == "length" => {
@@ -327,7 +328,13 @@ impl Lowering<'_, '_> {
             }
             _ => return None,
         };
-        (self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray)).then_some(receiver)
+        if self.receiver_type(receiver, depth + 1) == Some(Type::ManagedArray) {
+            Some((receiver, Type::ManagedArray))
+        } else {
+            self.stored
+                .string(receiver.node_id())
+                .then_some((receiver, Type::ManagedValue))
+        }
     }
 
     fn member_array(&self, node: &Expression<'_>, depth: usize) -> bool {
@@ -599,11 +606,16 @@ impl Lowering<'_, '_> {
         if matches!(
             mode,
             Mode::Number | Mode::General | Mode::Managed | Mode::Predicate
-        ) && let Some(receiver) = self.array_length_receiver(node, depth)
+        ) && let Some((receiver, ty)) = self.managed_length_receiver(node, depth)
         {
             number_consumer(work, node, mode)?;
-            work.push(Work::Managed(ManagedWork::ArrayLength(node)));
-            work.push(Work::Eval(receiver, depth + 1, Mode::Array));
+            if ty == Type::ManagedArray {
+                work.push(Work::Managed(ManagedWork::ArrayLength(node)));
+                work.push(Work::Eval(receiver, depth + 1, Mode::Array));
+            } else {
+                work.push(Work::Managed(ManagedWork::StringLength(node)));
+                work.push(Work::Eval(receiver, depth + 1, Mode::Managed));
+            }
             return Ok(true);
         }
         if matches!(mode, Mode::Predicate)
@@ -996,6 +1008,16 @@ impl Lowering<'_, '_> {
                     regions.current(),
                     node,
                     Op::ManagedArrayLength { result, array },
+                );
+                values.push(Value::Number(result));
+            }
+            ManagedWork::StringLength(node) => {
+                let input = values.pop().expect("String length receiver").id();
+                let result = self.value(Type::Number);
+                Self::push(
+                    regions.current(),
+                    node,
+                    Op::ManagedStringLength { result, input },
                 );
                 values.push(Value::Number(result));
             }

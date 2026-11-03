@@ -298,6 +298,17 @@ impl Emitter<'_> {
                 self.output.push_str("struct.new $gc_value\n");
                 self.set(*result);
             }
+            Op::ManagedStringLength { result, input } => {
+                self.get(*input);
+                self.output.push_str(
+                    "struct.get $gc_value 0\ni32.const 5\ni32.ne\nif\nunreachable\nend\n",
+                );
+                self.get(*input);
+                self.output.push_str(
+                    "struct.get $gc_value 2\nref.cast (ref $gc_key)\narray.len\nf64.convert_i32_u\n",
+                );
+                self.set(*result);
+            }
             Op::ManagedArrayNew { result, length } => {
                 writeln!(
                     self.output,

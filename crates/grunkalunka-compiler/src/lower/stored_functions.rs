@@ -13,6 +13,7 @@ pub(super) enum Origin {
     Array(NodeId),
     Arrow(NodeId),
     Named(SymbolId),
+    String,
     Other,
 }
 type Alternatives = BTreeSet<Origin>;
@@ -55,6 +56,11 @@ fn extend<K: Ord>(map: &mut BTreeMap<K, Alternatives>, key: K, values: Alternati
     before != entry.len()
 }
 impl Fields {
+    pub(super) fn string(&self, node: NodeId) -> bool {
+        self.values
+            .get(&node)
+            .is_some_and(|values| values.len() == 1 && values.contains(&Origin::String))
+    }
     pub(super) fn container(&self, node: NodeId) -> Option<Type> {
         let values = self.values.get(&node)?;
         let ty = match values.first()? {
@@ -101,8 +107,8 @@ impl Fields {
         if !semantic.nodes().iter().any(|node| {
             matches!(
                 node.kind(),
-                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_)
-            )
+                AstKind::ObjectExpression(_) | AstKind::ArrayExpression(_) | AstKind::StringLiteral(_)
+            ) || matches!(node.kind(), AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof)
         }) {
             return Self::default();
         }
@@ -126,6 +132,14 @@ impl Fields {
         for node in semantic.nodes().iter() {
             let id = node.id();
             let rule = match node.kind() {
+                AstKind::StringLiteral(_) => {
+                    values.insert(id, BTreeSet::from([Origin::String]));
+                    None
+                }
+                AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Typeof => {
+                    values.insert(id, BTreeSet::from([Origin::String]));
+                    None
+                }
                 AstKind::ObjectExpression(object) => {
                     let mut own = BTreeMap::new();
                     for property in &object.properties {
