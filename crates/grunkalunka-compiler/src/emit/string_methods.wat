@@ -63,3 +63,39 @@
     local.get $unit i32.trunc_f64_u i32.const 1 array.new $gc_key
   end
   struct.new $gc_value)
+
+;; Exact code-unit comparison; no allocation, coercion, or normalization.
+(func $gc_string_search (param $value (ref null $gc_value))
+  (param $needle (ref null $gc_value)) (param $position f64) (param $includes i32)
+  (result i32)
+  (local $source (ref null $gc_key)) (local $search (ref null $gc_key))
+  (local $length i32) (local $count i32) (local $start i32)
+  (local $last i32) (local $index i32)
+  local.get $value call $gc_string_key local.tee $source array.len local.set $length
+  local.get $needle call $gc_string_key local.tee $search array.len local.set $count
+  local.get $length f64.convert_i32_u local.get $position i32.const 0
+  call $gc_string_position local.set $start
+  local.get $count i32.eqz if i32.const 1 return end
+  ;; Subtract after clamping, before adding offsets, to avoid Wasm32 overflow.
+  local.get $count local.get $length local.get $start i32.sub i32.gt_u
+  if i32.const 0 return end
+  local.get $length local.get $count i32.sub local.set $last
+  loop $candidate
+    i32.const 0 local.set $index
+    block $mismatch
+      loop $unit
+        local.get $source local.get $start local.get $index i32.add array.get_u $gc_key
+        local.get $search local.get $index array.get_u $gc_key
+        i32.ne br_if $mismatch
+        local.get $index i32.const 1 i32.add local.tee $index
+        local.get $count i32.lt_u br_if $unit
+      end
+      i32.const 1 return
+    end
+    local.get $includes i32.eqz
+    local.get $start local.get $last i32.eq i32.or
+    if i32.const 0 return end
+    local.get $start i32.const 1 i32.add local.set $start
+    br $candidate
+  end
+  unreachable)

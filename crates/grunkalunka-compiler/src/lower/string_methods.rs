@@ -7,6 +7,8 @@ pub(super) enum Method {
     Substring,
     CharAt,
     CharCodeAt,
+    StartsWith,
+    Includes,
 }
 
 impl Method {
@@ -14,12 +16,13 @@ impl Method {
         match self {
             Self::Slice | Self::Substring | Self::CharAt => Type::ManagedValue,
             Self::CharCodeAt => Type::Number,
+            Self::StartsWith | Self::Includes => Type::Predicate,
         }
     }
 
     pub(super) fn arguments(self) -> usize {
         match self {
-            Self::Slice | Self::Substring => 2,
+            Self::Slice | Self::Substring | Self::StartsWith | Self::Includes => 2,
             Self::CharAt | Self::CharCodeAt => 1,
         }
     }
@@ -49,6 +52,8 @@ pub(super) fn call<'e, 'a>(call: &'e CallExpression<'a>) -> Option<(&'e Expressi
         "substring" => Method::Substring,
         "charAt" => Method::CharAt,
         "charCodeAt" => Method::CharCodeAt,
+        "startsWith" => Method::StartsWith,
+        "includes" => Method::Includes,
         _ => return None,
     };
     Some((receiver, method))

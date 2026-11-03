@@ -3,6 +3,123 @@ mod common;
 use common::compare_sources;
 
 #[test]
+fn string_search_clamps_number_positions_and_matches_utf16_units() {
+    for body in [
+        "const s='abcabc';return (s.startsWith('abc',a)?100:0)+(s.includes('abc',a)?10:0)+(s.includes('bc',b)?1:0);",
+        "const s='abcabc';return (s.startsWith('bc',a+0.75)?10:0)+(s.includes('bc',b+1.75)?1:0);",
+        "return (''.startsWith('',a)?100:0)+(''.includes('',b)?10:0)+(''.includes('a',a)?1:0);",
+        "return 'abc'.startsWith('',Infinity)&&'abc'.includes('',4294967296)&&!'abc'.startsWith('abcd')&&!'abc'.includes('abcd')?1:0;",
+        "return 'abababc'.includes('ababc')&&!'abababc'.startsWith('ababc')&&'aaaaab'.includes('aaab')&&!''.startsWith('a')?1:0;",
+        r"const s='\0A\u{1f600}\ud800e\u0301';return s.startsWith('\ud83d',2)&&s.startsWith('\ude00',3)&&s.includes('\ud800e')&&s.includes('\0')&&!s.includes('\u00e9')?1:0;",
+        r"return '\ud800x\udfff'.includes('\udfff',a)&&'\u{1f600}'.includes('\ude00',b)?1:0;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_search_keeps_defaults_argument_effects_and_operand_snapshots() {
+    for body in [
+        "return 'abc'.startsWith('a')&&'abc'.startsWith('a',undefined)&&'abc'.includes('a',undefined)&&'abc'.includes('b')?1:0;",
+        "let n=0;const found=(n=1,'abc').startsWith((n=n*10+2,'b'),(n=n*10+3,1),(n=n*10+4,0));return found?n:-1;",
+        "let n=0;const found=(n=1,'abc').includes((n=n*10+2,'a'),void(n=n*10+3),(n=n*10+4,0));return found?n:-1;",
+        "let s='abc';const found=s['startsWith']((s='changed','a'));return found&&s==='changed'?1:0;",
+        "let needle='b';const found='abc'['includes'](needle,(needle='missing',0));return found&&needle==='missing'?1:0;",
+        "let s='abc';let needle='b';const found=s.includes(needle,0,(s='changed',needle='missing'));return found&&s==='changed'&&needle==='missing'?1:0;",
+        "const undefined=2;return 'abc'.startsWith('c',undefined)&&!'abc'.includes('b',undefined)?1:0;",
+        "let n=0;'abc'.startsWith((n=1,'a'),(n=n*10+2,0),n=n*10+3);return n;",
+        "let n=0;'abc'.includes((n=1,'a'),void(n=n*10+2),n=n*10+3);return n;",
+    ] {
+        let js = format!("export function run(a,b){{{body}}}");
+        compare_sources(&js, &js);
+    }
+}
+
+#[test]
+fn string_search_composes_boolean_values_helpers_and_ordinary_methods() {
+    for source in [
+        "function has(s,n){return s.includes(n);}export function run(a,b){return has('Heading: Notes','Notes')&&!has('Heading: Notes','Other')?1:0;}",
+        "function text(){return 'abc';}export function run(a,b){const needle={text:'b'};const has=()=>text().includes(needle.text);return has()?1:0;}",
+        "export function run(a,b){const found='abc'.includes('a');let flag=found;flag='abc'.startsWith('b');const box={found};return box.found===true&&flag===false&&found!==1?1:0;}",
+        "export function run(a,b){const found='abc'.includes('a');return +found+ +'abc'.startsWith('a')+('abc'.includes('b')&&a?10:0);}",
+        "export function run(a,b){const text=('abc'+'def').slice(1,5);const xs=[text];return xs.at(0)===text&&text.includes('cd')&&text.startsWith('bc')?text.length:0;}",
+        "export function run(a,b){const o={startsWith:(x,y)=>x+y,includes:x=>x};return o.startsWith(a,b)+o.includes(a);}",
+        "function text(x){return 'ordinary';}export function run(a,b){const o={startsWith:text,includes:text};return o.startsWith(a).length+o.includes(b).length;}",
+        "export function run(a,b){const o={startsWith:x=>x>0,includes:x=>x<0};return o.startsWith(a)&&o.includes(b)?1:0;}",
+    ] {
+        compare_sources(
+            source,
+            &source.replace("run(a,b)", "run(a: number,b: number)"),
+        );
+    }
+    compare_sources(
+        "export function run(a,b){const s='abc';return s.startsWith('a')?1:0;}",
+        "export function run(a: number,b: number){const s: number='abc';return (s as boolean).startsWith('a' as number)?1:0;}",
+    );
+}
+
+#[test]
+fn string_search_rejects_unproven_strings_and_unrepresented_coercions() {
+    for body in [
+        "return 'abc'.startsWith()?1:0;",
+        "return 'abc'.includes(undefined)?1:0;",
+        "return 'abc'.includes(a)?1:0;",
+        "return 'abc'.startsWith(null)?1:0;",
+        "return 'abc'.includes(/a/)?1:0;",
+        "return 'abc'.includes('a','1')?1:0;",
+        "return 'abc'.startsWith('a',true)?1:0;",
+        "return 'abc'.includes('a',null)?1:0;",
+        "return 'abc'.startsWith('a',{})?1:0;",
+        "const s=a?'abc':null;return s.includes('a')?1:0;",
+        "const needle=a?'a':null;return 'abc'.includes(needle)?1:0;",
+        "let needle='a';const test=()=> 'abc'.includes(needle);needle=a;return test()?1:0;",
+        "const xs=['abc'];return xs.at(0).includes('a')?1:0;",
+        "const xs=['a'];return 'abc'.startsWith(xs.at(0))?1:0;",
+        "const o={needle:'a'};o.needle=a;return 'abc'.includes(o.needle)?1:0;",
+        "const s='abc';return s?.startsWith('a')?1:0;",
+        "const s='abc';return s.includes?.('a')?1:0;",
+        "return 'abc'.startsWith.call('abc','a')?1:0;",
+        "return 'abc'.includes(...['a'])?1:0;",
+        "const key='includes';return 'abc'[key]('a')?1:0;",
+        "return 'abc'.includes('a').length;",
+        "return ('abc'.startsWith('a')+'!').length;",
+        "return 'abc'.includes('a');",
+    ] {
+        let source = format!("export function run(a,b){{{body}}}");
+        for ts in [false, true] {
+            let error = grunkalunka_compiler::compile(&source, ts)
+                .err()
+                .unwrap_or_else(|| panic!("admitted {source}"));
+            assert!(error.contains("unsupported"), "{source}: {error}");
+            assert!(!error.contains("internal IR"), "{source}: {error}");
+        }
+    }
+    let typed = "export function run(a: number,b: number){const s: string=a;return (s as string).includes('a')?1:0;}";
+    assert!(grunkalunka_compiler::compile(typed, true).is_err());
+}
+
+#[test]
+fn string_search_preserves_the_existing_small_stack_boundary() {
+    for (depth, admitted) in [(24, true), (140, false)] {
+        let source = format!(
+            "export function run(a,b){{return 'abcdef'{}.includes('bc')?1:0;}}",
+            ".slice(0)".repeat(depth)
+        );
+        let result = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || grunkalunka_compiler::compile(&source, false))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(result.is_ok(), admitted);
+        if let Err(error) = result {
+            assert!(error.contains("nesting"), "{error}");
+        }
+    }
+}
+
+#[test]
 fn string_characters_use_utf16_units_and_number_index_normalization() {
     for body in [
         r"const s='\0\u{1f600}\ud800\uffff';return s.charCodeAt(a);",

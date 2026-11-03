@@ -108,6 +108,7 @@ fn kinds(
                 let result = match result {
                     Type::ManagedValue => Kind::String,
                     Type::Number => Kind::Primitive,
+                    Type::Predicate => Kind::GeneralPrimitive,
                     _ => unreachable!("String method result kind"),
                 };
                 values.push(if receiver.contains(&Kind::String) {

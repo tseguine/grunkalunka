@@ -1,6 +1,21 @@
 use super::*;
 
 #[test]
+fn string_search_saves_operands_and_boolean_results_across_awaits() {
+    compare_promises(
+        &[
+            "let s='abc';const found=s.startsWith((await a,s='changed','a'),(await b,0));await a;return found&&s==='changed'?1:0;",
+            "let needle='b';const found='abc'.includes(needle,(await a,needle='changed',0),(await b,0));await a;return found&&needle==='changed'?1:0;",
+            "let n=0;const found='abc'.includes((await a,n=1,'a'),void(await b,n=n*10+2),(await a,n=n*10+3));await b;return found?n:-1;",
+            "await a;return 'abc'.startsWith('a',(await b,0));",
+            "const found='abc'.includes('missing');await a;return found;",
+            "let n=0;'abc'.startsWith('a',(await a,n=1,0),(await b,n=n*10+2));return n;",
+        ],
+        &[(4.0, 2.0), (0.0, -0.0), (f64::NAN, f64::INFINITY)],
+    );
+}
+
+#[test]
 fn string_characters_preserve_inputs_and_results_across_suspension() {
     compare_promises(
         &[

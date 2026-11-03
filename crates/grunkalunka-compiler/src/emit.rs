@@ -377,6 +377,24 @@ impl Emitter<'_> {
                 );
                 self.set(*result);
             }
+            Op::ManagedStringSearch {
+                result,
+                input,
+                search,
+                position,
+                includes,
+            } => {
+                self.get(*input);
+                self.get(*search);
+                self.get(*position);
+                writeln!(
+                    self.output,
+                    "i32.const {}\ncall $gc_string_search",
+                    i32::from(*includes)
+                )
+                .unwrap();
+                self.set(*result);
+            }
             Op::ManagedArrayNew { result, length } => {
                 writeln!(
                     self.output,

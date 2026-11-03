@@ -563,6 +563,13 @@ pub(crate) enum Op {
         input: ValueId,
         index: ValueId,
     },
+    ManagedStringSearch {
+        result: ValueId,
+        input: ValueId,
+        search: ValueId,
+        position: ValueId,
+        includes: bool,
+    },
     ManagedObjectNew {
         result: ValueId,
     },
@@ -1407,6 +1414,18 @@ impl Verifier<'_> {
                 self.value(*input, Type::ManagedValue, visible, span)?;
                 self.value(*index, Type::Number, visible, span)?;
                 self.define(*result, Type::Number, visible, span)?;
+            }
+            Op::ManagedStringSearch {
+                result,
+                input,
+                search,
+                position,
+                ..
+            } => {
+                self.value(*input, Type::ManagedValue, visible, span)?;
+                self.value(*search, Type::ManagedValue, visible, span)?;
+                self.value(*position, Type::Number, visible, span)?;
+                self.define(*result, Type::Predicate, visible, span)?;
             }
             Op::ManagedObjectNew { result } => {
                 self.define(*result, Type::ManagedObject, visible, span)?;
