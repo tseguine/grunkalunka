@@ -377,6 +377,110 @@ function ppmRgb(ppm, x, y) {
   return [...ppm.subarray(offset, offset + 3)];
 }
 
+test('native A1 session scene keeps a reversible control with distinct hit identity',
+  { timeout: 120_000 }, () => {
+    checkedCommand('cargo', ['build', '-p', 'grunkalunka-layout', '--example',
+      'a1_note_scene', '--locked', '--offline', '-j', '4']);
+    const executable = nativeExample('a1_note_scene');
+    const rows = headings.map(heading => [heading.level, heading.start, heading.end,
+      heading.sectionEnd, heading.parent ?? -1, Buffer.from(heading.text).toString('hex')]
+      .join('\t')).join('\n') + '\n';
+    const shown = `A1SCENE2\tgranted\t${bytes.length}\t2\t1\t2\t1\n${rows}`;
+    const collapsed = `A1SCENE2\tgranted\t${bytes.length}\t0\t1\t2\t0\n`;
+    const empty = 'A1SCENE2\tgranted\t0\t0\t1\t0\t0\n';
+    const denied = 'A1SCENE2\tdenied\t0\t0\t0\t0\t0\n';
+    const report = input => parseNativeScene(checkedCommand(executable, ['--report'], input));
+    const hit = (input, x, y) => checkedCommand(executable,
+      ['--hit', String(x), String(y)], input);
+    const shownFrame = report(shown);
+    const collapsedFrame = report(collapsed);
+    assert.deepEqual(shownFrame.anchors.map(anchor => anchor.text),
+      ['Hide outline', 'Root', '子😀']);
+    assert.deepEqual(collapsedFrame.anchors.map(anchor => anchor.text),
+      ['Show outline', 'Outline collapsed.']);
+    for (const frame of [shownFrame, collapsedFrame]) {
+      const control = frame.anchors[0];
+      assert.deepEqual([control.node, control.x, control.y, control.width, control.height],
+        [2, 8, 8, 304, 24]);
+      assert.deepEqual([control.start, control.end, control.level], [-1, -1, 0],
+        'the control is not a forged document heading');
+    }
+    assert.equal(shownFrame.anchors[1].y, 40, 'outline row geometry stays stable');
+    for (const input of [shown, collapsed]) {
+      for (const [x, y] of [[24, 16], [8, 8], [311, 31]]) {
+        assert.equal(hit(input, x, y), 'A1HIT2\ttoggle\n');
+      }
+      for (const [x, y] of [[7, 16], [312, 16], [24, 7], [24, 32],
+        [24, 40], [320, 16], [24, 160]]) {
+        assert.equal(hit(input, x, y), 'A1HIT2\tnone\n',
+          `only the control box accepts (${x}, ${y})`);
+      }
+    }
+    const shownPixels = checkedScenePpm(executable, shown);
+    const collapsedPixels = checkedScenePpm(executable, collapsed);
+    assert.notDeepEqual(shownPixels, collapsedPixels);
+    assert.deepEqual(checkedScenePpm(executable, shown), shownPixels,
+      'reopening the same document restores the exact frame');
+    assert.deepEqual(ppmRgb(shownPixels, 24, 40), [87, 164, 118]);
+    assert.deepEqual(ppmRgb(collapsedPixels, 24, 40), [160, 160, 160]);
+
+    for (const input of [empty, denied]) {
+      assert.equal(hit(input, 24, 16), 'A1HIT2\tnone\n');
+      assert.equal(hit(input, 24, 40), 'A1HIT2\tnone\n');
+      assert.equal(report(input).anchors[0].text, 'Note preview');
+    }
+    assert.deepEqual(report(empty).anchors.map(anchor => anchor.text),
+      ['Note preview', 'No headings.']);
+    assert.deepEqual(report(denied).anchors.map(anchor => anchor.text),
+      ['Note preview', 'Document access denied.']);
+    assert.equal(hit('A1SCENE2\tgranted\t4096\t0\t1\t64\t0\n', 24, 16),
+      'A1HIT2\ttoggle\n', 'the admitted heading bound remains usable');
+
+    // The opt-in protocol does not turn the static title into a control.
+    const legacy = `A1SCENE1\tgranted\t${bytes.length}\t2\t1\n${rows}`;
+    assert.equal(hit(legacy, 24, 16), 'A1HIT1\tnone\n');
+    assert.equal(hit(legacy, 24, 40), 'A1HIT1\t0\t0\t8\t1\n');
+    const legacyFrame = report(legacy);
+    assert.equal(legacyFrame.anchors[0].text, 'Note preview');
+    assert.deepEqual(legacyFrame.anchors.slice(1), shownFrame.anchors.slice(1));
+  });
+
+test('native A1 session scene rejects contradictory control state before output',
+  { timeout: 120_000 }, () => {
+    const executable = nativeExample('a1_note_scene');
+    const cases = [
+      'A1SCENE2\tgranted\t0\t0\t1\n',
+      'A1SCENE2\tgranted\t0\t0\t1\t0\t0\textra\n',
+      'A1SCENE2\tgranted\t0\t0\t1\t0\t1\n',
+      'A1SCENE2\tgranted\t20\t0\t1\t1\t1\n',
+      'A1SCENE2\tgranted\t20\t1\t1\t1\t0\n1\t0\t5\t20\t-1\t61\n',
+      'A1SCENE2\tgranted\t20\t1\t1\t2\t1\n1\t0\t5\t20\t-1\t61\n',
+      'A1SCENE2\tgranted\t20\t0\t1\t65\t0\n',
+      'A1SCENE2\tgranted\t20\t0\t1\t1\t2\n',
+      'A1SCENE2\tgranted\t20\t0\t1\t1\t01\n',
+      'A1SCENE2\tgranted\t20\t0\t1\t1\ttrue\n',
+      'A1SCENE2\tdenied\t0\t0\t0\t1\t0\n',
+      'A1SCENE2\tdenied\t0\t0\t0\t0\t1\n',
+      'A1SCENE2\tdenied\t1\t0\t0\t0\t0\n',
+      'A1SCENE2\tdenied\t0\t0\t1\t0\t0\n',
+      'A1SCENE2\tgranted\t20\t0\t0\t1\t0\n',
+      'A1SCENE2\tgranted\t20\t1\t1\t1\t1\n',
+      'A1SCENE2\tgranted\t20\t0\t1\t1\t0\n1\t0\t5\t20\t-1\t61\n',
+    ];
+    for (const [index, input] of cases.entries()) {
+      for (const args of [['--ppm'], ['--hit', '24', '16']]) {
+        const result = spawnSync(executable, args, {
+          cwd: projectRoot, input, shell: false, encoding: null,
+          timeout: 30_000, killSignal: 'SIGKILL', maxBuffer: 256 * 1024,
+        });
+        if (result.error) throw result.error;
+        assert.equal(result.signal, null);
+        assert.notEqual(result.status, 0, `rejected session scene case ${index}`);
+        assert.equal(result.stdout.length, 0, 'invalid state cannot paint or select a control');
+      }
+    }
+  });
+
 test('native A1 scene rejects forged denial and malformed WIT rows before painting',
   { timeout: 120_000 }, () => {
     const executable = nativeExample('a1_note_scene');

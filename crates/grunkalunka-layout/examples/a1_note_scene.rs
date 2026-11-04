@@ -46,6 +46,13 @@ struct Heading {
 struct Note {
     profile: Profile,
     headings: Vec<Heading>,
+    control: Option<OutlineControl>,
+}
+
+#[derive(Clone, Copy)]
+struct OutlineControl {
+    total_count: usize,
+    expanded: bool,
 }
 
 fn decimal<T: std::str::FromStr>(input: &str, label: &str) -> Result<T, String> {
@@ -90,9 +97,11 @@ fn parse(input: &str) -> Result<Note, String> {
     let mut lines = input.split_terminator('\n');
     let header = lines.next().ok_or("missing A1 scene header")?;
     let fields = header.split('\t').collect::<Vec<_>>();
-    if fields.len() != 5 || fields[0] != "A1SCENE1" {
-        return Err("invalid A1 scene header".into());
-    }
+    let interactive = match (fields[0], fields.len()) {
+        ("A1SCENE1", 5) => false,
+        ("A1SCENE2", 7) => true,
+        _ => return Err("invalid A1 scene header".into()),
+    };
     let profile = match fields[1] {
         "granted" => Profile::Granted,
         "denied" => Profile::Denied,
@@ -109,6 +118,27 @@ fn parse(input: &str) -> Result<Note, String> {
     {
         return Err("scene authority/read contract violation".into());
     }
+    let control = if interactive {
+        let total_count: usize = decimal(fields[5], "total heading count")?;
+        let expanded = match fields[6] {
+            "0" => false,
+            "1" => true,
+            _ => return Err("invalid outline expansion state".into()),
+        };
+        if total_count > MAX_HEADINGS
+            || count != if expanded { total_count } else { 0 }
+            || (total_count == 0 && expanded)
+            || (profile == Profile::Denied && total_count != 0)
+        {
+            return Err("invalid outline control state".into());
+        }
+        Some(OutlineControl {
+            total_count,
+            expanded,
+        })
+    } else {
+        None
+    };
 
     let mut headings: Vec<Heading> = Vec::with_capacity(count);
     let mut ancestors: Vec<usize> = Vec::new();
@@ -170,7 +200,11 @@ fn parse(input: &str) -> Result<Note, String> {
     if lines.next().is_some() {
         return Err("trailing A1 scene input".into());
     }
-    Ok(Note { profile, headings })
+    Ok(Note {
+        profile,
+        headings,
+        control,
+    })
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -202,10 +236,21 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let input = String::from_utf8(input)?;
     let note = parse(&input).map_err(io::Error::other)?;
 
+    let toggle_enabled = note.profile == Profile::Granted
+        && note.control.is_some_and(|control| control.total_count > 0);
+    let title = if toggle_enabled {
+        if note.control.is_some_and(|control| control.expanded) {
+            "Hide outline"
+        } else {
+            "Show outline"
+        }
+    } else {
+        "Note preview"
+    };
     let mut elements = vec![
         Element::new(None, ElementKind::Body, "", 0),
         Element::new(Some(0), ElementKind::Main, "", 0),
-        Element::new(Some(1), ElementKind::Heading(1), "Note preview", 24),
+        Element::new(Some(1), ElementKind::Heading(1), title, 24),
     ];
     let mut colors = vec![Rgb::WHITE, Rgb::new(245, 245, 240), Rgb::new(54, 107, 178)];
     if note.profile == Profile::Denied {
@@ -217,12 +262,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         ));
         colors.push(Rgb::new(192, 80, 80));
     } else if note.headings.is_empty() {
-        elements.push(Element::new(
-            Some(1),
-            ElementKind::Paragraph,
-            "Outline collapsed.",
-            18,
-        ));
+        let status = if note.control.is_some_and(|control| control.total_count == 0) {
+            "No headings."
+        } else {
+            "Outline collapsed."
+        };
+        elements.push(Element::new(Some(1), ElementKind::Paragraph, status, 18));
         colors.push(Rgb::new(160, 160, 160));
     } else {
         elements.push(Element::new(Some(1), ElementKind::OrderedList, "", 0));
@@ -275,19 +320,29 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut stdout = io::stdout().lock();
     if let Some((x, y)) = hit {
-        // Only the WIT-derived heading rows can become activation targets.
-        // The title, main container and denial/collapsed panel are inert.
+        // The opt-in session protocol keeps one stable toggle target even
+        // while collapsed. Legacy scenes retain their heading-only targets.
         let targets: Vec<_> = elements
             .iter()
             .enumerate()
             .map(|(index, node)| HitNode {
                 parent: node.parent,
-                targetable: index >= 4 && index < 4 + note.headings.len(),
+                targetable: if note.control.is_some() {
+                    toggle_enabled && index == 2
+                } else {
+                    index >= 4 && index < 4 + note.headings.len()
+                },
             })
             .collect();
         let selected = hit_test(&semantic.frame, &targets, x, y)
             .map_err(|error| io::Error::other(format!("native A1 hit test: {error:?}")))?;
-        if let Some(node) = selected {
+        if note.control.is_some() {
+            writeln!(
+                stdout,
+                "A1HIT2\t{}",
+                if selected.is_some() { "toggle" } else { "none" }
+            )?;
+        } else if let Some(node) = selected {
             let heading_index = node - 4;
             let heading = &note.headings[heading_index];
             writeln!(
